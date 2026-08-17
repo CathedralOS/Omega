@@ -16,6 +16,32 @@
 (def read_u16 ((bs Bytes)) RInt (read_le bs 2 1 0))
 (def read_u32 ((bs Bytes)) RInt (read_le bs 4 1 0))
 
+; Gamma Int is signed 64-bit, so a canonical unsigned 64-bit value is never
+; collapsed into one host integer.  Each half remains an independently checked
+; u32 and therefore represents the complete 0..2^64-1 range exactly.
+(def read_u64 ((bs Bytes)) RU64
+  (match (read_u32 bs)
+    (RIntBad RU64Bad)
+    ((RInt low rest)
+      (match (read_u32 rest)
+        (RIntBad RU64Bad)
+        ((RInt high tail) (RU64 (U64 low high) tail))))))
+
+(def u64_equal ((left U64) (right U64)) Int
+  (match left
+    ((U64 left-low left-high)
+      (match right
+        ((U64 right-low right-high)
+          (if (eq left-low right-low) (eq left-high right-high) 0))))))
+
+(def u64_is_zero ((value U64)) Int
+  (match value ((U64 low high) (if (eq low 0) (eq high 0) 0))))
+
+(def read_nonzero_u64 ((bs Bytes)) RU64
+  (match (read_u64 bs)
+    (RU64Bad RU64Bad)
+    ((RU64 value rest) (if (u64_is_zero value) RU64Bad (RU64 value rest)))))
+
 (def consume_zeroes ((bs Bytes) (n Int)) RBytes
   (if (eq n 0) (RBytes bs)
     (match (read_u8 bs)

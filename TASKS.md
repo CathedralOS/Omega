@@ -678,11 +678,13 @@ Remaining:
   697-byte fixture canonical-decodes exact `CallUnit` and `BoundaryCall`
   custody, including qualified affine resources, structural requirements,
   claim transfer, completion receipt, and boundary identity. The assembled
-  typed core is 4,545 lines / 180,717 bytes / 389 functions, with maximum
-  source nesting 25. Its PSITERM-neutral byte cursor and
-  checked `u8`/little-endian `u16`/`u32` primitives are now a separately gated
-  36-line reusable layer; tags, bounded `u64` identities, strings, recursive
-  vocabulary, and monomorphic type-specific results remain spike-owned. The
+  typed core is 4,569 lines / 181,674 bytes / 392 functions, with maximum
+  source nesting 25. Its PSITERM-neutral byte cursor, checked
+  `u8`/little-endian `u16`/`u32`, and exact low/high-half `u64` primitives are
+  now a separately gated 64-line reusable layer. The bounded spike narrows
+  identities to a zero high half only after complete unsigned decoding; tags,
+  strings, recursive vocabulary, and monomorphic type-specific results remain
+  spike-owned. The
   bounded thirty-two-kind scalar leaf slice now resolves through five composed,
   exact-unique policy-cohort schema tables: each row owns result shape,
   denotation, goal, post-discharge fact, crash policy, fuel, and frontier

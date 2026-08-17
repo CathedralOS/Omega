@@ -145,11 +145,11 @@ these are feasibility observations, not performance promises:
 | Canonical scalar fixture bytes | 1,983 |
 | Canonical structural/effect fixture bytes | 695 |
 | Canonical Unit/boundary call fixture bytes | 697 |
-| Assembled typed Gamma core | 4,545 lines / 180,717 bytes |
-| Shared canonical-byte layer | 36 lines / 1,373 bytes / 6 functions |
-| Spike-specific typed core | 4,509 lines / 179,344 bytes / 383 functions |
-| Closed data declarations | 166 |
-| Typed functions, assembled | 389 |
+| Assembled typed Gamma core | 4,569 lines / 181,674 bytes |
+| Shared canonical-byte layer | 64 lines / 2,399 bytes / 10 functions |
+| Spike-specific typed core | 4,505 lines / 179,275 bytes / 382 functions |
+| Closed data declarations | 168 |
+| Typed functions, assembled | 392 |
 | Maximum source nesting | 25 |
 | Canonical scalar ledger | 54 rows / 3,607 modeled bytes |
 | Canonical structural/effect ledger | 3 rows / 185 modeled bytes |
@@ -179,14 +179,17 @@ was decomposed into accessors, validators, row emitters, and sequencing helpers.
 That is useful evidence for the ruling: the low implementation should grow as
 small modules and closed row tables, not as a second monolithic verifier.
 
-The PSITERM-neutral byte cursor and checked `u8`/little-endian `u16`/`u32`
-primitives are now factored into `../canonical-bytes/` and have an independent
-typed/interpreter gate. The largest measured audit tax is mechanical repetition:
+The PSITERM-neutral byte cursor, checked `u8`/little-endian `u16`/`u32`, and
+exact low/high-half `u64` primitives are now factored into
+`../canonical-bytes/` and have an independent typed/interpreter gate. The
+bounded spike explicitly narrows identities to a zero high half only after the
+shared layer has decoded the complete unsigned value. The largest measured
+audit tax is mechanical repetition:
 Gamma currently has no parametric result type, so the bounded decoder declares a
 result ADT for each parsed semantic type. Completing the structural/effect slice
 adds 1,128 lines and 42,263 bytes to the assembled core, while canonical
-Unit/boundary decoding and evaluation bring the full bounded assembly to 4,545
-lines and 180,717 bytes. The code remains bounded, typechecked, separated into
+Unit/boundary decoding and evaluation bring the full bounded assembly to 4,569
+lines and 181,674 bytes. The code remains bounded, typechecked, separated into
 decoder versus schema/evaluator modules, and at nesting depth 25. All three call
 variants still traverse one axis checker rather than adding call-kind evaluator
 branches. That is an engineering and audit cost, not an actual

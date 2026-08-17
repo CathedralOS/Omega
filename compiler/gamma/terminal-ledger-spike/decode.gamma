@@ -1,23 +1,19 @@
 ; Q7 spike decoder for the closed scalar/logic/arithmetic/control/call PSITERM v11 slice.
 ; Fixed-width little-endian fields are consumed directly from Bytes.  The spike
-; accepts only small nonzero u64 identities (upper four bytes zero), which is an
-; explicit measured limitation rather than a host-language integer accident.
+; retains only small nonzero u64 identities (upper half zero), which is an
+; explicit measured limitation of this fixture vocabulary.  The shared byte
+; layer still decodes the complete unsigned range without collapsing it into
+; Gamma's signed Int.
 
 (def both ((a Int) (b Int)) Int (if a b 0))
 (def nonzero ((a Int)) Int (if (eq a 0) 0 1))
 
-(def read_u64_small ((bs Bytes)) RInt
-  (match (read_u32 bs)
-    (RIntBad RIntBad)
-    ((RInt low rest)
-      (match (consume_zeroes rest 4)
-        (RBytesBad RIntBad)
-        ((RBytes tail) (RInt low tail))))))
-
 (def read_id ((bs Bytes)) RInt
-  (match (read_u64_small bs)
-    (RIntBad RIntBad)
-    ((RInt id rest) (if (eq id 0) RIntBad (RInt id rest)))))
+  (match (read_nonzero_u64 bs)
+    (RU64Bad RIntBad)
+    ((RU64 value rest)
+      (match value
+        ((U64 low high) (if (eq high 0) (RInt low rest) RIntBad))))))
 
 (def expect_zero_count ((bs Bytes)) RBytes
   (match (read_u32 bs)

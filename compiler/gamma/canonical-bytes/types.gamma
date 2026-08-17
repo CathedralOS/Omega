@@ -6,3 +6,5 @@
 (data Bytes (BNil) (B Int Bytes))
 (data RInt (RInt Int Bytes) (RIntBad))
 (data RBytes (RBytes Bytes) (RBytesBad))
+(data U64 (U64 Int Int))                    ; exact low/high u32 halves
+(data RU64 (RU64 U64 Bytes) (RU64Bad))
