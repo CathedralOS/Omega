@@ -49,24 +49,32 @@
     (RIntBad RIntBad)
     ((RInt tag rest) (if (eq tag 1) (read_i8_payload rest) RIntBad))))
 
+(def narrow_spike_integer_type
+  ((integer TerminalIntegerType) (rest Bytes)) RInt
+  (match integer
+    ((TerminalFixedSigned bits)
+      (if (eq bits 8) (RInt 2 rest)
+        (if (eq bits 16) (RInt 3 rest) RIntBad)))
+    ((TerminalFixedUnsigned bits) RIntBad)
+    ((TerminalAddress bits) RIntBad)))
+
 (def read_integer_type ((bs Bytes)) RInt
-  (match (read_u8 bs)
-    (RIntBad RIntBad)
-    ((RInt tag rest)
-      (match (read_u16 rest)
-        (RIntBad RIntBad)
-        ((RInt bits tail)
-          (if (eq tag 1)
-            (if (eq bits 8) (RInt 2 tail)
-              (if (eq bits 16) (RInt 3 tail) RIntBad))
-            RIntBad))))))
+  (match (read_terminal_integer_type bs)
+    (RTerminalIntegerTypeBad RIntBad)
+    ((RTerminalIntegerType integer rest)
+      (narrow_spike_integer_type integer rest))))
+
+(def narrow_spike_scalar_type
+  ((scalar TerminalScalarType) (rest Bytes)) RInt
+  (match scalar
+    (TerminalBoolean (RInt 1 rest))
+    ((TerminalInteger integer) (narrow_spike_integer_type integer rest))))
 
 (def read_scalar_type ((bs Bytes)) RInt
-  (match (read_u8 bs)
-    (RIntBad RIntBad)
-    ((RInt tag rest)
-      (if (eq tag 1) (RInt 1 rest)
-        (if (eq tag 2) (read_integer_type rest) RIntBad)))))
+  (match (read_terminal_scalar_type bs)
+    (RTerminalScalarTypeBad RIntBad)
+    ((RTerminalScalarType scalar rest)
+      (narrow_spike_scalar_type scalar rest))))
 
 (def read_decl ((bs Bytes)) RDecl
   (match (read_id bs)
