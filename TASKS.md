@@ -744,7 +744,8 @@ Remaining:
   transfer responsibilities. Result-bearing boundary custody and general
   structural-result transfer are separate 393-line and 314-line modules over a
   shared 246-line structural-type retention responsibility. Scalar-graph
-  construction remains separate. The crate root is now 12,452 lines. These
+  terminal-module assembly is now a separate 1,061-line responsibility behind
+  one parent-facing builder. The crate root is now 11,396 lines. These
   are semantics-preserving responsibility splits, not trust promotions: the
   full low generator, row proofs, and composition bridges remain open, and no
   trust-graph node becomes derived from the spike.
