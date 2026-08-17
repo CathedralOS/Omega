@@ -74,15 +74,17 @@ pub(super) fn write_trust_report(
     let typed = &checked.typed;
     let mut report = TrustReport::default();
     report.selected_provider_closure_fingerprint = selected_provider_plans.normalized_identity();
+    let provider_grants = crate::pipeline::provider_plans::resolve_selected_provider_grants(
+        provider_plans,
+        selected_provider_plans,
+        root_grants,
+    )
+    .map_err(|diagnostic| vec![diagnostic])?;
     let mut non_provider_grants = Vec::new();
     for grant in root_grants {
-        if crate::pipeline::provider_plans::selected_provider_plan_for_grant(
-            provider_plans,
-            selected_provider_plans,
-            grant,
-        )
-        .map_err(|diagnostic| vec![diagnostic])?
-        .is_some()
+        if provider_grants
+            .iter()
+            .any(|provider_grant| provider_grant.selector == *grant)
         {
             continue;
         }
@@ -92,29 +94,22 @@ pub(super) fn write_trust_report(
                 .map_err(|diagnostic| vec![diagnostic])?,
         ));
     }
-    let mut recognized_provider_grants = Vec::new();
     // PRV3: derived provider plans -- one row each, dev-active with the
-    // standing warning until the final build grants the plan by name (or
-    // its trait leaf), fingerprint shown so drift is visible at a glance.
+    // standing warning until the final build grants the plan by exact name or
+    // exact selected slot, fingerprint shown so drift is visible at a glance.
     for plan in provider_plans {
-        let leaf = plan.schema.trait_name.as_str();
         let selected = selected_provider_plans
             .plan_by_identity(plan.identity_fingerprint())
             .is_some();
         let grant_selectors = selected
             .then(|| {
-                root_grants
+                provider_grants
                     .iter()
-                    .filter(|grant| *grant == &plan.name || *grant == leaf)
-                    .cloned()
+                    .filter(|grant| grant.selected_plan_identity == plan.identity_fingerprint())
+                    .map(|grant| grant.selector.clone())
                     .collect::<Vec<_>>()
             })
             .unwrap_or_default();
-        for selector in &grant_selectors {
-            if !recognized_provider_grants.contains(selector) {
-                recognized_provider_grants.push(selector.clone());
-            }
-        }
         let granted = !grant_selectors.is_empty();
         let provenance = if granted {
             "root grant (build.omg)"
@@ -365,7 +360,9 @@ pub(super) fn write_trust_report(
             *selector == grant.as_str()
                 && *subject != crate::pipeline::trust_lockfile::NonProviderTrustGrant::Unmatched
         });
-        let names_selected_provider = recognized_provider_grants.contains(grant);
+        let names_selected_provider = provider_grants
+            .iter()
+            .any(|provider_grant| provider_grant.selector == *grant);
         if !names_non_provider_subject && !names_selected_provider {
             report.rows.push(TrustReportRow {
                 commitment: format!("accepted fact: {grant}"),
