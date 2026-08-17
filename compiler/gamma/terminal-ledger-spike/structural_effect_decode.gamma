@@ -115,7 +115,7 @@
       (match (read_u32 r1)
         (RIntBad RSEParameterBad)
         ((RInt position r2)
-          (match (read_u8 r2)
+          (match (read_terminal_boolean r2)
             (RIntBad RSEParameterBad)
             ((RInt is_self r3)
               (match (read_id r3)
@@ -127,8 +127,7 @@
                       (match (read_ids r5)
                         (RIntsBad RSEParameterBad)
                         ((RInts qualifications rest)
-                          (if (if (lt is_self 2)
-                                (if (lt 0 multiplicity) (lt multiplicity 4) 0) 0)
+                          (if (if (lt 0 multiplicity) (lt multiplicity 4) 0)
                             (RSEParameter
                               (SEParameter place position is_self structural_type
                                 multiplicity qualifications) rest)
@@ -160,12 +159,11 @@
             (match (read_u32 r2)
               (RIntBad RSEPlaceBad)
               ((RInt position r3)
-                (match (read_u8 r3)
+                (match (read_terminal_boolean r3)
                   (RIntBad RSEPlaceBad)
                   ((RInt is_self rest)
-                    (if (lt is_self 2)
-                      (RSEPlace (SEPlace place (SEParameterPlace position is_self)) rest)
-                      RSEPlaceBad)))))
+                    (RSEPlace
+                      (SEPlace place (SEParameterPlace position is_self)) rest)))))
             (if (eq tag 3)
               (match (read_u32 r2)
                 (RIntBad RSEPlaceBad)
@@ -336,11 +334,10 @@
     ((RInt count rest) (read_se_blocks_n rest count))))
 
 (def read_optional_id ((bs Bytes)) RInt
-  (match (read_u8 bs)
-    (RIntBad RIntBad)
-    ((RInt tag rest)
-      (if (eq tag 0) (RInt 0 rest)
-        (if (eq tag 1) (read_id rest) RIntBad)))))
+  (match (read_optional_semantic_id bs)
+    (ROptionalU64Bad RIntBad)
+    ((ROptionalU64None rest) (RInt 0 rest))
+    ((ROptionalU64Some value rest) (narrow_spike_identity value rest))))
 
 (def finish_se_machine
   ((id Int) (attachment Int) (parameters Decls)

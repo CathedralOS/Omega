@@ -1,4 +1,5 @@
-; Focused executable contract for canonical terminal UTF-8 strings.
+; Focused executable contract for current terminal-codec envelope, scalars,
+; and canonical UTF-8 strings.
 
 (def bytes_equal ((left Bytes) (right Bytes)) Int
   (match left
@@ -71,6 +72,74 @@
       0)
     0))
 
+(def rint_exact_one ((result RInt) (want Int) (tail Int)) Int
+  (match result
+    (RIntBad 0)
+    ((RInt got rest)
+      (if (eq got want)
+        (match rest
+          (BNil 0)
+          ((B h t) (if (eq h tail) (match t (BNil 1) ((B x xs) 0)) 0)))
+        0))))
+
+(def roptional_none_one ((result ROptionalU64) (tail Int)) Int
+  (match result
+    (ROptionalU64Bad 0)
+    ((ROptionalU64Some value rest) 0)
+    ((ROptionalU64None rest)
+      (match rest
+        (BNil 0)
+        ((B h t) (if (eq h tail) (match t (BNil 1) ((B x xs) 0)) 0))))))
+
+(def roptional_some_one
+  ((result ROptionalU64) (want U64) (tail Int)) Int
+  (match result
+    (ROptionalU64Bad 0)
+    ((ROptionalU64None rest) 0)
+    ((ROptionalU64Some got rest)
+      (if (u64_equal got want)
+        (match rest
+          (BNil 0)
+          ((B h t) (if (eq h tail) (match t (BNil 1) ((B x xs) 0)) 0)))
+        0))))
+
+(def roptional_bad ((result ROptionalU64)) Int
+  (match result
+    (ROptionalU64Bad 1)
+    ((ROptionalU64None rest) 0)
+    ((ROptionalU64Some value rest) 0)))
+
+(def terminal_scalar_positive_test () Int
+  (if (rint_exact_one (read_terminal_boolean (B 0 (B 9 BNil))) 0 9)
+    (if (rint_exact_one (read_terminal_boolean (B 1 (B 9 BNil))) 1 9)
+      (if (roptional_none_one
+            (read_optional_semantic_id (B 0 (B 9 BNil))) 9)
+        (roptional_some_one
+          (read_optional_semantic_id
+            (B 1 (B 255 (B 255 (B 255 (B 255
+              (B 255 (B 255 (B 255 (B 255 (B 9 BNil)))))))))))
+          (U64 4294967295 4294967295) 9)
+        0)
+      0)
+    0))
+
+(def terminal_scalar_negative_test () Int
+  (if (match (read_terminal_boolean (B 2 BNil))
+        (RIntBad 1) ((RInt value rest) 0))
+    (if (match (read_terminal_boolean BNil)
+          (RIntBad 1) ((RInt value rest) 0))
+      (if (roptional_bad (read_optional_semantic_id (B 2 BNil)))
+        (if (roptional_bad
+              (read_optional_semantic_id
+                (B 1 (B 0 (B 0 (B 0 (B 0 (B 0 (B 0 (B 0 (B 0 BNil)))))))))))
+          (if (roptional_bad
+                (read_optional_semantic_id (B 1 (B 1 (B 0 BNil)))))
+            1 0)
+          0)
+        0)
+      0)
+    0))
+
 (def terminal_utf8_positive_test () Int
   (if (rutf8_exact_empty (read_utf8_string (B 0 (B 0 (B 0 (B 0 BNil))))) BNil)
     (if (rutf8_exact_empty
@@ -124,6 +193,10 @@
 (def terminal_codec_primitives_self_test () Int
   (if (terminal_header_positive_test)
     (if (terminal_header_negative_test)
-      (if (terminal_utf8_positive_test) (terminal_utf8_negative_test) 0)
+      (if (terminal_scalar_positive_test)
+        (if (terminal_scalar_negative_test)
+          (if (terminal_utf8_positive_test) (terminal_utf8_negative_test) 0)
+          0)
+        0)
       0)
     0))

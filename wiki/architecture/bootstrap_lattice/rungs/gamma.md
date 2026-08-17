@@ -83,7 +83,7 @@ in `compiler/gamma/terminal-ledger-spike/`. The typed program consumes exact
 current terminal-Psi bytes, validates a closed subset, and emits/audits ranked
 semantic rows. Both the Beta-written reference interpreter and the independent
 Python evaluator agree on the positive fixture, an asymmetric join rejection,
-and malformed-byte rejection. The assembled core is 4,667 lines rather than a
+and malformed-byte rejection. The assembled core is 4,689 lines rather than a
 permutation-expanded verifier. Its bounded thirty-two-kind scalar leaf semantics
 now live in five composed exact-unique policy-cohort schema tables; one generic
 interpreter consumes result, denotation, goal, fact, crash, fuel, and frontier
@@ -111,9 +111,9 @@ generator.
 
 The spike also makes one scaling limit concrete: the monomorphic type system
 requires a distinct parse-result ADT for each decoded type. Completing the
-structural/effect and canonical call slices plus the shared terminal envelope
-and UTF-8 decoder grow the assembled core to 185,986 bytes, 170 data
-declarations, and 398 typed functions, at nesting depth 25.
+structural/effect and canonical call slices plus the shared terminal envelope,
+scalar, and UTF-8 decoders grow the assembled core to 186,767 bytes, 171 data
+declarations, and 401 typed functions, at nesting depth 25.
 That repetition is an engineering/audit cost, not a reason to weaken the
 canonical-byte endpoint.
 The reusable PSITERM-neutral byte cursor, checked fixed-width primitives, and
@@ -123,10 +123,11 @@ explicit post-decode zero-high-half identity limitation remain local to the
 bounded fixture. The exact current envelope and length-prefixed UTF-8 grammar
 are independently factored and gated in
 `compiler/gamma/terminal-codec-primitives/`; one typed header parser serves all
-bounded decoders, and strings retain raw bytes without assigning identity or
-path meaning. If the complete closed vocabulary cannot remain auditable after
-those extractions, that is the point for an explicit Gamma rung-design
-correction.
+bounded decoders, canonical Boolean and optional semantic-ID scalars retain
+exact values, and strings retain raw bytes without assigning identity or path
+meaning. The bounded fixture narrows an ID only in its explicit consumer
+adapter. If the complete closed vocabulary cannot remain auditable after those
+extractions, that is the point for an explicit Gamma rung-design correction.
 
 The architectural fork is now settled: the functional interpreter-first Gamma
 defines meaning, while the old imperative compiler-first surface remains a

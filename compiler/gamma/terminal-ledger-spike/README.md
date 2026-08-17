@@ -145,12 +145,12 @@ these are feasibility observations, not performance promises:
 | Canonical scalar fixture bytes | 1,983 |
 | Canonical structural/effect fixture bytes | 695 |
 | Canonical Unit/boundary call fixture bytes | 697 |
-| Assembled typed Gamma core | 4,667 lines / 185,986 bytes |
+| Assembled typed Gamma core | 4,689 lines / 186,767 bytes |
 | Shared canonical-byte layer | 64 lines / 2,399 bytes / 10 functions |
-| Shared terminal-codec primitive layer | 133 lines / 5,942 bytes / 7 functions |
-| Spike-specific typed core | 4,470 lines / 177,645 bytes / 381 functions |
-| Closed data declarations | 170 |
-| Typed functions, assembled | 398 |
+| Shared terminal-codec primitive layer | 156 lines / 6,679 bytes / 9 functions |
+| Spike-specific typed core | 4,469 lines / 177,689 bytes / 382 functions |
+| Closed data declarations | 171 |
+| Typed functions, assembled | 401 |
 | Maximum source nesting | 25 |
 | Canonical scalar ledger | 54 rows / 3,607 modeled bytes |
 | Canonical structural/effect ledger | 3 rows / 185 modeled bytes |
@@ -186,7 +186,10 @@ The codec's exact current envelope and bounded canonical UTF-8 rule are a
 separate `../terminal-codec-primitives/` responsibility; all three spike
 decoders use one header parser instead of duplicating magic/format checks, and
 the identity consumers use one UTF-8 parser instead of owning an ASCII-only
-parser. Exact fixtures reject format, vocabulary, and malformed-UTF-8 drift.
+parser. Canonical Boolean and optional full-width semantic-ID decoding are also
+shared; the fixture's zero-high-half limit is applied only by its explicit
+consumer adapter. Exact fixtures reject format, vocabulary, and malformed-UTF-8
+drift.
 Both layers have independent typed/interpreter gates. The bounded spike
 explicitly narrows identities to a zero high half only after the byte layer has
 decoded the complete unsigned value. The largest measured audit tax is
@@ -194,8 +197,8 @@ mechanical repetition:
 Gamma currently has no parametric result type, so the bounded decoder declares a
 result ADT for each parsed semantic type. Completing the structural/effect slice
 adds 1,128 lines and 42,263 bytes to the assembled core, while canonical
-Unit/boundary decoding and evaluation bring the full bounded assembly to 4,667
-lines and 185,986 bytes. The code remains bounded, typechecked, separated into
+Unit/boundary decoding and evaluation bring the full bounded assembly to 4,689
+lines and 186,767 bytes. The code remains bounded, typechecked, separated into
 decoder versus schema/evaluator modules, and at nesting depth 25. All three call
 variants still traverse one axis checker rather than adding call-kind evaluator
 branches. That is an engineering and audit cost, not an actual
