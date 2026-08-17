@@ -268,6 +268,49 @@ fn ledger_spike_fixture(asymmetric: bool) -> TerminalModule {
                             obligation: obligation_id(110),
                         },
                     ),
+                    scalar_operation(
+                        28,
+                        value(41),
+                        OperationKind::IntegerConstant {
+                            value: IntegerValue::Signed(5),
+                        },
+                    ),
+                    scalar_operation(
+                        29,
+                        boolean(42),
+                        OperationKind::BooleanConstant { value: true },
+                    ),
+                    scalar_operation(
+                        30,
+                        boolean(43),
+                        OperationKind::BooleanNot {
+                            operand: value_id(42),
+                        },
+                    ),
+                    scalar_operation(
+                        31,
+                        boolean(44),
+                        OperationKind::BooleanEqual {
+                            left: value_id(42),
+                            right: value_id(43),
+                        },
+                    ),
+                    scalar_operation(
+                        32,
+                        boolean(45),
+                        OperationKind::IntegerEqual {
+                            left: value_id(10),
+                            right: value_id(41),
+                        },
+                    ),
+                    scalar_operation(
+                        33,
+                        boolean(46),
+                        OperationKind::IntegerLessOrEqual {
+                            left: value_id(10),
+                            right: value_id(41),
+                        },
+                    ),
                 ],
                 terminator: Terminator::Return {
                     edge: edge_id(104),

@@ -1,4 +1,4 @@
-; Q7 spike decoder for the closed arithmetic/control/call PSITERM v11 slice.
+; Q7 spike decoder for the closed scalar/logic/arithmetic/control/call PSITERM v11 slice.
 ; Fixed-width little-endian fields are consumed directly from Bytes.  The spike
 ; accepts only small nonzero u64 identities (upper four bytes zero), which is an
 ; explicit measured limitation rather than a host-language integer accident.
@@ -167,6 +167,24 @@
                       (if (eq tag 28) (RKind (KExactRem left right obligation) rest)
                         RKindBad))))))))))))
 
+(def read_literal_kind ((bs Bytes) (tag Int)) RKind
+  (if (eq tag 1)
+    (match (read_i8_integer_value bs)
+      (RIntBad RKindBad)
+      ((RInt value rest) (RKind (KIntConst value) rest)))
+    (if (eq tag 2)
+      (match (read_u8 bs)
+        (RIntBad RKindBad)
+        ((RInt value rest)
+          (if (lt value 2) (RKind (KBoolConst value) rest) RKindBad)))
+      RKindBad)))
+
+(def read_unary_kind ((bs Bytes) (tag Int)) RKind
+  (match (read_id bs)
+    (RIntBad RKindBad)
+    ((RInt operand rest)
+      (if (eq tag 9) (RKind (KBoolNot operand) rest) RKindBad))))
+
 (def read_binary_kind ((bs Bytes) (tag Int)) RKind
   (match (read_id bs)
     (RIntBad RKindBad)
@@ -180,8 +198,11 @@
                 (if (eq tag 6) (RKind (KSatSub left right) rest)
                   (if (eq tag 7) (RKind (KWrapMul left right) rest)
                     (if (eq tag 8) (RKind (KSatMul left right) rest)
-                      (if (eq tag 12) (RKind (KLess left right) rest)
-                        RKindBad))))))))))))
+                      (if (eq tag 10) (RKind (KBoolEq left right) rest)
+                        (if (eq tag 11) (RKind (KIntEq left right) rest)
+                          (if (eq tag 12) (RKind (KLess left right) rest)
+                            (if (eq tag 13) (RKind (KLessEq left right) rest)
+                              RKindBad)))))))))))))))
 
 (def read_divisor_gated_kind ((bs Bytes) (tag Int)) RKind
   (match (read_id bs)
@@ -217,13 +238,14 @@
   (match (read_u8 bs)
     (RIntBad RKindBad)
     ((RInt tag rest)
-      (if (lt tag 9)
-        (if (lt 2 tag) (read_binary_kind rest tag) RKindBad)
-        (if (lt tag 24)
-          (if (eq tag 12) (read_binary_kind rest tag) RKindBad)
-          (if (lt tag 29) (read_exact_kind rest tag)
-            (if (lt tag 33) (read_divisor_gated_kind rest tag)
-              (if (eq tag 33) (read_call_kind rest) RKindBad))))))))
+      (if (lt tag 3) (read_literal_kind rest tag)
+        (if (lt tag 9) (read_binary_kind rest tag)
+          (if (lt tag 14)
+            (if (eq tag 9) (read_unary_kind rest tag) (read_binary_kind rest tag))
+            (if (lt tag 24) RKindBad
+              (if (lt tag 29) (read_exact_kind rest tag)
+                (if (lt tag 33) (read_divisor_gated_kind rest tag)
+                  (if (eq tag 33) (read_call_kind rest) RKindBad))))))))))
 
 (def read_op ((bs Bytes)) ROp
   (match (read_id bs)

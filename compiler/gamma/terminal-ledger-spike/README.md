@@ -21,7 +21,7 @@ Gamma program begins with the reusable, PSITERM-neutral primitives in
    types, wrong section counts, and shape drift;
 4. resolves every retained leaf operation through one exact row in the closed
    typed table in `schema.gamma` and denotes that row directly; and
-5. emits and audits one ranked 35-row ledger.
+5. emits and audits one ranked 41-row ledger.
 
 The transport packs at most seven bytes into one positive Gamma `Int` solely to
 keep the source parser shallow. Typed `unpack_bytes` reconstructs every byte
@@ -30,10 +30,12 @@ semantics.
 
 ## Covered Q7 cases
 
-The fixture covers exact and wrapping i8 add, exact and wrapping signed
-divide/remainder, toward-zero negative division/remainder, and the signed
-`MIN / -1` policy distinction. The ledger audit pins the exact arithmetic
-denotations and five safety rows rather than merely counting them.
+The fixture covers an i8 constant, a Boolean constant, Boolean not/equality,
+integer equality and ordering, exact and wrapping i8 add, exact and wrapping
+signed divide/remainder, toward-zero negative division/remainder, and the
+signed `MIN / -1` policy distinction. The ledger audit pins each exact scalar,
+logic, comparison, and arithmetic denotation plus five safety rows rather than
+merely counting them.
 
 Its diamond control flow introduces two branch-local premises, invalidates them
 at the join, carries the matching value through both predecessor edges, and
@@ -52,11 +54,13 @@ substitution:
 ## Closed leaf schema
 
 The bounded operation slice no longer dispatches through one hand-written
-builder per primitive. `schema.gamma` contains exactly sixteen declarative rows:
+builder per primitive. `schema.gamma` contains exactly twenty-two declarative
+rows: constants, Boolean not/equality, integer equality/order,
 the complete exact/wrapping/saturating add/subtract/multiply cohort,
 the complete exact/wrapping/saturating divide/remainder cohort, and signed
 less-than. The rows are grouped
-into exact-arithmetic, total-arithmetic, and divide/remainder/comparison policy
+into scalar/logic, exact-arithmetic, total-arithmetic, and
+divide/remainder/comparison policy
 tables and composed through one generic table operation.
 Each row owns its result shape, direct denotation, canonical safety goal,
 post-discharge fact, crash policy, and local fuel/frontier behavior. A generic
@@ -67,15 +71,19 @@ Calls are intentionally not disguised as leaf rows: clause coverage,
 capture-free substitution, and outcome/control responsibilities remain in the
 separate call algebra. The gate runs the complete fixture with a missing row, a
 duplicate row, and an altered row; all three reject while the canonical table
-reconstructs the byte-identical 35-row ledger. This is the bounded sixteen-kind
-table, not yet the remaining 19 production leaf rows plus the
+reconstructs the byte-identical 41-row ledger. This is the bounded
+twenty-two-kind table, not yet the remaining 13 production leaf rows plus the
 separate composition algebra for the three closed call variants.
 
 The generator carries exact typed declarations for every known value. Leaf
 operands, call arguments, block parameters, and newly introduced results are
 checked against that environment; duplicate identities and type drift reject
-before any row is published. The gate mutates the canonical byte fixture to
-reuse an existing value identity and requires both evaluators to reject it.
+before any row is published. Boolean-producing leaves publish ordinary result
+equations; conditional control consumes that equation without reconstructing
+or owning the leaf's meaning. The gate mutates the canonical byte fixture to
+reuse an existing value identity, encode an invalid Boolean, and redirect a
+Boolean operand to an i8 value, and requires both evaluators to reject each
+case.
 
 ## Measured result
 
@@ -84,15 +92,15 @@ these are feasibility observations, not performance promises:
 
 | Item | Result |
 | --- | ---: |
-| Canonical fixture bytes | 1,400 |
-| Assembled typed Gamma core | 1,796 lines / 70,758 bytes |
+| Canonical fixture bytes | 1,591 |
+| Assembled typed Gamma core | 1,936 lines / 77,385 bytes |
 | Shared canonical-byte layer | 36 lines / 1,373 bytes / 6 functions |
-| Spike-specific typed core | 1,760 lines / 69,385 bytes / 167 functions |
+| Spike-specific typed core | 1,900 lines / 76,012 bytes / 173 functions |
 | Closed data declarations | 59 |
-| Typed functions, assembled | 173 |
+| Typed functions, assembled | 179 |
 | Maximum source nesting | 20 |
-| Canonical ledger | 35 rows / 2,414 modeled bytes |
-| Prospective reconstruction certificate | 2,052 modeled bytes |
+| Canonical ledger | 41 rows / 2,777 modeled bytes |
+| Prospective reconstruction certificate | 2,316 modeled bytes |
 
 The certificate estimate is deliberately explicit: 32 bytes of header, then
 44 bytes per row plus one 32-byte reference per prerequisite. It is a sizing
@@ -102,7 +110,7 @@ The schema conversion deliberately adds a small typed vocabulary and generic
 interpreter while deleting operation-specific builder branches. The important
 scaling result is structural: new leaf meaning is one isolated data row, and
 the ledger orchestrator is no longer the owner of operation permutations.
-`schema.gamma` is 222 lines; call/control/premise orchestration remains separate
+`schema.gamma` is 259 lines; call/control/premise orchestration remains separate
 in `ledger.gamma`.
 
 The first literal transport spelling used one constructor per byte and exposed
@@ -118,7 +126,7 @@ primitives are now factored into `../canonical-bytes/` and have an independent
 typed/interpreter gate. The largest remaining audit tax is mechanical
 repetition: Gamma currently has no parametric result type, so the bounded
 decoder still declares a result ADT for each parsed semantic type. The full
-decoder and remaining 19 leaf schema rows should measure that remaining cost
+decoder and remaining 13 leaf schema rows should measure that remaining cost
 before making any explicit Gamma rung correction. The spike itself is cleanly
 expressible and therefore finds no language-design blocker.
 
