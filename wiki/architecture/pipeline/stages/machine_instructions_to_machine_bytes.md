@@ -72,7 +72,9 @@ Must not own:
 - `omega-machine-emission/src/branch_distances.rs` and submodules own byte-distance queries used by branch encoding.
 - `omega-isa-x86_64/src/lib.rs` remains the public x86-64 encoding surface and
   re-exports focused implementation modules. `function_frame.rs` owns the
-  ordinary saved-register/MXCSR entry and return envelope, while
+  ordinary saved-register/MXCSR entry and return envelope;
+  `function_boundary.rs` owns entry argument/aggregate unmarshalling and scalar
+  result materialization; and
   `privileged_effects.rs` owns halt, fences, interrupt control, descriptor-table
   loading, flags, model-specific/control-register access, and port I/O. Those
   modules retain their exact width, byte, clobber, and machine-state contracts;
