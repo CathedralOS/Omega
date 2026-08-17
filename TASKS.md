@@ -675,8 +675,8 @@ Remaining:
   The 1,983-byte fixture yields a 3,607-byte modeled ledger and 2,984-byte
   prospective certificate; the 695-byte structural/effect fixture yields a
   185-byte modeled ledger and 164-byte prospective certificate. The assembled
-  typed core is 3,319 lines / 131,678 bytes / 284 functions, with maximum
-  source nesting 20. Its PSITERM-neutral byte cursor and
+  typed core is 3,748 lines / 150,159 bytes / 319 functions, with maximum
+  source nesting 21. Its PSITERM-neutral byte cursor and
   checked `u8`/little-endian `u16`/`u32` primitives are now a separately gated
   36-line reusable layer; tags, bounded `u64` identities, strings, recursive
   vocabulary, and monomorphic type-specific results remain spike-owned. The
@@ -694,7 +694,17 @@ Remaining:
   own exact-unique schema table and separate decoder/evaluator modules rather
   than scalar-row permutations. Erased relevance, field/service/port drift,
   cleanup drift, establishment-target drift, and missing affine retirement all
-  reject. The three call-composition definitions, the full low generator, row
+  reject. The three call-composition definitions now live in their own
+  exact-unique table and one generic axis checker rather than three more
+  evaluator branches. Target/result custody, positional binder shape,
+  requirement coverage, capture-free substitution, claim/receipt transfer,
+  guarded outcomes, crash routes, evidence lifetime, fuel, and frontier policy
+  remain independently visible. The canonical scalar call consumes its row end
+  to end; bounded Unit and boundary inputs exercise the same checker. Missing,
+  duplicate, cross-kind, weakened-evidence, wrong-requirement,
+  weakened-frontier, signature, state-version, move/reborrow, coverage,
+  substitution, outcome, crash, and evidence-lifetime drift reject. Full
+  canonical-byte Unit/boundary call integration, the full low generator, row
   proofs, and composition bridges remain open; no trust-graph node becomes
   derived from the spike.
 

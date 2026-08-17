@@ -187,6 +187,63 @@
   (LeafSchemaMissing)
   (LeafSchemaDuplicate))
 
+; Calls are composition, not primitive denotation.  Their closed table keeps
+; every independently checked axis visible instead of multiplying bespoke
+; verifier functions for scalar, structural, and boundary permutations.
+(data CallKind (CallScalar) (CallUnit) (CallBoundary))
+(data CallTargetRule (ExactModuleMachine) (ExactBoundaryMachine))
+(data CallResultRule
+  (ScalarCalleeResult)
+  (UnitCalleeResult)
+  (BoundaryDeclaredResult))
+(data CallArgumentRule
+  (ScalarPositionalArguments)
+  (StructuralPositionalArguments)
+  (BoundaryStructuralArguments))
+(data CallRequirementRule
+  (EnumerateScalarRequires)
+  (EnumerateStructuralRequires)
+  (ValidateBoundaryRequirements))
+(data CallTransferRule
+  (NoStructuralTransfer)
+  (ExactClaimTransfers)
+  (ExactCompletionReceipts))
+(data CallOutcomeRule
+  (ImportScalarEnsures)
+  (ImportStructuralEnsures)
+  (BoundaryDeclaredCompletion))
+(data CallCrashRule
+  (ComposeScalarCrashRoutes)
+  (ComposeStructuralCrashRoutes)
+  (BoundaryHasNoCallRoutes))
+(data CallEvidenceRule
+  (SameUnitOrCertifiedScalarEvidence)
+  (SameUnitOrCertifiedStructuralEvidence)
+  (ExactBoundaryDeclarationEvidence))
+(data CallFrontierRule
+  (KeepsScalarFrontier)
+  (TransfersStructuralFrontier)
+  (SettlesBoundaryFrontier))
+(data CallSchema
+  (CallSchema CallKind CallTargetRule CallResultRule CallArgumentRule
+    CallRequirementRule CallTransferRule CallOutcomeRule CallCrashRule
+    CallEvidenceRule FuelShape CallFrontierRule))
+(data CallSchemas (CSNil) (CSCons CallSchema CallSchemas))
+(data RCallSchema
+  (CallSchemaFound CallSchema)
+  (CallSchemaMissing)
+  (CallSchemaDuplicate))
+(data CallCompositionView
+  (CallCompositionView CallTargetRule CallResultRule CallArgumentRule
+    CallRequirementRule CallTransferRule CallOutcomeRule CallCrashRule
+    CallEvidenceRule FuelShape CallFrontierRule))
+(data CallCompositionInput
+  (CallCompositionInput CallKind CallCompositionView
+    Int Int Int Int Int Int Int Int))
+; The eight flags above are, in order: exact arity/binder types, pre/post state
+; versions, moves/reborrows, complete requirement coverage, capture-free
+; substitution, guarded outcome, crash-route composition, evidence lifetime.
+
 (data Edge (Edge Int Int Ints))                 ; edge id, target block, arguments
 (data Term (Jump Edge) (Cond Int Edge Edge) (Ret Int Int))
 (data Block (Block Int Decls Ops Term))

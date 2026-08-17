@@ -35,6 +35,7 @@ cat canonical-bytes/types.gamma \
     canonical-bytes/decode.gamma \
     terminal-ledger-spike/decode.gamma \
     terminal-ledger-spike/schema.gamma \
+    terminal-ledger-spike/call_composition.gamma \
     terminal-ledger-spike/ledger.gamma \
     terminal-ledger-spike/structural_effect_decode.gamma \
     terminal-ledger-spike/structural_effect.gamma > "$T/typed.gamma"
@@ -117,6 +118,7 @@ run_function() {
 
 run_function matching run_spike "$T/matching.expr" 1
 run_function schema-mutations schema_mutation_self_test "$T/matching.expr" 1
+run_function call-composition call_schema_mutation_self_test "$T/matching.expr" 1
 run_function asymmetric-join run_spike "$T/asymmetric.expr" 0
 run_function bad-magic run_spike "$T/bad-magic.expr" 0
 run_function truncated run_spike "$T/truncated.expr" 0

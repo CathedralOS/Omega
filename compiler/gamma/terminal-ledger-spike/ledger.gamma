@@ -385,9 +385,18 @@
         BuildBad)
       BuildBad)))
 
+(def build_scalar_call_from_schema
+  ((schema CallSchema) (operation Int) (result Decl) (known Decls)
+   (callee Machine) (rank Int) (target Int) (arguments Ints)
+   (obligations Ints)) Build
+  (if (call_view_equal (call_schema_view schema) (scalar_call_view))
+    (build_call operation result known callee rank target arguments obligations)
+    BuildBad))
+
 (def build_kind
-  ((schemas LeafSchemas) (kind OpKind) (operation Int) (result Decl) (known Decls)
-   (callee Machine) (machine Int) (block Int) (rank Int)) Build
+  ((schemas LeafSchemas) (call_schemas CallSchemas) (kind OpKind)
+   (operation Int) (result Decl) (known Decls) (callee Machine)
+   (machine Int) (block Int) (rank Int)) Build
   (match (view_leaf kind)
     ((LeafView leaf left right obligation)
       (match (find_leaf_schema schemas leaf)
@@ -398,21 +407,27 @@
     (NotLeaf
       (match kind
         ((KCall target arguments obligations)
-          (build_call operation result known callee rank target arguments obligations))
+          (match (find_call_schema call_schemas CallScalar)
+            ((CallSchemaFound schema)
+              (build_scalar_call_from_schema schema operation result known callee rank
+                target arguments obligations))
+            (z BuildBad)))
         (z BuildBad)))))
 
 (def build_ops
-  ((schemas LeafSchemas) (ops Ops) (known Decls) (callee Machine)
-   (machine Int) (block Int) (rank Int)) Build
+  ((schemas LeafSchemas) (call_schemas CallSchemas) (ops Ops) (known Decls)
+   (callee Machine) (machine Int) (block Int) (rank Int)) Build
   (match ops
     (ONil (Built LNil rank known))
     ((OCons op rest)
       (match op
         ((Op operation result kind)
-          (match (build_kind schemas kind operation result known callee machine block rank)
+          (match (build_kind schemas call_schemas kind operation result known callee
+                   machine block rank)
             (BuildBad BuildBad)
             ((Built rows next next_known)
-              (match (build_ops schemas rest next_known callee machine block next)
+              (match (build_ops schemas call_schemas rest next_known callee machine
+                       block next)
                 (BuildBad BuildBad)
                 ((Built tail final final_known)
                   (Built (rows_append rows tail) final final_known))))))))))
@@ -951,12 +966,13 @@
         (rows_append entry_rows (rows_append join_rows authored_rows)) after_authored))))
 
 (def finish_join_ledger
-  ((schemas LeafSchemas) (entry_rows Rows) (known Decls) (next Int)
+  ((schemas LeafSchemas) (call_schemas CallSchemas) (entry_rows Rows)
+   (known Decls) (next Int)
    (caller Machine) (callee Machine) (entry_block Block) (true_block Block)
    (false_block Block) (join_block Block)) RLedger
   (let parameters (block_parameters join_block)
     (if (if (decls_unique parameters) (decls_disjoint parameters known) 0)
-      (match (build_ops schemas (block_ops join_block)
+      (match (build_ops schemas call_schemas (block_ops join_block)
                (decls_append parameters known)
                callee (machine_id caller) (block_id_of join_block) next)
         (BuildBad RLedgerBad)
@@ -966,17 +982,20 @@
       RLedgerBad)))
 
 (def build_spike_ledger
-  ((schemas LeafSchemas) (caller Machine) (callee Machine) (entry_block Block)
-   (true_block Block) (false_block Block) (join_block Block)) RLedger
-  (match (build_ops schemas (block_ops entry_block) (machine_parameters caller)
-           callee (machine_id caller) (block_id_of entry_block) 1)
+  ((schemas LeafSchemas) (call_schemas CallSchemas) (caller Machine)
+   (callee Machine) (entry_block Block) (true_block Block)
+   (false_block Block) (join_block Block)) RLedger
+  (match (build_ops schemas call_schemas (block_ops entry_block)
+           (machine_parameters caller) callee (machine_id caller)
+           (block_id_of entry_block) 1)
     (BuildBad RLedgerBad)
     ((Built entry_rows next known)
-      (finish_join_ledger schemas entry_rows known next caller callee entry_block
-        true_block false_block join_block))))
+      (finish_join_ledger schemas call_schemas entry_rows known next caller callee
+        entry_block true_block false_block join_block))))
 
 (def build_two_machine_ledger
-  ((schemas LeafSchemas) (vocabulary Int) (entry Int) (caller Machine) (callee Machine)) RLedger
+  ((schemas LeafSchemas) (call_schemas CallSchemas) (vocabulary Int) (entry Int)
+   (caller Machine) (callee Machine)) RLedger
   (let caller_blocks (machine_blocks caller)
     (let callee_blocks (machine_blocks callee)
       (if (eq (blocks_len caller_blocks) 4)
@@ -990,23 +1009,29 @@
                           entry_block callee_block)
                       (if (spike_type_shape_valid caller callee)
                         (if (spike_block_shape_valid entry_block true_block false_block callee_block)
-                          (build_spike_ledger schemas caller callee entry_block true_block false_block join_block)
+                          (build_spike_ledger schemas call_schemas caller callee entry_block
+                            true_block false_block join_block)
                           RLedgerBad)
                         RLedgerBad)
                       RLedgerBad))))))
           RLedgerBad)
         RLedgerBad))))
 
-(def build_module_ledger_with_schemas ((schemas LeafSchemas) (module Module)) RLedger
+(def build_module_ledger_with_tables
+  ((schemas LeafSchemas) (call_schemas CallSchemas) (module Module)) RLedger
   (match module
     ((Module vocabulary entry machines)
       (if (eq (machines_len machines) 2)
-        (build_two_machine_ledger schemas vocabulary entry
+        (build_two_machine_ledger schemas call_schemas vocabulary entry
           (machine_at machines 0) (machine_at machines 1))
         RLedgerBad))))
 
+(def build_module_ledger_with_schemas ((schemas LeafSchemas) (module Module)) RLedger
+  (build_module_ledger_with_tables schemas (canonical_call_schemas) module))
+
 (def build_module_ledger ((module Module)) RLedger
-  (build_module_ledger_with_schemas (canonical_leaf_schemas) module))
+  (build_module_ledger_with_tables (canonical_leaf_schemas)
+    (canonical_call_schemas) module))
 
 (def schemas_without_first () LeafSchemas
   (match (canonical_leaf_schemas)
@@ -1047,21 +1072,27 @@
           rest)
         (LSCons schema (schemas_with_weakened_exact_shift_left rest))))))
 
-(def run_spike_with_schemas ((schemas LeafSchemas) (bytes Bytes)) Int
+(def run_spike_with_tables
+  ((schemas LeafSchemas) (call_schemas CallSchemas) (bytes Bytes)) Int
   (if (arithmetic_self_test)
     (if (typed_environment_self_test)
       (if (conversion_typed_environment_self_test)
         (if (call_typed_environment_self_test)
-          (match (decode_module bytes)
-            (RModuleBad 0)
-            ((RModule module)
-              (match (build_module_ledger_with_schemas schemas module)
-                (RLedgerBad 0)
-                ((RLedger rows) 1))))
+          (if (call_composition_self_test)
+            (match (decode_module bytes)
+              (RModuleBad 0)
+              ((RModule module)
+                (match (build_module_ledger_with_tables schemas call_schemas module)
+                  (RLedgerBad 0)
+                  ((RLedger rows) 1))))
+            0)
           0)
         0)
       0)
     0))
+
+(def run_spike_with_schemas ((schemas LeafSchemas) (bytes Bytes)) Int
+  (run_spike_with_tables schemas (canonical_call_schemas) bytes))
 
 (def run_spike ((bytes Bytes)) Int
   (run_spike_with_schemas (canonical_leaf_schemas) bytes))
@@ -1076,6 +1107,19 @@
                   (schemas_with_weakened_exact_shift_left (canonical_leaf_schemas)) bytes) 0)
             0)
           0)
+        0)
+      0)
+    0))
+
+(def call_schema_mutation_self_test ((bytes Bytes)) Int
+  (if (run_spike_with_tables (canonical_leaf_schemas)
+        (canonical_call_schemas) bytes)
+    (if (eq (run_spike_with_tables (canonical_leaf_schemas)
+              (calls_without_scalar) bytes) 0)
+      (if (eq (run_spike_with_tables (canonical_leaf_schemas)
+                (calls_with_duplicate_scalar) bytes) 0)
+        (eq (run_spike_with_tables (canonical_leaf_schemas)
+              (calls_with_weakened_scalar_evidence) bytes) 0)
         0)
       0)
     0))
