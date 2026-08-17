@@ -18,7 +18,8 @@
 ; by guarded `to … when …` transitions — no if/while.
 ;
 ; Memory:  2097152 SRC  2097144 CUR  2097136 LEN  2097128 APTR  2097120 NFUN
-;          2097112 TENVN 2097104 NTY 2097096 NCON   3145728 ARENA  4194304 FUNS
+;          2097112 TENVN 2097104 NTY 2097096 NCON   16777216 ARENA (~48 MB)
+;          4194304 FUNS
 ;          4259840 TYNAMES  4325376 CONS  5242880 TENV
 ; "type" = small id: Int = 0. AST nodes 4 words. Func entry 4 words
 ; [name_off, params, ret_tyid, body]; PARAM node [50, name_off, tyid]. TENV [var_off, tyid].
@@ -41,7 +42,9 @@ proc slurp() {
     state done {
         word[2097136] = n
         word[2097144] = 0
-        word[2097128] = 3145728
+        word[2097128] = 16777216 ; Match interp.beta's non-overlapping arena. The old
+                                 ; 1 MB arena overwrote FUNS while checking complete
+                                 ; canonical decoders with monomorphic result ADTs.
         word[2097120] = 0        ; NFUN
         word[2097112] = 0        ; TENVN
         word[2097104] = 1        ; NTY (id 0 = builtin Int)

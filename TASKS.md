@@ -657,8 +657,8 @@ Remaining:
   versions; the graph identity also binds every canonical dependency edge.
   Unknown, cyclic, unreachable, duplicate, malformed-root, and noncanonical
   graphs reject, and the current artifact closure reports `fully-derived false`.
-  The bounded Gamma spike is complete. It canonical-decodes two exact current
-  `PSITERM\0` v11 fixtures and audits a 54-row ledger covering constants,
+  The bounded Gamma spike is complete. It canonical-decodes three exact current
+  `PSITERM\0` v11 fixtures and audits a 54-row scalar ledger covering constants,
   Boolean not/equality, integer equality/order, bitwise operations, strict
   i8-to-i16 widening, partial i16-to-i8 exact cast, exact/wrapping shifts with
   independently typed counts, and the complete
@@ -666,11 +666,17 @@ Remaining:
   signed toward-zero division, `MIN / -1`, conditional
   equations, branch-local scope/invalidation, all-predecessor merge rejection
   and acceptance, exact call-clause enumeration/substitution, and strict
-  justification ranks. Matching/asymmetric/malformed cases agree between the
-  Beta-written reference interpreter and the independent Python evaluator.
+  justification ranks. A separate 3-row structural/effect ledger covers exact
+  relevant-Boolean field custody, affine-local establishment and retirement,
+  published port-service authority, the observable port-write effect, and the
+  three distinct place-frontier policies. Matching/asymmetric/malformed cases
+  agree between the Beta-written reference interpreter and the independent
+  Python evaluator.
   The 1,983-byte fixture yields a 3,607-byte modeled ledger and 2,984-byte
-  prospective certificate; the assembled typed core is 2,191 lines / 89,415
-  bytes / 186 functions. Its PSITERM-neutral byte cursor and
+  prospective certificate; the 695-byte structural/effect fixture yields a
+  185-byte modeled ledger and 164-byte prospective certificate. The assembled
+  typed core is 3,319 lines / 131,678 bytes / 284 functions, with maximum
+  source nesting 20. Its PSITERM-neutral byte cursor and
   checked `u8`/little-endian `u16`/`u32` primitives are now a separately gated
   36-line reusable layer; tags, bounded `u64` identities, strings, recursive
   vocabulary, and monomorphic type-specific results remain spike-owned. The
@@ -679,17 +685,18 @@ Remaining:
   denotation, goal, post-discharge fact, crash policy, fuel, and frontier
   behavior, while calls remain separate coverage/substitution algebra.
   Missing, duplicate, and altered table rows reject end to end without changing
-  the canonical 54-row ledger. The generator's known-value environment now
+  either canonical ledger. The generator's known-value environment now
   retains exact typed declarations rather than IDs alone: duplicate result
   identities, operand-type drift, duplicate declarations, join-parameter
-  overlap, and call argument-type drift reject before row publication. The only
-  remaining leaf rows are the structurally owned
-  `EstablishTrivialAffineLocal` and `BooleanStructuralField` plus effectful
-  `PortWrite`; they require their own place/frontier/effect vocabulary rather
-  than scalar-row permutations. Those three rows, three call-composition
-  definitions, the full low generator, row proofs, and composition bridges
-  remain open; no trust-graph
-  node becomes derived from the spike.
+  overlap, and call argument-type drift reject before row publication. The
+  structurally owned `EstablishTrivialAffineLocal` and
+  `BooleanStructuralField` plus effectful `PortWrite` now resolve through their
+  own exact-unique schema table and separate decoder/evaluator modules rather
+  than scalar-row permutations. Erased relevance, field/service/port drift,
+  cleanup drift, establishment-target drift, and missing affine retirement all
+  reject. The three call-composition definitions, the full low generator, row
+  proofs, and composition bridges remain open; no trust-graph node becomes
+  derived from the spike.
 
   Define a closed typed schema language with no opaque callbacks. One row per
   leaf operation owns well-formedness, direct mathematical denotation, canonical

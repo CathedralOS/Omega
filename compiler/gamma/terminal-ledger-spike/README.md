@@ -8,7 +8,7 @@ small, typed, interpreter-defined program rather than another Rust verifier.
 
 ## Trust boundary and inputs
 
-`psi-terminal-codec/tests/ledger_spike.rs` constructs two ordinary current
+`psi-terminal-codec/tests/ledger_spike.rs` constructs three ordinary current
 `TerminalModule` values and pins their exact `PSITERM\0` v11 encodings. The Rust
 fixture builder and `bytes_to_gamma.py` are untrusted test transport. The typed
 Gamma program begins with the reusable, PSITERM-neutral primitives in
@@ -19,9 +19,10 @@ Gamma program begins with the reusable, PSITERM-neutral primitives in
    shape needed by the bounded ledger;
 3. rejects truncation, trailing bytes, unknown tags, invalid identities, wrong
    types, wrong section counts, and shape drift;
-4. resolves every retained leaf operation through one exact row in the closed
-   typed table in `schema.gamma` and denotes that row directly; and
-5. emits and audits one ranked 54-row ledger.
+4. resolves every retained leaf operation through one exact row in either the
+   scalar table in `schema.gamma` or the distinct structural/effect table; and
+5. emits and audits a ranked 54-row scalar ledger or 3-row structural/effect
+   ledger.
 
 The transport packs at most seven bytes into one positive Gamma `Int` solely to
 keep the source parser shallow. Typed `unpack_bytes` reconstructs every byte
@@ -55,6 +56,22 @@ substitution:
 - obligation 105: `caller.value11 <= 127`;
 - obligation 106: `-128 <= caller.value10`.
 
+The separate structural/effect fixture covers the three remaining leaf kinds
+without pretending that they are scalar equations:
+
+- `BooleanStructuralField` requires one exact live affine record place and one
+  exact relevant Boolean field, emits `StructuralFieldEq`, and keeps that place
+  live until the exact nominal cleanup;
+- `PortWrite` requires one exact service in the machine's published ceiling,
+  emits the exact `(service, port, value)` effect, and keeps the place frontier;
+- `EstablishTrivialAffineLocal` requires the exact empty-record local, emits its
+  establishment fact, adds it to the affine frontier, and requires its exact
+  `ReturnUnit` retirement.
+
+The structural/effect decoder and evaluator are separate modules. Mutating
+field relevance, field identity, service, port, cleanup machine,
+establishment destination, or affine retirement rejects in both evaluators.
+
 ## Closed leaf schema
 
 The bounded operation slice no longer dispatches through one hand-written
@@ -78,11 +95,11 @@ capture-free substitution, and outcome/control responsibilities remain in the
 separate call algebra. The gate runs the complete fixture with a missing row, a
 duplicate row, and an altered row; all three reject while the canonical table
 reconstructs the byte-identical 54-row ledger. This is the bounded
-thirty-two-kind scalar table. The remaining three production leaf rows are
-structural `EstablishTrivialAffineLocal`/`BooleanStructuralField` and effectful
-`PortWrite`; they need their own place/frontier/effect vocabulary rather than
-more scalar permutations. The composition algebra for the three closed call
-variants also remains separate.
+thirty-two-kind scalar table. A second exact-unique table covers structural
+`EstablishTrivialAffineLocal`/`BooleanStructuralField` and effectful `PortWrite`
+with place/frontier/effect vocabulary rather than scalar permutations. Missing,
+duplicate, and weakened-frontier structural rows reject. The composition algebra
+for the three closed call variants remains separate.
 
 The generator carries exact typed declarations for every known value. Leaf
 operands, call arguments, block parameters, and newly introduced results are
@@ -103,15 +120,18 @@ these are feasibility observations, not performance promises:
 
 | Item | Result |
 | --- | ---: |
-| Canonical fixture bytes | 1,983 |
-| Assembled typed Gamma core | 2,191 lines / 89,415 bytes |
+| Canonical scalar fixture bytes | 1,983 |
+| Canonical structural/effect fixture bytes | 695 |
+| Assembled typed Gamma core | 3,319 lines / 131,678 bytes |
 | Shared canonical-byte layer | 36 lines / 1,373 bytes / 6 functions |
-| Spike-specific typed core | 2,155 lines / 88,042 bytes / 180 functions |
-| Closed data declarations | 59 |
-| Typed functions, assembled | 186 |
+| Spike-specific typed core | 3,283 lines / 130,305 bytes / 278 functions |
+| Closed data declarations | 110 |
+| Typed functions, assembled | 284 |
 | Maximum source nesting | 20 |
-| Canonical ledger | 54 rows / 3,607 modeled bytes |
-| Prospective reconstruction certificate | 2,984 modeled bytes |
+| Canonical scalar ledger | 54 rows / 3,607 modeled bytes |
+| Canonical structural/effect ledger | 3 rows / 185 modeled bytes |
+| Prospective scalar reconstruction certificate | 2,984 modeled bytes |
+| Prospective structural/effect certificate | 164 modeled bytes |
 
 The certificate estimate is deliberately explicit: 32 bytes of header, then
 44 bytes per row plus one 32-byte reference per prerequisite. It is a sizing
@@ -122,7 +142,8 @@ interpreter while deleting operation-specific builder branches. The important
 scaling result is structural: new leaf meaning is one isolated data row, and
 the ledger orchestrator is no longer the owner of operation permutations.
 `schema.gamma` is 327 lines; call/control/premise orchestration remains separate
-in `ledger.gamma`.
+in `ledger.gamma`; structural/effect byte decoding is separate from its schema
+and ledger evaluation.
 
 The first literal transport spelling used one constructor per byte and exposed
 a parser-stack failure. That did not require weakening the endpoint: a typed,
@@ -134,12 +155,13 @@ small modules and closed row tables, not as a second monolithic verifier.
 
 The PSITERM-neutral byte cursor and checked `u8`/little-endian `u16`/`u32`
 primitives are now factored into `../canonical-bytes/` and have an independent
-typed/interpreter gate. The largest remaining audit tax is mechanical
-repetition: Gamma currently has no parametric result type, so the bounded
-decoder still declares a result ADT for each parsed semantic type. The full
-decoder and remaining three structural/effect leaf schema rows should measure
-that remaining cost before making any explicit Gamma rung correction. The spike
-itself is cleanly expressible and therefore finds no language-design blocker.
+typed/interpreter gate. The largest measured audit tax is mechanical repetition:
+Gamma currently has no parametric result type, so the bounded decoder declares a
+result ADT for each parsed semantic type. Completing the structural/effect slice
+adds 1,128 lines and 42,263 bytes to the assembled core, but the code remains
+bounded, typechecked, separated into decoder versus schema/evaluator modules,
+and at nesting depth 20. That is an engineering and audit cost, not an actual
+language-design blocker or a reason to weaken the canonical-byte endpoint.
 
 ## Gate
 

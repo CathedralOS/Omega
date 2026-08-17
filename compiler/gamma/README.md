@@ -16,7 +16,8 @@ emits assembly; the chain targets one level down at each step:
 - `canonical-bytes/` — shared typed byte-cursor primitives for low-rung decoders;
   run `test-canonical-bytes.sh`.
 - `terminal-ledger-spike/` — the Q7 typed, canonical-byte semantic-ledger
-  feasibility spike, including its separate closed leaf-schema table; run
+  feasibility spike, including separate scalar and structural/effect schema
+  tables plus independently owned decoder/evaluator modules; run
   `test-terminal-ledger-spike.sh`.
 
 ```
