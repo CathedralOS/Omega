@@ -94,9 +94,12 @@ Must not own:
   retained relocation checks.
 - `omega-image-emission/src/checked/atomic_replay.rs` owns compiler atomic
   operation replay and recursive runtime-operand storage-site derivation.
-- `omega-image-emission/src/checked/runtime_imports.rs` owns target-specific
-  import, syscall, indirect-call, and runtime-text replay plus exact operand and
-  storage relocation-site derivation.
+- `omega-image-emission/src/checked/runtime_imports.rs` owns imported and
+  indirect-call replay.
+- `omega-image-emission/src/checked/runtime_imports/runtime_io.rs` owns runtime
+  byte, line, and text-boundary replay.
+- `omega-image-emission/src/checked/runtime_imports/syscalls.rs` owns outbound
+  syscall replay and exact storage/data relocation-target derivation.
 - `omega-image-emission/src/checked/footprints.rs` owns compiler atomic and
   instruction footprint family dispatch, body/fixed-mechanics partition
   validation, and exact footprint composition.
