@@ -1559,6 +1559,9 @@ Terminal operation emission and proof finalization likewise share one module;
 they do not own scalar-graph classification or debug-map presentation.
 Short-circuit Boolean decision/control emission and replaceable debug-map
 presentation are distinct modules with distinct consumers.
+Scalar-graph preparation, validation, partial evaluation, and expression
+lowering likewise form one responsibility behind fourteen explicit internal
+contracts; orchestration and public result assembly remain in the crate root.
 Additional sufficient-form families should follow that shape: one closed
 responsibility per module, explicit
 precedence at the registry, and no authority beyond the certificate proved
