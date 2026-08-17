@@ -3481,7 +3481,8 @@ fn analyze(
 /// the full type width. Inclusive bounds (a sound over-approximation either way).
 /// `None` when the type has no literal range constraint. Looks through reference
 /// shells.
-/// Q9 ruling (Zach, 2026-07-13: "this is just a compile error"): a declared
+/// `range-constraints-require-exact-domain` (Zach, 2026-07-13: "this is just a
+/// compile error"): a declared
 /// RANGE constraint combined with a non-Exact arithmetic domain is
 /// ill-formed. The range is only enforced under Exact stores, so
 /// `u8 [0..=4] in Wrapping` accepted `self.i = 100` silently -- the

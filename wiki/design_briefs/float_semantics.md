@@ -209,10 +209,11 @@ as per-cohort hashes. Remaining provider coverage is tracked in `TASKS.md`.
 - **Policy domains** are operation behavior, operand-driven, exclusive per
   op (decision-17 verbatim): quiet default / `Trapping` (trap on
   producing non-finite) / `Saturating` (overflow clamps to ±MAX_FINITE) /
-  `Wrapping` = COMPILE ERROR (no modular reading of a float — the Q10
-  cast ruling generalized; the Q9 lying-declaration precedent).
+  `Wrapping` = COMPILE ERROR (no modular reading of a float — the fixed-domain
+  cast rule generalized; the `range-constraints-require-exact-domain`
+  lying-declaration precedent).
 - The two axes compose freely (`f32 [0.0..=1.0]::Trapping`): ranges are
-  window facts and windows are policy-independent, so no Q9-style lie
+  window facts and windows are policy-independent, so no non-Exact-domain lie
   arises (unlike ints, where the range's enforcement mechanism WAS the
   Exact machinery).
 

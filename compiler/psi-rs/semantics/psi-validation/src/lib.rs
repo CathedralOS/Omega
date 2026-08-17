@@ -1160,7 +1160,8 @@ fn validate_state_statement_node(
                 // unproven and the index prover then TRUSTED the range (a
                 // confirmed native OOB read, found landing the R3 product
                 // rule). The enforced range only exists under Exact shells,
-                // so non-Exact declarations are untouched (Q9's own gate
+                // so non-Exact declarations are untouched (the
+                // `range-constraints-require-exact-domain` gate
                 // already rejects range+domain combinations).
                 // A reference binding stores the reference, not a fresh value
                 // into the referee. Its referee facts are checked by ordinary

@@ -2,7 +2,8 @@
 //!
 //! The token set and operand-directed semantics are settled. The source clause
 //! binding one of these tokens to a named declaration is not: the parser's
-//! current `spelling` clause is temporary bootstrap syntax pending owner Q1.
+//! current `spelling` clause is temporary bootstrap syntax pending
+//! `FIXED-OPERATOR-SURFACE-BINDING`.
 
 /// The legal fixed operator tokens. A named operator may be associated with
 /// one token; receiver/operand machinery then picks the unique candidate. The

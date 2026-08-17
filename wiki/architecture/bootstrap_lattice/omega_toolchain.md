@@ -33,11 +33,15 @@ obligations, and independent certificate checking.
 The current Rust `psi-terminal-verifier` demonstrates the artifact-aware half:
 it validates canonical terminal Psi, reconstructs its exact obligation set,
 rejects missing or extra evidence, and produces `VerifiedTerminalModule`. It is
-not interchangeable with the generic proof kernel. The final hosted architecture
-must either place an auditable reference verifier on the bootstrap spine, make
-the Psi verifier emit a reconstruction derivation checked by the low kernel, or
-list the Psi verifier explicitly in the trusted base.
+not interchangeable with the generic proof kernel and remains an explicit
+trusted migration dependency. The final hosted architecture uses one total low-
+rung semantic-ledger definition over canonical bytes. Direct evaluation or a
+checked derivation of that definition establishes every deployed artifact's
+ledger; Rust agreement grants no authority. Local operation denotations and
+canonical goals come from restricted declarative schemas, while algebraic
+reduction is untrusted and must emit a checked proof of the unchanged goal.
 
-Bootstrap hosting, native refinement evidence, and the terminal-verifier trust
-closure remain execution work under P3 in [`TASKS.md`](../../../TASKS.md).
+Bootstrap hosting, native refinement evidence, the Gamma/schema feasibility
+spike, and the terminal-ledger migration remain execution work under P3 in
+[`TASKS.md`](../../../TASKS.md).
 Production optimization remains outside the trusted proof kernel.

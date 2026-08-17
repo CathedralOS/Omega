@@ -263,7 +263,8 @@ pub(crate) fn validate_type_reference_handle_with_type_parameters(
     type_parameters: &[TypeParameter],
     lifetime_parameters: &[psi_typed_trees::name::Identifier],
 ) {
-    // Q9 ruling: a range constraint under a non-Exact domain is ill-formed
+    // `range-constraints-require-exact-domain`: a range constraint under a
+    // non-Exact domain is ill-formed
     // (checked once per declared handle; the accessors walk nested
     // Reference/Constrained spellings transitively).
     crate::arithmetic_domains::check_range_under_non_exact_domain(
@@ -350,7 +351,8 @@ fn validate_type_reference_handle_with_context(
                 diagnostics,
                 owner,
             );
-            // Element spelling of the Q9 rule (`[u8 [0..=9] in Wrapping; 3]`).
+            // Element spelling of `range-constraints-require-exact-domain`
+            // (`[u8 [0..=9] in Wrapping; 3]`).
             crate::arithmetic_domains::check_range_under_non_exact_domain(
                 program,
                 *element_type,

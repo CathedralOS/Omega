@@ -1,6 +1,7 @@
 // FAIL CANARY: a STATEMENT-position call to the enclosing machine's own
 // entry (`self.drip(n - 1);` as a trailing statement in a sub-state) is
-// tail recursion spelled as a call -- Q7 ruling, Zach 2026-07-13:
+// tail recursion spelled as a call -- `machine-self-call-cycle-ban`, settled
+// by Zach 2026-07-13:
 // "Banned, if it reads as recursion... go write this as states." This was
 // the last accepted recursion spelling: the transition-arm fence caught
 // `-> self.drip(..)`, but the statement route lowered as a Nested-

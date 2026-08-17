@@ -6,7 +6,12 @@ and deliberately deferred research live in `TASKS.md`. Questions are numbered
 consecutively; pruning or adding one requires updating every repository
 reference in the same change.
 
-Last pruned: 2026-08-08.
+Question numbers are mutable queue positions, not permanent decision identities.
+Code, canaries, and settled documentation must cite a stable named decision or
+the governing guide section rather than an owner-question number. A settled
+decision's durable identity does not change when this queue is pruned.
+
+Last pruned: 2026-08-16.
 
 ## Q1 — Fixed-operator surface-binding syntax
 
@@ -115,25 +120,7 @@ x86-64 and AArch64 calling policies, preserve stack/alignment and machine-state
 contracts, and keep fixed-fuel meter elision a separately admitted installation
 decision.
 
-## Q7 — Terminal-Psi artifact-verifier trust closure
-
-The Rust `psi-terminal-verifier` independently reconstructs the exact obligation
-set and invokes `psi-proof-kernel`, but proof-kernel acceptance does not prove
-that the verifier reconstructed the right obligations. The canonical
-architecture permits three final assurance routes and has not selected one:
-a low-rung reference artifact verifier, a reconstruction derivation checked by
-the low-rung kernel, or an explicit trust-ledger entry for the Psi-aware verifier.
-
-Choose the deployment-authoritative closure. The decision must name the trusted
-implementation or checked derivation format, bind it to the exact terminal-Psi
-vocabulary and obligation-reconstruction rules, state how independent agreement
-is audited across releases, and ensure that a Psi-hosted port of the proof kernel
-cannot be mistaken for reconstruction assurance. If the Rust verifier is made
-explicitly trusted, its enumerable primitive judgments and artifact-decoding
-dependencies must enter the executable trust ledger rather than being implied by
-successful certificate checks.
-
-## Q8 — Placed-view establishment and erased evidence
+## Q7 — Placed-view establishment and erased evidence
 
 The source and checked contract for placement establishment is not yet closed.
 The guide shows `Placement::admit<P, T>(...)` followed by `adopt`, `initialize`,
@@ -161,7 +148,7 @@ writes; and prevent raw bytes, admission alone, or a layout/access policy from
 manufacturing proof. Physical `LayoutPlan`, `AccessPlan`, offsets, and transfers
 remain erased-stripped.
 
-## Q9 — Provider-neutral interrupt acknowledgement settlement
+## Q8 — Provider-neutral interrupt acknowledgement settlement
 
 `InterruptAcknowledgement in Pending` is the semantic debt carried from one
 hard-interrupt arrival to its exact completion. The core
@@ -180,7 +167,7 @@ evidence, and expose only the authority actually used by that realization. It
 must compose with both port-I/O PIC EOI and machine-control LAPIC/x2APIC EOI,
 without treating either mechanism as universally reachable.
 
-## Q10 — Trapping arithmetic inside contract predicates
+## Q9 — Trapping arithmetic inside contract predicates
 
 `Trapping` arithmetic has settled runtime behavior: invalid counts, overflow,
 and the other policy-defined failures trap instead of producing a value. A
@@ -198,7 +185,7 @@ reason about the trap edge, and what explicit term/effect and proof obligations
 terminal Psi carries. The compiler must not silently treat a potentially
 trapping contract term as a total mathematical operation.
 
-## Q11 — External-entry stack-domain accounting
+## Q10 — External-entry stack-domain accounting
 
 Terminal-Psi stack evidence derives the exact closure below a selected machine
 entry, but an external root also consumes provider-specific adapter and hardware
@@ -217,7 +204,7 @@ with `EntryStack::{Interrupted, Dedicated, ProviderSelected}` without placing
 OS-specific interrupt-frame vocabulary in the language or treating a numeric
 provider assertion as compiler-derived terminal evidence.
 
-## Q12 — Generic conformance application syntax
+## Q11 — Generic conformance application syntax
 
 A named conformance may own lifetime, type, const, and static-machine binders,
 and its subject and trait application may depend on them. The language guide
@@ -237,7 +224,7 @@ lifetime arguments erase while remaining part of semantic identity. The result
 must select one exact package-scoped conformance instance and normalized row
 map without visibility search, priority, or ambient uniqueness.
 
-## Q13 — Erased evidence-term multiplicity
+## Q12 — Erased evidence-term multiplicity
 
 Named `requires` and `ensures` clauses expose erased evidence terms, and an
 output-package pattern may eventually write `_` for a field it explicitly
@@ -256,7 +243,7 @@ packages, and define exactly when `_` is a legal discharge. Erasure must remain
 independent of multiplicity, and neither producer choice nor runtime layout
 may silently weaken exact-use evidence into discardable evidence.
 
-## Q14 — Generated evidence-output package identity and projection
+## Q13 — Generated evidence-output package identity and projection
 
 The immediate output-package rung destructures one complete unconditional
 package at its call site, but the retained and outcome-guarded package model is
@@ -271,11 +258,11 @@ outcome variants. Define how `let package = call()` binds a zero-layout or
 runtime-bearing unnameable value; whether projecting `value` or an evidence
 field borrows, copies, moves, or partially consumes it; what remains valid after
 each projection; and which origin, field, outcome, and exact evidence-term rows
-Terminal Psi must retain and verify. Q12 continues to own generic conformance
-application syntax. Q13 continues to own evidence multiplicity, use counts,
+Terminal Psi must retain and verify. Q11 continues to own generic conformance
+application syntax. Q12 continues to own evidence multiplicity, use counts,
 residual-field discharge, and `_` legality.
 
-## Q15 — Terminal placed-access authority and transfer custody
+## Q14 — Terminal placed-access authority and transfer custody
 
 The target-neutral access foundation can seal and specialize Stable, External,
 and Atomic primitive events, but Terminal Psi has no canonical artifact form
@@ -292,10 +279,10 @@ results, operation family, and ordering, and bind every event to the exact
 installed extent, provider/profile receipt, mapping, revision, lifetime, and
 boundary reach without embedding a forgeable address. The verifier,
 interpreter, Omega lowering, artifacts, and installation must preserve that same
-event rather than re-resolving it from source names or offsets. Q8 continues to
+event rather than re-resolving it from source names or offsets. Q7 continues to
 own how admission first establishes a live `Placed<P, T>` and its erased terms.
 
-## Q16 — Progress-profile classification and premise attachment
+## Q15 — Progress-profile classification and premise attachment
 
 Termination guarantees can retain sealed `ProgressProfileId` premises, but the
 ordinary domain and routed-requirement surface does not distinguish a progress
