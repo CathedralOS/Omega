@@ -33,6 +33,7 @@ use crate::flow::{
     exact_multiply_chain_cast_runtime_parameter_positions_for_test,
     exact_offset_chain_cast_runtime_parameter_positions_for_test,
     exact_runtime_divisor_chain_runtime_parameter_positions_for_test,
+    exact_same_root_affine_divide_remainder_join_runtime_parameter_positions_for_test,
     exact_same_root_affine_product_join_runtime_parameter_positions_for_test,
     exact_shift_cast_shift_runtime_parameter_positions_for_test,
     exact_shift_left_chain_cast_runtime_parameter_positions_for_test,
@@ -5312,6 +5313,156 @@ fn same_root_affine_product_join_classifier_requires_a_genuine_signed_quadratic(
         exact_same_root_affine_product_join_runtime_parameter_positions_for_test(&unsigned, 1),
         None,
         "the initial correlated quadratic family is signed-only",
+    );
+}
+
+#[test]
+fn same_root_affine_divide_remainder_classifier_requires_two_genuine_signed_branches() {
+    let literal = |value, landed_type| CheckedScalarExpression::IntegerLiteral {
+        literal: psi_numerics::literals::IntegerLiteral::from_value(value).with_landing(
+            psi_numerics::literals::IntegerLanding {
+                landed_type,
+                domain: psi_numerics::arithmetic::ArithmeticDomain::Exact,
+            },
+        ),
+    };
+    let operation = |kind, primitive_type, left, right| CheckedScalarExpression::IntegerBinary {
+        kind,
+        primitive_type,
+        left: Box::new(left),
+        right: Box::new(right),
+    };
+    let parameter = |position, primitive_type| CheckedScalarExpression::Parameter {
+        position,
+        primitive_type,
+    };
+    let branch = |position, offset, factor, offset_kind| {
+        operation(
+            CheckedIntegerBinaryKind::ExactMultiply,
+            PrimitiveType::I16,
+            operation(
+                offset_kind,
+                PrimitiveType::I16,
+                parameter(position, PrimitiveType::I16),
+                literal(offset, psi_numerics::literals::LandedIntegerType::I16),
+            ),
+            literal(factor, psi_numerics::literals::LandedIntegerType::I16),
+        )
+    };
+    let divisor = |position| {
+        operation(
+            CheckedIntegerBinaryKind::ExactAdd,
+            PrimitiveType::I16,
+            operation(
+                CheckedIntegerBinaryKind::ExactMultiply,
+                PrimitiveType::I16,
+                parameter(position, PrimitiveType::I16),
+                literal(2, psi_numerics::literals::LandedIntegerType::I16),
+            ),
+            literal(1, psi_numerics::literals::LandedIntegerType::I16),
+        )
+    };
+    for kind in [
+        CheckedIntegerBinaryKind::ExactDivide,
+        CheckedIntegerBinaryKind::ExactRemainder,
+    ] {
+        let joined = operation(
+            kind,
+            PrimitiveType::I16,
+            branch(0, 16384, -2, CheckedIntegerBinaryKind::ExactAdd),
+            divisor(0),
+        );
+        assert_eq!(
+            exact_same_root_affine_divide_remainder_join_runtime_parameter_positions_for_test(
+                &joined, 1,
+            ),
+            Some(vec![0]),
+        );
+    }
+    let distinct = operation(
+        CheckedIntegerBinaryKind::ExactDivide,
+        PrimitiveType::I16,
+        branch(0, 16384, -2, CheckedIntegerBinaryKind::ExactAdd),
+        divisor(1),
+    );
+    assert_eq!(
+        exact_same_root_affine_divide_remainder_join_runtime_parameter_positions_for_test(
+            &distinct, 2,
+        ),
+        None,
+        "distinct roots cannot borrow correlation",
+    );
+    let zero_branch = operation(
+        CheckedIntegerBinaryKind::ExactDivide,
+        PrimitiveType::I16,
+        branch(0, 16384, 0, CheckedIntegerBinaryKind::ExactAdd),
+        divisor(0),
+    );
+    assert_eq!(
+        exact_same_root_affine_divide_remainder_join_runtime_parameter_positions_for_test(
+            &zero_branch,
+            1,
+        ),
+        None,
+        "constant collapse stays on narrower paths",
+    );
+    let direct_side = operation(
+        CheckedIntegerBinaryKind::ExactRemainder,
+        PrimitiveType::I16,
+        parameter(0, PrimitiveType::I16),
+        divisor(0),
+    );
+    assert_eq!(
+        exact_same_root_affine_divide_remainder_join_runtime_parameter_positions_for_test(
+            &direct_side,
+            1,
+        ),
+        None,
+    );
+    let computed_root = operation(
+        CheckedIntegerBinaryKind::ExactDivide,
+        PrimitiveType::I16,
+        branch(0, 16384, -2, CheckedIntegerBinaryKind::ExactAdd),
+        operation(
+            CheckedIntegerBinaryKind::ExactAdd,
+            PrimitiveType::I16,
+            operation(
+                CheckedIntegerBinaryKind::ExactAdd,
+                PrimitiveType::I16,
+                parameter(0, PrimitiveType::I16),
+                parameter(0, PrimitiveType::I16),
+            ),
+            literal(1, psi_numerics::literals::LandedIntegerType::I16),
+        ),
+    );
+    assert_eq!(
+        exact_same_root_affine_divide_remainder_join_runtime_parameter_positions_for_test(
+            &computed_root,
+            1,
+        ),
+        None,
+        "computed roots are not signature-bound authority",
+    );
+    let unsigned_branch = |offset| {
+        operation(
+            CheckedIntegerBinaryKind::ExactAdd,
+            PrimitiveType::U16,
+            parameter(0, PrimitiveType::U16),
+            literal(offset, psi_numerics::literals::LandedIntegerType::U16),
+        )
+    };
+    let unsigned = operation(
+        CheckedIntegerBinaryKind::ExactDivide,
+        PrimitiveType::U16,
+        unsigned_branch(1),
+        unsigned_branch(2),
+    );
+    assert_eq!(
+        exact_same_root_affine_divide_remainder_join_runtime_parameter_positions_for_test(
+            &unsigned, 1,
+        ),
+        None,
+        "the lattice-correlation family is signed-only",
     );
 }
 

@@ -1746,6 +1746,26 @@ requires value <= 32764i16,
     (((((value + 3i16) * -2i16) * ((value - 4i16) * 2i16)) < 32767i16) && enabled)
 }
 
+machine terminal_same_root_signed_affine_divide_join(value: i16, enabled: bool) -> bool
+requires value <= 16383i16,
+    -32767i16 <= value, value <= 0i16,
+    -16384i16 <= value, value <= 16383i16,
+    -16383i16 <= value, value <= 16384i16,
+    -1i16 <= value, value <= 0i16
+{
+    (((((value + 16384i16) * -2i16) / ((value * 2i16) + 1i16)) < 32767i16) && enabled)
+}
+
+machine terminal_same_root_signed_affine_remainder_join(value: i16, enabled: bool) -> bool
+requires -16385i16 <= value,
+    -1i16 <= value, value <= 32766i16,
+    -16384i16 <= value, value <= 16383i16,
+    -16383i16 <= value,
+    -1i16 <= value, value <= 0i16
+{
+    (((((value - 16383i16) * 2i16) % ((value * 2i16) - 1i16)) < 32767i16) && enabled)
+}
+
 machine terminal_exact_cast_then_mixed_affine_chain(value: u16, enabled: bool) -> bool
 requires value <= 255u16, value <= 252u16, value <= 124u16, value <= 125u16
 {
