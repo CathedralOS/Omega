@@ -30,7 +30,9 @@ build_beta_program() {
 build_beta_program typeck.beta "$T/typeck.exe"
 build_beta_program interp.beta "$T/interp.exe"
 
-cat terminal-ledger-spike/types.gamma \
+cat canonical-bytes/types.gamma \
+    terminal-ledger-spike/types.gamma \
+    canonical-bytes/decode.gamma \
     terminal-ledger-spike/decode.gamma \
     terminal-ledger-spike/ledger.gamma > "$T/typed.gamma"
 

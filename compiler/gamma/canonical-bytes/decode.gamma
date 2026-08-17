@@ -1,0 +1,28 @@
+; Reusable canonical-byte primitives.  This layer knows fixed-width
+; little-endian byte structure only.  It does not know PSITERM markers, tags,
+; counts, semantic identities, strings, or recursive terminal vocabulary.
+
+(def read_u8 ((bs Bytes)) RInt
+  (match bs
+    (BNil RIntBad)
+    ((B h t) (if (lt h 0) RIntBad (if (lt h 256) (RInt h t) RIntBad)))))
+
+(def read_le ((bs Bytes) (n Int) (factor Int) (acc Int)) RInt
+  (if (eq n 0) (RInt acc bs)
+    (match (read_u8 bs)
+      (RIntBad RIntBad)
+      ((RInt h t) (read_le t (- n 1) (* factor 256) (+ acc (* h factor)))))))
+
+(def read_u16 ((bs Bytes)) RInt (read_le bs 2 1 0))
+(def read_u32 ((bs Bytes)) RInt (read_le bs 4 1 0))
+
+(def consume_zeroes ((bs Bytes) (n Int)) RBytes
+  (if (eq n 0) (RBytes bs)
+    (match (read_u8 bs)
+      (RIntBad RBytesBad)
+      ((RInt h t) (if (eq h 0) (consume_zeroes t (- n 1)) RBytesBad)))))
+
+(def expect_byte ((bs Bytes) (want Int)) RBytes
+  (match (read_u8 bs)
+    (RIntBad RBytesBad)
+    ((RInt got rest) (if (eq got want) (RBytes rest) RBytesBad))))

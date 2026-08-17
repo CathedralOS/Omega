@@ -83,7 +83,7 @@ in `compiler/gamma/terminal-ledger-spike/`. The typed program consumes exact
 current terminal-Psi bytes, validates a closed subset, and emits/audits ranked
 semantic rows. Both the Beta-written reference interpreter and the independent
 Python evaluator agree on the positive fixture, an asymmetric join rejection,
-and malformed-byte rejection. The measured core is 1,329 lines rather than a
+and malformed-byte rejection. The assembled core is 1,337 lines rather than a
 permutation-expanded verifier; its decomposition into decoder, typed row
 vocabulary, validators, emitters, and sequencing helpers is the intended shape
 for the production low generator.
@@ -91,9 +91,12 @@ for the production low generator.
 The spike also makes one scaling limit concrete: the monomorphic type system
 requires a distinct parse-result ADT for each decoded type. That repetition is
 an engineering/audit cost, not a reason to weaken the canonical-byte endpoint.
-The full port should first factor the reusable decoder layer; if the complete
-closed vocabulary cannot remain auditable under this restriction, that is the
-point for an explicit Gamma rung-design correction.
+The reusable PSITERM-neutral byte cursor and checked fixed-width primitives are
+now factored and independently gated in `compiler/gamma/canonical-bytes/`.
+Type-specific results and the bounded `u64` identity limitation remain explicit
+in the spike. If the complete closed vocabulary cannot remain auditable after
+that extraction, that is the point for an explicit Gamma rung-design
+correction.
 
 The architectural fork is now settled: the functional interpreter-first Gamma
 defines meaning, while the old imperative compiler-first surface remains a

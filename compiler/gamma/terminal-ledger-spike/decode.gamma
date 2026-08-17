@@ -4,28 +4,7 @@
 ; explicit measured limitation rather than a host-language integer accident.
 
 (def both ((a Int) (b Int)) Int (if a b 0))
-(def same ((a Int) (b Int)) Int (eq a b))
 (def nonzero ((a Int)) Int (if (eq a 0) 0 1))
-
-(def read_u8 ((bs Bytes)) RInt
-  (match bs
-    (BNil RIntBad)
-    ((B h t) (if (lt h 0) RIntBad (if (lt h 256) (RInt h t) RIntBad)))))
-
-(def read_le ((bs Bytes) (n Int) (factor Int) (acc Int)) RInt
-  (if (eq n 0) (RInt acc bs)
-    (match (read_u8 bs)
-      (RIntBad RIntBad)
-      ((RInt h t) (read_le t (- n 1) (* factor 256) (+ acc (* h factor)))))))
-
-(def read_u16 ((bs Bytes)) RInt (read_le bs 2 1 0))
-(def read_u32 ((bs Bytes)) RInt (read_le bs 4 1 0))
-
-(def consume_zeroes ((bs Bytes) (n Int)) RBytes
-  (if (eq n 0) (RBytes bs)
-    (match (read_u8 bs)
-      (RIntBad RBytesBad)
-      ((RInt h t) (if (eq h 0) (consume_zeroes t (- n 1)) RBytesBad)))))
 
 (def read_u64_small ((bs Bytes)) RInt
   (match (read_u32 bs)
@@ -39,11 +18,6 @@
   (match (read_u64_small bs)
     (RIntBad RIntBad)
     ((RInt id rest) (if (eq id 0) RIntBad (RInt id rest)))))
-
-(def expect_byte ((bs Bytes) (want Int)) RBytes
-  (match (read_u8 bs)
-    (RIntBad RBytesBad)
-    ((RInt got rest) (if (eq got want) (RBytes rest) RBytesBad))))
 
 (def expect_zero_count ((bs Bytes)) RBytes
   (match (read_u32 bs)
