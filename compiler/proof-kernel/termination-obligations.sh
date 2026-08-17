@@ -1,5 +1,6 @@
 #!/usr/bin/env sh
-# TERMINATION OBLIGATION DISCHARGE (omega source) — the `terminates { decreases s -> Slice::Length; }`
+# TERMINATION OBLIGATION DISCHARGE (omega source) — the normative
+# `terminates by s -> Slice::Length;`
 # clause on a machine is a proof obligation: every recursive self-call must STRICTLY DECREASE the measure,
 # so the recursion is well-founded and the machine halts on ALL inputs (not just the ones the meaning route
 # happens to run). omega-rs discharges termination obligations statically; this gate does the proof-kernel analogue
@@ -9,7 +10,7 @@
 # on the tail t (= s[1..]) and len(t) < len(cons h t) — the length drops by exactly 1. proofs/slice-tail-
 # shrink.elab proves that fact (`ex k. len t + s(k) = len(cons h t)`), verified here by check.beta,
 # check_ref.py AND checker.gamma. The gate then ties each omega source machine carrying the obligation to
-# the proven lemma: it confirms the machine declares `decreases <s> -> Slice::Length` AND tail-recurses on
+# the proven lemma: it confirms the machine declares `terminates by <s> -> Slice::Length` AND tail-recurses on
 # `<s>[1..]`, so its declared measure is exactly the one proven to strictly decrease. A NEGATIVE control (the
 # reversed claim len(cons h t) < len t — the measure GROWS, i.e. non-termination) must be rejected by the
 # kernel AND the reference checker. No hand-picked goal: the samples' own decreases clauses are discharged.
@@ -43,15 +44,15 @@ echo "  negative control (reversed measure grows): check.beta=$nb check_ref=$nr 
 # ---- 3. tie each omega source obligation to the proven lemma ----
 cov=0; miss=0
 for f in ../lattice-corpus/*/main.omg; do
-  dec=$(grep -oE 'decreases [a-z_]+ -> Slice::Length' "$f" | head -1)
+  dec=$(grep -oE 'terminates by [a-z_]+ -> Slice::Length;' "$f" | head -1)
   [ -n "$dec" ] || continue
   s=$(basename "$(dirname "$f")")
-  var=$(printf '%s' "$dec" | sed -E 's/decreases ([a-z_]+).*/\1/')
+  var=$(printf '%s' "$dec" | sed -E 's/terminates by ([a-z_]+).*/\1/')
   # the machine must tail-recurse on <var>[1..] (the shrinking window the lemma covers)
   if grep -qF "${var}[1.." "$f"; then
-    n=$(grep -cE 'decreases [a-z_]+ -> Slice::Length' "$f")
+    n=$(grep -cE 'terminates by [a-z_]+ -> Slice::Length;' "$f")
     cov=$((cov + n))
-    echo "  ok   $s : $n machine(s) 'decreases $var -> Slice::Length', tail-recurse on $var[1..] -> discharged by the lemma"
+    echo "  ok   $s : $n machine(s) 'terminates by $var -> Slice::Length', tail-recurse on $var[1..] -> discharged by the lemma"
   else
     miss=$((miss + 1))
     echo "  MISS $s : declares Slice::Length decreases but no $var[1..] shrinking recursion found"
@@ -62,5 +63,5 @@ ok=1
 [ "$gb" = accept ] && [ "$gr" = accept ] && [ "$gg" = accept ] || ok=0
 [ "$neg_ok" = yes ] || ok=0
 [ "$cov" -gt 0 ] && [ "$miss" = 0 ] || ok=0
-echo "termination obligations (omega 'decreases s -> Slice::Length' discharged by a 3-checker-verified measure-decrease lemma; reversed measure rejected): $cov machine-obligation(s) tied to the lemma across the corpus"
+echo "termination obligations (omega 'terminates by s -> Slice::Length' discharged by a 3-checker-verified measure-decrease lemma; reversed measure rejected): $cov machine-obligation(s) tied to the lemma across the corpus"
 [ "$ok" = 1 ]
