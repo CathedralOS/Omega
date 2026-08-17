@@ -195,6 +195,11 @@ pub fn render_verified_proof_synopsis(
             .expect("writing a synopsis to a String cannot fail");
         }
     }
+    let trust_graph = crate::current_terminal_trust_graph().map_err(ProofCodecError::TrustGraph)?;
+    output.push_str(
+        &crate::render_terminal_trust_graph(&trust_graph)
+            .expect("writing a trust graph to a String cannot fail"),
+    );
     Ok(output)
 }
 
@@ -1761,6 +1766,7 @@ pub enum ProofCodecError {
     StringTooLong(&'static str),
     InvalidUtf8(&'static str),
     MalformedProposition(PropositionError),
+    TrustGraph(crate::TrustGraphError),
 }
 
 impl std::fmt::Display for ProofCodecError {

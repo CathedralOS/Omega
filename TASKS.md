@@ -647,6 +647,17 @@ Remaining:
   digest/version, owner, scope, rationale, and accepting policy; unknown leaves
   reject. Do not encode an uncertified reducer as an admitted program premise.
 
+  Current migration inventory: the canonical proof synopsis now publishes one
+  validated source-bound trust graph for the exact Rust decoder, proof kernel,
+  verifier, eight sufficient-form reduction families, the current unproved
+  ledger framework, and all 38 closed `OperationKind` denotation rows. Node
+  digests bind the exact deciding Rust/specification bytes and explicit
+  versions; the graph identity also binds every canonical dependency edge.
+  Unknown, cyclic, unreachable, duplicate, malformed-root, and noncanonical
+  graphs reject, and the current artifact closure reports `fully-derived false`.
+  The Gamma spike, low generator, row proofs, and composition bridges remain
+  open.
+
   Define a closed typed schema language with no opaque callbacks. One row per
   leaf operation owns well-formedness, direct mathematical denotation, canonical
   goals, post-discharge facts, crash behavior, and local fuel/frontier effects.

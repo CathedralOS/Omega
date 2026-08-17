@@ -15,7 +15,8 @@ use psi_terminal::{
     TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
 };
 use psi_terminal_codec::{
-    ArtifactManifestError, ProofCodecError, build_artifact_manifest, decode_proof_bundle,
+    ArtifactManifestError, ProofCodecError, build_artifact_manifest,
+    current_rust_denotation_trust_identity, current_terminal_trust_graph, decode_proof_bundle,
     encode_proof_bundle, proof_bundle_fingerprint, render_verified_proof_synopsis,
     terminal_psi_identity, validate_artifact_manifest,
 };
@@ -89,6 +90,23 @@ fn synopsis_is_projected_from_the_exact_accepted_certificate() {
     assert!(first.contains("obligation 1 goal "));
     assert!(first.contains("certificate 9 proof-system 1"));
     assert!(first.contains("rule Primitive"));
+    let trust_graph = current_terminal_trust_graph().expect("current trust graph");
+    assert!(first.contains(&format!(
+        "trust-graph {} entry closure:terminal-pcc-current fully-derived false",
+        trust_graph.identity()
+    )));
+    assert!(first.contains("trust-node implementation:rust-terminal-decoder"));
+    assert!(first.contains("trust-node implementation:rust-terminal-verifier"));
+    assert!(first.contains("trust-node reduction:integer-conversion"));
+    assert!(first.contains("trust-node schema:operation:exact-integer-add"));
+    assert_eq!(
+        current_rust_denotation_trust_identity(&OperationKind::ExactIntegerAdd {
+            left: value_id(1),
+            right: value_id(2),
+            obligation: obligation_id(3),
+        }),
+        "schema:operation:exact-integer-add"
+    );
 
     let goal = module.machines[0].contract.ensures[0].proposition.clone();
     let assumption_bundle = ProofBundle {

@@ -9,6 +9,7 @@
 mod artifact_manifest;
 mod debug_map;
 mod proof_bundle;
+mod trust_graph;
 
 pub use artifact_manifest::{
     ArtifactManifestError, SectionFingerprint, TerminalArtifactIdentity, TerminalArtifactManifest,
@@ -24,6 +25,12 @@ pub use proof_bundle::{
     proof_bundle_fingerprint, render_verified_proof_synopsis,
 };
 pub use psi_terminal::{SemanticFingerprint, TerminalPsiIdentity};
+pub use trust_graph::{
+    TerminalTrustGraphIdentity, TrustAcceptingPolicy, TrustDependencyDigest, TrustDependencyKind,
+    TrustDependencyNode, TrustDependencyStatus, TrustGraphError, ValidatedTerminalTrustGraph,
+    current_rust_denotation_trust_identity, current_terminal_trust_graph,
+    render_terminal_trust_graph, validate_terminal_trust_graph,
+};
 
 use psi_core::{
     CanonicalStructuralPathSegment, ClaimId, ContentAlgebra, ContentAlgebraKind,

@@ -1572,6 +1572,15 @@ dependencies. A denotation row may move from trusted, to a locally checked row
 theorem, to inclusion in the checked module-composition bridge without hiding
 the remaining global dependency.
 
+The current Rust migration surface is now exposed by `psi-terminal-codec` in
+every verified proof synopsis. Its validated graph binds exact source bytes and
+explicit versions for the decoder, proof kernel, verifier, each sufficient-form
+reducer, the unproved ledger framework, and one row for every closed
+`OperationKind`. Dependency edges contribute to the graph identity; unknown,
+cyclic, unreachable, duplicate, or noncanonical custody rejects. The entry
+deliberately reports `fully-derived false`: this inventory is the prerequisite
+for, not an implementation of, the low canonical ledger.
+
 Portable terminal-Psi denotation bottoms out in the abstract terminal execution
 model, not in x86-64 or AArch64 behavior. ISA semantics, hardware fidelity,
 native lowering, and installation belong to the separate native-refinement
