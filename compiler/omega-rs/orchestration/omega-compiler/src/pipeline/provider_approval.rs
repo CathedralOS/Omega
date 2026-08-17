@@ -36,6 +36,22 @@ fn checked_boundary_call_coordinates(
     let mut state_coordinates = Vec::new();
     let mut coordinates = Vec::new();
 
+    let traits = program.traits();
+    if traits.len() != program.roots.traits.count() as usize {
+        diagnostics.push(Diagnostic::error(
+            "provider approval checked flow has an invalid typed trait span",
+        ));
+    }
+    for definition in traits {
+        if program.trait_machine_signatures(definition).len()
+            != definition.machines.count() as usize
+        {
+            diagnostics.push(Diagnostic::error(format!(
+                "provider approval checked flow has an invalid typed signature span for trait {:?}",
+                definition.symbol,
+            )));
+        }
+    }
     let machines = program.machines();
     if machines.len() != program.roots.machines.count() as usize {
         diagnostics.push(Diagnostic::error(
@@ -183,13 +199,77 @@ fn checked_boundary_call_coordinates(
                 )));
                 continue;
             }
-            coordinates.push(omega_effects::BoundaryCallCoordinate {
-                machine_symbol: flow_state.machine_symbol,
-                state_symbol: flow_state.state_symbol,
-                target_state_symbol: call.target_symbol,
-                statement_index: call.statement_index,
-                call_ordinal: call.call_ordinal,
-            });
+            if boundary_edges.is_empty() {
+                match exact_direct_boundary_requirement(program, call.target_symbol) {
+                    Ok(Some((boundary_trait_symbol, boundary_signature_symbol))) => {
+                        coordinates.push(omega_effects::BoundaryCallCoordinate {
+                            machine_symbol: flow_state.machine_symbol,
+                            state_symbol: flow_state.state_symbol,
+                            target_state_symbol: call.target_symbol,
+                            boundary_trait_symbol,
+                            boundary_signature_symbol,
+                            statement_index: call.statement_index,
+                            call_ordinal: call.call_ordinal,
+                        });
+                    }
+                    Ok(None) => {}
+                    Err(diagnostic) => diagnostics.push(diagnostic),
+                }
+                continue;
+            }
+
+            let mut exact_edges = Vec::new();
+            for edge in boundary_edges {
+                if edge.statement_index != call.statement_index
+                    || edge.call_ordinal != call.call_ordinal
+                {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "provider approval checked boundary edge in state {:?} has coordinate (statement {}, call {}), not its owning call coordinate (statement {}, call {})",
+                        flow_state.state_symbol,
+                        edge.statement_index,
+                        edge.call_ordinal,
+                        call.statement_index,
+                        call.call_ordinal,
+                    )));
+                    continue;
+                }
+                if edge.target_symbol != call.target_symbol {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "provider approval checked boundary edge in state {:?} targets {:?}, not its owning call target {:?}",
+                        flow_state.state_symbol, edge.target_symbol, call.target_symbol,
+                    )));
+                    continue;
+                }
+                let edge_identity = (edge.boundary_trait_symbol, edge.boundary_signature_symbol);
+                if exact_edges.contains(&edge_identity) {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "provider approval checked call in state {:?} contains duplicate exact boundary edge ({:?}, {:?})",
+                        flow_state.state_symbol,
+                        edge.boundary_trait_symbol,
+                        edge.boundary_signature_symbol,
+                    )));
+                    continue;
+                }
+                exact_edges.push(edge_identity);
+                if let Err(diagnostic) = validate_exact_boundary_requirement(
+                    program,
+                    edge.boundary_trait_symbol,
+                    edge.boundary_signature_symbol,
+                    "provider approval checked boundary edge",
+                ) {
+                    diagnostics.push(diagnostic);
+                    continue;
+                }
+                coordinates.push(omega_effects::BoundaryCallCoordinate {
+                    machine_symbol: flow_state.machine_symbol,
+                    state_symbol: flow_state.state_symbol,
+                    target_state_symbol: call.target_symbol,
+                    boundary_trait_symbol: edge.boundary_trait_symbol,
+                    boundary_signature_symbol: edge.boundary_signature_symbol,
+                    statement_index: call.statement_index,
+                    call_ordinal: call.call_ordinal,
+                });
+            }
         }
     }
 
@@ -198,6 +278,96 @@ fn checked_boundary_call_coordinates(
     } else {
         Err(diagnostics)
     }
+}
+
+fn exact_direct_boundary_requirement(
+    program: &psi_typed_trees::TypedTrees,
+    target_symbol: SymbolHandle,
+) -> Result<Option<(SymbolHandle, SymbolHandle)>, Diagnostic> {
+    let matches = program
+        .traits()
+        .iter()
+        .filter(|definition| definition.is_boundary)
+        .flat_map(|definition| {
+            program
+                .trait_machine_signatures(definition)
+                .iter()
+                .filter(move |signature| signature.symbol == target_symbol)
+                .map(move |signature| (definition.symbol, signature.symbol))
+        })
+        .collect::<Vec<_>>();
+    match matches.as_slice() {
+        [] => Ok(None),
+        [(boundary_trait_symbol, boundary_signature_symbol)] => {
+            validate_exact_boundary_requirement(
+                program,
+                *boundary_trait_symbol,
+                *boundary_signature_symbol,
+                "provider approval direct abstract boundary call",
+            )?;
+            Ok(Some((*boundary_trait_symbol, *boundary_signature_symbol)))
+        }
+        _ => Err(Diagnostic::error(format!(
+            "provider approval call target {:?} resolves to {} exact direct boundary requirements",
+            target_symbol,
+            matches.len(),
+        ))),
+    }
+}
+
+fn validate_exact_boundary_requirement(
+    program: &psi_typed_trees::TypedTrees,
+    boundary_trait_symbol: SymbolHandle,
+    boundary_signature_symbol: SymbolHandle,
+    context: &str,
+) -> Result<(), Diagnostic> {
+    if !boundary_trait_symbol.is_valid() || !boundary_signature_symbol.is_valid() {
+        return Err(Diagnostic::error(format!(
+            "{context} has an invalid exact boundary trait or signature symbol",
+        )));
+    }
+    let owners = program
+        .traits()
+        .iter()
+        .filter(|definition| definition.symbol == boundary_trait_symbol)
+        .collect::<Vec<_>>();
+    let [owner] = owners.as_slice() else {
+        return Err(Diagnostic::error(format!(
+            "{context} trait {:?} resolves to {} exact typed owners",
+            boundary_trait_symbol,
+            owners.len(),
+        )));
+    };
+    if !owner.is_boundary {
+        return Err(Diagnostic::error(format!(
+            "{context} trait {:?} is not a boundary trait",
+            boundary_trait_symbol,
+        )));
+    }
+    let owned_signatures = program
+        .trait_machine_signatures(owner)
+        .iter()
+        .filter(|signature| signature.symbol == boundary_signature_symbol)
+        .count();
+    let global_signatures = program
+        .traits()
+        .iter()
+        .flat_map(|definition| program.trait_machine_signatures(definition))
+        .filter(|signature| signature.symbol == boundary_signature_symbol)
+        .count();
+    let state_matches = program
+        .machines()
+        .iter()
+        .flat_map(|machine| program.machine_states(machine))
+        .filter(|state| state.symbol == boundary_signature_symbol)
+        .count();
+    if owned_signatures != 1 || global_signatures != 1 || state_matches != 0 {
+        return Err(Diagnostic::error(format!(
+            "{context} signature {:?} is missing, duplicated, cross-owned, or collides with a typed state",
+            boundary_signature_symbol,
+        )));
+    }
+    Ok(())
 }
 
 fn symbol_name(program: &psi_typed_trees::TypedTrees, symbol: SymbolHandle) -> String {
@@ -239,6 +409,10 @@ mod tests {
         other_machine: SymbolHandle,
         first_target: SymbolHandle,
         second_target: SymbolHandle,
+        boundary_trait: SymbolHandle,
+        boundary_signature: SymbolHandle,
+        other_boundary_trait: SymbolHandle,
+        other_boundary_signature: SymbolHandle,
     }
 
     fn symbol(index: u32) -> SymbolHandle {
@@ -252,7 +426,32 @@ mod tests {
         let other_state = symbol(4);
         let first_target = symbol(5);
         let second_target = symbol(6);
+        let boundary_trait = symbol(7);
+        let boundary_signature = symbol(8);
+        let other_boundary_trait = symbol(9);
+        let other_boundary_signature = symbol(10);
         let mut checked = psi_checked_trees::CheckedTrees::default();
+
+        for (trait_symbol, signature_symbol, trait_name) in [
+            (boundary_trait, boundary_signature, "Console"),
+            (other_boundary_trait, other_boundary_signature, "Clock"),
+        ] {
+            let mut definition = psi_checked_trees::trait_definition::TraitDefinition {
+                symbol: trait_symbol,
+                is_boundary: true,
+                name: psi_checked_trees::name::Identifier::generated(trait_name),
+                ..Default::default()
+            };
+            checked.typed.push_trait_machine_signature(
+                &mut definition,
+                psi_checked_trees::signature::StateSignature {
+                    symbol: signature_symbol,
+                    name: psi_checked_trees::name::Identifier::generated("invoke"),
+                    ..Default::default()
+                },
+            );
+            checked.typed.push_trait_definition(definition);
+        }
 
         for (machine_symbol, state_symbol, machine_name) in [
             (machine, state, "Main"),
@@ -320,12 +519,27 @@ mod tests {
             other_machine,
             first_target,
             second_target,
+            boundary_trait,
+            boundary_signature,
+            other_boundary_trait,
+            other_boundary_signature,
         }
     }
 
     #[test]
     fn checked_coordinates_preserve_exact_order_and_identity() {
         let mut fixture = coordinate_fixture();
+        let (owner, requirement) = (fixture.boundary_trait, fixture.boundary_signature);
+        attach_boundary_edge(&mut fixture, owner, requirement);
+        let direct_requirement = fixture.other_boundary_signature;
+        fixture
+            .checked
+            .facts
+            .flow
+            .control
+            .calls
+            .get_mut(fixture.second_call)
+            .target_symbol = direct_requirement;
 
         assert_eq!(
             checked_boundary_call_coordinates(&fixture.checked).expect("valid checked flow"),
@@ -334,19 +548,28 @@ mod tests {
                     machine_symbol: fixture.machine,
                     state_symbol: fixture.state,
                     target_state_symbol: fixture.first_target,
+                    boundary_trait_symbol: fixture.boundary_trait,
+                    boundary_signature_symbol: fixture.boundary_signature,
                     statement_index: 0,
                     call_ordinal: 0,
                 },
                 omega_effects::BoundaryCallCoordinate {
                     machine_symbol: fixture.machine,
                     state_symbol: fixture.state,
-                    target_state_symbol: fixture.second_target,
+                    target_state_symbol: fixture.other_boundary_signature,
+                    boundary_trait_symbol: fixture.other_boundary_trait,
+                    boundary_signature_symbol: fixture.other_boundary_signature,
                     statement_index: 0,
                     call_ordinal: 1,
                 },
             ]
         );
         assert_eq!(check_boundary_provider_approval(&fixture.checked), Ok(()));
+    }
+
+    #[test]
+    fn checked_coordinates_ignore_genuine_non_boundary_calls() {
+        let mut fixture = coordinate_fixture();
 
         fixture
             .checked
@@ -359,13 +582,39 @@ mod tests {
         assert_eq!(
             checked_boundary_call_coordinates(&fixture.checked)
                 .expect("non-boundary call without a resolved target remains ignorable"),
-            vec![omega_effects::BoundaryCallCoordinate {
-                machine_symbol: fixture.machine,
-                state_symbol: fixture.state,
-                target_state_symbol: fixture.second_target,
-                statement_index: 0,
-                call_ordinal: 1,
-            }]
+            Vec::<omega_effects::BoundaryCallCoordinate>::new(),
+        );
+    }
+
+    #[test]
+    fn checked_coordinates_retain_every_distinct_exact_boundary_edge() {
+        let mut fixture = coordinate_fixture();
+        let (owner, requirement) = (fixture.boundary_trait, fixture.boundary_signature);
+        attach_boundary_edge(&mut fixture, owner, requirement);
+        let (owner, requirement) = (
+            fixture.other_boundary_trait,
+            fixture.other_boundary_signature,
+        );
+        attach_boundary_edge(&mut fixture, owner, requirement);
+
+        let coordinates =
+            checked_boundary_call_coordinates(&fixture.checked).expect("two exact boundary edges");
+        assert_eq!(coordinates.len(), 2);
+        assert_eq!(
+            coordinates
+                .iter()
+                .map(|coordinate| (
+                    coordinate.boundary_trait_symbol,
+                    coordinate.boundary_signature_symbol,
+                ))
+                .collect::<Vec<_>>(),
+            vec![
+                (fixture.boundary_trait, fixture.boundary_signature),
+                (
+                    fixture.other_boundary_trait,
+                    fixture.other_boundary_signature,
+                ),
+            ],
         );
     }
 
@@ -373,6 +622,8 @@ mod tests {
     enum CoordinateCorruption {
         InvalidCallSpan,
         InvalidBoundaryEdgeSpan,
+        InvalidTraitSpan,
+        InvalidSignatureSpan,
         InvalidMachineSpan,
         InvalidStateSpan,
         InvalidStatementSpan,
@@ -385,6 +636,17 @@ mod tests {
         OutOfRangeStatement,
         DuplicateCallCoordinate,
         InvalidTarget,
+        DriftedEdgeStatement,
+        DriftedEdgeOrdinal,
+        DriftedEdgeTarget,
+        InvalidBoundaryTrait,
+        MissingBoundaryTrait,
+        NonBoundaryTrait,
+        InvalidBoundarySignature,
+        MissingBoundarySignature,
+        CrossOwnedBoundarySignature,
+        DuplicateExactBoundaryEdge,
+        DuplicateDirectBoundaryRequirement,
     }
 
     #[test]
@@ -394,6 +656,14 @@ mod tests {
             (
                 CoordinateCorruption::InvalidBoundaryEdgeSpan,
                 "invalid boundary-edge span",
+            ),
+            (
+                CoordinateCorruption::InvalidTraitSpan,
+                "invalid typed trait span",
+            ),
+            (
+                CoordinateCorruption::InvalidSignatureSpan,
+                "invalid typed signature span",
             ),
             (
                 CoordinateCorruption::InvalidMachineSpan,
@@ -443,6 +713,50 @@ mod tests {
                 CoordinateCorruption::InvalidTarget,
                 "no valid target symbol",
             ),
+            (
+                CoordinateCorruption::DriftedEdgeStatement,
+                "not its owning call coordinate",
+            ),
+            (
+                CoordinateCorruption::DriftedEdgeOrdinal,
+                "not its owning call coordinate",
+            ),
+            (
+                CoordinateCorruption::DriftedEdgeTarget,
+                "not its owning call target",
+            ),
+            (
+                CoordinateCorruption::InvalidBoundaryTrait,
+                "invalid exact boundary trait or signature symbol",
+            ),
+            (
+                CoordinateCorruption::MissingBoundaryTrait,
+                "resolves to 0 exact typed owners",
+            ),
+            (
+                CoordinateCorruption::NonBoundaryTrait,
+                "is not a boundary trait",
+            ),
+            (
+                CoordinateCorruption::InvalidBoundarySignature,
+                "invalid exact boundary trait or signature symbol",
+            ),
+            (
+                CoordinateCorruption::MissingBoundarySignature,
+                "missing, duplicated, cross-owned, or collides",
+            ),
+            (
+                CoordinateCorruption::CrossOwnedBoundarySignature,
+                "missing, duplicated, cross-owned, or collides",
+            ),
+            (
+                CoordinateCorruption::DuplicateExactBoundaryEdge,
+                "duplicate exact boundary edge",
+            ),
+            (
+                CoordinateCorruption::DuplicateDirectBoundaryRequirement,
+                "resolves to 2 exact direct boundary requirements",
+            ),
         ];
 
         for (corruption, expected) in cases {
@@ -452,8 +766,15 @@ mod tests {
                     fixture.checked.facts.flow.control.calls.clear();
                 }
                 CoordinateCorruption::InvalidBoundaryEdgeSpan => {
-                    attach_boundary_edge(&mut fixture);
+                    let (owner, requirement) = (fixture.boundary_trait, fixture.boundary_signature);
+                    attach_boundary_edge(&mut fixture, owner, requirement);
                     fixture.checked.facts.flow.boundaries.edges.clear();
+                }
+                CoordinateCorruption::InvalidTraitSpan => {
+                    fixture.checked.typed.traits.clear();
+                }
+                CoordinateCorruption::InvalidSignatureSpan => {
+                    fixture.checked.typed.trait_machine_signatures.clear();
                 }
                 CoordinateCorruption::InvalidMachineSpan => {
                     fixture.checked.typed.machines.clear();
@@ -544,7 +865,8 @@ mod tests {
                         .call_ordinal = 0;
                 }
                 CoordinateCorruption::InvalidTarget => {
-                    attach_boundary_edge(&mut fixture);
+                    let (owner, requirement) = (fixture.boundary_trait, fixture.boundary_signature);
+                    attach_boundary_edge(&mut fixture, owner, requirement);
                     fixture
                         .checked
                         .facts
@@ -553,6 +875,100 @@ mod tests {
                         .calls
                         .get_mut(fixture.first_call)
                         .target_symbol = SymbolHandle::invalid();
+                }
+                CoordinateCorruption::DriftedEdgeStatement => {
+                    let (owner, requirement) = (fixture.boundary_trait, fixture.boundary_signature);
+                    let edge = attach_boundary_edge(&mut fixture, owner, requirement);
+                    fixture
+                        .checked
+                        .facts
+                        .flow
+                        .boundaries
+                        .edges
+                        .get_mut(edge)
+                        .statement_index = 1;
+                }
+                CoordinateCorruption::DriftedEdgeOrdinal => {
+                    let (owner, requirement) = (fixture.boundary_trait, fixture.boundary_signature);
+                    let edge = attach_boundary_edge(&mut fixture, owner, requirement);
+                    fixture
+                        .checked
+                        .facts
+                        .flow
+                        .boundaries
+                        .edges
+                        .get_mut(edge)
+                        .call_ordinal = 1;
+                }
+                CoordinateCorruption::DriftedEdgeTarget => {
+                    let (owner, requirement) = (fixture.boundary_trait, fixture.boundary_signature);
+                    let edge = attach_boundary_edge(&mut fixture, owner, requirement);
+                    let drifted_target = fixture.second_target;
+                    fixture
+                        .checked
+                        .facts
+                        .flow
+                        .boundaries
+                        .edges
+                        .get_mut(edge)
+                        .target_symbol = drifted_target;
+                }
+                CoordinateCorruption::InvalidBoundaryTrait => {
+                    let requirement = fixture.boundary_signature;
+                    attach_boundary_edge(&mut fixture, SymbolHandle::invalid(), requirement);
+                }
+                CoordinateCorruption::MissingBoundaryTrait => {
+                    let requirement = fixture.boundary_signature;
+                    attach_boundary_edge(&mut fixture, symbol(90), requirement);
+                }
+                CoordinateCorruption::NonBoundaryTrait => {
+                    let boundary_trait = fixture.boundary_trait;
+                    fixture.checked.typed.traits.for_each_mut(|_, definition| {
+                        if definition.symbol == boundary_trait {
+                            definition.is_boundary = false;
+                        }
+                    });
+                    let (owner, requirement) = (fixture.boundary_trait, fixture.boundary_signature);
+                    attach_boundary_edge(&mut fixture, owner, requirement);
+                }
+                CoordinateCorruption::InvalidBoundarySignature => {
+                    let owner = fixture.boundary_trait;
+                    attach_boundary_edge(&mut fixture, owner, SymbolHandle::invalid());
+                }
+                CoordinateCorruption::MissingBoundarySignature => {
+                    let owner = fixture.boundary_trait;
+                    attach_boundary_edge(&mut fixture, owner, symbol(90));
+                }
+                CoordinateCorruption::CrossOwnedBoundarySignature => {
+                    let (owner, requirement) =
+                        (fixture.boundary_trait, fixture.other_boundary_signature);
+                    attach_boundary_edge(&mut fixture, owner, requirement);
+                }
+                CoordinateCorruption::DuplicateExactBoundaryEdge => {
+                    let (owner, requirement) = (fixture.boundary_trait, fixture.boundary_signature);
+                    attach_boundary_edge(&mut fixture, owner, requirement);
+                    attach_boundary_edge(&mut fixture, owner, requirement);
+                }
+                CoordinateCorruption::DuplicateDirectBoundaryRequirement => {
+                    let boundary_signature = fixture.boundary_signature;
+                    let other_boundary_signature = fixture.other_boundary_signature;
+                    fixture
+                        .checked
+                        .facts
+                        .flow
+                        .control
+                        .calls
+                        .get_mut(fixture.first_call)
+                        .target_symbol = boundary_signature;
+                    fixture
+                        .checked
+                        .typed
+                        .trait_machine_signatures
+                        .for_each_mut(|_, signature| {
+                            if signature.symbol == other_boundary_signature {
+                                signature.symbol = boundary_signature;
+                            }
+                        });
                 }
             }
 
@@ -567,16 +983,27 @@ mod tests {
         }
     }
 
-    fn attach_boundary_edge(fixture: &mut CoordinateFixture) {
-        let mut boundary_edges = psi_arena::HandleSpan::empty();
-        fixture.checked.facts.flow.boundaries.edges.append_to_span(
+    fn attach_boundary_edge(
+        fixture: &mut CoordinateFixture,
+        boundary_trait_symbol: SymbolHandle,
+        boundary_signature_symbol: SymbolHandle,
+    ) -> psi_arena::Handle<psi_checked_trees::FlowBoundaryEdgeFact> {
+        let mut boundary_edges = fixture
+            .checked
+            .facts
+            .flow
+            .control
+            .calls
+            .get(fixture.first_call)
+            .boundary_edges;
+        let edge = fixture.checked.facts.flow.boundaries.edges.append_to_span(
             &mut boundary_edges,
             psi_checked_trees::FlowBoundaryEdgeFact {
                 statement_index: 0,
                 call_ordinal: 0,
                 target_symbol: fixture.first_target,
-                boundary_trait_symbol: symbol(7),
-                boundary_signature_symbol: symbol(8),
+                boundary_trait_symbol,
+                boundary_signature_symbol,
                 ..Default::default()
             },
         );
@@ -588,5 +1015,6 @@ mod tests {
             .calls
             .get_mut(fixture.first_call)
             .boundary_edges = boundary_edges;
+        edge
     }
 }
