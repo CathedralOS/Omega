@@ -1,0 +1,1125 @@
+//! Exact migration trust graph for terminal-Psi artifact verification.
+//!
+//! This is deliberately an honest description of the current deployment
+//! boundary, not the final canonical-ledger implementation. Rust decoding,
+//! semantic reconstruction, every sufficient-form reducer, the current ledger
+//! framework, and every unproved operation row remain explicit trusted
+//! judgments until low-rung derivations replace them.
+
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    sync::OnceLock,
+};
+
+use sha2::{Digest, Sha256};
+
+const NODE_DIGEST_DOMAIN: &[u8] = b"psi-terminal-trust-node\0";
+const GRAPH_DIGEST_DOMAIN: &[u8] = b"psi-terminal-trust-graph\0";
+const CURRENT_ENTRY: &str = "closure:terminal-pcc-current";
+const MIGRATION_POLICY_DESCRIPTOR: &[u8] = b"PCC-CANONICAL-SEMANTIC-LEDGER-v1\0canonical bytes -> exhaustive local ledger -> unchanged canonical goals\0Rust decoder/verifier/reducers remain explicit trusted judgments until low-rung derivations replace them\0unknown and cyclic leaves reject\0portable terminal semantics only";
+static CURRENT_TRUST_GRAPH: OnceLock<Result<ValidatedTerminalTrustGraph, TrustGraphError>> =
+    OnceLock::new();
+
+const CODEC_SOURCE: &[u8] = include_bytes!("lib.rs");
+const VERIFIER_LIB_SOURCE: &[u8] = include_bytes!("../../psi-terminal-verifier/src/lib.rs");
+const VERIFIER_VALIDATION_SOURCE: &[u8] =
+    include_bytes!("../../psi-terminal-verifier/src/validation.rs");
+const VERIFIER_SOURCE: &[u8] = include_bytes!("../../psi-terminal-verifier/src/verification.rs");
+const AFFINE_JOINS_SOURCE: &[u8] =
+    include_bytes!("../../psi-terminal-verifier/src/verification/affine_joins.rs");
+const INTEGER_ADD_SUBTRACT_SOURCE: &[u8] =
+    include_bytes!("../../psi-terminal-verifier/src/verification/integer_add_subtract.rs");
+const INTEGER_AFFINE_SOURCE: &[u8] =
+    include_bytes!("../../psi-terminal-verifier/src/verification/integer_affine.rs");
+const INTEGER_CONVERSION_SOURCE: &[u8] =
+    include_bytes!("../../psi-terminal-verifier/src/verification/integer_conversion.rs");
+const INTEGER_DIVIDE_REMAINDER_SOURCE: &[u8] =
+    include_bytes!("../../psi-terminal-verifier/src/verification/integer_divide_remainder.rs");
+const INTEGER_MULTIPLY_SOURCE: &[u8] =
+    include_bytes!("../../psi-terminal-verifier/src/verification/integer_multiply.rs");
+const INTEGER_SHIFT_SOURCE: &[u8] =
+    include_bytes!("../../psi-terminal-verifier/src/verification/integer_shift.rs");
+const PROOF_KERNEL_LIB_SOURCE: &[u8] = include_bytes!("../../psi-proof-kernel/src/lib.rs");
+const PROOF_KERNEL_EVIDENCE_SOURCE: &[u8] =
+    include_bytes!("../../psi-proof-kernel/src/evidence.rs");
+const PROOF_KERNEL_KERNEL_SOURCE: &[u8] = include_bytes!("../../psi-proof-kernel/src/kernel.rs");
+const PROOF_KERNEL_PROOF_SOURCE: &[u8] = include_bytes!("../../psi-proof-kernel/src/proof.rs");
+const TERMINAL_MODEL_SOURCE: &[u8] =
+    include_bytes!("../../../representations/psi-terminal/src/module.rs");
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum TrustDependencyKind {
+    RegisteredRoot,
+    AcceptanceClosure,
+    TrustedImplementation,
+    SufficientFormReduction,
+    LedgerFramework,
+    DenotationSchema,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum TrustDependencyStatus {
+    Registered,
+    TrustedJudgment,
+    LocallyDerivedPendingComposition,
+    FullyDerived,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum TrustAcceptingPolicy {
+    RegisteredSemanticFoundation,
+    ExplicitMigrationTrust,
+    KernelCheckedDerivation,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct TrustDependencyDigest([u8; 32]);
+
+impl TrustDependencyDigest {
+    pub const fn as_bytes(&self) -> &[u8; 32] {
+        &self.0
+    }
+}
+
+impl std::fmt::Debug for TrustDependencyDigest {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Display::fmt(self, formatter)
+    }
+}
+
+impl std::fmt::Display for TrustDependencyDigest {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write_hex(formatter, &self.0)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TrustDependencyNode {
+    identity: String,
+    kind: TrustDependencyKind,
+    status: TrustDependencyStatus,
+    semantic_subject: String,
+    digest: TrustDependencyDigest,
+    version: String,
+    owner: String,
+    scope: String,
+    rationale: String,
+    accepting_policy: TrustAcceptingPolicy,
+    dependencies: Vec<String>,
+}
+
+impl TrustDependencyNode {
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        identity: impl Into<String>,
+        kind: TrustDependencyKind,
+        status: TrustDependencyStatus,
+        semantic_subject: impl Into<String>,
+        version: impl Into<String>,
+        owner: impl Into<String>,
+        scope: impl Into<String>,
+        rationale: impl Into<String>,
+        accepting_policy: TrustAcceptingPolicy,
+        dependencies: Vec<String>,
+        exact_sources: &[(&str, &[u8])],
+    ) -> Self {
+        let identity = identity.into();
+        let semantic_subject = semantic_subject.into();
+        let version = version.into();
+        let owner = owner.into();
+        let scope = scope.into();
+        let rationale = rationale.into();
+        let digest = dependency_digest(
+            &identity,
+            kind,
+            status,
+            &semantic_subject,
+            &version,
+            &owner,
+            &scope,
+            &rationale,
+            accepting_policy,
+            exact_sources,
+        );
+        Self {
+            identity,
+            kind,
+            status,
+            semantic_subject,
+            digest,
+            version,
+            owner,
+            scope,
+            rationale,
+            accepting_policy,
+            dependencies,
+        }
+    }
+
+    pub fn identity(&self) -> &str {
+        &self.identity
+    }
+
+    pub const fn kind(&self) -> TrustDependencyKind {
+        self.kind
+    }
+
+    pub const fn status(&self) -> TrustDependencyStatus {
+        self.status
+    }
+
+    pub fn semantic_subject(&self) -> &str {
+        &self.semantic_subject
+    }
+
+    pub const fn digest(&self) -> TrustDependencyDigest {
+        self.digest
+    }
+
+    pub fn version(&self) -> &str {
+        &self.version
+    }
+
+    pub fn owner(&self) -> &str {
+        &self.owner
+    }
+
+    pub fn scope(&self) -> &str {
+        &self.scope
+    }
+
+    pub fn rationale(&self) -> &str {
+        &self.rationale
+    }
+
+    pub const fn accepting_policy(&self) -> TrustAcceptingPolicy {
+        self.accepting_policy
+    }
+
+    pub fn dependencies(&self) -> &[String] {
+        &self.dependencies
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct TerminalTrustGraphIdentity([u8; 32]);
+
+impl TerminalTrustGraphIdentity {
+    pub const fn as_bytes(&self) -> &[u8; 32] {
+        &self.0
+    }
+}
+
+impl std::fmt::Debug for TerminalTrustGraphIdentity {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Display::fmt(self, formatter)
+    }
+}
+
+impl std::fmt::Display for TerminalTrustGraphIdentity {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write_hex(formatter, &self.0)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ValidatedTerminalTrustGraph {
+    entry: String,
+    nodes: Vec<TrustDependencyNode>,
+    identity: TerminalTrustGraphIdentity,
+    fully_derived: bool,
+}
+
+impl ValidatedTerminalTrustGraph {
+    pub fn entry(&self) -> &str {
+        &self.entry
+    }
+
+    pub fn nodes(&self) -> &[TrustDependencyNode] {
+        &self.nodes
+    }
+
+    pub const fn identity(&self) -> TerminalTrustGraphIdentity {
+        self.identity
+    }
+
+    pub const fn is_fully_derived(&self) -> bool {
+        self.fully_derived
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TrustGraphError {
+    EmptyEntry,
+    EmptyField { node: String, field: &'static str },
+    NonCanonicalNodeOrder,
+    NonCanonicalDependencyOrder { node: String },
+    DuplicateNode(String),
+    UnknownEntry(String),
+    UnknownDependency { node: String, dependency: String },
+    SelfDependency(String),
+    DependencyCycle(String),
+    UnreachableNode(String),
+    RootHasDependencies(String),
+    RootHasInvalidStatus(String),
+    RootHasInvalidPolicy(String),
+    NonRootHasNoDependencies(String),
+    NonRootHasRegisteredStatus(String),
+}
+
+impl std::fmt::Display for TrustGraphError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(formatter, "{self:?}")
+    }
+}
+
+impl std::error::Error for TrustGraphError {}
+
+/// Validate a complete terminal-Psi trust graph. The input is already an
+/// artifact surface, so the validator rejects alternate ordering rather than
+/// silently normalizing it.
+pub fn validate_terminal_trust_graph(
+    entry: impl Into<String>,
+    nodes: Vec<TrustDependencyNode>,
+) -> Result<ValidatedTerminalTrustGraph, TrustGraphError> {
+    let entry = entry.into();
+    if entry.is_empty() {
+        return Err(TrustGraphError::EmptyEntry);
+    }
+    if nodes
+        .windows(2)
+        .any(|pair| pair[0].identity >= pair[1].identity)
+    {
+        if let Some(identity) = duplicate_identity(&nodes) {
+            return Err(TrustGraphError::DuplicateNode(identity));
+        }
+        return Err(TrustGraphError::NonCanonicalNodeOrder);
+    }
+
+    let by_identity = nodes
+        .iter()
+        .map(|node| (node.identity.as_str(), node))
+        .collect::<BTreeMap<_, _>>();
+    if !by_identity.contains_key(entry.as_str()) {
+        return Err(TrustGraphError::UnknownEntry(entry));
+    }
+
+    for node in &nodes {
+        validate_nonempty(node)?;
+        if node.dependencies.windows(2).any(|pair| pair[0] >= pair[1]) {
+            return Err(TrustGraphError::NonCanonicalDependencyOrder {
+                node: node.identity.clone(),
+            });
+        }
+        if node
+            .dependencies
+            .iter()
+            .any(|dependency| dependency == &node.identity)
+        {
+            return Err(TrustGraphError::SelfDependency(node.identity.clone()));
+        }
+        match node.kind {
+            TrustDependencyKind::RegisteredRoot => {
+                if !node.dependencies.is_empty() {
+                    return Err(TrustGraphError::RootHasDependencies(node.identity.clone()));
+                }
+                if node.status != TrustDependencyStatus::Registered {
+                    return Err(TrustGraphError::RootHasInvalidStatus(node.identity.clone()));
+                }
+                if !matches!(
+                    node.accepting_policy,
+                    TrustAcceptingPolicy::RegisteredSemanticFoundation
+                        | TrustAcceptingPolicy::ExplicitMigrationTrust
+                ) {
+                    return Err(TrustGraphError::RootHasInvalidPolicy(node.identity.clone()));
+                }
+            }
+            _ => {
+                if node.dependencies.is_empty() {
+                    return Err(TrustGraphError::NonRootHasNoDependencies(
+                        node.identity.clone(),
+                    ));
+                }
+                if node.status == TrustDependencyStatus::Registered {
+                    return Err(TrustGraphError::NonRootHasRegisteredStatus(
+                        node.identity.clone(),
+                    ));
+                }
+            }
+        }
+        for dependency in &node.dependencies {
+            if !by_identity.contains_key(dependency.as_str()) {
+                return Err(TrustGraphError::UnknownDependency {
+                    node: node.identity.clone(),
+                    dependency: dependency.clone(),
+                });
+            }
+        }
+    }
+
+    let mut visiting = BTreeSet::new();
+    let mut visited = BTreeSet::new();
+    visit(entry.as_str(), &by_identity, &mut visiting, &mut visited)?;
+    if let Some(node) = nodes
+        .iter()
+        .find(|node| !visited.contains(node.identity.as_str()))
+    {
+        return Err(TrustGraphError::UnreachableNode(node.identity.clone()));
+    }
+
+    let identity = graph_identity(&entry, &nodes);
+    let fully_derived = nodes.iter().all(|node| {
+        node.kind == TrustDependencyKind::RegisteredRoot
+            || node.status == TrustDependencyStatus::FullyDerived
+    });
+    Ok(ValidatedTerminalTrustGraph {
+        entry,
+        nodes,
+        identity,
+        fully_derived,
+    })
+}
+
+/// Exact current migration closure. Source-backed nodes digest the Rust bytes
+/// that presently decide the judgment. A code change therefore changes the
+/// graph identity even when its explicit semantic version was not bumped.
+pub fn current_terminal_trust_graph() -> Result<ValidatedTerminalTrustGraph, TrustGraphError> {
+    CURRENT_TRUST_GRAPH
+        .get_or_init(build_current_terminal_trust_graph)
+        .clone()
+}
+
+fn build_current_terminal_trust_graph() -> Result<ValidatedTerminalTrustGraph, TrustGraphError> {
+    let mut nodes = Vec::new();
+    nodes.extend(registered_roots());
+    nodes.push(proof_kernel_node());
+    nodes.push(decoder_node());
+    nodes.push(verifier_node());
+    nodes.push(ledger_framework_node());
+    nodes.extend(reduction_nodes());
+    nodes.extend(denotation_nodes());
+    nodes.push(current_closure_node());
+    nodes.sort_by(|left, right| left.identity.cmp(&right.identity));
+    validate_terminal_trust_graph(CURRENT_ENTRY, nodes)
+}
+
+/// Exact current trusted denotation row selected by one closed operation
+/// variant. This exhaustive match is intentionally separate from execution:
+/// adding an `OperationKind` cannot compile until its migration trust row is
+/// named as well.
+pub fn current_rust_denotation_trust_identity(
+    operation: &psi_terminal::OperationKind,
+) -> &'static str {
+    CurrentRustDenotationRow::for_operation(operation).identity()
+}
+
+pub fn render_terminal_trust_graph(
+    graph: &ValidatedTerminalTrustGraph,
+) -> Result<String, std::fmt::Error> {
+    use std::fmt::Write;
+
+    let mut output = String::new();
+    writeln!(
+        &mut output,
+        "trust-graph {} entry {} fully-derived {}",
+        graph.identity, graph.entry, graph.fully_derived
+    )?;
+    for node in &graph.nodes {
+        writeln!(
+            &mut output,
+            "trust-node {} kind {:?} status {:?}",
+            node.identity, node.kind, node.status
+        )?;
+        writeln!(
+            &mut output,
+            "  subject {:?} version {:?} digest {}",
+            node.semantic_subject, node.version, node.digest
+        )?;
+        writeln!(
+            &mut output,
+            "  owner {:?} scope {:?} policy {:?}",
+            node.owner, node.scope, node.accepting_policy
+        )?;
+        writeln!(&mut output, "  rationale {:?}", node.rationale)?;
+        for dependency in &node.dependencies {
+            writeln!(&mut output, "  depends {dependency}")?;
+        }
+    }
+    Ok(output)
+}
+
+fn registered_roots() -> Vec<TrustDependencyNode> {
+    vec![
+        TrustDependencyNode::new(
+            "root:abstract-terminal-execution-model",
+            TrustDependencyKind::RegisteredRoot,
+            TrustDependencyStatus::Registered,
+            "terminal-Psi abstract operational semantics",
+            "terminal-vocabulary-1",
+            "Psi language architecture",
+            "portable terminal-Psi execution before native refinement",
+            "Portable PCC bottoms out in the abstract terminal execution model.",
+            TrustAcceptingPolicy::RegisteredSemanticFoundation,
+            Vec::new(),
+            &[("psi-terminal/module.rs", TERMINAL_MODEL_SOURCE)],
+        ),
+        TrustDependencyNode::new(
+            "root:canonical-proof-calculus-v7",
+            TrustDependencyKind::RegisteredRoot,
+            TrustDependencyStatus::Registered,
+            "terminal-Psi proof bundle and primitive calculus",
+            "proof-bundle-format-7",
+            "Psi proof-kernel architecture",
+            "portable terminal-Psi proof checking",
+            "The current small proof calculus is an explicit registered semantic root.",
+            TrustAcceptingPolicy::RegisteredSemanticFoundation,
+            Vec::new(),
+            &[("psi-proof-kernel/lib.rs", PROOF_KERNEL_LIB_SOURCE)],
+        ),
+        TrustDependencyNode::new(
+            "root:canonical-terminal-bytes-v11",
+            TrustDependencyKind::RegisteredRoot,
+            TrustDependencyStatus::Registered,
+            "canonical terminal-Psi semantic bytes",
+            "PSITERM-format-11",
+            "Psi terminal codec architecture",
+            "canonical terminal-Psi byte vocabulary",
+            "Artifact identity and authoritative reconstruction begin at exact canonical bytes.",
+            TrustAcceptingPolicy::RegisteredSemanticFoundation,
+            Vec::new(),
+            &[("psi-terminal-codec/lib.rs", CODEC_SOURCE)],
+        ),
+        TrustDependencyNode::new(
+            "root:explicit-rust-migration-policy",
+            TrustDependencyKind::RegisteredRoot,
+            TrustDependencyStatus::Registered,
+            "temporary trust in current Rust semantic reconstruction",
+            "PCC-CANONICAL-SEMANTIC-LEDGER-v1",
+            "Omega/Psi architecture owners",
+            "migration only; never native ISA or hardware refinement",
+            "Unconverted Rust judgments remain explicit until canonical-ledger certificates replace them.",
+            TrustAcceptingPolicy::ExplicitMigrationTrust,
+            Vec::new(),
+            &[(
+                "PCC-CANONICAL-SEMANTIC-LEDGER-v1",
+                MIGRATION_POLICY_DESCRIPTOR,
+            )],
+        ),
+    ]
+}
+
+fn proof_kernel_node() -> TrustDependencyNode {
+    TrustDependencyNode::new(
+        "implementation:rust-proof-kernel",
+        TrustDependencyKind::TrustedImplementation,
+        TrustDependencyStatus::TrustedJudgment,
+        "Rust implementation of the current terminal proof calculus",
+        "rust-proof-kernel-v1",
+        "psi-proof-kernel",
+        "portable proof bundle acceptance",
+        "The current Rust kernel remains trusted until the independent low-rung checker closes the diamond.",
+        TrustAcceptingPolicy::ExplicitMigrationTrust,
+        dependencies(&[
+            "root:canonical-proof-calculus-v7",
+            "root:explicit-rust-migration-policy",
+        ]),
+        &[
+            ("psi-proof-kernel/lib.rs", PROOF_KERNEL_LIB_SOURCE),
+            ("psi-proof-kernel/evidence.rs", PROOF_KERNEL_EVIDENCE_SOURCE),
+            ("psi-proof-kernel/kernel.rs", PROOF_KERNEL_KERNEL_SOURCE),
+            ("psi-proof-kernel/proof.rs", PROOF_KERNEL_PROOF_SOURCE),
+        ],
+    )
+}
+
+fn decoder_node() -> TrustDependencyNode {
+    TrustDependencyNode::new(
+        "implementation:rust-terminal-decoder",
+        TrustDependencyKind::TrustedImplementation,
+        TrustDependencyStatus::TrustedJudgment,
+        "Rust canonical terminal-Psi byte decoder and structural validation",
+        "PSITERM-format-11-rust-decoder-v1",
+        "psi-terminal-codec",
+        "canonical bytes through validated TerminalModule",
+        "The final low generator begins at bytes; the current Rust decoder must remain visible until then.",
+        TrustAcceptingPolicy::ExplicitMigrationTrust,
+        dependencies(&[
+            "root:canonical-terminal-bytes-v11",
+            "root:explicit-rust-migration-policy",
+        ]),
+        &[("psi-terminal-codec/lib.rs", CODEC_SOURCE)],
+    )
+}
+
+fn verifier_node() -> TrustDependencyNode {
+    TrustDependencyNode::new(
+        "implementation:rust-terminal-verifier",
+        TrustDependencyKind::TrustedImplementation,
+        TrustDependencyStatus::TrustedJudgment,
+        "Rust terminal-Psi artifact traversal and obligation reconstruction",
+        "rust-terminal-verifier-v1",
+        "psi-terminal-verifier",
+        "portable semantic reconstruction and proof admission",
+        "Rust remains the authoritative migration implementation until the canonical ledger is established independently.",
+        TrustAcceptingPolicy::ExplicitMigrationTrust,
+        dependencies(&[
+            "implementation:rust-proof-kernel",
+            "root:abstract-terminal-execution-model",
+            "root:explicit-rust-migration-policy",
+        ]),
+        &[
+            ("psi-terminal-verifier/lib.rs", VERIFIER_LIB_SOURCE),
+            (
+                "psi-terminal-verifier/validation.rs",
+                VERIFIER_VALIDATION_SOURCE,
+            ),
+            ("psi-terminal-verifier/verification.rs", VERIFIER_SOURCE),
+        ],
+    )
+}
+
+fn ledger_framework_node() -> TrustDependencyNode {
+    TrustDependencyNode::new(
+        "framework:canonical-semantic-ledger-v1",
+        TrustDependencyKind::LedgerFramework,
+        TrustDependencyStatus::TrustedJudgment,
+        "current Rust control, validity, frontier, premise, and goal reconstruction framework",
+        "canonical-semantic-ledger-framework-v1-unproved",
+        "Psi proof architecture",
+        "portable terminal-Psi ledger algebra before low-rung derivation",
+        "The ledger framework and its composition bridges are specified but not yet low-rung proved.",
+        TrustAcceptingPolicy::ExplicitMigrationTrust,
+        dependencies(&[
+            "implementation:rust-terminal-verifier",
+            "root:abstract-terminal-execution-model",
+            "root:explicit-rust-migration-policy",
+        ]),
+        &[
+            (
+                "psi-terminal-verifier/validation.rs",
+                VERIFIER_VALIDATION_SOURCE,
+            ),
+            ("psi-terminal-verifier/verification.rs", VERIFIER_SOURCE),
+            (
+                "PCC-CANONICAL-SEMANTIC-LEDGER-v1",
+                MIGRATION_POLICY_DESCRIPTOR,
+            ),
+        ],
+    )
+}
+
+fn reduction_nodes() -> Vec<TrustDependencyNode> {
+    [
+        (
+            "reduction:affine-joins",
+            "affine fork/join, rectangle, product, quadratic, and correlated divide/remainder sufficient forms",
+            "affine-joins-v1",
+            "verification/affine_joins.rs",
+            AFFINE_JOINS_SOURCE,
+        ),
+        (
+            "reduction:integer-add-subtract",
+            "exact integer addition and subtraction sufficient forms",
+            "integer-add-subtract-v1",
+            "verification/integer_add_subtract.rs",
+            INTEGER_ADD_SUBTRACT_SOURCE,
+        ),
+        (
+            "reduction:integer-affine",
+            "integer affine-chain and affine-preimage sufficient forms",
+            "integer-affine-v1",
+            "verification/integer_affine.rs",
+            INTEGER_AFFINE_SOURCE,
+        ),
+        (
+            "reduction:integer-base-interval",
+            "shared integer carrier, interval, path-fact, and dispatch sufficient forms",
+            "integer-base-interval-v1",
+            "verification.rs",
+            VERIFIER_SOURCE,
+        ),
+        (
+            "reduction:integer-conversion",
+            "integer cast, widening, and conversion-spine sufficient forms",
+            "integer-conversion-v1",
+            "verification/integer_conversion.rs",
+            INTEGER_CONVERSION_SOURCE,
+        ),
+        (
+            "reduction:integer-divide-remainder",
+            "integer divide and remainder sufficient forms",
+            "integer-divide-remainder-v1",
+            "verification/integer_divide_remainder.rs",
+            INTEGER_DIVIDE_REMAINDER_SOURCE,
+        ),
+        (
+            "reduction:integer-multiply",
+            "integer multiply, product, and signed-product sufficient forms",
+            "integer-multiply-v1",
+            "verification/integer_multiply.rs",
+            INTEGER_MULTIPLY_SOURCE,
+        ),
+        (
+            "reduction:integer-shift",
+            "exact integer shift and mixed shift-chain sufficient forms",
+            "integer-shift-v1",
+            "verification/integer_shift.rs",
+            INTEGER_SHIFT_SOURCE,
+        ),
+    ]
+    .into_iter()
+    .map(|(identity, subject, version, source_name, source)| {
+        TrustDependencyNode::new(
+            identity,
+            TrustDependencyKind::SufficientFormReduction,
+            TrustDependencyStatus::TrustedJudgment,
+            subject,
+            version,
+            "psi-terminal-verifier",
+            "sufficient-form proof-obligation reconstruction only",
+            "This reducer may choose a sufficient proposition until it emits a checked derivation of the unchanged canonical goal.",
+            TrustAcceptingPolicy::ExplicitMigrationTrust,
+            dependencies(&[
+                "implementation:rust-terminal-verifier",
+                "root:abstract-terminal-execution-model",
+                "root:explicit-rust-migration-policy",
+            ]),
+            &[(source_name, source)],
+        )
+    })
+    .collect()
+}
+
+fn denotation_nodes() -> Vec<TrustDependencyNode> {
+    CurrentRustDenotationRow::ALL
+        .iter()
+        .map(|row| {
+            let subject = format!("terminal-Psi OperationKind::{} direct denotation", row.name());
+            TrustDependencyNode::new(
+                row.identity(),
+                TrustDependencyKind::DenotationSchema,
+                TrustDependencyStatus::TrustedJudgment,
+                subject,
+                "terminal-operation-denotation-v1-unproved",
+                "psi-terminal-verifier",
+                "one closed terminal-Psi leaf-operation row",
+                "The Rust row is trusted until its universally quantified denotation theorem and composition bridge are accepted.",
+                TrustAcceptingPolicy::ExplicitMigrationTrust,
+                dependencies(&[
+                    "framework:canonical-semantic-ledger-v1",
+                    "root:abstract-terminal-execution-model",
+                    "root:explicit-rust-migration-policy",
+                ]),
+                &[("psi-terminal-verifier/verification.rs", VERIFIER_SOURCE)],
+            )
+        })
+        .collect()
+}
+
+fn current_closure_node() -> TrustDependencyNode {
+    let mut dependency_ids = vec![
+        "framework:canonical-semantic-ledger-v1".to_owned(),
+        "implementation:rust-terminal-decoder".to_owned(),
+        "implementation:rust-terminal-verifier".to_owned(),
+    ];
+    dependency_ids.extend(reduction_nodes().into_iter().map(|node| node.identity));
+    dependency_ids.extend(denotation_nodes().into_iter().map(|node| node.identity));
+    dependency_ids.sort();
+    TrustDependencyNode::new(
+        CURRENT_ENTRY,
+        TrustDependencyKind::AcceptanceClosure,
+        TrustDependencyStatus::TrustedJudgment,
+        "current deployable terminal-Psi semantic reconstruction closure",
+        "terminal-pcc-current-rust-closure-v1",
+        "Psi/Omega deployment pipeline",
+        "portable terminal-Psi verification only",
+        "The artifact is accepted through explicit migration trust and cannot be reported as fully derived.",
+        TrustAcceptingPolicy::ExplicitMigrationTrust,
+        dependency_ids,
+        &[(
+            "PCC-CANONICAL-SEMANTIC-LEDGER-v1",
+            MIGRATION_POLICY_DESCRIPTOR,
+        )],
+    )
+}
+
+macro_rules! current_rust_denotation_rows {
+    ($( $variant:ident => $slug:literal ),+ $(,)?) => {
+        #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+        enum CurrentRustDenotationRow {
+            $( $variant ),+
+        }
+
+        impl CurrentRustDenotationRow {
+            const ALL: [Self; current_rust_denotation_rows!(@count $( $variant )+)] = [
+                $( Self::$variant ),+
+            ];
+
+            fn name(self) -> &'static str {
+                match self {
+                    $( Self::$variant => stringify!($variant) ),+
+                }
+            }
+
+            fn identity(self) -> &'static str {
+                match self {
+                    $( Self::$variant => concat!("schema:operation:", $slug) ),+
+                }
+            }
+
+            fn for_operation(operation: &psi_terminal::OperationKind) -> Self {
+                use psi_terminal::OperationKind;
+
+                match operation {
+                    $( OperationKind::$variant { .. } => Self::$variant ),+
+                }
+            }
+        }
+    };
+    (@count $( $variant:ident )+) => {
+        <[()]>::len(&[$(current_rust_denotation_rows!(@unit $variant)),+])
+    };
+    (@unit $variant:ident) => { () };
+}
+
+current_rust_denotation_rows! {
+    EstablishTrivialAffineLocal => "establish-trivial-affine-local",
+    Call => "call",
+    CallUnit => "call-unit",
+    BoundaryCall => "boundary-call",
+    PortWrite => "port-write",
+    IntegerConstant => "integer-constant",
+    BooleanConstant => "boolean-constant",
+    BooleanStructuralField => "boolean-structural-field",
+    BooleanNot => "boolean-not",
+    BooleanEqual => "boolean-equal",
+    IntegerEqual => "integer-equal",
+    IntegerLessThan => "integer-less-than",
+    IntegerLessOrEqual => "integer-less-or-equal",
+    IntegerBitwiseNot => "integer-bitwise-not",
+    IntegerWiden => "integer-widen",
+    IntegerExactCast => "integer-exact-cast",
+    IntegerBitwiseAnd => "integer-bitwise-and",
+    IntegerBitwiseOr => "integer-bitwise-or",
+    IntegerBitwiseXor => "integer-bitwise-xor",
+    WrappingIntegerShiftLeft => "wrapping-integer-shift-left",
+    WrappingIntegerShiftRight => "wrapping-integer-shift-right",
+    ExactIntegerShiftLeft => "exact-integer-shift-left",
+    ExactIntegerShiftRight => "exact-integer-shift-right",
+    ExactIntegerAdd => "exact-integer-add",
+    ExactIntegerSubtract => "exact-integer-subtract",
+    ExactIntegerMultiply => "exact-integer-multiply",
+    ExactIntegerDivide => "exact-integer-divide",
+    ExactIntegerRemainder => "exact-integer-remainder",
+    WrappingIntegerDivide => "wrapping-integer-divide",
+    WrappingIntegerRemainder => "wrapping-integer-remainder",
+    SaturatingIntegerDivide => "saturating-integer-divide",
+    SaturatingIntegerRemainder => "saturating-integer-remainder",
+    WrappingIntegerAdd => "wrapping-integer-add",
+    SaturatingIntegerAdd => "saturating-integer-add",
+    WrappingIntegerSubtract => "wrapping-integer-subtract",
+    SaturatingIntegerSubtract => "saturating-integer-subtract",
+    WrappingIntegerMultiply => "wrapping-integer-multiply",
+    SaturatingIntegerMultiply => "saturating-integer-multiply",
+}
+fn dependencies(values: &[&str]) -> Vec<String> {
+    let mut values = values
+        .iter()
+        .map(|value| (*value).to_owned())
+        .collect::<Vec<_>>();
+    values.sort();
+    values
+}
+
+fn validate_nonempty(node: &TrustDependencyNode) -> Result<(), TrustGraphError> {
+    for (field, value) in [
+        ("identity", node.identity.as_str()),
+        ("semantic_subject", node.semantic_subject.as_str()),
+        ("version", node.version.as_str()),
+        ("owner", node.owner.as_str()),
+        ("scope", node.scope.as_str()),
+        ("rationale", node.rationale.as_str()),
+    ] {
+        if value.is_empty() {
+            return Err(TrustGraphError::EmptyField {
+                node: node.identity.clone(),
+                field,
+            });
+        }
+    }
+    Ok(())
+}
+
+fn duplicate_identity(nodes: &[TrustDependencyNode]) -> Option<String> {
+    let mut seen = BTreeSet::new();
+    nodes
+        .iter()
+        .find_map(|node| (!seen.insert(node.identity.as_str())).then(|| node.identity.clone()))
+}
+
+fn visit<'graph>(
+    identity: &'graph str,
+    nodes: &BTreeMap<&'graph str, &'graph TrustDependencyNode>,
+    visiting: &mut BTreeSet<&'graph str>,
+    visited: &mut BTreeSet<&'graph str>,
+) -> Result<(), TrustGraphError> {
+    if visited.contains(identity) {
+        return Ok(());
+    }
+    if !visiting.insert(identity) {
+        return Err(TrustGraphError::DependencyCycle(identity.to_owned()));
+    }
+    let node = nodes
+        .get(identity)
+        .expect("all dependency identities were validated before traversal");
+    for dependency in &node.dependencies {
+        visit(dependency, nodes, visiting, visited)?;
+    }
+    visiting.remove(identity);
+    visited.insert(identity);
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+fn dependency_digest(
+    identity: &str,
+    kind: TrustDependencyKind,
+    status: TrustDependencyStatus,
+    semantic_subject: &str,
+    version: &str,
+    owner: &str,
+    scope: &str,
+    rationale: &str,
+    accepting_policy: TrustAcceptingPolicy,
+    exact_sources: &[(&str, &[u8])],
+) -> TrustDependencyDigest {
+    let mut digest = Sha256::new();
+    digest.update(NODE_DIGEST_DOMAIN);
+    hash_string(&mut digest, identity);
+    digest.update([kind as u8, status as u8, accepting_policy as u8]);
+    for value in [semantic_subject, version, owner, scope, rationale] {
+        hash_string(&mut digest, value);
+    }
+    hash_len(&mut digest, exact_sources.len());
+    for (label, source) in exact_sources {
+        hash_string(&mut digest, label);
+        hash_bytes(&mut digest, source);
+    }
+    TrustDependencyDigest(digest.finalize().into())
+}
+
+fn graph_identity(entry: &str, nodes: &[TrustDependencyNode]) -> TerminalTrustGraphIdentity {
+    let mut digest = Sha256::new();
+    digest.update(GRAPH_DIGEST_DOMAIN);
+    hash_string(&mut digest, entry);
+    hash_len(&mut digest, nodes.len());
+    for node in nodes {
+        hash_string(&mut digest, &node.identity);
+        digest.update([
+            node.kind as u8,
+            node.status as u8,
+            node.accepting_policy as u8,
+        ]);
+        hash_string(&mut digest, &node.semantic_subject);
+        digest.update(node.digest.as_bytes());
+        hash_string(&mut digest, &node.version);
+        hash_string(&mut digest, &node.owner);
+        hash_string(&mut digest, &node.scope);
+        hash_string(&mut digest, &node.rationale);
+        hash_len(&mut digest, node.dependencies.len());
+        for dependency in &node.dependencies {
+            hash_string(&mut digest, dependency);
+        }
+    }
+    TerminalTrustGraphIdentity(digest.finalize().into())
+}
+
+fn hash_string(digest: &mut Sha256, value: &str) {
+    hash_bytes(digest, value.as_bytes());
+}
+
+fn hash_bytes(digest: &mut Sha256, bytes: &[u8]) {
+    hash_len(digest, bytes.len());
+    digest.update(bytes);
+}
+
+fn hash_len(digest: &mut Sha256, len: usize) {
+    let len = u64::try_from(len).expect("trust-graph data fits u64");
+    digest.update(len.to_le_bytes());
+}
+
+fn write_hex(formatter: &mut std::fmt::Formatter<'_>, bytes: &[u8; 32]) -> std::fmt::Result {
+    for byte in bytes {
+        write!(formatter, "{byte:02x}")?;
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn current_graph_is_closed_canonical_and_explicitly_not_fully_derived() {
+        let graph = current_terminal_trust_graph().expect("built-in trust graph validates");
+        assert_eq!(graph.entry(), CURRENT_ENTRY);
+        assert!(!graph.is_fully_derived());
+        assert_eq!(
+            graph
+                .nodes()
+                .iter()
+                .filter(|node| node.kind() == TrustDependencyKind::RegisteredRoot)
+                .count(),
+            4
+        );
+        assert_eq!(
+            graph
+                .nodes()
+                .iter()
+                .filter(|node| node.kind() == TrustDependencyKind::SufficientFormReduction)
+                .count(),
+            8
+        );
+        assert_eq!(
+            graph
+                .nodes()
+                .iter()
+                .filter(|node| node.kind() == TrustDependencyKind::DenotationSchema)
+                .count(),
+            CurrentRustDenotationRow::ALL.len()
+        );
+        assert_eq!(CurrentRustDenotationRow::ALL.len(), 38);
+        assert!(graph.nodes().iter().all(|node| {
+            !node.identity().is_empty()
+                && !node.semantic_subject().is_empty()
+                && node.digest().as_bytes().iter().any(|byte| *byte != 0)
+                && !node.version().is_empty()
+                && !node.owner().is_empty()
+                && !node.scope().is_empty()
+                && !node.rationale().is_empty()
+        }));
+    }
+
+    #[test]
+    fn graph_rejects_unknown_cycles_unregistered_leaves_and_noncanonical_edges() {
+        let root = test_root();
+        let leaf = test_node("node:leaf", dependencies(&["root:test"]));
+        let mut valid = vec![leaf.clone(), root.clone()];
+        valid.sort_by(|left, right| left.identity.cmp(&right.identity));
+        validate_terminal_trust_graph("node:leaf", valid).expect("closed graph");
+
+        let mut unknown = vec![
+            test_node("node:leaf", dependencies(&["root:missing"])),
+            root.clone(),
+        ];
+        unknown.sort_by(|left, right| left.identity.cmp(&right.identity));
+        assert!(matches!(
+            validate_terminal_trust_graph("node:leaf", unknown),
+            Err(TrustGraphError::UnknownDependency { .. })
+        ));
+
+        let mut cyclic = vec![
+            test_node("node:left", dependencies(&["node:right"])),
+            test_node("node:right", dependencies(&["node:left"])),
+        ];
+        cyclic.sort_by(|left, right| left.identity.cmp(&right.identity));
+        assert!(matches!(
+            validate_terminal_trust_graph("node:left", cyclic),
+            Err(TrustGraphError::DependencyCycle(_))
+        ));
+
+        let no_root = vec![test_node("node:leaf", Vec::new())];
+        assert!(matches!(
+            validate_terminal_trust_graph("node:leaf", no_root),
+            Err(TrustGraphError::NonRootHasNoDependencies(_))
+        ));
+
+        let reversed_dependencies = vec![
+            test_node("node:leaf", vec!["root:z".to_owned(), "root:a".to_owned()]),
+            test_root_named("root:a"),
+            test_root_named("root:z"),
+        ];
+        assert!(matches!(
+            validate_terminal_trust_graph("node:leaf", reversed_dependencies),
+            Err(TrustGraphError::NonCanonicalDependencyOrder { .. })
+        ));
+    }
+
+    #[test]
+    fn graph_identity_binds_exact_dependency_edges_and_source_bytes() {
+        let graph = current_terminal_trust_graph().expect("built-in graph");
+        let mut nodes = graph.nodes().to_vec();
+        let closure = nodes
+            .iter_mut()
+            .find(|node| node.identity == CURRENT_ENTRY)
+            .expect("closure node");
+        closure.dependencies.remove(0);
+        let changed = validate_terminal_trust_graph(CURRENT_ENTRY, nodes)
+            .expect("changed graph remains structurally closed");
+        assert_ne!(graph.identity(), changed.identity());
+
+        let first = TrustDependencyNode::new(
+            "root:test",
+            TrustDependencyKind::RegisteredRoot,
+            TrustDependencyStatus::Registered,
+            "test",
+            "v1",
+            "test",
+            "test",
+            "test",
+            TrustAcceptingPolicy::RegisteredSemanticFoundation,
+            Vec::new(),
+            &[("source", b"first")],
+        );
+        let second = TrustDependencyNode::new(
+            "root:test",
+            TrustDependencyKind::RegisteredRoot,
+            TrustDependencyStatus::Registered,
+            "test",
+            "v1",
+            "test",
+            "test",
+            "test",
+            TrustAcceptingPolicy::RegisteredSemanticFoundation,
+            Vec::new(),
+            &[("source", b"second")],
+        );
+        assert_ne!(first.digest(), second.digest());
+    }
+
+    fn test_root() -> TrustDependencyNode {
+        test_root_named("root:test")
+    }
+
+    fn test_root_named(identity: &str) -> TrustDependencyNode {
+        TrustDependencyNode::new(
+            identity,
+            TrustDependencyKind::RegisteredRoot,
+            TrustDependencyStatus::Registered,
+            "test root",
+            "v1",
+            "tests",
+            "tests",
+            "tests",
+            TrustAcceptingPolicy::RegisteredSemanticFoundation,
+            Vec::new(),
+            &[("test", b"root")],
+        )
+    }
+
+    fn test_node(identity: &str, dependencies: Vec<String>) -> TrustDependencyNode {
+        TrustDependencyNode::new(
+            identity,
+            TrustDependencyKind::TrustedImplementation,
+            TrustDependencyStatus::TrustedJudgment,
+            "test node",
+            "v1",
+            "tests",
+            "tests",
+            "tests",
+            TrustAcceptingPolicy::ExplicitMigrationTrust,
+            dependencies,
+            &[("test", b"node")],
+        )
+    }
+}
