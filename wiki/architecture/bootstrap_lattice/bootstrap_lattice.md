@@ -269,9 +269,12 @@ different roles:
 
 - **Rust as the artifact verifier, proof kernel, or meaning implementation** is
   part of the trusted base. The generic proof kernel already has Beta and Gamma
-  implementations on the audited-seed lineage. The canonical interpreter and
-  Psi-aware obligation reconstruction must reach the same standard or be named
-  explicitly as remaining trusted components.
+  implementations on the audited-seed lineage. Terminal-Psi obligation
+  reconstruction is defined by a total low-rung semantic-ledger generator over
+  canonical bytes; direct low evaluation or a checked derivation of that same
+  result is authoritative. Until that route lands, every Rust verifier,
+  reduction family, and denotation rule it supplies is named explicitly as a
+  versioned trusted dependency.
 - **Rust as the producer** (`omega-rs`, the optimizing compiler) is, once a
   complete verifier-plus-kernel route exists, *outside the soundness base*. It
   still dies — for self-sufficiency — but it is the **deferrable** kill; a
@@ -280,9 +283,10 @@ different roles:
 **Where the repo is today:** the low proof kernel exists in Beta and Gamma. The
 current terminal-Psi artifact verifier, terminal interpreter, source proof
 engine, and production compiler are still Rust. Rust therefore remains in the
-de-facto trusted path until obligation reconstruction and canonical execution
-have an audited closure. Removing Rust from the producer remains necessary for
-self-sufficiency, but it is not the same task.
+explicit trusted path until canonical semantic-ledger reconstruction and
+execution have audited closures. Its current status is recorded rather than
+being implied by successful kernel checks. Removing Rust from the producer
+remains necessary for self-sufficiency, but it is not the same task.
 
 ## Honest edges
 
@@ -332,11 +336,14 @@ The places this architecture glides over real cost. Build with eyes open.
   the interpreters refine it? (Honest edge #1.)
 - **The diversity plan** — how many independent alpha implementations, on which
   ISAs, authored how, to make the diamonds real Thompson resistance?
-- **Terminal-Psi verification placement** — whether the final Psi-aware artifact
-  verifier has a low-rung reference implementation, emits a low-kernel-checkable
-  obligation-derivation certificate, or remains an explicitly trusted Psi
-  component. The obligation-reconstruction semantics are settled; their final
-  trust placement is not.
+- **Terminal-Psi semantic-ledger realization** — the placement is settled: one
+  total low-rung definition consumes canonical bytes and produces the complete
+  ordered semantic ledger; deployment establishes its result by direct
+  evaluation or a checked reconstruction derivation. The open engineering
+  question is whether current Gamma expresses that definition readably and at
+  acceptable reference-route cost. The spike must measure schema/audit size,
+  decoding, denotation, control-flow availability, and execution cost rather
+  than merely demonstrate that a toy traversal compiles.
 - **Certificate format** — the shared, versioned proposition and derivation shape
   that all proof-kernel implementations decide identically, including its exact
   binding to terminal-Psi identity and reconstructed obligation identity.

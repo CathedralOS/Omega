@@ -1,5 +1,6 @@
 // FAIL CANARY: a declared RANGE constraint combined with a NON-EXACT
-// arithmetic domain is ill-formed (Q9 ruling, Zach 2026-07-13: "this is
+// arithmetic domain is ill-formed (`range-constraints-require-exact-domain`,
+// Zach 2026-07-13: "this is
 // just a compile error"). Ranges are only enforced under Exact stores, so
 // `u8 [0..=4] in Wrapping` accepted `self.i = 100` silently -- the
 // declaration lied. All three declaration sites reject: data field, state

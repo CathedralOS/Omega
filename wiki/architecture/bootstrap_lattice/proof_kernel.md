@@ -63,13 +63,58 @@ need only understand the canonical proposition and derivation calculus. A
 component must still understand terminal Psi well enough to reconstruct the
 right propositions.
 
-### Current arithmetic reconstruction
+### Canonical semantic ledger and untrusted reduction
+
+The deployment endpoint does not trust the current Rust verifier to choose a
+convenient sufficient proposition. One total low-rung definition consumes the
+canonical terminal-Psi bytes and emits an ordered semantic ledger containing:
+
+- one canonical goal for every proof-bearing operation, edge, return, contract,
+  conservation event, and admission site;
+- only local primitive denotations, authored contracts, and checked positional
+  substitutions; and
+- premise origins, prerequisites, establishment points, value/place versions,
+  validity scopes, invalidations, and acyclic justification dependencies.
+
+Local operation rules live in a closed, typed declarative schema language with
+no opaque callbacks. An ordinary leaf-operation addition supplies one auditable
+row; a new control, validity, effect, or frontier concept is explicitly a ledger-
+algebra revision. A row states direct denotation and canonical goals but never a
+multi-operation interval summary.
+
+The untrusted reducer may compute such a summary, but must emit a derivation from
+the exact ledger premises to the unchanged canonical goal. A cast fed by three
+SSA definitions therefore receives the three local equations; the reducer proves
+their affine composition. A partial operation's result equation becomes
+available only on its normal successor after its safety obligation, never as a
+premise for that same obligation.
+
+At acyclic joins, a merge evidence token requires matching valid tokens on every
+predecessor. Ranking prevents cyclic justification, while dominance and
+version/invalidation checks separately establish availability. Cyclic control
+uses invariant establishment and preservation obligations rather than the merge
+rule. Calls independently check complete `requires` enumeration and exact
+capture-free instantiation over caller arguments, places, versions, moves,
+reborrows, outcomes, crash routes, and evidence lifetimes.
+
+The authoritative ledger is established for every deployed artifact either by
+executing the low definition or by checking a derivation of the same result.
+Optimized verifier agreement is a diagnostic oracle and grants no authority.
+
+### Current arithmetic reconstruction (trusted migration state)
 
 For proof-gated arithmetic the operation carries operands, result type, and an
 obligation identity. The artifact verifier derives the proposition from terminal
 carriers and path-local semantic facts; producer interval metadata is never an
 axiom. Native lowering is authorized only after the exact proposition is
 certified. Unsupported relations fail closed.
+
+The sufficient-form families below describe the current Rust implementation,
+not the final trust boundary. Until each family proves the canonical goal with a
+kernel-checked certificate, its exact implementation and version is a distinct
+trusted-judgment dependency in the executable trust closure. Reclassifying the
+reduced proposition as an admitted program premise is not a substitute for
+recording which implementation decided it.
 
 One total-conversion composition permits a nonempty admitted affine,
 homogeneous signed-product, exact-shift, or carrier-total landed-divisor prefix
@@ -249,17 +294,52 @@ semantic axioms to the small kernel.
 
 ## Trust and meaning
 
-Kernel acceptance defines certificate validity, not program behavior. A separate
-soundness bridge must connect each checked proposition to the execution semantics
-it claims to describe:
+Kernel acceptance defines certificate validity, not program behavior. Checked
+bridges must connect each proposition and progress judgment to the exact version
+of the terminal-Psi execution semantics they claim to describe:
 
 ```text
-kernel-accepted certificate  ⇒  claim true about the specified execution model
+safety / partial correctness
+    exhaustive derivation + sound rows + valid premises + checked obligations
+    => no execution prefix violates the selected safety policy and every
+       completed outcome satisfies its contract
+
+progress / total correctness
+    well-founded orders + per-edge descent + complete SCC/call closure
+    + accepted environmental progress premises
+    => every published termination guarantee holds
 ```
 
-That bridge is the central open proof obligation. Current seam tests compare
+Logical fuel discharges neither theorem: sponsor exhaustion suspends at the
+unpaid site and later resumes, so it is scheduling and attribution rather than
+termination evidence.
+
+These bridges are the central open proof obligations. Current seam tests compare
 kernel derivations with independent operational decisions and reject perturbed
-claims; they are evidence and regression gates, not the final metatheorem.
+claims; they are evidence and regression gates, not the final metatheorems. An
+interpreter oracle is also silent when execution is implemented correctly but a
+ledger row denotes that execution incorrectly.
+
+Each universally quantified row theorem is low-rung metatheory proved once, not
+a quantified proposition repeated in every artifact bundle. It cites exact
+digests for the row, state model, mathematical definitions, operational clauses,
+and generic composition theorem. A derived status is computed only from an
+accepted proof with matching dependencies. Conservative semantic extensions may
+transport an unaffected proof through a checked extension theorem; relevant
+changes require a new proof, while old artifacts retain their pinned semantics
+identity.
+
+Every accepted dependency forms a closed acyclic trust graph whose leaves are
+explicit registered roots with kind, semantic subject, digest/version, owner,
+scope, rationale, and accepting policy. Unknown leaves reject. Trusted verifier
+implementations, unproved schema rows, locally proved rows awaiting the global
+composition theorem, accepted admissions, and irreducible semantic axioms remain
+distinguishable rather than collapsing into one `trusted` label.
+
+This bridge is relative to terminal Psi's abstract operational semantics. The
+proof that x86-64 or AArch64 lowering realizes that execution belongs to the
+separate native-refinement closure and carries its own ISA and hardware roots;
+portable PCC never imports those assumptions.
 
 The kernel remains on the audited bootstrap lineage. The Beta and Gamma versions
 are independently implemented and compared, so moving the directory or removing

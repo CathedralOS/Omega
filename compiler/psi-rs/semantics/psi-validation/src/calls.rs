@@ -555,7 +555,8 @@ pub(crate) fn validate_call_node(
         return;
     }
 
-    // Q7 ruling (2026-07-13): a STATEMENT-position call to the enclosing
+    // `machine-self-call-cycle-ban` (settled 2026-07-13): a STATEMENT-position
+    // call to the enclosing
     // machine's OWN ENTRY (`self.drip(n - 1);` as a trailing statement) is
     // tail recursion spelled as a call -- it lowered as a Nested-transition
     // loop and slipped the transition-arm fence. "Banned, if it reads as

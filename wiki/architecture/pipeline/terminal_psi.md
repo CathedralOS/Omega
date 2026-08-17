@@ -161,9 +161,9 @@ verifier requires that operation to occur in the declared caller, produce the
 declared scalar type, and call the linked callee; a missing, spurious, unknown,
 wrong-kind, wrong-caller, or mismatched-callee link rejects. The proof row adds
 no operation or fuel beyond that ordinary call. Retained/general projection and
-guarded complete-package forms are design-blocked on `OWNER_QUESTIONS.md` Q14.
-Generic package application is blocked on Q12, and explicit discard is blocked
-on Q13.
+guarded complete-package forms are design-blocked on `OWNER_QUESTIONS.md` Q13.
+Generic package application is blocked on Q11, and explicit discard is blocked
+on Q12.
 
 Relation applications retain their independently bound left and right carrier
 index packs; no global carrier-parameter role is serialized. Selected
@@ -1472,18 +1472,112 @@ selection and attached evidence do change their own section and container
 identities. One execution verifies and runs the compiler's current Psi
 vocabulary.
 
-`psi-terminal-verifier` implements the artifact-aware judgment and
-`psi-proof-kernel` checks its proofs. Before terminal-Psi PCC becomes deployment
-authority, that verifier requires one auditable closure:
+`psi-terminal-verifier` is the current Rust implementation of the artifact-aware
+judgment and `psi-proof-kernel` checks its per-artifact proofs. The deployment-
+authoritative endpoint is a **canonical semantic-ledger generator**: one total
+low-rung definition that consumes the canonical terminal-Psi bytes themselves,
+rejects malformed structure, and emits the exact ordered goals and premise
+introductions for that artifact. Trusting an AST decoded by Rust would leave the
+decoder in the closure, so the low route begins at bytes.
 
-- a low-rung reference artifact verifier that reconstructs the same obligations;
-- a Psi verifier that emits an obligation-reconstruction derivation accepted by
-  the low-rung proof kernel; or
-- an explicitly trusted Psi artifact verifier, named as such in the trust ledger.
+The generator has five bounded responsibilities:
 
-A future Psi-hosted proof-kernel implementation may accelerate or independently
-cross-check certificate validation. It does not by itself discharge the separate
-obligation-reconstruction trust question.
+1. canonical decoding and validation of types, identities, SSA, control flow,
+   calls, contracts, and closed operation tags;
+2. direct denotation of each selected terminal operation into mathematics;
+3. one canonical goal for every proof-bearing operation, edge, return,
+   conservation event, contract, and admission site;
+4. local premise introductions with their origin, prerequisites, establishment
+   point, value/place versions, validity scope, and invalidating events; and
+5. an acyclic logical-justification order covering every artifact node exactly
+   once.
+
+It performs no verifier-derived algebraic summary, normalization, interval
+reduction, or multi-node composition. For example, three retained SSA
+definitions cross the boundary as three local equations; an affine summary of
+the three is a conclusion that untrusted automation must derive. Authored
+compound contracts, a primitive operation's direct denotation, and checked
+capture-free positional substitution at a call remain legitimate semantic
+content rather than reduction.
+
+Local operation meaning is specified by a closed, typed, declarative schema
+table. Each leaf-operation row states operand and result well-formedness,
+canonical denotation and goals, facts established after discharge, crash
+behavior, and local fuel/frontier effects. The schema language admits no opaque
+callbacks. The generator rejects a closed operation variant with no exact row.
+Adding a leaf operation that fits the existing ledger algebra therefore adds
+one isolated row; adding new control, effect, validity, or frontier machinery is
+visibly a ledger-algebra revision rather than an innocuous table edit.
+
+The large Rust analysis becomes an untrusted certificate producer. It may
+discover affine forms, interval hulls, quadratic extrema, division preimages,
+or any other sufficient argument, but it proves the canonical goal instead of
+replacing it with the reduced proposition. The low-rung kernel checks that
+derivation. A direct execution of the low-rung generator or a kernel-checked
+derivation of that same total definition establishes the authoritative ledger
+for every deployed artifact. Optimized implementations may disagree only by
+causing rejection; agreement with the low result grants them no authority.
+
+Premise availability is path- and version-sensitive. Ranking ledger nodes makes
+cyclic justification unrepresentable but does not by itself make a fact
+available. A cited evidence token must dominate its use and remain valid along
+every path. At an acyclic join, a new merge token may be established only from
+matching valid tokens on every predecessor. A fact from one arm alone is not
+available after the join. Cyclic reconvergence never uses that merge rule: it
+requires a separately checked invariant-establishment and preservation
+derivation. A partial operation establishes its result equation only on its
+normal successor and only after its own safety obligation, so that equation
+cannot prove the operation that creates it.
+
+Calls have two independently checked responsibilities. Coverage emits one exact
+obligation identity for every callee `requires` clause. Instantiation then
+checks arity, binder kinds and types, capture-free positional substitution,
+pre/post state versions, moves and reborrows, outcome guards, crash routes, and
+evidence lifetime. Forgetting a clause and substituting the wrong caller term
+are separate unsound failure modes.
+
+Artifact acceptance ultimately composes two theorem families:
+
+```text
+safety / partial correctness
+    exhaustive derivation + sound rows + valid premises + checked obligations
+    => no execution prefix violates the selected safety policy and every
+       completed outcome satisfies its contract
+
+progress / total correctness
+    well-founded orders + per-edge descent + complete SCC/call closure
+    + accepted environmental progress premises
+    => every published termination guarantee holds
+```
+
+Logical fuel discharges neither theorem. Exhaustion is sponsor-owned suspension
+at the unpaid site followed by resume; it is scheduling and attribution, not a
+termination argument.
+
+Each schema soundness theorem is universally quantified metatheory proved once
+in the low-rung calculus, not a quantified proposition repeated in an artifact
+certificate. It cites exact digests for the schema row, shared state model,
+mathematical definitions, operational clauses, and generic composition theorem.
+A checked conservative-extension theorem may transport an unaffected row to a
+new semantics version; otherwise the row is reproved. Old artifacts retain
+their pinned semantics identity while that version remains supported.
+
+The executable trust ledger is a closed dependency graph, never an informal
+label. Every dependency must terminate at an explicitly registered root with
+kind, semantic subject, digest/version, owner, scope, rationale, and accepting
+policy; unknown or cyclic leaves reject. Until proofs replace them, the current
+Rust generator, each uncertified reduction family, the low ledger framework,
+and each unproved denotation row appear as distinct trusted-judgment
+dependencies. A denotation row may move from trusted, to a locally checked row
+theorem, to inclusion in the checked module-composition bridge without hiding
+the remaining global dependency.
+
+Portable terminal-Psi denotation bottoms out in the abstract terminal execution
+model, not in x86-64 or AArch64 behavior. ISA semantics, hardware fidelity,
+native lowering, and installation belong to the separate native-refinement
+closure. A future Psi-hosted proof-kernel implementation may accelerate or
+independently cross-check certificate validation, but it produces no semantic
+ledger and therefore supplies no reconstruction assurance.
 
 ## Canonical semantic bytes
 

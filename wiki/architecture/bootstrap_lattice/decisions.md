@@ -65,10 +65,14 @@ verification — it cannot select an easier claim, omit a generated obligation, 
 forge a derivation the kernel accepts. The soundness of a proof about the
 fingerprinted artifact never depends on the proof-producing compiler. A separate
 checked-source-to-artifact or artifact-to-native refinement claim is required
-before transferring that result across a compilation boundary. The final trust
-placement of the Psi-aware
-obligation-reconstruction implementation remains explicit open work; kernel
-acceptance alone is not artifact verification.
+before transferring that result across a compilation boundary. Psi-aware
+reconstruction is now placed: a total low-rung semantic-ledger definition
+consumes canonical terminal-Psi bytes and emits exhaustive canonical goals plus
+validity-scoped local premises. Direct evaluation or a checked derivation of
+that definition is authoritative; optimized Rust agreement grants no authority.
+Algebraic reduction proves the canonical goals rather than replacing them.
+Kernel acceptance alone remains insufficient because it neither constructs that
+ledger nor proves the separate semantic soundness bridges.
 
 For **native-code** trust (Cathedral running real binaries, where the compiler is
 the isolation boundary), the endpoint is **translation validation**: the backend
@@ -97,7 +101,11 @@ the soundness sweep, the convergence routes).
 paired seam that cross-checks kernel-provability against operational truth on a
 corpus (+ a negative battery that must be rejected). A kernel feature without its seam
 is not done. This keeps the bridge honest as the kernel grows, and turns the "deep open
-problem" into a continuously-tested invariant.
+problem" into a continuously-tested invariant. Seams remain evidence, not the
+endpoint: universally quantified row theorems plus separate safety/partial-
+correctness and progress/termination composition theorems must eventually bind
+the exact pinned operational semantics. Logical fuel is not termination
+evidence.
 
 **Capstone (deferred):** a kernel-checked proof of the kernel's own soundness w.r.t. the Alpha
 small-step semantics — the formal bridge. Not attempted until the metatheory

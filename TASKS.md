@@ -153,7 +153,7 @@ Owners:
   adopt/initialize/validate and `External` adopt; owned destruction returns
   `Granted & Vacant` before allocator integration. Permission-stage borrowed
   admission can already withdraw the exact loan before content establishment.
-  Source establishment and owned retirement are design-blocked on owner Q8:
+  Source establishment and owned retirement are design-blocked on owner Q7:
   the admitted intermediate, failure signatures, and erased evidence are
   unsettled, and retirement lacks the checked destruction or move-out receipt
   needed to establish `Vacant`. Continue independent internal authority work.
@@ -167,7 +167,7 @@ Owners:
   linearly into Stable read/write, External read/take/write, or one exact
   Atomic operation and ordering while preserving the original authority on
   rejection. Connecting those admitted events to Terminal Psi and both native
-  backends is design-blocked on owner Q15: the canonical installed placed-root
+  backends is design-blocked on owner Q14: the canonical installed placed-root
   authority and read/take/write/atomic value-custody contract are unsettled.
 - Retain schema/device correspondence, runtime revision evidence, and provider
   identity separately from storage compatibility.
@@ -618,7 +618,7 @@ Remaining:
   codecs, verification, fuel, and interpretation reject missing or redirected
   premises. Continue with case-payload paths and aggregate equality over text,
   floats, sums, and erased fields. Trapping predicate arithmetic is
-  design-blocked on owner Q10; imported crash capsules remain blocked on
+  design-blocked on owner Q9; imported crash capsules remain blocked on
   artifact identity and certificate binding.
 - **PROOF-CERTIFICATION-BRIDGE.** Emit kernel-checkable certificates from source
   automation. One recursive certificate owns one SCC, cites its ranking and
@@ -632,13 +632,78 @@ Remaining:
   rejects or changes the recorded trust closure; measured mutual proof
   recursion checks while an unmeasured cycle rejects; an admitted law makes
   every dependent normalization admission-dependent.
-- **PCC verifier closure — design blocked on owner Q7.** The artifact determines
-  obligations; bundles only discharge them. The Rust verifier already
-  reconstructs the exact obligation set and invokes `psi-proof-kernel`; connect
-  that certificate calculus to the
-  independent low-rung kernel route and record one auditable reconstruction
-  closure: low reference verifier, checked derivation, or explicitly trusted
-  Psi verifier. A Psi kernel port alone is insufficient.
+- **PCC-CANONICAL-SEMANTIC-LEDGER.** Replace the current trusted Rust fusion of
+  artifact traversal and algebraic reduction with the settled two-part closure.
+  A total low-rung generator consumes canonical terminal-Psi bytes, validates
+  the exact structure, directly denotes each primitive operation, and emits one
+  ordered canonical ledger of goals plus local premise introductions. Clever
+  interval, affine, shift, quadratic, and divide/remainder analysis becomes an
+  untrusted certificate producer that proves the unchanged canonical goal.
+
+  First expose the migration state honestly: add exact trust-graph nodes for the
+  Rust decoder/verifier, each sufficient-form reduction family, the ledger
+  framework, and each unproved denotation schema. Every dependency must resolve
+  through an acyclic graph to a registered root with kind, semantic subject,
+  digest/version, owner, scope, rationale, and accepting policy; unknown leaves
+  reject. Do not encode an uncertified reducer as an admitted program premise.
+
+  Define a closed typed schema language with no opaque callbacks. One row per
+  leaf operation owns well-formedness, direct mathematical denotation, canonical
+  goals, post-discharge facts, crash behavior, and local fuel/frontier effects.
+  Missing operation rows reject mechanically. A change to control, validity,
+  effect, or frontier machinery is a visible ledger-algebra revision rather than
+  an ordinary row addition. Schema and artifact identities pin the exact state
+  model, mathematical definitions, operational clauses, and semantics version.
+
+  Before committing the full low implementation, build a Gamma spike that
+  canonical-decodes bytes and covers Exact and Wrapping arithmetic, signed
+  divide/remainder with toward-zero behavior and `MIN / -1`, one conditional
+  result equation, one branch-local premise, an asymmetric join that rejects,
+  the positive all-predecessor merge dual, exact call-requirement enumeration
+  and substitution, justification ranking, dominance, and invalidation. Measure
+  Gamma/specification size, audit complexity, Beta-reference runtime and memory,
+  ledger size, and prospective reconstruction-certificate size. Difficulty does
+  not weaken the endpoint; an inability to express the total definition cleanly
+  triggers a rung-design correction.
+
+  The production ledger records premise origin, prerequisites, establishment
+  point, value/place versions, validity scope, invalidating events, and an
+  acyclic logical-justification rank. Rank prevents circular evidence but does
+  not replace dominance and all-path availability. Ordinary merge evidence is
+  acyclic and requires valid matching facts on every predecessor; cyclic control
+  requires invariant establishment and preservation. Partial-operation result
+  equations become available only on the proved normal successor. Calls check
+  clause coverage separately from capture-free positional instantiation across
+  arity, binder kinds/types, state versions, moves/reborrows, outcome guards,
+  crash routes, and evidence lifetimes.
+
+  Establish every deployed ledger by direct low-rung evaluation or a low-kernel-
+  checked derivation of the same total definition. Rust agreement is a
+  differential oracle whose disagreement rejects and whose agreement grants no
+  authority. Convert reduction families incrementally: a converted family emits
+  a certificate; an unconverted family remains an exact versioned trusted-
+  judgment dependency.
+
+  Prove separate composition bridges. Safety/partial correctness combines
+  exhaustive derivation, sound schema rows, valid premises, and checked goals.
+  Progress/total correctness combines well-founded measures, per-edge descent,
+  complete SCC/call closure, and explicit environmental progress premises. Fuel
+  is sponsor scheduling and discharges neither. Row proofs are universally
+  quantified low-rung metatheory, with derived status computed from an accepted
+  proof and exact dependencies. Conservative semantic extensions need checked
+  transport; relevant changes require reproof, while old artifacts retain their
+  pinned semantics identity. Native ISA/hardware refinement remains a separate
+  trust closure.
+
+  Acceptance: byte mutation, omitted sites, extra premises, stale versions,
+  one-arm-only join facts, post-write stale facts, circular justification,
+  wrong call substitution, premature result equations, altered schema rows,
+  unknown roots, and changed semantic dependencies all reject or change the
+  recorded closure. A reducer cannot replace the canonical goal with its
+  sufficient preimage. An artifact report lists every remaining trusted
+  implementation/row and cannot appear fully derived until both applicable row
+  proofs and the relevant global composition bridge are accepted. A Psi-hosted
+  kernel port alone emits no ledger and supplies no reconstruction assurance.
 - **IRFUEL.** Extend entry/segment certificates to loops and build-time use;
   the generic terminal inspection path now independently verifies a selected
   source closure and publishes its recomputed acyclic entry certificate, with
@@ -661,7 +726,7 @@ Remaining:
   This is engineering, not a language-design blocker. Unsupported computed,
   chained, dynamic-receiver, unresolved-generic, non-checked-supply, and
   unresolved-machine-parameter shapes keep failing closed. `Placed<P, T>`
-  erased-evidence establishment is design-blocked on owner Q8. Relevance does
+  erased-evidence establishment is design-blocked on owner Q7. Relevance does
   not invent a runtime carrier or public ABI for otherwise non-layoutable types.
 - **EFFECTFUL-TYPED-COMPUTATION:** specify the value/computation judgments
   connecting effectful machines to the future typed proof calculus. Treat both
@@ -771,7 +836,7 @@ state through a raw address.
   acknowledges, records time, publishes a coalesced wake, and returns; fan-out
   runs in an ordinary task.
 - Completing the x2APIC acknowledgement transition is design-blocked on owner
-  Q9: the provider-neutral `InterruptAcknowledgement::complete` requirement
+  Q8: the provider-neutral `InterruptAcknowledgement::complete` requirement
   currently hardcodes `PortIo`, while x2APIC correctly uses `MachineControl`.
   Do not grant false port-I/O reach to the x2APIC provider as a workaround.
 
@@ -837,7 +902,7 @@ compiler concept is introduced.
   umbrella. The published checked operational root is retired; its plan remains
   only as a transient validation and independent-fact construction input.
   Continue removing umbrella carriers after their remaining consumers migrate.
-- **TPR4/TPR6 — design blocked on owner Q16.** Choose how an ordinary domain or
+- **TPR4/TPR6 — design blocked on owner Q15.** Choose how an ordinary domain or
   routed requirement is classified and attached as a progress premise before
   connecting progress-profile grants and receipts. Generic routed/domain
   requirements must not be treated as progress merely because they are
@@ -887,7 +952,7 @@ reach or trust, and private proof improvements do not change public identity.
   and general affine cleanup rather than claiming convergence from duplicated
   leaves.
   Provider-sized external adapter/arrival state is design-blocked on
-  `OWNER_QUESTIONS.md` Q11: stack-domain ownership across interrupted and
+  `OWNER_QUESTIONS.md` Q10: stack-domain ownership across interrupted and
   switched entry must be settled before this can become a complete root
   `StackPlan`. Zero-byte internal closures remain inadmissible until that
   adapter demand exists.
@@ -934,8 +999,8 @@ Remaining N6/N8 work:
   proof metadata adds no runtime work or fuel beyond the ordinary call.
 
   Retained/projection and guarded complete-package forms are design-blocked on
-  `OWNER_QUESTIONS.md` Q14. Generic package application is design-blocked on
-  Q12. Explicit-discard packages are design-blocked on Q13.
+  `OWNER_QUESTIONS.md` Q13. Generic package application is design-blocked on
+  Q11. Explicit-discard packages are design-blocked on Q12.
   Keep proposition, evidence-term, and provenance identities separate; neither
   provenance nor display spelling is a term identity oracle.
 - Finish generic conformance instantiation and explicit binders. The declaration
@@ -950,7 +1015,7 @@ Remaining N6/N8 work:
   selected normalized rows, and commits the map identity separately from
   callable static-machine arguments. Still instantiate generic conformance
   declarations over their own telescopes; the call-site application form and
-  permitted inference are design-blocked on `OWNER_QUESTIONS.md` Q12. Nested
+  permitted inference are design-blocked on `OWNER_QUESTIONS.md` Q11. Nested
   generic calls already forward the exact evidence selection through
   specialization. Identity retains declared name, telescope, optional subject,
   instantiated trait, and normalized rows. No visibility-, priority-, or
@@ -1058,7 +1123,7 @@ can produce installed code; validation binds exact final bytes and placement.
 These are pointers to the owning question or open design item, not duplicate
 specifications:
 
-- **EXTERNAL-ENTRY-STACK-DOMAIN:** owner Q11.
+- **EXTERNAL-ENTRY-STACK-DOMAIN:** owner Q10.
 - **FIXED-OPERATOR-SURFACE-BINDING:** owner Q1.
 - **UEFI-PHYSICAL-SEMANTIC-ENTRY-COMPOSITION:** owner Q2.
 - **SEALED-LOCAL-CAPACITY-SOURCE-FORM:** owner Q3.
@@ -1070,16 +1135,15 @@ specifications:
   in `wiki/language_guide/appendix_open_questions.md`.
 - **CHECKED-RESULT-ARITHMETIC:** public carrier ruling for failure-returning
   checked arithmetic.
-- **TRAPPING-CONTRACT-ARITHMETIC:** owner Q10.
+- **TRAPPING-CONTRACT-ARITHMETIC:** owner Q9.
 - **IMPORTED-CRASH-CAPSULES:** realization/import/certificate identity in
   `wiki/language_guide/appendix_open_questions.md`.
 - **NATIVE-LOGICAL-FUEL-METERING:** owner Q6.
-- **PCC-VERIFIER-CLOSURE:** owner Q7.
-- **PLACED-ERASED-EVIDENCE-ESTABLISHMENT:** owner Q8.
-- **PROVIDER-NEUTRAL-INTERRUPT-ACKNOWLEDGEMENT:** owner Q9.
-- **GENERIC-CONFORMANCE-APPLICATION:** owner Q12.
-- **EVIDENCE-PACKAGE-DISCARD:** owner Q13.
-- **GENERATED-EVIDENCE-OUTPUT-PACKAGES:** owner Q14.
+- **PLACED-ERASED-EVIDENCE-ESTABLISHMENT:** owner Q7.
+- **PROVIDER-NEUTRAL-INTERRUPT-ACKNOWLEDGEMENT:** owner Q8.
+- **GENERIC-CONFORMANCE-APPLICATION:** owner Q11.
+- **EVIDENCE-PACKAGE-DISCARD:** owner Q12.
+- **GENERATED-EVIDENCE-OUTPUT-PACKAGES:** owner Q13.
 
 ## Platform-gated verification
 

@@ -487,7 +487,8 @@ fn collect_expression_edges(
 }
 
 /// Resolve a called NAME to a cross-machine edge. Internal targets (the
-/// current machine's own states, incl. its entry -- the Q7 fence owns that
+/// current machine's own states, incl. its entry -- the stable
+/// `machine-self-call-cycle-ban` decision owns that fence
 /// spelling) and unresolvable names add nothing.
 #[allow(clippy::too_many_arguments)]
 fn add_edge_for_name(

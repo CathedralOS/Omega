@@ -38,10 +38,12 @@ choice.
 
 By Curry–Howard, **a proof of a proposition `P` is a value whose type is `P`** —
 a *term*. A small **trusted kernel** does exactly one job: type-check that term
-against the proposition. The kernel is the entire trusted base — a fixed set of
-inference rules plus a handful of **axioms** (the unproven assumptions, e.g.
-excluded middle / choice). Everything else can be wrong without compromising
-soundness, as long as the kernel re-checks the final term.
+against the proposition. For derivation validity, that kernel is the trusted
+base: a fixed set of inference rules plus explicit **axioms**. End-to-end PCC
+also needs an authoritative translation from canonical artifact bytes to the
+right proposition and a soundness bridge from that proposition to the artifact's
+operational semantics. Those dependencies are explicit, versioned trust-graph
+nodes rather than authority silently granted to proof automation.
 
 **Tactics** exist because writing those terms by hand is brutal. A tactic is an
 *untrusted metaprogram* that inspects the current goal and emits term fragments:
@@ -266,6 +268,17 @@ The source engine does not yet emit those terminal certificates. Quantifiers
 remain unsupported; proof views do not yet have semantics; and the broader
 proposition-family, explicit-relevance, and effectful-computation migrations
 remain open. `TASKS.md` is the authoritative queue for that gap.
+
+Terminal-Psi artifact verification has a settled endpoint beyond that source
+bridge. A total low-rung semantic-ledger definition consumes canonical bytes,
+directly denotes each primitive operation, emits exhaustive canonical goals and
+validity-scoped local premises, and performs no multi-node algebraic reduction.
+Rust reduction remains untrusted only when it proves those goals with checked
+certificates. Separate safety/partial-correctness and progress/termination
+composition theorems connect accepted ledgers to the exact pinned operational
+semantics. Until those theorems and the low generator land, current verifier,
+reduction, and denotation dependencies remain explicit trusted-judgment nodes;
+no clean artifact report may hide them beneath kernel acceptance.
 
 ## The three kills, sequenced
 

@@ -88,7 +88,8 @@ fn validate_operator_types(
 /// Settled ambiguity rule: the same fixed token with overlapping
 /// receiver/operand types is a compile error. The token is the first-level
 /// resolution discriminator; within it, operand types must uniquely select a
-/// candidate. This rule does not settle the source binding syntax in owner Q1.
+/// candidate. This rule does not settle the
+/// `FIXED-OPERATOR-SURFACE-BINDING` source syntax.
 fn validate_spelling_overlap(
     program: &TypedTrees,
     operators: &[psi_typed_trees::operator::OperatorDefinition],

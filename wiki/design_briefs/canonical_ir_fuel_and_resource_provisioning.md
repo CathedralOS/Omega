@@ -490,11 +490,32 @@ and fixed-fuel certificates without trusting the producing compiler. Native
 lowering/refinement certificates have a different subject and TCB and remain a
 separate future lane.
 
-The verifier/kernel split above is settled; its final trust placement is not.
-The Psi-aware verifier may gain a low-rung reference implementation, emit a
-reconstruction derivation checked by the low kernel, or remain explicitly
-trusted. A Psi-hosted generic kernel may accelerate or cross-check proofs, but
-does not establish that the verifier reconstructed the right obligations.
+The verifier/kernel split and its final trust placement are settled. A total
+low-rung canonical semantic-ledger definition consumes terminal-Psi bytes,
+validates the exact structure, directly denotes each operation, and emits the
+complete ordered goals and validity-scoped premise introductions. Deployment
+establishes that ledger either by executing the low definition or by checking a
+derivation of the same result. At that endpoint the Rust verifier becomes an
+optimized untrusted certificate producer and differential oracle; agreement
+grants no authority and disagreement rejects. Until then its exact implementation
+and version remain an explicit trusted dependency.
+
+The low generator carries only local equations, authored contracts, primitive
+denotations, and checked call substitution. Its closed declarative operation
+schemas do not perform multi-operation interval reduction or algebraic
+normalization. Those procedures must derive the canonical goal with a checked
+certificate. Logical-justification order, path availability, state/place
+versions, invalidation, all-predecessor merge evidence, and call-requirement
+enumeration are part of the canonical ledger. Cyclic control requires explicit
+invariant establishment and preservation rather than ordinary merge evidence.
+
+Every verifier, reduction-family, denotation-row, composition theorem, and
+irreducible semantic dependency has an exact versioned node in a closed trust
+graph whose leaves are registered roots. Portable denotation is relative to the
+terminal-Psi abstract execution model; native ISA and hardware assumptions stay
+in the separate native-refinement closure. A Psi-hosted generic kernel may
+accelerate or cross-check proofs, but it emits no ledger and supplies no
+reconstruction assurance.
 
 ## Implementation constraints
 
