@@ -4,10 +4,14 @@
 (data RTerminalHeader
   (RTerminalHeader Int Bytes)                 ; vocabulary marker, unread tail
   (RTerminalHeaderBad))
-(data ROptionalU64
-  (ROptionalU64None Bytes)
-  (ROptionalU64Some U64 Bytes)
-  (ROptionalU64Bad))
+(data TerminalSemanticId (TerminalSemanticId U64))
+(data ROptionalTerminalSemanticId
+  (ROptionalTerminalSemanticIdNone Bytes)
+  (ROptionalTerminalSemanticIdSome TerminalSemanticId Bytes)
+  (ROptionalTerminalSemanticIdBad))
+(data RTerminalSemanticId
+  (RTerminalSemanticId TerminalSemanticId Bytes)
+  (RTerminalSemanticIdBad))
 (data TerminalIntegerType
   (TerminalFixedSigned Int)
   (TerminalFixedUnsigned Int)

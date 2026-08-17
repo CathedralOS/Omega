@@ -335,9 +335,10 @@
 
 (def read_optional_id ((bs Bytes)) RInt
   (match (read_optional_semantic_id bs)
-    (ROptionalU64Bad RIntBad)
-    ((ROptionalU64None rest) (RInt 0 rest))
-    ((ROptionalU64Some value rest) (narrow_spike_identity value rest))))
+    (ROptionalTerminalSemanticIdBad RIntBad)
+    ((ROptionalTerminalSemanticIdNone rest) (RInt 0 rest))
+    ((ROptionalTerminalSemanticIdSome identity rest)
+      (narrow_spike_identity identity rest))))
 
 (def finish_se_machine
   ((id Int) (attachment Int) (parameters Decls)
