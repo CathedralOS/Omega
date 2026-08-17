@@ -818,9 +818,11 @@ Remaining:
   guard/assembly families instead of a second responsibility embedded in
   production. A dedicated 2,872-line module owns
   target-specific import, syscall, indirect-call, and runtime-text replay plus
-  exact operand/storage relocation-site derivation; a 2,657-line module owns
-  compiler atomic/instruction footprint derivation, body/fixed-mechanics
-  partition validation, and footprint composition; a separate 1,547-line
+  exact operand/storage relocation-site derivation. Compiler footprint
+  derivation now has a 509-line composition/partition parent over a declarative
+  four-family registry: 249-line control/entry, 621-line storage/place,
+  866-line outbound-call, and 512-line buffer/wire/text responsibilities. A
+  separate 1,547-line
   module owns assembly footprints, operand-loader semantics, exact instruction
   bytes, and retained relocation checks behind two parent entry points; and a
   1,598-line module owns exact compiler relocation sets, symbol custody, and
