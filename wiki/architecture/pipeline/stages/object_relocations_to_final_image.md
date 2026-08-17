@@ -89,6 +89,8 @@ Must not own:
 - `omega-image-emission/src/checked/assembly.rs` owns checked-assembly
   footprints, operand-loader semantics, exact instruction bytes, and their
   retained relocation checks.
+- `omega-image-emission/src/checked/atomic_replay.rs` owns compiler atomic
+  operation replay and recursive runtime-operand storage-site derivation.
 - `omega-image-emission/src/checked/runtime_imports.rs` owns target-specific
   import, syscall, indirect-call, and runtime-text replay plus exact operand and
   storage relocation-site derivation.
