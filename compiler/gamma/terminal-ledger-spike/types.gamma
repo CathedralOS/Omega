@@ -36,6 +36,41 @@
 (data Op (Op Int Decl OpKind))
 (data Ops (ONil) (OCons Op Ops))
 
+; Closed Q7 leaf-operation schema vocabulary.  Calls are deliberately absent:
+; their coverage/substitution and control responsibilities are separate ledger
+; algebra, not leaf denotation rows.
+(data LeafKind
+  (LExactAdd)
+  (LWrapAdd)
+  (LExactDiv)
+  (LExactRem)
+  (LWrapDiv)
+  (LWrapRem)
+  (LLess))
+(data ResultShape (ResultI8) (ResultBool))
+(data Denotation
+  (DExactAdd)
+  (DWrapAdd)
+  (DExactDiv)
+  (DExactRem)
+  (DWrapDiv)
+  (DWrapRem)
+  (DLess))
+(data GoalShape (GoalNone) (GoalFitsI8) (GoalExactDiv) (GoalNonZero))
+(data FactShape (FactEquation) (FactConditional))
+(data CrashShape (NeverCrashes) (CrashesUnlessGoal))
+(data FuelShape (ConsumesOneFuel))
+(data FrontierShape (KeepsLocalFrontier))
+(data LeafSchema
+  (LeafSchema LeafKind ResultShape Denotation GoalShape FactShape
+    CrashShape FuelShape FrontierShape))
+(data LeafSchemas (LSNil) (LSCons LeafSchema LeafSchemas))
+(data LeafView (LeafView LeafKind Int Int Int) (NotLeaf))
+(data RLeafSchema
+  (LeafSchemaFound LeafSchema)
+  (LeafSchemaMissing)
+  (LeafSchemaDuplicate))
+
 (data Edge (Edge Int Int Ints))                 ; edge id, target block, arguments
 (data Term (Jump Edge) (Cond Int Edge Edge) (Ret Int Int))
 (data Block (Block Int Decls Ops Term))

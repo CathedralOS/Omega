@@ -187,72 +187,6 @@
       (if (ints_has known left) (ints_has known right) 0)
       0)))
 
-(def build_exact_add
-  ((operation Int) (result Decl) (known Ints) (machine Int) (block Int)
-   (rank Int) (left Int) (right Int) (obligation Int)) Build
-  (if (valid_binary_result result known left right 2)
-    (Built
-      (LCons (Row rank (PrimitiveOrigin operation)
-               (SafetyFitsI8 obligation (Add (Val left) (Val right)))
-               block (MachineScope machine) INil)
-        (LCons (Row (+ rank 1) (PrimitiveOrigin operation)
-                 (ResultEq (decl_id result) (Add (Val left) (Val right)))
-                 block (MachineScope machine) (ICons rank INil)) LNil))
-      (+ rank 2) (ICons (decl_id result) known))
-    BuildBad))
-
-(def build_wrap_add
-  ((operation Int) (result Decl) (known Ints) (machine Int) (block Int)
-   (rank Int) (left Int) (right Int)) Build
-  (if (valid_binary_result result known left right 2)
-    (Built
-      (LCons (Row rank (PrimitiveOrigin operation)
-               (ResultEq (decl_id result) (WrapAdd (Val left) (Val right)))
-               block (MachineScope machine) INil) LNil)
-      (+ rank 1) (ICons (decl_id result) known))
-    BuildBad))
-
-(def build_exact_partial
-  ((operation Int) (result Decl) (known Ints) (machine Int) (block Int)
-   (rank Int) (left Int) (right Int) (obligation Int) (remainder Int)) Build
-  (if (valid_binary_result result known left right 2)
-    (let expression (if remainder (TzRem (Val left) (Val right)) (TzDiv (Val left) (Val right)))
-      (Built
-        (LCons (Row rank (PrimitiveOrigin operation)
-                 (SafetyExactDiv obligation left right)
-                 block (MachineScope machine) INil)
-          (LCons (Row (+ rank 1) (PrimitiveOrigin operation)
-                   (ResultEq (decl_id result) expression)
-                   block (MachineScope machine) (ICons rank INil)) LNil))
-        (+ rank 2) (ICons (decl_id result) known)))
-    BuildBad))
-
-(def build_wrapping_partial
-  ((operation Int) (result Decl) (known Ints) (machine Int) (block Int)
-   (rank Int) (left Int) (right Int) (obligation Int) (remainder Int)) Build
-  (if (valid_binary_result result known left right 2)
-    (let expression (if remainder (WrapRem (Val left) (Val right)) (WrapDiv (Val left) (Val right)))
-      (Built
-        (LCons (Row rank (PrimitiveOrigin operation)
-                 (SafetyNonZero obligation right)
-                 block (MachineScope machine) INil)
-          (LCons (Row (+ rank 1) (PrimitiveOrigin operation)
-                   (ResultEq (decl_id result) expression)
-                   block (MachineScope machine) (ICons rank INil)) LNil))
-        (+ rank 2) (ICons (decl_id result) known)))
-    BuildBad))
-
-(def build_less
-  ((operation Int) (result Decl) (known Ints) (machine Int) (block Int)
-   (rank Int) (left Int) (right Int)) Build
-  (if (valid_binary_result result known left right 1)
-    (Built
-      (LCons (Row rank (PrimitiveOrigin operation)
-               (ConditionalEq (decl_id result) left right)
-               block (MachineScope machine) INil) LNil)
-      (+ rank 1) (ICons (decl_id result) known))
-    BuildBad))
-
 (def build_call_exact
   ((operation Int) (result Decl) (known Ints) (rank Int) (target Int)
    (callee_id Int) (callee_result Decl) (p0 Int) (p1 Int) (a0 Int) (a1 Int)
@@ -281,37 +215,33 @@
       BuildBad)))
 
 (def build_kind
-  ((kind OpKind) (operation Int) (result Decl) (known Ints) (callee Machine)
-   (machine Int) (block Int) (rank Int)) Build
-  (match kind
-    ((KExactAdd left right obligation)
-      (build_exact_add operation result known machine block rank left right obligation))
-    ((KWrapAdd left right)
-      (build_wrap_add operation result known machine block rank left right))
-    ((KExactDiv left right obligation)
-      (build_exact_partial operation result known machine block rank left right obligation 0))
-    ((KExactRem left right obligation)
-      (build_exact_partial operation result known machine block rank left right obligation 1))
-    ((KWrapDiv left right obligation)
-      (build_wrapping_partial operation result known machine block rank left right obligation 0))
-    ((KWrapRem left right obligation)
-      (build_wrapping_partial operation result known machine block rank left right obligation 1))
-    ((KLess left right)
-      (build_less operation result known machine block rank left right))
-    ((KCall target arguments obligations)
-      (build_call operation result known callee rank target arguments obligations))))
+  ((schemas LeafSchemas) (kind OpKind) (operation Int) (result Decl) (known Ints)
+   (callee Machine) (machine Int) (block Int) (rank Int)) Build
+  (match (view_leaf kind)
+    ((LeafView leaf left right obligation)
+      (match (find_leaf_schema schemas leaf)
+        ((LeafSchemaFound schema)
+          (build_leaf_from_schema schema operation result known machine block rank
+            left right obligation))
+        (z BuildBad)))
+    (NotLeaf
+      (match kind
+        ((KCall target arguments obligations)
+          (build_call operation result known callee rank target arguments obligations))
+        (z BuildBad)))))
 
 (def build_ops
-  ((ops Ops) (known Ints) (callee Machine) (machine Int) (block Int) (rank Int)) Build
+  ((schemas LeafSchemas) (ops Ops) (known Ints) (callee Machine)
+   (machine Int) (block Int) (rank Int)) Build
   (match ops
     (ONil (Built LNil rank known))
     ((OCons op rest)
       (match op
         ((Op operation result kind)
-          (match (build_kind kind operation result known callee machine block rank)
+          (match (build_kind schemas kind operation result known callee machine block rank)
             (BuildBad BuildBad)
             ((Built rows next next_known)
-              (match (build_ops rest next_known callee machine block next)
+              (match (build_ops schemas rest next_known callee machine block next)
                 (BuildBad BuildBad)
                 ((Built tail final final_known)
                   (Built (rows_append rows tail) final final_known))))))))))
@@ -717,9 +647,10 @@
         (rows_append entry_rows (rows_append join_rows authored_rows)) after_authored))))
 
 (def finish_join_ledger
-  ((entry_rows Rows) (known Ints) (next Int) (caller Machine) (callee Machine)
-   (entry_block Block) (true_block Block) (false_block Block) (join_block Block)) RLedger
-  (match (build_ops (block_ops join_block)
+  ((schemas LeafSchemas) (entry_rows Rows) (known Ints) (next Int)
+   (caller Machine) (callee Machine) (entry_block Block) (true_block Block)
+   (false_block Block) (join_block Block)) RLedger
+  (match (build_ops schemas (block_ops join_block)
            (ints_append (decls_ids (block_parameters join_block)) known)
            callee (machine_id caller) (block_id_of join_block) next)
     (BuildBad RLedgerBad)
@@ -728,17 +659,17 @@
         (block_term entry_block) true_block false_block join_block))))
 
 (def build_spike_ledger
-  ((caller Machine) (callee Machine) (entry_block Block) (true_block Block)
-   (false_block Block) (join_block Block)) RLedger
-  (match (build_ops (block_ops entry_block) (decls_ids (machine_parameters caller))
+  ((schemas LeafSchemas) (caller Machine) (callee Machine) (entry_block Block)
+   (true_block Block) (false_block Block) (join_block Block)) RLedger
+  (match (build_ops schemas (block_ops entry_block) (decls_ids (machine_parameters caller))
            callee (machine_id caller) (block_id_of entry_block) 1)
     (BuildBad RLedgerBad)
     ((Built entry_rows next known)
-      (finish_join_ledger entry_rows known next caller callee entry_block
+      (finish_join_ledger schemas entry_rows known next caller callee entry_block
         true_block false_block join_block))))
 
 (def build_two_machine_ledger
-  ((vocabulary Int) (entry Int) (caller Machine) (callee Machine)) RLedger
+  ((schemas LeafSchemas) (vocabulary Int) (entry Int) (caller Machine) (callee Machine)) RLedger
   (let caller_blocks (machine_blocks caller)
     (let callee_blocks (machine_blocks callee)
       (if (eq (blocks_len caller_blocks) 4)
@@ -752,28 +683,63 @@
                           entry_block callee_block)
                       (if (spike_type_shape_valid caller callee)
                         (if (spike_block_shape_valid entry_block true_block false_block callee_block)
-                          (build_spike_ledger caller callee entry_block true_block false_block join_block)
+                          (build_spike_ledger schemas caller callee entry_block true_block false_block join_block)
                           RLedgerBad)
                         RLedgerBad)
                       RLedgerBad))))))
           RLedgerBad)
         RLedgerBad))))
 
-(def build_module_ledger ((module Module)) RLedger
+(def build_module_ledger_with_schemas ((schemas LeafSchemas) (module Module)) RLedger
   (match module
     ((Module vocabulary entry machines)
       (if (eq (machines_len machines) 2)
-        (build_two_machine_ledger vocabulary entry (machine_at machines 0) (machine_at machines 1))
+        (build_two_machine_ledger schemas vocabulary entry
+          (machine_at machines 0) (machine_at machines 1))
         RLedgerBad))))
 
-(def run_spike ((bytes Bytes)) Int
+(def build_module_ledger ((module Module)) RLedger
+  (build_module_ledger_with_schemas (canonical_leaf_schemas) module))
+
+(def schemas_without_first () LeafSchemas
+  (match (canonical_leaf_schemas)
+    ((LSCons first rest) rest)
+    (LSNil LSNil)))
+
+(def schemas_with_duplicate_first () LeafSchemas
+  (match (canonical_leaf_schemas)
+    ((LSCons first rest) (LSCons first (LSCons first rest)))
+    (LSNil LSNil)))
+
+(def schemas_with_altered_first () LeafSchemas
+  (match (canonical_leaf_schemas)
+    ((LSCons first rest)
+      (LSCons
+        (LeafSchema LExactAdd ResultI8 DWrapAdd GoalNone FactEquation
+          NeverCrashes ConsumesOneFuel KeepsLocalFrontier)
+        rest))
+    (LSNil LSNil)))
+
+(def run_spike_with_schemas ((schemas LeafSchemas) (bytes Bytes)) Int
   (if (arithmetic_self_test)
     (match (decode_module bytes)
       (RModuleBad 0)
       ((RModule module)
-        (match (build_module_ledger module)
+        (match (build_module_ledger_with_schemas schemas module)
           (RLedgerBad 0)
           ((RLedger rows) 1))))
+    0))
+
+(def run_spike ((bytes Bytes)) Int
+  (run_spike_with_schemas (canonical_leaf_schemas) bytes))
+
+(def schema_mutation_self_test ((bytes Bytes)) Int
+  (if (run_spike_with_schemas (canonical_leaf_schemas) bytes)
+    (if (eq (run_spike_with_schemas (schemas_without_first) bytes) 0)
+      (if (eq (run_spike_with_schemas (schemas_with_duplicate_first) bytes) 0)
+        (eq (run_spike_with_schemas (schemas_with_altered_first) bytes) 0)
+        0)
+      0)
     0))
 
 (def measure_spike ((bytes Bytes)) Metrics
