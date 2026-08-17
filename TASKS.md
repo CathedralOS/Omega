@@ -1,6 +1,6 @@
 # Tasks
 
-Last pruned: 2026-08-14.
+Last pruned: 2026-08-17.
 
 This file is the current execution queue, not a changelog. Git retains completed
 implementation history; architecture pages and design briefs describe the
@@ -88,14 +88,29 @@ Remaining:
   structural result/return carrier with claim transfer, exit-time content
   replay, interpretation, and fuel. Omega preserves that carrier through the
   exact one-fragment native ABI path and all artifact/install layers, with claim
-  identity retained as zero-runtime metadata. The remaining work is real sealed
-  introduction, custody exit, residual geometry, and provider binding—not
+  identity retained as zero-runtime metadata. The remaining work is real
+  authorized introduction, custody exit, residual geometry, and provider binding—not
   another passthrough representation.
-- **ROOT-INTRODUCTION-AND-BACKING — design blocked on owner Q3.** Provider-issued
-  and compiler-provisioned origins must preserve complete evidence and reject
-  cross-origin composition and replay. Once the sealed local-capacity source
-  form is settled, lower it into compiler-owned origin, terminal-evidence, and
-  artifact rows and add a source-level conservation canary.
+- **INSTALLED-PROGRAM-LOCAL-ROOT-INTRODUCTION.** Implement the settled
+  domain-route/installation model without a provision declaration. A
+  content-bearing domain remains the sole source-level authority for one exact
+  requirement. Its statically enumerable installed parameter positions may
+  introduce fresh program-local lineages; ordinary calls and result routes with
+  no parent lineage reject. Reconstruct exact per-occurrence capacity from the
+  requirement instance, qualification, and owner-unique `Content<A>` projection,
+  including owner-constrained const families. Join that schema to finite slot
+  cardinality and lifecycle epoch during installation verification and derive,
+  rather than trust, the aggregate for one installed artifact instance.
+
+  Migrate the current `ExtentCompilerProvisioning`/`sealed_declaration`
+  implementation carrier to route-position, capacity-schema, occurrence,
+  cardinality, and epoch identities. Preserve provider issuance as a distinct
+  admitted origin. Add source, terminal, artifact, and installation canaries for
+  a one-root introduction, a finite multi-instance aggregate, an ordinary-call
+  mint attempt, an unbounded installation shape, understated producer totals,
+  cross-origin composition, stale epoch replay, and coexistence-peak reporting.
+  A shared cap is one aggregate parent root divided among children; another
+  child without supply rejects. Cross-epoch limits require persistent authority.
 - **BOUNDARY-ISSUANCE** (after conservation): derive invocation geometry from
   parameters, entry places, and results. Keep ownership, issuance, custody,
   aliasing, and partition succession distinct. Providers may attest custody,
@@ -105,8 +120,10 @@ Remaining:
   and controller configuration; reconfiguration drains them.
 
 Acceptance: reconstructed carriers mint no authority; every introduced content
-claim traces to compiler-provisioned sealed local capacity or admitted provider
-issuance; external effects have an exact root-to-provider backing chain;
+claim traces to a verifier-reconstructed installed program-local occurrence or
+admitted provider issuance; artifact-instance aggregates are derived for an
+exact epoch and Cathedral can compose coexistence peaks; external effects have
+an exact root-to-provider backing chain;
 partition and residual arithmetic are compiler-derived; overlapping children,
 gaps without a custody exit, algebra drift, receipt replay, and cross-root
 recomposition reject.
@@ -153,7 +170,7 @@ Owners:
   adopt/initialize/validate and `External` adopt; owned destruction returns
   `Granted & Vacant` before allocator integration. Permission-stage borrowed
   admission can already withdraw the exact loan before content establishment.
-  Source establishment and owned retirement are design-blocked on owner Q7:
+  Source establishment and owned retirement are design-blocked on owner Q6:
   the admitted intermediate, failure signatures, and erased evidence are
   unsettled, and retirement lacks the checked destruction or move-out receipt
   needed to establish `Vacant`. Continue independent internal authority work.
@@ -167,7 +184,7 @@ Owners:
   linearly into Stable read/write, External read/take/write, or one exact
   Atomic operation and ordering while preserving the original authority on
   rejection. Connecting those admitted events to Terminal Psi and both native
-  backends is design-blocked on owner Q14: the canonical installed placed-root
+  backends is design-blocked on owner Q13: the canonical installed placed-root
   authority and read/take/write/atomic value-custody contract are unsettled.
 - Retain schema/device correspondence, runtime revision evidence, and provider
   identity separately from storage compatibility.
@@ -618,7 +635,7 @@ Remaining:
   codecs, verification, fuel, and interpretation reject missing or redirected
   premises. Continue with case-payload paths and aggregate equality over text,
   floats, sums, and erased fields. Trapping predicate arithmetic is
-  design-blocked on owner Q9; imported crash capsules remain blocked on
+  design-blocked on owner Q8; imported crash capsules remain blocked on
   artifact identity and certificate binding.
 - **PROOF-CERTIFICATION-BRIDGE.** Emit kernel-checkable certificates from source
   automation. One recursive certificate owns one SCC, cites its ranking and
@@ -878,7 +895,7 @@ Remaining:
   outcomes only when terminal wait/foreign edges can derive them. Inserted native
   metering must consume the installed exact-site
   attribution rows, but is design-blocked on the sponsor counter, exhaustion
-  transfer, and resumable continuation ABI in owner Q6. Keep WCET and wall-clock
+  transfer, and resumable continuation ABI in owner Q5. Keep WCET and wall-clock
   conversion separate.
 - **PROOF-RELEVANCE-MIGRATION.** Finish binding-level `[erased]`, checked
   noninterference, erased-stripped layout, and obligation preservation across
@@ -893,7 +910,7 @@ Remaining:
   This is engineering, not a language-design blocker. Unsupported computed,
   chained, dynamic-receiver, unresolved-generic, non-checked-supply, and
   unresolved-machine-parameter shapes keep failing closed. `Placed<P, T>`
-  erased-evidence establishment is design-blocked on owner Q7. Relevance does
+  erased-evidence establishment is design-blocked on owner Q6. Relevance does
   not invent a runtime carrier or public ABI for otherwise non-layoutable types.
 - **EFFECTFUL-TYPED-COMPUTATION:** specify the value/computation judgments
   connecting effectful machines to the future typed proof calculus. Treat both
@@ -940,14 +957,14 @@ Owners:
   borrow one linear validity claim: consuming invalidation is accepted after
   the view's last use and rejected while the view remains live. Projected/
   content-bearing result calls remain fail-closed.
-- **WRITE-ONLY-MEMORY-VIEW — design blocked on owner Q4.** Once its core
+- **WRITE-ONLY-MEMORY-VIEW — design blocked on owner Q3.** Once its core
   representation and initialization transition are settled, carry the exact
   view through foreign signatures, calling plans, borrow checking, and both
   execution paths without widening it to read/write authority.
 
 #### ENT4 — registered callbacks
 
-- **CALLBACK-PARAMETER-REQUIREMENT — design blocked on owner Q5.** The source
+- **CALLBACK-PARAMETER-REQUIREMENT — design blocked on owner Q4.** The source
   operation must nominally bind one static machine-parameter position to one
   exact callback requirement; callable-shape coincidence and unique conformance
   are insufficient. Once settled, retain a checked per-use row and exact
@@ -1069,7 +1086,7 @@ compiler concept is introduced.
   umbrella. The published checked operational root is retired; its plan remains
   only as a transient validation and independent-fact construction input.
   Continue removing umbrella carriers after their remaining consumers migrate.
-- **TPR4/TPR6 — design blocked on owner Q15.** Choose how an ordinary domain or
+- **TPR4/TPR6 — design blocked on owner Q14.** Choose how an ordinary domain or
   routed requirement is classified and attached as a progress premise before
   connecting progress-profile grants and receipts. Generic routed/domain
   requirements must not be treated as progress merely because they are
@@ -1119,7 +1136,7 @@ reach or trust, and private proof improvements do not change public identity.
   and general affine cleanup rather than claiming convergence from duplicated
   leaves.
   Provider-sized external adapter/arrival state is design-blocked on
-  `OWNER_QUESTIONS.md` Q10: stack-domain ownership across interrupted and
+  `OWNER_QUESTIONS.md` Q9: stack-domain ownership across interrupted and
   switched entry must be settled before this can become a complete root
   `StackPlan`. Zero-byte internal closures remain inadmissible until that
   adapter demand exists.
@@ -1166,8 +1183,8 @@ Remaining N6/N8 work:
   proof metadata adds no runtime work or fuel beyond the ordinary call.
 
   Retained/projection and guarded complete-package forms are design-blocked on
-  `OWNER_QUESTIONS.md` Q13. Generic package application is design-blocked on
-  Q11. Explicit-discard packages are design-blocked on Q12.
+  `OWNER_QUESTIONS.md` Q12. Generic package application is design-blocked on
+  Q10. Explicit-discard packages are design-blocked on Q11.
   Keep proposition, evidence-term, and provenance identities separate; neither
   provenance nor display spelling is a term identity oracle.
 - Finish generic conformance instantiation and explicit binders. The declaration
@@ -1182,7 +1199,7 @@ Remaining N6/N8 work:
   selected normalized rows, and commits the map identity separately from
   callable static-machine arguments. Still instantiate generic conformance
   declarations over their own telescopes; the call-site application form and
-  permitted inference are design-blocked on `OWNER_QUESTIONS.md` Q11. Nested
+  permitted inference are design-blocked on `OWNER_QUESTIONS.md` Q10. Nested
   generic calls already forward the exact evidence selection through
   specialization. Identity retains declared name, telescope, optional subject,
   instantiated trait, and normalized rows. No visibility-, priority-, or
@@ -1290,27 +1307,26 @@ can produce installed code; validation binds exact final bytes and placement.
 These are pointers to the owning question or open design item, not duplicate
 specifications:
 
-- **EXTERNAL-ENTRY-STACK-DOMAIN:** owner Q10.
+- **EXTERNAL-ENTRY-STACK-DOMAIN:** owner Q9.
 - **FIXED-OPERATOR-SURFACE-BINDING:** owner Q1.
 - **UEFI-PHYSICAL-SEMANTIC-ENTRY-COMPOSITION:** owner Q2.
-- **SEALED-LOCAL-CAPACITY-SOURCE-FORM:** owner Q3.
-- **WRITE-ONLY-MEMORY-VIEW:** owner Q4.
-- **CALLBACK-PARAMETER-REQUIREMENT:** owner Q5.
+- **WRITE-ONLY-MEMORY-VIEW:** owner Q3.
+- **CALLBACK-PARAMETER-REQUIREMENT:** owner Q4.
 - **SUM-MATERIALIZATION:** tagged-case placement vocabulary in
   `wiki/language_guide/appendix_open_questions.md`.
 - **ATOMIC-EVENT-MODEL:** portable atomic axioms and target refinement choices
   in `wiki/language_guide/appendix_open_questions.md`.
 - **CHECKED-RESULT-ARITHMETIC:** public carrier ruling for failure-returning
   checked arithmetic.
-- **TRAPPING-CONTRACT-ARITHMETIC:** owner Q9.
+- **TRAPPING-CONTRACT-ARITHMETIC:** owner Q8.
 - **IMPORTED-CRASH-CAPSULES:** realization/import/certificate identity in
   `wiki/language_guide/appendix_open_questions.md`.
-- **NATIVE-LOGICAL-FUEL-METERING:** owner Q6.
-- **PLACED-ERASED-EVIDENCE-ESTABLISHMENT:** owner Q7.
-- **PROVIDER-NEUTRAL-INTERRUPT-ACKNOWLEDGEMENT:** owner Q8.
-- **GENERIC-CONFORMANCE-APPLICATION:** owner Q11.
-- **EVIDENCE-PACKAGE-DISCARD:** owner Q12.
-- **GENERATED-EVIDENCE-OUTPUT-PACKAGES:** owner Q13.
+- **NATIVE-LOGICAL-FUEL-METERING:** owner Q5.
+- **PLACED-ERASED-EVIDENCE-ESTABLISHMENT:** owner Q6.
+- **PROVIDER-NEUTRAL-INTERRUPT-ACKNOWLEDGEMENT:** owner Q7.
+- **GENERIC-CONFORMANCE-APPLICATION:** owner Q10.
+- **EVIDENCE-PACKAGE-DISCARD:** owner Q11.
+- **GENERATED-EVIDENCE-OUTPUT-PACKAGES:** owner Q12.
 
 ## Platform-gated verification
 

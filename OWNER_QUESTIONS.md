@@ -11,7 +11,7 @@ Code, canaries, and settled documentation must cite a stable named decision or
 the governing guide section rather than an owner-question number. A settled
 decision's durable identity does not change when this queue is pruned.
 
-Last pruned: 2026-08-16.
+Last pruned: 2026-08-17.
 
 ## Q1 — Fixed-operator surface-binding syntax
 
@@ -48,23 +48,7 @@ keep `ProgramStorageEntry::enter` as the sole root-introduction requirement,
 avoid treating firmware handles as `Extent` values, and leave the generated
 bridge with one exact auditable physical ABI and source-visible shape.
 
-## Q3 — Sealed local-capacity declaration form
-
-Compiler provisioning may originate a program-local content root only from an
-owner-authored sealed declaration with declared capacity. The semantic model
-settles that this is a compile-time root origin, not a runtime establishment or
-provider issuance, but no approved source declaration form identifies the
-owner, capacity algebra/value, qualification, and authorized establishment
-route.
-
-Choose that declaration form and where it may appear. The decision must keep
-the declaration owner-unique and sealed, make its finite capacity explicit,
-define whether it provisions one root or a declared family of roots, and bind
-the resulting account to an exact qualification and establishment route.
-Ordinary construction, proof terms, and firing a checked runtime route must not
-be able to reproduce the provisioning evidence.
-
-## Q4 — Write-only memory view
+## Q3 — Write-only memory view
 
 Foreign providers sometimes receive storage they may initialize or overwrite
 but must not read. Omega's settled reference surface has only shared read and
@@ -82,7 +66,7 @@ ordinary lifetime and nonaliasing checks without implying provider read
 authority, and it must remain distinct from `Placed<P, T>` field accessors and
 from durable custody transfer.
 
-## Q5 — Static callback-parameter requirement form
+## Q4 — Static callback-parameter requirement form
 
 Registered-callback lowering requires a foreign operation to bind one static
 machine-parameter position to one exact boundary callback requirement. The
@@ -101,7 +85,7 @@ containing the call site, machine-argument ordinal, selected machine, and exact
 callback trait requirement so native lowering can place one private relocation
 without creating a runtime machine value or exposing a code address.
 
-## Q6 — Native logical-fuel meter ABI and continuation
+## Q5 — Native logical-fuel meter ABI and continuation
 
 Terminal Psi settles sponsor-owned logical fuel: trusted native lowering charges
 before each semantic operation or taken edge, exhaustion is not program-visible,
@@ -120,7 +104,7 @@ x86-64 and AArch64 calling policies, preserve stack/alignment and machine-state
 contracts, and keep fixed-fuel meter elision a separately admitted installation
 decision.
 
-## Q7 — Placed-view establishment and erased evidence
+## Q6 — Placed-view establishment and erased evidence
 
 The source and checked contract for placement establishment is not yet closed.
 The guide shows `Placement::admit<P, T>(...)` followed by `adopt`, `initialize`,
@@ -148,7 +132,7 @@ writes; and prevent raw bytes, admission alone, or a layout/access policy from
 manufacturing proof. Physical `LayoutPlan`, `AccessPlan`, offsets, and transfers
 remain erased-stripped.
 
-## Q8 — Provider-neutral interrupt acknowledgement settlement
+## Q7 — Provider-neutral interrupt acknowledgement settlement
 
 `InterruptAcknowledgement in Pending` is the semantic debt carried from one
 hard-interrupt arrival to its exact completion. The core
@@ -167,7 +151,7 @@ evidence, and expose only the authority actually used by that realization. It
 must compose with both port-I/O PIC EOI and machine-control LAPIC/x2APIC EOI,
 without treating either mechanism as universally reachable.
 
-## Q9 — Trapping arithmetic inside contract predicates
+## Q8 — Trapping arithmetic inside contract predicates
 
 `Trapping` arithmetic has settled runtime behavior: invalid counts, overflow,
 and the other policy-defined failures trap instead of producing a value. A
@@ -185,7 +169,7 @@ reason about the trap edge, and what explicit term/effect and proof obligations
 terminal Psi carries. The compiler must not silently treat a potentially
 trapping contract term as a total mathematical operation.
 
-## Q10 — External-entry stack-domain accounting
+## Q9 — External-entry stack-domain accounting
 
 Terminal-Psi stack evidence derives the exact closure below a selected machine
 entry, but an external root also consumes provider-specific adapter and hardware
@@ -204,7 +188,7 @@ with `EntryStack::{Interrupted, Dedicated, ProviderSelected}` without placing
 OS-specific interrupt-frame vocabulary in the language or treating a numeric
 provider assertion as compiler-derived terminal evidence.
 
-## Q11 — Generic conformance application syntax
+## Q10 — Generic conformance application syntax
 
 A named conformance may own lifetime, type, const, and static-machine binders,
 and its subject and trait application may depend on them. The language guide
@@ -224,7 +208,7 @@ lifetime arguments erase while remaining part of semantic identity. The result
 must select one exact package-scoped conformance instance and normalized row
 map without visibility search, priority, or ambient uniqueness.
 
-## Q12 — Erased evidence-term multiplicity
+## Q11 — Erased evidence-term multiplicity
 
 Named `requires` and `ensures` clauses expose erased evidence terms, and an
 output-package pattern may eventually write `_` for a field it explicitly
@@ -243,7 +227,7 @@ packages, and define exactly when `_` is a legal discharge. Erasure must remain
 independent of multiplicity, and neither producer choice nor runtime layout
 may silently weaken exact-use evidence into discardable evidence.
 
-## Q13 — Generated evidence-output package identity and projection
+## Q12 — Generated evidence-output package identity and projection
 
 The immediate output-package rung destructures one complete unconditional
 package at its call site, but the retained and outcome-guarded package model is
@@ -258,11 +242,11 @@ outcome variants. Define how `let package = call()` binds a zero-layout or
 runtime-bearing unnameable value; whether projecting `value` or an evidence
 field borrows, copies, moves, or partially consumes it; what remains valid after
 each projection; and which origin, field, outcome, and exact evidence-term rows
-Terminal Psi must retain and verify. Q11 continues to own generic conformance
-application syntax. Q12 continues to own evidence multiplicity, use counts,
+Terminal Psi must retain and verify. Q10 continues to own generic conformance
+application syntax. Q11 continues to own evidence multiplicity, use counts,
 residual-field discharge, and `_` legality.
 
-## Q14 — Terminal placed-access authority and transfer custody
+## Q13 — Terminal placed-access authority and transfer custody
 
 The target-neutral access foundation can seal and specialize Stable, External,
 and Atomic primitive events, but Terminal Psi has no canonical artifact form
@@ -279,10 +263,10 @@ results, operation family, and ordering, and bind every event to the exact
 installed extent, provider/profile receipt, mapping, revision, lifetime, and
 boundary reach without embedding a forgeable address. The verifier,
 interpreter, Omega lowering, artifacts, and installation must preserve that same
-event rather than re-resolving it from source names or offsets. Q7 continues to
+event rather than re-resolving it from source names or offsets. Q6 continues to
 own how admission first establishes a live `Placed<P, T>` and its erased terms.
 
-## Q15 — Progress-profile classification and premise attachment
+## Q14 — Progress-profile classification and premise attachment
 
 Termination guarantees can retain sealed `ProgressProfileId` premises, but the
 ordinary domain and routed-requirement surface does not distinguish a progress

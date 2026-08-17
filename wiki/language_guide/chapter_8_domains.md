@@ -212,6 +212,34 @@ pub domain InterruptAcknowledgement::Pending {
 }
 ```
 
+For a content-bearing qualification, that directional distinction also closes
+fresh program-local root introduction. The domain still authorizes only the
+requirement identity. A statically enumerable installed parameter position may
+introduce one fresh lineage when the requirement contract publishes an exact
+finite content expression (or an owner-constrained family reduced to one exact
+instance). The same requirement invoked by ordinary checked code requires an
+existing qualified lineage and cannot introduce another root. A qualified
+result with no conserved parent lineage likewise rejects.
+
+The requirement's concrete satisfier may live in a later package; the domain
+owner need not enumerate implementations. Visibility controls who may satisfy
+the requirement and build/installation selection names the exact satisfier.
+Neither satisfaction nor selection alone originates content: the installed
+root occurrence, generated bridge, and checked installation record supply the
+one concrete introduction event. A look-alike requirement or a downstream
+attempt to append a route to the closed domain establishes nothing.
+
+Capacity is per installed occurrence. The portable verifier reconstructs it
+from the exact requirement instance, qualification, and owner-unique
+`Content<A>` projection. Installation verification derives the occurrence
+cardinality and aggregate for one artifact instance and lifecycle epoch;
+Cathedral or another system orchestrator composes those verified aggregates
+across live components and coexisting eras. A shared cap within one assembly is
+represented by splitting one aggregate parent root, not by pretending a
+per-instance requirement controls deployment cardinality. Cross-epoch or
+machine-lifetime caps require persistent authority rather than a newly
+introduced program-local root.
+
 The route names the authorized requirement; it does not select an authored
 parameter index. The compiler finds every exact matching qualified subject and
 retains its semantic source position internally. Trait inheritance, selected
@@ -1266,10 +1294,13 @@ Working interpretation:
   algebra; permissions govern operations, and carry governs mobility. None is
   inferred merely from the domain's spelling or multiplicity.
 - Content denominators remain pure proof vocabulary. Fresh root origin is
-  classified per occurrence from compiler-provisioned sealed declared capacity
-  or admitted provider issuance. A checked runtime route may expose or transform
-  an existing account but never originate one. Equal denominators do not imply
-  equal lineage, qualification, backing, or external authority.
+  classified per occurrence from a statically enumerable installed
+  program-local introduction or admitted provider issuance. The domain owns the
+  exact authorized requirement; its contract fixes per-occurrence capacity and
+  installation fixes finite cardinality and epoch. An ordinary checked call may
+  expose or transform an existing account but never originate one. Equal
+  denominators do not imply equal lineage, qualification, backing, or external
+  authority.
 - Qualification and proof evidence erase from runtime code. Static semantic
   roles may affect later operator lowering without adding runtime metadata.
 - Qualification, explicit erasure, recast, validation, and noncanonical

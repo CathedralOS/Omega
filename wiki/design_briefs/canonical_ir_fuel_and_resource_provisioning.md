@@ -466,6 +466,22 @@ Multiple heaps are multiple allocator or `Extent` values. A component receives
 bounded child storage authority instead of ambient access to a global allocator.
 External retained storage remains ordinary claim and custody accounting.
 
+Program-local content supply has the same explicit shape. A content-bearing
+domain authorizes one exact entry requirement; a fresh local lineage may appear
+only at one of that requirement's statically enumerable installed parameter
+positions. The requirement contract states exact finite capacity per occurrence
+or constrains a selected const family. Ordinary invocation of the requirement
+must supply an existing root and cannot reset the account.
+
+The portable verifier reconstructs every introduction schema rather than
+trusting a producer summary. Installation verification supplies the exact
+finite occurrence set and derives the aggregate for one installed artifact
+instance and lifecycle epoch. System admission composes those verified totals
+across concurrently live components and replacement eras. A shared cap within
+one assembly is one parent root divided among children; a machine-lifetime cap
+must persist across epochs instead of being recreated as fresh local authority.
+No separate provision declaration or data annotation participates.
+
 Infallible allocation in the package-level bump canary is the first concrete
 customer for a `CountedQuantity<Bytes>` content algebra. Allocation consumes
 normalized size, alignment padding, and metadata from a proof-level natural

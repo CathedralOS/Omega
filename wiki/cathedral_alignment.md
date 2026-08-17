@@ -25,9 +25,12 @@ Cathedral or ordinary package code.
 
 Cathedral needs exact admitted roots for program entry, image/runtime storage,
 physical memory, devices, and inbound execution. Each content-capable root must
-trace to compiler-provisioned sealed local capacity or one selected provider
-issuance. Split, transfer, cleanup, custody exit, and recomposition conserve the
-same root identity and algebra account.
+trace to a verifier-reconstructed program-local introduction at one statically
+enumerable installed root position or to one selected provider issuance. Split,
+transfer, cleanup, custody exit, and recomposition conserve the same root
+identity and algebra account. Omega derives each installed artifact-instance
+aggregate per lifecycle epoch; Cathedral composes the peak across all live
+components and coexisting replacement eras.
 
 This is Omega P1. Cathedral must not treat matching byte counts, inert handles,
 or provider assertions as authority. A provider may attest custody, but interval
