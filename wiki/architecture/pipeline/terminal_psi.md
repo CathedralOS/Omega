@@ -1546,7 +1546,8 @@ terminal-module assembly is likewise isolated behind one parent-facing builder
 and shares none of those paths. Content conservation, identity reshuffling, and
 partition composition likewise share one lowering module whose three public
 APIs retain their existing crate-root contract. Root-level producer regressions
-are a separate test module rather than a second responsibility embedded in the
+are a separate test parent over isolated Unit-cleanup, scalar-graph, and
+content-ledger families rather than a second responsibility embedded in the
 production root. Additional sufficient-form families should follow that shape:
 one closed responsibility per module, explicit
 precedence at the registry, and no authority beyond the certificate proved
