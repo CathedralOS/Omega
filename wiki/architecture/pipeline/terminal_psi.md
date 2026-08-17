@@ -1588,12 +1588,15 @@ exact/wrapping arithmetic, signed toward-zero divide/remainder including
 justification, branch-local scope/invalidation, and an all-predecessor merge;
 changing only one predecessor value rejects. The 1,026-byte fixture produces a
 1,546-byte modeled ledger and a 1,352-byte prospective reconstruction
-certificate. The typed core is 1,329 lines (51,170 bytes, 143 functions), and
-the Beta reference route measured 0.25 seconds and 3,031,040 bytes maximum RSS
-on the recorded Apple M4 Pro run. This clears the required feasibility gate; it
-does not make the bounded subset production-authoritative or mark any trust-graph
-dependency derived. The full decoder, closed row table, low proofs, and
-composition bridges remain required.
+certificate. The assembled typed core is 1,337 lines (51,661 bytes, 142
+functions), and the Beta reference route measured 0.25 seconds and 3,031,040
+bytes maximum RSS on the recorded Apple M4 Pro run. A separately gated 36-line
+PSITERM-neutral byte layer owns the checked byte cursor and fixed-width
+primitives, while bounded `u64` identities, tags, recursive vocabulary, and
+monomorphic semantic result types remain spike-local. This clears the required
+feasibility gate; it does not make the bounded subset production-authoritative
+or mark any trust-graph dependency derived. The full decoder, closed row table,
+low proofs, and composition bridges remain required.
 
 Portable terminal-Psi denotation bottoms out in the abstract terminal execution
 model, not in x86-64 or AArch64 behavior. ISA semantics, hardware fidelity,

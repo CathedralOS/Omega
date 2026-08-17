@@ -76,6 +76,7 @@ step "proof kernel — TRUST-ANCHOR DIAMOND: independent check_ref.py agrees on 
 step "gamma — reference interpreter (ADTs + match)"   gamma       test-interp.sh
 step "gamma — MEANING DIAMOND: independent gamma_ref.py agrees with interp.beta (fuzz)" gamma gamma-diamond-py.sh beta-lang-rs beta
 step "gamma — static type checker"                    gamma       test-typeck.sh
+step "gamma — shared typed canonical-byte decoder" gamma test-canonical-bytes.sh
 step "gamma — canonical terminal semantic-ledger spike" gamma test-terminal-ledger-spike.sh ../psi-rs/semantics/psi-terminal-codec
 step "gamma — the proof kernel, written IN gamma"    gamma       test-checker.sh
 step "diamond — checkers agree (Beta, Gamma, type-erased typed)" proof-kernel  checker-diamond.sh gamma

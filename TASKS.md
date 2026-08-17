@@ -663,10 +663,14 @@ Remaining:
   justification ranks. Matching/asymmetric/malformed cases agree between the
   Beta-written reference interpreter and the independent Python evaluator.
   The 1,026-byte fixture yields a 1,546-byte modeled ledger and 1,352-byte
-  prospective certificate; the typed core is 1,329 lines / 51,170 bytes / 143
-  functions and measured 0.25 s / 3,031,040 B max RSS on the recorded Apple M4
-  Pro Beta-reference run. The full low generator, row proofs, and composition
-  bridges remain open; no trust-graph node becomes derived from the spike.
+  prospective certificate; the assembled typed core is 1,337 lines / 51,661
+  bytes / 142 functions and measured 0.25 s / 3,031,040 B max RSS on the
+  recorded Apple M4 Pro Beta-reference run. Its PSITERM-neutral byte cursor and
+  checked `u8`/little-endian `u16`/`u32` primitives are now a separately gated
+  36-line reusable layer; tags, bounded `u64` identities, strings, recursive
+  vocabulary, and monomorphic type-specific results remain spike-owned. The
+  full low generator, row proofs, and composition bridges remain open; no
+  trust-graph node becomes derived from the spike.
 
   Define a closed typed schema language with no opaque callbacks. One row per
   leaf operation owns well-formedness, direct mathematical denotation, canonical

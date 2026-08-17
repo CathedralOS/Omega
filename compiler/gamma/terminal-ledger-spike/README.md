@@ -11,7 +11,8 @@ small, typed, interpreter-defined program rather than another Rust verifier.
 `psi-terminal-codec/tests/ledger_spike.rs` constructs two ordinary current
 `TerminalModule` values and pins their exact `PSITERM\0` v11 encodings. The Rust
 fixture builder and `bytes_to_gamma.py` are untrusted test transport. The typed
-Gamma program itself:
+Gamma program begins with the reusable, PSITERM-neutral primitives in
+`../canonical-bytes/`; the spike-specific decoder then:
 
 1. consumes the exact byte list;
 2. validates the current marker, closed tags/counts/types, and the exact spike
@@ -55,9 +56,11 @@ these are feasibility observations, not performance promises:
 | Item | Result |
 | --- | ---: |
 | Canonical fixture bytes | 1,026 |
-| Typed Gamma core | 1,329 lines / 51,170 bytes |
+| Assembled typed Gamma core | 1,337 lines / 51,661 bytes |
+| Shared canonical-byte layer | 36 lines / 1,373 bytes / 6 functions |
+| Spike-specific typed core | 1,301 lines / 50,288 bytes / 136 functions |
 | Closed data declarations | 47 |
-| Typed functions | 143 |
+| Typed functions, assembled | 142 |
 | Maximum source nesting | 20 |
 | Canonical ledger | 22 rows / 1,546 modeled bytes |
 | Prospective reconstruction certificate | 1,352 modeled bytes |
@@ -77,11 +80,13 @@ was decomposed into accessors, validators, row emitters, and sequencing helpers.
 That is useful evidence for the ruling: the low implementation should grow as
 small modules and closed row tables, not as a second monolithic verifier.
 
-The largest remaining audit tax is mechanical repetition: Gamma currently has
-no parametric result type, so the bounded decoder declares a result ADT for
-each parsed type. Before the full vocabulary is ported, factor a shared typed
-canonical-byte decoder library (or make an explicit Gamma rung correction for
-that repetition). The spike itself is cleanly expressible and therefore finds
+The PSITERM-neutral byte cursor and checked `u8`/little-endian `u16`/`u32`
+primitives are now factored into `../canonical-bytes/` and have an independent
+typed/interpreter gate. The largest remaining audit tax is mechanical
+repetition: Gamma currently has no parametric result type, so the bounded
+decoder still declares a result ADT for each parsed semantic type. The full
+decoder should measure that remaining cost before making any explicit Gamma
+rung correction. The spike itself is cleanly expressible and therefore finds
 no language-design blocker.
 
 ## Gate
@@ -89,11 +94,13 @@ no language-design blocker.
 Run:
 
 ```sh
+sh compiler/gamma/test-canonical-bytes.sh
 sh compiler/gamma/test-terminal-ledger-spike.sh
 cargo test -p psi-terminal-codec --test ledger_spike
 ```
 
-The first command typechecks the exact typed source, mechanically erases its
+The first command checks the shared byte layer independently. The second
+typechecks the exact assembled spike source, mechanically erases its
 annotations, evaluates matching/asymmetric/malformed fixtures with both the
 canonical Beta interpreter and the independent Python evaluator, and pins the
 ledger/certificate measurements.
