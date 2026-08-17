@@ -1527,8 +1527,13 @@ affine-join, and nominal-cleanup responsibilities. Exact binary and cast
 families are ordered declarative classifier registries consumed by one generic
 dispatch path. Structural Unit planning likewise separates return analysis,
 control/boundary construction, cleanup, call closure, and type/shape custody
-behind a small orchestrator. Additional sufficient-form families should follow
-that shape: one closed responsibility per module, explicit precedence at the
+behind a small orchestrator. The checked-to-terminal producer follows the same
+boundary: its shared runtime-parameter classifier is a small orchestrator over
+Boolean, conversion, affine, product/divisor, and shift/cross-family modules.
+The six exact binary cohorts and exact-cast cohort select named ordered
+registries through generic dispatch rather than repeating family permutations
+inside the crate root. Additional sufficient-form families should follow that
+shape: one closed responsibility per module, explicit precedence at the
 registry, and no authority beyond the certificate proved against the unchanged
 canonical ledger. This refactoring rule does not make the current Rust producer
 or its registries trusted.
