@@ -105,6 +105,8 @@ Must not own:
   address sites.
 - `omega-image-emission/src/checked/place_write_shapes.rs` owns the closed
   compiler place-write shape vocabulary and its exact classifier family.
+- `omega-image-emission/src/checked/place_write_sites.rs` encodes retained
+  place writes and derives their exact register and relocation sites.
 - `omega-image-emission/src/checked/relocations.rs` owns exact compiler
   relocation-set validation, relocation-symbol custody, and validation that
   non-relocated instruction bits remain unchanged.
