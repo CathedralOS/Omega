@@ -48,13 +48,19 @@
       (LSCons
         (LeafSchema LWrapDiv ResultI8 DWrapDiv GoalNonZero FactEquation
           CrashesUnlessGoal ConsumesOneFuel KeepsLocalFrontier)
-        (LSCons
-          (LeafSchema LWrapRem ResultI8 DWrapRem GoalNonZero FactEquation
-            CrashesUnlessGoal ConsumesOneFuel KeepsLocalFrontier)
           (LSCons
-            (LeafSchema LLess ResultBool DLess GoalNone FactConditional
-              NeverCrashes ConsumesOneFuel KeepsLocalFrontier)
-            LSNil))))))
+            (LeafSchema LWrapRem ResultI8 DWrapRem GoalNonZero FactEquation
+              CrashesUnlessGoal ConsumesOneFuel KeepsLocalFrontier)
+            (LSCons
+              (LeafSchema LSatDiv ResultI8 DSatDiv GoalNonZero FactEquation
+                CrashesUnlessGoal ConsumesOneFuel KeepsLocalFrontier)
+              (LSCons
+                (LeafSchema LSatRem ResultI8 DSatRem GoalNonZero FactEquation
+                  CrashesUnlessGoal ConsumesOneFuel KeepsLocalFrontier)
+                (LSCons
+                  (LeafSchema LLess ResultBool DLess GoalNone FactConditional
+                    NeverCrashes ConsumesOneFuel KeepsLocalFrontier)
+                  LSNil))))))))
 
 (def leaf_schemas_append ((left LeafSchemas) (right LeafSchemas)) LeafSchemas
   (match left
@@ -80,6 +86,8 @@
     (LExactRem (match b (LExactRem 1) (z 0)))
     (LWrapDiv (match b (LWrapDiv 1) (z 0)))
     (LWrapRem (match b (LWrapRem 1) (z 0)))
+    (LSatDiv (match b (LSatDiv 1) (z 0)))
+    (LSatRem (match b (LSatRem 1) (z 0)))
     (LLess (match b (LLess 1) (z 0)))))
 
 (def schema_kind ((schema LeafSchema)) LeafKind
@@ -119,6 +127,8 @@
     ((KExactRem left right obligation) (LeafView LExactRem left right obligation))
     ((KWrapDiv left right obligation) (LeafView LWrapDiv left right obligation))
     ((KWrapRem left right obligation) (LeafView LWrapRem left right obligation))
+    ((KSatDiv left right obligation) (LeafView LSatDiv left right obligation))
+    ((KSatRem left right obligation) (LeafView LSatRem left right obligation))
     ((KLess left right) (LeafView LLess left right 0))
     ((KCall target arguments obligations) NotLeaf)))
 
@@ -140,6 +150,8 @@
     (DExactRem (TzRem (Val left) (Val right)))
     (DWrapDiv (WrapDiv (Val left) (Val right)))
     (DWrapRem (WrapRem (Val left) (Val right)))
+    (DSatDiv (SatDiv (Val left) (Val right)))
+    (DSatRem (SatRem (Val left) (Val right)))
     (DLess (Less (Val left) (Val right)))))
 
 (def schema_policy_valid
