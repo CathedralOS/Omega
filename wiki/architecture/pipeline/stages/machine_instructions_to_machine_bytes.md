@@ -84,8 +84,10 @@ Must not own:
   timespec adapters, and their exact data-relocation offsets; `wire.rs` owns
   Compact Binary append/read, scalar, byte-slice, nested, repeated-field,
   predicate, and UTF-8 encodings together with their exact widths, clobbers,
-  machine state, and page offsets. The crate root does not reconstruct any of
-  those families.
+  machine state, and page offsets; `runtime_text.rs` owns stored/literal append,
+  materialization/comparison, Win64/Linux line-read adapters, and bounded text
+  carriers together with their exact relocation offsets. The crate root does
+  not reconstruct any of those families.
 - `omega-machine-bytes/src/plan/` is the output representation root:
   encoded executable byte shape lives under `EncodedMachineCode`, while
   preserved semantic evidence lives under `EncodedMachineSemanticSummary`.
