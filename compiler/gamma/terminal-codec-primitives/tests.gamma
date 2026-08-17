@@ -229,6 +229,67 @@
       0)
     0))
 
+(def repeated_codec_test_byte ((value Int) (count Int) (tail Bytes)) Bytes
+  (if (eq count 0) tail
+    (B value (repeated_codec_test_byte value (- count 1) tail))))
+
+(def small_u32_codec_test_bytes ((value Int) (tail Bytes)) Bytes
+  (B value (B 0 (B 0 (B 0 tail)))))
+
+(def terminal_integer_value_equal
+  ((left TerminalIntegerValue) (right TerminalIntegerValue)) Int
+  (match left
+    ((TerminalSignedValue left_bits)
+      (match right
+        ((TerminalSignedValue right_bits) (u128_equal left_bits right_bits))
+        ((TerminalUnsignedValue right_bits) 0)))
+    ((TerminalUnsignedValue left_bits)
+      (match right
+        ((TerminalSignedValue right_bits) 0)
+        ((TerminalUnsignedValue right_bits) (u128_equal left_bits right_bits))))))
+
+(def rterminal_integer_value_exact_one
+  ((result RTerminalIntegerValue) (want TerminalIntegerValue) (tail Int)) Int
+  (match result
+    (RTerminalIntegerValueBad 0)
+    ((RTerminalIntegerValue got rest)
+      (if (terminal_integer_value_equal got want)
+        (match rest
+          (BNil 0)
+          ((B h t) (if (eq h tail) (match t (BNil 1) ((B x xs) 0)) 0)))
+        0))))
+
+(def rterminal_integer_value_bad ((result RTerminalIntegerValue)) Int
+  (match result
+    (RTerminalIntegerValueBad 1)
+    ((RTerminalIntegerValue got rest) 0)))
+
+(def terminal_integer_value_positive_test () Int
+  (if (rterminal_integer_value_exact_one
+        (read_terminal_integer_value
+          (B 1 (repeated_codec_test_byte 255 16 (B 9 BNil))))
+        (TerminalSignedValue
+          (U128 4294967295 4294967295 4294967295 4294967295)) 9)
+    (rterminal_integer_value_exact_one
+      (read_terminal_integer_value
+        (B 2
+          (small_u32_codec_test_bytes 1
+            (small_u32_codec_test_bytes 2
+              (small_u32_codec_test_bytes 3
+                (small_u32_codec_test_bytes 4 (B 9 BNil)))))))
+      (TerminalUnsignedValue (U128 1 2 3 4)) 9)
+    0))
+
+(def terminal_integer_value_negative_test () Int
+  (if (rterminal_integer_value_bad
+        (read_terminal_integer_value
+          (B 3 (repeated_codec_test_byte 0 16 BNil))))
+    (if (rterminal_integer_value_bad
+          (read_terminal_integer_value
+            (B 1 (repeated_codec_test_byte 0 15 BNil))))
+      1 0)
+    0))
+
 (def terminal_utf8_positive_test () Int
   (if (rutf8_exact_empty (read_utf8_string (B 0 (B 0 (B 0 (B 0 BNil))))) BNil)
     (if (rutf8_exact_empty
@@ -286,7 +347,11 @@
         (if (terminal_scalar_negative_test)
           (if (terminal_type_positive_test)
             (if (terminal_type_negative_test)
-              (if (terminal_utf8_positive_test) (terminal_utf8_negative_test) 0)
+              (if (terminal_integer_value_positive_test)
+                (if (terminal_integer_value_negative_test)
+                  (if (terminal_utf8_positive_test) (terminal_utf8_negative_test) 0)
+                  0)
+                0)
               0)
             0)
           0)

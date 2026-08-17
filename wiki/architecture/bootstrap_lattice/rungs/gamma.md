@@ -83,7 +83,7 @@ in `compiler/gamma/terminal-ledger-spike/`. The typed program consumes exact
 current terminal-Psi bytes, validates a closed subset, and emits/audits ranked
 semantic rows. Both the Beta-written reference interpreter and the independent
 Python evaluator agree on the positive fixture, an asymmetric join rejection,
-and malformed-byte rejection. The assembled core is 4,743 lines rather than a
+and malformed-byte rejection. The assembled core is 4,798 lines rather than a
 permutation-expanded verifier. Its bounded thirty-two-kind scalar leaf semantics
 now live in five composed exact-unique policy-cohort schema tables; one generic
 interpreter consumes result, denotation, goal, fact, crash, fuel, and frontier
@@ -112,20 +112,24 @@ generator.
 The spike also makes one scaling limit concrete: the monomorphic type system
 requires a distinct parse-result ADT for each decoded type. Completing the
 structural/effect and canonical call slices plus the shared terminal envelope,
-scalar, scalar-type, and UTF-8 decoders grow the assembled core to 188,883
-bytes, 175 data declarations, and 406 typed functions, at nesting depth 25.
+scalar, scalar-type, integer-value, and UTF-8 decoders grow the assembled core
+to 190,880 bytes, 179 data declarations, and 409 typed functions, at nesting
+depth 25.
 That repetition is an engineering/audit cost, not a reason to weaken the
 canonical-byte endpoint.
-The reusable PSITERM-neutral byte cursor, checked fixed-width primitives, and
-exact low/high-half `u64` carrier are now factored and independently gated in
+The reusable PSITERM-neutral byte cursor, checked fixed-width primitives, exact
+low/high-half `u64`, and exact four-limb `u128` carriers are now factored and
+independently gated in
 `compiler/gamma/canonical-bytes/`. Type-specific results and the spike's
 explicit post-decode zero-high-half identity limitation remain local to the
-bounded fixture. The exact current envelope and length-prefixed UTF-8 grammar
+bounded fixture. The exact current envelope, signed/unsigned 128-bit integer
+value payloads, and length-prefixed UTF-8 grammar
 are independently factored and gated in
 `compiler/gamma/terminal-codec-primitives/`; one typed header parser serves all
 bounded decoders, canonical Boolean and optional semantic-ID scalars retain
 exact values, the complete current scalar-type grammar retains carrier/sign/
-width, and strings retain raw bytes without assigning identity or path meaning.
+width, integer values retain their exact raw two's-complement or unsigned bits,
+and strings retain raw bytes without assigning identity or path meaning.
 The bounded fixture narrows IDs and types only in explicit consumer adapters.
 If the complete closed vocabulary cannot remain auditable after those
 extractions, that is the point for an explicit Gamma rung-design correction.

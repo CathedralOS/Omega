@@ -1,0 +1,17 @@
+; Complete terminal-Psi integer-value wire grammar.
+;
+; Signed payloads retain their exact two's-complement bits. Mathematical signed
+; interpretation belongs to the semantic consumer, not the byte decoder.
+
+(def read_terminal_integer_value ((bs Bytes)) RTerminalIntegerValue
+  (match (read_u8 bs)
+    (RIntBad RTerminalIntegerValueBad)
+    ((RInt tag rest)
+      (match (read_u128 rest)
+        (RU128Bad RTerminalIntegerValueBad)
+        ((RU128 value tail)
+          (if (eq tag 1)
+            (RTerminalIntegerValue (TerminalSignedValue value) tail)
+            (if (eq tag 2)
+              (RTerminalIntegerValue (TerminalUnsignedValue value) tail)
+              RTerminalIntegerValueBad)))))))

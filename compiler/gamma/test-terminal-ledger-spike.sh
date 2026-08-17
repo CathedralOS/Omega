@@ -37,6 +37,7 @@ cat canonical-bytes/types.gamma \
     terminal-codec-primitives/header.gamma \
     terminal-codec-primitives/scalars.gamma \
     terminal-codec-primitives/scalar_types.gamma \
+    terminal-codec-primitives/integer_values.gamma \
     terminal-codec-primitives/utf8.gamma \
     terminal-ledger-spike/decode.gamma \
     terminal-ledger-spike/schema.gamma \
@@ -114,6 +115,10 @@ fixture_expr "$FIXTURES/terminal_ledger_spike.hex" --drop-last > "$T/truncated.e
 fixture_expr "$FIXTURES/terminal_ledger_spike.hex" --append-byte 0 > "$T/trailing.expr"
 fixture_expr "$FIXTURES/terminal_ledger_spike.hex" --set-byte 191 10 > "$T/duplicate-result.expr"
 fixture_expr "$FIXTURES/terminal_ledger_spike.hex" --set-byte 1212 2 > "$T/invalid-boolean.expr"
+fixture_expr "$FIXTURES/terminal_ledger_spike.hex" --set-byte 1949 2 \
+  > "$T/unsigned-i8-payload.expr"
+fixture_expr "$FIXTURES/terminal_ledger_spike.hex" --set-byte 1952 0 \
+  > "$T/invalid-i8-sign-extension.expr"
 fixture_expr "$FIXTURES/terminal_ledger_spike.hex" --set-byte 1232 41 > "$T/boolean-type-drift.expr"
 fixture_expr "$FIXTURES/terminal_ledger_spike.hex" --set-byte 1364 8 > "$T/widen-result-drift.expr"
 fixture_expr "$FIXTURES/terminal_ledger_spike.hex" --set-byte 1397 10 > "$T/cast-operand-drift.expr"
@@ -164,6 +169,8 @@ run_function truncated run_spike "$T/truncated.expr" 0
 run_function trailing-byte run_spike "$T/trailing.expr" 0
 run_function duplicate-result run_spike "$T/duplicate-result.expr" 0
 run_function invalid-boolean run_spike "$T/invalid-boolean.expr" 0
+run_function unsigned-i8-payload run_spike "$T/unsigned-i8-payload.expr" 0
+run_function invalid-i8-sign-extension run_spike "$T/invalid-i8-sign-extension.expr" 0
 run_function boolean-type-drift run_spike "$T/boolean-type-drift.expr" 0
 run_function widen-result-drift run_spike "$T/widen-result-drift.expr" 0
 run_function cast-operand-drift run_spike "$T/cast-operand-drift.expr" 0
