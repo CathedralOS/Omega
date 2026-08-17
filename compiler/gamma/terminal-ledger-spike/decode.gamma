@@ -58,7 +58,10 @@
       (match (read_u16 rest)
         (RIntBad RIntBad)
         ((RInt bits tail)
-          (if (both (eq tag 1) (eq bits 8)) (RInt 2 tail) RIntBad))))))
+          (if (eq tag 1)
+            (if (eq bits 8) (RInt 2 tail)
+              (if (eq bits 16) (RInt 3 tail) RIntBad))
+            RIntBad))))))
 
 (def read_scalar_type ((bs Bytes)) RInt
   (match (read_u8 bs)
@@ -185,6 +188,38 @@
     ((RInt operand rest)
       (if (eq tag 9) (RKind (KBoolNot operand) rest) RKindBad))))
 
+(def read_integer_unary_kind ((bs Bytes) (tag Int)) RKind
+  (match (read_id bs)
+    (RIntBad RKindBad)
+    ((RInt operand rest)
+      (if (eq tag 19) (RKind (KBitNot operand) rest)
+        (if (eq tag 20) (RKind (KWiden operand) rest) RKindBad)))))
+
+(def read_exact_cast_kind ((bs Bytes)) RKind
+  (match (read_id bs)
+    (RIntBad RKindBad)
+    ((RInt operand r1)
+      (match (read_id r1)
+        (RIntBad RKindBad)
+        ((RInt obligation rest) (RKind (KExactCast operand obligation) rest))))))
+
+(def read_shift_kind ((bs Bytes) (tag Int)) RKind
+  (match (read_id bs)
+    (RIntBad RKindBad)
+    ((RInt value r1)
+      (match (read_id r1)
+        (RIntBad RKindBad)
+        ((RInt count r2)
+          (if (lt tag 19)
+            (if (eq tag 17) (RKind (KWrapShl value count) r2)
+              (if (eq tag 18) (RKind (KWrapShr value count) r2) RKindBad))
+            (match (read_id r2)
+              (RIntBad RKindBad)
+              ((RInt obligation rest)
+                (if (eq tag 22) (RKind (KExactShr value count obligation) rest)
+                  (if (eq tag 23) (RKind (KExactShl value count obligation) rest)
+                    RKindBad))))))))))
+
 (def read_binary_kind ((bs Bytes) (tag Int)) RKind
   (match (read_id bs)
     (RIntBad RKindBad)
@@ -202,7 +237,10 @@
                         (if (eq tag 11) (RKind (KIntEq left right) rest)
                           (if (eq tag 12) (RKind (KLess left right) rest)
                             (if (eq tag 13) (RKind (KLessEq left right) rest)
-                              RKindBad)))))))))))))))
+                              (if (eq tag 14) (RKind (KBitAnd left right) rest)
+                                (if (eq tag 15) (RKind (KBitOr left right) rest)
+                                  (if (eq tag 16) (RKind (KBitXor left right) rest)
+                                    RKindBad))))))))))))))))))
 
 (def read_divisor_gated_kind ((bs Bytes) (tag Int)) RKind
   (match (read_id bs)
@@ -242,10 +280,14 @@
         (if (lt tag 9) (read_binary_kind rest tag)
           (if (lt tag 14)
             (if (eq tag 9) (read_unary_kind rest tag) (read_binary_kind rest tag))
-            (if (lt tag 24) RKindBad
-              (if (lt tag 29) (read_exact_kind rest tag)
-                (if (lt tag 33) (read_divisor_gated_kind rest tag)
-                  (if (eq tag 33) (read_call_kind rest) RKindBad))))))))))
+            (if (lt tag 17) (read_binary_kind rest tag)
+              (if (lt tag 19) (read_shift_kind rest tag)
+                (if (lt tag 21) (read_integer_unary_kind rest tag)
+                  (if (eq tag 21) (read_exact_cast_kind rest)
+                    (if (lt tag 24) (read_shift_kind rest tag)
+                      (if (lt tag 29) (read_exact_kind rest tag)
+                        (if (lt tag 33) (read_divisor_gated_kind rest tag)
+                          (if (eq tag 33) (read_call_kind rest) RKindBad))))))))))))))
 
 (def read_op ((bs Bytes)) ROp
   (match (read_id bs)

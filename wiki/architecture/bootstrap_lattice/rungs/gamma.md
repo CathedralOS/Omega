@@ -83,16 +83,19 @@ in `compiler/gamma/terminal-ledger-spike/`. The typed program consumes exact
 current terminal-Psi bytes, validates a closed subset, and emits/audits ranked
 semantic rows. Both the Beta-written reference interpreter and the independent
 Python evaluator agree on the positive fixture, an asymmetric join rejection,
-and malformed-byte rejection. The assembled core is 1,936 lines rather than a
-permutation-expanded verifier. Its bounded twenty-two-kind leaf semantics now
-live in four composed exact-unique policy-cohort schema tables; one generic
+and malformed-byte rejection. The assembled core is 2,191 lines rather than a
+permutation-expanded verifier. Its bounded thirty-two-kind scalar leaf semantics
+now live in five composed exact-unique policy-cohort schema tables; one generic
 interpreter consumes result, denotation, goal, fact, crash, fuel, and frontier
 fields, while calls and control remain separate algebra. Missing, duplicate,
-and altered schema rows reject end to end. Its value environment retains exact
-typed declarations, so duplicate IDs and type drift cannot cross the generic
-schema boundary. That decomposition into decoder, typed row vocabulary, schema
-table, validators, and sequencing helpers is the intended shape for the
-production low generator.
+and altered schema rows reject end to end. Exact cast, exact-right-shift, and
+exact-left-shift retain distinct canonical goals; widening and wrapping shifts
+remain total. Its value environment retains exact typed declarations across i8
+and i16, so duplicate IDs and type drift cannot cross the generic schema
+boundary. That decomposition into decoder, typed row vocabulary, schema table,
+validators, and sequencing helpers is the intended shape for the production low
+generator. The only unmodeled leaf rows are structural/effectful and therefore
+need a separate place/frontier/effect vocabulary, not scalar-row permutations.
 
 The spike also makes one scaling limit concrete: the monomorphic type system
 requires a distinct parse-result ADT for each decoded type. That repetition is

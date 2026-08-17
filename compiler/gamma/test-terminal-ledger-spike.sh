@@ -57,9 +57,12 @@ fixture_expr "$FIXTURES/terminal_ledger_spike_asymmetric.hex" > "$T/asymmetric.e
 fixture_expr "$FIXTURES/terminal_ledger_spike.hex" --set-byte 0 0 > "$T/bad-magic.expr"
 fixture_expr "$FIXTURES/terminal_ledger_spike.hex" --drop-last > "$T/truncated.expr"
 fixture_expr "$FIXTURES/terminal_ledger_spike.hex" --append-byte 0 > "$T/trailing.expr"
-fixture_expr "$FIXTURES/terminal_ledger_spike.hex" --set-byte 179 10 > "$T/duplicate-result.expr"
-fixture_expr "$FIXTURES/terminal_ledger_spike.hex" --set-byte 1200 2 > "$T/invalid-boolean.expr"
-fixture_expr "$FIXTURES/terminal_ledger_spike.hex" --set-byte 1220 41 > "$T/boolean-type-drift.expr"
+fixture_expr "$FIXTURES/terminal_ledger_spike.hex" --set-byte 191 10 > "$T/duplicate-result.expr"
+fixture_expr "$FIXTURES/terminal_ledger_spike.hex" --set-byte 1212 2 > "$T/invalid-boolean.expr"
+fixture_expr "$FIXTURES/terminal_ledger_spike.hex" --set-byte 1232 41 > "$T/boolean-type-drift.expr"
+fixture_expr "$FIXTURES/terminal_ledger_spike.hex" --set-byte 1364 8 > "$T/widen-result-drift.expr"
+fixture_expr "$FIXTURES/terminal_ledger_spike.hex" --set-byte 1397 10 > "$T/cast-operand-drift.expr"
+fixture_expr "$FIXTURES/terminal_ledger_spike.hex" --set-byte 1405 0 > "$T/missing-cast-obligation.expr"
 
 make_program() {
   function=$1
@@ -104,10 +107,13 @@ run_function trailing-byte run_spike "$T/trailing.expr" 0
 run_function duplicate-result run_spike "$T/duplicate-result.expr" 0
 run_function invalid-boolean run_spike "$T/invalid-boolean.expr" 0
 run_function boolean-type-drift run_spike "$T/boolean-type-drift.expr" 0
+run_function widen-result-drift run_spike "$T/widen-result-drift.expr" 0
+run_function cast-operand-drift run_spike "$T/cast-operand-drift.expr" 0
+run_function missing-cast-obligation run_spike "$T/missing-cast-obligation.expr" 0
 
 make_program measure_spike "$T/matching.expr"
 metrics=$("$T/interp.exe" < "$T/run.gamma")
-if [ "$metrics" != "(Metrics 41 2777 2316)" ]; then
+if [ "$metrics" != "(Metrics 54 3607 2984)" ]; then
   echo "terminal ledger spike: metrics drifted: $metrics" >&2
   exit 1
 fi

@@ -26,6 +26,39 @@
                 FactEquation NeverCrashes ConsumesOneFuel KeepsLocalFrontier)
               LSNil)))))))
 
+(def bitwise_conversion_shift_schemas () LeafSchemas
+  (LSCons
+    (LeafSchema LBitNot ResultI8 UnaryIntegerOperand DBitNot GoalNone
+      FactEquation NeverCrashes ConsumesOneFuel KeepsLocalFrontier)
+    (LSCons
+      (LeafSchema LWiden ResultI16 WidenI8ToI16Operand DWidenI8I16 GoalNone
+        FactEquation NeverCrashes ConsumesOneFuel KeepsLocalFrontier)
+      (LSCons
+        (LeafSchema LExactCast ResultI8 CastI16ToI8Operand DCastI16I8 GoalCastI16ToI8
+          FactEquation CrashesUnlessGoal ConsumesOneFuel KeepsLocalFrontier)
+        (LSCons
+          (LeafSchema LBitAnd ResultI8 BinaryIntegerOperands DBitAnd GoalNone
+            FactEquation NeverCrashes ConsumesOneFuel KeepsLocalFrontier)
+          (LSCons
+            (LeafSchema LBitOr ResultI8 BinaryIntegerOperands DBitOr GoalNone
+              FactEquation NeverCrashes ConsumesOneFuel KeepsLocalFrontier)
+            (LSCons
+              (LeafSchema LBitXor ResultI8 BinaryIntegerOperands DBitXor GoalNone
+                FactEquation NeverCrashes ConsumesOneFuel KeepsLocalFrontier)
+              (LSCons
+                (LeafSchema LWrapShl ResultI8 ShiftI8ByI16Operands DWrapShl GoalNone
+                  FactEquation NeverCrashes ConsumesOneFuel KeepsLocalFrontier)
+                (LSCons
+                  (LeafSchema LWrapShr ResultI8 ShiftI8ByI16Operands DWrapShr GoalNone
+                    FactEquation NeverCrashes ConsumesOneFuel KeepsLocalFrontier)
+                  (LSCons
+                    (LeafSchema LExactShl ResultI8 ShiftI8ByI16Operands DExactShl GoalShiftLeftI8
+                      FactEquation CrashesUnlessGoal ConsumesOneFuel KeepsLocalFrontier)
+                    (LSCons
+                      (LeafSchema LExactShr ResultI8 ShiftI8ByI16Operands DExactShr GoalShiftCountI8
+                        FactEquation CrashesUnlessGoal ConsumesOneFuel KeepsLocalFrontier)
+                      LSNil)))))))))))
+
 (def exact_arithmetic_schemas () LeafSchemas
   (LSCons
     (LeafSchema LExactAdd ResultI8 BinaryIntegerOperands DExactAdd GoalFitsI8 FactEquation
@@ -90,8 +123,9 @@
 
 (def canonical_leaf_schemas () LeafSchemas
   (leaf_schemas_append (scalar_logic_schemas)
-    (leaf_schemas_append (exact_arithmetic_schemas)
-      (leaf_schemas_append (total_arithmetic_schemas) (div_rem_comparison_schemas)))))
+    (leaf_schemas_append (bitwise_conversion_shift_schemas)
+      (leaf_schemas_append (exact_arithmetic_schemas)
+        (leaf_schemas_append (total_arithmetic_schemas) (div_rem_comparison_schemas))))))
 
 (def leaf_kind_equal ((a LeafKind) (b LeafKind)) Int
   (match a
@@ -101,6 +135,16 @@
     (LBoolEq (match b (LBoolEq 1) (z 0)))
     (LIntEq (match b (LIntEq 1) (z 0)))
     (LLessEq (match b (LLessEq 1) (z 0)))
+    (LBitNot (match b (LBitNot 1) (z 0)))
+    (LWiden (match b (LWiden 1) (z 0)))
+    (LExactCast (match b (LExactCast 1) (z 0)))
+    (LBitAnd (match b (LBitAnd 1) (z 0)))
+    (LBitOr (match b (LBitOr 1) (z 0)))
+    (LBitXor (match b (LBitXor 1) (z 0)))
+    (LWrapShl (match b (LWrapShl 1) (z 0)))
+    (LWrapShr (match b (LWrapShr 1) (z 0)))
+    (LExactShl (match b (LExactShl 1) (z 0)))
+    (LExactShr (match b (LExactShr 1) (z 0)))
     (LExactAdd (match b (LExactAdd 1) (z 0)))
     (LExactSub (match b (LExactSub 1) (z 0)))
     (LExactMul (match b (LExactMul 1) (z 0)))
@@ -148,6 +192,16 @@
     ((KBoolEq left right) (LeafView LBoolEq left right 0))
     ((KIntEq left right) (LeafView LIntEq left right 0))
     ((KLessEq left right) (LeafView LLessEq left right 0))
+    ((KBitNot operand) (LeafView LBitNot operand 0 0))
+    ((KWiden operand) (LeafView LWiden operand 0 0))
+    ((KExactCast operand obligation) (LeafView LExactCast operand 0 obligation))
+    ((KBitAnd left right) (LeafView LBitAnd left right 0))
+    ((KBitOr left right) (LeafView LBitOr left right 0))
+    ((KBitXor left right) (LeafView LBitXor left right 0))
+    ((KWrapShl value count) (LeafView LWrapShl value count 0))
+    ((KWrapShr value count) (LeafView LWrapShr value count 0))
+    ((KExactShl value count obligation) (LeafView LExactShl value count obligation))
+    ((KExactShr value count obligation) (LeafView LExactShr value count obligation))
     ((KExactAdd left right obligation) (LeafView LExactAdd left right obligation))
     ((KExactSub left right obligation) (LeafView LExactSub left right obligation))
     ((KExactMul left right obligation) (LeafView LExactMul left right obligation))
@@ -167,7 +221,7 @@
     ((KCall target arguments obligations) NotLeaf)))
 
 (def result_shape_type ((shape ResultShape)) Int
-  (match shape (ResultI8 2) (ResultBool 1)))
+  (match shape (ResultI8 2) (ResultI16 3) (ResultBool 1)))
 
 (def denotation_expression ((denotation Denotation) (left Int) (right Int)) Expr
   (match denotation
@@ -177,6 +231,16 @@
     (DBoolEq (BoolEq (Val left) (Val right)))
     (DIntEq (IntEq (Val left) (Val right)))
     (DLessEq (LessEq (Val left) (Val right)))
+    (DBitNot (BitNot (Val left)))
+    (DWidenI8I16 (WidenI8I16 (Val left)))
+    (DCastI16I8 (CastI16I8 (Val left)))
+    (DBitAnd (BitAnd (Val left) (Val right)))
+    (DBitOr (BitOr (Val left) (Val right)))
+    (DBitXor (BitXor (Val left) (Val right)))
+    (DWrapShl (WrapShl (Val left) (Val right)))
+    (DWrapShr (WrapShr (Val left) (Val right)))
+    (DExactShl (ExactShl (Val left) (Val right)))
+    (DExactShr (ExactShr (Val left) (Val right)))
     (DExactAdd (Add (Val left) (Val right)))
     (DExactSub (Sub (Val left) (Val right)))
     (DExactMul (Mul (Val left) (Val right)))
@@ -215,6 +279,7 @@
                   (CrashesUnlessGoal
                     (match result
                       (ResultI8 (match fact (FactEquation 1)))
+                      (ResultI16 0)
                       (ResultBool 0)))
                   (z 0))
                 0))))))))
@@ -225,6 +290,9 @@
     (GoalFitsI8 (SafetyFitsI8 obligation expression))
     (GoalExactDiv (SafetyExactDiv obligation left right))
     (GoalNonZero (SafetyNonZero obligation right))
+    (GoalCastI16ToI8 (SafetyCastI16ToI8 obligation left))
+    (GoalShiftCountI8 (SafetyShiftCountI8 obligation right))
+    (GoalShiftLeftI8 (SafetyShiftLeftI8 obligation left right))
     (GoalNone (SafetyNonZero 0 0))))
 
 (def leaf_fact_formula

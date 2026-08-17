@@ -41,6 +41,7 @@ fn gamma_ledger_spike_fixtures_are_exact_current_terminal_bytes() {
 
 fn ledger_spike_fixture(asymmetric: bool) -> TerminalModule {
     let i8_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+    let i16_type = IntegerType::new(IntegerSign::Signed, 16).expect("i16");
     let integer = ScalarType::Integer(i8_type);
     let value = |id| ValueDeclaration {
         id: value_id(id),
@@ -49,6 +50,10 @@ fn ledger_spike_fixture(asymmetric: bool) -> TerminalModule {
     let boolean = |id| ValueDeclaration {
         id: value_id(id),
         scalar_type: ScalarType::Boolean,
+    };
+    let i16_value = |id| ValueDeclaration {
+        id: value_id(id),
+        scalar_type: ScalarType::Integer(i16_type),
     };
     let term = |id| ScalarTerm::value(value_id(id), integer);
     let literal =
@@ -65,7 +70,7 @@ fn ledger_spike_fixture(asymmetric: bool) -> TerminalModule {
     let caller = TerminalMachine {
         id: machine_id(1),
         attachment: None,
-        parameters: vec![value(10), value(11)],
+        parameters: vec![value(10), value(11), i16_value(12)],
         structural_parameters: Vec::new(),
         result: TerminalMachineResult::Scalar(value(13)),
         structural_places: Vec::new(),
@@ -309,6 +314,86 @@ fn ledger_spike_fixture(asymmetric: bool) -> TerminalModule {
                         OperationKind::IntegerLessOrEqual {
                             left: value_id(10),
                             right: value_id(41),
+                        },
+                    ),
+                    scalar_operation(
+                        34,
+                        i16_value(47),
+                        OperationKind::IntegerWiden {
+                            operand: value_id(10),
+                        },
+                    ),
+                    scalar_operation(
+                        35,
+                        value(48),
+                        OperationKind::IntegerExactCast {
+                            operand: value_id(12),
+                            obligation: obligation_id(111),
+                        },
+                    ),
+                    scalar_operation(
+                        36,
+                        value(49),
+                        OperationKind::IntegerBitwiseNot {
+                            operand: value_id(10),
+                        },
+                    ),
+                    scalar_operation(
+                        37,
+                        value(50),
+                        OperationKind::IntegerBitwiseAnd {
+                            left: value_id(10),
+                            right: value_id(11),
+                        },
+                    ),
+                    scalar_operation(
+                        38,
+                        value(51),
+                        OperationKind::IntegerBitwiseOr {
+                            left: value_id(10),
+                            right: value_id(11),
+                        },
+                    ),
+                    scalar_operation(
+                        39,
+                        value(52),
+                        OperationKind::IntegerBitwiseXor {
+                            left: value_id(10),
+                            right: value_id(11),
+                        },
+                    ),
+                    scalar_operation(
+                        40,
+                        value(53),
+                        OperationKind::WrappingIntegerShiftLeft {
+                            value: value_id(10),
+                            count: value_id(12),
+                        },
+                    ),
+                    scalar_operation(
+                        41,
+                        value(54),
+                        OperationKind::WrappingIntegerShiftRight {
+                            value: value_id(10),
+                            count: value_id(12),
+                        },
+                    ),
+                    scalar_operation(
+                        42,
+                        value(55),
+                        OperationKind::ExactIntegerShiftLeft {
+                            value: value_id(10),
+                            count: value_id(12),
+                            obligation: obligation_id(112),
+                        },
+                    ),
+                    scalar_operation(
+                        43,
+                        value(56),
+                        OperationKind::ExactIntegerShiftRight {
+                            value: value_id(10),
+                            count: value_id(12),
+                            obligation: obligation_id(113),
                         },
                     ),
                 ],

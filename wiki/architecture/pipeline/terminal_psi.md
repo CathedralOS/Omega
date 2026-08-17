@@ -1585,32 +1585,38 @@ false`: this inventory is the prerequisite for, not an implementation of, the
 low canonical ledger.
 
 The bounded Gamma feasibility spike now starts from two exact current
-`PSITERM\0` v11 byte fixtures and reconstructs a typed 41-row ledger. It covers
-constants, Boolean not/equality, integer equality/order, and the complete
+`PSITERM\0` v11 byte fixtures and reconstructs a typed 54-row ledger. It covers
+constants, Boolean not/equality, integer equality/order, bitwise operations,
+strict widening, partial exact cast, exact/wrapping shifts with independently
+typed counts, and the complete
 exact/wrapping/saturating add/subtract/multiply and
 divide/remainder cohorts, signed toward-zero division including
 `MIN / -1`, exact call-clause enumeration and substitution, ranked
 justification, branch-local scope/invalidation, and an all-predecessor merge;
-changing only one predecessor value rejects. The 1,591-byte fixture produces a
-2,777-byte modeled ledger and a 2,316-byte prospective reconstruction
-certificate. The assembled typed core is 1,936 lines (77,385 bytes, 179
+changing only one predecessor value rejects. The 1,983-byte fixture produces a
+3,607-byte modeled ledger and a 2,984-byte prospective reconstruction
+certificate. The assembled typed core is 2,191 lines (89,415 bytes, 186
 functions). A separately gated 36-line
 PSITERM-neutral byte layer owns the checked byte cursor and fixed-width
 primitives, while bounded `u64` identities, tags, recursive vocabulary, and
 monomorphic semantic result types remain spike-local. This clears the required
 feasibility gate; it does not make the bounded subset production-authoritative
-or mark any trust-graph dependency derived. Its twenty-two primitive variants
-now resolve through four composed exact-unique policy-cohort schema tables whose
-rows own result shape, denotation, goal, post-discharge fact, crash policy,
-fuel, and frontier behavior. Missing, duplicate, and altered rows reject end to
+or mark any trust-graph dependency derived. Its thirty-two scalar primitive
+variants now resolve through five composed exact-unique policy-cohort schema
+tables whose rows own result shape, denotation, goal, post-discharge fact, crash
+policy, fuel, and frontier behavior. Missing, duplicate, and altered rows reject end to
 end; calls retain their separate coverage/substitution algebra. Known values
 are exact typed declarations rather than bare IDs, so duplicate result
-identities, invalid Boolean payloads, operand-type drift, join-parameter overlap,
-and call argument-type drift reject before row publication. Boolean-producing
+identities, invalid Boolean payloads, conversion/result/count type drift,
+missing exact obligations, join-parameter overlap, and call argument-type drift
+reject before row publication. Boolean-producing
 leaves publish ordinary result equations that conditional control consumes
-without taking ownership of leaf denotation. The full decoder, remaining 13
-leaf rows, three call-composition definitions, low proofs, and composition
-bridges remain required.
+without taking ownership of leaf denotation. Exact cast, exact-right-shift, and
+exact-left-shift retain distinct goals; widening and wrapping shifts are total.
+The remaining structural `EstablishTrivialAffineLocal` and
+`BooleanStructuralField` rows plus effectful `PortWrite`, the three
+call-composition definitions, full decoder, low proofs, and composition bridges
+remain required.
 
 Portable terminal-Psi denotation bottoms out in the abstract terminal execution
 model, not in x86-64 or AArch64 behavior. ISA semantics, hardware fidelity,
