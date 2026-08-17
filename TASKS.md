@@ -758,8 +758,10 @@ Remaining:
   routes, argument-root substitution, and canonical proposition construction
   now form one 1,608-line module with eight explicit internal contracts.
   Terminal operation emission and proof finalization now form one 597-line
-  module with five explicit entry points. The crate root is now 3,477 lines.
-  These
+  module with five explicit entry points. Short-circuit Boolean decisions and
+  terminal control emission now form one 734-line module, while replaceable
+  debug-map presentation is a separate 188-line module. The crate root is now
+  2,571 lines. These
   are semantics-preserving responsibility splits, not trust promotions: the
   full low generator, row proofs, and composition bridges remain open, and no
   trust-graph node becomes derived from the spike.

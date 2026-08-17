@@ -1557,6 +1557,8 @@ proposition construction likewise share one crash/proposition module with an
 explicit internal contract surface.
 Terminal operation emission and proof finalization likewise share one module;
 they do not own scalar-graph classification or debug-map presentation.
+Short-circuit Boolean decision/control emission and replaceable debug-map
+presentation are distinct modules with distinct consumers.
 Additional sufficient-form families should follow that shape: one closed
 responsibility per module, explicit
 precedence at the registry, and no authority beyond the certificate proved
