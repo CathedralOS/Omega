@@ -1649,13 +1649,15 @@ predecessor value rejects. The 1,983-byte scalar fixture produces a 3,607-byte
 modeled ledger and a 2,984-byte prospective reconstruction certificate. The
 695-byte structural/effect fixture produces a 185-byte ledger and a 164-byte
 prospective certificate. A separate 697-byte fixture canonical-decodes exact
-Unit and boundary call custody. The assembled typed core is 4,667 lines
-(185,986 bytes, 398 functions) with maximum source nesting 25. A separately
+Unit and boundary call custody. The assembled typed core is 4,689 lines
+(186,767 bytes, 401 functions) with maximum source nesting 25. A separately
 gated 64-line PSITERM-neutral byte layer owns the checked byte cursor,
 fixed-width `u16`/`u32`, and exact low/high-half `u64` primitives. A separately
-gated 133-line terminal-codec layer owns the exact current envelope plus
-length-prefixed UTF-8 decoding and malformed-encoding rejection. All three
-bounded decoders consume its single typed header result. The bounded spike
+gated 156-line terminal-codec layer owns the exact current envelope, canonical
+Boolean and optional full-width semantic-ID scalars, and length-prefixed UTF-8
+decoding with malformed-encoding rejection. All three bounded decoders consume
+its single typed header result, and structural consumers use its scalar results.
+The bounded spike
 narrows identities to a zero high half after complete unsigned decoding, while
 tags, recursive vocabulary, and monomorphic semantic result types remain
 spike-local. This clears the required

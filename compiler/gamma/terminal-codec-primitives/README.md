@@ -15,6 +15,11 @@ It also owns the codec's length-prefixed UTF-8 string rule:
 - canonical UTF-8 scalar encodings only—no overlong forms, surrogates, values
   above U+10FFFF, isolated continuation bytes, truncation, or normalization.
 
+The scalar layer owns canonical Boolean bytes (`0` or `1`) and optional
+semantic identities (`0` for absent, `1` plus one exact nonzero `u64` for
+present). It retains the complete `U64`; a bounded consumer may narrow only in
+an explicit adapter after decoding.
+
 Each result retains its unread input tail; strings additionally retain a
 separate captured byte spine. The module does not assign semantic meaning to an
 identity, path, or label. Run

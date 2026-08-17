@@ -4,3 +4,7 @@
 (data RTerminalHeader
   (RTerminalHeader Int Bytes)                 ; vocabulary marker, unread tail
   (RTerminalHeaderBad))
+(data ROptionalU64
+  (ROptionalU64None Bytes)
+  (ROptionalU64Some U64 Bytes)
+  (ROptionalU64Bad))

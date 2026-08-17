@@ -1,0 +1,19 @@
+; Exact terminal-codec scalar grammar above the raw byte cursor.
+
+(def read_terminal_boolean ((bs Bytes)) RInt
+  (match (read_u8 bs)
+    (RIntBad RIntBad)
+    ((RInt value rest)
+      (if (eq value 0) (RInt 0 rest)
+        (if (eq value 1) (RInt 1 rest) RIntBad)))))
+
+(def read_optional_semantic_id ((bs Bytes)) ROptionalU64
+  (match (read_u8 bs)
+    (RIntBad ROptionalU64Bad)
+    ((RInt tag rest)
+      (if (eq tag 0) (ROptionalU64None rest)
+        (if (eq tag 1)
+          (match (read_nonzero_u64 rest)
+            (RU64Bad ROptionalU64Bad)
+            ((RU64 value tail) (ROptionalU64Some value tail)))
+          ROptionalU64Bad)))))
