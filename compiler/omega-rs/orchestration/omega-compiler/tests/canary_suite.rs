@@ -39488,6 +39488,7 @@ const CROSS_TARGET_FAIL_CANARIES: &[(&str, &str)] = &[
     ("calls/machine_self_call_recursion_rejected", "linux_x64"),
     ("calls/guard_call_vs_call_rejected", "linux_x64"),
     ("calls/guarded_value_call_terminal_rejected", "linux_x64"),
+    ("traits/runtime_dyn_varying_field_rejected", "linux_x64"),
 ];
 
 /// Pure checked-semantics canaries. These deliberately do not enter native
