@@ -34,6 +34,7 @@ cat canonical-bytes/types.gamma \
     terminal-ledger-spike/types.gamma \
     canonical-bytes/decode.gamma \
     terminal-ledger-spike/decode.gamma \
+    terminal-ledger-spike/schema.gamma \
     terminal-ledger-spike/ledger.gamma > "$T/typed.gamma"
 
 set +e
@@ -66,11 +67,12 @@ make_program() {
   printf ')\n' >> "$T/run.gamma"
 }
 
-run_one() {
+run_function() {
   name=$1
-  expression=$2
-  expected=$3
-  make_program run_spike "$expression"
+  function=$2
+  expression=$3
+  expected=$4
+  make_program "$function" "$expression"
 
   set +e
   beta_output=$("$T/interp.exe" < "$T/run.gamma")
@@ -90,11 +92,12 @@ run_one() {
   echo "terminal ledger spike: $name -> $expected (Beta/Python agree)"
 }
 
-run_one matching "$T/matching.expr" 1
-run_one asymmetric-join "$T/asymmetric.expr" 0
-run_one bad-magic "$T/bad-magic.expr" 0
-run_one truncated "$T/truncated.expr" 0
-run_one trailing-byte "$T/trailing.expr" 0
+run_function matching run_spike "$T/matching.expr" 1
+run_function schema-mutations schema_mutation_self_test "$T/matching.expr" 1
+run_function asymmetric-join run_spike "$T/asymmetric.expr" 0
+run_function bad-magic run_spike "$T/bad-magic.expr" 0
+run_function truncated run_spike "$T/truncated.expr" 0
+run_function trailing-byte run_spike "$T/trailing.expr" 0
 
 make_program measure_spike "$T/matching.expr"
 metrics=$("$T/interp.exe" < "$T/run.gamma")

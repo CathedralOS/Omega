@@ -19,7 +19,8 @@ Gamma program begins with the reusable, PSITERM-neutral primitives in
    shape needed by the bounded ledger;
 3. rejects truncation, trailing bytes, unknown tags, invalid identities, wrong
    types, wrong section counts, and shape drift;
-4. denotes every retained operation directly; and
+4. resolves every retained leaf operation through one exact row in the closed
+   typed table in `schema.gamma` and denotes that row directly; and
 5. emits and audits one ranked 22-row ledger.
 
 The transport packs at most seven bytes into one positive Gamma `Int` solely to
@@ -48,6 +49,23 @@ substitution:
 - obligation 105: `caller.value11 <= 127`;
 - obligation 106: `-128 <= caller.value10`.
 
+## Closed leaf schema
+
+The bounded operation slice no longer dispatches through one hand-written
+builder per primitive. `schema.gamma` contains exactly seven declarative rows:
+exact/wrapping add, exact/wrapping divide and remainder, and signed less-than.
+Each row owns its result shape, direct denotation, canonical safety goal,
+post-discharge fact, crash policy, and local fuel/frontier behavior. A generic
+interpreter emits the rows. Exact lookup rejects both missing and duplicate
+rows.
+
+Calls are intentionally not disguised as leaf rows: clause coverage,
+capture-free substitution, and outcome/control responsibilities remain in the
+separate call algebra. The gate runs the complete fixture with a missing row, a
+duplicate row, and an altered row; all three reject while the canonical table
+reconstructs the byte-identical 22-row ledger. This is the bounded seven-kind
+table, not yet the production table for all 38 closed `OperationKind` variants.
+
 ## Measured result
 
 Measured on Darwin 25.5 arm64, Apple M4 Pro, after building the Beta programs;
@@ -56,11 +74,11 @@ these are feasibility observations, not performance promises:
 | Item | Result |
 | --- | ---: |
 | Canonical fixture bytes | 1,026 |
-| Assembled typed Gamma core | 1,337 lines / 51,661 bytes |
+| Assembled typed Gamma core | 1,483 lines / 57,031 bytes |
 | Shared canonical-byte layer | 36 lines / 1,373 bytes / 6 functions |
-| Spike-specific typed core | 1,301 lines / 50,288 bytes / 136 functions |
-| Closed data declarations | 47 |
-| Typed functions, assembled | 142 |
+| Spike-specific typed core | 1,447 lines / 55,658 bytes / 148 functions |
+| Closed data declarations | 59 |
+| Typed functions, assembled | 154 |
 | Maximum source nesting | 20 |
 | Canonical ledger | 22 rows / 1,546 modeled bytes |
 | Prospective reconstruction certificate | 1,352 modeled bytes |
@@ -71,6 +89,14 @@ these are feasibility observations, not performance promises:
 The certificate estimate is deliberately explicit: 32 bytes of header, then
 44 bytes per row plus one 32-byte reference per prerequisite. It is a sizing
 model, not an accepted certificate format.
+
+The schema conversion deliberately adds a small typed vocabulary and generic
+interpreter, so this bounded source grew by 146 lines while deleting the seven
+operation-specific builder branches. The important scaling result is
+structural: new leaf meaning is one isolated data row, and the ledger
+orchestrator is no longer the owner of operation permutations. `schema.gamma`
+is 145 lines; call/control/premise orchestration remains separate in
+`ledger.gamma`.
 
 The first literal transport spelling used one constructor per byte and exposed
 a parser-stack failure. That did not require weakening the endpoint: a typed,
@@ -85,9 +111,9 @@ primitives are now factored into `../canonical-bytes/` and have an independent
 typed/interpreter gate. The largest remaining audit tax is mechanical
 repetition: Gamma currently has no parametric result type, so the bounded
 decoder still declares a result ADT for each parsed semantic type. The full
-decoder should measure that remaining cost before making any explicit Gamma
-rung correction. The spike itself is cleanly expressible and therefore finds
-no language-design blocker.
+decoder and full 38-kind schema table should measure that remaining cost before
+making any explicit Gamma rung correction. The spike itself is cleanly
+expressible and therefore finds no language-design blocker.
 
 ## Gate
 

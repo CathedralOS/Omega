@@ -1,0 +1,145 @@
+; Q7 closed leaf-operation schema table and its generic row interpreter.
+;
+; This module owns only leaf well-formedness, direct denotation, canonical
+; safety goals, post-discharge facts, crash policy, and local fuel/frontier
+; effects. Calls, control flow, premise lifetime, and ledger sequencing remain
+; separate algebra in ledger.gamma.
+
+(def canonical_leaf_schemas () LeafSchemas
+  (LSCons
+    (LeafSchema LExactAdd ResultI8 DExactAdd GoalFitsI8 FactEquation
+      CrashesUnlessGoal ConsumesOneFuel KeepsLocalFrontier)
+    (LSCons
+      (LeafSchema LWrapAdd ResultI8 DWrapAdd GoalNone FactEquation
+        NeverCrashes ConsumesOneFuel KeepsLocalFrontier)
+      (LSCons
+        (LeafSchema LExactDiv ResultI8 DExactDiv GoalExactDiv FactEquation
+          CrashesUnlessGoal ConsumesOneFuel KeepsLocalFrontier)
+        (LSCons
+          (LeafSchema LExactRem ResultI8 DExactRem GoalExactDiv FactEquation
+            CrashesUnlessGoal ConsumesOneFuel KeepsLocalFrontier)
+          (LSCons
+            (LeafSchema LWrapDiv ResultI8 DWrapDiv GoalNonZero FactEquation
+              CrashesUnlessGoal ConsumesOneFuel KeepsLocalFrontier)
+            (LSCons
+              (LeafSchema LWrapRem ResultI8 DWrapRem GoalNonZero FactEquation
+                CrashesUnlessGoal ConsumesOneFuel KeepsLocalFrontier)
+              (LSCons
+                (LeafSchema LLess ResultBool DLess GoalNone FactConditional
+                  NeverCrashes ConsumesOneFuel KeepsLocalFrontier)
+                LSNil))))))))
+
+(def leaf_kind_equal ((a LeafKind) (b LeafKind)) Int
+  (match a
+    (LExactAdd (match b (LExactAdd 1) (z 0)))
+    (LWrapAdd (match b (LWrapAdd 1) (z 0)))
+    (LExactDiv (match b (LExactDiv 1) (z 0)))
+    (LExactRem (match b (LExactRem 1) (z 0)))
+    (LWrapDiv (match b (LWrapDiv 1) (z 0)))
+    (LWrapRem (match b (LWrapRem 1) (z 0)))
+    (LLess (match b (LLess 1) (z 0)))))
+
+(def schema_kind ((schema LeafSchema)) LeafKind
+  (match schema
+    ((LeafSchema kind result denotation goal fact crash fuel frontier) kind)))
+
+(def find_leaf_schema ((schemas LeafSchemas) (want LeafKind)) RLeafSchema
+  (match schemas
+    (LSNil LeafSchemaMissing)
+    ((LSCons schema rest)
+      (if (leaf_kind_equal (schema_kind schema) want)
+        (match (find_leaf_schema rest want)
+          (LeafSchemaMissing (LeafSchemaFound schema))
+          (z LeafSchemaDuplicate))
+        (find_leaf_schema rest want)))))
+
+(def view_leaf ((kind OpKind)) LeafView
+  (match kind
+    ((KExactAdd left right obligation) (LeafView LExactAdd left right obligation))
+    ((KWrapAdd left right) (LeafView LWrapAdd left right 0))
+    ((KExactDiv left right obligation) (LeafView LExactDiv left right obligation))
+    ((KExactRem left right obligation) (LeafView LExactRem left right obligation))
+    ((KWrapDiv left right obligation) (LeafView LWrapDiv left right obligation))
+    ((KWrapRem left right obligation) (LeafView LWrapRem left right obligation))
+    ((KLess left right) (LeafView LLess left right 0))
+    ((KCall target arguments obligations) NotLeaf)))
+
+(def result_shape_type ((shape ResultShape)) Int
+  (match shape (ResultI8 2) (ResultBool 1)))
+
+(def denotation_expression ((denotation Denotation) (left Int) (right Int)) Expr
+  (match denotation
+    (DExactAdd (Add (Val left) (Val right)))
+    (DWrapAdd (WrapAdd (Val left) (Val right)))
+    (DExactDiv (TzDiv (Val left) (Val right)))
+    (DExactRem (TzRem (Val left) (Val right)))
+    (DWrapDiv (WrapDiv (Val left) (Val right)))
+    (DWrapRem (WrapRem (Val left) (Val right)))
+    (DLess (Less (Val left) (Val right)))))
+
+(def schema_policy_valid
+  ((result ResultShape) (goal GoalShape) (fact FactShape) (crash CrashShape)
+   (fuel FuelShape) (frontier FrontierShape) (obligation Int)) Int
+  (match fuel
+    (ConsumesOneFuel
+      (match frontier
+        (KeepsLocalFrontier
+          (match goal
+            (GoalNone
+              (if (eq obligation 0)
+                (match crash
+                  (NeverCrashes
+                    (match result
+                      (ResultI8 (match fact (FactEquation 1) (z 0)))
+                      (ResultBool (match fact (FactConditional 1) (z 0)))))
+                  (z 0))
+                0))
+            (z
+              (if (nonzero obligation)
+                (match crash
+                  (CrashesUnlessGoal
+                    (match result
+                      (ResultI8 (match fact (FactEquation 1) (z 0)))
+                      (ResultBool 0)))
+                  (z 0))
+                0))))))))
+
+(def leaf_goal_formula
+  ((goal GoalShape) (obligation Int) (expression Expr) (left Int) (right Int)) Formula
+  (match goal
+    (GoalFitsI8 (SafetyFitsI8 obligation expression))
+    (GoalExactDiv (SafetyExactDiv obligation left right))
+    (GoalNonZero (SafetyNonZero obligation right))
+    (GoalNone (SafetyNonZero 0 0))))
+
+(def leaf_fact_formula
+  ((fact FactShape) (result Int) (expression Expr) (left Int) (right Int)) Formula
+  (match fact
+    (FactEquation (ResultEq result expression))
+    (FactConditional (ConditionalEq result left right))))
+
+(def build_leaf_from_schema
+  ((schema LeafSchema) (operation Int) (result Decl) (known Ints)
+   (machine Int) (block Int) (rank Int) (left Int) (right Int) (obligation Int)) Build
+  (match schema
+    ((LeafSchema kind result_shape denotation goal fact crash fuel frontier)
+      (if (schema_policy_valid result_shape goal fact crash fuel frontier obligation)
+        (if (valid_binary_result result known left right (result_shape_type result_shape))
+          (let expression (denotation_expression denotation left right)
+            (let fact_formula (leaf_fact_formula fact (decl_id result) expression left right)
+              (match goal
+                (GoalNone
+                  (Built
+                    (LCons (Row rank (PrimitiveOrigin operation) fact_formula
+                             block (MachineScope machine) INil) LNil)
+                    (+ rank 1) (ICons (decl_id result) known)))
+                (z
+                  (Built
+                    (LCons (Row rank (PrimitiveOrigin operation)
+                             (leaf_goal_formula goal obligation expression left right)
+                             block (MachineScope machine) INil)
+                      (LCons (Row (+ rank 1) (PrimitiveOrigin operation) fact_formula
+                               block (MachineScope machine) (ICons rank INil)) LNil))
+                    (+ rank 2) (ICons (decl_id result) known))))))
+          BuildBad)
+        BuildBad))))
