@@ -183,14 +183,74 @@ fn ledger_spike_fixture(asymmetric: bool) -> TerminalModule {
             Block {
                 id: block_id(13),
                 parameters: vec![value(30)],
-                operations: vec![scalar_operation(
-                    18,
-                    value(31),
-                    OperationKind::WrappingIntegerAdd {
-                        left: value_id(30),
-                        right: value_id(11),
-                    },
-                )],
+                operations: vec![
+                    scalar_operation(
+                        18,
+                        value(32),
+                        OperationKind::ExactIntegerSubtract {
+                            left: value_id(10),
+                            right: value_id(11),
+                            obligation: obligation_id(107),
+                        },
+                    ),
+                    scalar_operation(
+                        19,
+                        value(33),
+                        OperationKind::WrappingIntegerSubtract {
+                            left: value_id(10),
+                            right: value_id(11),
+                        },
+                    ),
+                    scalar_operation(
+                        20,
+                        value(34),
+                        OperationKind::SaturatingIntegerSubtract {
+                            left: value_id(10),
+                            right: value_id(11),
+                        },
+                    ),
+                    scalar_operation(
+                        21,
+                        value(35),
+                        OperationKind::ExactIntegerMultiply {
+                            left: value_id(10),
+                            right: value_id(11),
+                            obligation: obligation_id(108),
+                        },
+                    ),
+                    scalar_operation(
+                        22,
+                        value(36),
+                        OperationKind::WrappingIntegerMultiply {
+                            left: value_id(10),
+                            right: value_id(11),
+                        },
+                    ),
+                    scalar_operation(
+                        23,
+                        value(37),
+                        OperationKind::SaturatingIntegerMultiply {
+                            left: value_id(10),
+                            right: value_id(11),
+                        },
+                    ),
+                    scalar_operation(
+                        24,
+                        value(38),
+                        OperationKind::SaturatingIntegerAdd {
+                            left: value_id(10),
+                            right: value_id(11),
+                        },
+                    ),
+                    scalar_operation(
+                        25,
+                        value(31),
+                        OperationKind::WrappingIntegerAdd {
+                            left: value_id(30),
+                            right: value_id(11),
+                        },
+                    ),
+                ],
                 terminator: Terminator::Return {
                     edge: edge_id(104),
                     value: value_id(31),

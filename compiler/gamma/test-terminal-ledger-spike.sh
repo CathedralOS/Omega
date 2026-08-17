@@ -101,7 +101,7 @@ run_function trailing-byte run_spike "$T/trailing.expr" 0
 
 make_program measure_spike "$T/matching.expr"
 metrics=$("$T/interp.exe" < "$T/run.gamma")
-if [ "$metrics" != "(Metrics 22 1546 1352)" ]; then
+if [ "$metrics" != "(Metrics 31 2156 1812)" ]; then
   echo "terminal ledger spike: metrics drifted: $metrics" >&2
   exit 1
 fi

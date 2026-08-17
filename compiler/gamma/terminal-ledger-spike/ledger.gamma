@@ -20,7 +20,12 @@
   (match a (LNil b) ((LCons h t) (LCons h (rows_append t b)))))
 
 (def rows_len ((rows Rows)) Int
-  (match rows (LNil 0) ((LCons h t) (+ 1 (rows_len t)))))
+  (match rows
+    (LNil 0)
+    ((LCons first rest)
+      (match rest
+        (LNil 1)
+        ((LCons second tail) (+ 2 (rows_len tail)))))))
 
 (def decl_id ((decl Decl)) Int (match decl ((Decl id ty) id)))
 (def decl_ty ((decl Decl)) Int (match decl ((Decl id ty) ty)))
@@ -84,9 +89,16 @@
     ((Val x) (match b ((Val y) (eq x y)) (z 0)))
     ((Lit x) (match b ((Lit y) (eq x y)) (z 0)))
     ((Add x y) (match b ((Add p q) (if (expr_equal x p) (expr_equal y q) 0)) (z 0)))
+    ((Sub x y) (match b ((Sub p q) (if (expr_equal x p) (expr_equal y q) 0)) (z 0)))
+    ((Mul x y) (match b ((Mul p q) (if (expr_equal x p) (expr_equal y q) 0)) (z 0)))
     ((TzDiv x y) (match b ((TzDiv p q) (if (expr_equal x p) (expr_equal y q) 0)) (z 0)))
     ((TzRem x y) (match b ((TzRem p q) (if (expr_equal x p) (expr_equal y q) 0)) (z 0)))
     ((WrapAdd x y) (match b ((WrapAdd p q) (if (expr_equal x p) (expr_equal y q) 0)) (z 0)))
+    ((SatAdd x y) (match b ((SatAdd p q) (if (expr_equal x p) (expr_equal y q) 0)) (z 0)))
+    ((WrapSub x y) (match b ((WrapSub p q) (if (expr_equal x p) (expr_equal y q) 0)) (z 0)))
+    ((SatSub x y) (match b ((SatSub p q) (if (expr_equal x p) (expr_equal y q) 0)) (z 0)))
+    ((WrapMul x y) (match b ((WrapMul p q) (if (expr_equal x p) (expr_equal y q) 0)) (z 0)))
+    ((SatMul x y) (match b ((SatMul p q) (if (expr_equal x p) (expr_equal y q) 0)) (z 0)))
     ((WrapDiv x y) (match b ((WrapDiv p q) (if (expr_equal x p) (expr_equal y q) 0)) (z 0)))
     ((WrapRem x y) (match b ((WrapRem p q) (if (expr_equal x p) (expr_equal y q) 0)) (z 0)))
     ((Less x y) (match b ((Less p q) (if (expr_equal x p) (expr_equal y q) 0)) (z 0)))))
@@ -99,9 +111,16 @@
     ((Val x) (if (eq x p0) (Val a0) (if (eq x p1) (Val a1) (Val x))))
     ((Lit x) (Lit x))
     ((Add x y) (Add (subst_expr x p0 a0 p1 a1) (subst_expr y p0 a0 p1 a1)))
+    ((Sub x y) (Sub (subst_expr x p0 a0 p1 a1) (subst_expr y p0 a0 p1 a1)))
+    ((Mul x y) (Mul (subst_expr x p0 a0 p1 a1) (subst_expr y p0 a0 p1 a1)))
     ((TzDiv x y) (TzDiv (subst_expr x p0 a0 p1 a1) (subst_expr y p0 a0 p1 a1)))
     ((TzRem x y) (TzRem (subst_expr x p0 a0 p1 a1) (subst_expr y p0 a0 p1 a1)))
     ((WrapAdd x y) (WrapAdd (subst_expr x p0 a0 p1 a1) (subst_expr y p0 a0 p1 a1)))
+    ((SatAdd x y) (SatAdd (subst_expr x p0 a0 p1 a1) (subst_expr y p0 a0 p1 a1)))
+    ((WrapSub x y) (WrapSub (subst_expr x p0 a0 p1 a1) (subst_expr y p0 a0 p1 a1)))
+    ((SatSub x y) (SatSub (subst_expr x p0 a0 p1 a1) (subst_expr y p0 a0 p1 a1)))
+    ((WrapMul x y) (WrapMul (subst_expr x p0 a0 p1 a1) (subst_expr y p0 a0 p1 a1)))
+    ((SatMul x y) (SatMul (subst_expr x p0 a0 p1 a1) (subst_expr y p0 a0 p1 a1)))
     ((WrapDiv x y) (WrapDiv (subst_expr x p0 a0 p1 a1) (subst_expr y p0 a0 p1 a1)))
     ((WrapRem x y) (WrapRem (subst_expr x p0 a0 p1 a1) (subst_expr y p0 a0 p1 a1)))
     ((Less x y) (Less (subst_expr x p0 a0 p1 a1) (subst_expr y p0 a0 p1 a1)))))
@@ -376,11 +395,20 @@
 (def ranks_valid_from ((rows Rows) (previous Int)) Int
   (match rows
     (LNil 1)
-    ((LCons row rest)
-      (match row
-        ((Row rank origin formula establishment scope prerequisites)
-          (if (lt previous rank)
-            (if (prerequisites_before prerequisites rank) (ranks_valid_from rest rank) 0)
+    ((LCons first rest)
+      (match first
+        ((Row first_rank first_origin first_formula first_establishment first_scope first_prerequisites)
+          (if (if (lt previous first_rank)
+                (prerequisites_before first_prerequisites first_rank) 0)
+            (match rest
+              (LNil 1)
+              ((LCons second tail)
+                (match second
+                  ((Row second_rank second_origin second_formula second_establishment second_scope second_prerequisites)
+                    (if (if (lt first_rank second_rank)
+                          (prerequisites_before second_prerequisites second_rank) 0)
+                      (ranks_valid_from tail second_rank)
+                      0)))))
             0))))))
 
 (def row_available_at ((row Row) (block Int)) Int
@@ -430,7 +458,13 @@
 (def safety_code ((formula Formula)) Int
   (match formula
     ((SafetyFitsI8 obligation expr)
-      (if (if (eq obligation 100) (expr_equal expr (Add (Val 10) (Val 11))) 0) 1 100))
+      (if (eq obligation 100)
+        (if (expr_equal expr (Add (Val 10) (Val 11))) 1 100)
+        (if (eq obligation 107)
+          (if (expr_equal expr (Sub (Val 10) (Val 11))) 32 100)
+          (if (eq obligation 108)
+            (if (expr_equal expr (Mul (Val 10) (Val 11))) 64 100)
+            100))))
     ((SafetyExactDiv obligation left right)
       (if (if (eq left 10) (eq right 11) 0)
         (if (eq obligation 101) 2 (if (eq obligation 102) 4 100))
@@ -441,17 +475,30 @@
         100))
     (z 0)))
 
+(def base_result_code ((result Int) (expr Expr)) Int
+  (if (eq result 20) (if (expr_equal expr (Add (Val 10) (Val 11))) 1 1000)
+    (if (eq result 21) (if (expr_equal expr (WrapAdd (Val 10) (Val 11))) 2 1000)
+      (if (eq result 22) (if (expr_equal expr (TzDiv (Val 10) (Val 11))) 4 1000)
+        (if (eq result 23) (if (expr_equal expr (TzRem (Val 10) (Val 11))) 8 1000)
+          (if (eq result 24) (if (expr_equal expr (WrapDiv (Val 10) (Val 11))) 16 1000)
+            (if (eq result 25) (if (expr_equal expr (WrapRem (Val 10) (Val 11))) 32 1000)
+              (if (eq result 31) (if (expr_equal expr (WrapAdd (Val 30) (Val 11))) 128 1000)
+                1000))))))))
+
+(def cohort_result_code ((result Int) (expr Expr)) Int
+  (if (eq result 32) (if (expr_equal expr (Sub (Val 10) (Val 11))) 256 1000)
+    (if (eq result 33) (if (expr_equal expr (WrapSub (Val 10) (Val 11))) 512 1000)
+      (if (eq result 34) (if (expr_equal expr (SatSub (Val 10) (Val 11))) 1024 1000)
+        (if (eq result 35) (if (expr_equal expr (Mul (Val 10) (Val 11))) 2048 1000)
+          (if (eq result 36) (if (expr_equal expr (WrapMul (Val 10) (Val 11))) 4096 1000)
+            (if (eq result 37) (if (expr_equal expr (SatMul (Val 10) (Val 11))) 8192 1000)
+              (if (eq result 38) (if (expr_equal expr (SatAdd (Val 10) (Val 11))) 16384 1000)
+                1000))))))))
+
 (def result_code ((formula Formula)) Int
   (match formula
     ((ResultEq result expr)
-      (if (eq result 20) (if (expr_equal expr (Add (Val 10) (Val 11))) 1 1000)
-        (if (eq result 21) (if (expr_equal expr (WrapAdd (Val 10) (Val 11))) 2 1000)
-          (if (eq result 22) (if (expr_equal expr (TzDiv (Val 10) (Val 11))) 4 1000)
-            (if (eq result 23) (if (expr_equal expr (TzRem (Val 10) (Val 11))) 8 1000)
-              (if (eq result 24) (if (expr_equal expr (WrapDiv (Val 10) (Val 11))) 16 1000)
-                (if (eq result 25) (if (expr_equal expr (WrapRem (Val 10) (Val 11))) 32 1000)
-                  (if (eq result 31) (if (expr_equal expr (WrapAdd (Val 30) (Val 11))) 128 1000)
-                    1000))))))))
+      (if (lt result 32) (base_result_code result expr) (cohort_result_code result expr)))
     ((ConditionalEq result left right)
       (if (if (eq result 26) (if (eq left 10) (eq right 11) 0) 0) 64 1000))
     (z 0)))
@@ -468,37 +515,64 @@
       (if (if (eq parameter 30) (eq value 20) 0) 16 100))
     (z 0)))
 
+(def formula_kind_code ((formula Formula) (kind Int)) Int
+  (if (eq kind 0) (call_requirement_code formula)
+    (if (eq kind 1) (authored_requirement_code formula)
+      (if (eq kind 2) (safety_code formula)
+        (if (eq kind 3) (result_code formula) (control_code formula))))))
+
 (def formulas_code ((rows Rows) (kind Int)) Int
   (match rows
     (LNil 0)
-    ((LCons row rest)
-      (match row
-        ((Row rank origin formula establishment scope prerequisites)
-          (+ (if (eq kind 0) (call_requirement_code formula)
-               (if (eq kind 1) (authored_requirement_code formula)
-                 (if (eq kind 2) (safety_code formula)
-                   (if (eq kind 3) (result_code formula) (control_code formula)))))
-             (formulas_code rest kind)))))))
+    ((LCons first rest)
+      (match first
+        ((Row first_rank first_origin first_formula first_establishment first_scope first_prerequisites)
+          (match rest
+            (LNil (formula_kind_code first_formula kind))
+            ((LCons second tail)
+              (match second
+                ((Row second_rank second_origin second_formula second_establishment second_scope second_prerequisites)
+                  (match tail
+                    (LNil
+                      (+ (formula_kind_code first_formula kind)
+                        (formula_kind_code second_formula kind)))
+                    ((LCons third remaining)
+                      (match third
+                        ((Row third_rank third_origin third_formula third_establishment third_scope third_prerequisites)
+                          (+ (formula_kind_code first_formula kind)
+                            (+ (formula_kind_code second_formula kind)
+                              (+ (formula_kind_code third_formula kind)
+                                (formulas_code remaining kind)))))))))))))))))
 
 (def formulas_count ((rows Rows) (kind Int)) Int
   (match rows
     (LNil 0)
-    ((LCons row rest)
-      (match row
-        ((Row rank origin formula establishment scope prerequisites)
-          (+ (if (eq kind 0) (nonzero (call_requirement_code formula))
-               (if (eq kind 1) (nonzero (authored_requirement_code formula))
-                 (if (eq kind 2) (nonzero (safety_code formula))
-                   (if (eq kind 3) (nonzero (result_code formula))
-                     (nonzero (control_code formula))))))
-             (formulas_count rest kind)))))))
+    ((LCons first rest)
+      (match first
+        ((Row first_rank first_origin first_formula first_establishment first_scope first_prerequisites)
+          (match rest
+            (LNil (nonzero (formula_kind_code first_formula kind)))
+            ((LCons second tail)
+              (match second
+                ((Row second_rank second_origin second_formula second_establishment second_scope second_prerequisites)
+                  (match tail
+                    (LNil
+                      (+ (nonzero (formula_kind_code first_formula kind))
+                        (nonzero (formula_kind_code second_formula kind))))
+                    ((LCons third remaining)
+                      (match third
+                        ((Row third_rank third_origin third_formula third_establishment third_scope third_prerequisites)
+                          (+ (nonzero (formula_kind_code first_formula kind))
+                            (+ (nonzero (formula_kind_code second_formula kind))
+                              (+ (nonzero (formula_kind_code third_formula kind))
+                                (formulas_count remaining kind)))))))))))))))))
 
 (def exact_ledger_inventory ((rows Rows)) Int
-  (if (eq (rows_len rows) 22)
+  (if (eq (rows_len rows) 31)
     (if (if (eq (formulas_count rows 0) 2) (eq (formulas_code rows 0) 3) 0)
       (if (if (eq (formulas_count rows 1) 2) (eq (formulas_code rows 1) 3) 0)
-        (if (if (eq (formulas_count rows 2) 5) (eq (formulas_code rows 2) 31) 0)
-          (if (if (eq (formulas_count rows 3) 8) (eq (formulas_code rows 3) 255) 0)
+        (if (if (eq (formulas_count rows 2) 7) (eq (formulas_code rows 2) 127) 0)
+          (if (if (eq (formulas_count rows 3) 15) (eq (formulas_code rows 3) 32767) 0)
             (if (eq (formulas_count rows 4) 5) (eq (formulas_code rows 4) 31) 0)
             0)
           0)
@@ -510,9 +584,16 @@
   (match expr
     ((Val id) 9) ((Lit value) 9)
     ((Add a b) (+ 1 (+ (expression_size a) (expression_size b))))
+    ((Sub a b) (+ 1 (+ (expression_size a) (expression_size b))))
+    ((Mul a b) (+ 1 (+ (expression_size a) (expression_size b))))
     ((TzDiv a b) (+ 1 (+ (expression_size a) (expression_size b))))
     ((TzRem a b) (+ 1 (+ (expression_size a) (expression_size b))))
     ((WrapAdd a b) (+ 1 (+ (expression_size a) (expression_size b))))
+    ((SatAdd a b) (+ 1 (+ (expression_size a) (expression_size b))))
+    ((WrapSub a b) (+ 1 (+ (expression_size a) (expression_size b))))
+    ((SatSub a b) (+ 1 (+ (expression_size a) (expression_size b))))
+    ((WrapMul a b) (+ 1 (+ (expression_size a) (expression_size b))))
+    ((SatMul a b) (+ 1 (+ (expression_size a) (expression_size b))))
     ((WrapDiv a b) (+ 1 (+ (expression_size a) (expression_size b))))
     ((WrapRem a b) (+ 1 (+ (expression_size a) (expression_size b))))
     ((Less a b) (+ 1 (+ (expression_size a) (expression_size b))))))
@@ -628,7 +709,7 @@
     ((RLedger control)
       (let rows (rows_append prior control)
         (if (if (exact_ledger_inventory rows) (ranks_valid_from rows 0) 0)
-          (let true_premise (find_branch_row rows 1)
+          (let true_premise (find_branch_row control 1)
             (if (row_available_at true_premise (block_id_of true_block))
               (if (row_available_at true_premise (block_id_of join_block))
                 RLedgerBad
