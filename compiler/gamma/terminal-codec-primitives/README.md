@@ -28,8 +28,9 @@ with identities by the full ledger decoder, and identities above Gamma's signed
 
 The scalar-type layer owns the complete current type grammar: Boolean, fixed
 signed or unsigned integers, and unsigned address integers, each with an exact
-width in `1..=128`. The bounded spike maps only Boolean, signed i8, and signed
-i16 into its local vocabulary after this complete decoder succeeds.
+width in `1..=128`. The bounded spike now retains this exact type in every
+declaration; only its operation-row policy remains intentionally limited to
+Boolean, signed i8, and signed i16.
 
 The integer-value layer owns the complete current payload grammar: tag `1`
 retains one signed value's exact 128-bit two's-complement bits and tag `2`

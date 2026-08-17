@@ -695,11 +695,11 @@ Remaining:
   697-byte fixture canonical-decodes exact `CallUnit` and `BoundaryCall`
   custody, including qualified affine resources, structural requirements,
   claim transfer, completion receipt, and boundary identity. The assembled
-  typed core is 4,844 lines / 192,885 bytes / 412 functions, with maximum
+  typed core is 4,928 lines / 196,822 bytes / 419 functions, with maximum
   source nesting 25. Its PSITERM-neutral byte cursor, checked
   `u8`/little-endian `u16`/`u32`, and exact low/high-half `u64` primitives are
   now a separately gated 97-line reusable layer, including an exact four-limb
-  `u128` carrier. A separately gated 267-line
+  `u128` carrier. A separately gated 297-line
   terminal-codec layer owns the exact current magic/format/vocabulary envelope
   plus canonical Boolean, optional and required full-width semantic-ID carriers,
   exact identity equality/order, and length-prefixed UTF-8 grammar, together
@@ -709,9 +709,11 @@ Remaining:
   rejects header/scalar/type/value drift plus overlong, surrogate, out-of-range,
   isolated-continuation, and truncated encodings. All three bounded decoders
   consume the shared header result and structural consumers use the shared
-  scalar/type/value results. The bounded spike narrows identities to a zero high
-  half, types to Boolean/i8/i16, and signed integer values to canonical i8 sign
-  extension only in explicit adapters after complete decoding;
+  scalar/type/value results. Scalar declarations and boundary results now retain
+  the complete decoded type grammar; the bounded operation rows still admit
+  only Boolean/i8/i16. The bounded spike narrows identities to a zero high half
+  and signed integer values to canonical i8 sign extension only in explicit
+  adapters after complete decoding;
   tags, recursive vocabulary, and monomorphic type-specific results remain
   spike-owned. The
   bounded thirty-two-kind scalar leaf slice now resolves through five composed,

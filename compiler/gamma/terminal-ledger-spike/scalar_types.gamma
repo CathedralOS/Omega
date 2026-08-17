@@ -1,0 +1,16 @@
+; Bounded scalar-operation policy over the complete shared terminal type grammar.
+;
+; Declarations retain TerminalScalarType exactly.  These constructors name the
+; three types exercised by the bounded row table without replacing the decoded
+; type with a magic integer tag.
+
+(def spike_boolean_type () TerminalScalarType TerminalBoolean)
+(def spike_i8_type () TerminalScalarType
+  (TerminalInteger (TerminalFixedSigned 8)))
+(def spike_i16_type () TerminalScalarType
+  (TerminalInteger (TerminalFixedSigned 16)))
+
+(def spike_scalar_type_supported ((ty TerminalScalarType)) Int
+  (if (terminal_scalar_type_equal ty (spike_boolean_type)) 1
+    (if (terminal_scalar_type_equal ty (spike_i8_type)) 1
+      (terminal_scalar_type_equal ty (spike_i16_type)))))

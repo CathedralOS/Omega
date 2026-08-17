@@ -1683,11 +1683,11 @@ predecessor value rejects. The 1,983-byte scalar fixture produces a 3,607-byte
 modeled ledger and a 2,984-byte prospective reconstruction certificate. The
 695-byte structural/effect fixture produces a 185-byte ledger and a 164-byte
 prospective certificate. A separate 697-byte fixture canonical-decodes exact
-Unit and boundary call custody. The assembled typed core is 4,844 lines
-(192,885 bytes, 412 functions) with maximum source nesting 25. A separately
+Unit and boundary call custody. The assembled typed core is 4,928 lines
+(196,822 bytes, 419 functions) with maximum source nesting 25. A separately
 gated 97-line PSITERM-neutral byte layer owns the checked byte cursor,
 fixed-width `u16`/`u32`, exact low/high-half `u64`, and exact four-limb `u128`
-primitives. A separately gated 267-line terminal-codec layer owns the exact
+primitives. A separately gated 297-line terminal-codec layer owns the exact
 current envelope, canonical Boolean, optional and required full-width semantic-ID
 carriers with exact equality and canonical unsigned order,
 the complete Boolean/
@@ -1695,9 +1695,11 @@ fixed-signed/fixed-unsigned/address type grammar with widths `1..=128`, exact
 signed/unsigned 128-bit integer-value payloads, and length-prefixed UTF-8
 decoding with malformed-encoding rejection. All three
 bounded decoders consume its single typed header result, and structural
-consumers use its scalar/type/value results. The bounded spike
-narrows identities to a zero high half and signed integer payloads to canonical
-i8 sign extension after complete decoding, while
+consumers use its scalar/type/value results. Scalar declarations and boundary
+results retain the complete decoded type grammar; only the bounded operation
+rows remain limited to Boolean/i8/i16. The bounded spike narrows identities to
+a zero high half and signed integer payloads to canonical i8 sign extension
+after complete decoding, while
 tags, recursive vocabulary, and monomorphic semantic result types remain
 spike-local. This clears the required
 feasibility gate; it does not make the bounded subset production-authoritative

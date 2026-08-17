@@ -83,15 +83,16 @@ in `compiler/gamma/terminal-ledger-spike/`. The typed program consumes exact
 current terminal-Psi bytes, validates a closed subset, and emits/audits ranked
 semantic rows. Both the Beta-written reference interpreter and the independent
 Python evaluator agree on the positive fixture, an asymmetric join rejection,
-and malformed-byte rejection. The assembled core is 4,844 lines rather than a
+and malformed-byte rejection. The assembled core is 4,928 lines rather than a
 permutation-expanded verifier. Its bounded thirty-two-kind scalar leaf semantics
 now live in five composed exact-unique policy-cohort schema tables; one generic
 interpreter consumes result, denotation, goal, fact, crash, fuel, and frontier
 fields, while calls and control remain separate algebra. Missing, duplicate,
 and altered schema rows reject end to end. Exact cast, exact-right-shift, and
 exact-left-shift retain distinct canonical goals; widening and wrapping shifts
-remain total. Its value environment retains exact typed declarations across i8
-and i16, so duplicate IDs and type drift cannot cross the generic schema
+remain total. Its value environment retains the complete decoded scalar type
+grammar and applies the Boolean/i8/i16 limit only at the bounded operation-row
+boundary, so duplicate IDs and type drift cannot cross the generic schema
 boundary. A separate 695-byte fixture and exact-unique table now cover
 `BooleanStructuralField`, `EstablishTrivialAffineLocal`, and `PortWrite` through
 their own place/frontier/effect vocabulary; they produce a 3-row, 185-byte
@@ -113,7 +114,7 @@ The spike also makes one scaling limit concrete: the monomorphic type system
 requires a distinct parse-result ADT for each decoded type. Completing the
 structural/effect and canonical call slices plus the shared terminal envelope,
 scalar, semantic-identity, scalar-type, integer-value, and UTF-8 decoders grow
-the assembled core to 192,885 bytes, 181 data declarations, and 412 typed
+the assembled core to 196,822 bytes, 181 data declarations, and 419 typed
 functions, at nesting
 depth 25.
 That repetition is an engineering/audit cost, not a reason to weaken the

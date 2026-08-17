@@ -82,9 +82,9 @@
   (match (read_id bs)
     (RIntBad RDeclBad)
     ((RInt id rest)
-      (match (read_scalar_type rest)
-        (RIntBad RDeclBad)
-        ((RInt ty tail) (RDecl (Decl id ty) tail))))))
+      (match (read_terminal_scalar_type rest)
+        (RTerminalScalarTypeBad RDeclBad)
+        ((RTerminalScalarType ty tail) (RDecl (Decl id ty) tail))))))
 
 (def read_decls_n ((bs Bytes) (n Int)) RDecls
   (if (eq n 0) (RDecls DNil bs)
