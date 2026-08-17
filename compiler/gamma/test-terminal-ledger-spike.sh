@@ -34,6 +34,7 @@ cat canonical-bytes/types.gamma \
     terminal-codec-primitives/types.gamma \
     terminal-ledger-spike/types.gamma \
     canonical-bytes/decode.gamma \
+    terminal-codec-primitives/header.gamma \
     terminal-codec-primitives/utf8.gamma \
     terminal-ledger-spike/decode.gamma \
     terminal-ledger-spike/schema.gamma \
@@ -104,6 +105,9 @@ fixture_expr "$FIXTURES/terminal_ledger_structural_effect.hex" --set-byte 535 1 
 fixture_expr "$FIXTURES/terminal_ledger_structural_effect.hex" --set-byte 552 0 \
   > "$T/structural-missing-discard.expr"
 fixture_expr "$FIXTURES/terminal_ledger_spike.hex" --set-byte 0 0 > "$T/bad-magic.expr"
+fixture_expr "$FIXTURES/terminal_ledger_spike.hex" --set-byte 8 10 > "$T/bad-format.expr"
+fixture_expr "$FIXTURES/terminal_ledger_spike.hex" --set-byte 10 15 \
+  > "$T/bad-vocabulary.expr"
 fixture_expr "$FIXTURES/terminal_ledger_spike.hex" --drop-last > "$T/truncated.expr"
 fixture_expr "$FIXTURES/terminal_ledger_spike.hex" --append-byte 0 > "$T/trailing.expr"
 fixture_expr "$FIXTURES/terminal_ledger_spike.hex" --set-byte 191 10 > "$T/duplicate-result.expr"
@@ -152,6 +156,8 @@ run_function schema-mutations schema_mutation_self_test "$T/matching.expr" 1
 run_function call-composition call_schema_mutation_self_test "$T/matching.expr" 1
 run_function asymmetric-join run_spike "$T/asymmetric.expr" 0
 run_function bad-magic run_spike "$T/bad-magic.expr" 0
+run_function bad-format run_spike "$T/bad-format.expr" 0
+run_function bad-vocabulary run_spike "$T/bad-vocabulary.expr" 0
 run_function truncated run_spike "$T/truncated.expr" 0
 run_function trailing-byte run_spike "$T/trailing.expr" 0
 run_function duplicate-result run_spike "$T/duplicate-result.expr" 0

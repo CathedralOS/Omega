@@ -16,7 +16,8 @@ emits assembly; the chain targets one level down at each step:
 - `canonical-bytes/` — shared typed byte-cursor primitives for low-rung decoders;
   run `test-canonical-bytes.sh`.
 - `terminal-codec-primitives/` — exact terminal-codec grammar layered over the
-  byte cursor, beginning with bounded canonical UTF-8; run
+  byte cursor, beginning with the current envelope and bounded canonical UTF-8;
+  run
   `test-terminal-codec-primitives.sh`.
 - `terminal-ledger-spike/` — the Q7 typed, canonical-byte semantic-ledger
   feasibility spike, including separate scalar leaf, structural/effect leaf,
