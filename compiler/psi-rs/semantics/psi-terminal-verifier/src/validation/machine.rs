@@ -1,5 +1,9 @@
 //! Registers and validates one terminal machine in canonical source order.
 
+use super::affine_cleanup::{
+    nominal_cleanup_contract_receiver, nominal_cleanups, validate_nominal_affine_cleanup_shape,
+    validate_partial_affine_cleanup_shape,
+};
 use super::*;
 
 pub(super) fn validate_machine(

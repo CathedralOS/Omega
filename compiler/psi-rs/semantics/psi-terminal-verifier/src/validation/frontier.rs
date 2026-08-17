@@ -1,3 +1,6 @@
+use super::affine_cleanup::{
+    bounded_nominal_cleanup_receiver_shape, valid_nominal_cleanup_requirements,
+};
 use super::*;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
