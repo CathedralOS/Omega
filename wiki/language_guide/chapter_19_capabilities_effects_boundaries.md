@@ -1031,21 +1031,27 @@ plus content that left checked custody. Per-output containment and scalar
 measures do not establish this theorem. Ordinary claims without a projection
 remain fully accounted for by whole-claim frontier transfer and cleanup.
 
-Root origin is recorded per establishment occurrence. Compiler provisioning
-from an owner-authored sealed declaration with declared capacity creates a
-program-local account; selected admitted issuance creates a provider-backed
-account. A checked runtime route may expose or transform an existing account but
-never originate one. The algebra denominator is not an authority label: proof
-code may freely construct `IntervalSet<PhysicalMemory>`, while
-external access still requires an exact qualified root whose lineage carries
-backing or correspondence evidence for the selected provider. Terminal
-validation rejects external operations justified only by matching content
-arithmetic.
+Root origin is recorded per establishment occurrence. One statically enumerable
+installed root position authorized by the qualification's domain route may
+introduce a program-local account; selected admitted issuance creates a
+provider-backed account. The requirement contract fixes exact finite capacity
+per program-local occurrence, and installation fixes its finite cardinality,
+artifact-instance scope, and lifecycle epoch. An ordinary checked call may
+expose or transform an existing account but never originate one. The algebra
+denominator is not an authority label: proof code may freely construct
+`IntervalSet<PhysicalMemory>`, while external access still requires an exact
+qualified root whose lineage carries backing or correspondence evidence for the
+selected provider. Terminal validation rejects external operations justified
+only by matching content arithmetic.
 
-The target-neutral Extent ledger now retains both origin records through mint,
+The target-neutral ledger retains both origin records through introduction,
 split, borrow, mapping, and rejoin, and rejects recomposition across origin
-kinds or independently provisioned local accounts. The source declaration form
-for sealed local provisioning remains open as owner Q3.
+kinds or independently introduced local accounts. The portable verifier derives
+each program-local introduction schema; installation verification joins it to
+the exact occurrence set and derives the aggregate for one artifact instance
+and epoch. Cathedral composes those verified totals across live components and
+coexisting replacement eras. A manifest-supplied aggregate is never authority,
+and a new epoch's root is a new budget rather than recovered lifetime capacity.
 
 Contracts call the exact owner-unique projection machine. Proof-only
 `entry(place)` selects an entry-version structural place, while compiler-owned

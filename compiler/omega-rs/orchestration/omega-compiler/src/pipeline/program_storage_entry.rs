@@ -1481,7 +1481,8 @@ fn receiver_placement(
 /// Install two compiler-provisioned program-storage roots and emit the
 /// completion record before releasing the installed authority.
 ///
-/// This is the sealed local-provisioning seam. Provider-issued physical roots
+/// This is the transitional installed program-local introduction seam.
+/// Provider-issued physical roots
 /// must use [`install_program_storage_entry_provider_invocation`], which joins
 /// them to the compiler-selected provider plan and concrete invocation.
 /// Predicate rejection returns both unconsumed grants. If record emission

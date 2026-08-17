@@ -7,11 +7,13 @@ first admitted `Granted` root, and ordinary interrupt
 obligation carriers are live; further provider, carry, resource-frontier, and
 artifact work remains staged in `TASKS.md`.
 
-The target-neutral Extent ledger represents both permitted fresh root origins:
+The target-neutral content ledger represents both permitted fresh root origins:
 selected provider issuance with its exact invocation and supply/custody record,
-and compiler provisioning with owner, sealed declaration, route, capacity, and
-qualification identities. The source declaration form for the latter remains
-open as owner Q3.
+and a program-local introduction at one statically enumerable installed root
+position. The domain owns the authorized requirement in both cases. The route
+contract fixes the program-local capacity per occurrence, while installation
+fixes the occurrence count, scope, and lifecycle epoch. There is no separate
+provision declaration or ambient minting route.
 
 ## Purpose
 
@@ -345,19 +347,45 @@ ordinary terminal claim consumer authorized by its contract transfers content
 out of the checked custody frontier.
 
 Each root occurrence's origin is a property of its authority source, not of a
-nominal data declaration, content denominator, or constructor name. Every fresh
-internal account records one exact route, capacity, lineage, qualification, and
-authority source:
+nominal data declaration, content denominator, constructor name, or concrete
+requirement implementation. Every fresh internal account records one exact
+authorized route, subject position, capacity, lineage, qualification, source,
+installation scope, and lifecycle epoch:
 
-- compiler provisioning from an owner-authored sealed declaration with declared
-  capacity originates a program-local root, such as a parser budget or protocol
-  session; and
+- one statically enumerable installed parameter position may introduce a
+  program-local root, such as an artifact-instance parser budget or protocol
+  session pool; and
 - a selected admitted issuance establishes a provider-backed root, such as
   physical memory or device slots.
 
-A checked runtime establishment event may qualify, transfer, lease, split, or
-otherwise expose an existing account. It never originates a fresh root merely
-because its route fired.
+The domain declaration remains the sole source-level authorization. It names an
+exact trait requirement, not every future satisfier. A later package may supply
+a checked implementation when visibility permits, but implementing or calling
+that requirement never creates a root. At an ordinary call the qualified
+parameter is a precondition and must carry an existing lineage. Introduction
+occurs only at the exact installed root position, where the generated bridge and
+installation evidence identify the occurrence. A checked runtime establishment
+event may otherwise qualify, transfer, lease, split, recombine, or expose an
+existing account; a result route with no parent lineage rejects as an attempted
+mint.
+
+The route contract publishes one exact finite per-occurrence content expression,
+or an owner-constrained family whose selected instance reduces to one. The
+portable verifier reconstructs that introduction schema from the requirement,
+qualification, and content projection. Installation verification joins it to
+the exact finite slot cardinality and derives the aggregate for one installed
+artifact instance and lifecycle epoch. A producer-authored manifest total has
+no authority. Cathedral composes those verified aggregates across concurrently
+live artifacts and replacement eras; coexistence is charged at peak, not at
+steady state.
+
+These scopes are deliberate. Four installed workers may consume four times a
+per-worker capacity. A component that promises one shared cap instead receives
+children split from one aggregate parent root, so conservation rejects another
+child without additional supply. That parent itself is bounded per installed
+assembly instance and epoch. A fresh root in a later epoch is a new budget, not
+recovered lifetime capacity; a cross-epoch or machine-lifetime ceiling requires
+persistent authority carried across the replacement boundary.
 
 `PhysicalMemory` and other algebra parameters remain pure proof-level
 vocabulary. Arbitrary proof code may construct an
@@ -377,12 +405,12 @@ each discharge the hardware bound.
 Every content-capable root has one internal canonical algebra account even
 when source exposes no `Content<A>` projection for it. Checked establishment
 may qualify or project content only by charging an existing account for the
-duration of a transfer or lease. It never creates a fresh runtime root.
-A fresh local root exists only through compiler-provisioned owner-authored
-sealed declared capacity; an external root exists only at selected admitted
-issuance. Checked sub-allocators transform existing content, while
-externally rooted conduits require admitted backing identity, fresh issuance,
-and custody evidence.
+duration of a transfer or lease. It never creates a fresh runtime root. A fresh
+program-local root exists only at a verifier-recognized installed introduction
+position with exact finite capacity and cardinality; an external root exists
+only at selected admitted issuance. Checked sub-allocators transform existing
+content, while externally rooted conduits require admitted backing identity,
+fresh issuance, and custody evidence.
 
 Any operation that realizes content against an external substrate must name an
 exact qualified root and carry backing or correspondence evidence connecting
@@ -516,13 +544,18 @@ not the semantic limit; the frontier theorem is general n-to-m conservation.
 
 Introduction and custody exit are claim-frontier rows, not freely authored
 algebra terms. A structural introduction requires all of: no consumed content
-source, an exact sealed establishment route, a content-bearing subject, and the
-matching selected provider invocation. The subject may be a result of an
-outbound boundary call or a parameter of an installed external-root entry. A
-checked machine cannot mint content by constructing equal geometry or writing
-a postcondition. Whole-claim custody exit follows a visible exact terminal
-call. Checked partial transformations compose the authored theorem of the
-partitioning primitive with the visible terminal call on the residual claim.
+source, an exact domain-authorized establishment requirement, and a
+content-bearing subject. A provider-backed introduction additionally requires
+the matching selected provider invocation and issuance receipt. A program-local
+introduction instead requires the exact statically enumerable installed
+parameter occurrence and its verifier-reconstructed capacity schema. The
+subject may be a result of an outbound provider call or a parameter of an
+installed external-root entry. A checked machine cannot mint content by
+constructing equal geometry, implementing the requirement, invoking it
+ordinarily, or writing a postcondition. Whole-claim custody exit follows a
+visible exact terminal call. Checked partial transformations compose the
+authored theorem of the partitioning primitive with the visible terminal call
+on the residual claim.
 
 A bodyless partial boundary cannot assert its own partition. The compiler
 derives `kept` from result projections, proves `kept` is contained in entry

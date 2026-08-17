@@ -115,6 +115,44 @@ EntryShape {
 }
 ```
 
+### Installed program-local roots
+
+Program-local content introduction reuses this slot and entry mechanism; it is
+not a new declaration category. A content-bearing domain names the exact trait
+requirement authorized to establish its qualification. One of that
+requirement's qualified parameter positions may become a fresh program-local
+root only when it is an installed environment-to-program occurrence whose
+cardinality is statically enumerable. At an ordinary call the same position is
+a precondition and the caller supplies an existing lineage.
+
+The requirement contract publishes an exact finite content expression per
+occurrence, or an owner-constrained const family whose selected instance reduces
+to one exact expression. The build selects an exact permitted requirement
+instance; it does not author an unconstrained capacity. The portable verifier
+reconstructs the route, subject position, qualification, content algebra, and
+per-occurrence capacity. Installation verification joins that schema to the
+slot's exact occurrence set, lifecycle, and epoch and derives the aggregate for
+one installed artifact instance. A producer-authored aggregate field is ignored
+or rejected rather than trusted.
+
+Cardinality remains deployment policy. Several installed component instances
+therefore multiply a per-instance demand exactly as they multiply stack or
+storage demand. A component needing one shared cap receives child claims split
+from one aggregate parent root; conservation prevents another child without
+additional supply. The parent cap is itself scoped to one installed assembly
+instance and epoch. Cathedral or another orchestrator derives peak system demand
+by composing verified artifact-instance totals across all concurrently live
+components and replacement eras. A cumulative cross-epoch ceiling requires
+persistent authority carried across epochs.
+
+The installation record retains the selected slot, requirement and satisfier,
+semantic parameter position, normalized capacity, exact occurrence identities,
+lineages, cardinality, and epoch. This record identifies concrete events but
+does not add a second authorization layer: the domain owner's closed route set
+remains the sole source-level authority. A later package may implement a public
+authorized requirement, but implementation, ordinary invocation, and matching
+data shape cannot mint a root.
+
 Direction is the root/provider distinction. An environment-to-program slot is
 an external root; a program-to-provider slot is an outbound service. Lifecycle,
 cardinality, and indexing are orthogonal to direction. Program entry, reset

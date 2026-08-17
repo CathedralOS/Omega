@@ -330,11 +330,16 @@ impl ExtentProviderIssuance {
     }
 }
 
-/// Compiler-owned evidence for one program-local authority account.
+/// Transitional compiler-owned evidence for one program-local authority
+/// account.
 ///
-/// This record can only represent capacity declared by the owning package in a
-/// sealed declaration. It deliberately carries no external backing, custody,
-/// or provider correspondence.
+/// The settled source model authorizes introduction through an exact domain
+/// route at a statically enumerable installed parameter position; it has no
+/// sealed provision declaration. The existing `sealed_declaration` identity is
+/// retained only until this carrier migrates to the reconstructed
+/// route-position/capacity schema and concrete installation occurrence. This
+/// record deliberately carries no external backing, custody, or provider
+/// correspondence.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ExtentCompilerProvisioning {
     provision: ExtentCompilerProvisionId,

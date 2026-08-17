@@ -244,11 +244,11 @@ to the exact ordinary call site, and terminal Psi retains its canonical scalar
 interface, ordering, freshness, result-shape, caller, operation-kind, or callee
 drift.
 
-The complete package model is design-blocked on `OWNER_QUESTIONS.md` Q13. Its
+The complete package model is design-blocked on `OWNER_QUESTIONS.md` Q12. Its
 identity must account for the machine, runtime result, named evidence fields,
 propositions, and outcome guards. Coincidentally equal shapes from two machines
 will not be the same type, and no generated `Machine::Output` name will be
-inserted into an author-owned namespace. Q13 must settle the exact canonical
+inserted into an author-owned namespace. Q12 must settle the exact canonical
 identity, inferred binding lifetime, projection ownership, residual-package
 validity, and Terminal proof rows before retained or guarded forms land.
 
@@ -271,19 +271,19 @@ let {
 ```
 
 Retained/projected and guarded complete-package forms are design-blocked on
-`OWNER_QUESTIONS.md` Q13. Generic package application is design-blocked on Q11.
-Explicit discard is design-blocked on Q12.
+`OWNER_QUESTIONS.md` Q12. Generic package application is design-blocked on Q10.
+Explicit discard is design-blocked on Q11.
 
 `value` is the reserved contextual field for an ordinary runtime result. Named
 evidence fields erase, so the package has the runtime representation of
 `value`; a proof-only package has zero runtime layout. There is no implicit
 coercion from the package to `value`. Every field in the implemented immediate
 shape must be bound. Explicit `_` discard is design-blocked on
-`OWNER_QUESTIONS.md` Q12 because evidence-term multiplicity has no approved
+`OWNER_QUESTIONS.md` Q11 because evidence-term multiplicity has no approved
 source/default rule yet; no rest pattern silently discards present or future
 proof fields.
 
-The intended guarded shape below remains illustrative pending Q13.
+The intended guarded shape below remains illustrative pending Q12.
 
 Outcome-specific evidence is a field only of the outcome where its `ensures`
 guard applies:

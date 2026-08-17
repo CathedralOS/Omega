@@ -847,7 +847,7 @@ fn program_storage_entry_publishes_both_core_owned_root_positions() {
         compiler_root_input(201, 0x2000, 0x400),
         compiler_root_input(202, 0x9000, 0x1000),
     )
-    .expect("sealed local roots use the same generic two-grant installer");
+    .expect("installed local roots use the same generic two-grant installer");
     let local_json =
         program_storage_installation_record_json(&local_installed.installation_record());
     assert!(local_json.contains("\"kind\": \"compiler_provisioned\""));

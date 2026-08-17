@@ -151,7 +151,7 @@ the target schema states how the launch environment supplies those needs.
 > to one selected provider plan/invocation, establishment route, capacity
 > account, and qualification through that record. A canonical
 > non-authoritative completed-installation JSON renderer and atomic artifact
-> writer cover both provider-issued and compiler-provisioned origins. The
+> writer cover both provider-issued and installed program-local origins. The
 > installation handoff releases roots only after that record is emitted and
 > seals them for retry across a write failure; ordinary compilation removes
 > stale copies and never claims completion. Receiver-bound entries now retain

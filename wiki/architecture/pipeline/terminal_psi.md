@@ -161,9 +161,9 @@ verifier requires that operation to occur in the declared caller, produce the
 declared scalar type, and call the linked callee; a missing, spurious, unknown,
 wrong-kind, wrong-caller, or mismatched-callee link rejects. The proof row adds
 no operation or fuel beyond that ordinary call. Retained/general projection and
-guarded complete-package forms are design-blocked on `OWNER_QUESTIONS.md` Q13.
-Generic package application is blocked on Q11, and explicit discard is blocked
-on Q12.
+guarded complete-package forms are design-blocked on `OWNER_QUESTIONS.md` Q12.
+Generic package application is blocked on Q10, and explicit discard is blocked
+on Q11.
 
 Relation applications retain their independently bound left and right carrier
 index packs; no global carrier-parameter role is serialized. Selected
@@ -1386,6 +1386,25 @@ boundary, Psi derives the kept content and residual and permits the provider to
 admit only acceptance of custody for that exact residual—not the partition
 arithmetic. External root correspondence and fresh issuance remain scoped
 admitted hypotheses with provenance; downstream conservation remains derived.
+
+Program-local root introduction is a separate derived origin, not an admission
+and not a producer-authored aggregate. Terminal Psi retains one canonical
+introduction schema for each exact domain-authorized requirement parameter
+that may be installed as a fresh root: requirement and subject-position identity,
+qualification, owner-unique content projection and algebra, normalized exact
+capacity or constrained-family instance, and artifact/lifecycle scope. The
+portable verifier reconstructs those fields from the semantic module and
+rejects a result route, ordinary call, missing parent lineage, unbounded
+capacity, or non-enumerable installation shape masquerading as introduction.
+
+The concrete installation record supplies the selected satisfier, exact slot
+occurrences, lineages, finite cardinality, and epoch. Installation verification
+joins it to the reconstructed schemas and derives the aggregate content demand
+for one installed artifact instance; it never accepts a producer-authored
+aggregate. Cathedral composes verified instance totals across the live
+component/era set and charges coexistence at peak. A parent root enforces a
+shared cap only within its own installed assembly and epoch, while a
+cross-epoch ceiling requires authority preserved across the epoch boundary.
 
 ### Crash-control slice
 
