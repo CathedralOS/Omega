@@ -71,6 +71,12 @@ reconstructs the byte-identical 35-row ledger. This is the bounded sixteen-kind
 table, not yet the remaining 19 production leaf rows plus the
 separate composition algebra for the three closed call variants.
 
+The generator carries exact typed declarations for every known value. Leaf
+operands, call arguments, block parameters, and newly introduced results are
+checked against that environment; duplicate identities and type drift reject
+before any row is published. The gate mutates the canonical byte fixture to
+reuse an existing value identity and requires both evaluators to reject it.
+
 ## Measured result
 
 Measured on Darwin 25.5 arm64, Apple M4 Pro, after building the Beta programs;
@@ -79,11 +85,11 @@ these are feasibility observations, not performance promises:
 | Item | Result |
 | --- | ---: |
 | Canonical fixture bytes | 1,400 |
-| Assembled typed Gamma core | 1,702 lines / 67,556 bytes |
+| Assembled typed Gamma core | 1,796 lines / 70,758 bytes |
 | Shared canonical-byte layer | 36 lines / 1,373 bytes / 6 functions |
-| Spike-specific typed core | 1,666 lines / 66,183 bytes / 157 functions |
+| Spike-specific typed core | 1,760 lines / 69,385 bytes / 167 functions |
 | Closed data declarations | 59 |
-| Typed functions, assembled | 163 |
+| Typed functions, assembled | 173 |
 | Maximum source nesting | 20 |
 | Canonical ledger | 35 rows / 2,414 modeled bytes |
 | Prospective reconstruction certificate | 2,052 modeled bytes |

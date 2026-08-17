@@ -196,12 +196,12 @@
     (FactConditional (ConditionalEq result left right))))
 
 (def build_leaf_from_schema
-  ((schema LeafSchema) (operation Int) (result Decl) (known Ints)
+  ((schema LeafSchema) (operation Int) (result Decl) (known Decls)
    (machine Int) (block Int) (rank Int) (left Int) (right Int) (obligation Int)) Build
   (match schema
     ((LeafSchema kind result_shape denotation goal fact crash fuel frontier)
       (if (schema_policy_valid result_shape goal fact crash fuel frontier obligation)
-        (if (valid_binary_result result known left right (result_shape_type result_shape))
+        (if (valid_binary_result result known left right 2 (result_shape_type result_shape))
           (let expression (denotation_expression denotation left right)
             (let fact_formula (leaf_fact_formula fact (decl_id result) expression left right)
               (match goal
@@ -209,7 +209,7 @@
                   (Built
                     (LCons (Row rank (PrimitiveOrigin operation) fact_formula
                              block (MachineScope machine) INil) LNil)
-                    (+ rank 1) (ICons (decl_id result) known)))
+                    (+ rank 1) (DCons result known)))
                 (z
                   (Built
                     (LCons (Row rank (PrimitiveOrigin operation)
@@ -217,6 +217,6 @@
                              block (MachineScope machine) INil)
                       (LCons (Row (+ rank 1) (PrimitiveOrigin operation) fact_formula
                                block (MachineScope machine) (ICons rank INil)) LNil))
-                    (+ rank 2) (ICons (decl_id result) known))))))
+                    (+ rank 2) (DCons result known))))))
           BuildBad)
         BuildBad))))

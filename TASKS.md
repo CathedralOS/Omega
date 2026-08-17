@@ -666,8 +666,8 @@ Remaining:
   justification ranks. Matching/asymmetric/malformed cases agree between the
   Beta-written reference interpreter and the independent Python evaluator.
   The 1,400-byte fixture yields a 2,414-byte modeled ledger and 2,052-byte
-  prospective certificate; the assembled typed core is 1,702 lines / 67,556
-  bytes / 163 functions. Its PSITERM-neutral byte cursor and
+  prospective certificate; the assembled typed core is 1,796 lines / 70,758
+  bytes / 173 functions. Its PSITERM-neutral byte cursor and
   checked `u8`/little-endian `u16`/`u32` primitives are now a separately gated
   36-line reusable layer; tags, bounded `u64` identities, strings, recursive
   vocabulary, and monomorphic type-specific results remain spike-owned. The
@@ -676,7 +676,11 @@ Remaining:
   denotation, goal, post-discharge fact, crash policy, fuel, and frontier
   behavior, while calls remain separate coverage/substitution algebra.
   Missing, duplicate, and altered table rows reject end to end without changing
-  the canonical 35-row ledger. The remaining 19 leaf rows, three
+  the canonical 35-row ledger. The generator's known-value environment now
+  retains exact typed declarations rather than IDs alone: duplicate result
+  identities, operand-type drift, duplicate declarations, join-parameter
+  overlap, and call argument-type drift reject before row publication. The
+  remaining 19 leaf rows, three
   call-composition definitions, low
   generator, row proofs, and composition bridges remain open; no trust-graph
   node becomes derived from the spike.

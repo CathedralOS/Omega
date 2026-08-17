@@ -35,6 +35,42 @@
     (DNil INil)
     ((DCons h t) (ICons (decl_id h) (decls_ids t)))))
 
+(def decls_len ((decls Decls)) Int
+  (match decls (DNil 0) ((DCons h t) (+ 1 (decls_len t)))))
+
+(def decls_has_id ((decls Decls) (id Int)) Int
+  (match decls
+    (DNil 0)
+    ((DCons declaration rest)
+      (if (eq (decl_id declaration) id) 1 (decls_has_id rest id)))))
+
+(def decls_has_exact ((decls Decls) (id Int) (ty Int)) Int
+  (match decls
+    (DNil 0)
+    ((DCons declaration rest)
+      (if (eq (decl_id declaration) id)
+        (if (eq (decl_ty declaration) ty)
+          (if (decls_has_id rest id) 0 1)
+          0)
+        (decls_has_exact rest id ty)))))
+
+(def decls_unique ((decls Decls)) Int
+  (match decls
+    (DNil 1)
+    ((DCons declaration rest)
+      (if (decls_has_id rest (decl_id declaration)) 0 (decls_unique rest)))))
+
+(def decls_disjoint ((left Decls) (right Decls)) Int
+  (match left
+    (DNil 1)
+    ((DCons declaration rest)
+      (if (decls_has_id right (decl_id declaration)) 0 (decls_disjoint rest right)))))
+
+(def decls_append ((left Decls) (right Decls)) Decls
+  (match left
+    (DNil right)
+    ((DCons declaration rest) (DCons declaration (decls_append rest right)))))
+
 (def decls_all_i8 ((decls Decls)) Int
   (match decls
     (DNil 1)
@@ -75,6 +111,14 @@
   (match decls
     ((DCons h t) (match t ((DCons s rest) (decl_id s)) (z 0)))
     (z 0)))
+
+(def first_decl ((decls Decls)) Decl
+  (match decls ((DCons h t) h) (z (Decl 0 0))))
+
+(def second_decl ((decls Decls)) Decl
+  (match decls
+    ((DCons h t) (match t ((DCons s rest) s) (z (Decl 0 0))))
+    (z (Decl 0 0))))
 
 (def first_int ((values Ints)) Int
   (match values ((ICons h t) h) (z 0)))
@@ -204,41 +248,78 @@
                   rows)
                 next))))))))
 
-(def valid_binary_result ((result Decl) (known Ints) (left Int) (right Int) (ty Int)) Int
-  (if (ints_has known (decl_id result)) 0
-    (if (eq (decl_ty result) ty)
-      (if (ints_has known left) (ints_has known right) 0)
+(def valid_binary_result
+  ((result Decl) (known Decls) (left Int) (right Int)
+   (operand_ty Int) (result_ty Int)) Int
+  (if (decls_has_id known (decl_id result)) 0
+    (if (eq (decl_ty result) result_ty)
+      (if (decls_has_exact known left operand_ty)
+        (decls_has_exact known right operand_ty)
+        0)
+      0)))
+
+(def typed_environment_self_test () Int
+  (let known (DCons (Decl 1 2) (DCons (Decl 2 1) DNil))
+    (if (decls_unique known)
+      (if (decls_has_exact known 1 2)
+        (if (eq (decls_has_exact known 1 1) 0)
+          (if (decls_has_exact known 2 1)
+            (if (valid_binary_result (Decl 3 2) known 1 1 2 2)
+              (if (eq (valid_binary_result (Decl 3 2) known 1 2 2 2) 0)
+                (if (eq (valid_binary_result (Decl 1 2) known 1 1 2 2) 0)
+                  (eq (decls_unique (DCons (Decl 1 2) known)) 0)
+                  0)
+                0)
+              0)
+            0)
+          0)
+        0)
       0)))
 
 (def build_call_exact
-  ((operation Int) (result Decl) (known Ints) (rank Int) (target Int)
-   (callee_id Int) (callee_result Decl) (p0 Int) (p1 Int) (a0 Int) (a1 Int)
+  ((operation Int) (result Decl) (known Decls) (rank Int) (target Int)
+   (callee_id Int) (callee_result Decl) (p0 Decl) (p1 Decl) (a0 Int) (a1 Int)
    (requires Props) (obligations Ints)) Build
-  (if (if (ints_has known (decl_id result)) 0
+  (if (if (decls_has_id known (decl_id result)) 0
         (if (eq target callee_id)
           (if (eq (decl_ty result) (decl_ty callee_result))
-            (if (ints_has known a0) (ints_has known a1) 0) 0) 0))
-    (match (emit_requirements requires obligations p0 a0 p1 a1 operation 0 rank)
+            (if (decls_has_exact known a0 (decl_ty p0))
+              (decls_has_exact known a1 (decl_ty p1)) 0) 0) 0))
+    (match (emit_requirements requires obligations
+             (decl_id p0) a0 (decl_id p1) a1 operation 0 rank)
       (ReqBuildBad BuildBad)
-      ((ReqBuilt rows next) (Built rows next (ICons (decl_id result) known))))
+      ((ReqBuilt rows next) (Built rows next (DCons result known))))
     BuildBad))
 
+(def call_typed_environment_self_test () Int
+  (let known (DCons (Decl 1 2) (DCons (Decl 2 1) DNil))
+    (match (build_call_exact 99 (Decl 3 2) known 1 7
+             7 (Decl 4 2) (Decl 5 2) (Decl 6 1) 1 2 PNil INil)
+      (BuildBad 0)
+      ((Built rows next final_known)
+        (if (decls_has_exact final_known 3 2)
+          (match (build_call_exact 99 (Decl 3 2) known 1 7
+                   7 (Decl 4 2) (Decl 5 2) (Decl 6 2) 1 2 PNil INil)
+            (BuildBad 1)
+            (z 0))
+          0)))))
+
 (def build_call
-  ((operation Int) (result Decl) (known Ints) (callee Machine) (rank Int)
+  ((operation Int) (result Decl) (known Decls) (callee Machine) (rank Int)
    (target Int) (arguments Ints) (obligations Ints)) Build
   (let parameters (machine_parameters callee)
-    (if (eq (ints_len (decls_ids parameters)) 2)
+    (if (eq (decls_len parameters) 2)
       (if (eq (ints_len arguments) 2)
         (build_call_exact operation result known rank target
           (machine_id callee) (machine_result callee)
-          (first_decl_id parameters) (second_decl_id parameters)
+          (first_decl parameters) (second_decl parameters)
           (first_int arguments) (second_int arguments)
           (machine_requires callee) obligations)
         BuildBad)
       BuildBad)))
 
 (def build_kind
-  ((schemas LeafSchemas) (kind OpKind) (operation Int) (result Decl) (known Ints)
+  ((schemas LeafSchemas) (kind OpKind) (operation Int) (result Decl) (known Decls)
    (callee Machine) (machine Int) (block Int) (rank Int)) Build
   (match (view_leaf kind)
     ((LeafView leaf left right obligation)
@@ -254,7 +335,7 @@
         (z BuildBad)))))
 
 (def build_ops
-  ((schemas LeafSchemas) (ops Ops) (known Ints) (callee Machine)
+  ((schemas LeafSchemas) (ops Ops) (known Decls) (callee Machine)
    (machine Int) (block Int) (rank Int)) Build
   (match ops
     (ONil (Built LNil rank known))
@@ -297,7 +378,7 @@
   (if (eq (ints_len arguments) 1) (first_int arguments) 0))
 
 (def one_decl_id ((decls Decls)) Int
-  (if (eq (ints_len (decls_ids decls)) 1) (first_decl_id decls) 0))
+  (if (eq (decls_len decls) 1) (first_decl_id decls) 0))
 
 (def edge_id_of ((edge Edge)) Int
   (match edge ((Edge id target arguments) id)))
@@ -688,13 +769,19 @@
 (def spike_type_shape_valid ((caller Machine) (callee Machine)) Int
   (let caller_parameters (machine_parameters caller)
     (let callee_parameters (machine_parameters callee)
-      (if (eq (ints_len (decls_ids caller_parameters)) 2)
-        (if (eq (ints_len (decls_ids callee_parameters)) 2)
-          (if (decls_all_i8 caller_parameters)
-            (if (decls_all_i8 callee_parameters)
-              (if (eq (decl_ty (machine_result caller)) 2)
-                (if (eq (decl_ty (machine_result callee)) 2)
-                  (empty_props (machine_requires caller))
+      (if (eq (decls_len caller_parameters) 2)
+        (if (eq (decls_len callee_parameters) 2)
+          (if (decls_unique caller_parameters)
+            (if (decls_unique callee_parameters)
+              (if (decls_all_i8 caller_parameters)
+                (if (decls_all_i8 callee_parameters)
+                  (if (eq (decl_ty (machine_result caller)) 2)
+                    (if (eq (decl_ty (machine_result callee)) 2)
+                      (if (decls_has_id caller_parameters (decl_id (machine_result caller))) 0
+                        (if (decls_has_id callee_parameters (decl_id (machine_result callee))) 0
+                          (empty_props (machine_requires caller))))
+                      0)
+                    0)
                   0)
                 0)
               0)
@@ -744,21 +831,24 @@
         (rows_append entry_rows (rows_append join_rows authored_rows)) after_authored))))
 
 (def finish_join_ledger
-  ((schemas LeafSchemas) (entry_rows Rows) (known Ints) (next Int)
+  ((schemas LeafSchemas) (entry_rows Rows) (known Decls) (next Int)
    (caller Machine) (callee Machine) (entry_block Block) (true_block Block)
    (false_block Block) (join_block Block)) RLedger
-  (match (build_ops schemas (block_ops join_block)
-           (ints_append (decls_ids (block_parameters join_block)) known)
-           callee (machine_id caller) (block_id_of join_block) next)
-    (BuildBad RLedgerBad)
-    ((Built join_rows after_join final_known)
-      (finish_authored_ledger entry_rows join_rows after_join callee
-        (block_term entry_block) true_block false_block join_block))))
+  (let parameters (block_parameters join_block)
+    (if (if (decls_unique parameters) (decls_disjoint parameters known) 0)
+      (match (build_ops schemas (block_ops join_block)
+               (decls_append parameters known)
+               callee (machine_id caller) (block_id_of join_block) next)
+        (BuildBad RLedgerBad)
+        ((Built join_rows after_join final_known)
+          (finish_authored_ledger entry_rows join_rows after_join callee
+            (block_term entry_block) true_block false_block join_block)))
+      RLedgerBad)))
 
 (def build_spike_ledger
   ((schemas LeafSchemas) (caller Machine) (callee Machine) (entry_block Block)
    (true_block Block) (false_block Block) (join_block Block)) RLedger
-  (match (build_ops schemas (block_ops entry_block) (decls_ids (machine_parameters caller))
+  (match (build_ops schemas (block_ops entry_block) (machine_parameters caller)
            callee (machine_id caller) (block_id_of entry_block) 1)
     (BuildBad RLedgerBad)
     ((Built entry_rows next known)
@@ -819,12 +909,16 @@
 
 (def run_spike_with_schemas ((schemas LeafSchemas) (bytes Bytes)) Int
   (if (arithmetic_self_test)
-    (match (decode_module bytes)
-      (RModuleBad 0)
-      ((RModule module)
-        (match (build_module_ledger_with_schemas schemas module)
-          (RLedgerBad 0)
-          ((RLedger rows) 1))))
+    (if (typed_environment_self_test)
+      (if (call_typed_environment_self_test)
+        (match (decode_module bytes)
+          (RModuleBad 0)
+          ((RModule module)
+            (match (build_module_ledger_with_schemas schemas module)
+              (RLedgerBad 0)
+              ((RLedger rows) 1))))
+        0)
+      0)
     0))
 
 (def run_spike ((bytes Bytes)) Int
