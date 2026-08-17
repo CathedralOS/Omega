@@ -1567,19 +1567,22 @@ label. Every dependency must terminate at an explicitly registered root with
 kind, semantic subject, digest/version, owner, scope, rationale, and accepting
 policy; unknown or cyclic leaves reject. Until proofs replace them, the current
 Rust generator, each uncertified reduction family, the low ledger framework,
-and each unproved denotation row appear as distinct trusted-judgment
-dependencies. A denotation row may move from trusted, to a locally checked row
-theorem, to inclusion in the checked module-composition bridge without hiding
-the remaining global dependency.
+each unproved leaf-denotation row, and each unproved call-composition row appear
+as distinct trusted-judgment dependencies. A leaf row may move from trusted, to
+a locally checked row theorem, to inclusion in the checked module-composition
+bridge without hiding the remaining global dependency. Call rows move only
+after their separate coverage, substitution, outcome, crash-route, and evidence-
+lifetime composition obligations are established.
 
 The current Rust migration surface is now exposed by `psi-terminal-codec` in
 every verified proof synopsis. Its validated graph binds exact source bytes and
 explicit versions for the decoder, proof kernel, verifier, each sufficient-form
-reducer, the unproved ledger framework, and one row for every closed
-`OperationKind`. Dependency edges contribute to the graph identity; unknown,
-cyclic, unreachable, duplicate, or noncanonical custody rejects. The entry
-deliberately reports `fully-derived false`: this inventory is the prerequisite
-for, not an implementation of, the low canonical ledger.
+reducer, the unproved ledger framework, 35 leaf-schema rows, and three call-
+composition rows covering every closed `OperationKind`. Dependency edges
+contribute to the graph identity; unknown, cyclic, unreachable, duplicate, or
+noncanonical custody rejects. The entry deliberately reports `fully-derived
+false`: this inventory is the prerequisite for, not an implementation of, the
+low canonical ledger.
 
 The bounded Gamma feasibility spike now starts from two exact current
 `PSITERM\0` v11 byte fixtures and reconstructs a typed 22-row ledger. It covers
@@ -1599,8 +1602,9 @@ or mark any trust-graph dependency derived. Its seven primitive variants now
 resolve through a separate exact-unique typed schema table whose rows own result
 shape, denotation, goal, post-discharge fact, crash policy, fuel, and frontier
 behavior. Missing, duplicate, and altered rows reject end to end; calls retain
-their separate coverage/substitution algebra. The full decoder, full 38-kind
-row table, low proofs, and composition bridges remain required.
+their separate coverage/substitution algebra. The full decoder, full 35-row
+leaf table, three call-composition definitions, low proofs, and composition
+bridges remain required.
 
 Portable terminal-Psi denotation bottoms out in the abstract terminal execution
 model, not in x86-64 or AArch64 behavior. ISA semantics, hardware fidelity,

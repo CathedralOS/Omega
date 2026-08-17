@@ -28,7 +28,7 @@ pub use psi_terminal::{SemanticFingerprint, TerminalPsiIdentity};
 pub use trust_graph::{
     TerminalTrustGraphIdentity, TrustAcceptingPolicy, TrustDependencyDigest, TrustDependencyKind,
     TrustDependencyNode, TrustDependencyStatus, TrustGraphError, ValidatedTerminalTrustGraph,
-    current_rust_denotation_trust_identity, current_terminal_trust_graph,
+    current_rust_operation_semantics_trust_identity, current_terminal_trust_graph,
     render_terminal_trust_graph, validate_terminal_trust_graph,
 };
 

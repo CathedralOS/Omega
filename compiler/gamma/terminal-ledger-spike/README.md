@@ -64,7 +64,8 @@ capture-free substitution, and outcome/control responsibilities remain in the
 separate call algebra. The gate runs the complete fixture with a missing row, a
 duplicate row, and an altered row; all three reject while the canonical table
 reconstructs the byte-identical 22-row ledger. This is the bounded seven-kind
-table, not yet the production table for all 38 closed `OperationKind` variants.
+table, not yet the production 35-row leaf table plus the separate composition
+algebra for the three closed call variants.
 
 ## Measured result
 
@@ -111,7 +112,7 @@ primitives are now factored into `../canonical-bytes/` and have an independent
 typed/interpreter gate. The largest remaining audit tax is mechanical
 repetition: Gamma currently has no parametric result type, so the bounded
 decoder still declares a result ADT for each parsed semantic type. The full
-decoder and full 38-kind schema table should measure that remaining cost before
+decoder and full 35-row leaf schema table should measure that remaining cost before
 making any explicit Gamma rung correction. The spike itself is cleanly
 expressible and therefore finds no language-design blocker.
 

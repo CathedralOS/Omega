@@ -3,8 +3,9 @@
 //! This is deliberately an honest description of the current deployment
 //! boundary, not the final canonical-ledger implementation. Rust decoding,
 //! semantic reconstruction, every sufficient-form reducer, the current ledger
-//! framework, and every unproved operation row remain explicit trusted
-//! judgments until low-rung derivations replace them.
+//! framework, every unproved leaf schema, and every unproved call-composition
+//! row remain explicit trusted judgments until low-rung derivations replace
+//! them.
 
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -55,6 +56,7 @@ pub enum TrustDependencyKind {
     SufficientFormReduction,
     LedgerFramework,
     DenotationSchema,
+    CallComposition,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -397,20 +399,21 @@ fn build_current_terminal_trust_graph() -> Result<ValidatedTerminalTrustGraph, T
     nodes.push(verifier_node());
     nodes.push(ledger_framework_node());
     nodes.extend(reduction_nodes());
-    nodes.extend(denotation_nodes());
+    nodes.extend(operation_semantics_nodes());
     nodes.push(current_closure_node());
     nodes.sort_by(|left, right| left.identity.cmp(&right.identity));
     validate_terminal_trust_graph(CURRENT_ENTRY, nodes)
 }
 
-/// Exact current trusted denotation row selected by one closed operation
-/// variant. This exhaustive match is intentionally separate from execution:
-/// adding an `OperationKind` cannot compile until its migration trust row is
-/// named as well.
-pub fn current_rust_denotation_trust_identity(
+/// Exact current trusted semantic row selected by one closed operation
+/// variant. Leaf operations resolve to declarative-schema custody; calls
+/// resolve to the separate coverage/substitution/composition algebra. This
+/// exhaustive match is intentionally separate from execution: adding an
+/// `OperationKind` cannot compile until its migration trust row is named too.
+pub fn current_rust_operation_semantics_trust_identity(
     operation: &psi_terminal::OperationKind,
 ) -> &'static str {
-    CurrentRustDenotationRow::for_operation(operation).identity()
+    CurrentRustOperationSemanticsRow::for_operation(operation).identity()
 }
 
 pub fn render_terminal_trust_graph(
@@ -690,27 +693,47 @@ fn reduction_nodes() -> Vec<TrustDependencyNode> {
     .collect()
 }
 
-fn denotation_nodes() -> Vec<TrustDependencyNode> {
-    CurrentRustDenotationRow::ALL
+fn operation_semantics_nodes() -> Vec<TrustDependencyNode> {
+    CurrentRustOperationSemanticsRow::ALL
         .iter()
         .map(|row| {
-            let subject = format!("terminal-Psi OperationKind::{} direct denotation", row.name());
+            let (subject, version, scope, rationale) = match row.kind() {
+                TrustDependencyKind::DenotationSchema => (
+                    format!("terminal-Psi OperationKind::{} direct leaf denotation", row.name()),
+                    "terminal-leaf-denotation-v1-unproved",
+                    "one closed terminal-Psi leaf-operation schema row",
+                    "The Rust leaf row is trusted until its universally quantified denotation theorem and composition bridge are accepted.",
+                ),
+                TrustDependencyKind::CallComposition => (
+                    format!("terminal-Psi OperationKind::{} call composition", row.name()),
+                    "terminal-call-composition-v1-unproved",
+                    "one closed terminal-Psi call coverage/substitution/composition row",
+                    "The Rust call row is trusted until exact clause coverage, capture-free substitution, outcomes, crash routes, and evidence lifetimes are established by the low ledger algebra.",
+                ),
+                _ => unreachable!("operation rows have leaf-schema or call-composition custody"),
+            };
             TrustDependencyNode::new(
                 row.identity(),
-                TrustDependencyKind::DenotationSchema,
+                row.kind(),
                 TrustDependencyStatus::TrustedJudgment,
                 subject,
-                "terminal-operation-denotation-v1-unproved",
+                version,
                 "psi-terminal-verifier",
-                "one closed terminal-Psi leaf-operation row",
-                "The Rust row is trusted until its universally quantified denotation theorem and composition bridge are accepted.",
+                scope,
+                rationale,
                 TrustAcceptingPolicy::ExplicitMigrationTrust,
                 dependencies(&[
                     "framework:canonical-semantic-ledger-v1",
                     "root:abstract-terminal-execution-model",
                     "root:explicit-rust-migration-policy",
                 ]),
-                &[("psi-terminal-verifier/verification.rs", VERIFIER_SOURCE)],
+                &[
+                    (
+                        "psi-terminal-verifier/validation.rs",
+                        VERIFIER_VALIDATION_SOURCE,
+                    ),
+                    ("psi-terminal-verifier/verification.rs", VERIFIER_SOURCE),
+                ],
             )
         })
         .collect()
@@ -723,7 +746,11 @@ fn current_closure_node() -> TrustDependencyNode {
         "implementation:rust-terminal-verifier".to_owned(),
     ];
     dependency_ids.extend(reduction_nodes().into_iter().map(|node| node.identity));
-    dependency_ids.extend(denotation_nodes().into_iter().map(|node| node.identity));
+    dependency_ids.extend(
+        operation_semantics_nodes()
+            .into_iter()
+            .map(|node| node.identity),
+    );
     dependency_ids.sort();
     TrustDependencyNode::new(
         CURRENT_ENTRY,
@@ -743,15 +770,15 @@ fn current_closure_node() -> TrustDependencyNode {
     )
 }
 
-macro_rules! current_rust_denotation_rows {
-    ($( $variant:ident => $slug:literal ),+ $(,)?) => {
+macro_rules! current_rust_operation_semantics_rows {
+    ($( $variant:ident => ($identity:literal, $kind:ident) ),+ $(,)?) => {
         #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-        enum CurrentRustDenotationRow {
+        enum CurrentRustOperationSemanticsRow {
             $( $variant ),+
         }
 
-        impl CurrentRustDenotationRow {
-            const ALL: [Self; current_rust_denotation_rows!(@count $( $variant )+)] = [
+        impl CurrentRustOperationSemanticsRow {
+            const ALL: [Self; current_rust_operation_semantics_rows!(@count $( $variant )+)] = [
                 $( Self::$variant ),+
             ];
 
@@ -763,7 +790,13 @@ macro_rules! current_rust_denotation_rows {
 
             fn identity(self) -> &'static str {
                 match self {
-                    $( Self::$variant => concat!("schema:operation:", $slug) ),+
+                    $( Self::$variant => $identity ),+
+                }
+            }
+
+            fn kind(self) -> TrustDependencyKind {
+                match self {
+                    $( Self::$variant => TrustDependencyKind::$kind ),+
                 }
             }
 
@@ -777,50 +810,50 @@ macro_rules! current_rust_denotation_rows {
         }
     };
     (@count $( $variant:ident )+) => {
-        <[()]>::len(&[$(current_rust_denotation_rows!(@unit $variant)),+])
+        <[()]>::len(&[$(current_rust_operation_semantics_rows!(@unit $variant)),+])
     };
     (@unit $variant:ident) => { () };
 }
 
-current_rust_denotation_rows! {
-    EstablishTrivialAffineLocal => "establish-trivial-affine-local",
-    Call => "call",
-    CallUnit => "call-unit",
-    BoundaryCall => "boundary-call",
-    PortWrite => "port-write",
-    IntegerConstant => "integer-constant",
-    BooleanConstant => "boolean-constant",
-    BooleanStructuralField => "boolean-structural-field",
-    BooleanNot => "boolean-not",
-    BooleanEqual => "boolean-equal",
-    IntegerEqual => "integer-equal",
-    IntegerLessThan => "integer-less-than",
-    IntegerLessOrEqual => "integer-less-or-equal",
-    IntegerBitwiseNot => "integer-bitwise-not",
-    IntegerWiden => "integer-widen",
-    IntegerExactCast => "integer-exact-cast",
-    IntegerBitwiseAnd => "integer-bitwise-and",
-    IntegerBitwiseOr => "integer-bitwise-or",
-    IntegerBitwiseXor => "integer-bitwise-xor",
-    WrappingIntegerShiftLeft => "wrapping-integer-shift-left",
-    WrappingIntegerShiftRight => "wrapping-integer-shift-right",
-    ExactIntegerShiftLeft => "exact-integer-shift-left",
-    ExactIntegerShiftRight => "exact-integer-shift-right",
-    ExactIntegerAdd => "exact-integer-add",
-    ExactIntegerSubtract => "exact-integer-subtract",
-    ExactIntegerMultiply => "exact-integer-multiply",
-    ExactIntegerDivide => "exact-integer-divide",
-    ExactIntegerRemainder => "exact-integer-remainder",
-    WrappingIntegerDivide => "wrapping-integer-divide",
-    WrappingIntegerRemainder => "wrapping-integer-remainder",
-    SaturatingIntegerDivide => "saturating-integer-divide",
-    SaturatingIntegerRemainder => "saturating-integer-remainder",
-    WrappingIntegerAdd => "wrapping-integer-add",
-    SaturatingIntegerAdd => "saturating-integer-add",
-    WrappingIntegerSubtract => "wrapping-integer-subtract",
-    SaturatingIntegerSubtract => "saturating-integer-subtract",
-    WrappingIntegerMultiply => "wrapping-integer-multiply",
-    SaturatingIntegerMultiply => "saturating-integer-multiply",
+current_rust_operation_semantics_rows! {
+    EstablishTrivialAffineLocal => ("schema:operation:establish-trivial-affine-local", DenotationSchema),
+    Call => ("algebra:call:call", CallComposition),
+    CallUnit => ("algebra:call:call-unit", CallComposition),
+    BoundaryCall => ("algebra:call:boundary-call", CallComposition),
+    PortWrite => ("schema:operation:port-write", DenotationSchema),
+    IntegerConstant => ("schema:operation:integer-constant", DenotationSchema),
+    BooleanConstant => ("schema:operation:boolean-constant", DenotationSchema),
+    BooleanStructuralField => ("schema:operation:boolean-structural-field", DenotationSchema),
+    BooleanNot => ("schema:operation:boolean-not", DenotationSchema),
+    BooleanEqual => ("schema:operation:boolean-equal", DenotationSchema),
+    IntegerEqual => ("schema:operation:integer-equal", DenotationSchema),
+    IntegerLessThan => ("schema:operation:integer-less-than", DenotationSchema),
+    IntegerLessOrEqual => ("schema:operation:integer-less-or-equal", DenotationSchema),
+    IntegerBitwiseNot => ("schema:operation:integer-bitwise-not", DenotationSchema),
+    IntegerWiden => ("schema:operation:integer-widen", DenotationSchema),
+    IntegerExactCast => ("schema:operation:integer-exact-cast", DenotationSchema),
+    IntegerBitwiseAnd => ("schema:operation:integer-bitwise-and", DenotationSchema),
+    IntegerBitwiseOr => ("schema:operation:integer-bitwise-or", DenotationSchema),
+    IntegerBitwiseXor => ("schema:operation:integer-bitwise-xor", DenotationSchema),
+    WrappingIntegerShiftLeft => ("schema:operation:wrapping-integer-shift-left", DenotationSchema),
+    WrappingIntegerShiftRight => ("schema:operation:wrapping-integer-shift-right", DenotationSchema),
+    ExactIntegerShiftLeft => ("schema:operation:exact-integer-shift-left", DenotationSchema),
+    ExactIntegerShiftRight => ("schema:operation:exact-integer-shift-right", DenotationSchema),
+    ExactIntegerAdd => ("schema:operation:exact-integer-add", DenotationSchema),
+    ExactIntegerSubtract => ("schema:operation:exact-integer-subtract", DenotationSchema),
+    ExactIntegerMultiply => ("schema:operation:exact-integer-multiply", DenotationSchema),
+    ExactIntegerDivide => ("schema:operation:exact-integer-divide", DenotationSchema),
+    ExactIntegerRemainder => ("schema:operation:exact-integer-remainder", DenotationSchema),
+    WrappingIntegerDivide => ("schema:operation:wrapping-integer-divide", DenotationSchema),
+    WrappingIntegerRemainder => ("schema:operation:wrapping-integer-remainder", DenotationSchema),
+    SaturatingIntegerDivide => ("schema:operation:saturating-integer-divide", DenotationSchema),
+    SaturatingIntegerRemainder => ("schema:operation:saturating-integer-remainder", DenotationSchema),
+    WrappingIntegerAdd => ("schema:operation:wrapping-integer-add", DenotationSchema),
+    SaturatingIntegerAdd => ("schema:operation:saturating-integer-add", DenotationSchema),
+    WrappingIntegerSubtract => ("schema:operation:wrapping-integer-subtract", DenotationSchema),
+    SaturatingIntegerSubtract => ("schema:operation:saturating-integer-subtract", DenotationSchema),
+    WrappingIntegerMultiply => ("schema:operation:wrapping-integer-multiply", DenotationSchema),
+    SaturatingIntegerMultiply => ("schema:operation:saturating-integer-multiply", DenotationSchema),
 }
 fn dependencies(values: &[&str]) -> Vec<String> {
     let mut values = values
@@ -986,9 +1019,35 @@ mod tests {
                 .iter()
                 .filter(|node| node.kind() == TrustDependencyKind::DenotationSchema)
                 .count(),
-            CurrentRustDenotationRow::ALL.len()
+            35
         );
-        assert_eq!(CurrentRustDenotationRow::ALL.len(), 38);
+        assert_eq!(
+            graph
+                .nodes()
+                .iter()
+                .filter(|node| node.kind() == TrustDependencyKind::CallComposition)
+                .count(),
+            3
+        );
+        assert_eq!(CurrentRustOperationSemanticsRow::ALL.len(), 38);
+        assert_eq!(
+            CurrentRustOperationSemanticsRow::ALL
+                .iter()
+                .filter(|row| row.kind() == TrustDependencyKind::DenotationSchema)
+                .count(),
+            35
+        );
+        assert_eq!(
+            CurrentRustOperationSemanticsRow::ALL
+                .iter()
+                .filter(|row| row.kind() == TrustDependencyKind::CallComposition)
+                .count(),
+            3
+        );
+        assert_eq!(
+            CurrentRustOperationSemanticsRow::Call.identity(),
+            "algebra:call:call"
+        );
         assert!(graph.nodes().iter().all(|node| {
             !node.identity().is_empty()
                 && !node.semantic_subject().is_empty()
@@ -1053,7 +1112,12 @@ mod tests {
             .iter_mut()
             .find(|node| node.identity == CURRENT_ENTRY)
             .expect("closure node");
-        closure.dependencies.remove(0);
+        let framework = closure
+            .dependencies
+            .iter()
+            .position(|dependency| dependency == "framework:canonical-semantic-ledger-v1")
+            .expect("closure directly names the framework");
+        closure.dependencies.remove(framework);
         let changed = validate_terminal_trust_graph(CURRENT_ENTRY, nodes)
             .expect("changed graph remains structurally closed");
         assert_ne!(graph.identity(), changed.identity());

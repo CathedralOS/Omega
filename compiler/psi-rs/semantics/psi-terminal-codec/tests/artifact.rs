@@ -16,9 +16,9 @@ use psi_terminal::{
 };
 use psi_terminal_codec::{
     ArtifactManifestError, ProofCodecError, build_artifact_manifest,
-    current_rust_denotation_trust_identity, current_terminal_trust_graph, decode_proof_bundle,
-    encode_proof_bundle, proof_bundle_fingerprint, render_verified_proof_synopsis,
-    terminal_psi_identity, validate_artifact_manifest,
+    current_rust_operation_semantics_trust_identity, current_terminal_trust_graph,
+    decode_proof_bundle, encode_proof_bundle, proof_bundle_fingerprint,
+    render_verified_proof_synopsis, terminal_psi_identity, validate_artifact_manifest,
 };
 use psi_terminal_verifier::{ObligationEvidence, ProofBundle, verify_module};
 
@@ -100,13 +100,23 @@ fn synopsis_is_projected_from_the_exact_accepted_certificate() {
     assert!(first.contains("trust-node reduction:integer-conversion"));
     assert!(first.contains("trust-node schema:operation:exact-integer-add"));
     assert_eq!(
-        current_rust_denotation_trust_identity(&OperationKind::ExactIntegerAdd {
+        current_rust_operation_semantics_trust_identity(&OperationKind::ExactIntegerAdd {
             left: value_id(1),
             right: value_id(2),
             obligation: obligation_id(3),
         }),
         "schema:operation:exact-integer-add"
     );
+    assert_eq!(
+        current_rust_operation_semantics_trust_identity(&OperationKind::Call {
+            callee: machine_id(9),
+            arguments: vec![value_id(1)],
+            requirement_obligations: vec![obligation_id(2)],
+            crash_continuations: Vec::new(),
+        }),
+        "algebra:call:call"
+    );
+    assert!(first.contains("trust-node algebra:call:call"));
 
     let goal = module.machines[0].contract.ensures[0].proposition.clone();
     let assumption_bundle = ProofBundle {
