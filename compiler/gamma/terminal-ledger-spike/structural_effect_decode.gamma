@@ -8,28 +8,24 @@
 ; closed data declarations live beside the shared ledger vocabulary in
 ; types.gamma; this file owns byte decoding only.
 
-(def read_ascii_n ((bs Bytes) (n Int)) RInts
-  (if (eq n 0) (RInts INil bs)
-    (match (read_u8 bs)
-      (RIntBad RIntsBad)
-      ((RInt byte rest)
-        (if (if (lt 0 byte) (lt byte 128) 0)
-          (match (read_ascii_n rest (- n 1))
-            (RIntsBad RIntsBad)
-            ((RInts tail end) (RInts (ICons byte tail) end)))
-          RIntsBad)))))
+(def bytes_to_ints ((bytes Bytes)) Ints
+  (match bytes
+    (BNil INil)
+    ((B first rest) (ICons first (bytes_to_ints rest)))))
 
-(def read_ascii ((bs Bytes)) RInts
-  (match (read_u32 bs)
-    (RIntBad RIntsBad)
-    ((RInt count rest)
-      (if (eq count 0) RIntsBad (read_ascii_n rest count)))))
+(def read_spike_identity ((bs Bytes)) RInts
+  (match (read_utf8_string bs)
+    (RUtf8Bad RIntsBad)
+    ((RUtf8 value rest)
+      (match value
+        (BNil RIntsBad)
+        ((B first tail) (RInts (ICons first (bytes_to_ints tail)) rest))))))
 
 (def read_se_field ((bs Bytes)) RSEField
   (match (read_id bs)
     (RIntBad RSEFieldBad)
     ((RInt id r1)
-      (match (read_ascii r1)
+      (match (read_spike_identity r1)
         (RIntsBad RSEFieldBad)
         ((RInts identity r2)
           (match (read_u8 r2)
@@ -58,7 +54,7 @@
   (match (read_id bs)
     (RIntBad RSETypeBad)
     ((RInt id r1)
-      (match (read_ascii r1)
+      (match (read_spike_identity r1)
         (RIntsBad RSETypeBad)
         ((RInts identity r2)
           (match (expect_byte r2 1)
@@ -90,7 +86,7 @@
   (match (read_id bs)
     (RIntBad RSEServiceBad)
     ((RInt id r1)
-      (match (read_ascii r1)
+      (match (read_spike_identity r1)
         (RIntsBad RSEServiceBad)
         ((RInts identity r2)
           (match (read_ids r2)

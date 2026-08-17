@@ -1,0 +1,81 @@
+; Focused executable contract for canonical terminal UTF-8 strings.
+
+(def bytes_equal ((left Bytes) (right Bytes)) Int
+  (match left
+    (BNil (match right (BNil 1) ((B h t) 0)))
+    ((B first rest)
+      (match right
+        (BNil 0)
+        ((B other tail) (if (eq first other) (bytes_equal rest tail) 0))))))
+
+(def rutf8_exact_empty ((result RUtf8) (want Bytes)) Int
+  (match result
+    (RUtf8Bad 0)
+    ((RUtf8 got rest)
+      (if (bytes_equal got want) (match rest (BNil 1) ((B h t) 0)) 0))))
+
+(def rutf8_exact_one ((result RUtf8) (want Bytes) (tail Int)) Int
+  (match result
+    (RUtf8Bad 0)
+    ((RUtf8 got rest)
+      (if (bytes_equal got want)
+        (match rest
+          (BNil 0)
+          ((B h t) (if (eq h tail) (match t (BNil 1) ((B x xs) 0)) 0)))
+        0))))
+
+(def rutf8_bad ((result RUtf8)) Int
+  (match result (RUtf8Bad 1) ((RUtf8 got rest) 0)))
+
+(def terminal_utf8_positive_test () Int
+  (if (rutf8_exact_empty (read_utf8_string (B 0 (B 0 (B 0 (B 0 BNil))))) BNil)
+    (if (rutf8_exact_empty
+          (read_utf8_string (B 2 (B 0 (B 0 (B 0 (B 65 (B 0 BNil)))))))
+          (B 65 (B 0 BNil)))
+      (if (rutf8_exact_empty
+            (read_utf8_string (B 2 (B 0 (B 0 (B 0 (B 194 (B 162 BNil)))))))
+            (B 194 (B 162 BNil)))
+        (if (rutf8_exact_empty
+              (read_utf8_string
+                (B 3 (B 0 (B 0 (B 0 (B 226 (B 130 (B 172 BNil))))))))
+              (B 226 (B 130 (B 172 BNil))))
+          (if (rutf8_exact_one
+                (read_utf8_string
+                  (B 4 (B 0 (B 0 (B 0
+                    (B 240 (B 159 (B 152 (B 128 (B 9 BNil))))))))))
+                (B 240 (B 159 (B 152 (B 128 BNil)))) 9)
+            1 0)
+          0)
+        0)
+      0)
+    0))
+
+(def terminal_utf8_negative_test () Int
+  (if (rutf8_bad
+        (read_utf8_string (B 2 (B 0 (B 0 (B 0 (B 192 (B 128 BNil))))))))
+    (if (rutf8_bad
+          (read_utf8_string
+            (B 3 (B 0 (B 0 (B 0 (B 224 (B 128 (B 128 BNil)))))))))
+      (if (rutf8_bad
+            (read_utf8_string
+              (B 3 (B 0 (B 0 (B 0 (B 237 (B 160 (B 128 BNil)))))))))
+        (if (rutf8_bad
+              (read_utf8_string
+                (B 4 (B 0 (B 0 (B 0
+                  (B 244 (B 144 (B 128 (B 128 BNil))))))))))
+          (if (rutf8_bad
+                (read_utf8_string (B 1 (B 0 (B 0 (B 0 (B 128 BNil)))))))
+            (if (rutf8_bad
+                  (read_utf8_string
+                    (B 4 (B 0 (B 0 (B 0 (B 240 (B 159 (B 152 BNil)))))))))
+              (if (rutf8_bad (read_utf8_string (B 1 (B 0 (B 16 (B 0 BNil))))))
+                1 0)
+              0)
+            0)
+          0)
+        0)
+      0)
+    0))
+
+(def terminal_utf8_self_test () Int
+  (if (terminal_utf8_positive_test) (terminal_utf8_negative_test) 0))

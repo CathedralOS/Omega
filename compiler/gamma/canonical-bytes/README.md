@@ -17,7 +17,10 @@ The layer deliberately owns only:
 - exact-byte and zero-byte consumption.
 
 It does not know the `PSITERM\0` marker, vocabulary versions, collection counts,
-semantic identities, strings, terminal tags, or any recursive terminal type.
+semantic identities, terminal tags, or any recursive terminal type. The exact
+length-prefixed UTF-8 string grammar is the adjacent, independently gated
+`../terminal-codec-primitives/` responsibility rather than part of this raw
+byte layer.
 The bounded ledger spike still narrows decoded identities to a zero high half
 because its fixture vocabulary stores identities as `Int`; that consumer-side
 limit is explicit even though this shared layer now retains the complete

@@ -1,0 +1,3 @@
+; Shared terminal-codec result vocabulary layered over canonical Bytes.
+
+(data RUtf8 (RUtf8 Bytes Bytes) (RUtf8Bad))

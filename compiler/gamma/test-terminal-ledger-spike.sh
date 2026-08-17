@@ -31,8 +31,10 @@ build_beta_program typeck.beta "$T/typeck.exe"
 build_beta_program interp.beta "$T/interp.exe"
 
 cat canonical-bytes/types.gamma \
+    terminal-codec-primitives/types.gamma \
     terminal-ledger-spike/types.gamma \
     canonical-bytes/decode.gamma \
+    terminal-codec-primitives/utf8.gamma \
     terminal-ledger-spike/decode.gamma \
     terminal-ledger-spike/schema.gamma \
     terminal-ledger-spike/call_composition.gamma \
@@ -87,6 +89,8 @@ fixture_expr "$FIXTURES/terminal_ledger_call_composition.hex" --append-byte 0 \
   > "$T/call-trailing.expr"
 fixture_expr "$FIXTURES/terminal_ledger_structural_effect.hex" --set-byte 74 0 \
   > "$T/structural-erased-field.expr"
+fixture_expr "$FIXTURES/terminal_ledger_structural_effect.hex" --set-byte 36 128 \
+  > "$T/structural-invalid-utf8.expr"
 fixture_expr "$FIXTURES/terminal_ledger_structural_effect.hex" --set-byte 334 2 \
   > "$T/structural-field-drift.expr"
 fixture_expr "$FIXTURES/terminal_ledger_structural_effect.hex" --set-byte 352 2 \
@@ -159,6 +163,8 @@ run_function missing-cast-obligation run_spike "$T/missing-cast-obligation.expr"
 run_function structural-effect run_structural_effect_spike "$T/structural-effect.expr" 1
 run_function structural-effect-schema-mutations \
   structural_effect_schema_mutation_self_test "$T/structural-effect.expr" 1
+run_function structural-invalid-utf8 run_structural_effect_spike \
+  "$T/structural-invalid-utf8.expr" 0
 run_function structural-erased-field run_structural_effect_spike \
   "$T/structural-erased-field.expr" 0
 run_function structural-field-drift run_structural_effect_spike \
