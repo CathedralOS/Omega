@@ -129,7 +129,7 @@ fn build_state_plan(
                 let parameter = parameters
                     .iter()
                     .find(|parameter| parameter.symbol == symbol)?;
-                (!super::terminal_unit::type_graph_requires_nominal_drop(
+                (!super::terminal_unit::types::type_graph_requires_nominal_drop(
                     program,
                     parameter.type_reference,
                 ))

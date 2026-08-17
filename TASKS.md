@@ -721,9 +721,14 @@ Remaining:
   shifts/cross-family composition, none larger than 1,317 lines. The test
   parent shrank from 10,785 to 2,915 lines, and its forty classifier cases are
   separated into chain, affine-join, and nominal-cleanup modules, none larger
-  than 3,411 lines. This is a semantics-preserving responsibility split, not a
-  trust promotion: the full low generator, row proofs, and composition bridges
-  remain open, and no trust-graph node becomes derived from the spike.
+  than 3,411 lines. The remaining structural parent is now a 250-line
+  orchestrator over return analysis, control/boundary construction, cleanup,
+  call closure, and type/shape custody modules, none larger than 1,356 lines;
+  its fifty-three tests are separated into cleanup and call-closure modules
+  behind a 57-line test root. This is a semantics-preserving responsibility
+  split, not a trust promotion: the full low generator, row proofs, and
+  composition bridges remain open, and no trust-graph node becomes derived
+  from the spike.
 
   Define a closed typed schema language with no opaque callbacks. One row per
   leaf operation owns well-formedness, direct mathematical denotation, canonical
