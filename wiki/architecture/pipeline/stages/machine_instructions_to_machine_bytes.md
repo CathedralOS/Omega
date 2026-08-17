@@ -70,6 +70,15 @@ Must not own:
 - `omega-machine-emission/src/layout.rs` owns instruction width and byte-offset layout.
 - `omega-machine-emission/src/encoding.rs` and `encoding/*` own target byte emission helpers.
 - `omega-machine-emission/src/branch_distances.rs` and submodules own byte-distance queries used by branch encoding.
+- `omega-isa-x86_64/src/lib.rs` remains the public x86-64 encoding surface and
+  re-exports focused implementation modules. `function_frame.rs` owns the
+  ordinary saved-register/MXCSR entry and return envelope, while
+  `privileged_effects.rs` owns halt, fences, interrupt control, descriptor-table
+  loading, flags, model-specific/control-register access, and port I/O. Those
+  modules retain their exact width, byte, clobber, and machine-state contracts;
+  `atomics.rs` separately owns load/store and read-modify-write encodings,
+  including the exact prior-value result and relocation-site calculations. The
+  crate root does not reconstruct any of those families.
 - `omega-machine-bytes/src/plan/` is the output representation root:
   encoded executable byte shape lives under `EncodedMachineCode`, while
   preserved semantic evidence lives under `EncodedMachineSemanticSummary`.

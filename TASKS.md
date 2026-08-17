@@ -852,7 +852,11 @@ Remaining:
   family. Imported calls, runtime I/O, indirect calls, and syscalls form a
   separate 858-line family. Bit fields, bounded buffers, wire encoding, and
   text materialization form a separate 1,480-line family. Binary arithmetic
-  and scalar conversion writes form a separate 478-line family. These
+  and scalar conversion writes form a separate 478-line family. The separate
+  native-refinement lane now applies the same engineering boundary to x86-64
+  byte encoding: the public root is down from 19,412 to 17,911 lines and
+  re-exports 106-line function-frame, 663-line privileged-effect, and 760-line
+  atomic responsibilities with their focused byte/width tests. These
   are semantics-preserving responsibility splits, not trust promotions: the
   full low generator, row proofs, and composition bridges remain open, and no
   trust-graph node becomes derived from the spike.
