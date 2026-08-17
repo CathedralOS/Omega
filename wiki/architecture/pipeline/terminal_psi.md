@@ -1537,12 +1537,15 @@ dedicated lowering/orchestration module whose nominal-cleanup specialization is
 isolated behind the same entry point and whose expression-shape validation is a
 separate subordinate responsibility. Structural Unit control has its own module;
 structural Unit cleanup has one nominal family entry point over isolated ordered-
-nominal and partial-affine implementations. General structural returns and
-scalar-graph construction share none of those paths. Additional sufficient-form
-families should follow that shape: one closed responsibility per module,
-explicit precedence at the registry, and no authority beyond the certificate
-proved against the unchanged canonical ledger. This refactoring rule does not
-make the current Rust producer or its registries trusted.
+nominal and partial-affine implementations. Attached Unit closure assembly is a
+separate orchestrator over provider discovery, exact call-closure custody,
+type/domain/service publication, and parameter-transfer modules. General
+structural returns and scalar-graph construction share none of those paths.
+Additional sufficient-form families should follow that shape: one closed
+responsibility per module, explicit precedence at the registry, and no authority
+beyond the certificate proved against the unchanged canonical ledger. This
+refactoring rule does not make the current Rust producer or its registries
+trusted.
 
 Premise availability is path- and version-sensitive. Ranking ledger nodes makes
 cyclic justification unrepresentable but does not by itself make a fact
