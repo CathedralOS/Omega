@@ -833,11 +833,12 @@ Remaining:
   responsibility. The closed compiler instruction-relocation recipe vocabulary
   and exact final-byte/site replay form a separate 1,539-line responsibility.
   Exhaustive expected-byte, class, position, and relocation-recipe
-  reconstruction now has a 2,857-line specification-table parent behind a
+  reconstruction now has a 2,022-line specification-table parent behind a
   single typed entry point; fixed mechanics, guards, return transport, and
   entry transport form a separate 443-line family, while compiler atomics,
   place copies and writes, and storage results form a separate 1,083-line
-  family. These
+  family. Imported calls, runtime I/O, indirect calls, and syscalls form a
+  separate 858-line family. These
   are semantics-preserving responsibility splits, not trust promotions: the
   full low generator, row proofs, and composition bridges remain open, and no
   trust-graph node becomes derived from the spike.
