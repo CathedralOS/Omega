@@ -18,6 +18,22 @@ T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
   || { echo "omega2gamma-termination FAIL — build omega2gamma.beta"; exit 1; }
 
 PASS=0; FAIL=0
+
+# The retired block-form termination annotation used to make the translator
+# consume the following machine-body brace as annotation syntax. It must now
+# refuse explicitly rather than silently translating a different program.
+retired=$(printf '%s\n' \
+  'machine Main::main(&mut self)' \
+  'terminates { decreases s -> Slice::Length; }' \
+  '{ self.console.exit_process(0) }' \
+  | "$T/omega2gamma.exe" 2>/dev/null)
+case "$retired" in
+  *E2G-UNSUPPORTED-terminates-clause*)
+    PASS=$((PASS+1)); echo "  ok   retired terminates block : refused explicitly";;
+  *)
+    FAIL=$((FAIL+1)); echo "  FAIL retired terminates block : no explicit refusal";;
+esac
+
 for d in ../lattice-corpus/*/; do
   s=$(basename "$d")
   [ -f "$d/main.omg" ] || continue

@@ -30,7 +30,8 @@
 ; fields), case data (integer tags; (Pair tag payload) payloads with by-name field mapping), slices
 ; (local .len/[i]/[a..]/[a..b] via nth/drop/take, as_slice + postfix), value calls (whole-RHS and
 ; expression-embedded via hoist+source-rewrite), machine tail-call arms, value arms (literal/expression),
-; logical &&/|| layers, shifts as *2^k / /2^k, max/min builtins, terminates-clause skip, dual-channel
+; logical &&/|| layers, shifts as *2^k / /2^k, max/min builtins, normative
+; `terminates by measure -> Profile;` clause skip, dual-channel
 ; (Pair exit stdout) output convention. UNSUPPORTED constructs REFUSE with E2G-UNSUPPORTED markers —
 ; incl. unknown self-field methods (atomics store/fetch_add/compare_exchange, ...): only exit_process /
 ; write_byte / write_line / real machine calls are recognized; anything else refuses (never silently
@@ -433,6 +434,13 @@ proc is_terminates_at(o) {
     state i { to j when (byte[2097152 + o + 8] == 'e')  return 0 }
     state j { to k when (byte[2097152 + o + 9] == 's')  return 0 }
     state k { to no when (is_idchar(byte[2097152 + o + 10]) == 1)  return 1 }
+    state no { return 0 }
+}
+
+proc is_by_at(o) {
+    state a { to b when (byte[2097152 + o] == 'b')  return 0 }
+    state b { to c when (byte[2097152 + o + 1] == 'y')  return 0 }
+    state c { to no when (is_idchar(byte[2097152 + o + 2]) == 1)  return 1 }
     state no { return 0 }
 }
 
@@ -2574,24 +2582,28 @@ proc parse_machine_header() {
         adv()
         to tobrace
     }
-    state skipterm {                   ; a `terminates { decreases ...; }` proof clause: skip its block
+    state skipterm {                   ; skip normative `terminates by measure -> Profile;`
         skip_ident()
-        to stbrace
+        skip_ws()
+        to termby when (is_by_at(word[2097144]) == 1)
+        to badterm
     }
-    state stbrace {
-        to stopen when (cbyte() == '{')
-        to atbrace when (word[2097144] >= word[2097136])
+    state termby {
+        skip_ident()
+        to termsemi
+    }
+    state termsemi {
+        to termdone when (cbyte() == ';')
+        to badterm when (cbyte() == '{')
+        to badterm when (word[2097144] >= word[2097136])
         adv()
-        to stbrace
+        to termsemi
     }
-    state stopen { adv()  to stclose }
-    state stclose {                    ; terminates blocks are flat — scan to the matching '}'
-        to stdone when (cbyte() == '}')
-        to atbrace when (word[2097144] >= word[2097136])
-        adv()
-        to stclose
+    state termdone { adv()  to tobrace }
+    state badterm {
+        emit("E2G-UNSUPPORTED-terminates-clause")
+        return 0
     }
-    state stdone { adv()  to tobrace }
     state atbrace {
         adv()                          ; consume '{'
         word[6010400 + mc * 8] = word[2097144]     ; M_BODY = after '{'
