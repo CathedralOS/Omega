@@ -738,11 +738,14 @@ Remaining:
   parent-facing entry point. The distinct structural Unit control path is a
   601-line module. Structural Unit cleanup is a 733-line nominal
   lowering/orchestration module over separate 828-line ordered-nominal and
-  352-line partial-affine responsibilities. General structural returns and
-  scalar-graph construction remain separate. The crate root is now 15,150
-  lines. These are semantics-preserving responsibility splits, not trust
-  promotions: the full low generator, row proofs, and composition bridges
-  remain open, and no trust-graph node becomes derived from the spike.
+  352-line partial-affine responsibilities. Attached Unit closure assembly is
+  an 826-line orchestrator over 132-line provider discovery, 203-line exact
+  call closure, 487-line type/domain/service catalog, and 168-line parameter
+  transfer responsibilities. General structural returns and scalar-graph
+  construction remain separate. The crate root is now 13,390 lines. These are
+  semantics-preserving responsibility splits, not trust promotions: the full
+  low generator, row proofs, and composition bridges remain open, and no
+  trust-graph node becomes derived from the spike.
 
   Define a closed typed schema language with no opaque callbacks. One row per
   leaf operation owns well-formedness, direct mathematical denotation, canonical

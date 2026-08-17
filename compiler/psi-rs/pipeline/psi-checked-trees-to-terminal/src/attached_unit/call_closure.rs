@@ -1,0 +1,203 @@
+//! Exact checked Unit call-closure and identity validation.
+
+use super::*;
+
+pub(crate) fn checked_unit_call_closure_including(
+    checked: &CheckedTrees,
+    entry: psi_symbols::SymbolHandle,
+    additional_roots: &[psi_symbols::SymbolHandle],
+) -> Result<Vec<psi_symbols::SymbolHandle>, LoweringError> {
+    let plans = &checked.facts.flow.terminal_unit_effects;
+    let mut closure = vec![entry];
+    for root in additional_roots {
+        if closure.contains(root) {
+            return unsupported("attached Unit closure contains a duplicate explicit root");
+        }
+        closure.push(*root);
+    }
+    let mut next = 0_usize;
+    while let Some(machine_symbol) = closure.get(next).copied() {
+        next += 1;
+        checked_terminal_machine_name(checked, machine_symbol)?;
+        let machine = unique_unit_machine(plans, machine_symbol)?;
+        for target in machine
+            .operations
+            .iter()
+            .filter_map(|operation| match operation {
+                CheckedUnitEffectOperationPlan::CallUnit { target_machine, .. } => {
+                    Some(*target_machine)
+                }
+                _ => None,
+            })
+        {
+            if !closure.contains(&target) {
+                closure.push(target);
+            }
+        }
+    }
+    Ok(closure)
+}
+
+pub(crate) fn unique_unit_machine(
+    plans: &psi_checked_trees::CheckedUnitEffectPlans,
+    symbol: psi_symbols::SymbolHandle,
+) -> Result<&CheckedUnitEffectMachinePlan, LoweringError> {
+    let mut matches = plans.machines.iter().filter(|plan| plan.machine == symbol);
+    let plan = matches.next().ok_or(LoweringError::Unsupported(
+        "attached Unit closure is missing a checked transitive machine plan",
+    ))?;
+    if matches.next().is_some() {
+        return unsupported("attached Unit closure contains duplicate checked machine plans");
+    }
+    Ok(plan)
+}
+
+pub(super) fn unique_unit_boundary(
+    plans: &psi_checked_trees::CheckedUnitEffectPlans,
+    symbol: psi_symbols::SymbolHandle,
+) -> Result<&CheckedBoundaryMachinePlan, LoweringError> {
+    let mut matches = plans
+        .boundary_machines
+        .iter()
+        .filter(|plan| plan.machine == symbol);
+    let plan = matches.next().ok_or(LoweringError::Unsupported(
+        "attached Unit closure is missing a checked boundary machine plan",
+    ))?;
+    if matches.next().is_some() {
+        return unsupported("attached Unit closure contains duplicate boundary machine plans");
+    }
+    Ok(plan)
+}
+
+pub(super) fn checked_terminal_machine_name(
+    checked: &CheckedTrees,
+    symbol: psi_symbols::SymbolHandle,
+) -> Result<&str, LoweringError> {
+    let mut matches = checked
+        .facts
+        .flow
+        .terminal_machines
+        .machines
+        .iter()
+        .filter(|selection| selection.machine == symbol);
+    let selection = matches.next().ok_or(LoweringError::Unsupported(
+        "attached Unit member has no checked terminal selection",
+    ))?;
+    if matches.next().is_some()
+        || selection.signature != CheckedTerminalSignatureEligibility::Attached
+        || selection.name.is_empty()
+    {
+        return unsupported("attached Unit member has an invalid checked terminal selection");
+    }
+    Ok(&selection.name)
+}
+
+pub(crate) fn checked_unit_boundary_identity(
+    checked: &CheckedTrees,
+    symbol: psi_symbols::SymbolHandle,
+) -> Result<String, LoweringError> {
+    let requirements = checked
+        .typed
+        .traits()
+        .iter()
+        .filter(|definition| definition.is_boundary)
+        .flat_map(|definition| {
+            checked
+                .typed
+                .trait_machine_signatures(definition)
+                .iter()
+                .filter(move |signature| signature.symbol == symbol)
+                .map(move |signature| (definition, signature))
+        })
+        .collect::<Vec<_>>();
+    if let [(definition, signature)] = requirements.as_slice() {
+        let identity = checked
+            .typed
+            .normalized_trait_requirement_overload_identity(definition, signature)
+            .identity();
+        if !identity.is_empty() {
+            return Ok(identity);
+        }
+    }
+    checked_terminal_machine_name(checked, symbol).map(str::to_owned)
+}
+
+pub(super) fn validate_unit_operation_sequence(
+    machine: &CheckedUnitEffectMachinePlan,
+) -> Result<(), LoweringError> {
+    let Some(CheckedUnitEffectOperationPlan::ReturnUnit {
+        statement_index, ..
+    }) = machine.operations.last()
+    else {
+        return unsupported("Unit machine does not end in exactly one checked Unit return");
+    };
+    let mut previous = None;
+    for operation in &machine.operations[..machine.operations.len() - 1] {
+        let coordinate = match operation {
+            CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal {
+                statement_index,
+                declaration_ordinal,
+                ..
+            } => psi_checked_trees::CheckedUnitCallCoordinate {
+                statement_index: *statement_index,
+                call_ordinal: *declaration_ordinal,
+            },
+            CheckedUnitEffectOperationPlan::CallUnit { coordinate, .. }
+            | CheckedUnitEffectOperationPlan::BoundaryCall { coordinate, .. }
+            | CheckedUnitEffectOperationPlan::PortWrite { coordinate, .. } => *coordinate,
+            CheckedUnitEffectOperationPlan::ReturnUnit { .. } => {
+                return unsupported("Unit machine contains a nonfinal Unit return");
+            }
+        };
+        let key = (coordinate.statement_index, coordinate.call_ordinal);
+        if previous.is_some_and(|previous| previous >= key)
+            || coordinate.statement_index >= *statement_index
+        {
+            return unsupported("Unit machine operation order is not canonical source order");
+        }
+        previous = Some(key);
+    }
+    Ok(())
+}
+
+pub(super) fn reject_recursive_unit_closure(
+    plans: &psi_checked_trees::CheckedUnitEffectPlans,
+    closure: &[psi_symbols::SymbolHandle],
+) -> Result<(), LoweringError> {
+    fn visit(
+        plans: &psi_checked_trees::CheckedUnitEffectPlans,
+        symbol: psi_symbols::SymbolHandle,
+        active: &mut Vec<psi_symbols::SymbolHandle>,
+        complete: &mut Vec<psi_symbols::SymbolHandle>,
+    ) -> Result<(), LoweringError> {
+        if active.contains(&symbol) {
+            return unsupported("recursive Unit call closure is not yet terminal");
+        }
+        if complete.contains(&symbol) {
+            return Ok(());
+        }
+        active.push(symbol);
+        for target in unique_unit_machine(plans, symbol)?
+            .operations
+            .iter()
+            .filter_map(|operation| match operation {
+                CheckedUnitEffectOperationPlan::CallUnit { target_machine, .. } => {
+                    Some(*target_machine)
+                }
+                _ => None,
+            })
+        {
+            visit(plans, target, active, complete)?;
+        }
+        active.pop();
+        complete.push(symbol);
+        Ok(())
+    }
+
+    let mut active = Vec::new();
+    let mut complete = Vec::new();
+    for symbol in closure {
+        visit(plans, *symbol, &mut active, &mut complete)?;
+    }
+    Ok(())
+}
