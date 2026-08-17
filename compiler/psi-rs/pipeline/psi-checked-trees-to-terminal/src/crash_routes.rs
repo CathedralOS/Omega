@@ -2,6 +2,125 @@
 
 use super::*;
 
+pub(super) fn lower_checked_crash_frontier(
+    frontier: &[PermissionClaimIdentity],
+    source_claims: &[(PermissionClaimIdentity, ClaimId)],
+) -> Result<Vec<ClaimId>, LoweringError> {
+    let mut lowered = frontier
+        .iter()
+        .map(|identity| {
+            source_claims
+                .iter()
+                .find_map(|(source, claim)| (source == identity).then_some(*claim))
+                .ok_or(LoweringError::CrashFrontierClaimNotLowered(*identity))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    lowered.sort();
+    lowered.dedup();
+    Ok(lowered)
+}
+
+pub(super) fn lower_checked_crash_routes(
+    checked: &CheckedTrees,
+    machine: psi_symbols::SymbolHandle,
+) -> Result<Vec<psi_checked_trees::CrashRouteBucket>, LoweringError> {
+    checked
+        .facts
+        .contract_plans
+        .for_machine(machine)
+        .map(|contract| {
+            contract
+                .crash
+                .published()
+                .iter()
+                .map(|bucket| {
+                    if bucket.alternative_guards().iter().any(|guard| {
+                        matches!(guard, psi_checked_trees::CrashRouteGuard::Predicate(predicate)
+                            if predicate.scalar_expression().is_none())
+                    }) {
+                        return unsupported(
+                            "guarded crash route is outside structured scalar predicate lowering",
+                        );
+                    }
+                    Ok(bucket.clone())
+                })
+                .collect::<Result<Vec<_>, _>>()
+        })
+        .unwrap_or_else(|| Ok(Vec::new()))
+}
+
+pub(super) fn lower_checked_crash_exit(
+    checked: &CheckedTrees,
+    machine: psi_symbols::SymbolHandle,
+    state: psi_symbols::SymbolHandle,
+    statement_ordinal: u32,
+    source_claims: &[(PermissionClaimIdentity, ClaimId)],
+) -> Result<LoweredCrashExit, LoweringError> {
+    let Some(crash_plan) = checked
+        .facts
+        .contract_plans
+        .for_machine(machine)
+        .map(|contract| &contract.crash)
+    else {
+        return unsupported("explicit crash has no checked machine-contract plan");
+    };
+    let Some(checked_site) = crash_plan.checked_site_at(state, statement_ordinal) else {
+        return unsupported("explicit crash has no body-derived checked crash-site row");
+    };
+    let matching_contracts = crash_plan
+        .covering_buckets_for_site(checked_site)
+        .map(|(_, bucket)| bucket)
+        .collect::<Vec<_>>();
+    let [covering_bucket] = matching_contracts.as_slice() else {
+        return unsupported(
+            "an explicit crash in the terminal-Psi source slice requires exactly one prechecked covering route bucket",
+        );
+    };
+    let site_identities = checked_site
+        .path_guard_conjuncts()
+        .iter()
+        .chain(checked_site.path_guard_consequences())
+        .collect::<BTreeSet<_>>();
+    let site_guard = covering_bucket
+        .alternative_guards()
+        .iter()
+        .filter_map(|guard| match guard {
+            psi_checked_trees::CrashRouteGuard::Truth => None,
+            psi_checked_trees::CrashRouteGuard::Predicate(predicate)
+                if site_identities.contains(predicate) =>
+            {
+                Some(
+                    predicate
+                        .scalar_expression()
+                        .cloned()
+                        .ok_or(LoweringError::Unsupported(
+                            "guarded crash site is outside structured scalar predicate lowering",
+                        )),
+                )
+            }
+            psi_checked_trees::CrashRouteGuard::Predicate(_) => None,
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    if !covering_bucket
+        .alternative_guards()
+        .contains(&psi_checked_trees::CrashRouteGuard::Truth)
+        && site_guard.is_empty()
+    {
+        return unsupported("guarded crash site has no structured covering predicate");
+    }
+    Ok(LoweredCrashExit {
+        cause: match checked_site.cause() {
+            psi_checked_trees::CrashCause::Trap => TerminalCrashCause::Trap,
+            psi_checked_trees::CrashCause::Abort => TerminalCrashCause::Abort,
+        },
+        site_guard,
+        frontier_lower_bound: lower_checked_crash_frontier(
+            checked_site.frontier_lower_bound(),
+            source_claims,
+        )?,
+    })
+}
+
 pub(super) fn lower_checked_crash_route_buckets(
     buckets: &[psi_checked_trees::CrashRouteBucket],
     parameters: &[ValueDeclaration],

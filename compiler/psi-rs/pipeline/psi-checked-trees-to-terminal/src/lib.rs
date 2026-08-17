@@ -89,6 +89,7 @@ mod crash_routes;
 mod debug_map;
 mod evidence_lowering;
 mod operation_emission;
+mod scalar_call_closure;
 mod scalar_graph_lowering;
 mod scalar_graph_module;
 mod shared_runtime_parameters;
@@ -117,12 +118,12 @@ pub use content_conservation::{
     lower_content_partition_compositions,
 };
 #[cfg(test)]
-use crash_routes::checked_boolean_proposition;
+use crash_routes::{checked_boolean_proposition, lower_checked_crash_frontier};
 use crash_routes::{
-    lower_checked_crash_predicates, lower_checked_crash_route_buckets,
-    lower_structural_crash_route_buckets, lower_structural_runtime_requirement,
-    structural_crash_route_argument_prefix, substitute_structural_crash_route_roots,
-    substitute_structural_requirement_roots,
+    lower_checked_crash_exit, lower_checked_crash_predicates, lower_checked_crash_route_buckets,
+    lower_checked_crash_routes, lower_structural_crash_route_buckets,
+    lower_structural_runtime_requirement, structural_crash_route_argument_prefix,
+    substitute_structural_crash_route_roots, substitute_structural_requirement_roots,
 };
 use debug_map::build_debug_map;
 use evidence_lowering::lower_and_install_evidence_artifacts;
@@ -130,6 +131,7 @@ use operation_emission::{
     emit_boolean_expression, emit_direct_expression, emit_scalar_binding,
     emit_staged_scalar_call_binding, finalize_operation_proofs,
 };
+use scalar_call_closure::{checked_scalar_call_closure, lower_scalar_call_closure};
 use scalar_graph_lowering::{
     KnownDirectScalar, contains_short_circuit, direct_expression_contains_short_circuit,
     integer_landing_scalar_type, integer_scalar_type, integer_value,
@@ -909,280 +911,6 @@ fn allocate_dense(next: &mut u64) -> Result<u64, LoweringError> {
         "terminal Unit identity count exceeds u64",
     ))?;
     Ok(current)
-}
-
-fn checked_scalar_call_closure(
-    checked: &CheckedTrees,
-    entry: psi_symbols::SymbolHandle,
-) -> Result<Vec<psi_symbols::SymbolHandle>, LoweringError> {
-    let mut closure = vec![entry];
-    let mut next = 0usize;
-    while let Some(machine) = closure.get(next).copied() {
-        next += 1;
-        let selection = checked
-            .facts
-            .flow
-            .terminal_machines
-            .machines
-            .iter()
-            .find(|selection| selection.machine == machine)
-            .ok_or(LoweringError::Unsupported(
-                "direct scalar call target has no checked terminal selection",
-            ))?;
-        if selection.signature != CheckedTerminalSignatureEligibility::Eligible {
-            return unsupported("direct scalar call target has an unsupported terminal signature");
-        }
-        let graph = checked
-            .facts
-            .flow
-            .terminal_scalar_graphs
-            .for_machine(machine)
-            .ok_or(LoweringError::Unsupported(
-                "direct scalar call target has no checked scalar graph",
-            ))?;
-        for target in graph.states.iter().flat_map(|state| {
-            state.bindings.iter().filter_map(|binding| {
-                let CheckedScalarBindingValue::DirectCall { target_machine, .. } = &binding.value
-                else {
-                    return None;
-                };
-                Some(*target_machine)
-            })
-        }) {
-            if !closure.contains(&target) {
-                closure.push(target);
-            }
-        }
-    }
-    Ok(closure)
-}
-
-fn lower_scalar_call_closure(
-    checked: &CheckedTrees,
-    closure: &[psi_symbols::SymbolHandle],
-) -> Result<LoweredTerminalPsi, LoweringError> {
-    let prepared = closure
-        .iter()
-        .map(|machine| {
-            let graph = checked
-                .facts
-                .flow
-                .terminal_scalar_graphs
-                .for_machine(*machine)
-                .ok_or(LoweringError::Unsupported(
-                    "terminal call-closure machine has no checked scalar graph",
-                ))?;
-            prepare_scalar_graph_machine(checked, *machine, graph)
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    if prepared.iter().any(|machine| {
-        !machine.identity_reshuffles.structural_places.is_empty()
-            || !machine.identity_reshuffles.entry_claims.is_empty()
-            || !machine.identity_reshuffles.reshuffles.is_empty()
-            || !machine.partition_compositions.structural_places.is_empty()
-            || !machine.partition_compositions.compositions.is_empty()
-    }) {
-        return unsupported(
-            "structural/content call effects require the terminal content-call slice",
-        );
-    }
-    let machine_ids = prepared
-        .iter()
-        .enumerate()
-        .map(|(index, machine)| {
-            Ok((
-                machine.source_machine,
-                machine_id(
-                    u64::try_from(index)
-                        .map_err(|_| {
-                            LoweringError::Unsupported("terminal call closure exceeds u64")
-                        })?
-                        .checked_add(1)
-                        .expect("terminal machine identities are one-based"),
-                ),
-            ))
-        })
-        .collect::<Result<Vec<_>, LoweringError>>()?;
-    let requirement_counts = prepared
-        .iter()
-        .map(|machine| {
-            (
-                machine.source_machine,
-                usize::from(machine.contract_value.is_some()),
-            )
-        })
-        .collect::<Vec<_>>();
-    let mut machines = Vec::with_capacity(prepared.len());
-    let mut evidence = Vec::new();
-    for (index, machine) in prepared.into_iter().enumerate() {
-        let terminal_machine = machine_ids[index].1;
-        let identity_base = u64::try_from(index)
-            .map_err(|_| LoweringError::Unsupported("terminal call closure exceeds u64"))?
-            .checked_mul(TERMINAL_MACHINE_IDENTITY_STRIDE)
-            .ok_or(LoweringError::Unsupported(
-                "terminal call closure identity range overflows",
-            ))?;
-        let mut lowered = build_scalar_graph_module(
-            &machine.states,
-            machine.result_type,
-            machine.contract_value,
-            machine.crash_routes,
-            machine.identity_reshuffles,
-            machine.partition_compositions,
-            terminal_machine,
-            identity_base,
-            &machine_ids,
-            &requirement_counts,
-        )?;
-        let [terminal_machine] = lowered.semantic_module.machines.as_slice() else {
-            unreachable!("one prepared scalar graph emits one terminal machine")
-        };
-        machines.push(terminal_machine.clone());
-        evidence.append(&mut lowered.proof_bundle.evidence);
-    }
-    let mut lowered = LoweredTerminalPsi {
-        semantic_module: TerminalModule {
-            vocabulary_marker: VocabularyMarker::CURRENT,
-            entry: machine_id(1),
-            structural_types: Vec::new(),
-            structural_domains: Vec::new(),
-            services: Vec::new(),
-            boundary_machines: Vec::new(),
-            provider_candidates: Vec::new(),
-            proposition_declarations: Vec::new(),
-            proposition_applications: Vec::new(),
-            evidence_terms: Vec::new(),
-            evidence_contract_lanes: Vec::new(),
-            evidence_package_invocations: Vec::new(),
-            machines,
-        },
-        proof_bundle: ProofBundle {
-            evidence_producers: Vec::new(),
-            evidence,
-        },
-        debug_map: None,
-    };
-    finalize_operation_proofs(&mut lowered)?;
-    Ok(lowered)
-}
-
-fn lower_checked_crash_frontier(
-    frontier: &[PermissionClaimIdentity],
-    source_claims: &[(PermissionClaimIdentity, ClaimId)],
-) -> Result<Vec<ClaimId>, LoweringError> {
-    let mut lowered = frontier
-        .iter()
-        .map(|identity| {
-            source_claims
-                .iter()
-                .find_map(|(source, claim)| (source == identity).then_some(*claim))
-                .ok_or(LoweringError::CrashFrontierClaimNotLowered(*identity))
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    lowered.sort();
-    lowered.dedup();
-    Ok(lowered)
-}
-
-fn lower_checked_crash_routes(
-    checked: &CheckedTrees,
-    machine: psi_symbols::SymbolHandle,
-) -> Result<Vec<psi_checked_trees::CrashRouteBucket>, LoweringError> {
-    checked
-        .facts
-        .contract_plans
-        .for_machine(machine)
-        .map(|contract| {
-            contract
-                .crash
-                .published()
-                .iter()
-                .map(|bucket| {
-                    if bucket.alternative_guards().iter().any(|guard| {
-                        matches!(guard, psi_checked_trees::CrashRouteGuard::Predicate(predicate)
-                            if predicate.scalar_expression().is_none())
-                    }) {
-                        return unsupported(
-                            "guarded crash route is outside structured scalar predicate lowering",
-                        );
-                    }
-                    Ok(bucket.clone())
-                })
-                .collect::<Result<Vec<_>, _>>()
-        })
-        .unwrap_or_else(|| Ok(Vec::new()))
-}
-
-fn lower_checked_crash_exit(
-    checked: &CheckedTrees,
-    machine: psi_symbols::SymbolHandle,
-    state: psi_symbols::SymbolHandle,
-    statement_ordinal: u32,
-    source_claims: &[(PermissionClaimIdentity, ClaimId)],
-) -> Result<LoweredCrashExit, LoweringError> {
-    let Some(crash_plan) = checked
-        .facts
-        .contract_plans
-        .for_machine(machine)
-        .map(|contract| &contract.crash)
-    else {
-        return unsupported("explicit crash has no checked machine-contract plan");
-    };
-    let Some(checked_site) = crash_plan.checked_site_at(state, statement_ordinal) else {
-        return unsupported("explicit crash has no body-derived checked crash-site row");
-    };
-    let matching_contracts = crash_plan
-        .covering_buckets_for_site(checked_site)
-        .map(|(_, bucket)| bucket)
-        .collect::<Vec<_>>();
-    let [covering_bucket] = matching_contracts.as_slice() else {
-        return unsupported(
-            "an explicit crash in the terminal-Psi source slice requires exactly one prechecked covering route bucket",
-        );
-    };
-    let site_identities = checked_site
-        .path_guard_conjuncts()
-        .iter()
-        .chain(checked_site.path_guard_consequences())
-        .collect::<BTreeSet<_>>();
-    let site_guard = covering_bucket
-        .alternative_guards()
-        .iter()
-        .filter_map(|guard| match guard {
-            psi_checked_trees::CrashRouteGuard::Truth => None,
-            psi_checked_trees::CrashRouteGuard::Predicate(predicate)
-                if site_identities.contains(predicate) =>
-            {
-                Some(
-                    predicate
-                        .scalar_expression()
-                        .cloned()
-                        .ok_or(LoweringError::Unsupported(
-                            "guarded crash site is outside structured scalar predicate lowering",
-                        )),
-                )
-            }
-            psi_checked_trees::CrashRouteGuard::Predicate(_) => None,
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    if !covering_bucket
-        .alternative_guards()
-        .contains(&psi_checked_trees::CrashRouteGuard::Truth)
-        && site_guard.is_empty()
-    {
-        return unsupported("guarded crash site has no structured covering predicate");
-    }
-    Ok(LoweredCrashExit {
-        cause: match checked_site.cause() {
-            psi_checked_trees::CrashCause::Trap => TerminalCrashCause::Trap,
-            psi_checked_trees::CrashCause::Abort => TerminalCrashCause::Abort,
-        },
-        site_guard,
-        frontier_lower_bound: lower_checked_crash_frontier(
-            checked_site.frontier_lower_bound(),
-            source_claims,
-        )?,
-    })
 }
 
 fn unsupported<T>(message: &'static str) -> Result<T, LoweringError> {

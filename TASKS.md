@@ -755,15 +755,18 @@ Remaining:
   production. Proposition vocabulary, evidence-term identity, contract lanes,
   package invocations, and producer provenance now form one 906-line evidence
   module behind a single lower-and-install API. Scalar and structural crash
-  routes, argument-root substitution, and canonical proposition construction
-  now form one 1,608-line module with eight explicit internal contracts.
+  routes, checked crash-site/frontier custody, argument-root substitution, and
+  canonical proposition construction now form one 1,727-line module with
+  eleven explicit internal contracts.
   Terminal operation emission and proof finalization now form one 597-line
   module with five explicit entry points. Short-circuit Boolean decisions and
   terminal control emission now form one 734-line module, while replaceable
   debug-map presentation is a separate 188-line module. Scalar-graph
   preparation, validation, partial evaluation, and lowering now form one
-  1,297-line module with fourteen explicit internal contracts. The crate root
-  is now 1,288 lines. These
+  1,297-line module with fourteen explicit internal contracts. Reachable
+  scalar-call discovery and multi-machine assembly now form one 158-line
+  module with two explicit entry points. The crate root is now 1,017 lines.
+  These
   are semantics-preserving responsibility splits, not trust promotions: the
   full low generator, row proofs, and composition bridges remain open, and no
   trust-graph node becomes derived from the spike.
