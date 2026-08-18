@@ -805,12 +805,15 @@ Remaining:
   multiply/affine, join, shift, and divide-policy responsibilities. All 76
   cases remain, and no family module exceeds 1,248 lines.
   Terminal native machine emission has begun the same split: its 12,922-line
-  crate root is now a 6,584-line production orchestration root with the complete
+  crate root is now a 5,495-line production orchestration root with the complete
   58-case, 5,028-line regression corpus compiled separately. Unit-body and
   calling-policy emission, per-target parameter homes, aggregate argument
   staging/copying, and Unit stack/fuel/effect evidence form a separate
-  1,301-line responsibility. Cleanup and scalar-control/expression emission
-  remain visible production responsibilities for the next checkpoints.
+  1,301-line responsibility. Scalar-return and Boolean-control cleanup,
+  nominal-cleanup admission, exact residual partitioning, and cleanup
+  stack/fuel/call evidence form a separate 1,120-line responsibility.
+  Scalar-control/expression emission remains a visible production
+  responsibility for the next checkpoints.
   Terminal-module validation has begun the same split: its parent shrank from
   7,498 to 282 lines, with structural/service foundation (956 lines),
   structural/boundary operation custody (822), public error vocabulary (803),

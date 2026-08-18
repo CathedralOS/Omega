@@ -1577,9 +1577,12 @@ the production root does not embed that second responsibility.
 `omega-terminal-machine-emission/src/unit.rs` owns Unit-body and calling-policy
 emission, exact per-target parameter homes, aggregate argument staging/copying,
 and Unit stack/fuel/effect evidence behind the parent-facing Unit emitter and
-cleanup-call helpers. Cleanup emission and scalar control/expression emission
-remain distinct production responsibilities and must not be collapsed into
-test helpers or one generic permutation dispatcher.
+cleanup-call helpers. `omega-terminal-machine-emission/src/cleanup.rs` owns
+scalar-return and Boolean-control cleanup emission, nominal-cleanup admission,
+exact residual partitioning, and cleanup stack/fuel/call evidence behind five
+parent-facing contracts. Scalar control/expression emission remains a distinct
+production responsibility and must not be collapsed into test helpers or one
+generic permutation dispatcher.
 Scalar and structural crash routes, checked crash-site/frontier custody,
 argument-root substitution, and canonical proposition construction likewise
 share one crash/proposition module with an explicit internal contract surface.
