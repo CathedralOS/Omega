@@ -109,11 +109,13 @@ Must not own:
   offsets behind the unchanged public re-exports.
   `runtime_storage/conversion.rs` owns scalar integer/float conversion,
   direct/indexed/pointee result placement, float-to-integer trap and saturation
-  policy, and the shared recursive-operand conversion evaluator. Byte, width,
-  clobber, atomic-ordering, conversion-policy, indexed-place, and
-  floating-policy regressions are compiled separately through
-  `runtime_storage_tests.rs`; production does not embed that second
-  responsibility.
+  policy, and the shared recursive-operand conversion evaluator.
+  `runtime_storage/comparison.rs` owns direct place-pair, place-value, and
+  computed-value comparisons, their register and machine-state contracts, and
+  exact operator-to-failure-branch mapping. Byte, width, clobber,
+  atomic-ordering, conversion-policy, indexed-place, and floating-policy
+  regressions are compiled separately through `runtime_storage_tests.rs`;
+  production does not embed that second responsibility.
 - `omega-machine-bytes/src/plan/` is the output representation root:
   encoded executable byte shape lives under `EncodedMachineCode`, while
   preserved semantic evidence lives under `EncodedMachineSemanticSummary`.
