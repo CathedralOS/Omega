@@ -878,12 +878,16 @@ Remaining:
   full low generator, row proofs, and composition bridges remain open, and no
   trust-graph node becomes derived from the spike. The corresponding AArch64
   cleanup has begun: its former 14,216-line runtime-storage parent is now an
-  2,950-line production parent over separate 697-line atomic load/store,
-  read-modify-write, ordering, result-site, and width responsibility and a
-  746-line scalar conversion, placement, trap, saturation, and width-policy
-  responsibility. Direct place-pair, place-value, computed-value, register,
-  machine-state, and exact failure-branch comparison contracts form a separate
-  356-line responsibility. Recursive-operand register/state contracts plus
+  810-line address/load/store orchestration parent. Runtime operand replay,
+  text equality, integer and floating arithmetic, arithmetic-domain policy,
+  classification, and their exact width contracts form a separate 2,172-line
+  runtime-value responsibility. Atomic load/store, read-modify-write, ordering,
+  result-site, and width policy form a separate 697-line responsibility, and
+  scalar conversion, placement, trap, saturation, and width policy form a
+  separate 746-line responsibility. Direct place-pair, place-value,
+  computed-value, register, machine-state, and exact failure-branch comparison
+  contracts form a separate 356-line responsibility. Recursive-operand
+  register/state contracts plus
   immediate integer, bit-field, direct binary, pointee binary, saturation, and
   trapping writes form a separate 1,048-line scalar-write responsibility.
   Direct, pointee, indexed, and double-indexed bounded-buffer writes plus
