@@ -139,6 +139,13 @@ ordinary `term.member` syntax; no `open` form exists. Producer conformance
 selection occurs privately when the proof body assigns the named output, while
 forwarding assigns an existing term and preserves its identity.
 
+Proposition terms are always copyable. Consumable authority is an affine or
+linear Type carrier, possibly with zero runtime layout, rather than a linear
+proposition. An unnamed `requires P` imports only the fact; a named
+`requires proof: P` retains one exact witness for projection or forwarding.
+Naming changes the caller-facing proof lane and is therefore a breaking API
+revision even though the required proposition is unchanged.
+
 The initial forwarding form is a bare-name assignment from a current machine's
 named `requires` term to one of its named `ensures` terms. It erases before the
 runtime statement stream and records an exact checked source-to-output binding;
@@ -160,27 +167,32 @@ substitutes the target state's ordinary arguments before comparing proposition
 identity. Machine-level incoming terms remain live across internal transitions
 and are not redundantly repassed in the state-arrival lane.
 
-Named requirements are positional erased inputs. Calls pass them explicitly in
-clause order after a `;` lane separator, never through visible-fact or
-conformance inference. Each position checks the supplied term against the
-callee proposition after ordinary call-argument substitution; source and
+Named requirements are positional erased proof inputs. Calls pass them
+explicitly in clause order after a `;` separator, never through visible-fact or
+conformance inference. The separator marks the boundary between ordinary Type
+arguments and Prop inhabitants. Each position checks the supplied term against
+the callee proposition after ordinary call-argument substitution; source and
 callee binding names do not participate in matching. The separator remains in
 an evidence-only call (`callee(; proof)`) and is omitted only when there is no
-evidence lane. Named guarantees are public fields of an inferred,
+proof lane. Named guarantees are public fields of an inferred,
 source-unnameable, compiler-generated nominal output package. The implemented
 immediate rung requires colon-form destructuring of the complete nonempty set of
 unconditional evidence fields from a concrete zero-input checked machine.
 Source field order may vary; checking canonicalizes by callee lane, mints one
-distinct fresh caller-local term per field, and requires each term to be
-forwarded exactly once. A proof-only package erases completely. A scalar-result
+distinct fresh caller-local term per field, and the current narrow
+implementation requires each term to be forwarded exactly once. This is an
+implementation-cohort restriction, not proposition multiplicity; the
+destination permits copying, repeated forwarding, and explicit discard while
+the term remains valid. A proof-only package erases completely. A scalar-result
 package additionally binds exactly one contextual `value` field through one
 ordinary caller local/call, while the evidence fields remain erased. The proof
 group is linked to that exact checked call site and canonical terminal call
 operation; its runtime effects, crashes, and fuel are only those of the ordinary
 call. Retained/projected and guarded complete-package forms are design-blocked
-on `OWNER_QUESTIONS.md` Q12. Generic package application is design-blocked on
-Q10. Explicit discard is design-blocked on Q11; evidence fields erase
-independently of the multiplicity that decision must assign.
+on `OWNER_QUESTIONS.md` Q11. Generic package application is design-blocked on
+Q10. Proposition evidence fields erase and are copyable, so an explicit `_`
+may discard one; ordinary Type fields retain their own multiplicity and no rest
+pattern silently discards present or future fields.
 
 A transparent logical definition uses `=`:
 
@@ -526,8 +538,8 @@ callee term declaration to one distinct caller-local term with the same exact
 proposition and interface. Repeated calls reuse callee declarations and their
 producer provenance while minting distinct caller terms. A display spelling is
 never an identity oracle. Retained/general projection and guarded complete
-packages are design-blocked on `OWNER_QUESTIONS.md` Q12; generic application is
-blocked on Q10 and explicit discard on Q11.
+packages are design-blocked on `OWNER_QUESTIONS.md` Q11; generic application is
+blocked on Q10.
 
 Proof-only evaluation, when a transparent body is actually
 needed, uses the ordinary gated build-time evaluator: semantic eligibility

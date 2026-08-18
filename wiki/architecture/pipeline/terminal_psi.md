@@ -117,8 +117,10 @@ Witness-bearing declarations use the contextual
 interface enters terminal proposition identity.
 
 Witness-bearing facts additionally retain an evidence-term identity and a
-separate derivation-provenance identity. Named `requires` inputs refer to exact
-positional erased terms; named `ensures` outputs contribute public fields to a
+separate derivation-provenance identity. Proposition terms are copyable;
+consumable authority is represented by an affine or linear Type carrier.
+Named `requires` inputs refer to exact positional erased terms; named `ensures`
+outputs contribute public fields to a
 machine-derived nominal package type that has no source name. Its runtime
 projection is the ordinary result and its other fields erase. Outcome guards
 control which package variant carries each field. Producer conformances remain
@@ -161,9 +163,10 @@ verifier requires that operation to occur in the declared caller, produce the
 declared scalar type, and call the linked callee; a missing, spurious, unknown,
 wrong-kind, wrong-caller, or mismatched-callee link rejects. The proof row adds
 no operation or fuel beyond that ordinary call. Retained/general projection and
-guarded complete-package forms are design-blocked on `OWNER_QUESTIONS.md` Q12.
-Generic package application is blocked on Q10, and explicit discard is blocked
-on Q11.
+guarded complete-package forms are design-blocked on `OWNER_QUESTIONS.md` Q11.
+Generic package application is blocked on Q10. Proposition evidence fields may
+be explicitly discarded; ordinary Type fields remain governed by their own
+multiplicity.
 
 Relation applications retain their independently bound left and right carrier
 index packs; no global carrier-parameter role is serialized. Selected
@@ -172,11 +175,12 @@ proposition-transport proof enter the semantic rows that justified a lifted
 operation. Callable argument telescopes use positional identity, with source
 parameter names confined to debug metadata.
 
-An erased binding remains in typed semantic and proof rows with its
-multiplicity, validity scope, conservation obligations, and provenance. It has
-no executable storage place or cleanup action. Runtime layout and operation
-encoding consume the erased-stripped form, while semantic fingerprints retain
-the binding and its type.
+An erased Type binding remains in typed semantic and proof rows with its
+multiplicity, validity scope, conservation obligations, and provenance. A Prop
+binding is copyable and retains its validity scope and provenance without a
+usage-count obligation. Neither has an executable storage place or cleanup
+action. Runtime layout and operation encoding consume the erased-stripped form,
+while semantic fingerprints retain the binding and its type.
 
 Unit structural declarations apply the same rule directly: every field row
 retains authored relevance, and an erased row carries its exact normalized type

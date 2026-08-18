@@ -11,8 +11,9 @@ and trust provenance. `Prop` is the formula universe. Source automation is an
 ergonomic elaborator into certificates checked by a small Psi-owned kernel;
 recursive proofs certify one SCC with shared well-foundedness evidence and
 per-edge descent, normalization cites exact conformance/law evidence, and the
-human synopsis is derived from the accepted certificate. `[erased]` remains
-orthogonal to multiplicity, validity, conservation, and provenance. Relation
+human synopsis is derived from the accepted certificate. For Type occurrences,
+`[erased]` remains orthogonal to multiplicity, validity, conservation, and
+provenance; Prop terms are intrinsically erased and copyable. Relation
 heterogeneity belongs to each proposition's own carrier telescopes, never to a
 global carrier-role convention.
 
@@ -135,19 +136,19 @@ Proof erasure is not the whole evidence model. Every retained fact is described
 along independent dimensions:
 
 - **relevance:** whether it contributes runtime representation or behavior;
-- **multiplicity:** whether it may be copied, must be consumed, or may be
-  discarded;
 - **validity scope:** timeless, borrow-scoped, entry-scoped, state-versioned
   and invalidated by intersecting writes, or lease-scoped; and
 - **provenance:** derived, certified, admitted, and the exact authority/evidence
   chain that supplied it.
 
-Omega's existing `[copy]`/affine/`[linear]` rules provide much of the
-multiplicity substrate, but erased relevance remains a separate judgment: a
-proof may be erased while still linear or scoped. Provenance attaches to the
-evidence, not to proposition identity, and composes through every proof so a
-deployment profile can reject a proof closure containing unacceptable
-admissions.
+`Prop` terms are unrestricted and copyable. Consumable authority belongs to an
+affine or linear `Type` carrier, which may have zero runtime layout, and follows
+Omega's existing `[copy]`/affine/`[linear]` rules. Erased relevance remains a
+separate judgment for Type occurrences: an explicitly erased Type ghost may
+still be linear or scoped even though it has no runtime representation.
+Provenance attaches to the evidence, not to proposition identity, and composes
+through every proof so a deployment profile can reject a proof closure
+containing unacceptable admissions.
 
 The source relevance marker attaches to a binding occurrence:
 
@@ -162,7 +163,9 @@ The erased binding remains in typed terms, semantic identity, validity and
 obligation tracking, but contributes no runtime field, address, read, or
 cleanup. It may be consumed by proof computation or statically authorize an
 effectful call; it may not determine runtime data or control. Erasure never
-discharges linear custody, content conservation, validity scope, or provenance.
+discharges Type custody, content conservation, validity scope, or provenance.
+A structurally zero-layout Type value is not implicitly erased: it remains an
+ordinary value whose ownership and multiplicity are checked normally.
 Only reliance on runtime representation or runtime cleanup is forbidden.
 
 Layout and ABI use the erased-stripped form, while nominal identity and

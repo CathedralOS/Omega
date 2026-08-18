@@ -23,6 +23,19 @@ dependent facts. A value can be linear and fixed-size, affine and
 value-indexed, or unrestricted and borrowed. `LinBuf<T, n>` combines two
 features; it does not define either one.
 
+Multiplicity belongs to `Type`, not to ambient `Prop`. Proposition proof terms
+are unrestricted and copyable. One-shot permission or consumable authority is
+therefore an affine or linear Type carrier, possibly with zero runtime layout,
+and reuses ordinary moves, borrows, state threading, containers, cancellation,
+and retirement. A zero-layout Type value needs no `[erased]` marker merely to
+occupy no bytes; its ownership obligation remains ordinary Type custody.
+
+Resource-sensitive mathematics is expressed as an object logic over
+user-defined carriers and proposition families. Its resource algebra and
+entailment rules may model linear logic without making Omega's metalogical
+proof terms linear. This keeps mathematical facts reusable while conserving
+systems authority through the same ownership calculus as every other value.
+
 `[linear]` and `[copy]` are mutually exclusive. Structural propagation is
 mandatory: a record or live sum payload containing a linear value carries its
 obligation; a generic container must declare and preserve the multiplicity of

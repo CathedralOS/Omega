@@ -272,10 +272,14 @@ data Certified<T> {
 ```
 
 `Valid<T>` may appear relevant elsewhere. Here only `proof` is erased. The
-checker retains it for proof, multiplicity, validity, conservation, and
-provenance analysis while runtime layout omits it. Erased bindings may not
-determine runtime data or control and cannot rely on runtime cleanup; their
-static obligations remain live until discharged. See
+checker retains it for proof, validity, and provenance analysis while runtime
+layout omits it. Proposition terms are copyable. An explicitly erased Type
+ghost instead retains its Type multiplicity and conservation obligations.
+Erased bindings may not determine runtime data or control and cannot rely on
+runtime cleanup; any static Type obligations remain live until discharged. A
+structurally zero-layout Type value needs no `[erased]` marker merely to occupy
+no bytes, and a representable runtime value cannot use `[erased]` to delete its
+storage. See
 [Compile-Time Proofs](chapter_10_compile_time_proofs.md#explicit-relevance).
 
 ### Carry policy

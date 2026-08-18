@@ -14,6 +14,13 @@ The witness-bearing interface follows the proposition signature in an
 [Law-Bearing Relations, Evidence, And Quotients](law_bearing_relations_and_quotients.md)
 for the complete source and evidence model.
 
+Ambient proposition terms are erased and copyable. A one-shot permission or
+other consumable authority is an affine or linear Type carrier, possibly with
+zero runtime layout, and follows ordinary ownership rather than creating a
+second custody calculus for proofs. Resource-sensitive mathematics remains
+expressible as an object logic over user-defined carriers, proposition
+families, and entailment laws.
+
 ## Proof machines are ordinary machines
 
 A machine used to establish facts is not a separate declaration species. Its

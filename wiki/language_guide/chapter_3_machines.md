@@ -397,14 +397,15 @@ requires proof: witness_bearing_proposition(input)
 ensures result_proof: another_proposition(result)
 ```
 
-Named requirements are positional erased inputs supplied after a call's `;`
-lane separator. Named guarantees are public fields in an inferred, unnameable,
-compiler-generated nominal output package. A package with a runtime result
-reserves the contextual field `value`; all evidence fields erase and follow
-ordinary multiplicity. Outcome-guarded guarantees exist only in the matching
-outcome shape. Chapter 10 defines evidence projection, assignment, call
-passing, destructuring, and the separate proposition, evidence-term, and
-derivation identities.
+Named requirements are positional erased proof inputs supplied after a call's
+`;` separator, which marks the boundary between ordinary Type arguments and
+Prop inhabitants. Named guarantees are public fields in an inferred,
+unnameable, compiler-generated nominal output package. A package with a runtime
+result reserves the contextual field `value`; proposition evidence fields erase
+and are copyable. Outcome-guarded guarantees exist only in the matching outcome
+shape. Chapter 10 defines evidence projection, assignment, call passing,
+destructuring, and the separate proposition, evidence-term, and derivation
+identities.
 
 ## Machine Graph Compatibility
 
