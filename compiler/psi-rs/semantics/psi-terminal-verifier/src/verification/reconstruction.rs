@@ -9,6 +9,7 @@ use psi_terminal_semantics::{goal_free_scalar_leaf_equation, structural_effect_l
 
 use crate::{ModuleError, validate_module};
 
+use super::call_composition::compose_call_operation;
 use super::integer_add_subtract::{
     exact_integer_add_obligation, exact_integer_subtract_obligation,
 };
@@ -22,8 +23,7 @@ use super::integer_divide_remainder::{
 use super::integer_multiply::exact_integer_multiply_obligation_with_definitions;
 use super::integer_shift::{exact_integer_shift_left_obligation, exact_integer_shift_obligation};
 use super::substitution::{
-    substitute_proposition_places, substitute_proposition_structural_places,
-    substitute_proposition_values, substitute_scalar_term_values,
+    substitute_proposition_places, substitute_proposition_values, substitute_scalar_term_values,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -204,106 +204,18 @@ pub(super) fn reconstruct_machine_semantics(
                 }
                 continue;
             }
+            if compose_call_operation(
+                module,
+                machine,
+                operation,
+                &machines,
+                &value_types,
+                &mut axioms,
+                &mut operation_obligations,
+            )? {
+                continue;
+            }
             match operation.kind.clone() {
-                OperationKind::CallUnit {
-                    callee,
-                    structural_arguments,
-                    requirement_obligations,
-                    ..
-                } => {
-                    let callee = machines
-                        .get(&callee)
-                        .copied()
-                        .expect("validated unit-call target exists");
-                    let substitutions = callee
-                        .structural_parameters
-                        .iter()
-                        .zip(&structural_arguments)
-                        .map(|(parameter, argument)| {
-                            (
-                                parameter.place,
-                                (
-                                    argument.place,
-                                    crate::validation::structural_argument_canonical_prefix(
-                                        module, machine, argument,
-                                    )
-                                    .expect("validated structural argument has a canonical path"),
-                                ),
-                            )
-                        })
-                        .collect::<BTreeMap<_, _>>();
-                    for (required, obligation) in
-                        callee.contract.requires.iter().zip(requirement_obligations)
-                    {
-                        operation_obligations.push(ReconstructedOperationObligation {
-                            obligation: Obligation {
-                                id: obligation,
-                                proposition: substitute_proposition_structural_places(
-                                    required,
-                                    &substitutions,
-                                ),
-                                class: ObligationClass::Derivable,
-                            },
-                            semantic_axioms: axioms.clone(),
-                        });
-                    }
-                    for guarantee in &callee.contract.ensures {
-                        push_unique(
-                            &mut axioms,
-                            substitute_proposition_structural_places(
-                                &guarantee.proposition,
-                                &substitutions,
-                            ),
-                        );
-                    }
-                }
-                OperationKind::BoundaryCall { .. } => {}
-                OperationKind::Call {
-                    callee,
-                    arguments,
-                    requirement_obligations,
-                    ..
-                } => {
-                    let callee = machines
-                        .get(&callee)
-                        .copied()
-                        .expect("validated call target exists");
-                    let mut substitutions = callee
-                        .parameters
-                        .iter()
-                        .zip(&arguments)
-                        .map(|(parameter, argument)| (parameter.id, value_term(*argument)))
-                        .collect::<BTreeMap<_, _>>();
-                    substitutions.insert(
-                        callee
-                            .result
-                            .scalar()
-                            .expect("validated call target has a scalar result")
-                            .id,
-                        value_term(operation.result.expect_scalar().id),
-                    );
-                    for (required, obligation) in
-                        callee.contract.requires.iter().zip(requirement_obligations)
-                    {
-                        operation_obligations.push(ReconstructedOperationObligation {
-                            obligation: Obligation {
-                                id: obligation,
-                                proposition: substitute_proposition_values(
-                                    required,
-                                    &substitutions,
-                                ),
-                                class: ObligationClass::Derivable,
-                            },
-                            semantic_axioms: axioms.clone(),
-                        });
-                    }
-                    for guarantee in &callee.contract.ensures {
-                        push_unique(
-                            &mut axioms,
-                            substitute_proposition_values(&guarantee.proposition, &substitutions),
-                        );
-                    }
-                }
                 OperationKind::IntegerExactCast {
                     operand,
                     obligation,
@@ -780,6 +692,11 @@ pub(super) fn reconstruct_machine_semantics(
                 | OperationKind::PortWrite { .. }
                 | OperationKind::BooleanStructuralField { .. } => {
                     unreachable!("structural/effect rows return before specialized reconstruction")
+                }
+                OperationKind::Call { .. }
+                | OperationKind::CallUnit { .. }
+                | OperationKind::BoundaryCall { .. } => {
+                    unreachable!("call rows return before specialized reconstruction")
                 }
             }
         }

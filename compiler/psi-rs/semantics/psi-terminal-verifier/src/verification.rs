@@ -13,6 +13,7 @@ use psi_terminal::TerminalModule;
 use crate::{ModuleError, ValidatedTerminalModule, validate_module};
 
 mod affine_joins;
+mod call_composition;
 mod evidence_provenance;
 mod integer_add_subtract;
 mod integer_affine;

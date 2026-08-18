@@ -104,10 +104,14 @@ structural/effect table for Boolean field custody, port-write effects, and
 affine-place establishment. The latter keeps result, custody, action, external
 effect, fuel, and frontier axes independent and emits distinct fact, effect, or
 frontier observations. The verifier traverses artifacts and consumes those
-rows, while the trust graph hashes the same inventories. This is a modularity
-checkpoint, not a trust promotion: proof-bearing sufficient-form reducers still
-have to derive the unchanged canonical goals, and call and control algebras
-remain separate responsibilities.
+rows. A third exact-unique table declares the ten independent composition axes
+for scalar, structural Unit, and boundary calls; one focused verifier module
+composes already-validated contracts through that table rather than embedding
+three call branches in general reconstruction. The trust graph hashes all three
+inventories and their exact consumers. This is a modularity checkpoint, not a
+trust promotion: proof-bearing sufficient-form reducers still have to derive
+the unchanged canonical goals, and control algebra remains a separate
+responsibility.
 
 The authoritative ledger is established for every deployed artifact either by
 executing the low definition or by checking a derivation of the same result.

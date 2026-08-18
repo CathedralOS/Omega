@@ -12,8 +12,10 @@ use std::collections::BTreeMap;
 use psi_core::{IntegerValue, Proposition, PropositionError, ScalarTerm, ScalarType, ValueId};
 use psi_terminal::{Operation, OperationKind};
 
+mod call_composition;
 mod structural_effect;
 
+pub use call_composition::*;
 pub use structural_effect::*;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -200,6 +202,10 @@ pub enum OperationSemanticError {
     StructuralEffectSchemaMismatch(OperationSemanticTag),
     StructuralEffectResultShapeMismatch(OperationSemanticTag),
     StructuralEffectActionShapeMismatch(OperationSemanticTag),
+    MissingCallCompositionRow(OperationSemanticTag),
+    DuplicateCallCompositionRow(OperationSemanticTag),
+    UnexpectedCallCompositionRow(OperationSemanticTag),
+    CallCompositionSchemaMismatch(OperationSemanticTag),
     InvalidProposition(PropositionError),
 }
 

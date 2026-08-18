@@ -87,7 +87,7 @@ Omega/
 |   |       |-- [CRATE] psi-proof-kernel/               # Total judgments, proof certificates, and admission checks.
 |   |       |-- [CRATE] psi-checked-interpreter/        # Checked-tree build-time and transitional reference execution.
 |   |       |-- [CRATE] psi-build-time-evaluation/      # Const/domain evaluation and programmable plan normalization.
-|   |       |-- [CRATE] psi-terminal-semantics/         # Closed scalar plus structural/effect operation rows and local observations.
+|   |       |-- [CRATE] psi-terminal-semantics/         # Closed scalar, structural/effect, and call-composition policy rows.
 |   |       |-- [CRATE] psi-terminal-verifier/          # Module validation and reconstructed-obligation checking.
 |   |       `-- [CRATE] psi-terminal-interpreter/       # Fuel-bounded reference execution of verified terminal artifacts.
 |   |

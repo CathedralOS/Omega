@@ -696,6 +696,15 @@ Remaining:
   evidence provenance, integer foundations, proof-bundle custody,
   reconstruction, and substitution bytes can no longer change outside the
   registered verifier/ledger dependency digests.
+  The third production Rust ledger slice now mirrors Gamma's exact-unique
+  three-row call-composition table. Scalar, structural Unit, and boundary calls
+  retain independent target, result, argument, requirement, transfer, outcome,
+  crash-route, evidence-lifetime, fuel, and frontier policies. The verifier's
+  contract composition moved out of general operation reconstruction into one
+  focused table-selected module; existing module validation still proves the
+  concrete signature, movement, coverage, substitution, outcome, crash, and
+  evidence invariants before composition. Call policy and implementation bytes
+  are both bound into the same three call trust nodes.
   The bounded Gamma spike is complete. It canonical-decodes four exact current
   `PSITERM\0` v12 fixtures and audits a 54-row scalar ledger covering constants,
   Boolean not/equality, integer equality/order, bitwise operations, strict
