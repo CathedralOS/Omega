@@ -878,12 +878,14 @@ Remaining:
   full low generator, row proofs, and composition bridges remain open, and no
   trust-graph node becomes derived from the spike. The corresponding AArch64
   cleanup has begun: its former 14,216-line runtime-storage parent is now a
-  9,425-line production parent over separate 697-line atomic load/store,
+  9,095-line production parent over separate 697-line atomic load/store,
   read-modify-write, ordering, result-site, and width responsibility and a
   746-line scalar conversion, placement, trap, saturation, and width-policy
-  responsibility, plus a separately compiled 3,361-line byte/width/policy
-  regression corpus. The exact public, function, and test inventories remain
-  preserved.
+  responsibility. Direct place-pair, place-value, computed-value, register,
+  machine-state, and exact failure-branch comparison contracts form a separate
+  356-line responsibility. The 3,361-line byte/width/policy regression corpus
+  remains separately compiled, and the exact public, function, and test
+  inventories remain preserved.
 
   Define a closed typed schema language with no opaque callbacks. One row per
   leaf operation owns well-formedness, direct mathematical denotation, canonical
