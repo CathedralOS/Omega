@@ -104,7 +104,7 @@ x86-64 and AArch64 calling policies, preserve stack/alignment and machine-state
 contracts, and keep fixed-fuel meter elision a separately admitted installation
 decision.
 
-## Q6 — Placed-view establishment and erased evidence
+## Q6 — Placed-view establishment and non-runtime semantic fields
 
 The source and checked contract for placement establishment is not yet closed.
 The guide shows `Placement::admit<P, T>(...)` followed by `adopt`, `initialize`,
@@ -117,20 +117,24 @@ provider/profile/admission identities, and return every linear input on
 failure.
 
 `Placed<P, T>` may interpret backing as a semantic `T` whose declaration
-contains `[erased]` fields. The settled representation law gives those bindings
-no offset, size, or transfer, and admission proves only demand/supply
-compatibility; it does not establish that `T` or its erased terms inhabit the
+contains fields absent from runtime layout. Two cases must remain distinct. A
+structurally zero-layout affine or linear Type field is an ordinary value and
+needs no `[erased]` marker; it still carries ordinary custody. An explicitly
+`[erased]` Type ghost is a specification-only occurrence whose noninterference
+is checked. Proposition evidence is intrinsically erased and copyable.
+Admission proves only demand/supply compatibility; it does not establish that
+`T`, its zero-layout Type values, or its explicitly erased terms inhabit the
 place. The current design does not say how Stable adopt/initialize/validate or
 External adopt supplies those exact terms.
 
-Choose the source contract and checked representation that establishes each
-erased binding on every placement-establishment route. The decision must bind
-evidence to the exact nominal `T`, normalized placement,
+Choose the source contract and checked representation that establishes every
+non-runtime binding on each placement-establishment route. The decision must
+bind evidence to the exact nominal `T`, normalized placement,
 extent/content/revision, and source or provider derivation; define projection,
-multiplicity, lifetime, provenance, retirement, and invalidation under permitted
-writes; and prevent raw bytes, admission alone, or a layout/access policy from
-manufacturing proof. Physical `LayoutPlan`, `AccessPlan`, offsets, and transfers
-remain erased-stripped.
+Type multiplicity, lifetime, provenance, retirement, and invalidation under
+permitted writes; and prevent raw bytes, admission alone, or a layout/access
+policy from manufacturing proof or zero-layout authority. Physical
+`LayoutPlan`, `AccessPlan`, offsets, and transfers remain erased-stripped.
 
 ## Q7 — Provider-neutral interrupt acknowledgement settlement
 
@@ -208,26 +212,7 @@ lifetime arguments erase while remaining part of semantic identity. The result
 must select one exact package-scoped conformance instance and normalized row
 map without visibility search, priority, or ambient uniqueness.
 
-## Q11 — Erased evidence-term multiplicity
-
-Named `requires` and `ensures` clauses expose erased evidence terms, and an
-output-package pattern may eventually write `_` for a field it explicitly
-discards. The settled guide says evidence retains ordinary multiplicity and
-that linear evidence may not be discarded, but no approved source or
-derivation rule assigns a multiplicity to an evidence term. The current
-checked and terminal carriers retain proposition, interface, lane, and term
-identity without a multiplicity field.
-
-Choose where an evidence term's multiplicity originates: the proposition
-declaration, its carrierless evidence interface, each named contract binding,
-the selected producer conformance, or another explicit declaration. The
-decision must state the default, require compatible multiplicity when terms
-are forwarded through `requires`/`ensures` lanes and generated output
-packages, and define exactly when `_` is a legal discharge. Erasure must remain
-independent of multiplicity, and neither producer choice nor runtime layout
-may silently weaken exact-use evidence into discardable evidence.
-
-## Q12 — Generated evidence-output package identity and projection
+## Q11 — Generated evidence-output package identity and projection
 
 The immediate output-package rung destructures one complete unconditional
 package at its call site, but the retained and outcome-guarded package model is
@@ -239,14 +224,17 @@ binding lifetime, projection ownership, or proof-artifact representation.
 Choose whether nominal identity belongs to one normalized machine application,
 one call site, or another exact origin, including substitutions and guarded
 outcome variants. Define how `let package = call()` binds a zero-layout or
-runtime-bearing unnameable value; whether projecting `value` or an evidence
-field borrows, copies, moves, or partially consumes it; what remains valid after
-each projection; and which origin, field, outcome, and exact evidence-term rows
-Terminal Psi must retain and verify. Q10 continues to own generic conformance
-application syntax. Q11 continues to own evidence multiplicity, use counts,
-residual-field discharge, and `_` legality.
+runtime-bearing unnameable value; whether projecting the ordinary `value` field
+borrows, copies, moves, or partially consumes it; what remains valid afterward;
+and which origin, field, outcome, and exact evidence-term rows Terminal Psi must
+retain and verify. Projection of a proposition-evidence field copies the exact
+term while preserving its validity scope and provenance. Q10 continues to own
+generic conformance application syntax. Proposition evidence fields may be
+explicitly discarded with `_`; ordinary Type fields retain their own
+multiplicity, and no rest pattern may silently discard present or future
+fields.
 
-## Q13 — Terminal placed-access authority and transfer custody
+## Q12 — Terminal placed-access authority and transfer custody
 
 The target-neutral access foundation can seal and specialize Stable, External,
 and Atomic primitive events, but Terminal Psi has no canonical artifact form
@@ -264,9 +252,10 @@ installed extent, provider/profile receipt, mapping, revision, lifetime, and
 boundary reach without embedding a forgeable address. The verifier,
 interpreter, Omega lowering, artifacts, and installation must preserve that same
 event rather than re-resolving it from source names or offsets. Q6 continues to
-own how admission first establishes a live `Placed<P, T>` and its erased terms.
+own how admission first establishes a live `Placed<P, T>` and its non-runtime
+semantic fields.
 
-## Q14 — Progress-profile classification and premise attachment
+## Q13 — Progress-profile classification and premise attachment
 
 Termination guarantees can retain sealed `ProgressProfileId` premises, but the
 ordinary domain and routed-requirement surface does not distinguish a progress

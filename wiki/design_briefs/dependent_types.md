@@ -63,7 +63,7 @@ The full apparatus, with the builder's verdict on each:
 | Indexed families (Vec) | compile-time-impossible cases | index unification, K-axiom, forced-argument erasure | No — sum types + fact-conditioned cases + dominating guards reproduce the effect through sum-payload narrowing |
 | Universes | classify values and formulas | Girard's paradox management only if universes themselves become freely first-class | **Yes, internally:** `Type` for objects and `Prop` for formulas; neither is currently a runtime value or an open source-level universe |
 | Definitional equality / normalization | silent computation in types | the checker's termination = the termination checker's soundness; Lean's main pain center (defeq debt, kernel blowups) | No — an entailment *engine* deciding equalities in a decidable theory is the third road: reflected-equality ergonomics without undecidable checking |
-| Erasure (QTT quantities 0/1/ω, Idris 2) | proofs cost nothing at runtime | relevance must compose with multiplicity, effects, and validity scope | **Partly built:** current facts erase and multiplicity already propagates; explicit relevance must replace structural proof-only classification |
+| Erasure (QTT quantities 0/1/ω, Idris 2) | proofs and specification-only ghosts cost nothing at runtime | Type relevance must compose with multiplicity, effects, and validity scope | **Partly built:** current facts erase and Type multiplicity already propagates; explicit relevance must replace structural proof-only classification |
 
 **The spectrum, and where Omega sits.** Constant-bound refinements →
 *symbolic bounds over linear integer arithmetic, decision-procedure-discharged*

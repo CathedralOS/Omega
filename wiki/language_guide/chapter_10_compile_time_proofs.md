@@ -116,11 +116,15 @@ Transparent aliases do not enter fingerprinted terminal Psi; primitive
 proposition symbols, their binders, classification, and normalized evidence
 interface do.
 
-Evidence also retains multiplicity, validity scope, and trust provenance. An
-erased proof may still be linear, borrow-scoped, entry-scoped, invalidated by a
-write, or tied to a live lease. Admission marks the evidence chain, not the
-proposition name, so two proofs of the same formula may carry different trust
-and a deployment profile may accept one and reject the other.
+Evidence retains validity scope and trust provenance. A retained proof term is
+always copyable: consumable authority belongs to an affine or linear `Type`
+carrier, which may have zero runtime layout, rather than to `Prop`. Copyability
+does not make a proof timeless. A term may still be borrow-scoped,
+entry-scoped, invalidated by a write, or tied to a live lease; all copies share
+that validity and expire together. Admission marks the evidence chain, not the
+proposition name, so two proofs of the same formula may carry different hidden
+witnesses and trust, and a deployment profile may accept one and reject the
+other.
 
 ## Named evidence terms
 
@@ -148,12 +152,19 @@ ensures
 }
 ```
 
-The incoming names are local aliases over positional erased parameters. A
-caller supplies them in clause order after the call's `;` lane separator; no
+An unnamed `requires P` asks only that `P` be established. A named
+`requires proof: P` additionally retains one exact proof term so the body may
+project or forward its hidden witness. Naming therefore changes the public
+proof-call surface and is a breaking API revision even though the proposition
+required is unchanged.
+
+The incoming names are local aliases over positional erased proof parameters.
+A caller supplies them in clause order after the call's `;` separator; no
 visible-fact search, conformance search, or name matching occurs. The separator
-is omitted when the evidence lane is empty. An evidence-only call retains the
-separator, as `callee(; proof)`, so a proof term cannot be confused with a
-runtime argument:
+marks the boundary between ordinary `Type` arguments and `Prop` inhabitants.
+It is omitted when the proof lane is empty. An evidence-only call retains the
+separator, as `callee(; proof)`, so a proof term cannot be confused with an
+ordinary argument:
 
 ```omega
 let {
@@ -212,14 +223,19 @@ nominal output package whose concrete type cannot be written in source. The
 implemented immediate rung accepts a concrete, one-state, zero-argument checked
 machine with no named `requires`, evidence arguments, or guarded outputs. Its
 complete nonempty set of named `ensures` fields must be destructured with the
-colon form. Source field order may vary; every fresh local evidence term must be
-forwarded exactly once:
+colon form. Source field order may vary. The current narrow implementation
+requires every fresh local evidence term to be forwarded exactly once:
 
 ```omega
 let { second: local_second, first: local_first } = produce();
 result_first = local_first;
 result_second = local_second;
 ```
+
+That exact-forwarding restriction is an implementation cohort, not proposition
+multiplicity. The destination permits a retained proposition term to be cited,
+copied, forwarded more than once, or explicitly discarded with `_`, subject to
+its validity scope.
 
 When the callee has no runtime result or runtime statements, the binding is
 proof-only: it creates no `Unit` local, runtime operation, or fuel charge. The
@@ -244,11 +260,11 @@ to the exact ordinary call site, and terminal Psi retains its canonical scalar
 interface, ordering, freshness, result-shape, caller, operation-kind, or callee
 drift.
 
-The complete package model is design-blocked on `OWNER_QUESTIONS.md` Q12. Its
+The complete package model is design-blocked on `OWNER_QUESTIONS.md` Q11. Its
 identity must account for the machine, runtime result, named evidence fields,
 propositions, and outcome guards. Coincidentally equal shapes from two machines
 will not be the same type, and no generated `Machine::Output` name will be
-inserted into an author-owned namespace. Q12 must settle the exact canonical
+inserted into an author-owned namespace. Q11 must settle the exact canonical
 identity, inferred binding lifetime, projection ownership, residual-package
 validity, and Terminal proof rows before retained or guarded forms land.
 
@@ -256,8 +272,7 @@ Future rungs may retain and project the complete package:
 
 ```omega
 let division = divide(numerator, denominator);
-use(division.value);
-consume(division.nonzero_evidence);
+continue_division(division.value; division.nonzero_evidence);
 ```
 
 The immediate form already destructures scalar runtime values and multiple
@@ -271,19 +286,18 @@ let {
 ```
 
 Retained/projected and guarded complete-package forms are design-blocked on
-`OWNER_QUESTIONS.md` Q12. Generic package application is design-blocked on Q10.
-Explicit discard is design-blocked on Q11.
+`OWNER_QUESTIONS.md` Q11. Generic package application is design-blocked on Q10.
 
 `value` is the reserved contextual field for an ordinary runtime result. Named
 evidence fields erase, so the package has the runtime representation of
-`value`; a proof-only package has zero runtime layout. There is no implicit
+`value`; a proof-only package has zero runtime layout. Proposition evidence is
+copyable and may be explicitly discarded with `_`. There is no implicit
 coercion from the package to `value`. Every field in the implemented immediate
-shape must be bound. Explicit `_` discard is design-blocked on
-`OWNER_QUESTIONS.md` Q11 because evidence-term multiplicity has no approved
-source/default rule yet; no rest pattern silently discards present or future
-proof fields.
+shape must be bound or explicitly discarded; no rest pattern silently drops
+present or future proof fields. Ordinary runtime fields retain their own Type
+multiplicity and cannot be discarded when that multiplicity forbids it.
 
-The intended guarded shape below remains illustrative pending Q12.
+The intended guarded shape below remains illustrative pending Q11.
 
 Outcome-specific evidence is a field only of the outcome where its `ensures`
 guard applies:
@@ -332,7 +346,8 @@ conformance surface remains unfinished.
 ## Explicit relevance
 
 Relevance belongs to a binding occurrence, independently of its type,
-multiplicity, validity scope, and provenance. An erased field uses the same
+validity scope, and provenance. For a `Type` binding it is also independent of
+that type's multiplicity. An erased field uses the same
 bracket-property convention as other binding properties:
 
 ```omega
@@ -355,12 +370,19 @@ another proof machine or an erased initializer, and a statement-position call
 may cite the machine for its established facts, but its result cannot initialize,
 return, branch, or otherwise determine runtime data.
 
-Erasure does not discharge obligations. Erased evidence may remain linear,
-borrow-scoped, lease-scoped, content-bearing, or provenance-bearing, and its
-obligations remain in the compiler frontier until explicitly consumed. What is
-forbidden is a runtime destructor or cleanup action that relies on erased
-representation. A containing value cannot leave scope while an erased linear
-obligation remains live.
+Erasure does not discharge Type obligations. An explicitly erased Type ghost
+may remain affine or linear, borrow-scoped, lease-scoped, content-bearing, or
+provenance-bearing, and its obligations remain in the compiler frontier until
+explicitly consumed. What is forbidden is a runtime destructor or cleanup
+action that relies on erased representation. A containing value cannot leave
+scope while an erased linear Type obligation remains live. Proposition proof
+terms are different: they are intrinsically proof-only and always copyable.
+
+A structurally zero-layout Type value needs no `[erased]` marker merely to cost
+zero bytes. It remains an ordinary value and carries ordinary ownership and
+multiplicity. Conversely, `[erased]` cannot be used to delete the bytes of a
+representable runtime value; it is a checked relevance assertion for a
+specification-only occurrence.
 
 Construction normally supplies an erased term even though it produces no
 runtime code. Omission is derived only for a structurally visible and

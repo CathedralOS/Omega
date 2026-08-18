@@ -171,8 +171,8 @@ Owners:
   `Granted & Vacant` before allocator integration. Permission-stage borrowed
   admission can already withdraw the exact loan before content establishment.
   Source establishment and owned retirement are design-blocked on owner Q6:
-  the admitted intermediate, failure signatures, and erased evidence are
-  unsettled, and retirement lacks the checked destruction or move-out receipt
+  the admitted intermediate, failure signatures, and non-runtime semantic
+  fields are unsettled, and retirement lacks the checked destruction or move-out receipt
   needed to establish `Vacant`. Continue independent internal authority work.
 - Derive readable, destructive-read, writable, and atomic field accessors while
   keeping logical extents distinct from whole-transfer footprints. Enforce
@@ -184,7 +184,7 @@ Owners:
   linearly into Stable read/write, External read/take/write, or one exact
   Atomic operation and ordering while preserving the original authority on
   rejection. Connecting those admitted events to Terminal Psi and both native
-  backends is design-blocked on owner Q13: the canonical installed placed-root
+  backends is design-blocked on owner Q12: the canonical installed placed-root
   authority and read/take/write/atomic value-custody contract are unsettled.
 - Retain schema/device correspondence, runtime revision evidence, and provider
   identity separately from storage compatibility.
@@ -1019,7 +1019,7 @@ Remaining:
   This is engineering, not a language-design blocker. Unsupported computed,
   chained, dynamic-receiver, unresolved-generic, non-checked-supply, and
   unresolved-machine-parameter shapes keep failing closed. `Placed<P, T>`
-  erased-evidence establishment is design-blocked on owner Q6. Relevance does
+  non-runtime-field establishment is design-blocked on owner Q6. Relevance does
   not invent a runtime carrier or public ABI for otherwise non-layoutable types.
 - **EFFECTFUL-TYPED-COMPUTATION:** specify the value/computation judgments
   connecting effectful machines to the future typed proof calculus. Treat both
@@ -1195,7 +1195,7 @@ compiler concept is introduced.
   umbrella. The published checked operational root is retired; its plan remains
   only as a transient validation and independent-fact construction input.
   Continue removing umbrella carriers after their remaining consumers migrate.
-- **TPR4/TPR6 — design blocked on owner Q14.** Choose how an ordinary domain or
+- **TPR4/TPR6 — design blocked on owner Q13.** Choose how an ordinary domain or
   routed requirement is classified and attached as a progress premise before
   connecting progress-profile grants and receipts. Generic routed/domain
   requirements must not be treated as progress merely because they are
@@ -1285,15 +1285,20 @@ Remaining N6/N8 work:
   nonempty set of unconditional evidence fields from a concrete zero-input
   checked machine. Source field order may vary; checked and terminal Psi
   canonicalize by callee lane, mint one distinct fresh caller-local term per
-  field, and require each term to be forwarded exactly once. A proof-only call
-  remains fully erased. A scalar-result call additionally requires exactly one
-  contextual `value` field, synthesizes one ordinary caller local/call, and
+  field, and currently require each term to be forwarded exactly once. Remove
+  that narrow implementation-cohort restriction: proposition terms are
+  copyable, may be forwarded repeatedly while valid, and may be explicitly
+  discarded with `_`. A proof-only call remains fully erased. A scalar-result
+  call additionally requires exactly one contextual `value` field, synthesizes
+  one ordinary caller local/call, and
   links the grouped proof row to that exact canonical terminal call operation;
   proof metadata adds no runtime work or fuel beyond the ordinary call.
 
   Retained/projection and guarded complete-package forms are design-blocked on
-  `OWNER_QUESTIONS.md` Q12. Generic package application is design-blocked on
-  Q10. Explicit-discard packages are design-blocked on Q11.
+  `OWNER_QUESTIONS.md` Q11. Generic package application is design-blocked on
+  Q10. Implement explicit `_` discard for copyable proposition-evidence fields;
+  keep ordinary Type fields subject to their own multiplicity and continue to
+  reject rest patterns that would silently discard present or future fields.
   Keep proposition, evidence-term, and provenance identities separate; neither
   provenance nor display spelling is a term identity oracle.
 - Finish generic conformance instantiation and explicit binders. The declaration
@@ -1431,11 +1436,10 @@ specifications:
 - **IMPORTED-CRASH-CAPSULES:** realization/import/certificate identity in
   `wiki/language_guide/appendix_open_questions.md`.
 - **NATIVE-LOGICAL-FUEL-METERING:** owner Q5.
-- **PLACED-ERASED-EVIDENCE-ESTABLISHMENT:** owner Q6.
+- **PLACED-NONRUNTIME-FIELD-ESTABLISHMENT:** owner Q6.
 - **PROVIDER-NEUTRAL-INTERRUPT-ACKNOWLEDGEMENT:** owner Q7.
 - **GENERIC-CONFORMANCE-APPLICATION:** owner Q10.
-- **EVIDENCE-PACKAGE-DISCARD:** owner Q11.
-- **GENERATED-EVIDENCE-OUTPUT-PACKAGES:** owner Q12.
+- **GENERATED-EVIDENCE-OUTPUT-PACKAGES:** owner Q11.
 
 ## Platform-gated verification
 
