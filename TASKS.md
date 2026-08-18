@@ -804,6 +804,10 @@ Remaining:
   is now a 15-line root over fifteen cast, conversion, add/subtract,
   multiply/affine, join, shift, and divide-policy responsibilities. All 76
   cases remain, and no family module exceeds 1,248 lines.
+  The checked-lowering regression file that had accumulated ranking,
+  operational-contract, write-frame, crash-route, and data-fact verification
+  is now a 23-line root over eight exact test families. All 67 tests and the
+  shared exact-symbol helper remain, and no family exceeds 3,614 lines.
   Terminal native machine emission has undergone the same split: its
   12,922-line crate root is now an 891-line production orchestrator with the
   complete 58-case, 5,028-line regression corpus compiled separately.
