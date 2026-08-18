@@ -1637,6 +1637,13 @@ is unchanged. The executable integer-shift trust node hashes all three source
 files, so modularization cannot move deciding bytes outside its migration
 custody.
 
+Exact conversion follows the same boundary. Its parent owns cast-family
+precedence and the direct range fallback, its chain module owns conversion
+spines and interval transfer, and its composition module owns divide/product/
+affine/offset cross-family reducers. The conversion trust node likewise binds
+all three source files, while the parent-facing reducer contracts and accepted
+algebra remain unchanged.
+
 Premise availability is path- and version-sensitive. Ranking ledger nodes makes
 cyclic justification unrepresentable but does not by itself make a fact
 available. A cited evidence token must dominate its use and remain valid along

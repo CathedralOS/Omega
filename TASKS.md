@@ -849,6 +849,12 @@ Remaining:
   cross-family cast/arithmetic/divide composition responsibility. The existing
   public reducer surface and precedence are unchanged, and the integer-shift
   trust node binds all three exact source files.
+  Exact conversion reduction now has the same split. Its former 2,219-line
+  file is a 243-line cast-precedence/direct-fallback parent over a 977-line
+  conversion-chain and interval-foundation responsibility and a 1,063-line
+  divide/product/affine/offset composition responsibility. Existing reducer
+  contracts and ordering remain unchanged, and the integer-conversion trust
+  node binds every implementation source.
   The checked-lowering regression file that had accumulated ranking,
   operational-contract, write-frame, crash-route, and data-fact verification
   is now a 23-line root over eight exact test families. All 67 tests and the
