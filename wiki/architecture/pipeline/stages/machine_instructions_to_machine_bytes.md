@@ -97,7 +97,11 @@ Must not own:
   separately under `runtime_storage/scalar_tests.rs`; `dispatch.rs` owns
   dispatch-loop, case-entry, state-write, case-leave, and storage-backed static
   guard encodings together with their exact widths and machine-state effects.
-  The crate root does not reconstruct any of those families.
+  `encoding_primitives.rs` owns the crate-internal register moves,
+  loads/stores, checked displacements, copy-chunk iteration, and atomic byte
+  helpers shared by those families. The crate root is only the public module
+  and relocation-contract surface; it does not reconstruct any encoding
+  family.
 - `omega-machine-bytes/src/plan/` is the output representation root:
   encoded executable byte shape lives under `EncodedMachineCode`, while
   preserved semantic evidence lives under `EncodedMachineSemanticSummary`.
