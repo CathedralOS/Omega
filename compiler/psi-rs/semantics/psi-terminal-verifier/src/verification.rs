@@ -275,7 +275,7 @@ fn validate_evidence_producer_provenance(
     let package_outputs = module
         .evidence_package_invocations
         .iter()
-        .flat_map(|invocation| invocation.outputs.iter().map(|output| output.output))
+        .flat_map(|invocation| invocation.outputs.iter().filter_map(|output| output.output))
         .collect::<BTreeSet<_>>();
     for lane in &module.evidence_contract_lanes {
         if lane.kind == EvidenceContractLaneKind::Ensures

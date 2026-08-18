@@ -164,14 +164,15 @@ pub struct EvidencePackageRuntimeCallFact {
     pub call_ordinal: usize,
 }
 
-/// One exact public field binding within a generated package invocation.
-/// `callee_output` is the published lane declaration; `output` is the
-/// distinct term introduced in the caller by this invocation.
+/// One exact public field disposition within a generated package invocation.
+/// `callee_output` is the published lane declaration. `output` is the distinct
+/// term introduced in the caller, or `None` when the source explicitly binds
+/// this copyable proposition field to `_`.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct EvidencePackageOutputFact {
     pub output_position: usize,
     pub callee_output: Handle<CheckedEvidenceTerm>,
-    pub output: Handle<CheckedEvidenceTerm>,
+    pub output: Option<Handle<CheckedEvidenceTerm>>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

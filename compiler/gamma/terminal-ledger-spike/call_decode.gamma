@@ -3,7 +3,7 @@
 ; The shared structural decoder owns record, parameter, place, result, and
 ; service syntax.  This module owns the additional domain, boundary, claim,
 ; structural-argument, transfer/receipt, and call-operation vocabulary.  It
-; accepts exact current PSITERM v11 bytes and no target/ABI representation.
+; accepts exact current PSITERM v12 bytes and no target/ABI representation.
 
 (def read_cc_domain ((bs Bytes)) RCCDomain
   (match (read_id bs)

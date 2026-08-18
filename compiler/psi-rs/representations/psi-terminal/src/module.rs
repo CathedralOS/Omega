@@ -26,7 +26,7 @@ impl VocabularyMarker {
     }
 
     pub const fn get(self) -> u16 {
-        16
+        17
     }
 }
 
@@ -404,7 +404,8 @@ pub struct EvidencePackageOutputBinding {
     /// Exact public generated-package field selected from the callee lane.
     pub output_field: String,
     pub callee_output: EvidenceTermId,
-    pub output: EvidenceTermId,
+    /// Distinct caller-local copy, or `None` for an explicit source `_`.
+    pub output: Option<EvidenceTermId>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

@@ -1,7 +1,7 @@
 ; Exact current terminal-Psi envelope prefix.
 ;
-; The deployment codec accepts one eight-byte magic, format marker 11, and the
-; single current semantic vocabulary marker 16.  This parser consumes no module
+; The deployment codec accepts one eight-byte magic, format marker 12, and the
+; single current semantic vocabulary marker 17.  This parser consumes no module
 ; body bytes and retains the accepted vocabulary marker explicitly.
 
 (def read_terminal_header ((bs Bytes)) RTerminalHeader
@@ -32,11 +32,11 @@
                                   (match (read_u16 r1)
                                     (RIntBad RTerminalHeaderBad)
                                     ((RInt format r2)
-                                      (if (eq format 11)
+                                      (if (eq format 12)
                                         (match (read_u16 r2)
                                           (RIntBad RTerminalHeaderBad)
                                           ((RInt vocabulary rest)
-                                            (if (eq vocabulary 16)
+                                            (if (eq vocabulary 17)
                                               (RTerminalHeader vocabulary rest)
                                               RTerminalHeaderBad)))
                                         RTerminalHeaderBad))))))))))))))))))))

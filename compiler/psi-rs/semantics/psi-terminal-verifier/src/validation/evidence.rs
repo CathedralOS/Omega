@@ -151,9 +151,6 @@ pub(super) fn validate_evidence_contract_lanes(
                     binding.callee_output,
                 ));
             };
-            let Some(output) = terms.get(&binding.output) else {
-                return Err(ModuleError::UnknownEvidenceContractTerm(binding.output));
-            };
             if binding.output_position
                 != u32::try_from(expected_position).map_err(|_| {
                     ModuleError::InvalidEvidencePackageInvocation {
@@ -161,15 +158,10 @@ pub(super) fn validate_evidence_contract_lanes(
                         ordinal: invocation.ordinal,
                     }
                 })?
-                || binding.callee_output == binding.output
-                || callee_output.proposition != output.proposition
-                || callee_output.interface != output.interface
                 || binding.output_field.is_empty()
                 || binding.output_field == "value"
                 || !fields.insert(binding.output_field.as_str())
                 || !callee_terms.insert(binding.callee_output)
-                || !output_terms.insert(binding.output)
-                || callee_terms.contains(&binding.output)
                 || output_terms.contains(&binding.callee_output)
             {
                 return Err(ModuleError::InvalidEvidencePackageInvocation {
@@ -177,7 +169,24 @@ pub(super) fn validate_evidence_contract_lanes(
                     ordinal: invocation.ordinal,
                 });
             }
-            used_terms.extend([binding.callee_output, binding.output]);
+            used_terms.insert(binding.callee_output);
+            if let Some(output_id) = binding.output {
+                let Some(output) = terms.get(&output_id) else {
+                    return Err(ModuleError::UnknownEvidenceContractTerm(output_id));
+                };
+                if binding.callee_output == output_id
+                    || callee_output.proposition != output.proposition
+                    || callee_output.interface != output.interface
+                    || !output_terms.insert(output_id)
+                    || callee_terms.contains(&output_id)
+                {
+                    return Err(ModuleError::InvalidEvidencePackageInvocation {
+                        caller: invocation.caller,
+                        ordinal: invocation.ordinal,
+                    });
+                }
+                used_terms.insert(output_id);
+            }
         }
     }
     if let Some(term) = terms

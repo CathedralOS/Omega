@@ -685,7 +685,7 @@ Remaining:
   structural/effect rows, and call/control composition remain separate and are
   not promoted into this leaf table.
   The bounded Gamma spike is complete. It canonical-decodes four exact current
-  `PSITERM\0` v11 fixtures and audits a 54-row scalar ledger covering constants,
+  `PSITERM\0` v12 fixtures and audits a 54-row scalar ledger covering constants,
   Boolean not/equality, integer equality/order, bitwise operations, strict
   i8-to-i16 widening, partial i16-to-i8 exact cast, exact/wrapping shifts with
   independently typed counts, and the complete
@@ -1294,21 +1294,22 @@ Remaining N6/N8 work:
   The immediate generated-output-package rung now destructures the complete
   nonempty set of unconditional evidence fields from a concrete zero-input
   checked machine. Source field order may vary; checked and terminal Psi
-  canonicalize by callee lane, mint one distinct fresh caller-local term per
-  field, and currently require each term to be forwarded exactly once. Remove
-  that narrow implementation-cohort restriction: proposition terms are
-  copyable, may be forwarded repeatedly while valid, and may be explicitly
-  discarded with `_`. A proof-only call remains fully erased. A scalar-result
-  call additionally requires exactly one contextual `value` field, synthesizes
-  one ordinary caller local/call, and
+  canonicalize by callee lane and mint one distinct fresh caller-local term per
+  bound field. Proposition terms are copyable: a bound term may be cited or
+  forwarded repeatedly while valid, may remain unused, and an evidence field
+  may be explicitly discarded with `_`. The complete package shape is still
+  mandatory, and `_` is not a term identity. A proof-only call remains fully
+  erased. A scalar-result call additionally requires exactly one contextual
+  `value` field, which cannot use proposition discard, synthesizes one ordinary
+  caller local/call, and
   links the grouped proof row to that exact canonical terminal call operation;
   proof metadata adds no runtime work or fuel beyond the ordinary call.
 
   Retained/projection and guarded complete-package forms are design-blocked on
   `OWNER_QUESTIONS.md` Q11. Generic package application is design-blocked on
-  Q10. Implement explicit `_` discard for copyable proposition-evidence fields;
-  keep ordinary Type fields subject to their own multiplicity and continue to
-  reject rest patterns that would silently discard present or future fields.
+  Q10. Ordinary Type fields remain subject to their own multiplicity, and rest
+  patterns that would silently discard present or future fields remain
+  rejected.
   Keep proposition, evidence-term, and provenance identities separate; neither
   provenance nor display spelling is a term identity oracle.
 - Finish generic conformance instantiation and explicit binders. The declaration
