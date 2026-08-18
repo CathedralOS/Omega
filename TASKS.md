@@ -854,14 +854,18 @@ Remaining:
   text materialization form a separate 1,480-line family. Binary arithmetic
   and scalar conversion writes form a separate 478-line family. The separate
   native-refinement lane now applies the same engineering boundary to x86-64
-  byte encoding: the public root is down from 19,412 to 13,323 lines and
+  byte encoding: the public root is down from 19,412 to 6,931 lines and
   re-exports 106-line function-frame, 591-line entry/result ABI,
   662-line privileged-effect, 578-line Linux-syscall, and 760-line atomic
   responsibilities with their focused byte/width tests. Compact Binary wire
   append/read, scalar, byte-slice, nested, repeated-field, predicate, and UTF-8
   encodings now form a separate 1,880-line responsibility. Stored/literal text
   append, materialization/comparison, Win64/Linux line reads, and bounded text
-  carriers form a separate 1,580-line responsibility. These
+  carriers form a separate 1,580-line responsibility. Generic host dispatch,
+  authored imports, normalized Win64/System V argument and result placement,
+  direct/vtable/table calls, byte I/O, and exact relocation-site replay form a
+  separate 4,399-line production responsibility; its 2,005-line ABI regression
+  corpus is separately compiled. These
   are semantics-preserving responsibility splits, not trust promotions: the
   full low generator, row proofs, and composition bridges remain open, and no
   trust-graph node becomes derived from the spike.

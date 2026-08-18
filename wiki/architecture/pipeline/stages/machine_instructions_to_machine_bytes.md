@@ -86,8 +86,12 @@ Must not own:
   predicate, and UTF-8 encodings together with their exact widths, clobbers,
   machine state, and page offsets; `runtime_text.rs` owns stored/literal append,
   materialization/comparison, Win64/Linux line-read adapters, and bounded text
-  carriers together with their exact relocation offsets. The crate root does
-  not reconstruct any of those families.
+  carriers together with their exact relocation offsets; `host_calls.rs` owns
+  generic host dispatch, authored imports, normalized Win64/System V argument
+  and result placement, direct/vtable/table calls, byte I/O, and exact
+  relocation-site replay. Its ABI regression corpus is compiled separately
+  under `host_calls/tests.rs`. The crate root does not reconstruct any of those
+  families.
 - `omega-machine-bytes/src/plan/` is the output representation root:
   encoded executable byte shape lives under `EncodedMachineCode`, while
   preserved semantic evidence lives under `EncodedMachineSemanticSummary`.
