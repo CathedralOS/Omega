@@ -224,6 +224,10 @@ Omega/
   parent, but behavior, content, qualification, carry, and machine-contract
   manifest cases compile as responsibility-specific child modules rather than
   being embedded in the production view or recombined in one permutation file.
+- Large integration suites follow the same rule. Corpus registries, shared
+  compilation seams, and umbrella orchestration stay in a small test root;
+  target, artifact, semantic, provider, ABI, proof, layout, and runtime cases
+  compile in responsibility-specific modules with explicit cross-family imports.
 - `orchestration/` must not become the home for semantic checks or backend
   lowering.
 

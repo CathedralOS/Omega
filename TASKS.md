@@ -814,6 +814,13 @@ Remaining:
   behavior, content, qualification, carry, and machine-contract test families.
   All 188 embedded tests and 215 test/helper functions remain, and no family
   module exceeds 1,043 lines.
+  The compiler canary integration suite is no longer a 48,301-line permutation
+  file. Its shared compile helpers, exact corpus registries, and umbrella
+  orchestration now form a 3,277-line root over twenty-one responsibility
+  modules for target artifacts, reports, content, ranges, arithmetic, providers,
+  calls, ABI, proofs, layouts, and runtime families. All 1,241 tests and 1,272
+  functions remain; the sole cross-family float differential helper is imported
+  explicitly, and no family module exceeds 3,795 lines.
   Terminal native machine emission has undergone the same split: its
   12,922-line crate root is now an 891-line production orchestrator with the
   complete 58-case, 5,028-line regression corpus compiled separately.
