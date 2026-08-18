@@ -102,6 +102,11 @@ Must not own:
   helpers shared by those families. The crate root is only the public module
   and relocation-contract surface; it does not reconstruct any encoding
   family.
+- `omega-isa-aarch64/src/aarch64/runtime_storage.rs` owns AArch64 runtime
+  storage production encoding. Its byte, width, clobber, atomic-ordering,
+  conversion-policy, indexed-place, and floating-policy regressions are
+  compiled separately through `runtime_storage_tests.rs`; production does not
+  embed that second responsibility.
 - `omega-machine-bytes/src/plan/` is the output representation root:
   encoded executable byte shape lives under `EncodedMachineCode`, while
   preserved semantic evidence lives under `EncodedMachineSemanticSummary`.
