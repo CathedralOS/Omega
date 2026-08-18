@@ -118,6 +118,9 @@ a small precedence parent owns primitive shift dispatch, a direct-chain module
 owns landed-count and interval foundations, and a cross-family module owns
 cast, affine, divide/remainder, and shift composition. The reducer contract is
 unchanged, and the trusted-migration node binds all three exact source files.
+Exact conversion reconstruction is split analogously between a cast-precedence
+parent, conversion-chain/interval foundations, and cross-family composition.
+Its trusted-migration node also binds all three exact source files.
 
 The authoritative ledger is established for every deployed artifact either by
 executing the low definition or by checking a derivation of the same result.

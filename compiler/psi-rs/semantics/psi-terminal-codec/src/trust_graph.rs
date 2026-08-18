@@ -54,6 +54,11 @@ const INTEGER_AFFINE_SOURCE: &[u8] =
     include_bytes!("../../psi-terminal-verifier/src/verification/integer_affine.rs");
 const INTEGER_CONVERSION_SOURCE: &[u8] =
     include_bytes!("../../psi-terminal-verifier/src/verification/integer_conversion.rs");
+const INTEGER_CONVERSION_CHAINS_SOURCE: &[u8] =
+    include_bytes!("../../psi-terminal-verifier/src/verification/integer_conversion/chains.rs");
+const INTEGER_CONVERSION_COMPOSITION_SOURCE: &[u8] = include_bytes!(
+    "../../psi-terminal-verifier/src/verification/integer_conversion/composition.rs"
+);
 const INTEGER_DIVIDE_REMAINDER_SOURCE: &[u8] =
     include_bytes!("../../psi-terminal-verifier/src/verification/integer_divide_remainder.rs");
 const INTEGER_MULTIPLY_SOURCE: &[u8] =
@@ -745,6 +750,16 @@ fn reduction_nodes() -> Vec<TrustDependencyNode> {
     .into_iter()
     .map(|(identity, subject, version, source_name, source)| {
         let mut exact_sources = vec![(source_name, source)];
+        if identity == "reduction:integer-conversion" {
+            exact_sources.push((
+                "verification/integer_conversion/chains.rs",
+                INTEGER_CONVERSION_CHAINS_SOURCE,
+            ));
+            exact_sources.push((
+                "verification/integer_conversion/composition.rs",
+                INTEGER_CONVERSION_COMPOSITION_SOURCE,
+            ));
+        }
         if identity == "reduction:integer-shift" {
             exact_sources.push((
                 "verification/integer_shift/chains.rs",
@@ -1232,6 +1247,33 @@ mod tests {
             shift.digest(),
             root_only_shift.digest(),
             "shift custody must include both child implementation modules",
+        );
+
+        let conversion = graph
+            .nodes()
+            .iter()
+            .find(|node| node.identity == "reduction:integer-conversion")
+            .expect("integer-conversion reduction node");
+        let root_only_conversion = TrustDependencyNode::new(
+            conversion.identity.clone(),
+            conversion.kind,
+            conversion.status,
+            conversion.semantic_subject.clone(),
+            conversion.version.clone(),
+            conversion.owner.clone(),
+            conversion.scope.clone(),
+            conversion.rationale.clone(),
+            conversion.accepting_policy,
+            conversion.dependencies.clone(),
+            &[(
+                "verification/integer_conversion.rs",
+                INTEGER_CONVERSION_SOURCE,
+            )],
+        );
+        assert_ne!(
+            conversion.digest(),
+            root_only_conversion.digest(),
+            "conversion custody must include both child implementation modules",
         );
     }
 
