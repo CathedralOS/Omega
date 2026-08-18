@@ -99,11 +99,15 @@ reborrows, outcomes, crash routes, and evidence lifetimes.
 
 The production Rust migration starts with one closed declarative operation
 inventory in `psi-terminal-semantics`. It owns stable identity and direct local
-equations for the goal-free scalar cohort; the verifier traverses artifacts and
-consumes those rows, while the trust graph hashes the same inventory. This is a
-modularity checkpoint, not a trust promotion: proof-bearing sufficient-form
-reducers still have to derive the unchanged canonical goals, and structural,
-effect, call, and control algebras remain separate responsibilities.
+equations for the goal-free scalar cohort plus a separate exact-unique
+structural/effect table for Boolean field custody, port-write effects, and
+affine-place establishment. The latter keeps result, custody, action, external
+effect, fuel, and frontier axes independent and emits distinct fact, effect, or
+frontier observations. The verifier traverses artifacts and consumes those
+rows, while the trust graph hashes the same inventories. This is a modularity
+checkpoint, not a trust promotion: proof-bearing sufficient-form reducers still
+have to derive the unchanged canonical goals, and call and control algebras
+remain separate responsibilities.
 
 The authoritative ledger is established for every deployed artifact either by
 executing the low definition or by checking a derivation of the same result.

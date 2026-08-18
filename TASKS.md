@@ -683,7 +683,19 @@ Remaining:
   verifier and codec trust graph consume that shared inventory instead of
   maintaining independent operation matches. Proof-bearing reducers,
   structural/effect rows, and call/control composition remain separate and are
-  not promoted into this leaf table.
+  not promoted into the scalar table. The second production Rust ledger slice
+  now mirrors Gamma's separate exact-unique three-row structural/effect table:
+  Boolean field reads, port writes, and trivial affine-local establishment keep
+  result, custody, action, external-effect, fuel, and place-frontier axes
+  explicit. One generic interpreter emits distinct fact, effect, or frontier
+  observations; the verifier consumes its Boolean equation instead of
+  reconstructing that row independently. The trust graph consumes the same
+  table as 32 direct-denotation plus three structural/effect nodes while
+  preserving the 35 leaf / three call-composition operation-custody split.
+  The modular verifier source split is also fully rebound into trust identities:
+  evidence provenance, integer foundations, proof-bundle custody,
+  reconstruction, and substitution bytes can no longer change outside the
+  registered verifier/ledger dependency digests.
   The bounded Gamma spike is complete. It canonical-decodes four exact current
   `PSITERM\0` v12 fixtures and audits a 54-row scalar ledger covering constants,
   Boolean not/equality, integer equality/order, bitwise operations, strict
