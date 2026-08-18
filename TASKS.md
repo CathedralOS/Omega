@@ -812,12 +812,12 @@ Remaining:
   1,301-line responsibility. Scalar-return and Boolean-control cleanup,
   nominal-cleanup admission, exact residual partitioning, and cleanup
   stack/fuel/call evidence form a separate 1,120-line responsibility. Scalar
-  control/expression encoding, per-architecture scalar-call and arithmetic
-  mechanics, admissible conditional-shape custody, and scalar stack evidence
-  form a separate 4,655-line responsibility behind forty-four explicit
-  parent-facing contracts. Its x86-64, AArch64, and shared shape/evidence
-  internals remain visible candidates for later responsibility splits rather
-  than being hidden behind one permutation dispatcher.
+  control/expression emission now has a 31-line orchestration/re-export root
+  over distinct 1,861-line x86-64 encoding, 1,775-line AArch64 encoding, and
+  1,067-line shared conditional-shape/stack-evidence responsibilities. All
+  eighty-five implementation functions retain their exact architecture or
+  shared owner, and the parent-facing surface remains explicit rather than
+  becoming one permutation dispatcher.
   Terminal-module validation has begun the same split: its parent shrank from
   7,498 to 282 lines, with structural/service foundation (956 lines),
   structural/boundary operation custody (822), public error vocabulary (803),
