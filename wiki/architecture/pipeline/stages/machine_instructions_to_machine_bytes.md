@@ -123,7 +123,10 @@ Must not own:
   their closed register and machine-state ceilings.
   `runtime_storage/address_writes.rs` owns direct, pointee, frame-indexed,
   machine-indexed, and double-indexed place-address writes plus their exact
-  clobber and machine-state ceilings. Byte, width, clobber,
+  clobber and machine-state ceilings. `runtime_storage/indexed_writes.rs` owns
+  descriptor, pointee, frame, and machine single- and double-indexed integer
+  and binary result writes, including their operand and clobber contracts.
+  Byte, width, clobber,
   atomic-ordering, conversion-policy, indexed-place, and floating-policy
   regressions are compiled separately through `runtime_storage_tests.rs`;
   production does not embed that second responsibility.
