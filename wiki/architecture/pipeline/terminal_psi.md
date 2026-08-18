@@ -1573,10 +1573,13 @@ invocations, and producer provenance likewise share one evidence-publication
 module behind a single parent-facing installation API.
 Terminal native machine emission keeps its byte/width/policy regression corpus
 in the separately compiled `omega-terminal-machine-emission/src/tests.rs`;
-the production root does not embed that second responsibility. Unit-body and
-calling-policy emission, cleanup emission, and scalar control/expression
-emission remain distinct production responsibilities and must not be collapsed
-into test helpers or one generic permutation dispatcher.
+the production root does not embed that second responsibility.
+`omega-terminal-machine-emission/src/unit.rs` owns Unit-body and calling-policy
+emission, exact per-target parameter homes, aggregate argument staging/copying,
+and Unit stack/fuel/effect evidence behind the parent-facing Unit emitter and
+cleanup-call helpers. Cleanup emission and scalar control/expression emission
+remain distinct production responsibilities and must not be collapsed into
+test helpers or one generic permutation dispatcher.
 Scalar and structural crash routes, checked crash-site/frontier custody,
 argument-root substitution, and canonical proposition construction likewise
 share one crash/proposition module with an explicit internal contract surface.
