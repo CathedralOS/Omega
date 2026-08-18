@@ -1707,6 +1707,19 @@ also bind the modular verifier's evidence-provenance, integer-foundation,
 proof-bundle, reconstruction, and substitution sources, so splitting the former
 monolith does not weaken exact deciding-byte custody.
 
+Call composition follows the same production shape without pretending that a
+call is a primitive denotation. One exact-unique three-row table independently
+declares target, result, positional arguments, requirement handling, structural
+transfer, successful outcome, crash routes, evidence lifetime, fuel, and
+frontier policy for `Call`, `CallUnit`, and `BoundaryCall`. Execution-grade
+module validation remains responsible for proving each concrete signature,
+state/movement, clause coverage, capture-free substitution, transfer, outcome,
+crash, and evidence invariant. Only then does the focused call-composition
+module enumerate obligations and import successful guarantees. The general
+operation reconstruction loop no longer owns three parallel call algorithms,
+and each call trust node binds both the shared policy table and that focused
+consumer.
+
 The bounded Gamma feasibility spike now starts from four exact current
 `PSITERM\0` v12 byte fixtures and reconstructs a typed 54-row scalar ledger plus
 a separate 3-row structural/effect ledger. It covers constants, Boolean

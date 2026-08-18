@@ -15,9 +15,10 @@ use std::{
 #[cfg(test)]
 use psi_terminal_semantics::OperationSemanticTag;
 use psi_terminal_semantics::{
-    OperationSemanticCustody, OperationSemanticRow, StructuralEffectSemanticRow,
+    CallCompositionSemanticRow, OperationSemanticCustody, OperationSemanticRow,
+    StructuralEffectSemanticRow, exact_call_composition_semantic_row_in,
     exact_structural_effect_semantic_row_in, operation_semantic_row,
-    validate_structural_effect_semantic_rows,
+    validate_call_composition_semantic_rows, validate_structural_effect_semantic_rows,
 };
 use sha2::{Digest, Sha256};
 
@@ -35,6 +36,8 @@ const VERIFIER_VALIDATION_SOURCE: &[u8] =
 const VERIFIER_SOURCE: &[u8] = include_bytes!("../../psi-terminal-verifier/src/verification.rs");
 const EVIDENCE_PROVENANCE_SOURCE: &[u8] =
     include_bytes!("../../psi-terminal-verifier/src/verification/evidence_provenance.rs");
+const VERIFIER_CALL_COMPOSITION_SOURCE: &[u8] =
+    include_bytes!("../../psi-terminal-verifier/src/verification/call_composition.rs");
 const INTEGER_FOUNDATION_SOURCE: &[u8] =
     include_bytes!("../../psi-terminal-verifier/src/verification/integer_foundation.rs");
 const PROOF_BUNDLE_SOURCE: &[u8] =
@@ -65,6 +68,8 @@ const PROOF_KERNEL_PROOF_SOURCE: &[u8] = include_bytes!("../../psi-proof-kernel/
 const TERMINAL_MODEL_SOURCE: &[u8] =
     include_bytes!("../../../representations/psi-terminal/src/module.rs");
 const TERMINAL_SEMANTICS_SOURCE: &[u8] = include_bytes!("../../psi-terminal-semantics/src/lib.rs");
+const TERMINAL_CALL_COMPOSITION_SOURCE: &[u8] =
+    include_bytes!("../../psi-terminal-semantics/src/call_composition.rs");
 const TERMINAL_STRUCTURAL_EFFECT_SOURCE: &[u8] =
     include_bytes!("../../psi-terminal-semantics/src/structural_effect.rs");
 
@@ -601,6 +606,10 @@ fn verifier_node() -> TrustDependencyNode {
             ),
             ("psi-terminal-verifier/verification.rs", VERIFIER_SOURCE),
             (
+                "psi-terminal-verifier/verification/call_composition.rs",
+                VERIFIER_CALL_COMPOSITION_SOURCE,
+            ),
+            (
                 "psi-terminal-verifier/verification/evidence_provenance.rs",
                 EVIDENCE_PROVENANCE_SOURCE,
             ),
@@ -646,6 +655,10 @@ fn ledger_framework_node() -> TrustDependencyNode {
                 VERIFIER_VALIDATION_SOURCE,
             ),
             ("psi-terminal-verifier/verification.rs", VERIFIER_SOURCE),
+            (
+                "psi-terminal-verifier/verification/call_composition.rs",
+                VERIFIER_CALL_COMPOSITION_SOURCE,
+            ),
             (
                 "psi-terminal-verifier/verification/proof_bundle.rs",
                 PROOF_BUNDLE_SOURCE,
@@ -749,6 +762,8 @@ fn reduction_nodes() -> Vec<TrustDependencyNode> {
 }
 
 fn operation_semantics_nodes() -> Vec<TrustDependencyNode> {
+    validate_call_composition_semantic_rows(&CallCompositionSemanticRow::ALL)
+        .expect("the closed call-composition table is exact, complete, and canonical");
     validate_structural_effect_semantic_rows(&StructuralEffectSemanticRow::ALL)
         .expect("the closed structural/effect table is exact, complete, and canonical");
     OperationSemanticRow::ALL
@@ -759,6 +774,11 @@ fn operation_semantics_nodes() -> Vec<TrustDependencyNode> {
                 &StructuralEffectSemanticRow::ALL,
             )
             .expect("the closed structural/effect table is exact and unique");
+            let call_composition = exact_call_composition_semantic_row_in(
+                row.tag(),
+                &CallCompositionSemanticRow::ALL,
+            )
+            .expect("the closed call-composition table is exact and unique");
             let (kind, subject, version, scope, rationale) = match row.custody() {
                 OperationSemanticCustody::LeafDenotation if structural_effect.is_some() => (
                     TrustDependencyKind::StructuralEffectSchema,
@@ -804,6 +824,16 @@ fn operation_semantics_nodes() -> Vec<TrustDependencyNode> {
                 exact_sources.push((
                     "psi-terminal-semantics/structural_effect.rs",
                     TERMINAL_STRUCTURAL_EFFECT_SOURCE,
+                ));
+            }
+            if call_composition.is_some() {
+                exact_sources.push((
+                    "psi-terminal-semantics/call_composition.rs",
+                    TERMINAL_CALL_COMPOSITION_SOURCE,
+                ));
+                exact_sources.push((
+                    "psi-terminal-verifier/verification/call_composition.rs",
+                    VERIFIER_CALL_COMPOSITION_SOURCE,
                 ));
             }
             TrustDependencyNode::new(
