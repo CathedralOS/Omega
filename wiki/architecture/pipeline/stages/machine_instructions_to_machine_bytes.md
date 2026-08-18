@@ -120,7 +120,10 @@ Must not own:
   double-indexed bounded-buffer writes plus literal and source appends behind
   the unchanged public re-exports. `runtime_storage/string_writes.rs` owns
   direct, pointee, indexed, and double-indexed string-descriptor writes plus
-  their closed register and machine-state ceilings. Byte, width, clobber,
+  their closed register and machine-state ceilings.
+  `runtime_storage/address_writes.rs` owns direct, pointee, frame-indexed,
+  machine-indexed, and double-indexed place-address writes plus their exact
+  clobber and machine-state ceilings. Byte, width, clobber,
   atomic-ordering, conversion-policy, indexed-place, and floating-policy
   regressions are compiled separately through `runtime_storage_tests.rs`;
   production does not embed that second responsibility.
