@@ -219,6 +219,11 @@ Omega/
   check/build API (`omega-compiler`, `omega-backend-pipeline`, `omega-artifacts`,
   `omega-visualizations`), and keeps source loading coherent. Session/options and
   incremental-query engines are not yet separate crates.
+- Checked-tree visualization keeps replaceable view production separate from
+  its regression corpus. Shared fixture construction may live in a small test
+  parent, but behavior, content, qualification, carry, and machine-contract
+  manifest cases compile as responsibility-specific child modules rather than
+  being embedded in the production view or recombined in one permutation file.
 - `orchestration/` must not become the home for semantic checks or backend
   lowering.
 
