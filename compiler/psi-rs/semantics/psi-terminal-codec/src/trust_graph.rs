@@ -60,6 +60,10 @@ const INTEGER_MULTIPLY_SOURCE: &[u8] =
     include_bytes!("../../psi-terminal-verifier/src/verification/integer_multiply.rs");
 const INTEGER_SHIFT_SOURCE: &[u8] =
     include_bytes!("../../psi-terminal-verifier/src/verification/integer_shift.rs");
+const INTEGER_SHIFT_CHAINS_SOURCE: &[u8] =
+    include_bytes!("../../psi-terminal-verifier/src/verification/integer_shift/chains.rs");
+const INTEGER_SHIFT_COMPOSITION_SOURCE: &[u8] =
+    include_bytes!("../../psi-terminal-verifier/src/verification/integer_shift/composition.rs");
 const PROOF_KERNEL_LIB_SOURCE: &[u8] = include_bytes!("../../psi-proof-kernel/src/lib.rs");
 const PROOF_KERNEL_EVIDENCE_SOURCE: &[u8] =
     include_bytes!("../../psi-proof-kernel/src/evidence.rs");
@@ -740,6 +744,17 @@ fn reduction_nodes() -> Vec<TrustDependencyNode> {
     ]
     .into_iter()
     .map(|(identity, subject, version, source_name, source)| {
+        let mut exact_sources = vec![(source_name, source)];
+        if identity == "reduction:integer-shift" {
+            exact_sources.push((
+                "verification/integer_shift/chains.rs",
+                INTEGER_SHIFT_CHAINS_SOURCE,
+            ));
+            exact_sources.push((
+                "verification/integer_shift/composition.rs",
+                INTEGER_SHIFT_COMPOSITION_SOURCE,
+            ));
+        }
         TrustDependencyNode::new(
             identity,
             TrustDependencyKind::SufficientFormReduction,
@@ -755,7 +770,7 @@ fn reduction_nodes() -> Vec<TrustDependencyNode> {
                 "root:abstract-terminal-execution-model",
                 "root:explicit-rust-migration-policy",
             ]),
-            &[(source_name, source)],
+            &exact_sources,
         )
     })
     .collect()
@@ -1194,6 +1209,30 @@ mod tests {
             &[("source", b"second")],
         );
         assert_ne!(first.digest(), second.digest());
+
+        let shift = graph
+            .nodes()
+            .iter()
+            .find(|node| node.identity == "reduction:integer-shift")
+            .expect("integer-shift reduction node");
+        let root_only_shift = TrustDependencyNode::new(
+            shift.identity.clone(),
+            shift.kind,
+            shift.status,
+            shift.semantic_subject.clone(),
+            shift.version.clone(),
+            shift.owner.clone(),
+            shift.scope.clone(),
+            shift.rationale.clone(),
+            shift.accepting_policy,
+            shift.dependencies.clone(),
+            &[("verification/integer_shift.rs", INTEGER_SHIFT_SOURCE)],
+        );
+        assert_ne!(
+            shift.digest(),
+            root_only_shift.digest(),
+            "shift custody must include both child implementation modules",
+        );
     }
 
     fn test_root() -> TrustDependencyNode {
