@@ -15,7 +15,9 @@ use std::{
 #[cfg(test)]
 use psi_terminal_semantics::OperationSemanticTag;
 use psi_terminal_semantics::{
-    OperationSemanticCustody, OperationSemanticRow, operation_semantic_row,
+    OperationSemanticCustody, OperationSemanticRow, StructuralEffectSemanticRow,
+    exact_structural_effect_semantic_row_in, operation_semantic_row,
+    validate_structural_effect_semantic_rows,
 };
 use sha2::{Digest, Sha256};
 
@@ -31,6 +33,16 @@ const VERIFIER_LIB_SOURCE: &[u8] = include_bytes!("../../psi-terminal-verifier/s
 const VERIFIER_VALIDATION_SOURCE: &[u8] =
     include_bytes!("../../psi-terminal-verifier/src/validation.rs");
 const VERIFIER_SOURCE: &[u8] = include_bytes!("../../psi-terminal-verifier/src/verification.rs");
+const EVIDENCE_PROVENANCE_SOURCE: &[u8] =
+    include_bytes!("../../psi-terminal-verifier/src/verification/evidence_provenance.rs");
+const INTEGER_FOUNDATION_SOURCE: &[u8] =
+    include_bytes!("../../psi-terminal-verifier/src/verification/integer_foundation.rs");
+const PROOF_BUNDLE_SOURCE: &[u8] =
+    include_bytes!("../../psi-terminal-verifier/src/verification/proof_bundle.rs");
+const RECONSTRUCTION_SOURCE: &[u8] =
+    include_bytes!("../../psi-terminal-verifier/src/verification/reconstruction.rs");
+const SUBSTITUTION_SOURCE: &[u8] =
+    include_bytes!("../../psi-terminal-verifier/src/verification/substitution.rs");
 const AFFINE_JOINS_SOURCE: &[u8] =
     include_bytes!("../../psi-terminal-verifier/src/verification/affine_joins.rs");
 const INTEGER_ADD_SUBTRACT_SOURCE: &[u8] =
@@ -53,6 +65,8 @@ const PROOF_KERNEL_PROOF_SOURCE: &[u8] = include_bytes!("../../psi-proof-kernel/
 const TERMINAL_MODEL_SOURCE: &[u8] =
     include_bytes!("../../../representations/psi-terminal/src/module.rs");
 const TERMINAL_SEMANTICS_SOURCE: &[u8] = include_bytes!("../../psi-terminal-semantics/src/lib.rs");
+const TERMINAL_STRUCTURAL_EFFECT_SOURCE: &[u8] =
+    include_bytes!("../../psi-terminal-semantics/src/structural_effect.rs");
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum TrustDependencyKind {
@@ -62,6 +76,7 @@ pub enum TrustDependencyKind {
     SufficientFormReduction,
     LedgerFramework,
     DenotationSchema,
+    StructuralEffectSchema,
     CallComposition,
 }
 
@@ -585,6 +600,26 @@ fn verifier_node() -> TrustDependencyNode {
                 VERIFIER_VALIDATION_SOURCE,
             ),
             ("psi-terminal-verifier/verification.rs", VERIFIER_SOURCE),
+            (
+                "psi-terminal-verifier/verification/evidence_provenance.rs",
+                EVIDENCE_PROVENANCE_SOURCE,
+            ),
+            (
+                "psi-terminal-verifier/verification/integer_foundation.rs",
+                INTEGER_FOUNDATION_SOURCE,
+            ),
+            (
+                "psi-terminal-verifier/verification/proof_bundle.rs",
+                PROOF_BUNDLE_SOURCE,
+            ),
+            (
+                "psi-terminal-verifier/verification/reconstruction.rs",
+                RECONSTRUCTION_SOURCE,
+            ),
+            (
+                "psi-terminal-verifier/verification/substitution.rs",
+                SUBSTITUTION_SOURCE,
+            ),
         ],
     )
 }
@@ -611,6 +646,18 @@ fn ledger_framework_node() -> TrustDependencyNode {
                 VERIFIER_VALIDATION_SOURCE,
             ),
             ("psi-terminal-verifier/verification.rs", VERIFIER_SOURCE),
+            (
+                "psi-terminal-verifier/verification/proof_bundle.rs",
+                PROOF_BUNDLE_SOURCE,
+            ),
+            (
+                "psi-terminal-verifier/verification/reconstruction.rs",
+                RECONSTRUCTION_SOURCE,
+            ),
+            (
+                "psi-terminal-verifier/verification/substitution.rs",
+                SUBSTITUTION_SOURCE,
+            ),
             (
                 "PCC-CANONICAL-SEMANTIC-LEDGER-v1",
                 MIGRATION_POLICY_DESCRIPTOR,
@@ -646,8 +693,8 @@ fn reduction_nodes() -> Vec<TrustDependencyNode> {
             "reduction:integer-base-interval",
             "shared integer carrier, interval, path-fact, and dispatch sufficient forms",
             "integer-base-interval-v1",
-            "verification.rs",
-            VERIFIER_SOURCE,
+            "verification/integer_foundation.rs",
+            INTEGER_FOUNDATION_SOURCE,
         ),
         (
             "reduction:integer-conversion",
@@ -702,10 +749,27 @@ fn reduction_nodes() -> Vec<TrustDependencyNode> {
 }
 
 fn operation_semantics_nodes() -> Vec<TrustDependencyNode> {
+    validate_structural_effect_semantic_rows(&StructuralEffectSemanticRow::ALL)
+        .expect("the closed structural/effect table is exact, complete, and canonical");
     OperationSemanticRow::ALL
         .iter()
         .map(|row| {
+            let structural_effect = exact_structural_effect_semantic_row_in(
+                row.tag(),
+                &StructuralEffectSemanticRow::ALL,
+            )
+            .expect("the closed structural/effect table is exact and unique");
             let (kind, subject, version, scope, rationale) = match row.custody() {
+                OperationSemanticCustody::LeafDenotation if structural_effect.is_some() => (
+                    TrustDependencyKind::StructuralEffectSchema,
+                    format!(
+                        "terminal-Psi OperationKind::{} structural/effect leaf semantics",
+                        row.name()
+                    ),
+                    "terminal-structural-effect-v1-unproved",
+                    "one closed terminal-Psi structural/effect schema row",
+                    "The Rust structural/effect row is trusted until its place custody, effect, fuel, and frontier theorem is accepted.",
+                ),
                 OperationSemanticCustody::LeafDenotation => (
                     TrustDependencyKind::DenotationSchema,
                     format!("terminal-Psi OperationKind::{} direct leaf denotation", row.name()),
@@ -721,6 +785,27 @@ fn operation_semantics_nodes() -> Vec<TrustDependencyNode> {
                     "The Rust call row is trusted until exact clause coverage, capture-free substitution, outcomes, crash routes, and evidence lifetimes are established by the low ledger algebra.",
                 ),
             };
+            let mut exact_sources = vec![
+                (
+                    "psi-terminal-verifier/validation.rs",
+                    VERIFIER_VALIDATION_SOURCE,
+                ),
+                ("psi-terminal-verifier/verification.rs", VERIFIER_SOURCE),
+                (
+                    "psi-terminal-verifier/verification/reconstruction.rs",
+                    RECONSTRUCTION_SOURCE,
+                ),
+                (
+                    "psi-terminal-semantics/lib.rs",
+                    TERMINAL_SEMANTICS_SOURCE,
+                ),
+            ];
+            if structural_effect.is_some() {
+                exact_sources.push((
+                    "psi-terminal-semantics/structural_effect.rs",
+                    TERMINAL_STRUCTURAL_EFFECT_SOURCE,
+                ));
+            }
             TrustDependencyNode::new(
                 row.identity(),
                 kind,
@@ -736,17 +821,7 @@ fn operation_semantics_nodes() -> Vec<TrustDependencyNode> {
                     "root:abstract-terminal-execution-model",
                     "root:explicit-rust-migration-policy",
                 ]),
-                &[
-                    (
-                        "psi-terminal-verifier/validation.rs",
-                        VERIFIER_VALIDATION_SOURCE,
-                    ),
-                    ("psi-terminal-verifier/verification.rs", VERIFIER_SOURCE),
-                    (
-                        "psi-terminal-semantics/lib.rs",
-                        TERMINAL_SEMANTICS_SOURCE,
-                    ),
-                ],
+                &exact_sources,
             )
         })
         .collect()
@@ -947,7 +1022,15 @@ mod tests {
                 .iter()
                 .filter(|node| node.kind() == TrustDependencyKind::DenotationSchema)
                 .count(),
-            35
+            32
+        );
+        assert_eq!(
+            graph
+                .nodes()
+                .iter()
+                .filter(|node| node.kind() == TrustDependencyKind::StructuralEffectSchema)
+                .count(),
+            3
         );
         assert_eq!(
             graph

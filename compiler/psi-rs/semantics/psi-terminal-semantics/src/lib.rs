@@ -12,6 +12,10 @@ use std::collections::BTreeMap;
 use psi_core::{IntegerValue, Proposition, PropositionError, ScalarTerm, ScalarType, ValueId};
 use psi_terminal::{Operation, OperationKind};
 
+mod structural_effect;
+
+pub use structural_effect::*;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum OperationSemanticCustody {
     LeafDenotation,
@@ -190,6 +194,12 @@ pub enum OperationSemanticError {
     ResultShapeMismatch(OperationSemanticTag),
     OperandShapeMismatch(OperationSemanticTag),
     DenotationShapeMismatch(OperationSemanticTag),
+    MissingStructuralEffectRow(OperationSemanticTag),
+    DuplicateStructuralEffectRow(OperationSemanticTag),
+    UnexpectedStructuralEffectRow(OperationSemanticTag),
+    StructuralEffectSchemaMismatch(OperationSemanticTag),
+    StructuralEffectResultShapeMismatch(OperationSemanticTag),
+    StructuralEffectActionShapeMismatch(OperationSemanticTag),
     InvalidProposition(PropositionError),
 }
 

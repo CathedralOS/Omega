@@ -5,7 +5,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use psi_core::{Proposition, ScalarTerm, ScalarType, ValueId};
 use psi_proof_kernel::{Obligation, ObligationClass};
 use psi_terminal::{OperationKind, TerminalMachine, TerminalModule, Terminator};
-use psi_terminal_semantics::goal_free_scalar_leaf_equation;
+use psi_terminal_semantics::{goal_free_scalar_leaf_equation, structural_effect_leaf_observation};
 
 use crate::{ModuleError, validate_module};
 
@@ -196,8 +196,15 @@ pub(super) fn reconstruct_machine_semantics(
                 axioms.push(equation);
                 continue;
             }
+            if let Some(observation) = structural_effect_leaf_observation(operation)
+                .map_err(ModuleError::OperationSemanticSchema)?
+            {
+                if let Some(equation) = observation.local_equation() {
+                    axioms.push(equation.clone());
+                }
+                continue;
+            }
             match operation.kind.clone() {
-                OperationKind::EstablishTrivialAffineLocal { .. } => {}
                 OperationKind::CallUnit {
                     callee,
                     structural_arguments,
@@ -250,7 +257,7 @@ pub(super) fn reconstruct_machine_semantics(
                         );
                     }
                 }
-                OperationKind::BoundaryCall { .. } | OperationKind::PortWrite { .. } => {}
+                OperationKind::BoundaryCall { .. } => {}
                 OperationKind::Call {
                     callee,
                     arguments,
@@ -296,12 +303,6 @@ pub(super) fn reconstruct_machine_semantics(
                             substitute_proposition_values(&guarantee.proposition, &substitutions),
                         );
                     }
-                }
-                OperationKind::BooleanStructuralField { source, field } => {
-                    axioms.push(Proposition::Equal(
-                        value_term(operation.result.expect_scalar().id),
-                        ScalarTerm::boolean_field(source, field),
-                    ));
                 }
                 OperationKind::IntegerExactCast {
                     operand,
@@ -774,6 +775,11 @@ pub(super) fn reconstruct_machine_semantics(
                 | OperationKind::WrappingIntegerMultiply { .. }
                 | OperationKind::SaturatingIntegerMultiply { .. } => {
                     unreachable!("goal-free scalar rows return before specialized reconstruction")
+                }
+                OperationKind::EstablishTrivialAffineLocal { .. }
+                | OperationKind::PortWrite { .. }
+                | OperationKind::BooleanStructuralField { .. } => {
+                    unreachable!("structural/effect rows return before specialized reconstruction")
                 }
             }
         }

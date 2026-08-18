@@ -1687,12 +1687,25 @@ lifetime composition obligations are established.
 The current Rust migration surface is now exposed by `psi-terminal-codec` in
 every verified proof synopsis. Its validated graph binds exact source bytes and
 explicit versions for the decoder, proof kernel, verifier, each sufficient-form
-reducer, the unproved ledger framework, 35 leaf-schema rows, and three call-
-composition rows covering every closed `OperationKind`. Dependency edges
+reducer, the unproved ledger framework, 32 direct-denotation rows, three
+separate structural/effect rows, and three call-composition rows covering every
+closed `OperationKind`. The 35 leaf / three call operation-custody split remains
+unchanged. Dependency edges
 contribute to the graph identity; unknown, cyclic, unreachable, duplicate, or
 noncanonical custody rejects. The entry deliberately reports `fully-derived
 false`: this inventory is the prerequisite for, not an implementation of, the
 low canonical ledger.
+
+The production structural/effect table now mirrors the bounded Gamma schema:
+`BooleanStructuralField`, `PortWrite`, and `EstablishTrivialAffineLocal` expose
+their result, exact custody, action, external-effect, one-fuel, and place-
+frontier policies through one exact-unique Rust table. Its generic interpreter
+keeps the Boolean equation, observable port effect, and affine establishment
+event distinct. Verification consumes the shared Boolean equation rather than
+maintaining another operation-specific reconstruction arm. Trust identities
+also bind the modular verifier's evidence-provenance, integer-foundation,
+proof-bundle, reconstruction, and substitution sources, so splitting the former
+monolith does not weaken exact deciding-byte custody.
 
 The bounded Gamma feasibility spike now starts from four exact current
 `PSITERM\0` v12 byte fixtures and reconstructs a typed 54-row scalar ledger plus
