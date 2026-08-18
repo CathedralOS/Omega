@@ -804,6 +804,12 @@ Remaining:
   is now a 15-line root over fifteen cast, conversion, add/subtract,
   multiply/affine, join, shift, and divide-policy responsibilities. All 76
   cases remain, and no family module exceeds 1,248 lines.
+  Terminal native machine emission has begun the same split: its 12,922-line
+  crate root is now a 7,858-line production root with the complete 58-case,
+  5,028-line regression corpus compiled separately. Unit-body/calling-policy,
+  cleanup, and scalar-control/expression emission remain visible production
+  responsibilities for the next checkpoints rather than being hidden behind
+  the test move.
   Terminal-module validation has begun the same split: its parent shrank from
   7,498 to 282 lines, with structural/service foundation (956 lines),
   structural/boundary operation custody (822), public error vocabulary (803),
