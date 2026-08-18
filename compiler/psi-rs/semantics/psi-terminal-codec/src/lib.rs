@@ -63,7 +63,7 @@ use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
 
 const MAGIC: &[u8; 8] = b"PSITERM\0";
-const FORMAT_MARKER: u16 = 11;
+const FORMAT_MARKER: u16 = 12;
 const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 const MAX_PROPOSITION_DEPTH: usize = 256;
 const MAX_SCALAR_TERM_DEPTH: usize = 256;
@@ -1466,7 +1466,10 @@ fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError> {
             writer.u32(output.output_position);
             writer.string("evidence package output field", &output.output_field)?;
             writer.id(output.callee_output);
-            writer.id(output.output);
+            writer.boolean(output.output.is_some());
+            if let Some(output) = output.output {
+                writer.id(output);
+            }
         }
     }
     writer.len("machines", module.machines.len())?;
@@ -3120,7 +3123,10 @@ fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModule, CodecEr
                     output_position: reader.u32()?,
                     output_field: reader.string("evidence package output field")?,
                     callee_output: reader.id("EvidenceTermId")?,
-                    output: reader.id("EvidenceTermId")?,
+                    output: reader
+                        .boolean()?
+                        .then(|| reader.id("EvidenceTermId"))
+                        .transpose()?,
                 })
             })?,
         })

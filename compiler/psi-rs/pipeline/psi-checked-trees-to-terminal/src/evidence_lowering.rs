@@ -265,7 +265,7 @@ fn lower_evidence_term_ids(
         .filter(|(_, invocation)| invocation.caller_machine_symbol == selected_machine)
     {
         for output in &invocation.outputs {
-            for handle in [output.callee_output, output.output] {
+            for handle in std::iter::once(output.callee_output).chain(output.output) {
                 let index = usize::try_from(handle.arena_index() - 1)
                     .expect("arena indices fit the host address space");
                 let root = evidence_term_root(&mut parents, index);
@@ -556,16 +556,21 @@ fn lower_evidence_package_invocations(
                             .ok_or(LoweringError::Unsupported(
                                 "terminal evidence package callee term has no canonical identity",
                             ))?,
-                        output: term_ids
-                            .get(
-                                usize::try_from(output.output.arena_index() - 1)
-                                    .expect("arena indices fit the host address space"),
-                            )
-                            .copied()
-                            .flatten()
-                            .ok_or(LoweringError::Unsupported(
-                                "terminal evidence package output term has no canonical identity",
-                            ))?,
+                        output: output
+                            .output
+                            .map(|output| {
+                                term_ids
+                                    .get(
+                                        usize::try_from(output.arena_index() - 1)
+                                            .expect("arena indices fit the host address space"),
+                                    )
+                                    .copied()
+                                    .flatten()
+                                    .ok_or(LoweringError::Unsupported(
+                                        "terminal evidence package output term has no canonical identity",
+                                    ))
+                            })
+                            .transpose()?,
                     })
                 })
                 .collect::<Result<Vec<_>, LoweringError>>()?;

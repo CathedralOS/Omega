@@ -153,10 +153,12 @@ retained interface; diagnostic display spelling is never an identity oracle.
 The immediate generated-package rung adds a dense invocation table retaining
 the canonical caller and ordinal, normalized callee-machine identity, and the
 complete nonempty output set in callee-lane order. Each output binds its public
-field and dense position, one callee declaration, and one distinct caller-local
-term with the same proposition and interface. Repeated calls share callee terms
-and producers while minting fresh caller terms. Source coordinates, source
-field order, and diagnostic paths erase. A proof-only row adds no runtime
+field and dense position, one callee declaration, and either one distinct
+caller-local term with the same proposition and interface or an explicit
+discard disposition. Every field row remains mandatory; discard is not missing
+output. Repeated calls share callee terms and producers while minting fresh
+caller terms for bound fields. Source coordinates, source field order, and
+diagnostic paths erase. A proof-only row adds no runtime
 operation or fuel. A scalar-runtime row separately retains its scalar result
 type and the exact canonical ordinary `Call` operation ID and callee. The
 verifier requires that operation to occur in the declared caller, produce the
@@ -1693,7 +1695,7 @@ false`: this inventory is the prerequisite for, not an implementation of, the
 low canonical ledger.
 
 The bounded Gamma feasibility spike now starts from four exact current
-`PSITERM\0` v11 byte fixtures and reconstructs a typed 54-row scalar ledger plus
+`PSITERM\0` v12 byte fixtures and reconstructs a typed 54-row scalar ledger plus
 a separate 3-row structural/effect ledger. It covers constants, Boolean
 not/equality, integer equality/order, bitwise operations, strict widening,
 partial exact cast, exact/wrapping shifts with independently typed counts, and

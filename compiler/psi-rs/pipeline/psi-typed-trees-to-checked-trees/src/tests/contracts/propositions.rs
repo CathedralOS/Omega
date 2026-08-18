@@ -433,9 +433,10 @@ fn immediate_generated_output_package_binds_a_fresh_erased_evidence_term() {
     let [output] = invocation.outputs.as_slice() else {
         panic!("one checked evidence-package output expected")
     };
-    assert_ne!(output.output, output.callee_output);
+    let caller_output = output.output.expect("the field is bound in the caller");
+    assert_ne!(caller_output, output.callee_output);
     assert_eq!(
-        checked.facts.proof.evidence_terms.get(output.output).name,
+        checked.facts.proof.evidence_terms.get(caller_output).name,
         "local"
     );
     let relay = checked
@@ -456,7 +457,7 @@ fn immediate_generated_output_package_binds_a_fresh_erased_evidence_term() {
     let psi_checked_trees::EvidenceAssignmentSource::Forwarded { term } = forwarding.source else {
         panic!("the caller-local package evidence must forward by exact term identity")
     };
-    assert_eq!(term, output.output);
+    assert_eq!(term, caller_output);
 }
 
 #[test]
@@ -502,17 +503,19 @@ fn immediate_generated_output_package_completely_binds_multiple_fresh_terms() {
         panic!("two checked evidence-package outputs expected")
     };
     assert_eq!((first.output_position, second.output_position), (0, 1));
+    let first_output = first.output.expect("first field is bound");
+    let second_output = second.output.expect("second field is bound");
     assert_eq!(
-        checked.facts.proof.evidence_terms.get(first.output).name,
+        checked.facts.proof.evidence_terms.get(first_output).name,
         "local_first"
     );
     assert_eq!(
-        checked.facts.proof.evidence_terms.get(second.output).name,
+        checked.facts.proof.evidence_terms.get(second_output).name,
         "local_second"
     );
-    assert_ne!(first.output, first.callee_output);
-    assert_ne!(second.output, second.callee_output);
-    assert_ne!(first.output, second.output);
+    assert_ne!(first_output, first.callee_output);
+    assert_ne!(second_output, second.callee_output);
+    assert_ne!(first_output, second_output);
 
     let relay = checked
         .machines()
@@ -590,7 +593,7 @@ fn generated_output_package_rejects_duplicate_fields_and_local_names() {
 }
 
 #[test]
-fn generated_output_package_enforces_exactly_one_use_for_each_field() {
+fn generated_output_package_terms_are_copyable_and_have_no_use_count() {
     let source = r#"
         trait Evidence {}
         proposition ready() evidence Evidence;
@@ -609,22 +612,51 @@ fn generated_output_package_enforces_exactly_one_use_for_each_field() {
         }
     "#;
 
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
-        .expect_err("every fresh package field must be consumed exactly once");
-    assert!(diagnostics.iter().any(|diagnostic| {
-        diagnostic
-            .message
-            .contains("term `local_first` must be forwarded exactly once; found 2 uses")
-    }));
-    assert!(diagnostics.iter().any(|diagnostic| {
-        diagnostic
-            .message
-            .contains("term `local_second` must be forwarded exactly once; found 0 uses")
-    }));
+    let checked = lower_typed_trees(parse_typed_trees(source))
+        .expect("one proof term may be copied while another remains unused");
+    let invocation = checked
+        .facts
+        .proof
+        .evidence_package_invocations
+        .iter()
+        .next()
+        .map(|(_, invocation)| invocation)
+        .expect("one checked package invocation");
+    let [first, second] = invocation.outputs.as_slice() else {
+        panic!("two checked package outputs")
+    };
+    let first = first.output.expect("first output is bound");
+    let second = second.output.expect("second output is bound");
+    let forwarded = checked
+        .facts
+        .proof
+        .evidence_forwardings
+        .iter()
+        .filter(|(_, forwarding)| {
+            matches!(
+                forwarding.source,
+                psi_checked_trees::EvidenceAssignmentSource::Forwarded { term }
+                    if term == first
+            )
+        })
+        .count();
+    assert_eq!(forwarded, 2);
+    assert!(
+        !checked
+            .facts
+            .proof
+            .evidence_forwardings
+            .iter()
+            .any(|(_, forwarding)| matches!(
+                forwarding.source,
+                psi_checked_trees::EvidenceAssignmentSource::Forwarded { term }
+                    if term == second
+            ))
+    );
 }
 
 #[test]
-fn generated_output_package_keeps_explicit_discard_outside_this_rung() {
+fn generated_output_package_retains_explicit_proposition_discard() {
     let source = r#"
         trait Evidence {}
         proposition ready() evidence Evidence;
@@ -641,13 +673,21 @@ fn generated_output_package_keeps_explicit_discard_outside_this_rung() {
         }
     "#;
 
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
-        .expect_err("explicit evidence discard remains a later package rung");
-    assert!(diagnostics.iter().any(|diagnostic| {
-        diagnostic
-            .message
-            .contains("generated evidence package output cannot be discarded")
-    }));
+    let checked = lower_typed_trees(parse_typed_trees(source))
+        .expect("copyable proposition evidence may be explicitly discarded");
+    let invocation = checked
+        .facts
+        .proof
+        .evidence_package_invocations
+        .iter()
+        .next()
+        .map(|(_, invocation)| invocation)
+        .expect("one checked package invocation");
+    let [first, second] = invocation.outputs.as_slice() else {
+        panic!("two checked package outputs")
+    };
+    assert!(first.output.is_some());
+    assert_eq!(second.output, None);
 }
 
 #[test]
@@ -778,7 +818,7 @@ fn generated_output_package_rejects_runtime_result_without_value_field() {
 }
 
 #[test]
-fn generated_output_package_rejects_value_on_unit_and_duplicate_or_discarded_value() {
+fn generated_output_package_rejects_value_on_unit_and_duplicate_or_discarded_runtime_value() {
     let unit = r#"
         trait Evidence {}
         proposition ready() evidence Evidence;
@@ -838,11 +878,11 @@ fn generated_output_package_rejects_value_on_unit_and_duplicate_or_discarded_val
         { let { value: _, outgoing: local } = produce(); relayed = local; }
     "#;
     let diagnostics = lower_typed_trees(parse_typed_trees(discarded))
-        .expect_err("runtime value discard remains outside this rung");
+        .expect_err("runtime Type values are not proposition evidence");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
-            .contains("generated evidence package output cannot be discarded")
+            .contains("runtime field `value` cannot be discarded")
     }));
 }
 
@@ -950,7 +990,7 @@ fn generated_output_package_is_not_visible_before_its_binding() {
 }
 
 #[test]
-fn generated_output_package_term_must_be_forwarded_exactly_once() {
+fn generated_output_package_bound_term_may_remain_unused() {
     let unused = r#"
         trait Evidence {}
         proposition ready() evidence Evidence;
@@ -958,34 +998,26 @@ fn generated_output_package_term_must_be_forwarded_exactly_once() {
         machine produce() ensures outgoing: ready() { outgoing = ConcreteEvidence; }
         machine relay() { let { outgoing: local } = produce(); }
     "#;
-    let diagnostics = lower_typed_trees(parse_typed_trees(unused))
-        .expect_err("an unused fresh package term is outside the first rung");
-    assert!(diagnostics.iter().any(|diagnostic| {
-        diagnostic
-            .message
-            .contains("must be forwarded exactly once; found 0 uses")
-    }));
+    lower_typed_trees(parse_typed_trees(unused))
+        .expect("a copyable proposition term has no usage-count obligation");
+}
 
-    let duplicated = r#"
+#[test]
+fn generated_output_package_runtime_value_cannot_use_proposition_discard() {
+    let source = r#"
         trait Evidence {}
         proposition ready() evidence Evidence;
         ConcreteEvidence: satisfies Evidence {}
-        machine produce() ensures outgoing: ready() { outgoing = ConcreteEvidence; }
-        machine relay()
-        ensures first: ready()
-        ensures second: ready()
-        {
-            let { outgoing: local } = produce();
-            first = local;
-            second = local;
-        }
+        machine produce() -> i32 ensures outgoing: ready()
+        { outgoing = ConcreteEvidence; 7 }
+        machine relay() { let { outgoing: _, value: _ } = produce(); }
     "#;
-    let diagnostics = lower_typed_trees(parse_typed_trees(duplicated))
-        .expect_err("duplicating a fresh package term is outside the first rung");
+    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+        .expect_err("the ordinary runtime Type field is not proposition evidence");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
-            .contains("must be forwarded exactly once; found 2 uses")
+            .contains("runtime field `value` cannot be discarded")
     }));
 }
 

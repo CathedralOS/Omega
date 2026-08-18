@@ -9,7 +9,7 @@ small, typed, interpreter-defined program rather than another Rust verifier.
 ## Trust boundary and inputs
 
 `psi-terminal-codec/tests/ledger_spike.rs` constructs four ordinary current
-`TerminalModule` values and pins their exact `PSITERM\0` v11 encodings. The Rust
+`TerminalModule` values and pins their exact `PSITERM\0` v12 encodings. The Rust
 fixture builder and `bytes_to_gamma.py` are untrusted test transport. The typed
 Gamma program begins with the reusable, PSITERM-neutral primitives in
 `../canonical-bytes/`; the spike-specific decoder then:

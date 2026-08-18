@@ -188,7 +188,7 @@ fn lower_statement_node(
                 .bindings
                 .iter()
                 .map(|binding| {
-                    if binding.output_field.as_str() != "value" {
+                    if binding.output_field.as_str() != "value" && binding.binding.as_str() != "_" {
                         lowerer
                             .current_evidence_term_names
                             .push(binding.binding.as_str().to_owned());

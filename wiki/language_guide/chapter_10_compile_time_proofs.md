@@ -223,8 +223,8 @@ nominal output package whose concrete type cannot be written in source. The
 implemented immediate rung accepts a concrete, one-state, zero-argument checked
 machine with no named `requires`, evidence arguments, or guarded outputs. Its
 complete nonempty set of named `ensures` fields must be destructured with the
-colon form. Source field order may vary. The current narrow implementation
-requires every fresh local evidence term to be forwarded exactly once:
+colon form. Source field order may vary. Each named evidence field binds a fresh
+local evidence term unless that field is explicitly discarded with `_`:
 
 ```omega
 let { second: local_second, first: local_first } = produce();
@@ -232,10 +232,10 @@ result_first = local_first;
 result_second = local_second;
 ```
 
-That exact-forwarding restriction is an implementation cohort, not proposition
-multiplicity. The destination permits a retained proposition term to be cited,
-copied, forwarded more than once, or explicitly discarded with `_`, subject to
-its validity scope.
+Proposition terms are copyable. A retained evidence term may be cited, copied,
+or forwarded more than once while valid, and it may remain unused. Explicit
+`_` records discard of that complete package field without introducing a term;
+omitting the field or using a rest pattern remains invalid.
 
 When the callee has no runtime result or runtime statements, the binding is
 proof-only: it creates no `Unit` local, runtime operation, or fuel charge. The

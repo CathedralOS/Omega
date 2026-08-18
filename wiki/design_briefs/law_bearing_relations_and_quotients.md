@@ -179,13 +179,12 @@ source-unnameable, compiler-generated nominal output package. The implemented
 immediate rung requires colon-form destructuring of the complete nonempty set of
 unconditional evidence fields from a concrete zero-input checked machine.
 Source field order may vary; checking canonicalizes by callee lane, mints one
-distinct fresh caller-local term per field, and the current narrow
-implementation requires each term to be forwarded exactly once. This is an
-implementation-cohort restriction, not proposition multiplicity; the
-destination permits copying, repeated forwarding, and explicit discard while
-the term remains valid. A proof-only package erases completely. A scalar-result
-package additionally binds exactly one contextual `value` field through one
-ordinary caller local/call, while the evidence fields remain erased. The proof
+distinct fresh caller-local term per bound field, and records explicit `_`
+discard without minting a term. Proposition terms are copyable: a bound term
+may be copied or forwarded repeatedly while valid, or remain unused. A
+proof-only package erases completely. A scalar-result package additionally
+binds exactly one contextual `value` field through one ordinary caller
+local/call, while the evidence fields remain erased. The proof
 group is linked to that exact checked call site and canonical terminal call
 operation; its runtime effects, crashes, and fuel are only those of the ordinary
 call. Retained/projected and guarded complete-package forms are design-blocked

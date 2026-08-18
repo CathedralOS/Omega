@@ -93,6 +93,27 @@ const GENERATED_PACKAGE_SOURCE: &str = r#"
     }
 "#;
 
+const COPY_AND_DISCARD_GENERATED_PACKAGE_SOURCE: &str = r#"
+    trait Evidence {}
+    proposition ready() evidence Evidence;
+    ConcreteEvidence: satisfies Evidence {}
+
+    data Root {}
+    machine Root::produce()
+    ensures copied: ready()
+    ensures discarded: ready()
+    { copied = ConcreteEvidence; discarded = ConcreteEvidence; }
+
+    machine Root::relay()
+    ensures first: ready()
+    ensures second: ready()
+    {
+        let { copied: local, discarded: _ } = Root::produce();
+        first = local;
+        second = local;
+    }
+"#;
+
 const MULTI_FIELD_GENERATED_PACKAGE_SOURCE: &str = r#"
     trait Evidence {}
     proposition ready() evidence Evidence;
@@ -859,7 +880,7 @@ fn generated_evidence_package_is_canonical_verified_and_runtime_erased() {
     };
     assert_eq!(output.output_position, 0);
     assert_eq!(output.output_field, "outgoing");
-    assert_ne!(output.callee_output, output.output);
+    assert_ne!(output.callee_output, output.output.expect("bound output"));
     assert_eq!(lowered.proof_bundle.evidence_producers.len(), 1);
 
     let bytes = encode_module(&lowered.semantic_module).expect("package module encodes");
@@ -892,7 +913,7 @@ fn generated_evidence_package_is_canonical_verified_and_runtime_erased() {
 
     let mut forged = lowered.semantic_module.clone();
     forged.evidence_package_invocations[0].outputs[0].output =
-        forged.evidence_package_invocations[0].outputs[0].callee_output;
+        Some(forged.evidence_package_invocations[0].outputs[0].callee_output);
     assert!(matches!(
         psi_terminal_verifier::validate_module_representation(&forged),
         Err(psi_terminal_verifier::ModuleError::InvalidEvidencePackageInvocation { .. })
@@ -932,6 +953,49 @@ fn generated_evidence_package_is_canonical_verified_and_runtime_erased() {
         psi_terminal_verifier::validate_module_representation(&reserved_field),
         Err(psi_terminal_verifier::ModuleError::InvalidEvidencePackageInvocation { .. })
     ));
+}
+
+#[test]
+fn generated_evidence_package_retains_copy_and_explicit_discard() {
+    let checked = check(COPY_AND_DISCARD_GENERATED_PACKAGE_SOURCE);
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::relay")
+        .expect("copyable and discarded evidence should cross terminal Psi");
+    let [invocation] = lowered
+        .semantic_module
+        .evidence_package_invocations
+        .as_slice()
+    else {
+        panic!("one package invocation expected")
+    };
+    let [copied, discarded] = invocation.outputs.as_slice() else {
+        panic!("two complete package fields expected")
+    };
+    let copied_term = copied.output.expect("copied field binds a caller term");
+    assert_eq!(discarded.output, None);
+    let relayed = lowered
+        .semantic_module
+        .evidence_contract_lanes
+        .iter()
+        .filter(|lane| {
+            lane.machine == lowered.semantic_module.entry
+                && lane.kind == EvidenceContractLaneKind::Ensures
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(relayed.len(), 2);
+    assert!(relayed.iter().all(|lane| lane.term == copied_term));
+
+    let bytes = encode_module(&lowered.semantic_module).expect("discard disposition encodes");
+    assert_eq!(decode_module(&bytes), Ok(lowered.semantic_module.clone()));
+    psi_terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("copy and discard preserve exact evidence provenance");
+
+    let mut omitted = lowered.semantic_module.clone();
+    omitted.evidence_package_invocations[0].outputs.pop();
+    assert!(psi_terminal_verifier::validate_module_representation(&omitted).is_err());
 }
 
 #[test]
@@ -1121,8 +1185,14 @@ fn multi_field_generated_package_is_complete_canonical_and_runtime_erased() {
         (first.output_field.as_str(), second.output_field.as_str()),
         ("first", "second")
     );
-    assert_ne!(first.callee_output, first.output);
-    assert_ne!(second.callee_output, second.output);
+    assert_ne!(
+        first.callee_output,
+        first.output.expect("first bound output")
+    );
+    assert_ne!(
+        second.callee_output,
+        second.output.expect("second bound output")
+    );
     assert_ne!(first.output, second.output);
     assert_ne!(first.callee_output, second.callee_output);
     assert_eq!(lowered.proof_bundle.evidence_producers.len(), 2);
