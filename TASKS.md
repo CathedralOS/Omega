@@ -814,6 +814,13 @@ Remaining:
   is now a 15-line root over fifteen cast, conversion, add/subtract,
   multiply/affine, join, shift, and divide-policy responsibilities. All 76
   cases remain, and no family module exceeds 1,248 lines.
+  Terminal proof replay now has the same production boundary. Its former
+  2,233-line root is a 1,297-line orchestration module over separate exact
+  evidence-producer provenance (137 lines), integer arithmetic foundations
+  (335), and proposition/value/place substitution (492). The existing public
+  substitution surface remains explicitly re-exported, while proof checking,
+  sufficient-form selection, and path-fact reconstruction retain their prior
+  owners instead of being merged into one generic permutation dispatcher.
   The checked-lowering regression file that had accumulated ranking,
   operational-contract, write-frame, crash-route, and data-fact verification
   is now a 23-line root over eight exact test families. All 67 tests and the
