@@ -567,6 +567,13 @@ Current ownership is:
   slice-length guard predicates, and
   `checks/termination/ranking/slice/arguments.rs` owns slice-tail next-argument
   rewrite predicates.
+- The checked-lowering regression root `tests/termination.rs` is orchestration
+  only. Its subordinate modules separately own ranking witnesses, operational
+  contract publication, exclusive-cycle write frames, indexed-call write
+  frames, returned-place write frames, assignment-value write frames, checked
+  crash routes, and data-fact propagation. Test fixtures may share the exact
+  symbol lookup helper, but they must not recombine those semantic families in
+  one permutation-oriented test parent.
 - `proof/*`, `checks/contracts/*`, and `checks/termination/*` should remain
   proof/checking modules. They should consume checked facts and emit
   diagnostics, not invent new durable semantic representations.
