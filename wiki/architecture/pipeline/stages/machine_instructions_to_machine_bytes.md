@@ -115,7 +115,10 @@ Must not own:
   exact operator-to-failure-branch mapping.
   `runtime_storage/scalar_writes.rs` owns recursive-operand register and
   machine-state contracts plus immediate integer, bit-field, direct binary,
-  pointee binary, saturation, and trapping writes. Byte, width, clobber,
+  pointee binary, saturation, and trapping writes.
+  `runtime_storage/bounded_buffers.rs` owns direct, pointee, indexed, and
+  double-indexed bounded-buffer writes plus literal and source appends behind
+  the unchanged public re-exports. Byte, width, clobber,
   atomic-ordering, conversion-policy, indexed-place, and floating-policy
   regressions are compiled separately through `runtime_storage_tests.rs`;
   production does not embed that second responsibility.
