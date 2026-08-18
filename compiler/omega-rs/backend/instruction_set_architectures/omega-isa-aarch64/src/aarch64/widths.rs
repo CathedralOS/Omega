@@ -626,7 +626,7 @@ pub fn runtime_storage_convert_width(
 }
 
 /// Width of the in-register conversion sequence (see
-/// `runtime_storage::append_runtime_convert_operation`). The source bits start in
+/// `runtime_storage::conversion::append_runtime_convert_operation`). The source bits start in
 /// x17 and the converted result is left in x17.
 fn runtime_convert_operation_width(
     source_byte_size: usize,
