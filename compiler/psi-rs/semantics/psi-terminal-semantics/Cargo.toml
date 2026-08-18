@@ -1,0 +1,13 @@
+[package]
+name = "psi-terminal-semantics"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "psi_terminal_semantics"
+path = "src/lib.rs"
+
+[dependencies]
+psi-core = { path = "../../foundation/psi-core" }
+psi-terminal = { path = "../../representations/psi-terminal" }

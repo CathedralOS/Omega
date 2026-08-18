@@ -1609,6 +1609,7 @@ dependencies = [
  "psi-core",
  "psi-proof-kernel",
  "psi-terminal",
+ "psi-terminal-semantics",
  "psi-terminal-verifier",
  "sha2",
 ]
@@ -1646,6 +1647,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "psi-terminal-semantics"
+version = "0.1.0"
+dependencies = [
+ "psi-core",
+ "psi-terminal",
+]
+
+[[package]]
 name = "psi-terminal-verifier"
 version = "0.1.0"
 dependencies = [
@@ -1653,6 +1662,7 @@ dependencies = [
  "psi-language-semantics",
  "psi-proof-kernel",
  "psi-terminal",
+ "psi-terminal-semantics",
 ]
 
 [[package]]
