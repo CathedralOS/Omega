@@ -681,9 +681,9 @@ Remaining:
   frontier axes and reconstruct their local equations through one generic
   interpreter. Exact lookup rejects missing or duplicate rows. The terminal
   verifier and codec trust graph consume that shared inventory instead of
-  maintaining independent operation matches. Proof-bearing reducers,
-  structural/effect rows, and call/control composition remain separate and are
-  not promoted into the scalar table. The second production Rust ledger slice
+  maintaining independent operation matches. Structural/effect rows and
+  call/control composition remain separate and are not promoted into the
+  goal-free scalar table. The second production Rust ledger slice
   now mirrors Gamma's separate exact-unique three-row structural/effect table:
   Boolean field reads, port writes, and trivial affine-local establishment keep
   result, custody, action, external-effect, fuel, and place-frontier axes
@@ -705,6 +705,20 @@ Remaining:
   concrete signature, movement, coverage, substitution, outcome, crash, and
   evidence invariants before composition. Call policy and implementation bytes
   are both bound into the same three call trust nodes.
+  The fourth production Rust ledger slice now owns the twelve proof-bearing
+  scalar leaves in a separate exact-unique table. Exact cast, left/right shift,
+  exact add/subtract/multiply, and exact/wrapping/saturating divide/remainder
+  retain declared result and operand shape, direct denotation, one of six
+  canonical goal shapes, normal-successor result equation, crash policy, fuel,
+  and frontier policy as independent axes. One generic interpreter emits a
+  typed canonical-goal carrier and the post-discharge result equation; malformed
+  type/row custody rejects before reduction. Artifact reconstruction consumes
+  that observation instead of rebuilding twelve result equations. The current
+  sufficient-form algorithms remain trusted migration dependencies and select a
+  reduced proposition through one isolated dispatcher; neither the table nor
+  the dispatcher falsely claims a kernel derivation of the canonical goal. The
+  trust graph binds the table to exactly those twelve denotation nodes and the
+  dispatcher to every affected reducer.
   The bounded Gamma spike is complete. It canonical-decodes four exact current
   `PSITERM\0` v12 fixtures and audits a 54-row scalar ledger covering constants,
   Boolean not/equality, integer equality/order, bitwise operations, strict

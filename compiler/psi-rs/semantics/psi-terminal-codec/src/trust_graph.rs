@@ -16,9 +16,11 @@ use std::{
 use psi_terminal_semantics::OperationSemanticTag;
 use psi_terminal_semantics::{
     CallCompositionSemanticRow, OperationSemanticCustody, OperationSemanticRow,
-    StructuralEffectSemanticRow, exact_call_composition_semantic_row_in,
+    ProofBearingScalarSemanticRow, StructuralEffectSemanticRow,
+    exact_call_composition_semantic_row_in, exact_proof_bearing_scalar_semantic_row_in,
     exact_structural_effect_semantic_row_in, operation_semantic_row,
-    validate_call_composition_semantic_rows, validate_structural_effect_semantic_rows,
+    validate_call_composition_semantic_rows, validate_proof_bearing_scalar_semantic_rows,
+    validate_structural_effect_semantic_rows,
 };
 use sha2::{Digest, Sha256};
 
@@ -44,6 +46,8 @@ const PROOF_BUNDLE_SOURCE: &[u8] =
     include_bytes!("../../psi-terminal-verifier/src/verification/proof_bundle.rs");
 const RECONSTRUCTION_SOURCE: &[u8] =
     include_bytes!("../../psi-terminal-verifier/src/verification/reconstruction.rs");
+const SUFFICIENT_REDUCTION_SOURCE: &[u8] =
+    include_bytes!("../../psi-terminal-verifier/src/verification/sufficient_reduction.rs");
 const SUBSTITUTION_SOURCE: &[u8] =
     include_bytes!("../../psi-terminal-verifier/src/verification/substitution.rs");
 const AFFINE_JOINS_SOURCE: &[u8] =
@@ -77,6 +81,8 @@ const PROOF_KERNEL_PROOF_SOURCE: &[u8] = include_bytes!("../../psi-proof-kernel/
 const TERMINAL_MODEL_SOURCE: &[u8] =
     include_bytes!("../../../representations/psi-terminal/src/module.rs");
 const TERMINAL_SEMANTICS_SOURCE: &[u8] = include_bytes!("../../psi-terminal-semantics/src/lib.rs");
+const TERMINAL_PROOF_BEARING_SCALAR_SOURCE: &[u8] =
+    include_bytes!("../../psi-terminal-semantics/src/proof_bearing_scalar.rs");
 const TERMINAL_CALL_COMPOSITION_SOURCE: &[u8] =
     include_bytes!("../../psi-terminal-semantics/src/call_composition.rs");
 const TERMINAL_STRUCTURAL_EFFECT_SOURCE: &[u8] =
@@ -635,6 +641,10 @@ fn verifier_node() -> TrustDependencyNode {
                 RECONSTRUCTION_SOURCE,
             ),
             (
+                "psi-terminal-verifier/verification/sufficient_reduction.rs",
+                SUFFICIENT_REDUCTION_SOURCE,
+            ),
+            (
                 "psi-terminal-verifier/verification/substitution.rs",
                 SUBSTITUTION_SOURCE,
             ),
@@ -749,7 +759,13 @@ fn reduction_nodes() -> Vec<TrustDependencyNode> {
     ]
     .into_iter()
     .map(|(identity, subject, version, source_name, source)| {
-        let mut exact_sources = vec![(source_name, source)];
+        let mut exact_sources = vec![
+            (source_name, source),
+            (
+                "verification/sufficient_reduction.rs",
+                SUFFICIENT_REDUCTION_SOURCE,
+            ),
+        ];
         if identity == "reduction:integer-conversion" {
             exact_sources.push((
                 "verification/integer_conversion/chains.rs",
@@ -794,6 +810,8 @@ fn reduction_nodes() -> Vec<TrustDependencyNode> {
 fn operation_semantics_nodes() -> Vec<TrustDependencyNode> {
     validate_call_composition_semantic_rows(&CallCompositionSemanticRow::ALL)
         .expect("the closed call-composition table is exact, complete, and canonical");
+    validate_proof_bearing_scalar_semantic_rows(&ProofBearingScalarSemanticRow::ALL)
+        .expect("the closed proof-bearing scalar table is exact, complete, and canonical");
     validate_structural_effect_semantic_rows(&StructuralEffectSemanticRow::ALL)
         .expect("the closed structural/effect table is exact, complete, and canonical");
     OperationSemanticRow::ALL
@@ -804,6 +822,11 @@ fn operation_semantics_nodes() -> Vec<TrustDependencyNode> {
                 &StructuralEffectSemanticRow::ALL,
             )
             .expect("the closed structural/effect table is exact and unique");
+            let proof_bearing_scalar = exact_proof_bearing_scalar_semantic_row_in(
+                row.tag(),
+                &ProofBearingScalarSemanticRow::ALL,
+            )
+            .expect("the closed proof-bearing scalar table is exact and unique");
             let call_composition = exact_call_composition_semantic_row_in(
                 row.tag(),
                 &CallCompositionSemanticRow::ALL,
@@ -819,6 +842,16 @@ fn operation_semantics_nodes() -> Vec<TrustDependencyNode> {
                     "terminal-structural-effect-v1-unproved",
                     "one closed terminal-Psi structural/effect schema row",
                     "The Rust structural/effect row is trusted until its place custody, effect, fuel, and frontier theorem is accepted.",
+                ),
+                OperationSemanticCustody::LeafDenotation if proof_bearing_scalar.is_some() => (
+                    TrustDependencyKind::DenotationSchema,
+                    format!(
+                        "terminal-Psi OperationKind::{} proof-bearing scalar denotation and canonical goal",
+                        row.name()
+                    ),
+                    "terminal-proof-bearing-scalar-v1-unproved",
+                    "one closed proof-bearing scalar denotation/goal schema row",
+                    "The Rust row is trusted until its denotation and canonical-goal theorem plus the global composition bridge are accepted; sufficient-form reduction remains a separate dependency.",
                 ),
                 OperationSemanticCustody::LeafDenotation => (
                     TrustDependencyKind::DenotationSchema,
@@ -854,6 +887,12 @@ fn operation_semantics_nodes() -> Vec<TrustDependencyNode> {
                 exact_sources.push((
                     "psi-terminal-semantics/structural_effect.rs",
                     TERMINAL_STRUCTURAL_EFFECT_SOURCE,
+                ));
+            }
+            if proof_bearing_scalar.is_some() {
+                exact_sources.push((
+                    "psi-terminal-semantics/proof_bearing_scalar.rs",
+                    TERMINAL_PROOF_BEARING_SCALAR_SOURCE,
                 ));
             }
             if call_composition.is_some() {
@@ -1088,6 +1127,14 @@ mod tests {
             graph
                 .nodes()
                 .iter()
+                .filter(|node| node.version() == "terminal-proof-bearing-scalar-v1-unproved")
+                .count(),
+            12
+        );
+        assert_eq!(
+            graph
+                .nodes()
+                .iter()
                 .filter(|node| node.kind() == TrustDependencyKind::StructuralEffectSchema)
                 .count(),
             3
@@ -1274,6 +1321,41 @@ mod tests {
             conversion.digest(),
             root_only_conversion.digest(),
             "conversion custody must include both child implementation modules",
+        );
+
+        let exact_add = graph
+            .nodes()
+            .iter()
+            .find(|node| node.identity == "schema:operation:exact-integer-add")
+            .expect("exact-add denotation node");
+        let without_proof_bearing_schema = TrustDependencyNode::new(
+            exact_add.identity.clone(),
+            exact_add.kind,
+            exact_add.status,
+            exact_add.semantic_subject.clone(),
+            exact_add.version.clone(),
+            exact_add.owner.clone(),
+            exact_add.scope.clone(),
+            exact_add.rationale.clone(),
+            exact_add.accepting_policy,
+            exact_add.dependencies.clone(),
+            &[
+                (
+                    "psi-terminal-verifier/validation.rs",
+                    VERIFIER_VALIDATION_SOURCE,
+                ),
+                ("psi-terminal-verifier/verification.rs", VERIFIER_SOURCE),
+                (
+                    "psi-terminal-verifier/verification/reconstruction.rs",
+                    RECONSTRUCTION_SOURCE,
+                ),
+                ("psi-terminal-semantics/lib.rs", TERMINAL_SEMANTICS_SOURCE),
+            ],
+        );
+        assert_ne!(
+            exact_add.digest(),
+            without_proof_bearing_schema.digest(),
+            "proof-bearing leaf custody must bind its exact canonical-goal table",
         );
     }
 

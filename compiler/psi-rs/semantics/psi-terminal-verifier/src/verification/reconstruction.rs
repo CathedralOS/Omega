@@ -2,29 +2,21 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use psi_core::{Proposition, ScalarTerm, ScalarType, ValueId};
+use psi_core::{Proposition, ScalarTerm, ValueId};
 use psi_proof_kernel::{Obligation, ObligationClass};
 use psi_terminal::{OperationKind, TerminalMachine, TerminalModule, Terminator};
-use psi_terminal_semantics::{goal_free_scalar_leaf_equation, structural_effect_leaf_observation};
+use psi_terminal_semantics::{
+    goal_free_scalar_leaf_equation, proof_bearing_scalar_leaf_semantics,
+    structural_effect_leaf_observation,
+};
 
 use crate::{ModuleError, validate_module};
 
 use super::call_composition::compose_call_operation;
-use super::integer_add_subtract::{
-    exact_integer_add_obligation, exact_integer_subtract_obligation,
-};
-use super::integer_conversion::exact_integer_cast_obligation;
-use super::integer_divide_remainder::{
-    exact_integer_divide_obligation_with_definitions,
-    exact_integer_remainder_obligation_with_definitions, saturating_integer_divide_obligation,
-    saturating_integer_remainder_obligation, wrapping_integer_divide_obligation,
-    wrapping_integer_remainder_obligation,
-};
-use super::integer_multiply::exact_integer_multiply_obligation_with_definitions;
-use super::integer_shift::{exact_integer_shift_left_obligation, exact_integer_shift_obligation};
 use super::substitution::{
     substitute_proposition_places, substitute_proposition_values, substitute_scalar_term_values,
 };
+use super::sufficient_reduction::reduce_proof_bearing_scalar_goal;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReconstructedOperationObligation {
@@ -196,6 +188,25 @@ pub(super) fn reconstruct_machine_semantics(
                 axioms.push(equation);
                 continue;
             }
+            if let Some(semantics) = proof_bearing_scalar_leaf_semantics(operation, &value_types)
+                .map_err(ModuleError::OperationSemanticSchema)?
+            {
+                operation_obligations.push(ReconstructedOperationObligation {
+                    obligation: Obligation {
+                        id: semantics.obligation(),
+                        proposition: reduce_proof_bearing_scalar_goal(
+                            &semantics,
+                            &axioms,
+                            &machine.contract.requires,
+                            &machine_parameter_values,
+                        ),
+                        class: ObligationClass::Derivable,
+                    },
+                    semantic_axioms: axioms.clone(),
+                });
+                axioms.push(semantics.result_equation().clone());
+                continue;
+            }
             if let Some(observation) = structural_effect_leaf_observation(operation)
                 .map_err(ModuleError::OperationSemanticSchema)?
             {
@@ -216,455 +227,21 @@ pub(super) fn reconstruct_machine_semantics(
                 continue;
             }
             match operation.kind.clone() {
-                OperationKind::IntegerExactCast {
-                    operand,
-                    obligation,
-                } => {
-                    let ScalarType::Integer(source_type) = value_term(operand).scalar_type() else {
-                        unreachable!("validator requires an integer exact-cast operand")
-                    };
-                    let ScalarType::Integer(target_type) =
-                        operation.result.expect_scalar().scalar_type
-                    else {
-                        unreachable!("validator requires an integer exact-cast result")
-                    };
-                    operation_obligations.push(ReconstructedOperationObligation {
-                        obligation: Obligation {
-                            id: obligation,
-                            proposition: exact_integer_cast_obligation(
-                                source_type,
-                                target_type,
-                                value_term(operand),
-                                &axioms,
-                                &machine_parameter_values,
-                            ),
-                            class: ObligationClass::Derivable,
-                        },
-                        semantic_axioms: axioms.clone(),
-                    });
-                    let result = ScalarTerm::integer_exact_cast(
-                        source_type,
-                        target_type,
-                        value_term(operand),
+                OperationKind::IntegerExactCast { .. }
+                | OperationKind::ExactIntegerShiftLeft { .. }
+                | OperationKind::ExactIntegerShiftRight { .. }
+                | OperationKind::ExactIntegerAdd { .. }
+                | OperationKind::ExactIntegerSubtract { .. }
+                | OperationKind::ExactIntegerMultiply { .. }
+                | OperationKind::ExactIntegerDivide { .. }
+                | OperationKind::ExactIntegerRemainder { .. }
+                | OperationKind::WrappingIntegerDivide { .. }
+                | OperationKind::WrappingIntegerRemainder { .. }
+                | OperationKind::SaturatingIntegerDivide { .. }
+                | OperationKind::SaturatingIntegerRemainder { .. } => {
+                    unreachable!(
+                        "proof-bearing scalar rows return before legacy reduction dispatch"
                     )
-                    .expect("validator requires a fixed-carrier exact integer cast");
-                    axioms.push(Proposition::Equal(
-                        value_term(operation.result.expect_scalar().id),
-                        result,
-                    ));
-                }
-                OperationKind::ExactIntegerShiftRight {
-                    value,
-                    count,
-                    obligation,
-                } => {
-                    let ScalarType::Integer(value_type) =
-                        operation.result.expect_scalar().scalar_type
-                    else {
-                        unreachable!("validator requires exact-shift integer result type")
-                    };
-                    let ScalarType::Integer(count_type) = value_term(count).scalar_type() else {
-                        unreachable!("validator requires exact-shift integer count type")
-                    };
-                    operation_obligations.push(ReconstructedOperationObligation {
-                        obligation: Obligation {
-                            id: obligation,
-                            proposition: exact_integer_shift_obligation(
-                                value_type,
-                                count_type,
-                                value_term(count),
-                                &axioms,
-                            ),
-                            class: ObligationClass::Derivable,
-                        },
-                        semantic_axioms: axioms.clone(),
-                    });
-                    let result = ScalarTerm::exact_integer_shift_right(
-                        value_type,
-                        count_type,
-                        value_term(value),
-                        value_term(count),
-                    )
-                    .expect("validator requires exact exact-shift operand types");
-                    axioms.push(Proposition::Equal(
-                        value_term(operation.result.expect_scalar().id),
-                        result,
-                    ));
-                }
-                OperationKind::ExactIntegerShiftLeft {
-                    value,
-                    count,
-                    obligation,
-                } => {
-                    let ScalarType::Integer(value_type) =
-                        operation.result.expect_scalar().scalar_type
-                    else {
-                        unreachable!("validator requires exact-shift integer result type")
-                    };
-                    let ScalarType::Integer(count_type) = value_term(count).scalar_type() else {
-                        unreachable!("validator requires exact-shift integer count type")
-                    };
-                    let definition_axiom_count = axioms.len();
-                    let mut available_bounds = axioms.clone();
-                    available_bounds.extend(machine.contract.requires.iter().cloned());
-                    operation_obligations.push(ReconstructedOperationObligation {
-                        obligation: Obligation {
-                            id: obligation,
-                            proposition: exact_integer_shift_left_obligation(
-                                value_type,
-                                count_type,
-                                value_term(value),
-                                value_term(count),
-                                &available_bounds,
-                                definition_axiom_count,
-                                &machine_parameter_values,
-                            ),
-                            class: ObligationClass::Derivable,
-                        },
-                        semantic_axioms: axioms.clone(),
-                    });
-                    let result = ScalarTerm::exact_integer_shift_left(
-                        value_type,
-                        count_type,
-                        value_term(value),
-                        value_term(count),
-                    )
-                    .expect("validator requires exact exact-shift operand types");
-                    axioms.push(Proposition::Equal(
-                        value_term(operation.result.expect_scalar().id),
-                        result,
-                    ));
-                }
-                OperationKind::ExactIntegerAdd {
-                    left,
-                    right,
-                    obligation,
-                } => {
-                    let ScalarType::Integer(integer_type) =
-                        operation.result.expect_scalar().scalar_type
-                    else {
-                        unreachable!("validator requires exact-add integer result type")
-                    };
-                    let definition_axiom_count = axioms.len();
-                    let mut available_bounds = axioms.clone();
-                    available_bounds.extend(machine.contract.requires.iter().cloned());
-                    operation_obligations.push(ReconstructedOperationObligation {
-                        obligation: Obligation {
-                            id: obligation,
-                            proposition: exact_integer_add_obligation(
-                                integer_type,
-                                value_term(left),
-                                value_term(right),
-                                &available_bounds,
-                                definition_axiom_count,
-                                &machine_parameter_values,
-                            ),
-                            class: ObligationClass::Derivable,
-                        },
-                        semantic_axioms: axioms.clone(),
-                    });
-                    let result = ScalarTerm::exact_integer_add(
-                        integer_type,
-                        value_term(left),
-                        value_term(right),
-                    )
-                    .expect("validator requires exact exact-add operand types");
-                    axioms.push(Proposition::Equal(
-                        value_term(operation.result.expect_scalar().id),
-                        result,
-                    ));
-                }
-                OperationKind::ExactIntegerSubtract {
-                    left,
-                    right,
-                    obligation,
-                } => {
-                    let ScalarType::Integer(integer_type) =
-                        operation.result.expect_scalar().scalar_type
-                    else {
-                        unreachable!("validator requires exact-subtract integer result type")
-                    };
-                    let definition_axiom_count = axioms.len();
-                    let mut available_bounds = axioms.clone();
-                    available_bounds.extend(machine.contract.requires.iter().cloned());
-                    operation_obligations.push(ReconstructedOperationObligation {
-                        obligation: Obligation {
-                            id: obligation,
-                            proposition: exact_integer_subtract_obligation(
-                                integer_type,
-                                value_term(left),
-                                value_term(right),
-                                &available_bounds,
-                                definition_axiom_count,
-                                &machine_parameter_values,
-                            ),
-                            class: ObligationClass::Derivable,
-                        },
-                        semantic_axioms: axioms.clone(),
-                    });
-                    let result = ScalarTerm::exact_integer_subtract(
-                        integer_type,
-                        value_term(left),
-                        value_term(right),
-                    )
-                    .expect("validator requires exact exact-subtract operand types");
-                    axioms.push(Proposition::Equal(
-                        value_term(operation.result.expect_scalar().id),
-                        result,
-                    ));
-                }
-                OperationKind::ExactIntegerMultiply {
-                    left,
-                    right,
-                    obligation,
-                } => {
-                    let ScalarType::Integer(integer_type) =
-                        operation.result.expect_scalar().scalar_type
-                    else {
-                        unreachable!("validator requires exact-multiply integer result type")
-                    };
-                    let definition_axiom_count = axioms.len();
-                    let mut available_bounds = axioms.clone();
-                    available_bounds.extend(machine.contract.requires.iter().cloned());
-                    operation_obligations.push(ReconstructedOperationObligation {
-                        obligation: Obligation {
-                            id: obligation,
-                            proposition: exact_integer_multiply_obligation_with_definitions(
-                                integer_type,
-                                value_term(left),
-                                value_term(right),
-                                &available_bounds,
-                                definition_axiom_count,
-                                &machine_parameter_values,
-                            ),
-                            class: ObligationClass::Derivable,
-                        },
-                        semantic_axioms: axioms.clone(),
-                    });
-                    let result = ScalarTerm::exact_integer_multiply(
-                        integer_type,
-                        value_term(left),
-                        value_term(right),
-                    )
-                    .expect("validator requires exact exact-multiply operand types");
-                    axioms.push(Proposition::Equal(
-                        value_term(operation.result.expect_scalar().id),
-                        result,
-                    ));
-                }
-                OperationKind::ExactIntegerDivide {
-                    left,
-                    right,
-                    obligation,
-                } => {
-                    let ScalarType::Integer(integer_type) =
-                        operation.result.expect_scalar().scalar_type
-                    else {
-                        unreachable!("validator requires exact-divide integer result type")
-                    };
-                    let definition_axiom_count = axioms.len();
-                    let mut available_bounds = axioms.clone();
-                    available_bounds.extend(machine.contract.requires.iter().cloned());
-                    operation_obligations.push(ReconstructedOperationObligation {
-                        obligation: Obligation {
-                            id: obligation,
-                            proposition: exact_integer_divide_obligation_with_definitions(
-                                integer_type,
-                                value_term(left),
-                                value_term(right),
-                                &available_bounds,
-                                definition_axiom_count,
-                                &machine_parameter_values,
-                            ),
-                            class: ObligationClass::Derivable,
-                        },
-                        semantic_axioms: axioms.clone(),
-                    });
-                    let result = ScalarTerm::exact_integer_divide(
-                        integer_type,
-                        value_term(left),
-                        value_term(right),
-                    )
-                    .expect("validator requires exact exact-divide operand types");
-                    axioms.push(Proposition::Equal(
-                        value_term(operation.result.expect_scalar().id),
-                        result,
-                    ));
-                }
-                OperationKind::ExactIntegerRemainder {
-                    left,
-                    right,
-                    obligation,
-                } => {
-                    let ScalarType::Integer(integer_type) =
-                        operation.result.expect_scalar().scalar_type
-                    else {
-                        unreachable!("validator requires exact-remainder integer result type")
-                    };
-                    let definition_axiom_count = axioms.len();
-                    let mut available_bounds = axioms.clone();
-                    available_bounds.extend(machine.contract.requires.iter().cloned());
-                    operation_obligations.push(ReconstructedOperationObligation {
-                        obligation: Obligation {
-                            id: obligation,
-                            proposition: exact_integer_remainder_obligation_with_definitions(
-                                integer_type,
-                                value_term(left),
-                                value_term(right),
-                                &available_bounds,
-                                definition_axiom_count,
-                                &machine_parameter_values,
-                            ),
-                            class: ObligationClass::Derivable,
-                        },
-                        semantic_axioms: axioms.clone(),
-                    });
-                    let result = ScalarTerm::exact_integer_remainder(
-                        integer_type,
-                        value_term(left),
-                        value_term(right),
-                    )
-                    .expect("validator requires exact exact-remainder operand types");
-                    axioms.push(Proposition::Equal(
-                        value_term(operation.result.expect_scalar().id),
-                        result,
-                    ));
-                }
-                OperationKind::WrappingIntegerDivide {
-                    left,
-                    right,
-                    obligation,
-                } => {
-                    let ScalarType::Integer(integer_type) =
-                        operation.result.expect_scalar().scalar_type
-                    else {
-                        unreachable!("validator requires wrapping-divide integer result type")
-                    };
-                    operation_obligations.push(ReconstructedOperationObligation {
-                        obligation: Obligation {
-                            id: obligation,
-                            proposition: wrapping_integer_divide_obligation(
-                                integer_type,
-                                value_term(left),
-                                value_term(right),
-                                &axioms,
-                            ),
-                            class: ObligationClass::Derivable,
-                        },
-                        semantic_axioms: axioms.clone(),
-                    });
-                    let result = ScalarTerm::wrapping_integer_divide(
-                        integer_type,
-                        value_term(left),
-                        value_term(right),
-                    )
-                    .expect("validator requires exact wrapping-divide operand types");
-                    axioms.push(Proposition::Equal(
-                        value_term(operation.result.expect_scalar().id),
-                        result,
-                    ));
-                }
-                OperationKind::WrappingIntegerRemainder {
-                    left,
-                    right,
-                    obligation,
-                } => {
-                    let ScalarType::Integer(integer_type) =
-                        operation.result.expect_scalar().scalar_type
-                    else {
-                        unreachable!("validator requires wrapping-remainder integer result type")
-                    };
-                    operation_obligations.push(ReconstructedOperationObligation {
-                        obligation: Obligation {
-                            id: obligation,
-                            proposition: wrapping_integer_remainder_obligation(
-                                integer_type,
-                                value_term(left),
-                                value_term(right),
-                                &axioms,
-                            ),
-                            class: ObligationClass::Derivable,
-                        },
-                        semantic_axioms: axioms.clone(),
-                    });
-                    let result = ScalarTerm::wrapping_integer_remainder(
-                        integer_type,
-                        value_term(left),
-                        value_term(right),
-                    )
-                    .expect("validator requires matching wrapping-remainder operand types");
-                    axioms.push(Proposition::Equal(
-                        value_term(operation.result.expect_scalar().id),
-                        result,
-                    ));
-                }
-                OperationKind::SaturatingIntegerDivide {
-                    left,
-                    right,
-                    obligation,
-                } => {
-                    let ScalarType::Integer(integer_type) =
-                        operation.result.expect_scalar().scalar_type
-                    else {
-                        unreachable!("validator requires saturating-divide integer result type")
-                    };
-                    operation_obligations.push(ReconstructedOperationObligation {
-                        obligation: Obligation {
-                            id: obligation,
-                            proposition: saturating_integer_divide_obligation(
-                                integer_type,
-                                value_term(left),
-                                value_term(right),
-                                &axioms,
-                            ),
-                            class: ObligationClass::Derivable,
-                        },
-                        semantic_axioms: axioms.clone(),
-                    });
-                    let result = ScalarTerm::saturating_integer_divide(
-                        integer_type,
-                        value_term(left),
-                        value_term(right),
-                    )
-                    .expect("validator requires matching saturating-divide operand types");
-                    axioms.push(Proposition::Equal(
-                        value_term(operation.result.expect_scalar().id),
-                        result,
-                    ));
-                }
-                OperationKind::SaturatingIntegerRemainder {
-                    left,
-                    right,
-                    obligation,
-                } => {
-                    let ScalarType::Integer(integer_type) =
-                        operation.result.expect_scalar().scalar_type
-                    else {
-                        unreachable!("validator requires saturating-remainder integer result type")
-                    };
-                    operation_obligations.push(ReconstructedOperationObligation {
-                        obligation: Obligation {
-                            id: obligation,
-                            proposition: saturating_integer_remainder_obligation(
-                                integer_type,
-                                value_term(left),
-                                value_term(right),
-                                &axioms,
-                            ),
-                            class: ObligationClass::Derivable,
-                        },
-                        semantic_axioms: axioms.clone(),
-                    });
-                    let result = ScalarTerm::saturating_integer_remainder(
-                        integer_type,
-                        value_term(left),
-                        value_term(right),
-                    )
-                    .expect("validator requires matching saturating-remainder operand types");
-                    axioms.push(Proposition::Equal(
-                        value_term(operation.result.expect_scalar().id),
-                        result,
-                    ));
                 }
                 OperationKind::IntegerConstant { .. }
                 | OperationKind::BooleanConstant { .. }
