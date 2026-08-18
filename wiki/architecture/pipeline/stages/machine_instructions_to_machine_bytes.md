@@ -90,8 +90,12 @@ Must not own:
   generic host dispatch, authored imports, normalized Win64/System V argument
   and result placement, direct/vtable/table calls, byte I/O, and exact
   relocation-site replay. Its ABI regression corpus is compiled separately
-  under `host_calls/tests.rs`. The crate root does not reconstruct any of those
-  families.
+  under `host_calls/tests.rs`. `runtime_storage/scalar.rs` owns runtime value
+  comparison and operand replay, binary arithmetic, conversion, and text
+  equality; `runtime_storage/places.rs` owns integer, bit-field, indexed-place
+  writes and copy-layout contracts. Scalar policy regressions are compiled
+  separately under `runtime_storage/scalar_tests.rs`. The crate root does not
+  reconstruct any of those families.
 - `omega-machine-bytes/src/plan/` is the output representation root:
   encoded executable byte shape lives under `EncodedMachineCode`, while
   preserved semantic evidence lives under `EncodedMachineSemanticSummary`.
