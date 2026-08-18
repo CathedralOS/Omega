@@ -25,8 +25,11 @@
 //! else REFUSES LOUDLY -- legalization, not silent truncation.
 
 use omega_calling_conventions::{MachineRegister, MachineState, MachineStateSet, RegisterSet};
-use omega_target_operations::{Place, PlaceStep};
+use omega_target_operations::{
+    Place, PlaceStep, RuntimeValueOperandHandle, RuntimeValueOperandSource, StateGuardOperator,
+};
 use psi_diagnostics::Diagnostic;
+use psi_numerics::arithmetic::ArithmeticDomain;
 
 /// Which side of the copy a base-materialization relocation site belongs to.
 /// The relocation walker maps a side to that place's own region -- this is
@@ -325,14 +328,14 @@ pub fn place_integer_write_clobbers(target: &Place) -> RegisterSet {
 /// direct encoder runs.
 #[allow(clippy::too_many_arguments)]
 pub fn encode_place_binary_write(
-    runtime_value_operands: &impl super::RuntimeValueOperandSource,
+    runtime_value_operands: &impl RuntimeValueOperandSource,
     target: &Place,
     byte_size: usize,
-    left: super::RuntimeValueOperandHandle,
-    operator: super::StateGuardOperator,
-    right: super::RuntimeValueOperandHandle,
+    left: RuntimeValueOperandHandle,
+    operator: StateGuardOperator,
+    right: RuntimeValueOperandHandle,
     is_float: bool,
-    domain: super::ArithmeticDomain,
+    domain: ArithmeticDomain,
     target_signed: bool,
 ) -> Result<(Vec<u8>, PlaceCopySites), Diagnostic> {
     let mut bytes = Vec::new();
@@ -360,10 +363,10 @@ pub fn encode_place_binary_write(
 /// operands reload r15 for their own storage bases.
 #[allow(clippy::too_many_arguments)]
 pub fn encode_place_convert_write(
-    runtime_value_operands: &impl super::RuntimeValueOperandSource,
+    runtime_value_operands: &impl RuntimeValueOperandSource,
     target: &Place,
     target_byte_size: usize,
-    source: super::RuntimeValueOperandHandle,
+    source: RuntimeValueOperandHandle,
     source_byte_size: usize,
     source_is_float: bool,
     target_is_float: bool,
@@ -789,7 +792,7 @@ pub fn encode_place_compare(
     right: &Place,
     byte_size: usize,
     failure_branch_distance: isize,
-    operator: super::StateGuardOperator,
+    operator: StateGuardOperator,
     is_float: bool,
 ) -> Result<(Vec<u8>, PlaceCopySites), Diagnostic> {
     if right.scaled_index_regions().count() >= 2 {
@@ -846,7 +849,7 @@ pub fn encode_place_value_compare(
     byte_size: usize,
     expected_value: i64,
     failure_branch_distance: isize,
-    operator: super::StateGuardOperator,
+    operator: StateGuardOperator,
 ) -> Result<(Vec<u8>, PlaceCopySites), Diagnostic> {
     let mut bytes = Vec::new();
     let mut sites = PlaceCopySites::default();
