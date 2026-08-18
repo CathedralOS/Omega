@@ -1580,9 +1580,14 @@ and Unit stack/fuel/effect evidence behind the parent-facing Unit emitter and
 cleanup-call helpers. `omega-terminal-machine-emission/src/cleanup.rs` owns
 scalar-return and Boolean-control cleanup emission, nominal-cleanup admission,
 exact residual partitioning, and cleanup stack/fuel/call evidence behind five
-parent-facing contracts. Scalar control/expression emission remains a distinct
-production responsibility and must not be collapsed into test helpers or one
-generic permutation dispatcher.
+parent-facing contracts. `omega-terminal-machine-emission/src/scalar.rs` owns
+scalar control/expression encoding, architecture-specific scalar calls and
+arithmetic, admissible conditional-shape custody, and scalar stack evidence
+behind explicit parent-facing contracts. The crate root only orchestrates those
+responsibilities and retains shared ABI primitives plus the public error
+vocabulary. The scalar module's x86-64, AArch64, and shared shape/evidence
+internals remain candidates for subordinate responsibility splits; they must
+not be collapsed into test helpers or one generic permutation dispatcher.
 Scalar and structural crash routes, checked crash-site/frontier custody,
 argument-root substitution, and canonical proposition construction likewise
 share one crash/proposition module with an explicit internal contract surface.
