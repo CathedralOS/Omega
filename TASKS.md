@@ -876,7 +876,11 @@ Remaining:
   explicit 1,114-line crate-internal primitive layer. These
   are semantics-preserving responsibility splits, not trust promotions: the
   full low generator, row proofs, and composition bridges remain open, and no
-  trust-graph node becomes derived from the spike.
+  trust-graph node becomes derived from the spike. The corresponding AArch64
+  cleanup has begun: its former 14,216-line runtime-storage parent is now a
+  10,826-line production module plus a separately compiled 3,361-line
+  byte/width/policy regression corpus, with the exact public and test
+  inventories preserved.
 
   Define a closed typed schema language with no opaque callbacks. One row per
   leaf operation owns well-formedness, direct mathematical denotation, canonical
