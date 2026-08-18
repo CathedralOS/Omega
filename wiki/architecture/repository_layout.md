@@ -256,7 +256,10 @@ Omega/
   Psi and owns provider installation, ABI/storage realization, optimization,
   target lowering, and native execution machinery. Psi owns both transitional
   checked-tree reference execution and canonical terminal-Psi interpretation;
-  Omega contains only the cross-layer native differential-test harness.
+  Omega contains only the cross-layer native differential-test harness. That
+  harness keeps shared artifact decoding, verified lowering, and native image
+  execution separate from responsibility-specific source differential families;
+  it does not recombine semantic verification cases in its test root.
 - `semantics/` owns language meaning: names, types, effects, proofs, facts,
   invariants, and validation. Borrow, invariant, contract, and const-evaluation
   reasoning live chiefly in `psi-types`, `psi-facts`, `psi-validation`, and
