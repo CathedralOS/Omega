@@ -126,7 +126,9 @@ Must not own:
   clobber and machine-state ceilings. `runtime_storage/indexed_writes.rs` owns
   descriptor, pointee, frame, and machine single- and double-indexed integer
   and binary result writes, including their operand and clobber contracts.
-  Byte, width, clobber,
+  `runtime_storage/storage_copies.rs` owns direct, pointee, single- and
+  double-indexed, cross-region, and indexed-pair copy encoders plus exact chunk
+  partitioning and clobber contracts. Byte, width, clobber,
   atomic-ordering, conversion-policy, indexed-place, and floating-policy
   regressions are compiled separately through `runtime_storage_tests.rs`;
   production does not embed that second responsibility.
