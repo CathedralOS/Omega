@@ -804,16 +804,20 @@ Remaining:
   is now a 15-line root over fifteen cast, conversion, add/subtract,
   multiply/affine, join, shift, and divide-policy responsibilities. All 76
   cases remain, and no family module exceeds 1,248 lines.
-  Terminal native machine emission has begun the same split: its 12,922-line
-  crate root is now a 5,495-line production orchestration root with the complete
-  58-case, 5,028-line regression corpus compiled separately. Unit-body and
-  calling-policy emission, per-target parameter homes, aggregate argument
-  staging/copying, and Unit stack/fuel/effect evidence form a separate
+  Terminal native machine emission has undergone the same split: its
+  12,922-line crate root is now an 891-line production orchestrator with the
+  complete 58-case, 5,028-line regression corpus compiled separately.
+  Unit-body and calling-policy emission, per-target parameter homes, aggregate
+  argument staging/copying, and Unit stack/fuel/effect evidence form a separate
   1,301-line responsibility. Scalar-return and Boolean-control cleanup,
   nominal-cleanup admission, exact residual partitioning, and cleanup
-  stack/fuel/call evidence form a separate 1,120-line responsibility.
-  Scalar-control/expression emission remains a visible production
-  responsibility for the next checkpoints.
+  stack/fuel/call evidence form a separate 1,120-line responsibility. Scalar
+  control/expression encoding, per-architecture scalar-call and arithmetic
+  mechanics, admissible conditional-shape custody, and scalar stack evidence
+  form a separate 4,655-line responsibility behind forty-four explicit
+  parent-facing contracts. Its x86-64, AArch64, and shared shape/evidence
+  internals remain visible candidates for later responsibility splits rather
+  than being hidden behind one permutation dispatcher.
   Terminal-module validation has begun the same split: its parent shrank from
   7,498 to 282 lines, with structural/service foundation (956 lines),
   structural/boundary operation custody (822), public error vocabulary (803),
