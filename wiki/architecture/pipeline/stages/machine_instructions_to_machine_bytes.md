@@ -112,7 +112,10 @@ Must not own:
   policy, and the shared recursive-operand conversion evaluator.
   `runtime_storage/comparison.rs` owns direct place-pair, place-value, and
   computed-value comparisons, their register and machine-state contracts, and
-  exact operator-to-failure-branch mapping. Byte, width, clobber,
+  exact operator-to-failure-branch mapping.
+  `runtime_storage/scalar_writes.rs` owns recursive-operand register and
+  machine-state contracts plus immediate integer, bit-field, direct binary,
+  pointee binary, saturation, and trapping writes. Byte, width, clobber,
   atomic-ordering, conversion-policy, indexed-place, and floating-policy
   regressions are compiled separately through `runtime_storage_tests.rs`;
   production does not embed that second responsibility.
