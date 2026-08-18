@@ -821,6 +821,11 @@ Remaining:
   calls, ABI, proofs, layouts, and runtime families. All 1,241 tests and 1,272
   functions remain; the sole cross-family float differential helper is imported
   explicitly, and no family module exceeds 3,795 lines.
+  The real-source terminal-Psi differential suite now applies the same boundary:
+  its former 10,520-line file is an 852-line artifact/native execution harness
+  over ten contract, call/control, exact-arithmetic, scalar-operation, and
+  crash/admission families. All 115 tests and 137 functions remain, and no
+  family exceeds 2,030 lines.
   Terminal native machine emission has undergone the same split: its
   12,922-line crate root is now an 891-line production orchestrator with the
   complete 58-case, 5,028-line regression corpus compiled separately.
