@@ -118,7 +118,9 @@ Must not own:
   pointee binary, saturation, and trapping writes.
   `runtime_storage/bounded_buffers.rs` owns direct, pointee, indexed, and
   double-indexed bounded-buffer writes plus literal and source appends behind
-  the unchanged public re-exports. Byte, width, clobber,
+  the unchanged public re-exports. `runtime_storage/string_writes.rs` owns
+  direct, pointee, indexed, and double-indexed string-descriptor writes plus
+  their closed register and machine-state ceilings. Byte, width, clobber,
   atomic-ordering, conversion-policy, indexed-place, and floating-policy
   regressions are compiled separately through `runtime_storage_tests.rs`;
   production does not embed that second responsibility.
