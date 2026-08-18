@@ -94,8 +94,10 @@ Must not own:
   comparison and operand replay, binary arithmetic, conversion, and text
   equality; `runtime_storage/places.rs` owns integer, bit-field, indexed-place
   writes and copy-layout contracts. Scalar policy regressions are compiled
-  separately under `runtime_storage/scalar_tests.rs`. The crate root does not
-  reconstruct any of those families.
+  separately under `runtime_storage/scalar_tests.rs`; `dispatch.rs` owns
+  dispatch-loop, case-entry, state-write, case-leave, and storage-backed static
+  guard encodings together with their exact widths and machine-state effects.
+  The crate root does not reconstruct any of those families.
 - `omega-machine-bytes/src/plan/` is the output representation root:
   encoded executable byte shape lives under `EncodedMachineCode`, while
   preserved semantic evidence lives under `EncodedMachineSemanticSummary`.
