@@ -5,6 +5,7 @@ use psi_core::{
     StructuralDomainId, StructuralFieldId, StructuralPlaceKind, StructuralTypeId, ValueId,
 };
 use psi_terminal::{CrashCause, EvidenceContractLaneKind, StructuralMultiplicity};
+use psi_terminal_semantics::OperationSemanticError;
 
 use super::foundation::{ServiceCeilingOwner, StructuralSignatureOwner};
 
@@ -17,6 +18,7 @@ pub enum ContractClauseKind {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ModuleError {
+    OperationSemanticSchema(OperationSemanticError),
     InvalidPartialAffineCleanup {
         machine: MachineId,
         block: BlockId,

@@ -33,6 +33,7 @@ members = [
     "compiler/psi-rs/semantics/psi-terminal-codec",
     "compiler/psi-rs/semantics/psi-terminal-fuel",
     "compiler/psi-rs/semantics/psi-terminal-fixed-fuel",
+    "compiler/psi-rs/semantics/psi-terminal-semantics",
     "compiler/psi-rs/semantics/psi-terminal-interpreter",
     "compiler/psi-rs/semantics/psi-checked-interpreter",
     "compiler/psi-rs/semantics/psi-build-time-evaluation",

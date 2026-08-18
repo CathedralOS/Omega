@@ -674,6 +674,16 @@ Remaining:
   versions; the graph identity also binds every canonical dependency edge.
   Unknown, cyclic, unreachable, duplicate, malformed-root, and noncanonical
   graphs reject, and the current artifact closure reports `fully-derived false`.
+  The first production Rust ledger slice now has one closed
+  `psi-terminal-semantics` table covering all 38 operation kinds and preserving
+  the 35 leaf / 3 call-composition custody split. Twenty goal-free scalar leaves
+  carry explicit result, operand, denotation, goal, fact, crash, fuel, and
+  frontier axes and reconstruct their local equations through one generic
+  interpreter. Exact lookup rejects missing or duplicate rows. The terminal
+  verifier and codec trust graph consume that shared inventory instead of
+  maintaining independent operation matches. Proof-bearing reducers,
+  structural/effect rows, and call/control composition remain separate and are
+  not promoted into this leaf table.
   The bounded Gamma spike is complete. It canonical-decodes four exact current
   `PSITERM\0` v11 fixtures and audits a 54-row scalar ledger covering constants,
   Boolean not/equality, integer equality/order, bitwise operations, strict

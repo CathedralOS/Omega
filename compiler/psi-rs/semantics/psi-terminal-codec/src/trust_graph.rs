@@ -12,6 +12,11 @@ use std::{
     sync::OnceLock,
 };
 
+#[cfg(test)]
+use psi_terminal_semantics::OperationSemanticTag;
+use psi_terminal_semantics::{
+    OperationSemanticCustody, OperationSemanticRow, operation_semantic_row,
+};
 use sha2::{Digest, Sha256};
 
 const NODE_DIGEST_DOMAIN: &[u8] = b"psi-terminal-trust-node\0";
@@ -47,6 +52,7 @@ const PROOF_KERNEL_KERNEL_SOURCE: &[u8] = include_bytes!("../../psi-proof-kernel
 const PROOF_KERNEL_PROOF_SOURCE: &[u8] = include_bytes!("../../psi-proof-kernel/src/proof.rs");
 const TERMINAL_MODEL_SOURCE: &[u8] =
     include_bytes!("../../../representations/psi-terminal/src/module.rs");
+const TERMINAL_SEMANTICS_SOURCE: &[u8] = include_bytes!("../../psi-terminal-semantics/src/lib.rs");
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum TrustDependencyKind {
@@ -413,7 +419,9 @@ fn build_current_terminal_trust_graph() -> Result<ValidatedTerminalTrustGraph, T
 pub fn current_rust_operation_semantics_trust_identity(
     operation: &psi_terminal::OperationKind,
 ) -> &'static str {
-    CurrentRustOperationSemanticsRow::for_operation(operation).identity()
+    operation_semantic_row(operation)
+        .expect("the closed terminal operation table has one exact semantic row")
+        .identity()
 }
 
 pub fn render_terminal_trust_graph(
@@ -694,27 +702,28 @@ fn reduction_nodes() -> Vec<TrustDependencyNode> {
 }
 
 fn operation_semantics_nodes() -> Vec<TrustDependencyNode> {
-    CurrentRustOperationSemanticsRow::ALL
+    OperationSemanticRow::ALL
         .iter()
         .map(|row| {
-            let (subject, version, scope, rationale) = match row.kind() {
-                TrustDependencyKind::DenotationSchema => (
+            let (kind, subject, version, scope, rationale) = match row.custody() {
+                OperationSemanticCustody::LeafDenotation => (
+                    TrustDependencyKind::DenotationSchema,
                     format!("terminal-Psi OperationKind::{} direct leaf denotation", row.name()),
                     "terminal-leaf-denotation-v1-unproved",
                     "one closed terminal-Psi leaf-operation schema row",
                     "The Rust leaf row is trusted until its universally quantified denotation theorem and composition bridge are accepted.",
                 ),
-                TrustDependencyKind::CallComposition => (
+                OperationSemanticCustody::CallComposition => (
+                    TrustDependencyKind::CallComposition,
                     format!("terminal-Psi OperationKind::{} call composition", row.name()),
                     "terminal-call-composition-v1-unproved",
                     "one closed terminal-Psi call coverage/substitution/composition row",
                     "The Rust call row is trusted until exact clause coverage, capture-free substitution, outcomes, crash routes, and evidence lifetimes are established by the low ledger algebra.",
                 ),
-                _ => unreachable!("operation rows have leaf-schema or call-composition custody"),
             };
             TrustDependencyNode::new(
                 row.identity(),
-                row.kind(),
+                kind,
                 TrustDependencyStatus::TrustedJudgment,
                 subject,
                 version,
@@ -733,6 +742,10 @@ fn operation_semantics_nodes() -> Vec<TrustDependencyNode> {
                         VERIFIER_VALIDATION_SOURCE,
                     ),
                     ("psi-terminal-verifier/verification.rs", VERIFIER_SOURCE),
+                    (
+                        "psi-terminal-semantics/lib.rs",
+                        TERMINAL_SEMANTICS_SOURCE,
+                    ),
                 ],
             )
         })
@@ -770,91 +783,6 @@ fn current_closure_node() -> TrustDependencyNode {
     )
 }
 
-macro_rules! current_rust_operation_semantics_rows {
-    ($( $variant:ident => ($identity:literal, $kind:ident) ),+ $(,)?) => {
-        #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-        enum CurrentRustOperationSemanticsRow {
-            $( $variant ),+
-        }
-
-        impl CurrentRustOperationSemanticsRow {
-            const ALL: [Self; current_rust_operation_semantics_rows!(@count $( $variant )+)] = [
-                $( Self::$variant ),+
-            ];
-
-            fn name(self) -> &'static str {
-                match self {
-                    $( Self::$variant => stringify!($variant) ),+
-                }
-            }
-
-            fn identity(self) -> &'static str {
-                match self {
-                    $( Self::$variant => $identity ),+
-                }
-            }
-
-            fn kind(self) -> TrustDependencyKind {
-                match self {
-                    $( Self::$variant => TrustDependencyKind::$kind ),+
-                }
-            }
-
-            fn for_operation(operation: &psi_terminal::OperationKind) -> Self {
-                use psi_terminal::OperationKind;
-
-                match operation {
-                    $( OperationKind::$variant { .. } => Self::$variant ),+
-                }
-            }
-        }
-    };
-    (@count $( $variant:ident )+) => {
-        <[()]>::len(&[$(current_rust_operation_semantics_rows!(@unit $variant)),+])
-    };
-    (@unit $variant:ident) => { () };
-}
-
-current_rust_operation_semantics_rows! {
-    EstablishTrivialAffineLocal => ("schema:operation:establish-trivial-affine-local", DenotationSchema),
-    Call => ("algebra:call:call", CallComposition),
-    CallUnit => ("algebra:call:call-unit", CallComposition),
-    BoundaryCall => ("algebra:call:boundary-call", CallComposition),
-    PortWrite => ("schema:operation:port-write", DenotationSchema),
-    IntegerConstant => ("schema:operation:integer-constant", DenotationSchema),
-    BooleanConstant => ("schema:operation:boolean-constant", DenotationSchema),
-    BooleanStructuralField => ("schema:operation:boolean-structural-field", DenotationSchema),
-    BooleanNot => ("schema:operation:boolean-not", DenotationSchema),
-    BooleanEqual => ("schema:operation:boolean-equal", DenotationSchema),
-    IntegerEqual => ("schema:operation:integer-equal", DenotationSchema),
-    IntegerLessThan => ("schema:operation:integer-less-than", DenotationSchema),
-    IntegerLessOrEqual => ("schema:operation:integer-less-or-equal", DenotationSchema),
-    IntegerBitwiseNot => ("schema:operation:integer-bitwise-not", DenotationSchema),
-    IntegerWiden => ("schema:operation:integer-widen", DenotationSchema),
-    IntegerExactCast => ("schema:operation:integer-exact-cast", DenotationSchema),
-    IntegerBitwiseAnd => ("schema:operation:integer-bitwise-and", DenotationSchema),
-    IntegerBitwiseOr => ("schema:operation:integer-bitwise-or", DenotationSchema),
-    IntegerBitwiseXor => ("schema:operation:integer-bitwise-xor", DenotationSchema),
-    WrappingIntegerShiftLeft => ("schema:operation:wrapping-integer-shift-left", DenotationSchema),
-    WrappingIntegerShiftRight => ("schema:operation:wrapping-integer-shift-right", DenotationSchema),
-    ExactIntegerShiftLeft => ("schema:operation:exact-integer-shift-left", DenotationSchema),
-    ExactIntegerShiftRight => ("schema:operation:exact-integer-shift-right", DenotationSchema),
-    ExactIntegerAdd => ("schema:operation:exact-integer-add", DenotationSchema),
-    ExactIntegerSubtract => ("schema:operation:exact-integer-subtract", DenotationSchema),
-    ExactIntegerMultiply => ("schema:operation:exact-integer-multiply", DenotationSchema),
-    ExactIntegerDivide => ("schema:operation:exact-integer-divide", DenotationSchema),
-    ExactIntegerRemainder => ("schema:operation:exact-integer-remainder", DenotationSchema),
-    WrappingIntegerDivide => ("schema:operation:wrapping-integer-divide", DenotationSchema),
-    WrappingIntegerRemainder => ("schema:operation:wrapping-integer-remainder", DenotationSchema),
-    SaturatingIntegerDivide => ("schema:operation:saturating-integer-divide", DenotationSchema),
-    SaturatingIntegerRemainder => ("schema:operation:saturating-integer-remainder", DenotationSchema),
-    WrappingIntegerAdd => ("schema:operation:wrapping-integer-add", DenotationSchema),
-    SaturatingIntegerAdd => ("schema:operation:saturating-integer-add", DenotationSchema),
-    WrappingIntegerSubtract => ("schema:operation:wrapping-integer-subtract", DenotationSchema),
-    SaturatingIntegerSubtract => ("schema:operation:saturating-integer-subtract", DenotationSchema),
-    WrappingIntegerMultiply => ("schema:operation:wrapping-integer-multiply", DenotationSchema),
-    SaturatingIntegerMultiply => ("schema:operation:saturating-integer-multiply", DenotationSchema),
-}
 fn dependencies(values: &[&str]) -> Vec<String> {
     let mut values = values
         .iter()
@@ -1029,23 +957,27 @@ mod tests {
                 .count(),
             3
         );
-        assert_eq!(CurrentRustOperationSemanticsRow::ALL.len(), 38);
+        assert_eq!(OperationSemanticRow::ALL.len(), 38);
         assert_eq!(
-            CurrentRustOperationSemanticsRow::ALL
+            OperationSemanticRow::ALL
                 .iter()
-                .filter(|row| row.kind() == TrustDependencyKind::DenotationSchema)
+                .filter(|row| row.custody() == OperationSemanticCustody::LeafDenotation)
                 .count(),
             35
         );
         assert_eq!(
-            CurrentRustOperationSemanticsRow::ALL
+            OperationSemanticRow::ALL
                 .iter()
-                .filter(|row| row.kind() == TrustDependencyKind::CallComposition)
+                .filter(|row| row.custody() == OperationSemanticCustody::CallComposition)
                 .count(),
             3
         );
         assert_eq!(
-            CurrentRustOperationSemanticsRow::Call.identity(),
+            OperationSemanticRow::ALL
+                .iter()
+                .find(|row| row.tag() == OperationSemanticTag::Call)
+                .expect("call row")
+                .identity(),
             "algebra:call:call"
         );
         assert!(graph.nodes().iter().all(|node| {

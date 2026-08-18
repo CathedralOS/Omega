@@ -97,6 +97,14 @@ rule. Calls independently check complete `requires` enumeration and exact
 capture-free instantiation over caller arguments, places, versions, moves,
 reborrows, outcomes, crash routes, and evidence lifetimes.
 
+The production Rust migration starts with one closed declarative operation
+inventory in `psi-terminal-semantics`. It owns stable identity and direct local
+equations for the goal-free scalar cohort; the verifier traverses artifacts and
+consumes those rows, while the trust graph hashes the same inventory. This is a
+modularity checkpoint, not a trust promotion: proof-bearing sufficient-form
+reducers still have to derive the unchanged canonical goals, and structural,
+effect, call, and control algebras remain separate responsibilities.
+
 The authoritative ledger is established for every deployed artifact either by
 executing the low definition or by checking a derivation of the same result.
 Optimized verifier agreement is a diagnostic oracle and grants no authority.
