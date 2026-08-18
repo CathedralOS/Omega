@@ -103,7 +103,12 @@ Must not own:
   and relocation-contract surface; it does not reconstruct any encoding
   family.
 - `omega-isa-aarch64/src/aarch64/runtime_storage.rs` owns the remaining AArch64
-  runtime-storage production orchestration. `runtime_storage/atomics.rs` owns
+  shared address formation, raw storage load/result-write primitives, scratch
+  register contracts, and runtime-storage production orchestration.
+  `runtime_storage/runtime_values.rs` owns recursive runtime operand replay,
+  text equality, integer and floating arithmetic, arithmetic-domain policy,
+  classification, and their exact byte-size/width contracts.
+  `runtime_storage/atomics.rs` owns
   atomic load/store and read-modify-write encoding, ordering selection,
   observed-prior result writes, exact widths, and result relocation-site
   offsets behind the unchanged public re-exports.
