@@ -113,6 +113,12 @@ trust promotion: proof-bearing sufficient-form reducers still have to derive
 the unchanged canonical goals, and control algebra remains a separate
 responsibility.
 
+Exact-shift reconstruction follows the same production boundary internally:
+a small precedence parent owns primitive shift dispatch, a direct-chain module
+owns landed-count and interval foundations, and a cross-family module owns
+cast, affine, divide/remainder, and shift composition. The reducer contract is
+unchanged, and the trusted-migration node binds all three exact source files.
+
 The authoritative ledger is established for every deployed artifact either by
 executing the low definition or by checking a derivation of the same result.
 Optimized verifier agreement is a diagnostic oracle and grants no authority.

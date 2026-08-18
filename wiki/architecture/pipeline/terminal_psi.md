@@ -1628,6 +1628,15 @@ precedence at the registry, and no authority beyond the certificate proved
 against the unchanged canonical ledger. This refactoring rule does not make the
 current Rust producer or its registries trusted.
 
+The exact-shift sufficient-form family now applies that boundary internally.
+One small parent owns exact-left dispatch precedence and the primitive shift
+obligation, one direct-chain module owns landed counts, interval transfer, and
+homogeneous/mixed chain foundations, and one composition module owns
+shift/cast/affine/divide cross-family reductions. Their public reducer contract
+is unchanged. The executable integer-shift trust node hashes all three source
+files, so modularization cannot move deciding bytes outside its migration
+custody.
+
 Premise availability is path- and version-sensitive. Ranking ledger nodes makes
 cyclic justification unrepresentable but does not by itself make a fact
 available. A cited evidence token must dominate its use and remain valid along

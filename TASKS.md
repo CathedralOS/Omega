@@ -843,6 +843,12 @@ Remaining:
   existing public proof and substitution surfaces remain explicitly
   re-exported, while sufficient-form selection retains its specialized owners
   instead of being merged into one generic permutation dispatcher.
+  Exact-shift reduction now follows that same boundary. Its former 2,376-line
+  production file is a 237-line precedence/orchestration parent over a
+  944-line direct-chain/foundation responsibility and a 1,254-line
+  cross-family cast/arithmetic/divide composition responsibility. The existing
+  public reducer surface and precedence are unchanged, and the integer-shift
+  trust node binds all three exact source files.
   The checked-lowering regression file that had accumulated ranking,
   operational-contract, write-frame, crash-route, and data-fact verification
   is now a 23-line root over eight exact test families. All 67 tests and the
