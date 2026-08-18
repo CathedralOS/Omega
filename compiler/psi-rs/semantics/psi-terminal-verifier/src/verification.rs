@@ -25,6 +25,7 @@ mod integer_shift;
 mod proof_bundle;
 mod reconstruction;
 mod substitution;
+mod sufficient_reduction;
 
 use evidence_provenance::validate_evidence_producer_provenance;
 use integer_foundation::*;

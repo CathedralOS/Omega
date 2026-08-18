@@ -13,9 +13,11 @@ use psi_core::{IntegerValue, Proposition, PropositionError, ScalarTerm, ScalarTy
 use psi_terminal::{Operation, OperationKind};
 
 mod call_composition;
+mod proof_bearing_scalar;
 mod structural_effect;
 
 pub use call_composition::*;
+pub use proof_bearing_scalar::*;
 pub use structural_effect::*;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -39,6 +41,7 @@ pub enum ScalarLeafOperandShape {
     UnaryInteger,
     BinaryInteger,
     WideningInteger,
+    ExactCastInteger,
     IntegerShift,
 }
 
@@ -53,11 +56,23 @@ pub enum ScalarLeafDenotation {
     IntegerLessOrEqual,
     IntegerBitwiseNot,
     IntegerWiden,
+    IntegerExactCast,
     IntegerBitwiseAnd,
     IntegerBitwiseOr,
     IntegerBitwiseXor,
     WrappingIntegerShiftLeft,
     WrappingIntegerShiftRight,
+    ExactIntegerShiftLeft,
+    ExactIntegerShiftRight,
+    ExactIntegerAdd,
+    ExactIntegerSubtract,
+    ExactIntegerMultiply,
+    ExactIntegerDivide,
+    ExactIntegerRemainder,
+    WrappingIntegerDivide,
+    WrappingIntegerRemainder,
+    SaturatingIntegerDivide,
+    SaturatingIntegerRemainder,
     WrappingIntegerAdd,
     SaturatingIntegerAdd,
     WrappingIntegerSubtract,
@@ -69,6 +84,12 @@ pub enum ScalarLeafDenotation {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ScalarLeafGoalShape {
     None,
+    ExactCastRepresentable,
+    ExactShiftCount,
+    ExactShiftLeftRepresentable,
+    ExactArithmeticRepresentable,
+    ExactDivisionDefined,
+    NonzeroDivisor,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -79,6 +100,7 @@ pub enum ScalarLeafFactShape {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ScalarLeafCrashPolicy {
     Never,
+    CrashesUnlessGoal,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -196,6 +218,10 @@ pub enum OperationSemanticError {
     ResultShapeMismatch(OperationSemanticTag),
     OperandShapeMismatch(OperationSemanticTag),
     DenotationShapeMismatch(OperationSemanticTag),
+    MissingProofBearingScalarRow(OperationSemanticTag),
+    DuplicateProofBearingScalarRow(OperationSemanticTag),
+    UnexpectedProofBearingScalarRow(OperationSemanticTag),
+    ProofBearingScalarSchemaMismatch(OperationSemanticTag),
     MissingStructuralEffectRow(OperationSemanticTag),
     DuplicateStructuralEffectRow(OperationSemanticTag),
     UnexpectedStructuralEffectRow(OperationSemanticTag),

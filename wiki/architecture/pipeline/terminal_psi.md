@@ -1543,6 +1543,18 @@ derivation of that same total definition establishes the authoritative ledger
 for every deployed artifact. Optimized implementations may disagree only by
 causing rejection; agreement with the low result grants them no authority.
 
+The current Rust migration now reflects that split for every scalar leaf.
+Goal-free leaves, structural/effect leaves, calls, and the twelve proof-bearing
+scalar leaves have separate exact-unique tables. The proof-bearing table owns
+direct denotation, exact operand/result shape, six canonical goal shapes, the
+normal-successor equation, crash behavior, fuel, and frontier policy. Artifact
+reconstruction consumes one typed observation rather than reconstructing those
+twelve local equations in operation-specific branches. A separate migration
+dispatcher still chooses the legacy sufficient proposition and is explicitly
+hashed into each affected reduction dependency. This does not certify a
+reducer: the typed canonical-goal carrier is not yet a kernel derivation, and
+the current closure remains `fully-derived false`.
+
 That producer status is also the module boundary. Structural Unit-plan
 construction must not accumulate every sufficient-form recognizer merely
 because it invokes them. Shared Boolean/integer convergence has a small

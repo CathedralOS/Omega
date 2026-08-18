@@ -108,10 +108,17 @@ rows. A third exact-unique table declares the ten independent composition axes
 for scalar, structural Unit, and boundary calls; one focused verifier module
 composes already-validated contracts through that table rather than embedding
 three call branches in general reconstruction. The trust graph hashes all three
-inventories and their exact consumers. This is a modularity checkpoint, not a
-trust promotion: proof-bearing sufficient-form reducers still have to derive
-the unchanged canonical goals, and control algebra remains a separate
-responsibility.
+inventories and their exact consumers. A fourth exact-unique table owns the
+twelve proof-bearing scalar leaves. It retains direct denotation, six canonical
+goal shapes, the normal-successor result equation, crash policy, fuel, and
+frontier policy without inspecting predecessor definitions. General artifact
+reconstruction consumes that typed observation, while one isolated migration
+dispatcher still selects the current sufficient proposition. The trust graph
+binds the proof-bearing table to exactly those twelve leaf nodes and binds the
+dispatcher to every reducer it can select. This is a modularity checkpoint, not
+a trust promotion: proof-bearing sufficient-form reducers still have to emit a
+checked derivation of the unchanged canonical goals, and control algebra remains
+a separate responsibility.
 
 Exact-shift reconstruction follows the same production boundary internally:
 a small precedence parent owns primitive shift dispatch, a direct-chain module
