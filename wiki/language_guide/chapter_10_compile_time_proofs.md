@@ -167,9 +167,9 @@ separator, as `callee(; proof)`, so a proof term cannot be confused with an
 ordinary argument:
 
 ```omega
-let {
+let (;
     result_evidence: combined_evidence
-} = transitive(
+) = transitive(
     first,
     middle,
     last;
@@ -204,126 +204,82 @@ This form is an erased identity binding, not a runtime load/store and not a new
 proof introduction. The target must be a named `ensures` term of the current
 machine, the source must be an exact named `requires` term of that machine, and
 their normalized proposition application and evidence interface must match.
-The outgoing field then denotes the incoming term itself. A visible matching
+The outgoing slot then denotes the incoming term itself. A visible matching
 fact cannot replace the source assignment. Checked lowering already enforces
 that every named output is assigned exactly once on every ordinary outcome of
 the finite named-state graph. Assignment is ordered at its source statement and
 carried across named transitions; assigning twice rejects, while a crash-only
-outcome produces no output package and need not assign it.
+outcome produces no outgoing proof lane and need not assign it.
 
 Name a `requires` clause only when its body projects or forwards the term.
 Changing `requires P` to `requires proof: P` adds an explicit erased input and
 is a breaking call-interface revision. Named `ensures` labels are public output
-fields; adding or renaming one is likewise breaking.
+selectors. Renaming one breaks callers that select it. Adding a named guarantee
+does not break existing callers: an unselected proof term is not retained, while
+the proposition still enters the caller's fact catalog.
 
-## Evidence output packages
+## Evidence output lanes
 
-A machine with named `ensures` clauses conceptually returns a compiler-generated
-nominal output package whose concrete type cannot be written in source. The
-implemented immediate rung accepts a concrete, one-state, zero-argument checked
-machine with no named `requires`, evidence arguments, or guarded outputs. Its
-complete nonempty set of named `ensures` fields must be destructured with the
-colon form. Source field order may vary. Each named evidence field binds a fresh
-local evidence term unless that field is explicitly discarded with `_`:
+Calls keep `Type` results and `Prop` evidence in separate output lanes, mirroring
+the input-side `;` separator. A call never constructs a source-visible aggregate
+containing both universes. The ordinary form binds only the declared runtime
+result and retains no projectable outgoing witness:
 
 ```omega
-let { second: local_second, first: local_first } = produce();
-result_first = local_first;
-result_second = local_second;
+let quotient = divide(numerator, denominator);
 ```
 
-Proposition terms are copyable. A retained evidence term may be cited, copied,
-or forwarded more than once while valid, and it may remain unused. Explicit
-`_` records discard of that complete package field without introducing a term;
-omitting the field or using a rest pattern remains invalid.
-
-When the callee has no runtime result or runtime statements, the binding is
-proof-only: it creates no `Unit` local, runtime operation, or fuel charge. The
-same immediate form accepts one ordinary scalar result through the reserved
-contextual field `value`:
+Every applicable `ensures` proposition still enters the caller's fact catalog.
+When the caller needs the exact witness for projection or forwarding, it names
+that public `ensures` slot after `;`:
 
 ```omega
-let {
-    proof: local_proof,
-    value: local_value
-} = produce_value();
-result_proof = local_proof;
-local_value
-```
-
-That call executes exactly once. `local_value` is an ordinary immutable caller
-local with the callee's exact scalar result type; it is not an evidence term.
-The evidence fields still erase. Runtime effects, crashes, and fuel are exactly
-those of the ordinary call and callee body. Checked Psi joins the package group
-to the exact ordinary call site, and terminal Psi retains its canonical scalar
-`Call` operation ID and callee. Codec and verification reject identity,
-interface, ordering, freshness, result-shape, caller, operation-kind, or callee
-drift.
-
-The complete package model is design-blocked on `OWNER_QUESTIONS.md` Q11. Its
-identity must account for the machine, runtime result, named evidence fields,
-propositions, and outcome guards. Coincidentally equal shapes from two machines
-will not be the same type, and no generated `Machine::Output` name will be
-inserted into an author-owned namespace. Q11 must settle the exact canonical
-identity, inferred binding lifetime, projection ownership, residual-package
-validity, and Terminal proof rows before retained or guarded forms land.
-
-Future rungs may retain and project the complete package:
-
-```omega
-let division = divide(numerator, denominator);
-continue_division(division.value; division.nonzero_evidence);
-```
-
-The immediate form already destructures scalar runtime values and multiple
-unconditional evidence fields:
-
-```omega
-let {
-    value: quotient,
+let (
+    quotient;
     nonzero_evidence: proof
-} = divide(numerator, denominator);
+) = divide(numerator, denominator);
 ```
 
-Retained/projected and guarded complete-package forms are design-blocked on
-`OWNER_QUESTIONS.md` Q11. Generic package application is design-blocked on Q10.
+The slot name is public API; the name after `:` is the caller-local term.
+Selected evidence outputs are named rather than positional because capture is
+optional and selective. An omitted slot contributes its fact but creates no
+caller-local term. A same-name shorthand may omit `: local_name`. Proposition
+terms are copyable, so capturing or omitting one adds no runtime operation,
+storage, cleanup, or fuel.
 
-`value` is the reserved contextual field for an ordinary runtime result. Named
-evidence fields erase, so the package has the runtime representation of
-`value`; a proof-only package has zero runtime layout. Proposition evidence is
-copyable and may be explicitly discarded with `_`. There is no implicit
-coercion from the package to `value`. Every field in the implemented immediate
-shape must be bound or explicitly discarded; no rest pattern silently drops
-present or future proof fields. Ordinary runtime fields retain their own Type
-multiplicity and cannot be discarded when that multiplicity forbids it.
+An evidence-only call leaves the `Type` lane empty:
 
-The intended guarded shape below remains illustrative pending Q11.
+```omega
+let (;
+    result_evidence: combined_evidence
+) = prove_result();
+```
 
-Outcome-specific evidence is a field only of the outcome where its `ensures`
-guard applies:
+The call still executes exactly once. Its runtime effects, crashes, and fuel are
+those of the ordinary call and callee body. There is no generated output type,
+reserved `value` field, package projection, partial package move, or package
+identity. Runtime results retain their declared Type and ordinary multiplicity;
+captured proof terms retain their proposition, exact witness identity, validity
+scope, and derivation provenance independently.
+
+Outcome-guarded evidence is selectable only in the applicable outcome arm. The
+same separator divides the case's runtime payload from its proof bindings:
 
 ```omega
 transition allocate(size) {
     Success {
-        value: extent,
+        extent;
         granted_evidence: grant
     } -> use(extent; grant)
 
-    Error {
-        value: error
-    } -> report(error)
+    Error { error } -> report(error)
 }
 ```
 
-Each outcome arm binds or explicitly discards every field carried by that
-outcome. The field does not exist on inapplicable paths, so per-outcome definite
-assignment is structural rather than an extra runtime convention.
-
-Machines without named `ensures` retain the ordinary return surface:
-
-```omega
-let value = ordinary_call();
-```
+The proof slot does not exist on inapplicable paths. Definite assignment remains
+per outcome: the producer assigns each named `ensures` term exactly once on each
+exit where its guard applies. A caller may select any subset of applicable proof
+outputs, and adding another guarantee does not force existing patterns to grow.
 
 The artifact keeps proposition identity, evidence-term identity, and
 derivation provenance separate. The first names the claim, the second preserves
@@ -338,10 +294,11 @@ forwarded pair shares one ID. A selected producer instead carries a separate
 canonical proof-bundle provenance identity keyed to its fresh ensured term and
 retaining its exact conformance, evidence trait, and normalized rows. That
 provenance changes proof identity, not semantic identity or runtime behavior.
-Each ensured terminal lane retains the public generated-package field name
-beside its exact term ID; required lanes have no output field and `value`
-remains reserved for the runtime result. Projection of the complete
-conformance surface remains unfinished.
+Each ensured terminal lane retains its public output selector beside the exact
+term ID. A call-site capture row binds a selected callee lane to one fresh
+caller-local term; omitted lanes mint no term. The ordinary result remains on
+the canonical runtime `Call` operation, and proof rows add no executable work.
+Projection of the complete conformance surface remains unfinished.
 
 ## Explicit relevance
 

@@ -120,11 +120,11 @@ Witness-bearing facts additionally retain an evidence-term identity and a
 separate derivation-provenance identity. Proposition terms are copyable;
 consumable authority is represented by an affine or linear Type carrier.
 Named `requires` inputs refer to exact positional erased terms; named `ensures`
-outputs contribute public fields to a
-machine-derived nominal package type that has no source name. Its runtime
-projection is the ordinary result and its other fields erase. Outcome guards
-control which package variant carries each field. Producer conformances remain
-inside proof construction and do not enter proposition or package identity.
+outputs contribute public selectors to the erased proof-output lane. The
+ordinary result remains on its declared Type and canonical runtime call;
+outcome guards control which selectors are available in each arm. Producer
+conformances remain inside proof construction and do not enter proposition or
+output-lane identity.
 The current producer serializes forwarded terms as dense module-local
 identities over the exact proposition application and a structured canonical
 carrierless interface; the verifier requires each witness application to carry
@@ -139,10 +139,11 @@ own proof identity and retains the selected conformance, evidence trait, and
 complete normalized realization rows without source handles. Missing, unused,
 malformed, reordered, or interface-mismatched provenance rejects. The row
 changes the proof fingerprint, not terminal semantic identity, runtime, or
-fuel. Each ensured lane also retains its public generated-package field name
-beside the exact `EvidenceTermId`; required lanes have no output field, `value`
-remains reserved for the ordinary runtime result, and missing or duplicate
-names reject. The retained carrierless interface includes its complete direct
+fuel. Each ensured lane also retains its public output selector beside the
+exact `EvidenceTermId`; required lanes have no output selector, and missing or
+duplicate names reject. The ordinary runtime result remains on its separate
+`Call` operation. The retained carrierless interface includes its complete
+direct
 and inherited requirement surface, including each declaring trait's normalized
 argument pack. A proof-static projection carries the canonical evidence-term
 ID plus the exact declaring-trait application and requirement-overload
@@ -150,25 +151,23 @@ identity. Forwarding is canonicalized before applications are serialized, so
 input and output aliases project the same opaque identity while separate terms
 remain distinct. The verifier requires the term and exact row to exist in the
 retained interface; diagnostic display spelling is never an identity oracle.
-The immediate generated-package rung adds a dense invocation table retaining
-the canonical caller and ordinal, normalized callee-machine identity, and the
-complete nonempty output set in callee-lane order. Each output binds its public
-field and dense position, one callee declaration, and either one distinct
-caller-local term with the same proposition and interface or an explicit
-discard disposition. Every field row remains mandatory; discard is not missing
-output. Repeated calls share callee terms and producers while minting fresh
-caller terms for bound fields. Source coordinates, source field order, and
-diagnostic paths erase. A proof-only row adds no runtime
-operation or fuel. A scalar-runtime row separately retains its scalar result
-type and the exact canonical ordinary `Call` operation ID and callee. The
-verifier requires that operation to occur in the declared caller, produce the
-declared scalar type, and call the linked callee; a missing, spurious, unknown,
-wrong-kind, wrong-caller, or mismatched-callee link rejects. The proof row adds
-no operation or fuel beyond that ordinary call. Retained/general projection and
-guarded complete-package forms are design-blocked on `OWNER_QUESTIONS.md` Q11.
-Generic package application is blocked on Q10. Proposition evidence fields may
-be explicitly discarded; ordinary Type fields remain governed by their own
-multiplicity.
+A dense invocation table retains the canonical caller and ordinal, normalized
+callee-machine identity, and the selected proof-output lanes in callee order.
+Each selected public selector binds one callee declaration to one distinct
+caller-local term with the same proposition and interface. Omitted selectors
+mint no term but their propositions still enter the caller's fact catalog.
+Repeated calls share callee terms and producers while minting fresh caller
+terms for captured lanes. Source coordinates and caller-local display names
+erase. A proof-only row adds no runtime operation or fuel. A scalar-runtime row
+separately retains its scalar result type and the exact canonical ordinary
+`Call` operation ID and callee. The verifier requires that operation to occur
+in the declared caller, produce the declared scalar type, and call the linked
+callee; a missing, spurious, unknown, wrong-kind, wrong-caller, or
+mismatched-callee link rejects. The proof row adds no operation or fuel beyond
+that ordinary call. Outcome guards expose selectors only in applicable arms.
+Generic conformance application is blocked on `OWNER_QUESTIONS.md` Q9. Runtime
+Type results retain their ordinary multiplicity independently of the proof
+lane.
 
 Relation applications retain their independently bound left and right carrier
 index packs; no global carrier-parameter role is serialized. Selected
@@ -1586,7 +1585,7 @@ APIs retain their existing crate-root contract. Root-level producer regressions
 are a small shared-fixture parent over isolated Unit-cleanup, scalar-graph,
 content-ledger, structural-control, attached-Unit, and structural-return
 families rather than a second responsibility embedded in the production root.
-Proposition vocabulary, evidence-term identity, contract lanes, package
+Proposition vocabulary, evidence-term identity, contract lanes, proof-output
 invocations, and producer provenance likewise share one evidence-publication
 module behind a single parent-facing installation API.
 Terminal native machine emission keeps its byte/width/policy regression corpus

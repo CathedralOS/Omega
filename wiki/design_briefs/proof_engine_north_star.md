@@ -191,9 +191,9 @@ proposition symbol remains stable.
 
 The `evidence Interface;` clause publishes the elimination contract. Named
 `requires` bindings retain exact incoming evidence terms and project their
-members in proof-only computation; named `ensures` bindings return exact terms
-through erased output fields. Producer conformances are selected privately at
-introduction and never enter mathematical signatures. A witness that must
+members in proof-only computation; named `ensures` bindings expose exact terms
+through the erased proof-output lane. Producer conformances are selected
+privately at introduction and never enter mathematical signatures. A witness that must
 influence runtime computation belongs in an ordinary `Type`-level dependent
 pair whose relevance is tracked explicitly; erasure alone does not authorize
 eliminating a `Prop` inhabitant into runtime `Type`.

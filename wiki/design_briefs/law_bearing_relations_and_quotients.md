@@ -120,7 +120,7 @@ conformance supplies that interface, and a named binding projects the exact
 retained evidence term in the proof stratum.
 
 The proposition remains nominal rather than definitionally equal to its
-evidence package. Its interface is normalized, fingerprinted semantic content,
+evidence interface. That interface is normalized, fingerprinted semantic content,
 so changing that interface is a breaking proof-interface revision without
 turning the selected conformance into the proposition's identity. An ordinary
 `where` bound cannot carry this role, and `=` remains reserved for transparent
@@ -160,7 +160,7 @@ assignment stay separate. Definite assignment records each erased assignment's
 exact statement coordinate and carries assignment state through the finite
 named-state graph.
 Every ordinary outcome must assign each outgoing slot exactly once; duplicate
-assignment rejects, and a crash-only outcome has no outgoing package. A
+assignment rejects, and a crash-only outcome has no outgoing proof lane. A
 state-level named `requires` binds an exact arrival term, and every named
 transition carries a separate erased identifier lane after `;`; checked binding
 substitutes the target state's ordinary arguments before comparing proposition
@@ -174,24 +174,27 @@ arguments and Prop inhabitants. Each position checks the supplied term against
 the callee proposition after ordinary call-argument substitution; source and
 callee binding names do not participate in matching. The separator remains in
 an evidence-only call (`callee(; proof)`) and is omitted only when there is no
-proof lane. Named guarantees are public fields of an inferred,
-source-unnameable, compiler-generated nominal output package. The implemented
-immediate rung requires colon-form destructuring of the complete nonempty set of
-unconditional evidence fields from a concrete zero-input checked machine.
-Source field order may vary; checking canonicalizes by callee lane, mints one
-distinct fresh caller-local term per bound field, and records explicit `_`
-discard without minting a term. Proposition terms are copyable: a bound term
-may be copied or forwarded repeatedly while valid, or remain unused. A
-proof-only package erases completely. A scalar-result package additionally
-binds exactly one contextual `value` field through one ordinary caller
-local/call, while the evidence fields remain erased. The proof
-group is linked to that exact checked call site and canonical terminal call
-operation; its runtime effects, crashes, and fuel are only those of the ordinary
-call. Retained/projected and guarded complete-package forms are design-blocked
-on `OWNER_QUESTIONS.md` Q11. Generic package application is design-blocked on
-Q10. Proposition evidence fields erase and are copyable, so an explicit `_`
-may discard one; ordinary Type fields retain their own multiplicity and no rest
-pattern silently discards present or future fields.
+proof lane. Named guarantees are public proof-output selectors. Calls bind
+selected outgoing witnesses after the
+same `;` separator used by the input proof lane:
+
+```omega
+let (value; result_evidence: local_evidence) = produce();
+```
+
+The ordinary result retains its declared Type. A selected slot mints one fresh
+caller-local term with the callee lane's exact proposition, interface, validity
+scope, and provenance; an omitted slot contributes its fact but mints no term.
+Selection is named because outputs are optional and selective, while incoming
+requirements remain complete and positional. Proposition terms are copyable: a
+bound term may be copied or forwarded repeatedly while valid, or remain unused.
+An evidence-only binding leaves the Type lane empty (`let (;
+result_evidence: local_evidence) = produce();`). The proof group is linked to
+that exact checked call site and canonical terminal call operation; its runtime
+effects, crashes, and fuel are only those of the ordinary call. No source-level
+aggregate combines Type and Prop, and no generated output-package identity,
+projection, lifetime, or partial-move rule exists. Generic conformance
+application remains design-blocked on `OWNER_QUESTIONS.md` Q9.
 
 A transparent logical definition uses `=`:
 
@@ -523,22 +526,20 @@ separate canonical proof-bundle provenance identity retaining its exact
 conformance, evidence trait, and complete normalized realization rows. The
 verifier accepts an ensures-only ID only through one matching row; that row
 changes proof identity, not semantic identity, runtime, or fuel. Each ensured
-lane retains its public generated-package field name beside the exact term ID;
-required lanes have no output field, and missing, reserved, or duplicate names
-reject. The interface also retains its complete normalized requirement surface.
+lane retains its public output selector beside the exact term ID; required
+lanes have no output selector, and missing or duplicate names reject. The
+interface also retains its complete normalized requirement surface.
 `term.member` resolves to an exact checked term and requirement row, then
 terminal Psi replaces the term handle with its forwarding-canonical ID and
 retains the declaring trait application plus canonical requirement overload.
-The verifier rejects unknown terms and rows. The immediate generated-package
-rung retains a dense source-coordinate-free invocation table. Each call is one
-group joining the normalized callee-machine identity to its complete field set;
-outputs are dense in callee-lane order and bind each public field/position and
-callee term declaration to one distinct caller-local term with the same exact
-proposition and interface. Repeated calls reuse callee declarations and their
+The verifier rejects unknown terms and rows. A dense source-coordinate-free
+invocation table joins the normalized callee-machine identity to the selected
+output lanes. Each selected public selector and callee term declaration binds
+one distinct caller-local term with the same exact proposition and interface;
+omitted lanes bind none. Repeated calls reuse callee declarations and their
 producer provenance while minting distinct caller terms. A display spelling is
-never an identity oracle. Retained/general projection and guarded complete
-packages are design-blocked on `OWNER_QUESTIONS.md` Q11; generic application is
-blocked on Q10.
+never an identity oracle. Generic application is blocked on
+`OWNER_QUESTIONS.md` Q9.
 
 Proof-only evaluation, when a transparent body is actually
 needed, uses the ordinary gated build-time evaluator: semantic eligibility
@@ -565,9 +566,9 @@ Acceptance requires:
    opaque symbols;
 3. a proof of a witness-bearing proposition without its evidence rejects;
 4. named proof inputs are passed explicitly in the erased call lane, named
-   outputs are definitely assigned per applicable outcome and retained in
-   inferred nominal packages, and no visible-fact or conformance inference
-   selects either;
+   outputs are definitely assigned per applicable outcome and selectively
+   captured through the erased output lane, and no visible-fact or conformance
+   inference selects either;
 5. proposition, evidence-term, and derivation-provenance identities remain
    distinct through forwarding, serialization, and checking;
 6. a literally bodyless ordinary theorem machine rejects, an explicit boundary

@@ -550,12 +550,7 @@ facts that make the range usable. Reconstructing the same numbers similarly
 does not copy authority. Useful operations require a borrow of an
 `Extent in Granted`. The qualification supplies the provider-originated
 authority; weakening it to `&Extent` leaves only geometry and cannot authorize
-placement. Source borrows the exact place directly:
-
-```omega
-let shared = Placement::admit<P, T>(&extent[0..64])?;
-let exclusive = Placement::admit<P, T>(&mut extent[64..128])?;
-```
+placement. Placement operations borrow the exact source place directly.
 
 There is no source-visible `ExtentLoan`. The borrow and projected place already
 carry the range, lifetime, and shared or exclusive polarity. Compiler and
@@ -566,57 +561,194 @@ runtime-owned subranges use conserved `Extent` split and merge.
 
 `ResourceProfile` is ordinary provider-authored data, not a capability. The
 same selected-provider grant that establishes `Granted` binds one normalized
-profile and sealed receipt to the exact range. `Placement::admit` finds that
-receipt through the qualification; callers never pass a profile, receipt, or
-admission value that a record literal could forge. Admission is a pure compiler
-check over the evaluated demand and bound supply. Its accepted result is an
-opaque, source-linked intermediate that may be inferred or immediately
-consumed; rejection ends a borrowed input and returns a diagnostic. An
-owned-input overload returns the moved extent with the diagnostic on failure.
+profile and sealed receipt to the exact range. The placement checker finds that
+receipt through the qualification; callers never pass a profile,
+receipt, or admission value that a record literal could forge. Compatibility is
+a compiler and installation judgment, not a source-visible admitted value.
 
-Admission grants permission to interpret storage; it does not establish that a
-`T` already lives there. One of three explicit routes consumes the accepted
-intermediate:
+`Placed<P, T>` is an opaque `omega::core` view. It does not duplicate the
+borrow checker's range, ownership, lease, or revision ledger. Its compiler-known
+jobs are to derive each field's geometry from normalized `P`, produce an
+accessor tied to that exact source place, and lower each accessor operation
+through `P` rather than as an ordinary RAM lvalue. Its multiplicity follows the
+source and semantic inputs: a shared source can produce a shared read-only view,
+while an embedded linear Type value makes the view linear.
 
-| Backing | Routes | Requirement |
-|---|---|---|
-| `Stable` | adopt | existing contents are valid by structural total decoding or admitted provider evidence |
-| `Stable` | initialize | exclusive vacant storage, writable transfers, and an encodable initial value |
-| `Stable` | validate | a checked validator over contents that cannot change during validation |
-| `External` | adopt only | every readable field is total-decoding and single-transfer |
+Anyone may request an explicit interpretation. Success depends on the facts and
+custody held, not on the caller's identity. Existing domains establish external
+qualifications such as `Extent in UartRegisters`; only their sealed routes may
+originate those facts, but any holder may use them as placement inputs. There is
+no `Contains<P, T>` domain and no separate registry of code allowed to cast.
 
-For example, low-level generic code may spell the two semantic steps while a
-driver wrapper normally returns only the finished view:
+Three core operations share the placement checker but remain distinct because
+they do different things to content:
+
+| Operation | Meaning |
+|---|---|
+| `Placement::view<P, T>` | interpret existing content without running a content validator |
+| `Placement::initialize<P, T>` | encode a newly constructed `T` into exclusive `Vacant` Stable storage |
+| `Placement::validate<P, T>` | inspect Stable existing content with one checked static validator and establish its guarded facts |
+
+There is no generic `adopt` operation. A provider-specific open/adopt machine
+establishes its external domain and custody, then calls `view`. Generic
+initialization is never synthesized for `External`: programming a device is an
+authored protocol whose ordering and side effects belong in its machine
+contract.
+
+The instantiated operation derives its requirements from `P`, `T`, and the
+exact source. Geometry and access demand come from normalized `P`; total decode,
+encodability, and default-domain predicates come from `T`; facts about external
+reality require existing admitted provider qualifications. Proof may establish
+a proposition but may not manufacture a Type value. Every unconditional
+non-runtime Type field is therefore an ordinary by-value input, recursively
+keyed by its canonical declaration path, regardless of whether it is
+structurally zero-layout or explicitly `[erased]`. Proposition witnesses use
+the proof lane after `;`. Case-dependent Type custody is not flattened into a
+generic argument row: an authored establishment machine first classifies the
+content and then transfers the authority for the selected case.
+
+Validation selects an ordinary static machine parameter with a complete
+structural `where machine` contract. That contract includes its input/result,
+guarded `ensures`, effects, crashes, and applicable termination guarantee. The
+selected validator is directly specialized and invoked; it is not a retained
+foreign callback and needs no registered-callback requirement. Its exact
+identity and derivation still enter occurrence provenance.
+
+Static plan, provider-profile, rights, transfer-width, or known-geometry
+incompatibility rejects compilation or installation. A runtime result exists
+only for genuinely dynamic checks such as range geometry, content validation,
+or an establishment-time revision comparison. Runtime rejection is ordinary
+cased data, never an exception or hidden trap. Validator-specific errors retain
+their own declared sum rather than collapsing into an opaque error code.
+
+A generic placement operation derives the Type-only payload of its rejection
+case from its normalized formal input row. The row identity belongs to the
+operation plus instantiated `P`, `T`, and canonical by-value inputs, never to a
+source call site. Returned fields are named by canonical input path. Type and
+Prop are not packaged together: ordinary outcome payloads stay before `;`, and
+selected evidence outputs use the separate proof-output lane from chapter 10.
+
+Conceptually the outer result remains an ordinary declared sum:
 
 ```omega
-let admitted = Placement::admit<UartMmio, UartRegisters>(&extent[0..64])?;
-let registers = Placement::adopt(move admitted);
+data PlacementResult<View, Returned> {
+    case Ready(view: View);
+    case Rejected(
+        reason: PlacementError,
+        returned: Returned
+    );
+}
 ```
 
-Ordinary systems APIs expose `Extent in Granted`, its ordinary borrows, and
-`Placed<P, T>`. Binding authors additionally write placement plans,
-`ResourceProfile` data, and schema-correspondence evidence. The profile receipt,
-borrow record, and normalized admission witness remain compiler/artifact data;
-the opaque intermediate above is needed only by low-level generic placement
-code and is normally inferred.
+The instantiated core operation supplies the compiler-derived, Type-only
+`Returned` row. `PlacementError` is itself a real sum over the dynamic failures
+the operation can observe, such as dynamic range or alignment mismatch and an
+establishment-time stale revision. `validate` additionally preserves its
+validator's declared content-error sum; it never erases that information into
+a number, string, or undifferentiated `InvalidContent` code.
 
-Generic initialization is never synthesized for `External`: programming a
-device is an authored protocol whose ordering and side effects are part of its
-machine contract. Asynchronously revocable mappings likewise use a future
-fallible protocol, not an era annotation that pretends access remains valid. A
-live mapping claim may instead guarantee that revocation cannot occur until the
-view retires.
+Every formal input has an explicit disposition on every outcome:
+
+| Input | Allowed outcome disposition |
+|---|---|
+| moved Type value | embedded in the view, returned now, or consumed by one named authorized operation |
+| borrowed Type value | retained by the view or released |
+| proposition term | cited or copied; no custody disposition |
+| static validator | selected and provenance-recorded; no runtime value |
+
+Absence from an outcome does not prove consumption. A consumed disposition
+names the exact authorized consumer or cleanup operation. An embedded input
+becomes retirement debt; a returned input appears exactly in the rejection
+payload. At a placement call site, `move` marks moved arguments; it never
+decorates the corresponding formal parameter declaration:
+
+```omega
+transition Placement::validate<P, T>(
+    &mut source,
+    Validator,
+    move authority,
+    move revision_ticket
+) {
+    PlacementResult::Ready { view } ->
+        use(view)
+
+    PlacementResult::Rejected {
+        reason,
+        returned: {
+            authority: returned_authority
+        }
+    } ->
+        recover(source, move returned_authority, reason)
+}
+```
+
+Here `source` is retained by `view` on `Ready` and its loan is released on
+`Rejected`; it is not a returned value. `authority` is embedded on `Ready` and
+returned on `Rejected`. If revision checking consumes `revision_ticket` on both
+paths, both disposition rows name that checking operation.
+
+A statically discharged dynamic check narrows the result to `Ready`; it does not
+coerce the sum to its payload. General irrefutable case destructuring extracts
+the view while keeping the proof obligation visible:
+
+```omega
+let PlacementResult::Ready { view: pair } =
+    Placement::view<Native, Pair>(&mut bytes[0..8]);
+```
+
+The pattern is accepted only when the fact catalog proves that `Rejected` is
+impossible. Otherwise the caller handles every live case at a transition.
+
+Asynchronously revocable mappings use a distinct fallible provider protocol,
+not a `Placed` policy whose every field access may suddenly fail. An ordinary
+live `Placed` mapping retains a lease or claim guaranteeing that revocation
+cannot occur until the view retires.
 
 Borrowed initialization is a scoped establishment. The lender is vacant before
 the borrow and vacant again after it; while the `Placed` value exists the lender
 is inaccessible, and mandatory edge cleanup destroys `T` before the borrow can
 end. This depends on Omega having no `forget`-style escape from conservation.
 An owned initialization consumes a split vacant `Extent`; its explicit terminal
-operation destroys `T` and returns `Extent in Granted & Vacant`. Ordinary drop
-does not invent an allocator or release route. Borrowed adopt/validate retire by
-abandoning the view. An owned adoption additionally requires provider evidence
-that custody of the existing content transferred; owning its storage alone does
-not establish that fact.
+operation destroys or moves out `T` and returns `Extent in Granted & Vacant`.
+Ordinary drop does not invent an allocator or release route. Ending a borrowed
+view of pre-existing content releases the loan without claiming the bytes are
+vacant. An owned provider-backed view returns provider custody; owning its
+storage alone never establishes ownership of the existing semantic content.
+
+Retirement is generated from the establishment disposition table. Every input
+embedded on the successful outcome must be returned, forwarded, or consumed by
+an exact authorized operation; inputs already consumed during establishment do
+not reappear. The original source capability returns with only those
+qualification changes proved by explicit initialization, mutation,
+destruction, move-out, or provider transitions. Linear non-runtime Type fields
+therefore remain ordinary conservation obligations even when they occupy no
+bytes.
+
+Projection preserves the semantic kind of each field. Represented fields yield
+plan-derived accessors. Proposition fields yield copyable proof terms.
+Structurally zero-layout and explicitly `[erased]` Type fields use ordinary
+field borrowing and movement with their declared multiplicity. Moving one such
+field may leave a structurally tracked partial placed value: whole-`T`
+operations become unavailable, unaffected sibling paths remain usable where the
+ordinary partial-move rules permit, and restoration or retirement must account
+for every residual field. Nominal whole-value cleanup or a plan that cannot
+expose one independent path forbids the move.
+
+Every retained fact and non-runtime binding has a statically closed dependency
+shape whose occurrence-specific members name the exact mapping, lease, revision,
+and semantic places established for this view. An intersecting write is derived
+only when those dependencies are preserved or replacement inputs are supplied.
+Otherwise no accessor is generated. The compiler never guesses a weaker
+semantic type or typestate transition; an author writes an explicit operation
+whose contract returns the intended differently qualified view. Default-domain
+invariants reuse the ordinary invariant window and must be restored before the
+next consumption boundary. Owned or routed custody may be moved out, returned,
+or swapped, but never silently forgotten or absorbed by a generic write.
+
+A relationship between several placed occurrences is an ordinary Type carrier
+borrowing all of them, not a global invalidation graph. For External storage it
+also retains the provider lease, revision, or quiescence custody that prevents
+outside mutation for the relationship's lifetime.
 
 `Vacant` is erased place state meaning that the exact range contains no live
 established value. It does not mean zeroed, readable, never used, or newly

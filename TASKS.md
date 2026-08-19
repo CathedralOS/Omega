@@ -165,15 +165,18 @@ Owners:
 
 #### L6b — `AccessPlan` and `Placed<P, T>`
 
-- Derive borrowed/owned `Placed<P, T>` establishment and retirement from
-  `Extent in Granted`, using ordinary subrange borrows. Implement `Stable`
-  adopt/initialize/validate and `External` adopt; owned destruction returns
-  `Granted & Vacant` before allocator integration. Permission-stage borrowed
-  admission can already withdraw the exact loan before content establishment.
-  Source establishment and owned retirement are design-blocked on owner Q6:
-  the admitted intermediate, failure signatures, and non-runtime semantic
-  fields are unsettled, and retirement lacks the checked destruction or move-out receipt
-  needed to establish `Vacant`. Continue independent internal authority work.
+- Implement the settled borrowed/owned `Placed<P, T>` establishment and
+  retirement model from `Extent in Granted`, using ordinary subrange borrows
+  and no source-visible admission intermediate. Add the distinct core `view`,
+  `initialize`, and `validate` operations; provider-specific adopt/open wrappers
+  establish their external domains before `view`. Derive unconditional
+  non-runtime Type inputs by canonical declaration path, keep proposition
+  inputs and outputs in the `;` proof lanes, reject generic case-dependent Type
+  custody, and emit the canonical per-outcome disposition table. The Type-only
+  rejection payload returns exactly the formal inputs marked `returned`;
+  embedded inputs become retirement debt and consumed inputs cite their exact
+  consumer. Finish owned destruction/move-out evidence before returning
+  `Granted & Vacant`.
 - Derive readable, destructive-read, writable, and atomic field accessors while
   keeping logical extents distinct from whole-transfer footprints. Enforce
   total decode/encode, exact provider width/alignment, and operation-specific
@@ -184,7 +187,7 @@ Owners:
   linearly into Stable read/write, External read/take/write, or one exact
   Atomic operation and ordering while preserving the original authority on
   rejection. Connecting those admitted events to Terminal Psi and both native
-  backends is design-blocked on owner Q12: the canonical installed placed-root
+  backends is design-blocked on owner Q10: the canonical installed placed-root
   authority and read/take/write/atomic value-custody contract are unsettled.
 - Retain schema/device correspondence, runtime revision evidence, and provider
   identity separately from storage compatibility.
@@ -635,7 +638,7 @@ Remaining:
   codecs, verification, fuel, and interpretation reject missing or redirected
   premises. Continue with case-payload paths and aggregate equality over text,
   floats, sums, and erased fields. Trapping predicate arithmetic is
-  design-blocked on owner Q8; imported crash capsules remain blocked on
+  design-blocked on owner Q7; imported crash capsules remain blocked on
   artifact identity and certificate binding.
 - **PROOF-CERTIFICATION-BRIDGE.** Emit kernel-checkable certificates from source
   automation. One recursive certificate owns one SCC, cites its ranking and
@@ -832,7 +835,7 @@ Remaining:
   957-line structural-control, 457-line attached-Unit, and 852-line
   structural-return families instead of a second responsibility embedded in
   production. Proposition vocabulary, evidence-term identity, contract lanes,
-  package invocations, and producer provenance now form one 906-line evidence
+  proof-output invocations, and producer provenance now form one 906-line evidence
   module behind a single lower-and-install API. Scalar and structural crash
   routes, checked crash-site/frontier custody, argument-root substitution, and
   canonical proposition construction now form one 1,727-line module with
@@ -1083,9 +1086,10 @@ Remaining:
   plan carriers, while Omega owns target filtering and ABI/provider realization.
   This is engineering, not a language-design blocker. Unsupported computed,
   chained, dynamic-receiver, unresolved-generic, non-checked-supply, and
-  unresolved-machine-parameter shapes keep failing closed. `Placed<P, T>`
-  non-runtime-field establishment is design-blocked on owner Q6. Relevance does
-  not invent a runtime carrier or public ABI for otherwise non-layoutable types.
+  unresolved-machine-parameter shapes keep failing closed. Carry the settled
+  `Placed<P, T>` non-runtime-field input paths and per-outcome dispositions
+  through checked and terminal representations. Relevance does not invent a
+  runtime carrier or public ABI for otherwise non-layoutable types.
 - **EFFECTFUL-TYPED-COMPUTATION:** specify the value/computation judgments
   connecting effectful machines to the future typed proof calculus. Treat both
   migrations as staged semantic work, not prerequisites for extending the
@@ -1194,7 +1198,7 @@ state through a raw address.
   acknowledges, records time, publishes a coalesced wake, and returns; fan-out
   runs in an ordinary task.
 - Completing the x2APIC acknowledgement transition is design-blocked on owner
-  Q8: the provider-neutral `InterruptAcknowledgement::complete` requirement
+  Q6: the provider-neutral `InterruptAcknowledgement::complete` requirement
   currently hardcodes `PortIo`, while x2APIC correctly uses `MachineControl`.
   Do not grant false port-I/O reach to the x2APIC provider as a workaround.
 
@@ -1260,7 +1264,7 @@ compiler concept is introduced.
   umbrella. The published checked operational root is retired; its plan remains
   only as a transient validation and independent-fact construction input.
   Continue removing umbrella carriers after their remaining consumers migrate.
-- **TPR4/TPR6 — design blocked on owner Q13.** Choose how an ordinary domain or
+- **TPR4/TPR6 — design blocked on owner Q11.** Choose how an ordinary domain or
   routed requirement is classified and attached as a progress premise before
   connecting progress-profile grants and receipts. Generic routed/domain
   requirements must not be treated as progress merely because they are
@@ -1310,7 +1314,7 @@ reach or trust, and private proof improvements do not change public identity.
   and general affine cleanup rather than claiming convergence from duplicated
   leaves.
   Provider-sized external adapter/arrival state is design-blocked on
-  `OWNER_QUESTIONS.md` Q9: stack-domain ownership across interrupted and
+  `OWNER_QUESTIONS.md` Q8: stack-domain ownership across interrupted and
   switched entry must be settled before this can become a complete root
   `StackPlan`. Zero-byte internal closures remain inadmissible until that
   adapter demand exists.
@@ -1340,31 +1344,25 @@ Remaining N6/N8 work:
   supports positional input lanes, forwarding, concrete subjectless producer
   selection, normalized direct/inherited requirement rows, and exact generic
   evidence interfaces. Terminal Psi retains canonical term declarations,
-  requires/ensures lanes, public output-field names, opaque member projections,
+  requires/ensures lanes, public proof-output selectors, opaque member projections,
   and separate producer provenance; codec and verification reject identity,
   interface, lane, field-name, row, producer, and orphan drift. The detailed
   accepted carrier is stated in
   [`law_bearing_relations_and_quotients.md`](wiki/design_briefs/law_bearing_relations_and_quotients.md).
 
-  The immediate generated-output-package rung now destructures the complete
-  nonempty set of unconditional evidence fields from a concrete zero-input
-  checked machine. Source field order may vary; checked and terminal Psi
-  canonicalize by callee lane and mint one distinct fresh caller-local term per
-  bound field. Proposition terms are copyable: a bound term may be cited or
-  forwarded repeatedly while valid, may remain unused, and an evidence field
-  may be explicitly discarded with `_`. The complete package shape is still
-  mandatory, and `_` is not a term identity. A proof-only call remains fully
-  erased. A scalar-result call additionally requires exactly one contextual
-  `value` field, which cannot use proposition discard, synthesizes one ordinary
-  caller local/call, and
-  links the grouped proof row to that exact canonical terminal call operation;
-  proof metadata adds no runtime work or fuel beyond the ordinary call.
+  Replace the implemented immediate generated-output-package syntax with the
+  settled proof-output lane. Ordinary results retain their declared Type;
+  `let (value; public_slot: local_term) = call()` captures selected named
+  guarantees, while omitted selectors contribute facts but mint no local term.
+  Evidence-only binding keeps the empty Type lane. Checked and terminal Psi
+  retain the exact call, callee lane, public selector, caller-local term,
+  proposition/interface, outcome guard, and producer provenance without any
+  generated package identity. Proposition terms remain copyable and add no
+  runtime work, cleanup, or fuel.
 
-  Retained/projection and guarded complete-package forms are design-blocked on
-  `OWNER_QUESTIONS.md` Q11. Generic package application is design-blocked on
-  Q10. Ordinary Type fields remain subject to their own multiplicity, and rest
-  patterns that would silently discard present or future fields remain
-  rejected.
+  Generic conformance application is design-blocked on
+  `OWNER_QUESTIONS.md` Q9. Runtime Type results retain their own multiplicity
+  independently of the proof lane.
   Keep proposition, evidence-term, and provenance identities separate; neither
   provenance nor display spelling is a term identity oracle.
 - Finish generic conformance instantiation and explicit binders. The declaration
@@ -1379,7 +1377,7 @@ Remaining N6/N8 work:
   selected normalized rows, and commits the map identity separately from
   callable static-machine arguments. Still instantiate generic conformance
   declarations over their own telescopes; the call-site application form and
-  permitted inference are design-blocked on `OWNER_QUESTIONS.md` Q10. Nested
+  permitted inference are design-blocked on `OWNER_QUESTIONS.md` Q9. Nested
   generic calls already forward the exact evidence selection through
   specialization. Identity retains declared name, telescope, optional subject,
   instantiated trait, and normalized rows. No visibility-, priority-, or
@@ -1487,7 +1485,7 @@ can produce installed code; validation binds exact final bytes and placement.
 These are pointers to the owning question or open design item, not duplicate
 specifications:
 
-- **EXTERNAL-ENTRY-STACK-DOMAIN:** owner Q9.
+- **EXTERNAL-ENTRY-STACK-DOMAIN:** owner Q8.
 - **FIXED-OPERATOR-SURFACE-BINDING:** owner Q1.
 - **UEFI-PHYSICAL-SEMANTIC-ENTRY-COMPOSITION:** owner Q2.
 - **WRITE-ONLY-MEMORY-VIEW:** owner Q3.
@@ -1498,14 +1496,12 @@ specifications:
   in `wiki/language_guide/appendix_open_questions.md`.
 - **CHECKED-RESULT-ARITHMETIC:** public carrier ruling for failure-returning
   checked arithmetic.
-- **TRAPPING-CONTRACT-ARITHMETIC:** owner Q8.
+- **TRAPPING-CONTRACT-ARITHMETIC:** owner Q7.
 - **IMPORTED-CRASH-CAPSULES:** realization/import/certificate identity in
   `wiki/language_guide/appendix_open_questions.md`.
 - **NATIVE-LOGICAL-FUEL-METERING:** owner Q5.
-- **PLACED-NONRUNTIME-FIELD-ESTABLISHMENT:** owner Q6.
-- **PROVIDER-NEUTRAL-INTERRUPT-ACKNOWLEDGEMENT:** owner Q7.
-- **GENERIC-CONFORMANCE-APPLICATION:** owner Q10.
-- **GENERATED-EVIDENCE-OUTPUT-PACKAGES:** owner Q11.
+- **PROVIDER-NEUTRAL-INTERRUPT-ACKNOWLEDGEMENT:** owner Q6.
+- **GENERIC-CONFORMANCE-APPLICATION:** owner Q9.
 
 ## Platform-gated verification
 

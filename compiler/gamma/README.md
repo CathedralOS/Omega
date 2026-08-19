@@ -19,7 +19,8 @@ emits assembly; the chain targets one level down at each step:
   byte cursor, beginning with the current envelope, exact scalar/type/value
   grammar, and bounded canonical UTF-8; run
   `test-terminal-codec-primitives.sh`.
-- `terminal-ledger-spike/` — the Q7 typed, canonical-byte semantic-ledger
+- `terminal-ledger-spike/` — the `PCC-CANONICAL-SEMANTIC-LEDGER` typed,
+  canonical-byte semantic-ledger
   feasibility spike, including separate scalar leaf, structural/effect leaf,
   and three-row call-composition tables plus independently owned scalar,
   structural/effect, and Unit/boundary decoder/evaluator modules; run
