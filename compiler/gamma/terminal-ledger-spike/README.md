@@ -1,6 +1,6 @@
 # Canonical terminal semantic-ledger spike
 
-This directory is the bounded Gamma feasibility experiment required by Q7's
+This directory is the bounded Gamma feasibility experiment required by the
 `PCC-CANONICAL-SEMANTIC-LEDGER` ruling. It is not the production generator and
 does not replace the explicit migration trust graph. It establishes that the
 authoritative endpoint can begin at canonical terminal-Psi bytes and remain a
@@ -32,7 +32,7 @@ keep the source parser shallow. Typed `unpack_bytes` reconstructs every byte
 before `decode_module` sees it. No packed integer is interpreted as terminal
 semantics.
 
-## Covered Q7 cases
+## Covered ruling cases
 
 The fixture covers an i8 constant, a Boolean constant, Boolean not/equality,
 integer equality and ordering, i8 bitwise not/and/or/xor, strict i8-to-i16

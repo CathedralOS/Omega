@@ -399,13 +399,18 @@ ensures result_proof: another_proposition(result)
 
 Named requirements are positional erased proof inputs supplied after a call's
 `;` separator, which marks the boundary between ordinary Type arguments and
-Prop inhabitants. Named guarantees are public fields in an inferred,
-unnameable, compiler-generated nominal output package. A package with a runtime
-result reserves the contextual field `value`; proposition evidence fields erase
-and are copyable. Outcome-guarded guarantees exist only in the matching outcome
-shape. Chapter 10 defines evidence projection, assignment, call passing,
-destructuring, and the separate proposition, evidence-term, and derivation
-identities.
+Prop inhabitants. Named guarantees are public proof-output selectors. The
+ordinary result stays in its declared Type lane; a caller that needs one exact
+outgoing witness selects it after the same `;` separator in the binding pattern:
+
+```omega
+let (value; result_proof: proof) = call(...);
+```
+
+Unselected guarantees still enter the caller's fact catalog but mint no local
+witness term. Outcome-guarded selectors exist only in the matching outcome arm.
+Chapter 10 defines evidence projection, assignment, call passing, output-lane
+binding, and the separate proposition, evidence-term, and derivation identities.
 
 ## Machine Graph Compatibility
 

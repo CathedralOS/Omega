@@ -558,46 +558,52 @@ A child never gains a capability the parent lacked. Distinct layout fields or
 checked constant ranges can establish disjoint simultaneous subrange loans.
 Dynamic disjointness waits for the prover support named in `TASKS.md`.
 
-### Placement admission and establishment
+### Placement compatibility and establishment
 
-Source uses ordinary borrows of qualified places:
+Source uses ordinary borrows of qualified places. There is no source-visible
+`ExtentLoan` or accepted-admission object: the borrow checker already records
+the exact projected range, lifetime, ownership, and polarity, while compiler
+and artifact records retain the normalized provider/profile receipt. Weakening
+the input to `&Extent` deliberately loses `Granted` and therefore cannot place
+content. Static subranges use ordinary place projection; independently owned
+runtime subranges use conserved `Extent` split and merge.
 
-```omega
-let shared = Placement::admit<P, T>(&extent[0..64])?;
-let exclusive = Placement::admit<P, T>(&mut extent[64..128])?;
-```
+`Placed<P, T>` is the compiler-known identity-preserving view of that exact
+range through `P`'s geometry and access plan. It adds no authority. Existing
+domains establish provider or external qualifications, ordinary Type inputs
+transfer non-runtime custody, and the proof lane supplies proposition terms.
+Raw bytes, a plan, and profile data manufacture none of those.
 
-There is no source-visible `ExtentLoan`. The borrow checker already records the
-exact projected range, lifetime, and polarity. The current Rust foundation
-carrier with that name is transitional internal bookkeeping, not a language
-type or a second authority root. Weakening the input to `&Extent` deliberately
-loses `Granted` and therefore cannot admit a placement. Static subranges use
-ordinary place projection; an independently owned runtime subrange uses
-conserved `Extent` split and merge.
+Three core operations remain distinct: `view` interprets existing content,
+`initialize` encodes a newly constructed `T` into exclusive `Vacant` Stable
+storage, and `validate` inspects Stable content with one structurally checked
+static validator. A provider-specific adopt/open machine first establishes its
+external qualification and then uses `view`; there is no generic adopt route or
+cast-authorization registry. Generic initialization never expands into a
+device-programming sequence.
 
-Admission evaluates `P`, finds the provider-bound profile through `Granted`,
-and purely checks demand against supply. The opaque accepted intermediate may
-be inferred or immediately consumed; ordinary code cannot construct one.
-Borrowed rejection ends the borrow and reports the incompatibility. Owned
-rejection returns the moved extent with that diagnostic.
+Known plan, supply, rights, and geometry incompatibility rejects compilation or
+installation. Genuinely dynamic geometry, validation, or establishment-time
+revision checks return ordinary cases. The instantiated core operation derives
+its Type-only rejection payload from its canonical formal input row. Every
+moved Type input has an explicit per-outcome disposition: embedded in the live
+view, returned now, or consumed by one named authorized operation. Every borrow
+is retained by the view or released. Prop terms have no custody disposition.
+Missing output is never accepted as proof of consumption.
 
-The accepted intermediate proves permission, not live typed content. An
-explicit establishment route follows:
+Unconditional non-runtime Type fields become ordinary by-value inputs keyed by
+canonical declaration path; whether they are represented, zero-layout, or
+explicitly erased does not change their origin or multiplicity. Case-dependent
+Type custody requires an authored establishment machine that classifies first
+and transfers the selected authority. Outcome evidence stays in the separate
+proof-output lane after `;` and is never packaged with Type payloads.
 
-- `Stable` may adopt provider-validated existing contents, initialize an
-  exclusive vacant place, or validate stable existing contents;
-- `External` may only adopt, and every readable field must be
-  total-decoding and covered by one admitted transfer; and
-- generic initialization never expands into a device-programming sequence.
-
-Borrowed initialization constructs and destroys `T` wholly inside the
-exclusive borrow, returning the lender from `Vacant` to `Vacant`; mandatory
-edge cleanup and the absence of a leak/forget escape are load-bearing. An owned
-initialization consumes a split vacant extent, and its explicit terminal
-operation destroys `T` and returns `Extent in Granted & Vacant`. Borrowed
-adopt/validate retire by abandoning the view. Owned adoption of existing
-content additionally requires provider evidence that custody of that content,
-not merely its storage, transferred.
+Retirement is reconstructed from the successful disposition row. Borrowed
+initialization constructs and destroys `T` wholly inside the exclusive borrow,
+returning the lender from `Vacant` to `Vacant`. Owned initialization returns
+`Extent in Granted & Vacant` only after checked destruction or move-out. Ending
+a view over pre-existing content releases its loan without inventing `Vacant`,
+and provider-owned content returns provider custody.
 
 `Vacant` is erased place state: no live established value occupies the exact
 range. It says nothing about zeroing, readability, prior use, allocation

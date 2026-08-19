@@ -434,8 +434,8 @@ Current ownership is:
   conformance, evidence trait, and normalized realization rows without source
   handles. The verifier admits an ensures-only term exactly through that row;
   provenance affects proof identity, never terminal semantic identity or
-  execution. Each ensured terminal lane retains the public generated-package
-  field name beside its exact term ID; required lanes have no output field. A
+  execution. Each ensured terminal lane retains the public proof-output
+  selector beside its exact term ID; required lanes have no output selector. A
   proof-static `term.member` binder argument resolves in its named-contract
   scope to the exact checked evidence-term handle and one unambiguous direct or
   inherited requirement row. The row retains the declaring trait's normalized

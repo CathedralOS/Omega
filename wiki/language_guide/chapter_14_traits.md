@@ -679,7 +679,7 @@ Projecting the same carrierless evidence term twice yields the same opaque proof
 symbols. Distinct evidence terms remain distinct to proof construction even
 when they establish the same proof-irrelevant proposition. Because the
 evidence has no runtime carrier, it may be passed and returned in erased proof
-inputs and output packages without allocation or cleanup. Transparent
+input and output lanes without allocation or cleanup. Transparent
 proposition aliases hide that mechanism in mathematical APIs.
 
 This is the existential evidence used by proposition-valued relations and

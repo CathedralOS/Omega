@@ -227,19 +227,25 @@ receipt-bound, normalized offset-keyed resource profiles. Placement/profile
 compatibility restricts profiles to exact subrange loans, checks requested
 observation, operations, widths, reach, and rights, derives the static base
 congruence, and discharges that congruence against the concrete loan base at
-admission. The normalized foundation carrier also separates pure field
+the placement compatibility judgment. The normalized foundation carrier also
+separates pure field
 projection from its event: `project`/`project_mut` return borrow-carrying
 accessors whose named read, destructive-take, write, stable-compound, and
 atomic-family methods are the only routes to a sealed primitive request. See
 [`os_memory_and_hardware_foundation.md`](os_memory_and_hardware_foundation.md)
-for the full `AccessPlan`, `ResourceProfile`, admission, and `Placed<P, T>`
-model. Source compilation now derives unique opaque stable/external accessors
+for the full `AccessPlan`, `ResourceProfile`, compatibility, and `Placed<P, T>`
+model. Establishment uses distinct core `view`, `initialize`, and `validate`
+operations with per-outcome Type-custody dispositions; providers establish
+external qualifications before `view`, and proof results remain in the
+separate `;` output lane. Source compilation now derives unique opaque
+stable/external accessors
 for concrete `Placed<P, T>` spellings and omits inaccessible or unauthorized
 operations. Atomic fields now derive exact `bool`/`u32`/`u64` operation-family
 accessors, and binding-private operations are restricted to the nominal policy
 package for direct naming and issuance; possession delegates their public
-operation requirements to generic code. Qualified-borrow admission is settled
-and remains implementation work. Generic atomics use the settled sealed
+operation requirements to generic code. Qualified-borrow placement
+compatibility is settled and remains implementation work. Generic atomics use
+the settled sealed
 per-operation requirement family shared with ordinary core atomics;
 target-specific lowering remains implementation work.
 
@@ -412,8 +418,9 @@ Remaining compiler and language work:
 - source-level symbolic relocation derivation and propagation of normalized
   placement constraints through linker/loader/provider artifacts, including
   provider-key establishment;
-- finish `Placed<P, T>` projection (generic atomic-family helper contracts and
-  qualified-borrow admission) and target-specific accessor lowering over the
+- finish `Placed<P, T>` establishment/projection (canonical non-runtime input
+  paths, outcome dispositions, generic atomic-family helper contracts, and
+  qualified-borrow compatibility) and target-specific accessor lowering over
   live normalized access/resource validator; direct atomic operation-family
   gating is live for exact `bool`/`u32`/`u64` placed accessors, and
   binding-private access is enforced against the nominal policy package;

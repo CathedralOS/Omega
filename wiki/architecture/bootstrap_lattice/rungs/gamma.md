@@ -78,7 +78,7 @@ constructor given the wrong argument type, divergent `match` arms, a pattern fro
 the wrong type, a return-type mismatch) and accepts well-typed `Nat`/`List` code —
 "just enough to make the proof kernel safe to write, no more."
 
-Gamma now also hosts the bounded Q7 canonical semantic-ledger feasibility spike
+Gamma now also hosts the bounded `PCC-CANONICAL-SEMANTIC-LEDGER` feasibility spike
 in `compiler/gamma/terminal-ledger-spike/`. The typed program consumes exact
 current terminal-Psi bytes, validates a closed subset, and emits/audits ranked
 semantic rows. Both the Beta-written reference interpreter and the independent

@@ -61,7 +61,7 @@ source shape without turning nested syntax into scattered heap objects.
   clauses. A machine `requires` or `ensures` clause may retain one explicit
   evidence-term binding (`name: proposition`); a named clause contains exactly
   one proposition. Erased call arguments, evidence assignment, producer
-  selection, and output-package formation belong to later stages. `via` is
+  selection, and proof-output-lane binding belong to later stages. `via` is
   terminal and mutually exclusive with an executable body.
   Standalone `decreases` and the old termination block diagnose their current
   `terminates by ...` replacement rather than entering the syntax tree.

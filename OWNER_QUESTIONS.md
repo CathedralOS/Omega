@@ -11,7 +11,7 @@ Code, canaries, and settled documentation must cite a stable named decision or
 the governing guide section rather than an owner-question number. A settled
 decision's durable identity does not change when this queue is pruned.
 
-Last pruned: 2026-08-17.
+Last pruned: 2026-08-18.
 
 ## Q1 — Fixed-operator surface-binding syntax
 
@@ -104,39 +104,7 @@ x86-64 and AArch64 calling policies, preserve stack/alignment and machine-state
 contracts, and keep fixed-fuel meter elision a separately admitted installation
 decision.
 
-## Q6 — Placed-view establishment and non-runtime semantic fields
-
-The source and checked contract for placement establishment is not yet closed.
-The guide shows `Placement::admit<P, T>(...)` followed by `adopt`, `initialize`,
-or `validate`, but no approved source type/signature owns the opaque admitted
-intermediate, its borrowed-versus-owned failure return, or the exact evidence
-passed into each establishment route. Choose that contract before the compiler
-turns the current Rust foundation carriers into source operations. It must keep
-admission distinct from live content, preserve the exact qualified Extent and
-provider/profile/admission identities, and return every linear input on
-failure.
-
-`Placed<P, T>` may interpret backing as a semantic `T` whose declaration
-contains fields absent from runtime layout. Two cases must remain distinct. A
-structurally zero-layout affine or linear Type field is an ordinary value and
-needs no `[erased]` marker; it still carries ordinary custody. An explicitly
-`[erased]` Type ghost is a specification-only occurrence whose noninterference
-is checked. Proposition evidence is intrinsically erased and copyable.
-Admission proves only demand/supply compatibility; it does not establish that
-`T`, its zero-layout Type values, or its explicitly erased terms inhabit the
-place. The current design does not say how Stable adopt/initialize/validate or
-External adopt supplies those exact terms.
-
-Choose the source contract and checked representation that establishes every
-non-runtime binding on each placement-establishment route. The decision must
-bind evidence to the exact nominal `T`, normalized placement,
-extent/content/revision, and source or provider derivation; define projection,
-Type multiplicity, lifetime, provenance, retirement, and invalidation under
-permitted writes; and prevent raw bytes, admission alone, or a layout/access
-policy from manufacturing proof or zero-layout authority. Physical
-`LayoutPlan`, `AccessPlan`, offsets, and transfers remain erased-stripped.
-
-## Q7 — Provider-neutral interrupt acknowledgement settlement
+## Q6 — Provider-neutral interrupt acknowledgement settlement
 
 `InterruptAcknowledgement in Pending` is the semantic debt carried from one
 hard-interrupt arrival to its exact completion. The core
@@ -155,7 +123,7 @@ evidence, and expose only the authority actually used by that realization. It
 must compose with both port-I/O PIC EOI and machine-control LAPIC/x2APIC EOI,
 without treating either mechanism as universally reachable.
 
-## Q8 — Trapping arithmetic inside contract predicates
+## Q7 — Trapping arithmetic inside contract predicates
 
 `Trapping` arithmetic has settled runtime behavior: invalid counts, overflow,
 and the other policy-defined failures trap instead of producing a value. A
@@ -173,7 +141,7 @@ reason about the trap edge, and what explicit term/effect and proof obligations
 terminal Psi carries. The compiler must not silently treat a potentially
 trapping contract term as a total mathematical operation.
 
-## Q9 — External-entry stack-domain accounting
+## Q8 — External-entry stack-domain accounting
 
 Terminal-Psi stack evidence derives the exact closure below a selected machine
 entry, but an external root also consumes provider-specific adapter and hardware
@@ -192,7 +160,7 @@ with `EntryStack::{Interrupted, Dedicated, ProviderSelected}` without placing
 OS-specific interrupt-frame vocabulary in the language or treating a numeric
 provider assertion as compiler-derived terminal evidence.
 
-## Q10 — Generic conformance application syntax
+## Q9 — Generic conformance application syntax
 
 A named conformance may own lifetime, type, const, and static-machine binders,
 and its subject and trait application may depend on them. The language guide
@@ -212,29 +180,7 @@ lifetime arguments erase while remaining part of semantic identity. The result
 must select one exact package-scoped conformance instance and normalized row
 map without visibility search, priority, or ambient uniqueness.
 
-## Q11 — Generated evidence-output package identity and projection
-
-The immediate output-package rung destructures one complete unconditional
-package at its call site, but the retained and outcome-guarded package model is
-not settled. The guide promises an inferred, source-unnameable nominal type
-derived from the producer machine, runtime result, named evidence fields,
-propositions, and outcome guards without defining its canonical identity,
-binding lifetime, projection ownership, or proof-artifact representation.
-
-Choose whether nominal identity belongs to one normalized machine application,
-one call site, or another exact origin, including substitutions and guarded
-outcome variants. Define how `let package = call()` binds a zero-layout or
-runtime-bearing unnameable value; whether projecting the ordinary `value` field
-borrows, copies, moves, or partially consumes it; what remains valid afterward;
-and which origin, field, outcome, and exact evidence-term rows Terminal Psi must
-retain and verify. Projection of a proposition-evidence field copies the exact
-term while preserving its validity scope and provenance. Q10 continues to own
-generic conformance application syntax. Proposition evidence fields may be
-explicitly discarded with `_`; ordinary Type fields retain their own
-multiplicity, and no rest pattern may silently discard present or future
-fields.
-
-## Q12 — Terminal placed-access authority and transfer custody
+## Q10 — Terminal placed-access authority and transfer custody
 
 The target-neutral access foundation can seal and specialize Stable, External,
 and Atomic primitive events, but Terminal Psi has no canonical artifact form
@@ -251,11 +197,11 @@ results, operation family, and ordering, and bind every event to the exact
 installed extent, provider/profile receipt, mapping, revision, lifetime, and
 boundary reach without embedding a forgeable address. The verifier,
 interpreter, Omega lowering, artifacts, and installation must preserve that same
-event rather than re-resolving it from source names or offsets. Q6 continues to
-own how admission first establishes a live `Placed<P, T>` and its non-runtime
-semantic fields.
+event rather than re-resolving it from source names or offsets. Chapter 20 now
+owns how placement establishment produces a live `Placed<P, T>`, its
+non-runtime semantic fields, and its per-outcome custody dispositions.
 
-## Q13 — Progress-profile classification and premise attachment
+## Q11 — Progress-profile classification and premise attachment
 
 Termination guarantees can retain sealed `ProgressProfileId` premises, but the
 ordinary domain and routed-requirement surface does not distinguish a progress
