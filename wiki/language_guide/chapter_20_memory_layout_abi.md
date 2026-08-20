@@ -407,7 +407,9 @@ data FieldAccess {
     case Inaccessible;
     case Stable(
         read: bool,
+        take: bool,
         write: bool,
+        swap: bool,
         exposure: Exposure
     );
     case External(
@@ -423,10 +425,10 @@ data FieldAccess {
 ```
 
 `Stable` permits ordinary observation of storage that does not change behind
-the active loan. With write permission and both an exclusive current borrow
-and an exclusive source borrow, it derives ordinary mutation and compound
-updates. Stability describes observation behavior; it does not itself prove
-Omega-side exclusivity.
+the active loan. With the corresponding plan permission and both an exclusive
+current borrow and an exclusive source borrow, it may derive destructive take,
+write, swap, ordinary mutation, and compound updates. Stability describes
+observation behavior; it does not itself prove Omega-side exclusivity.
 
 `External` means each primitive transfer occurs exactly once at an admitted
 width and is neither elided nor combined with another transfer. A readable
@@ -466,8 +468,9 @@ declared footprint. Broader device side effects belong behind an authored
 package machine.
 
 The compiler derives small operation requirements from accepted fields:
-`Readable<T>`, `DestructiveRead<T>`, `Writable<T>`, and the atomic operation
-families. Helpers may accept one such accessor instead of the whole view:
+`Readable<T>`, `DestructiveRead<T>`, `Writable<T>`, `Swappable<T>`, and the
+atomic operation families. Helpers may accept one such accessor instead of the
+whole view:
 
 ```omega
 machine send_byte<T, Write: T satisfies Writable<u8>>(
@@ -486,33 +489,47 @@ External write derivation instead requires one permitted complete transfer.
 
 Atomic access uses one sealed `omega::core` requirement per primitive
 operation: `AtomicLoad<T>`, `AtomicStore<T>`, `AtomicSwap<T>`,
-`AtomicCompareExchange<T>`, `AtomicCompareExchangeOnce<T>`, and each
-`AtomicFetch*<T>` remain distinct. Ordinary core atomics and placed accessors
-conform to the same requirements. A normalized placement derives only its
-admitted subset; missing conformance makes the operation unavailable, and an
-arithmetic carrier bound cannot manufacture it. All receivers are shared and
-ordering is explicit proof-static operation data.
+`AtomicCompareExchange<T>`, `AtomicCompareExchangeOnce<T>`,
+`AtomicTryExchange<T, Key>`, `AtomicTryExchangeOnce<T, Key>`, and each
+`AtomicFetch*<T>` remain distinct. The first compare-exchange axis is decisive
+versus single-attempt execution; the second is whether failure exposes the
+resident. Ordinary core atomics and placed accessors conform to the same
+requirements. A normalized placement derives only its admitted subset; missing
+conformance makes the operation unavailable, and an arithmetic carrier bound
+cannot manufacture it. All receivers are shared and ordering is explicit
+proof-static operation data.
 
 Every operation requires a fixed representation fitting one admitted atomic
 width and alignment. Load requires a duplicable resident; store requires the
 displaced resident to be discardable; swap conserves ownership and may move an
-affine resident only when Stable initialization established that the placement
-owns it. An adopted External view never owns device contents and cannot derive
-that operation. Scalar compare-exchange initially remains copyable and compares
-representations, not user equality. Fetch conformance additionally proves the
-exact provider raw transition over every read-reachable representation; no
-External read/write pair synthesizes it.
+affine or linear resident only when Stable initialization or an exact
+resident-content transfer established that the placement owns it. A
+provider-opened External view never
+owns device contents and cannot derive that operation. Both observing
+compare-exchange forms return the resident observation on failure and therefore
+require a copyable resident. The non-observing forms return the proposed value
+on mismatch and, for the single-attempt form, on uncommitted failure; success
+returns the displaced resident unless an exact selected rule proves it
+discardable. Their copyable `Key` and selected atomic rule prove the exact
+comparison encoding without constructing a second owned `T`. Fetch conformance
+additionally proves the exact provider raw transition over every read-reachable
+representation; no External read/write pair synthesizes it.
 
 A destructive read derives `DestructiveRead<T>::take(&mut self)`, never
-`Readable<T>`. Whether that operation is exported or binding-private remains a
-separate policy choice: a FIFO pop may be public, while a read-to-clear status
-container may be wrapped by one package machine that reads once and returns an
-owned snapshot. Only the nominal placement package may directly name or issue
-a binding-private accessor. Possession is deliberate delegation: externally
-authored generic code may invoke the accessor's public operation requirements
-without naming its opaque type. Copyability controls durable duplication,
-cross-activation shareability controls concurrent delegation, and a counted
-permit is required when the number of delegated uses must be bounded.
+`Readable<T>`. Stable take moves the exact resident field occurrence out and
+leaves that field semantically vacant in a partial placed value; it does not
+claim that the old bits were cleared. External take performs one admitted
+destructive transfer, advances the external content version, and returns one
+owned whole-container snapshot. Whether either operation is exported or
+binding-private remains a separate policy choice: a FIFO pop may be public,
+while a read-to-clear status container may be wrapped by one package machine
+that reads once and returns an owned snapshot. Only the nominal placement
+package may directly name or issue a binding-private accessor. Possession is
+deliberate delegation: externally authored generic code may invoke the
+accessor's public operation requirements without naming its opaque type.
+Copyability controls durable duplication, cross-activation shareability
+controls concurrent delegation, and a counted permit is required when the
+number of delegated uses must be bounded.
 
 Device protocol meaning does not become an access-plan case. W1C,
 read-back-to-flush, FIFO, doorbell, lock, and coherent-snapshot behavior belong
@@ -580,6 +597,30 @@ qualifications such as `Extent in UartRegisters`; only their sealed routes may
 originate those facts, but any holder may use them as placement inputs. There is
 no `Contains<P, T>` domain and no separate registry of code allowed to cast.
 
+Stable dormant content uses a different kind of qualification:
+
+```omega
+Extent in Granted & Vacant
+Extent in Granted & Resident<P, T>
+```
+
+`Resident<P, T>` is an erased, owned, type-indexed core domain. It says that
+this exact placement range, including required padding and transfer footprint,
+owns one complete live `T` represented through `P`. Its normalized `P` and `T`
+arguments are invariant semantic identity; the exact content occurrence,
+mapping, and revision remain occurrence provenance rather than type arguments.
+The qualification cannot weaken or cast away and is mutually exclusive with
+`Vacant` over the same range. It retains represented custody and every
+zero-layout or explicitly `[erased]` Type field of the semantic value without
+turning those fields into hidden runtime bytes.
+
+Ordinary Extent split or merge rejects while `Resident<P, T>` is present. The
+qualification covers the whole exact range, so a split cuts the object and a
+merge would describe several objects as one. Structural extraction instead
+uses a placed view and its partial-move rules. A future extent containing
+several independently resident objects requires an explicit closed resident-map
+algebra; it is not inferred from adjacency or field geometry.
+
 Three core operations share the placement checker but remain distinct because
 they do different things to content:
 
@@ -594,6 +635,32 @@ establishes its external domain and custody, then calls `view`. Generic
 initialization is never synthesized for `External`: programming a device is an
 authored protocol whose ordering and side effects belong in its machine
 contract.
+
+`view` and `validate` never create represented non-copy custody. Over a range
+without `Resident<P, T>`, they reject when `T` contains a represented non-copy
+field. Such content requires `initialize`, an existing exact resident claim, or
+an admitted resident-content transfer from the provider or prior owner.
+Zero-layout and explicitly `[erased]` non-copy Type fields remain ordinary
+custody inputs because there are no resident bytes whose identity could disagree
+with them. Validation may establish representation and predicates; it cannot
+establish ownership or uniqueness.
+
+The generic `Resident<P, T>` declaration authorizes initialization from
+`Vacant + T` and one core `ResidentContentTransfer<P, T>` provider requirement.
+Initialization is a derived establishment over accounted inputs. A selected
+provider call is an introduction only at an exact installed/provider-issuance
+occurrence with no parent resident lineage and the matching receipt. `view`,
+loan ending, and resident-preserving retirement are not establishment routes.
+
+The resident-content claim and an active view have separate identities. A
+borrowed view creates an ordinary loan naming the exact parent claim, range,
+polarity, and lifetime; the lender retains ownership but is inaccessible as the
+loan requires, and several shared loans may coexist. Moving an owned resident
+extent transfers the resident claim into the view. Resident-preserving
+retirement returns that exact same claim identity. Repeated retirement and
+re-viewing create new view occurrences but never new resident custody. Ordinary
+in-artifact calls substitute those occurrences into callee parameters rather
+than creating roots.
 
 The instantiated operation derives its requirements from `P`, `T`, and the
 exact source. Geometry and access demand come from normalized `P`; total decode,
@@ -708,12 +775,15 @@ Borrowed initialization is a scoped establishment. The lender is vacant before
 the borrow and vacant again after it; while the `Placed` value exists the lender
 is inaccessible, and mandatory edge cleanup destroys `T` before the borrow can
 end. This depends on Omega having no `forget`-style escape from conservation.
-An owned initialization consumes a split vacant `Extent`; its explicit terminal
-operation destroys or moves out `T` and returns `Extent in Granted & Vacant`.
-Ordinary drop does not invent an allocator or release route. Ending a borrowed
-view of pre-existing content releases the loan without claiming the bytes are
-vacant. An owned provider-backed view returns provider custody; owning its
-storage alone never establishes ownership of the existing semantic content.
+An owned initialization consumes a split vacant `Extent`. A complete owned
+Stable view may later destroy or move out `T` and return
+`Extent in Granted & Vacant`, or leave the value intact and return
+`Extent in Granted & Resident<P, T>`. The latter is identity forwarding of the
+resident claim held by the view, not another establishment route. Ending a
+borrowed resident view merely ends its loan and makes the lender's same claim
+usable again. Ordinary drop does not invent an allocator, release route, or
+resident claim. An owned provider-backed view returns provider custody; owning
+its storage alone never establishes ownership of the existing semantic content.
 
 Retirement is generated from the establishment disposition table. Every input
 embedded on the successful outcome must be returned, forwarded, or consumed by
@@ -724,11 +794,29 @@ destruction, move-out, or provider transitions. Linear non-runtime Type fields
 therefore remain ordinary conservation obligations even when they occupy no
 bytes.
 
+A partially moved placed value has no retirement outcome. The missing paths
+must be restored, or every remaining field must be moved out or destroyed so
+the range becomes `Vacant`. There is no implicit partial-resident
+qualification. In-place migration consequently has one general shape: take the
+whole old value, leaving the range vacant, then initialize the new value. The
+new placement footprint must fit that exact range; otherwise migration uses a
+second range and retires the old one to `Vacant`. Component replacement may
+retain resident content only when normalized `P` and `T` identities agree, or
+through an explicit migration consuming the old resident claim.
+
+A crash while a partial view is live records the exact range, resident lineage,
+live/moved/vacant field paths, non-runtime custody, operation in progress, and
+provider dependencies in the abandonment frontier. That record establishes
+neither `Vacant` nor `Resident<P, T>`. Continued execution can reclaim the range
+only through structural isolation plus an admitted resource-specific reset,
+recovery, quarantine, or custody-exit route; otherwise it remains abandoned.
+
 Projection preserves the semantic kind of each field. Represented fields yield
 plan-derived accessors. Proposition fields yield copyable proof terms.
 Structurally zero-layout and explicitly `[erased]` Type fields use ordinary
-field borrowing and movement with their declared multiplicity. Moving one such
-field may leave a structurally tracked partial placed value: whole-`T`
+field borrowing and movement with their declared multiplicity. Stable take of a
+represented non-copy field and movement of a non-runtime Type field may leave a
+structurally tracked partial placed value: whole-`T`
 operations become unavailable, unaffected sibling paths remain usable where the
 ordinary partial-move rules permit, and restoration or retirement must account
 for every residual field. Nominal whole-value cleanup or a plan that cannot

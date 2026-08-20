@@ -1,6 +1,6 @@
 # Design Brief: Authority Values And Boundary Evidence
 
-Status: semantic direction updated 2026-08-02. The core `Extent` declaration,
+Status: semantic direction updated 2026-08-19. The core `Extent` declaration,
 owner-authored root requirement, state-local constrained-parameter evidence
 boundary, canonical compiler-owned `IntervalSet` content algebra, Cathedral's
 first admitted `Granted` root, and ordinary interrupt
@@ -368,6 +368,27 @@ installation evidence identify the occurrence. A checked runtime establishment
 event may otherwise qualify, transfer, lease, split, recombine, or expose an
 existing account; a result route with no parent lineage rejects as an attempted
 mint.
+
+The verifier classifies authority flow per exact claim occurrence and algebra
+row, never once for an entire operation. The closed classifications are:
+
+- introduction: no parent claim, with an exact authorized installed or
+  provider-issuance occurrence and receipt;
+- identity forwarding: one exact parent and the same claim occurrence in the
+  result;
+- derived transformation: one or more parents plus the checked theorem
+  relating their exact content to the result;
+- custody exit or consumption: an input with no checked result names its exact
+  authorized sink; and
+- loan: a non-owning edge names its exact parent claim, projected range,
+  polarity, and lifetime.
+
+The classification is semantic rather than an artifact-boundary heuristic.
+Moving an adapter across an artifact boundary cannot turn forwarding into
+minting or the reverse. One operation may contain several rows: a device
+read-into-buffer can forward the buffer extent, introduce provider-originated
+content, derive its resident relation, and consume a completion token. Each row
+must independently close; an operation-wide label cannot stand in for them.
 
 The route contract publishes one exact finite per-occurrence content expression,
 or an owner-constrained family whose selected instance reduces to one. The

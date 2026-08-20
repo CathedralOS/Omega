@@ -777,6 +777,16 @@ name wins; otherwise an unqualified leaf is convenient when unique and must be
 qualified when ambiguous. Equivalent qualified and unqualified spellings
 cannot select the same slot twice.
 
+A generic provider requirement is still one selected slot. For example,
+`ResidentContentTransfer<P, T>` does not create one independently selectable
+slot for every application. Concrete artifacts retain their exact normalized
+applications; separately compiled generic libraries export symbolic
+applications. Final composition substitutes the reachable arguments, derives
+the closed demanded set, and verifies that the selected provider covers every
+application before installation binds its exact issuance occurrences. Only a
+requirement whose distinct applications genuinely need different providers
+declares an indexed slot family.
+
 This is the same proof shape as a library import:
 
 - Omega proves caller-side type and state invariants.

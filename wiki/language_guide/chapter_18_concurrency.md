@@ -578,17 +578,30 @@ Every atomic operation requires a fixed representation that fits one
 target/provider-supported atomic width and alignment. Further eligibility is
 operation-specific: load requires duplication, store requires the displaced
 resident to be discardable, and swap conserves the incoming and outgoing
-values and may therefore transfer an affine resident owned by a Stable
-initialized placement. Scalar compare-exchange initially remains copyable.
-Cross-activation sharing is checked separately and requires the resident type
-to be transferable.
+values and may therefore transfer an affine or linear resident owned by a
+Stable initialized placement. Cross-activation sharing is checked separately
+and requires the resident type to be transferable.
 
-Decisive compare-exchange reports `Exchanged` or `Mismatched(observed)` and may
-carry target-relative retry work. Its single-attempt sibling additionally
-reports `Uncommitted(observed)` when the comparison matched but the target did
-not commit that attempt. `Mismatched` and `Uncommitted` both use the
-read-compatible failure ordering; `Exchanged` uses the success ordering.
-Comparison is over the stored representation, not user-defined equality.
+Compare-exchange has two independent axes. `AtomicCompareExchange<T>` is
+decisive and observing: it reports `Exchanged` or
+`Mismatched(observed: T)`. `AtomicCompareExchangeOnce<T>` is the observing
+single-attempt sibling and additionally reports `Uncommitted(observed: T)`
+when the comparison matched but the target did not commit that attempt. Both
+require a copyable resident because failure exposes its current value.
+
+`AtomicTryExchange<T, Key>` and `AtomicTryExchangeOnce<T, Key>` are the
+non-observing decisive and single-attempt siblings. Failure returns the
+uncommitted proposed `T` without exposing the resident; success returns the
+displaced resident unless the selected raw-transition law proves it
+discardable. They may therefore transfer affine or linear custody when the
+placement owns the resident. `Key` is a copyable comparison key with one exact
+selected encoding law and cannot construct another owned `T`.
+
+For both axes, mismatch and uncommitted outcomes use the read-compatible
+failure ordering and success uses the success ordering. Comparison is over the
+stored representation selected by the operation law, not user-defined
+equality. `Once` always denotes a weak single attempt; it never means
+non-observing.
 
 `Receive` uses the strong portable baseline. A target may select a weaker
 acquire instruction only when a protocol proof establishes that every

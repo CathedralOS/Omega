@@ -1411,6 +1411,79 @@ component/era set and charges coexistence at peak. A parent root enforces a
 shared cap only within its own installed assembly and epoch, while a
 cross-epoch ceiling requires authority preserved across the epoch boundary.
 
+### Placed-occurrence and resident-custody slice
+
+Terminal Psi never serializes a concrete address as authority and never
+re-resolves a source field, `P`, or `T`. Establishment produces an address-free
+`PlacedOccurrenceId` bound to the exact qualified root occurrence, normalized
+placement plan, provider/profile receipt, mapping and revision, range,
+lifetime, and boundary reach. A separate `ResidentClaimId` names owned dormant
+content. Each active owned view transfers that claim into one temporary placed
+occurrence and resident-preserving retirement transfers the same claim back;
+each borrowed view instead records an ordinary loan edge naming the exact
+parent claim, range, polarity, and lifetime. Installation metadata records the
+binding demanded by an artifact but is never itself authority: the installer
+must consume the corresponding provider receipt and custody.
+
+Each projected event retains the placed occurrence, normalized `P` and `T`,
+canonical field key, already-normalized displacement and width, logical field
+extent, physical effect footprint, operation family, plan receipt, and all
+applicable lifetime, revision, reach, and custody identities. Backend lowering
+receives only the bound base plus this retained displacement; it may not replay
+layout evaluation or resolve names. The closed access families are Stable
+read/take/write/swap, External read/take/write, atomic load/store/swap, the
+observing and non-observing decisive and single-attempt compare-exchange
+families, and the individual fetch families.
+
+Pre-event specialization or installation rejection returns every input
+unchanged and emits no access event. An admitted write event commits; a
+physical access fault is a no-successor crash edge, never a program-visible
+write rejection. Stable take transfers the exact resident field and leaves a
+structurally partial occurrence. Stable swap returns displaced custody.
+External take advances the external content version and returns one
+provider-provenanced whole snapshot, introducing a content root only when the
+snapshot's contract is content-bearing. Generic External swap is absent; an
+authored provider exchange is a separate operation.
+
+Custody classification is per exact claim row, not per operation. One event may
+therefore contribute several differently classified rows:
+
+- **introduction** has no parent claim and cites an exact authorized installed
+  or provider-issuance occurrence plus its receipt;
+- **identity forwarding** consumes one exact parent and produces that same
+  claim occurrence;
+- **derived transformation** consumes one or more parent claims and cites the
+  checked theorem relating their exact content to the result;
+- **custody exit or consumption** names the exact authorized sink for an input
+  with no checked output; and
+- **loan** is a non-owning edge carrying the exact parent claim, range,
+  polarity, and lifetime.
+
+These rows are independent inside one operation. A DMA completion may forward
+the buffer extent, introduce provider-originated content into that buffer,
+derive its new resident relation, and consume a completion token. The verifier
+accepts no operation-wide label as a substitute for those claim-local facts.
+
+`AtomicCompareExchange<T>` is observing and decisive;
+`AtomicCompareExchangeOnce<T>` is observing and single-attempt. Their failure
+cases expose `observed: T`, so the resident must be copyable. The independent
+non-observing pair, `AtomicTryExchange<T, Key>` and
+`AtomicTryExchangeOnce<T, Key>`, returns the proposed value on mismatch or an
+uncommitted attempt and can transfer affine or linear residents. The copyable
+key and selected raw-transition law determine the comparison without
+constructing another owned `T`; success returns the displaced resident unless
+that law proves it discardable. `Once` always denotes the weak/single-attempt
+axis, never the observation axis.
+
+Generic `ResidentContentTransfer<P, T>` is one provider requirement schema, not
+one ambient slot per monomorph. An artifact records each concrete application
+it uses and exports symbolic applications from generic code. Final composition
+substitutes reachable generic arguments, derives the closed application set,
+and verifies that the one selected provider covers every demanded application;
+installation then binds the exact concrete occurrences. A separately indexed
+slot family is introduced only when distinct applications genuinely require
+independent provider selection.
+
 ### Crash-control slice
 
 Terminal Psi represents `Trap` and `Abort` as closed crash causes attached to

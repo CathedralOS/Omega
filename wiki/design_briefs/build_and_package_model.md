@@ -1,6 +1,6 @@
 # Design Brief: Build And Package Model
 
-Current as of 2026-08-07. `build.omg` is ordinary Omega code interpreted in an
+Current as of 2026-08-19. `build.omg` is ordinary Omega code interpreted in an
 explicit build-host context. It produces inspectable build data and may stage
 assets or obtain external inputs through supplied services; it is not a second
 configuration language.
@@ -251,6 +251,23 @@ configuration selects the already-declared candidate.
 The exact `Build` library method names remain ordinary API design. Conceptually
 the operations are target-profile selection plus type-per-slot override; users
 do not repeat every default and cannot append or mutate derived plan rows.
+
+An indexed provider requirement is one schema rather than one ambient slot per
+type application. In particular, `ResidentContentTransfer<P, T>` is selected
+through one ordinary provider binding. The provider may implement the generic
+requirement or publish the exact supported application family. A concrete
+artifact records every normalized application it uses; a separately compiled
+generic library exports symbolic applications over its own parameters. Final
+composition substitutes reachable arguments, reconstructs the closed demanded
+application set, and rejects unless the selected provider covers every member.
+Installation records the exact concrete applications and issuance occurrences
+it admits.
+
+The application closure is verifier-derived, never a producer-authored total,
+and does not create one slot per monomorph. An indexed slot family is introduced
+only when distinct applications genuinely require independent provider
+selection. Otherwise type indices refine one selected provider's obligation;
+they do not multiply deployment choices or require ambient conformance search.
 
 Provider selection also determines executable TCB provenance. Static selection
 of an opaque in-process realization contributes a known executable entry even
