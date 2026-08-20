@@ -184,7 +184,7 @@ encode half is:
 trait Encode<Policy, Value> {
     machine encode(
         value: &Value,
-        out: &mut [u8],
+        out: &write [u8],
         written: &mut u64
     );
 }

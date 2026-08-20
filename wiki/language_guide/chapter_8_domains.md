@@ -1147,7 +1147,7 @@ boundary and the operators.
 > call seam, including when reached through a mutable carrier reference. A
 > guard-selected literal returned as a bounded carrier is constructed in the
 > result slot as `{len, inline_bytes}`, not as a borrowed descriptor.
-> `read_line(&mut [u8])` accepts a concrete bounded carrier destination and
+> `read_line(&write [u8])` accepts a concrete bounded carrier destination and
 > derives its writable capacity from that call-site place before updating the
 > carrier's runtime length. Growable input remains allocator-gated; fixed input
 > no longer relies on builtin `String`.

@@ -48,25 +48,7 @@ keep `ProgramStorageEntry::enter` as the sole root-introduction requirement,
 avoid treating firmware handles as `Extent` values, and leave the generated
 bridge with one exact auditable physical ABI and source-visible shape.
 
-## Q3 — Write-only memory view
-
-Foreign providers sometimes receive storage they may initialize or overwrite
-but must not read. Omega's settled reference surface has only shared read and
-exclusive read/write borrows, while placed-field accessors model individual
-write-only operations rather than a contiguous memory view. Treating a
-write-only foreign parameter as `&mut T` would therefore grant more authority
-than the binding declares and may expose preexisting or uninitialized bytes.
-
-Choose the core representation and source form for a write-only memory view.
-The decision must settle whether it is a third borrow kind, a nominal core view,
-or an operation-capability value; how it projects and subdivides; whether and
-when it may cover uninitialized storage; and what evidence turns a complete or
-partial provider write into readable initialized content. It must preserve
-ordinary lifetime and nonaliasing checks without implying provider read
-authority, and it must remain distinct from `Placed<P, T>` field accessors and
-from durable custody transfer.
-
-## Q4 — Static callback-parameter requirement form
+## Q3 — Static callback-parameter requirement form
 
 Registered-callback lowering requires a foreign operation to bind one static
 machine-parameter position to one exact boundary callback requirement. The
@@ -85,7 +67,7 @@ containing the call site, machine-argument ordinal, selected machine, and exact
 callback trait requirement so native lowering can place one private relocation
 without creating a runtime machine value or exposing a code address.
 
-## Q5 — Native logical-fuel meter ABI and continuation
+## Q4 — Native logical-fuel meter ABI and continuation
 
 Terminal Psi settles sponsor-owned logical fuel: trusted native lowering charges
 before each semantic operation or taken edge, exhaustion is not program-visible,
@@ -104,7 +86,7 @@ x86-64 and AArch64 calling policies, preserve stack/alignment and machine-state
 contracts, and keep fixed-fuel meter elision a separately admitted installation
 decision.
 
-## Q6 — Provider-neutral interrupt acknowledgement settlement
+## Q5 — Provider-neutral interrupt acknowledgement settlement
 
 `InterruptAcknowledgement in Pending` is the semantic debt carried from one
 hard-interrupt arrival to its exact completion. The core
@@ -123,7 +105,7 @@ evidence, and expose only the authority actually used by that realization. It
 must compose with both port-I/O PIC EOI and machine-control LAPIC/x2APIC EOI,
 without treating either mechanism as universally reachable.
 
-## Q7 — Trapping arithmetic inside contract predicates
+## Q6 — Trapping arithmetic inside contract predicates
 
 `Trapping` arithmetic has settled runtime behavior: invalid counts, overflow,
 and the other policy-defined failures trap instead of producing a value. A
@@ -141,7 +123,7 @@ reason about the trap edge, and what explicit term/effect and proof obligations
 terminal Psi carries. The compiler must not silently treat a potentially
 trapping contract term as a total mathematical operation.
 
-## Q8 — External-entry stack-domain accounting
+## Q7 — External-entry stack-domain accounting
 
 Terminal-Psi stack evidence derives the exact closure below a selected machine
 entry, but an external root also consumes provider-specific adapter and hardware
@@ -160,7 +142,7 @@ with `EntryStack::{Interrupted, Dedicated, ProviderSelected}` without placing
 OS-specific interrupt-frame vocabulary in the language or treating a numeric
 provider assertion as compiler-derived terminal evidence.
 
-## Q9 — Generic conformance application syntax
+## Q8 — Generic conformance application syntax
 
 A named conformance may own lifetime, type, const, and static-machine binders,
 and its subject and trait application may depend on them. The language guide
@@ -180,7 +162,7 @@ lifetime arguments erase while remaining part of semantic identity. The result
 must select one exact package-scoped conformance instance and normalized row
 map without visibility search, priority, or ambient uniqueness.
 
-## Q10 — Progress-profile classification and premise attachment
+## Q9 — Progress-profile classification and premise attachment
 
 Termination guarantees can retain sealed `ProgressProfileId` premises, but the
 ordinary domain and routed-requirement surface does not distinguish a progress

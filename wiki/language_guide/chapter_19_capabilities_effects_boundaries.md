@@ -426,7 +426,7 @@ boundary trait Console {
     reaches
         Console;
 
-    machine read_line(out: &mut [u8])
+    machine read_line(out: &write [u8])
     reaches
         Console;
 
@@ -443,6 +443,14 @@ boundary trait Console {
         Console;
 }
 ```
+
+The write-only destination is an existing valid byte slice whose prior
+contents the provider is not authorized to inspect. A checked provider is
+verified transitively against that restriction. An opaque selected provider
+admits compliance unless its target isolation enforces it physically. The
+operation's outcome separately states the exact modified prefix; the untouched
+suffix remains unchanged. This is neither vacant-storage initialization nor a
+typed output parameter.
 
 The byte ops are the universal filter surface (`stdin_checksum` and its
 siblings): `read_byte` yields each raw byte as `ByteRead::Byte { value }`

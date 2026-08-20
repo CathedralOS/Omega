@@ -301,6 +301,13 @@ Describing those bytes afterward cannot retract that authority. Consequently,
 MMIO or concurrently mutable shared storage is never exposed first as ordinary
 mutable bytes and then repaired with a cast.
 
+`&write T` is the corresponding ordinary-place attenuation when a checked
+callee may overwrite an existing valid `T` but must not observe its prior
+contents. It keeps the exclusive source loan and ordinary reference ABI while
+removing loads, readable reborrows, read-modify-write, and every other
+content-dependent operation. It is not a placement accessor, does not govern
+device observation, and never denotes vacant or uninitialized storage.
+
 ### Geometry, demand, and supply
 
 Placed storage keeps three questions independent:

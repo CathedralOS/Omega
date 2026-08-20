@@ -293,6 +293,12 @@ The frame rule is **preserve-unless-written, at borrow granularity**:
 - A place the callee cannot reach — no borrow passed, no capability that owns
   it — keeps every fact.
 - A place passed by shared borrow is frozen: facts survive.
+- A place passed by write-only borrow is exclusively loaned. The callee may
+  use only content-independent projections and writes whose legality follows
+  from written inputs, static structure, or explicitly supplied facts. Caller
+  facts survive for paths the exact outcome write frame leaves unchanged;
+  facts depending on a written path are invalidated and may be re-established
+  by the callee's guarantees.
 - A place passed by exclusive borrow to an opaque callee or unknown dynamic
   conformance loses its flow-scoped extras (guard-established narrowings,
   established subdomains), atom by atom. A resolved checked callee invalidates

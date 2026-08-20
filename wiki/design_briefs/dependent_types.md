@@ -311,6 +311,12 @@ ceiling formed by the receiver and every place-shaped argument that could be
 exclusive; a place that cannot be represented still makes the frame opaque.
 Body-derived frames remain
 implementation evidence outside public contract/specialization identity.
+Write-only parameters use the same place-origin and frame composition, but the
+callee may neither load their referents nor forward them to a readable
+parameter. Exact outcome frames preserve facts over unchanged paths and
+invalidate facts only where a write occurred; legality and post-write validity
+may depend on static structure, written values, and deliberately supplied proof
+facts, never on observation through the write-only loan.
 Cycles may freely reorder primitive values and shared references because those
 parameters cannot redirect caller-visible writes. A named state SCC also
 retains an exact finite frame when every cyclic edge forwards all write-capable

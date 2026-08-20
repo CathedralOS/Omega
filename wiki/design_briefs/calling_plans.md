@@ -532,7 +532,7 @@ source program continues to name a machine and a requirement rather than
 constructing an address-shaped callback value.
 
 The concrete source form for that nominal machine-parameter-to-requirement
-binding is unresolved in owner Q4. Today's `where machine Selected(...)`
+binding is unresolved in owner Q3. Today's `where machine Selected(...)`
 contract proves only structural callable refinement; it does not mean
 `Selected satisfies WindowProcedure::call`. The compiler must not infer the
 relationship from a matching signature or a uniquely conformed boundary

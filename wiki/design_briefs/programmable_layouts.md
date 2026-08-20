@@ -270,7 +270,7 @@ A realization may be authored or generated from a validated `Plan`.
 trait Codec<Policy, Value> {
     machine encode(
         value: &Value,
-        out: &mut [u8],
+        out: &write [u8],
         written: &mut count
     );
 

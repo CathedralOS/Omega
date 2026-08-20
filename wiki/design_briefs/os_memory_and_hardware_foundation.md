@@ -200,9 +200,10 @@ join permissions to recreate it. Authority that must return later is a separate
 claim or loan.
 
 Subrange loans are borrow-carrying values. Their polarity follows the parent
-borrow: shared loans permit only shared operations; exclusive loans permit
-ordinary mutation. Loans are not linear cleanup obligations. The owned extent,
-DMA tokens, shootdown tokens, and similar authority/debt values remain linear.
+borrow: shared loans permit only shared operations; write-only exclusive loans
+permit non-observing replacement; read/write exclusive loans permit ordinary
+mutation. Loans are not linear cleanup obligations. The owned extent, DMA
+tokens, shootdown tokens, and similar authority/debt values remain linear.
 
 Destroying placed content returns its extent authority but does not itself
 release that extent to an OS or firmware provider. Provider reclamation may be
@@ -330,7 +331,8 @@ describe owned values, MMIO, DMA-visible bytes, or a shared page without
 teaching its fields one permanent access environment.
 
 Ordinary owned RAM remains ordinary. Once raw storage has been validated or
-materialized as an owned `T`, it uses `&T`, `&mut T`, and lvalue projection.
+materialized as an owned `T`, it uses `&T`, `&write T`, `&mut T`, and lvalue
+projection.
 Placed stable access is reserved for cases where a loan or field-level policy
 must remain visible. It is not a ceremony imposed on every struct.
 
