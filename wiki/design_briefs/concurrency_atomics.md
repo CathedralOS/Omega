@@ -1,6 +1,6 @@
 # Design Brief: Concurrency And Atomics
 
-Current as of 2026-08-01. This brief records the surviving concurrency model
+Current as of 2026-08-19. This brief records the surviving concurrency model
 after decisions 20–22 and the task-runtime settlement. Chapter 18 is the
 user-facing authority; the detailed lifecycle record is
 [task_runtime_and_lifecycle.md](task_runtime_and_lifecycle.md). Continuation
@@ -150,10 +150,12 @@ not authored as one wrapper type per subset. Core atomics and placed accessors
 conform to the same requirements, so a helper asks only for the operations it
 uses.
 
-The family contains distinct load, store, swap, decisive compare-exchange,
-single-attempt compare-exchange, and individual fetch requirements. Every
-receiver is shared; the operation contract, rather than `&mut`, authorizes the
-atomic event. Ordering is proof-static operation data. A requirement has
+The family contains distinct load, store, swap, observing and non-observing
+decisive compare-exchange, observing and non-observing single-attempt
+compare-exchange, and individual fetch requirements. Decisive versus
+single-attempt and observing versus non-observing failure are independent axes.
+Every receiver is shared; the operation contract, rather than `&mut`, authorizes
+the atomic event. Ordering is proof-static operation data. A requirement has
 compiler-owned atomic semantics: core atomics and admitted placements derive
 exact conformance, an exact-forwarding wrapper may preserve it mechanically,
 and any other realization needs checked proof or admitted provider evidence.
@@ -169,9 +171,11 @@ The public requirement identities and result shapes are:
 | `AtomicSwap<T>` | prior `T` |
 | `AtomicCompareExchange<T>` | `Exchanged | Mismatched(observed: T)` |
 | `AtomicCompareExchangeOnce<T>` | `Exchanged | Mismatched(observed: T) | Uncommitted(observed: T)` |
+| `AtomicTryExchange<T, Key>` | `Exchanged(displaced: T) | Mismatched(proposed: T)` |
+| `AtomicTryExchangeOnce<T, Key>` | `Exchanged(displaced: T) | Mismatched(proposed: T) | Uncommitted(proposed: T)` |
 | `AtomicFetchAdd<T>` and each other fetch requirement | prior `T` |
 
-Load/store/swap/fetch take one legal ordering. Both compare-exchange
+Load/store/swap/fetch take one legal ordering. All compare-exchange
 requirements take separate success and failure orderings. New hardware
 operations such as fetch-min or fetch-max extend the family additively through
 new requirements under the same rules.
@@ -184,26 +188,34 @@ Additional eligibility is per operation:
 - store discards the displaced resident and therefore requires it to be freely
   discardable;
 - swap conserves one value into and one value out of the cell and may transfer
-  an affine resident when the placement owns that resident through Stable
-  initialization;
-- scalar compare-exchange initially requires a copyable resident; atomic
-  custody transfer selected by a separate copyable comparison key remains a
-  later protocol rather than a distorted scalar operation; and
+  an affine or linear resident when the placement owns that resident through
+  Stable initialization;
+- both observing compare-exchange requirements expose the resident on failure
+  and therefore require a copyable resident;
+- both non-observing requirements return the proposed value on every failure
+  and may transfer affine or linear custody when the placement owns its
+  resident. Their copyable `Key` and selected raw-transition law prove the exact
+  comparison encoding without constructing a second owned `T`; success returns
+  the displaced resident unless the same selected law proves it discardable;
+  and
 - each fetch requirement proves its exact operation law over raw
   representations.
 
 Load/store/swap require the corresponding total decode, total encode, and
-round-trip representation laws. Compare-exchange compares the stored
-representation with `encode(expected)`, not user equality. A fetch proof ranges
-over every raw representation the provider says may be read, authorizes the
-exact raw transition and operand encoding, and proves that decoding the result
-equals the logical operation. External/device placements never derive fetch
+round-trip representation laws. Observing compare-exchange compares the stored
+representation with `encode(expected)`, not user equality. Non-observing
+exchange compares against the selected `Key` encoding and does not expose the
+resident on mismatch or an uncommitted attempt. A fetch proof ranges over every
+raw representation the provider says may be read, authorizes the exact raw
+transition and operand encoding, and proves that decoding the result equals the
+logical operation. External/device placements never derive fetch or exchange
 from generic reads and writes; only an explicitly supplied provider operation
 can conform. Identity encoding over a primitive total carrier is the
 conservative first implementation.
 
-Atomic ownership and cross-activation movement remain separate. An adopted
-view never owns device content and therefore cannot derive affine swap. A local
+Atomic ownership and cross-activation movement remain separate. A
+provider-opened view never owns device content and therefore cannot derive an
+affine or linear swap. A local
 cell may hold an activation-bound affine value, but the cell becomes
 cross-activation shareable only when its resident type is transferable.
 Diagnostics report the resident type and crossing rather than claiming the

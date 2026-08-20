@@ -90,20 +90,26 @@ replace contracts; they give contracts reusable semantic names.
 
 ### Closed indexed domain families
 
-A domain family may bind its carrier and one or more proof-static const
-parameters explicitly:
+A domain family may bind its carrier, invariant type indices, and proof-static
+const parameters explicitly:
 
 ```omega
 domain<T, const U: Unit> T::Quantity<U>;
+
+domain<P, T> Extent::Resident<P, T>;
 ```
 
-Bindings select a closed canonical index, such as
-`i64 in Quantity<Units::METER>`, or use a direct const binder in a generic
-signature. Structurally equal values have one semantic identity even when a
+Bindings select closed canonical indices, such as
+`i64 in Quantity<Units::METER>`, or use direct binders in a generic signature.
+Type indices use exact normalized type identity and are invariant:
+`Resident<PlanA, Header>` has no implicit relationship to
+`Resident<PlanB, Header>`. Open type indices substitute structurally at generic
+calls. Structurally equal const values have one semantic identity even when a
 record literal spells its fields in a different order; different values are
-different domains and cannot flow into one another implicitly. The carrier is
-unchanged at runtime. Explicit qualification selects a closed canonical value
-or direct const binder without runtime work:
+different domains and cannot flow into one another implicitly. Every index is
+retained in checked and terminal identity while the carrier remains unchanged
+at runtime. Explicit qualification selects closed canonical indices or direct
+binders without runtime work:
 
 ```omega
 machine retag<const To: Unit>(value: i64) -> i64 in Quantity<To> {
@@ -118,7 +124,10 @@ customer: it publishes named length, time, and speed indices, ordinary visible
 conversion machines, and per-pair carrier operators. Integer conversion names
 state their trapping or truncating behavior; `as` still only qualifies or
 erases. Computed index expressions remain staged for the next proof-static
-rung.
+rung. The declaration owns one route set for the whole family. Instantiation
+substitutes its indices into those routes; it does not create a mutable route
+registry per application. Lifetime and static-machine indices remain absent
+until a concrete semantic customer requires them.
 
 ## Domains In Contracts
 

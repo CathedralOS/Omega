@@ -184,11 +184,26 @@ Owners:
   reads, and synthesized RMW.
 - Keep alias-exclusion admission separate from access rights; `&mut` does not
   claim exclusivity against a device. Sealed primitive events now specialize
-  linearly into Stable read/write, External read/take/write, or one exact
-  Atomic operation and ordering while preserving the original authority on
-  rejection. Connecting those admitted events to Terminal Psi and both native
-  backends is design-blocked on owner Q10: the canonical installed placed-root
-  authority and read/take/write/atomic value-custody contract are unsettled.
+  linearly into Stable read/take/write/swap, External read/take/write, or one
+  exact Atomic operation and ordering while preserving the original authority
+  on pre-event rejection. Carry the settled address-free placed-occurrence,
+  resident-claim, loan, mapping/revision, exact footprint, and boundary-reach
+  identities through Terminal Psi, installation, the interpreter, and both
+  native backends without replaying source layout. Emit claim-local
+  introduction, forwarding, transformation, exit, and loan rows.
+- Implement `Extent::Resident<P, T>` as the owned exact-range dormant-content
+  qualification, including invariant type indices, mutual exclusion with
+  `Vacant`, split/merge rejection, borrow versus owned-view continuity,
+  resident-preserving retirement, partial-view retirement fences, and explicit
+  migration through `Vacant`. Carry non-runtime custody in the resident claim.
+- Complete the atomic 2x2 compare-exchange family: existing observing strong
+  and weak forms require copyable residents; new non-observing strong and weak
+  forms return the proposal on failure and may transfer affine or linear
+  custody using one copyable comparison key and exact selected encoding law.
+- Close generic `ResidentContentTransfer<P, T>` applications at final
+  composition from concrete and symbolic artifact demand, verify one selected
+  provider covers the reconstructed application set, and bind exact issuance
+  occurrences at installation. Do not create a slot per monomorph.
 - Retain schema/device correspondence, runtime revision evidence, and provider
   identity separately from storage compatibility.
 
@@ -1264,7 +1279,7 @@ compiler concept is introduced.
   umbrella. The published checked operational root is retired; its plan remains
   only as a transient validation and independent-fact construction input.
   Continue removing umbrella carriers after their remaining consumers migrate.
-- **TPR4/TPR6 — design blocked on owner Q11.** Choose how an ordinary domain or
+- **TPR4/TPR6 — design blocked on owner Q10.** Choose how an ordinary domain or
   routed requirement is classified and attached as a progress premise before
   connecting progress-profile grants and receipts. Generic routed/domain
   requirements must not be treated as progress merely because they are
@@ -1502,6 +1517,7 @@ specifications:
 - **NATIVE-LOGICAL-FUEL-METERING:** owner Q5.
 - **PROVIDER-NEUTRAL-INTERRUPT-ACKNOWLEDGEMENT:** owner Q6.
 - **GENERIC-CONFORMANCE-APPLICATION:** owner Q9.
+- **PROGRESS-PROFILE-CLASSIFICATION:** owner Q10.
 
 ## Platform-gated verification
 

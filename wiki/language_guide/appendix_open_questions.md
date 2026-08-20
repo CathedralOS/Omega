@@ -5,7 +5,7 @@ belongs in the relevant chapter or frozen design brief, not here. Immediate
 owner decisions belong in the repository-root `OWNER_QUESTIONS.md`;
 engineering work belongs in `TASKS.md`.
 
-Last pruned: 2026-08-11.
+Last pruned: 2026-08-19.
 
 ## Reach, resources, and progress
 

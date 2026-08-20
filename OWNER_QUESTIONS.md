@@ -11,7 +11,7 @@ Code, canaries, and settled documentation must cite a stable named decision or
 the governing guide section rather than an owner-question number. A settled
 decision's durable identity does not change when this queue is pruned.
 
-Last pruned: 2026-08-18.
+Last pruned: 2026-08-19.
 
 ## Q1 — Fixed-operator surface-binding syntax
 
@@ -180,28 +180,7 @@ lifetime arguments erase while remaining part of semantic identity. The result
 must select one exact package-scoped conformance instance and normalized row
 map without visibility search, priority, or ambient uniqueness.
 
-## Q10 — Terminal placed-access authority and transfer custody
-
-The target-neutral access foundation can seal and specialize Stable, External,
-and Atomic primitive events, but Terminal Psi has no canonical artifact form
-for a live placed root or projection. Serializing a concrete address or replaying
-admission/profile identifiers would make authority forgeable, while resolving a
-field name and offset again below Psi would discard the admitted occurrence,
-mapping, revision, lifetime, and reach.
-
-Choose the Terminal Psi authority carrier and installation binding for one live
-placed occurrence, then define each transfer's value custody. The contract must
-distinguish repeatable External read from destructive whole-snapshot take,
-specify write encoding and commit/rejection behavior, retain Atomic operands,
-results, operation family, and ordering, and bind every event to the exact
-installed extent, provider/profile receipt, mapping, revision, lifetime, and
-boundary reach without embedding a forgeable address. The verifier,
-interpreter, Omega lowering, artifacts, and installation must preserve that same
-event rather than re-resolving it from source names or offsets. Chapter 20 now
-owns how placement establishment produces a live `Placed<P, T>`, its
-non-runtime semantic fields, and its per-outcome custody dispositions.
-
-## Q11 — Progress-profile classification and premise attachment
+## Q10 — Progress-profile classification and premise attachment
 
 Termination guarantees can retain sealed `ProgressProfileId` premises, but the
 ordinary domain and routed-requirement surface does not distinguish a progress

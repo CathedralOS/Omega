@@ -1,6 +1,6 @@
 # Design Brief: Programmable Layouts
 
-Current as of 2026-07-28. Layouts and codecs are library policies with
+Current as of 2026-08-19. Layouts and codecs are library policies with
 machine-checked contracts. The compiler owns a small placement vocabulary,
 plan validator, and realization checker. Codec realizations may be authored or
 generated from the same normalized plan.
@@ -159,6 +159,15 @@ pair against one exact borrow of `Extent in Granted` and derives
 `Placed<P, T>`. `ResourceProfile` is ordinary data; only the selected
 provider's range-bound receipt gives one standing as supply.
 
+Dormant owned content uses the core qualification
+`Extent in Granted & Resident<P, T>`. `Resident` covers the exact placement
+range and carries the complete represented and non-runtime custody of one
+`T`; it is mutually exclusive with `Vacant`, cannot be weakened away, and
+rejects ordinary Extent split or merge. Borrowed placed views loan that exact
+claim, while owned views temporarily carry it and resident-preserving
+retirement returns the same occurrence. Address, mapping, revision, and
+occurrence identity remain evidence rather than type arguments.
+
 The access policy receives this validated `LayoutPlan`, so it can decide which
 laid fields admit primitive access without copying offsets or transfer widths
 into source. It addresses the reflected schema with compiler-issued field keys
@@ -180,13 +189,16 @@ not individual fields, and runtime provenance proves that the selected reach
 may touch the supplied range.
 
 Admission and content establishment are distinct. Admission proves that the
-backing supports the requested interpretation. Stable storage may then adopt,
-initialize vacant storage, or validate existing contents; External storage may
-only adopt, with each readable field total-decoding in one admitted
-transfer. Encoding, decoding, representability, and legal transfer derivation
-are checked per field and operation. The compiler never invents a fitting
-domain, emits a generic External RMW, assembles an External field from several
-reads, or hides an unbounded atomic retry behind `.write`.
+backing supports the requested interpretation. Stable storage may view exact
+resident content, initialize vacant storage, or validate existing contents. A
+non-resident range cannot be viewed or validated as a `T` with represented
+non-copy fields: bytes and proof do not establish custody. External content is
+opened by a provider-specific wrapper that first establishes its existing
+qualification and then uses `view`; there is no generic adopt or cast registry.
+Encoding, decoding, representability, and legal transfer derivation are checked
+per field and operation. The compiler never invents a fitting domain, emits a
+generic External RMW, assembles an External field from several reads, or hides
+an unbounded atomic retry behind `.write`.
 
 Compatibility does not prove that a schema describes the physical device. A
 separate admitted, provenance-bearing correspondence ties the nominal policy to
@@ -418,9 +430,10 @@ Remaining compiler and language work:
 - source-level symbolic relocation derivation and propagation of normalized
   placement constraints through linker/loader/provider artifacts, including
   provider-key establishment;
-- finish `Placed<P, T>` establishment/projection (canonical non-runtime input
-  paths, outcome dispositions, generic atomic-family helper contracts, and
-  qualified-borrow compatibility) and target-specific accessor lowering over
+- finish `Placed<P, T>` and `Resident<P, T>` establishment/projection
+  (canonical non-runtime input paths, per-claim occurrence lineage, outcome
+  dispositions, generic atomic-family helper contracts, and qualified-borrow
+  compatibility) and target-specific accessor lowering over
   live normalized access/resource validator; direct atomic operation-family
   gating is live for exact `bool`/`u32`/`u64` placed accessors, and
   binding-private access is enforced against the nominal policy package;
