@@ -104,6 +104,25 @@ selection to interpret its meaning. It contains:
 - fingerprinted contracts, obligation schemas, authorized admission sites,
   trust attribution, and work identities.
 
+Reference identities retain loan compatibility and permitted operations
+separately. `&write T` carries an exclusive loan over an existing valid `T`
+with mutation but no observation authority. Terminal production preserves that
+mode through calls, projections, reborrows, provider selection, and ABI
+lowering; it may not serialize the physically identical pointer as ordinary
+read/write authority. Content-independent place projections and metadata reads
+remain available, while loads, readable reborrows, takes, swaps, and
+read-modify-write reject.
+
+Each write-only event names its exact loan occurrence, projected logical place,
+physical write footprint, and outcome guard. Verification invalidates facts
+only on written paths and preserves facts over an explicitly unchanged suffix.
+It also reconstructs freely discardable displacement and post-write validity
+from static structure, written inputs, and explicitly supplied premises; no
+premise may originate from observing the referent. For a checked realization
+the restriction is derived from its call closure. For an opaque realization it
+is an admitted provider judgment, pinned to the selected implementation and
+receipt, unless installation supplies physical isolation evidence.
+
 Nominal proposition declarations retain their binder telescopes,
 fact-only/witness-bearing classification, and any normalized carrierless
 evidence interface in this fingerprinted vocabulary. Changing that interface

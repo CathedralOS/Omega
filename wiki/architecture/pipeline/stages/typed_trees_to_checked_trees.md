@@ -47,6 +47,10 @@ Must own:
 
 - Proof obligations and whether current facts discharge them.
 - Borrow facts, accesses, loans, activations, weakenings, and overlap failures.
+- The exact shared, write-only-exclusive, or read/write-exclusive access mode
+  of every loan. Write-only checking admits only content-independent
+  projection and non-observing writes, composes the restriction through calls,
+  and retains exact outcome write footprints for dependent-fact invalidation.
 - Reach summaries, invocation edges, and boundary contract facts that later stages must preserve.
 - Checked value origins for ranking witnesses, initializers, statement values,
   call arguments, transition guards/targets, and nested expression children.

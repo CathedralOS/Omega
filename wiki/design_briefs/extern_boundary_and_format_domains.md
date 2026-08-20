@@ -1,6 +1,6 @@
 # Design Brief: Extern Boundaries And Foreign Formats
 
-Current as of 2026-07-28. This brief defines the durable extern model. Concrete
+Current as of 2026-08-19. This brief defines the durable extern model. Concrete
 binding/layout grammar remains subject to the referenced subsystem briefs.
 
 ## Abstract API, target binding
@@ -457,8 +457,9 @@ views only through an authorized establishment route.
 
 Foreign storage use has three outbound ownership shapes:
 
-1. **Call-scoped:** an ordinary `&T`, `&[T]`, `&mut T`, or `&mut [T]` permits
-   only access before the call returns.
+1. **Call-scoped:** an ordinary `&T`, `&[T]`, `&write T`, `&write [T]`,
+   `&mut T`, or `&mut [T]` permits only its exact access set before the call
+   returns.
 2. **Retained after return:** storage authority moves into an ordinary linear
    protocol value such as `PendingRead`; a terminal completion redeems it.
 3. **Process-lifetime:** the authority moves into an already-established static
@@ -547,14 +548,30 @@ defines a native slice ABI derives the ordinary reference case. Raw
 pointer/count pairs and descriptor graphs require an authored binding policy;
 the compiler never guesses their association.
 
-Omega presently has shared and exclusive read/write references but no precise
-provider-writes-only view. Until a core write-only claim/view lands, a binding
-must not silently widen write-only access to read/write when doing so would
-disclose existing bytes, and it cannot expose uninitialized receive storage
-under a contract that permits foreign reads. Identity-only retention is an
-ordinary stable keepalive claim that lends no memory view. Its core
-representation, source form, and transition to readable initialized content are
-open in [Owner Q4](../../OWNER_QUESTIONS.md#q4--write-only-memory-view).
+`&write T` is the call-scoped provider-writes-only form. It borrows one existing
+valid `T` exclusively and permits mutation without observation. It is not an
+output/construction slot, never covers `Vacant` storage, and creates no durable
+custody transfer. A mutable borrow may attenuate explicitly to it; the callee
+cannot derive `&T` or `&mut T`, take or swap old content, perform
+read-modify-write, or call a helper with broader access.
+
+For a byte-producing operation, the outcome contract names the exact modified
+prefix or other write footprint. The untouched suffix is unchanged, so caller
+facts over that suffix survive; the returned count does not establish a value
+that was absent at entry. Each replacement separately requires freely
+discardable displaced content and preservation of the referent's validity.
+Partial writes through structured `T` are therefore accepted only when validity
+follows from static structure, written inputs, and deliberately supplied facts
+without loading the referent.
+
+Checked Omega providers enforce non-observation transitively through their
+entire call closure. An opaque provider physically receiving an address may
+still read it; the selected provider evidence admits compliance unless target
+isolation enforces it. Artifacts retain the write-only mode and exact outcome
+write frame rather than widening the call to read/write. Identity-only
+retention remains an ordinary stable keepalive claim that lends no memory view.
+Storage with no live `T` and typed foreign construction are separate future
+features rather than alternate meanings of `&write`.
 
 The native leaf declares the foreign signature's actual parameter structure.
 Separate pointer and length parameters are not interchangeable with a record

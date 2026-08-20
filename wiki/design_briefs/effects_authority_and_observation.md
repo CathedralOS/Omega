@@ -1,6 +1,6 @@
 # Design Brief: Service Reach, Synchronous Invocation, Authority, And Observation
 
-Revised 2026-08-06. This brief defines a service-reach `reaches` row, a direct
+Revised 2026-08-19. This brief defines a service-reach `reaches` row, a direct
 synchronous `invokes` ceiling, independent `suspends` and `blocks` operational
 ceilings, and the guarded `crashes` ceiling. `terminates` remains the separate
 positive progress guarantee settled by decision 23. It records each axis's
@@ -46,7 +46,7 @@ ceilings separately:
 boundary trait Readable {
     machine read(
         path: [u8]::Utf8,
-        out: &mut Vec<u8>
+        out: &write [u8]
     ) -> ReadResult
       suspends;
 }
@@ -83,6 +83,14 @@ and artifact homes:
 | Recoverable failure | returned sums and case-specific contracts |
 | Crash possibility | guarded `crashes` buckets and crash plans |
 | Mutation | ownership, borrows, and state contracts |
+
+Mutation authority is itself graded. `&mut T` permits observation and mutation;
+`&write T` is an exclusive loan over an existing valid `T` that permits only
+non-observing writes and content-independent projection. The distinction is
+part of the checked signature and artifact identity, but neither borrow kind
+adds a service-reach entry. Checked callees preserve the restriction through
+their call closure. An opaque provider's claimed non-observation is admitted
+unless installation supplies physical isolation evidence.
 
 Frame size is compiler-derived and reported. Task activation capacity is
 declared or proved through task-pool authority. Version retention is a

@@ -70,9 +70,10 @@ universal consumed linear value.
 
 Flow analysis therefore carries two different kinds of context. Propositions
 can weaken or duplicate where logic permits. Permissions track establishment,
-multiplicity, access (`owned`, `shared`, `exclusive`), and provenance with
-their own path-join rules. One CFG walk may carry both, but a fact catalog must
-never silently forget a resource obligation.
+multiplicity, loan compatibility (`owned`, `shared`, `exclusive`), permitted
+observation/mutation, and provenance with their own path-join rules. One CFG
+walk may carry both, but a fact catalog must never silently forget a resource
+obligation.
 
 Carry policy is another independent consumer of canonical place liveness. It
 does not change ownership: an exclusive move transfers ownership, while the
@@ -89,7 +90,7 @@ Shared borrows allow read-only access.
 machine RoomFormatter::render(
     &self,
     room: &Room,
-    out: &mut [u8]
+    out: &write [u8]
 ) {
 }
 ```
@@ -111,6 +112,73 @@ machine Player::heal(
 
 While `self.health` is mutably borrowed, code cannot also read or mutate the
 same place through another active reference.
+
+## Write-Only Borrows
+
+A write-only borrow lends an existing valid value exclusively while denying
+observation of its prior contents:
+
+```omega
+machine fill(destination: &write [u8]) {
+    destination[0] = 42;
+}
+
+fill(&write buffer[..]);
+```
+
+`&write T` has the same alias-exclusion and lifetime rules as `&mut T`, but a
+narrower operation set. An exclusive mutable loan may be explicitly attenuated
+to `&write`; a write-only loan cannot become `&T` or `&mut T`. It may be
+reborrowed only as `&write`. The physical ABI is the corresponding reference
+ABI, while the write-only access set remains part of semantic signature and
+artifact identity.
+
+Explicit lifetimes use the same position as the other reference forms:
+`&'buffer write T`. Receiver spelling follows the same rule, so `&write self`
+is an exclusive non-observing receiver rather than a special capability.
+
+The referent is a live `T` on entry and remains one when the loan ends.
+`&write` never denotes `Vacant` storage and performs no construction or
+definite-initialization transition. A future output/construction slot for
+storage containing no live `T` is a separate feature.
+
+Code may perform plain typed stores, content-independent field/index/range
+projection, disjoint subdivision, and read view metadata such as a slice's
+length. It may not load, compare, hash, pattern-match, take, swap, perform
+read-modify-write, create a readable reborrow, or call a machine expecting one.
+The governing rule is that no operation may obtain a premise or choose its
+behavior by observing the referent. Static structure, values being written,
+and proof facts explicitly supplied by the caller remain usable.
+
+Projection is legal only when its location is known without reading content.
+A record field or fixed-offset common field qualifies. A sum payload requiring
+a tag read does not, unless an already-available refinement fixes the case.
+Whole-value replacement writes the tag and payload together and needs no prior
+observation.
+
+Every store must also account for the displaced value. Plain replacement is
+available only where the old content is freely discardable and requires no
+content-dependent cleanup; write-only access cannot silently consume linear or
+otherwise conserved custody. Whole-value replacement is validity-safe when the
+incoming value is already a `T`, subject to that displacement rule.
+
+A partial write must leave `T` valid at the ordinary invariant-window
+consumption points. The checker may prove that from the written inputs, static
+structure, and explicitly supplied facts, but never from a load through the
+write-only loan. Cross-field invariants therefore often permit only a
+whole-value replacement, while independently valid byte elements remain
+straightforward.
+
+An exact outcome contract distinguishes the modified range from the untouched
+range. For a prefix-producing byte operation, `[0..count)` is changed as
+specified and `[count..len)` is unchanged; the caller's facts about the suffix
+survive. The count describes the effect and does not establish a previously
+nonexistent value.
+
+Checked Omega implementations enforce non-observation transitively through
+every helper call. An opaque foreign implementation receives the corresponding
+address and may be physically capable of reading it; its compliance is an
+admitted provider claim unless target isolation enforces the restriction.
 
 ## Transitions And Ownership
 

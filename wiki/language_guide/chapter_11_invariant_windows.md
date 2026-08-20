@@ -97,6 +97,13 @@ ownership discipline, not a separate mechanism:
   observation, so a write to a pinned witness while the loan lives is a
   borrow error — the window cannot even open.
 
+A write-only borrow is exclusive but cannot inspect the value whose window it
+opens. It may close that window using the values it wrote, static structure,
+and proof facts deliberately supplied by the caller; it may not load another
+field to manufacture the missing premise. Consequently a cross-field invariant
+often permits only whole-value replacement through `&write`, while independent
+byte elements or a caller-supplied relation permit narrower stores.
+
 ## Gated Types Are A Window Since Birth
 
 A gated type's un-established storage ([Chapter 7](chapter_7_types_constraints_invariants.md),

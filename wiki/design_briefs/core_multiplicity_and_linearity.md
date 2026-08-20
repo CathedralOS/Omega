@@ -1,6 +1,7 @@
 # Design Brief: Core Multiplicity And Linearity
 
-Settled 2026-07-18 at the semantic level (frozen decision 21).
+Settled 2026-07-18 at the semantic level (frozen decision 21), with the
+write-only loan access mode added 2026-08-19.
 This brief establishes the core usage discipline independently of dependent
 types and content-bearing resource decomposition. Terminal consumption is
 derived from ordinary by-value ownership and result flow; it has no separate
@@ -81,7 +82,8 @@ must not put propositions and resource obligations in one weakenable catalog.
   weakened, intersected, and forgotten where logic permits.
 - The permission/resource context (Rho) tracks established values and loans.
   Entries carry at least multiplicity (`unrestricted`, `affine`, `linear`),
-  access (`owned`, `shared`, `exclusive`), and lifetime/provenance.
+  loan compatibility (`owned`, `shared`, `exclusive`), permitted
+  observation/mutation, and lifetime/provenance.
 
 The exact algebra depends on the entry. Shared loans may duplicate or
 reborrow; exclusive loans must not overlap; affine ownership may die through
@@ -90,6 +92,20 @@ join by logical rules while resources join by ownership identity and
 path-sensitive conservation. A branch may consume a linear value on both
 arms, or transfer it on both arms, but may not consume it on one and silently
 lose it on the other.
+
+`&write T` is an exclusive loan with mutation but no observation authority.
+It borrows an existing valid `T`; it is not a construction slot and never
+denotes vacant storage. `&mut T` may attenuate explicitly to `&write T`, but no
+readable reference may be reconstructed from the narrower loan. Exclusivity is
+load-bearing for non-disclosure: checked code cannot reach the prior contents
+through a second alias while the write-only loan is live.
+
+The access restriction composes transitively through calls. A write-only
+operation may use structural metadata, written inputs, and explicitly supplied
+proof facts, but may derive nothing by loading the referent. Each write must
+also satisfy ordinary displaced-custody and invariant-window rules. An opaque
+provider's compliance is admitted unless target isolation enforces it; that
+does not widen the authority recorded in the source or artifact contract.
 
 ## Consumers and cleanup
 

@@ -286,9 +286,11 @@ supplementary fine-grained accounting, not another spelling of linearity.
 The compiler owns algebra normalization, containment, equality, and partial
 separated composition. New algebra kinds require a compiler release and a
 concrete customer; arbitrary owner-defined composition is not authority
-evidence. Fractional permissions are deliberately absent: ordinary `&` and
-`&mut` already express shared-read and exclusive-write access, and no current
-customer requires a third permission algebra. Root lineage remains an
+evidence. Fractional permissions are deliberately absent. Ordinary `&`,
+`&write`, and `&mut` express shared-read, exclusive-write-only, and
+exclusive-read/write loans without creating fractions in an authority algebra.
+`&write` attenuates what may be observed through one exclusive loan; it does
+not divide or mint the underlying permission. Root lineage remains an
 additional authority-family check rather than part of numeric geometry.
 
 Backing geometry and transformation correspondence use ordinary machine
