@@ -5,6 +5,7 @@
 // a zero `state` pointer and exited by signal.
 
 use omega::language::core::numeric_conversion;
+use omega::language::std::console;
 
 data RandomState {
     seed: u64 in Wrapping;
@@ -26,9 +27,10 @@ machine Random::next_u32(
 
 data Main {
     random: Random;
+    console: Console;
 }
 
-machine Main::main(&mut self) -> i32 {
+machine Main::main(&mut self) {
     let state: RandomState;
     state.seed = 7;
     let high: u32 = self.random.next_u32(&mut state);
@@ -39,10 +41,10 @@ machine Main::main(&mut self) -> i32 {
     }
 
     state correct(&mut self) {
-        70
+        self.console.exit_process(70);
     }
 
     state incorrect(&mut self) {
-        71
+        self.console.exit_process(71);
     }
 }
