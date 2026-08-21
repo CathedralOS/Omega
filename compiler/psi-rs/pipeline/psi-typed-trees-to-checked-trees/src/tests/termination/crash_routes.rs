@@ -207,6 +207,55 @@ fn erased_record_equality_is_not_mistaken_for_empty_record_equality() {
 }
 
 #[test]
+fn address_field_equality_stays_outside_structural_crash_predicates() {
+    let source = r#"
+    trait Equatable {
+        machine equals(&self, rhs: &Self) -> bool;
+    }
+
+    data Addressed { pointer: addr; }
+    AddressedEquatable: Addressed satisfies Equatable;
+
+    machine whole_equal(left: Addressed, right: Addressed)
+    crashes Abort
+        left == right
+    {}
+
+    machine field_equal(left: Addressed, right: Addressed)
+    crashes Abort
+        left.pointer == right.pointer
+    {}
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let checked = lower_typed_trees(typed).expect("checked lowering should succeed");
+    for name in ["whole_equal", "field_equal"] {
+        let contract = checked
+            .facts
+            .contract_plans
+            .for_machine(symbol_of_checked(&checked, name))
+            .expect("contract plan");
+        let [bucket] = contract.crash.published() else {
+            panic!("{name} should publish one crash bucket")
+        };
+        let [psi_checked_trees::CrashRouteGuard::Predicate(predicate)] =
+            bucket.alternative_guards()
+        else {
+            panic!("{name} should publish one predicate")
+        };
+        assert!(
+            predicate.scalar_expression().is_none(),
+            "{name} must not retain addr as a fixed-integer structural term"
+        );
+    }
+}
+
+#[test]
 fn checked_crash_sites_are_body_evidence_not_contract_identity() {
     let source = r#"
     machine clear_body() -> i32

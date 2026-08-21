@@ -510,7 +510,10 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
                                 ),
                             });
                         }
-                        Some(primitive_type) if is_integer(primitive_type) => {
+                        Some(primitive_type)
+                            if is_integer(primitive_type)
+                                && primitive_type != PrimitiveType::Addr =>
+                        {
                             output.push(CheckedBooleanExpression::IntegerComparison {
                                 kind: CheckedIntegerComparisonKind::Equal,
                                 left: Box::new(CheckedScalarExpression::StructuralParameterField {
@@ -596,6 +599,7 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
                     path_type_reference(program, parameters, parameter_position, &path)
                 && let Some(primitive_type) = program.primitive_type_reference(type_reference)
                 && is_integer(primitive_type)
+                && primitive_type != PrimitiveType::Addr
             {
                 return Some((
                     CheckedScalarExpression::StructuralParameterField {

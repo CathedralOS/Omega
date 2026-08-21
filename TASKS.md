@@ -676,7 +676,11 @@ Remaining:
   codecs, verification, fuel, and interpretation reject missing or redirected
   premises. Genuinely empty-record equality normalizes to the existing Boolean
   constant carrier through calls and terminal verification; all-erased records
-  remain distinct and fenced. Continue with case-payload paths and aggregate
+  remain distinct and fenced. The distinct `addr` carrier is also explicitly
+  excluded from both direct structural-member predicates and whole-record leaf
+  expansion, and Terminal lowering rejects the retained source contract rather
+  than encoding address equality as fixed-integer evidence. Continue with
+  case-payload paths and aggregate
   equality over text, floats, sums, and erased fields. Trapping predicate
   arithmetic is design-blocked on owner Q4; imported crash capsules remain
   blocked on artifact identity and certificate binding.
