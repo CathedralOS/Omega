@@ -1428,20 +1428,14 @@ fn runtime_case_payload_domain_forward_exit_canary_runs() {
 #[test]
 fn runtime_tuple_transition_exit_canary_runs() {
     let canary = pass_canary("control_flow/runtime_tuple_transition_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-tuple-transition-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime tuple transition canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("runtime tuple transition canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
