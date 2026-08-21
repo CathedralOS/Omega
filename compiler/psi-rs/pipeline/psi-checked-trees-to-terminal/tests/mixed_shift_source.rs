@@ -416,6 +416,7 @@ const SOURCE: &str = r#"
 "#;
 
 #[test]
+#[rustfmt::skip]
 fn arbitrary_exact_mixed_shift_chains_retain_independent_prefix_proofs() {
     let tokens = Lexer::new(SOURCE)
         .tokenize()
@@ -545,6 +546,10 @@ fn arbitrary_exact_mixed_shift_chains_retain_independent_prefix_proofs() {
         lowered.proof_bundle,
     );
 
+    // Keep the canonical 317-obligation source artifact in the default suite.
+    // The independent proof-removal and semantic-tamper matrix performs many
+    // complete replays and remains available to exhaustive/scheduled runs.
+    if std::env::var_os("OMEGA_EXHAUSTIVE_TERMINAL_TAMPER_TESTS").is_some() {
     for obligation in &proof_obligations {
         let mut missing = decode_proof_bundle(&proof).expect("decode mixed-shift proof");
         missing
@@ -1485,6 +1490,8 @@ fn arbitrary_exact_mixed_shift_chains_retain_independent_prefix_proofs() {
         Err(psi_terminal_verifier::VerificationError::RejectedEvidence { obligation, .. })
             if proof_obligations.contains(&obligation)
     ));
+
+    }
 
     let scalar_arguments = |enabled| {
         vec![

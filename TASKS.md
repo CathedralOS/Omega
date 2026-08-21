@@ -1527,6 +1527,9 @@ Remaining N6/N8 work:
   never selects a lifetime.
 - Add `Respects` over compiler-derived positional call telescopes, deriving its
   dependent domain, pointwise input relations, and lifted result relation.
+  The proof obligations and positional telescope are settled; the explicit
+  source location that selects one named conformance for an ordinary lifted
+  operation is design-blocked on `OWNER_QUESTIONS.md` Q7.
 - Add exact-pair-selected heterogeneous constructor lifts. Dependent records
   lift in order and generate checked transport obligations for coarser earlier
   fields. Extend R6 carrier-family binders for reusable proposition-valued
