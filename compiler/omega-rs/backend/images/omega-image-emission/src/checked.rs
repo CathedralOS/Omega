@@ -13,6 +13,7 @@ mod atomic_replay;
 mod footprints;
 mod instruction_relocations;
 mod instruction_specs;
+mod outgoing_stack_frames;
 mod place_copy_offsets;
 mod place_copy_shapes;
 mod place_copy_sites;
@@ -307,6 +308,7 @@ fn validate_compiler_function_instruction_boundaries(
                     "compiler function #{function_index} has an invalid encoded-instruction span"
                 ))
             })?;
+        outgoing_stack_frames::validate_outgoing_stack_frames(architecture, instructions)?;
         if instructions
             .first()
             .and_then(|instruction| instruction.compiler_validation_kind.clone())

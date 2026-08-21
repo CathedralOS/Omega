@@ -854,6 +854,12 @@ fn selected_instruction_name(
             register,
             stack_byte_offset,
         } => format!("load outgoing stack address rsp+{stack_byte_offset} -> {register:?}"),
+        SelectedInstructionKind::ReserveOutgoingStackFrame { byte_count } => {
+            format!("reserve outgoing stack frame ({byte_count} bytes)")
+        }
+        SelectedInstructionKind::ReleaseOutgoingStackFrame { byte_count } => {
+            format!("release outgoing stack frame ({byte_count} bytes)")
+        }
         SelectedInstructionKind::BeginPlatformCall => {
             let platform_call = backend_plan
                 .host_calls

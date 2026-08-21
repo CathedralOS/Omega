@@ -13,6 +13,7 @@ omega-assigned-target-operations = { path = "../../representations/omega-assigne
 psi-arena = { path = "../../../psi-rs/foundation/psi-arena" }
 psi-symbols = { path = "../../../psi-rs/foundation/psi-symbols" }
 omega-machine-instructions = { path = "../../representations/omega-machine-instructions" }
+omega-target = { path = "../../foundation/omega-target" }
 psi-diagnostics = { path = "../../../psi-rs/foundation/psi-diagnostics" }
 
 [dev-dependencies]

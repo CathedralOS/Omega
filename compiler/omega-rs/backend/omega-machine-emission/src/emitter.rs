@@ -113,15 +113,20 @@ mod tests {
     }
 
     #[test]
-    fn emits_exact_outgoing_stack_address_loads_without_relocations() {
+    fn emits_exact_balanced_outgoing_stack_frame_without_relocations() {
         let target = NativeTarget::uefi_x64();
         let assigned_target_operations = AssignedTargetOperationPlan::default();
         let host_abi = build_host_abi_plan(target);
         let data = omega_target_operations::TargetDataPlan::default();
-        let mut machine_instructions = MachineInstructionPlan::with_capacity(target, 1, 2);
+        let mut machine_instructions = MachineInstructionPlan::with_capacity(target, 1, 4);
         let instructions = machine_instructions.code.instructions.insert_many([
             MachineInstruction {
                 selected_instruction_index: 0,
+                source_kind: SelectedInstructionKind::ReserveOutgoingStackFrame { byte_count: 72 },
+                kind: MachineInstructionKind::OutgoingStackFrameReserve,
+            },
+            MachineInstruction {
+                selected_instruction_index: 1,
                 source_kind: SelectedInstructionKind::LoadOutgoingStackAddress {
                     register: MachineRegister::X86Rcx,
                     stack_byte_offset: 32,
@@ -129,12 +134,17 @@ mod tests {
                 kind: MachineInstructionKind::OutgoingStackAddressLoad,
             },
             MachineInstruction {
-                selected_instruction_index: 1,
+                selected_instruction_index: 2,
                 source_kind: SelectedInstructionKind::LoadOutgoingStackAddress {
                     register: MachineRegister::X86Rdx,
                     stack_byte_offset: 48,
                 },
                 kind: MachineInstructionKind::OutgoingStackAddressLoad,
+            },
+            MachineInstruction {
+                selected_instruction_index: 3,
+                source_kind: SelectedInstructionKind::ReleaseOutgoingStackFrame { byte_count: 72 },
+                kind: MachineInstructionKind::OutgoingStackFrameRelease,
             },
         ]);
         machine_instructions
@@ -157,7 +167,8 @@ mod tests {
         assert_eq!(
             encoded.code.bytes.storage_slice(),
             [
-                0x48, 0x8d, 0x8c, 0x24, 32, 0, 0, 0, 0x48, 0x8d, 0x94, 0x24, 48, 0, 0, 0,
+                0x48, 0x83, 0xec, 0x48, 0x48, 0x8d, 0x8c, 0x24, 32, 0, 0, 0, 0x48, 0x8d, 0x94,
+                0x24, 48, 0, 0, 0, 0x48, 0x83, 0xc4, 0x48,
             ]
         );
         let kinds = encoded
@@ -170,6 +181,11 @@ mod tests {
             kinds,
             [
                 Some(
+                    omega_machine_bytes::CompilerInstructionValidationKind::OutgoingStackFrameReserve {
+                        byte_count: 72,
+                    },
+                ),
+                Some(
                     omega_machine_bytes::CompilerInstructionValidationKind::OutgoingStackAddressLoad {
                         register: MachineRegister::X86Rcx,
                         stack_byte_offset: 32,
@@ -179,6 +195,11 @@ mod tests {
                     omega_machine_bytes::CompilerInstructionValidationKind::OutgoingStackAddressLoad {
                         register: MachineRegister::X86Rdx,
                         stack_byte_offset: 48,
+                    },
+                ),
+                Some(
+                    omega_machine_bytes::CompilerInstructionValidationKind::OutgoingStackFrameRelease {
+                        byte_count: 72,
                     },
                 ),
             ]

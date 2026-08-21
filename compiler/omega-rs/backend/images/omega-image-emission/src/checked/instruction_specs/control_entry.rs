@@ -35,6 +35,32 @@ pub(super) fn expected_control_entry_spec(
                         78u8,
                         CompilerInstructionRelocationRecipe::None,
                     ),
+                    omega_machine_bytes::CompilerInstructionValidationKind::OutgoingStackFrameReserve {
+                        byte_count,
+                    } => (
+                        None,
+                        match architecture {
+                            Architecture::X86_64 => omega_isa_x86_64::encode_outgoing_stack_frame_reserve_bytes(byte_count)?,
+                            Architecture::Aarch64 => return Err(Diagnostic::error(
+                                "outgoing stack frames are supported only on x86-64",
+                            )),
+                        },
+                        79u8,
+                        CompilerInstructionRelocationRecipe::None,
+                    ),
+                    omega_machine_bytes::CompilerInstructionValidationKind::OutgoingStackFrameRelease {
+                        byte_count,
+                    } => (
+                        None,
+                        match architecture {
+                            Architecture::X86_64 => omega_isa_x86_64::encode_outgoing_stack_frame_release_bytes(byte_count)?,
+                            Architecture::Aarch64 => return Err(Diagnostic::error(
+                                "outgoing stack frames are supported only on x86-64",
+                            )),
+                        },
+                        80u8,
+                        CompilerInstructionRelocationRecipe::None,
+                    ),
                     omega_machine_bytes::CompilerInstructionValidationKind::FunctionEnter => (
                         Some(0),
                         match architecture {

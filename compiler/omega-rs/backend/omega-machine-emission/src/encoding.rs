@@ -753,6 +753,22 @@ pub(super) fn encode_machine_instruction_bytes(
             )?
             .to_vec())
         }
+        SelectedInstructionKind::ReserveOutgoingStackFrame { byte_count } => {
+            if input.target.architecture != omega_target::Architecture::X86_64 {
+                return Err(Diagnostic::error(
+                    "outgoing stack frames are supported only on x86-64",
+                ));
+            }
+            omega_isa_x86_64::encode_outgoing_stack_frame_reserve_bytes(*byte_count)
+        }
+        SelectedInstructionKind::ReleaseOutgoingStackFrame { byte_count } => {
+            if input.target.architecture != omega_target::Architecture::X86_64 {
+                return Err(Diagnostic::error(
+                    "outgoing stack frames are supported only on x86-64",
+                ));
+            }
+            omega_isa_x86_64::encode_outgoing_stack_frame_release_bytes(*byte_count)
+        }
         SelectedInstructionKind::EnterFunction
         | SelectedInstructionKind::EnterDispatchLoop { .. }
         | SelectedInstructionKind::EnterDispatchCase { .. }

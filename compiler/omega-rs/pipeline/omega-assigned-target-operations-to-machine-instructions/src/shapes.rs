@@ -124,6 +124,12 @@ pub(super) fn lower_machine_instruction_kind(
         SelectedInstructionKind::LoadOutgoingStackAddress { .. } => {
             MachineInstructionKind::OutgoingStackAddressLoad
         }
+        SelectedInstructionKind::ReserveOutgoingStackFrame { .. } => {
+            MachineInstructionKind::OutgoingStackFrameReserve
+        }
+        SelectedInstructionKind::ReleaseOutgoingStackFrame { .. } => {
+            MachineInstructionKind::OutgoingStackFrameRelease
+        }
         SelectedInstructionKind::MachineHalt => MachineInstructionKind::MachineHalt,
         SelectedInstructionKind::MemoryFence(kind) => MachineInstructionKind::MemoryFence(*kind),
         SelectedInstructionKind::InterruptControl(kind) => {

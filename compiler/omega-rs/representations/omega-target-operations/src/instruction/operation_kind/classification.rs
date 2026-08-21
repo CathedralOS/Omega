@@ -10,7 +10,9 @@ impl OperationSemanticQuery for TargetOperationKind {
             Self::EnterFunction
             | Self::LeaveFunction
             | Self::CallInternalFunction { .. }
-            | Self::LoadOutgoingStackAddress { .. } => TargetOperationDomain::FunctionBoundary,
+            | Self::LoadOutgoingStackAddress { .. }
+            | Self::ReserveOutgoingStackFrame { .. }
+            | Self::ReleaseOutgoingStackFrame { .. } => TargetOperationDomain::FunctionBoundary,
 
             Self::EnterDispatchLoop { .. }
             | Self::EnterDispatchCase { .. }

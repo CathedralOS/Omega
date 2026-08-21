@@ -26,16 +26,21 @@ fn operation_kinds_expose_host_boundary_domain() {
 
 #[test]
 fn outgoing_stack_address_is_compiler_function_boundary_mechanics() {
-    let operation = TargetOperationKind::LoadOutgoingStackAddress {
-        register: omega_calling_conventions::MachineRegister::X86Rdx,
-        stack_byte_offset: 48,
-    };
-    assert_eq!(
-        operation.semantic_domain(),
-        TargetOperationDomain::FunctionBoundary
-    );
-    assert!(!operation.crosses_host_boundary());
-    assert!(!operation.touches_runtime_storage());
+    for operation in [
+        TargetOperationKind::ReserveOutgoingStackFrame { byte_count: 72 },
+        TargetOperationKind::LoadOutgoingStackAddress {
+            register: omega_calling_conventions::MachineRegister::X86Rdx,
+            stack_byte_offset: 48,
+        },
+        TargetOperationKind::ReleaseOutgoingStackFrame { byte_count: 72 },
+    ] {
+        assert_eq!(
+            operation.semantic_domain(),
+            TargetOperationDomain::FunctionBoundary
+        );
+        assert!(!operation.crosses_host_boundary());
+        assert!(!operation.touches_runtime_storage());
+    }
 }
 
 #[test]
