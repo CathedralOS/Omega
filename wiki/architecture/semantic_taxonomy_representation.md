@@ -155,9 +155,11 @@ families preserve typed telescopes, canonical arguments, and per-instance
 semantic identity without changing carrier ABI; specialization refreshes that
 identity after substitution. Open indices retain their exact algebra authority,
 expression, compatibility conditions, and discharge evidence. Unresolved
-equality fails closed without ambient theorem search. Quotients and
-default-domain-constrained values remain blocked on canonical representative
-and proof admission.
+equality fails closed without ambient theorem search. A quotient may retain any
+representative for runtime storage, but it is ineligible as a canonical index
+atom until a proved canonicalization supplies one unique encoding.
+Default-domain-constrained index values likewise remain blocked on their
+required facts and canonical proof admission.
 
 Current domain representation keeps predicate bodies, semantic roles,
 establishment routes, aliases, and flow evidence independent. Operator homes

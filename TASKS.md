@@ -1878,7 +1878,7 @@ Owners:
   evidence. The remaining slices are resource-ceiling aggregation,
   multi-entry/re-entrant target instruction lowering, and the
   private registration relocation (whose binding placement is design-blocked
-  on `OWNER_QUESTIONS.md` Q7),
+  on `OWNER_QUESTIONS.md` Q6),
   registration leases/unregister,
   and cross-target registered-callback canaries.
 - Implement the narrow Windows `user32` canary without exposing a raw code
@@ -2177,9 +2177,27 @@ Remaining N6/N8 work:
   never selects a lifetime.
 - Add `Respects` over compiler-derived positional call telescopes, deriving its
   dependent domain, pointwise input relations, and lifted result relation.
-  The proof obligations and positional telescope are settled; the explicit
-  source location that selects one named conformance for an ordinary lifted
-  operation is design-blocked on `OWNER_QUESTIONS.md` Q6.
+  Add the sealed `Quotient::lift<F, Respect>` wrapper and
+  `Quotient::define<F, Respect>` faithful-definition operations. Both select one
+  exact named conformance in the quotient owner's ordinary body; `lift` checks
+  public-precondition implication, while `define` checks equivalence, exact
+  position-preserving runtime argument correspondence, and unchanged result
+  flow over normalized IR. Retain the representative machine application,
+  derived `RA`/`RR`, complete conformance application, correspondence,
+  lift/define kind, and contract proof in checked and terminal identity. Add no
+  `lifts` clause, quotient operation map, visibility discovery, or per-call
+  selection.
+- Suppress every synthesized representation observer on quotient formation.
+  Add quotient-owned executable equality through an ordinary lifted operation
+  with `DecidesEquivalence`; derive its `Respects` proof, and bind its optional
+  `==` spelling only through the fixed-operator surface settled by Owner Q1.
+  Keep ordering, canonicalization, hashing, and later observer roles on
+  explicit role-correctness contracts until each earns a named interface.
+- Enforce the initial quotient integration fences: lifted representative
+  machines are pure and terminating, and quotient carriers contain no
+  affine/linear `Type` content or owned/routed custody. Effectful lifting waits
+  for a complete observable-behavior relation; custody-bearing quotients wait
+  for exact occurrence-preservation machinery.
 - Add exact-pair-selected heterogeneous constructor lifts. Dependent records
   lift in order and generate checked transport obligations for coarser earlier
   fields. Extend R6 carrier-family binders for reusable proposition-valued
@@ -2208,7 +2226,10 @@ Remaining N6/N8 work:
 Acceptance: an admitted axiom cannot license quotient formation; selected
 Reflexive/Symmetric/Transitive evidence and every `Respects` proof are explicit;
 different witnesses establish one stable proposition identity and eliminate
-through its declared interface.
+through its declared interface; quotient operations select their exact proof
+in the quotient owner's body; canonical definitions cannot hide wrappers; and
+no structural observer, effect, or custody occurrence crosses the quotient
+boundary without its corresponding checked law.
 
 ### Float providers
 

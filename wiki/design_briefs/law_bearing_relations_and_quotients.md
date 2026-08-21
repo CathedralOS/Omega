@@ -1,6 +1,6 @@
 # Law-Bearing Relations, Evidence, And Quotients
 
-Current design as of 2026-08-20. This brief resolves the former law-bearing
+Current design as of 2026-08-21. This brief resolves the former law-bearing
 relations and quotients owner question. It
 supersedes the current quotient pilot's executable-`bool` relation and
 suffix-based discovery of `_reflexive`, `_symmetric`, `_transitive`, and
@@ -11,7 +11,9 @@ respect proof machines.
 > A quotient relation is a proposition established by evidence, not a
 > decision procedure. Forming a quotient requires a selected equivalence
 > conformance. Lifting an operation requires a selected proof that both its
-> domain and its result are independent of the representative.
+> domain and its result are independent of the representative. The retained
+> representative is an implementation detail: no synthesized operation may
+> turn its structural representation into observable quotient meaning.
 
 The compiler knows no `Rat`, `Real`, Cauchy sequence, modulus, or convergence
 rule. Core packages author those declarations and proofs through the general
@@ -367,6 +369,23 @@ carrier family. Proven `R(a, b)` establishes equality between their quotient
 images; quotient equality means membership in the same bucket, never
 representative identity.
 
+Quotient construction does not normalize. An implementation may retain the
+chosen representative unchanged and give the quotient the same runtime ABI as
+that representative. This is a zero-cost representation decision, not an
+elimination rule: source code cannot recover, compare, hash, order, serialize,
+reflect over, pattern-match, or otherwise observe the retained representative
+unless a checked quotient operation licenses that observation. In particular,
+quotient formation suppresses every synthesized representation-derived
+operation, including structural equality.
+
+The initial quotient surface also rejects carriers containing affine or linear
+`Type` content or owned/routed custody. An equivalence that identifies distinct
+authority, lease, root, or provenance occurrences would make those occurrences
+substitutable and launder custody through logical equality. A future extension
+may admit such a carrier only through a relation interface that preserves exact
+custody occurrence; proof irrelevance and ordinary result congruence are not
+that interface.
+
 An admitted boundary axiom may state an environmental assumption elsewhere,
 but it cannot establish the equivalence or respect conformances of a checked
 quotient. Quotient substitution is an internal logical construction whose
@@ -434,6 +453,133 @@ fieldwise product of `ConvergesTogether` for both places, and `RR` is
 denominators agree about being zero. Comparison uses equality as its result
 relation. The parallel-telescope normalization avoids an open-ended
 `Respects1`/`Respects2`/`Respects3` hierarchy.
+
+### Selecting a lift
+
+The quotient owner selects the representative operation and one exact named
+`Respects` conformance in an ordinary machine body. Two sealed core operations
+make the distinction between a safe wrapper and a faithful definition
+explicit:
+
+```omega
+machine Rational::divide(
+    numerator: Rational,
+    denominator: Rational
+) -> Rational
+requires
+    denominator != Rational::zero
+{
+    Quotient::define<
+        Fraction::divide,
+        FractionDivideRespects
+    >(numerator, denominator)
+}
+```
+
+`Quotient::lift<F, Respect>(arguments)` is the ordinary compositional form. If the
+enclosing path has public representative-dependent precondition `Q` and `F`
+has representative precondition `P`, it proves `Q -> P`; the wrapper may
+therefore advertise a strictly narrower domain. Constants, duplicated or
+omitted arguments, reordered application, and computation around the lifted
+result belong in this form.
+
+`Quotient::define<F, Respect>(arguments)` requests a canonical quotient-facing
+definition. It proves `Q <-> P`, and its normalized runtime argument telescope
+must correspond position-for-position with `F`: every quotient parameter maps
+to the representative at the same position, every non-quotient parameter
+passes through unchanged, every representative position has exactly one public
+parameter, and borrow mode and multiplicity agree. Type, `const`, static-machine,
+and conformance arguments belong to the fully instantiated static application,
+not this runtime correspondence. Constants, permutation, duplication, and
+partial application reject with a suggestion to use `Quotient::lift`.
+
+This is checked over normalized IR rather than source body shape. A
+`QuotientDefine` result must reach every normal return unchanged, with no other
+executable operation changing the result or adding an effect. Harmless aliases,
+`let` bindings, and state forwarding do not alter that fact. The author chooses
+`define`; adding a source-level alias cannot silently turn it into a wrapper.
+
+Both operations derive `RA` from the quotient-bearing argument positions and
+`RR` from the exact requested quotient codomain. Those relations are
+compiler-owned typing operands and are never inferable authored arguments. The
+selected conformance application is ordinary nested static syntax: all of its
+type, `const`, and static-machine arguments are explicit, and only ordinary
+lifetime elision applies. Visibility, priority, expected shape, and structural
+proof-machine discovery never select it.
+
+Checked and terminal identity retain the public quotient operation, normalized
+representative-machine application, positional correspondence, `RA`, `RR`,
+selected `Respects` conformance application, wrapper-versus-definition kind,
+and the discharged contract-correspondence proof. Proof irrelevance permits
+several public quotient operations to use different valid witnesses; it does
+not permit the selected witness or provenance to vary by call site.
+
+The initial `Quotient::lift` and `Quotient::define` operations accept only pure,
+terminating representative machines whose observable contract consists of the
+semantic precondition and normal result. Result congruence alone cannot show
+that equivalent representatives perform the same I/O, take the same crash
+route, suspend alike, or have the same progress behavior. Effectful lifting
+requires a future relation over the complete observable behavior and does not
+arrive by weakening this fence.
+
+### Logical equality and executable observers
+
+Logical equality on a quotient is induced by its selected equivalence relation.
+It requires no executable decision procedure. Executable equality is an
+ordinary quotient-owned operation, defined through `lift` or `define`, and is
+unavailable until its named proof establishes `DecidesEquivalence`:
+
+```text
+equals(x, y) == true <-> R(x, y)
+```
+
+This soundness-and-completeness law is stronger than `Respects`: a
+constant-false operation respects every equivalence but decides none.
+Conversely, `DecidesEquivalence` plus the quotient's `Equivalence` proof derives
+the ordinary `Respects` obligation, so the author never proves both. The
+logical and executable uses consequently have one meaning; executable code
+merely supplies a proved realization of it.
+
+At the equality definition, the exact named `DecidesEquivalence` conformance
+occupies the intrinsic's proof-selection position and the compiler records the
+derived `Respects` bridge. There is no second witness-selection mechanism.
+
+Quotient formation never binds this operation to the fixed `==` token. The
+operation is an ordinary named declaration, and the token association uses the
+general fixed-operator surface chosen by
+[Owner Q1](../../OWNER_QUESTIONS.md#q1--fixed-operator-surface-binding-syntax).
+Until that binding exists, callers use the named operation.
+
+Other observer roles follow the same two-layer rule without sharing one false
+generic law: `Respects` proves representative independence, while a
+role-specific contract proves what the result means. Until a named role
+interface exists, that semantic law is an ordinary checked contract on the
+quotient operation. An ordering must justify its ordering claims, a canonical
+representative must remain equivalent and be idempotent, and hashing requires
+equivalent values to hash equally but never the converse because collisions are
+legal.
+
+### Fail-closed diagnostics
+
+Diagnostics expose the failed semantic edge rather than reporting an opaque
+quotient error:
+
+- a missing lift proof prints the derived positional `RA`, requested `RR`, and
+  exact expected named conformance application;
+- failed wrapper admission distinguishes `Q -> P` from representative-domain
+  invariance inside `Respects`;
+- failed faithful definition reports the `P -> Q` direction separately, or the
+  first omitted, duplicated, permuted, constant, polarity-mismatched, or
+  multiplicity-mismatched argument position, and suggests `Quotient::lift`;
+- a result-flow failure identifies the normal exit or executable operation that
+  prevents the `QuotientDefine` result from being returned unchanged;
+- a representation-derived observer explains that arbitrary representatives
+  may have different bytes and points to a named lifted operation;
+- an executable equality proof distinguishes the soundness direction from the
+  completeness direction of `DecidesEquivalence`; and
+- an effectful, nonterminating, or custody-bearing request names the missing
+  behavioral-respect or occurrence-preservation facility rather than silently
+  weakening the quotient.
 
 ## Relation lifting through constructors
 
@@ -588,8 +734,20 @@ Acceptance requires:
 10. a partial operation rejects unless equivalent representatives agree on its
    precondition;
 11. an operation whose result depends on representative choice rejects;
-12. a generic conformance is selected through one nested application with all
+12. `Quotient::lift` accepts a checked wrapper after proving public preconditions
+    imply representative preconditions, while `Quotient::define` additionally
+    proves their equivalence, exact positional argument correspondence, and
+    unchanged result flow over normalized IR;
+13. quotient formation performs no normalization, exposes no representative,
+    and synthesizes no representation-derived equality, ordering, hashing,
+    serialization, reflection, or pattern operation;
+14. executable equality requires a quotient-owned operation whose
+    `DecidesEquivalence` proof is sound and complete, while its fixed `==`
+    spelling remains the general operator-binding question;
+15. initial lifts reject effectful/nonterminating representative machines and
+    carriers containing non-copy or owned/routed custody;
+16. a generic conformance is selected through one nested application with all
     type, `const`, and static-machine arguments explicit, only ordinary
     lifetime elision, and no expected-shape or visibility inference; and
-13. no compiler rule mentions `Rat`, `Real`, Cauchy sequences, moduli, or
+17. no compiler rule mentions `Rat`, `Real`, Cauchy sequences, moduli, or
     convergence.
