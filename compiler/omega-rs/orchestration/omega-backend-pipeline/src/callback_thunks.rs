@@ -8,7 +8,7 @@ pub(super) fn plan_callback_thunks(
     control_flow: &ControlFlowPlan,
     placements: &[BoundNominalCallbackPlacement],
 ) -> Result<Arc<[CallbackThunkPlan]>, Diagnostic> {
-    placements
+    let plans = placements
         .iter()
         .enumerate()
         .map(|(placement_index, placement)| {
@@ -26,8 +26,19 @@ pub(super) fn plan_callback_thunks(
                 private_symbol: private_callback_symbol(placement),
             })
         })
-        .collect::<Result<Vec<_>, _>>()
-        .map(Arc::from)
+        .collect::<Result<Vec<_>, _>>()?;
+    for (index, plan) in plans.iter().enumerate() {
+        if plans[..index]
+            .iter()
+            .any(|earlier| earlier.private_symbol == plan.private_symbol)
+        {
+            return Err(Diagnostic::error(format!(
+                "duplicate compiler-private callback identity `{}`",
+                plan.private_symbol
+            )));
+        }
+    }
+    Ok(Arc::from(plans))
 }
 
 fn private_callback_symbol(placement: &BoundNominalCallbackPlacement) -> Arc<str> {
@@ -36,10 +47,16 @@ fn private_callback_symbol(placement: &BoundNominalCallbackPlacement) -> Arc<str
         NominalMachineUseSite::Expression(handle) => ('e', handle.arena_index()),
     };
     Arc::from(format!(
-        "__omega_callback_{site_kind}{site_index:08x}_a{:08x}_m{:08x}_e{:08x}_f{:016x}",
+        "__omega_callback_{site_kind}{site_index:08x}g{:08x}_a{:08x}_m{:08x}g{:08x}_e{:08x}g{:08x}_f{:016x}",
+        match placement.site {
+            NominalMachineUseSite::Statement(handle) => handle.generation(),
+            NominalMachineUseSite::Expression(handle) => handle.generation(),
+        },
         placement.static_machine_ordinal,
         placement.selected_machine.arena_index(),
+        placement.selected_machine.generation(),
         placement.selected_entry.arena_index(),
+        placement.selected_entry.generation(),
         placement.boundary_calling_plan_fingerprint,
     ))
 }
@@ -116,5 +133,19 @@ mod tests {
             .expect_err("missing selected callback entry must reject");
 
         assert!(error.message.contains("absent from the control-flow plan"));
+    }
+
+    #[test]
+    fn callback_thunk_rejects_duplicate_private_identity() {
+        let (control_flow, placement) = fixture();
+
+        let error = plan_callback_thunks(&control_flow, &[placement.clone(), placement])
+            .expect_err("duplicate callback placement must not alias one private symbol");
+
+        assert!(
+            error
+                .message
+                .contains("duplicate compiler-private callback identity")
+        );
     }
 }

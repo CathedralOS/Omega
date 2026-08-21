@@ -1289,6 +1289,8 @@ Owners:
   resolves each selected machine/entry pair to one exact `ControlFlow`
   `StateKey`, rejects a lost entry before instruction selection, and assigns a
   deterministic compiler-private thunk symbol joined by placement-row index.
+  That identity includes every source/selected handle generation and duplicate
+  private identities reject before instruction selection.
   The symbol is planned object identity only and never an Omega value. Function
   identity now survives assigned operations, machine instructions, encoded
   bytes, and exact object-entry selection. Image emission fails closed until
