@@ -1375,8 +1375,13 @@ linear `InterruptAcknowledgement` carries the exact root, provider execution,
 invocation, policy, and acknowledgement identities; routed `Pending` is
 required by consuming `complete`. Reconstructing either field set does not
 reconstruct the fact. Restoring the prior CPU interrupt mask reaches
-`machine_control`, while acknowledging the interrupt source reaches
-`device_io`. Linearity rejects forgotten settlement and double completion.
+`MachineControl`. Interrupt acknowledgement is provider-neutral: the installed
+completion operation resolves one bounded abstract reach row beneath
+`MachineControl + PortIo`. A legacy PIC realization publishes `PortIo`; a
+LAPIC/x2APIC realization publishes `MachineControl`; an admitted realization
+may publish both or the empty row when its actual mechanism warrants that
+contract. The bound grants no authority and adds no Boolean choice algebra.
+Linearity rejects forgotten settlement and double completion.
 The normalized installed-root entry path supplies provider minting and
 settlement: its receipt binds the exact root/entry/code/provider execution,
 invocation, initial mask state, and acknowledgement policy. Replayed
@@ -1390,9 +1395,10 @@ identity binds that row, the external-root selection bridge preserves it, and
 the qualification artifact reports it. This closes the static admitted-entry
 contract. The `Pending` domain names one stable core-owned acknowledgement-entry
 requirement; target roots inherit that exact semantic requirement and refine
-only its plan and ABI. Installation makes its exact qualified parameter an
-introduction, while an ordinary checked call treats the same parameter as a
-precondition. No entry marker or authored parameter selector is added. The
+its plan, ABI, and bounded installation reach row. Installation makes its exact
+qualified parameter an introduction, while an ordinary checked call treats the
+same parameter as a precondition. No entry marker or authored parameter
+selector is added. The
 compiler now resolves the selected entry claim to the exact propagated checked
 parameter fact and rejects occurrence evidence whose plan, requirement,
 semantic position, domain, or carry policy drifts. The admitted occurrence also
@@ -1401,6 +1407,17 @@ out-of-range position rejects before installation. Concrete entry lowering
 must still consume that admitted match before executing the checked adapter;
 wiring the remaining mask-transition evidence into source `Active` facts and
 the Cathedral PIC/LAPIC implementation also remain.
+
+Entry and completion retain distinct operation rows. Equal rows neither
+identify a provider nor prove that one completion may settle another provider's
+debt. The installed-root receipt instead binds the exact entry, completion
+operation, provider execution, acknowledgement policy, and token lineage.
+Their bounded symbolic rows may propagate only inside that installation
+closure. Its preselection manifest reports every row and bound; installation
+substitutes each selected provider row, and final admission rejects an
+unresolved row. Ordinary callable package and component contracts cannot
+export these rows: they bind the provider first or publish a fixed conservative
+ceiling.
 
 A deferred acknowledgement leases the installed interrupt root and controller
 configuration until completion. Reconfiguration, shutdown, CPU removal,
@@ -1474,10 +1491,11 @@ fact. An activation that may retain CPU- or thread-restricted values requires
 the selected provider to establish the corresponding preservation claim,
 commonly by consuming or borrowing an affinity/pinning capability.
 
-The reach row stays static: a live mask or affinity token may make a particular
-call locally inadmissible without editing or masking the machine's published
-reach. A value that forbids suspension is checked locally at explicit
-semantic suspension points; provider selection cannot erase that ceiling.
+After installation closes every bounded row, the reach stays static: a live
+mask or affinity token may make a particular call locally inadmissible without
+editing or masking the machine's published reach. A value that forbids
+suspension is checked locally at explicit semantic suspension points; provider
+selection cannot widen the bound or later erase the resolved ceiling.
 Address stability of stack-resident values follows from the fixed nonmoving
 `StackLease`.
 

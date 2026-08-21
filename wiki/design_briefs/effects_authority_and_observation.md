@@ -1,12 +1,14 @@
 # Design Brief: Service Reach, Synchronous Invocation, Authority, And Observation
 
-Revised 2026-08-19. This brief defines a service-reach `reaches` row, a direct
+Revised 2026-08-20. This brief defines a service-reach `reaches` row, a direct
 synchronous `invokes` ceiling, independent `suspends` and `blocks` operational
 ceilings, and the guarded `crashes` ceiling. `terminates` remains the separate
 positive progress guarantee settled by decision 23. It records each axis's
 propagation/refinement laws and its relationship to authority and trust.
-General trace theorems, quantitative resource entries, service-row
-polymorphism, and additional operational clauses remain explicitly deferred.
+General trace theorems, quantitative resource entries, named or
+ordinary-export service-row polymorphism, and additional operational clauses
+remain explicitly deferred. The one accepted abstract-row slice is a bounded
+row owned and closed by an installation-bound provider requirement.
 
 ## The surface
 
@@ -114,6 +116,33 @@ execution performs the behavior. A declared `Readable + Queryable` service
 ceiling may contain a body whose inferred row is only `Readable`; a machine
 declared `suspends` may return immediately on every invocation observed in one
 run.
+
+An installation-bound provider requirement may leave its exact row to the
+selected realization while publishing a finite upper bound:
+
+```omega
+boundary machine InterruptAcknowledgement::complete(self)
+reaches <= MachineControl + PortIo
+requires
+    self in InterruptAcknowledgement::Pending
+ensures true;
+```
+
+The requirement path is the abstract-row identity. The selected provider row
+must be a subset of the bound and replaces the symbolic row in the installed
+closure. The unresolved row and bound are manifest facts before selection;
+the exact provider, operation, and resolved row are manifest facts afterward.
+Internal inferred callers in the same installation closure retain a symbolic
+dependency on that path. An ordinary callable package or component boundary
+cannot export it: the boundary binds the provider first or publishes a fixed
+conservative row. Final admission rejects unresolved rows.
+
+The operator does not add Boolean formulas to effect rows. `+` remains set
+union and `<=` supplies only the upper bound. Empty, either singleton, and the
+whole bound are all structurally possible; semantic provider admission decides
+which implementations are legal. Distinct requirements have distinct rows.
+Installation lineage, not row equality, binds an interrupt entry, the exact
+completion operation that issued its debt, and the later consuming completion.
 
 Internal machines may omit these clauses and receive inferred service,
 suspension, blocking, and crash summaries. Exported machines, boundary
@@ -244,6 +273,12 @@ than taking a plain unconditioned union. Calls to local checked machines use
 checked callee summaries. Imports, generic/dynamic requirements, and boundary
 calls use their pinned requirement ceilings, never facts learned from an
 eventually selected provider.
+
+The bounded installation slice does not weaken that rule. Its symbolic row is
+admitted only inside the owning installation closure, whose manifest already
+states the bound. It may propagate through compiler-derived internal call
+metadata there, but it cannot become an unpinned ordinary import. Installation
+substitutes the selected row throughout that closure before final admission.
 
 Provider admission is deterministic. A machine compiled against a slot that
 `suspends` but does not `block` remains nonblocking; a provider whose checked or
@@ -459,10 +494,12 @@ and profile entailment remain deferred. See
 
 ## Staging and extensibility
 
-The current language recognizes service members from boundary-trait declarations and has the
-closed operational clauses `suspends`, `blocks`, and `crashes`. Additional
-operational clauses, quantitative service entries, and service-row
-polymorphism are deferred until their algebras have real customers.
+The current language recognizes service members from boundary-trait
+declarations and has the closed operational clauses `suspends`, `blocks`, and
+`crashes`. Additional operational clauses, quantitative service entries, and
+named or ordinary-export service-row polymorphism are deferred until their
+algebras have real customers. The bounded installation-row slice above remains
+path-keyed, non-exportable, and closed by root admission.
 
 The compiler now uses the service-reach semantic model directly: suspension and blocking use
 dedicated recursive boolean summaries, while boundary-trait declarations
@@ -523,6 +560,19 @@ identifiers resolve normally; there is no global hard-coded service table.
 15. A deferred registration root carries the concrete selected conformance's
     envelope without adding a synchronous edge to the registration call.
 16. A realized synchronous component-boundary cycle rejects.
+17. A realization outside an installation row's declared upper bound rejects;
+    the bound itself grants no service authority.
+18. A bounded abstract row may propagate through its owning installation
+    closure but rejects at an ordinary callable package/component boundary and
+    at final admission if unresolved.
+19. Preselection manifests report the abstract row and bound; selected
+    manifests additionally report the exact provider, operation, resolved row,
+    and refinement evidence.
+20. Equal entry and completion rows do not establish interrupt-protocol
+    coherence; mismatched provider execution, operation, policy, or token
+    lineage rejects independently.
+21. Reach rows retain union and subset laws only; exclusive-or, negation,
+    subtraction, and lower-bound formulas are not source contracts.
 
 ## Deferred, explicitly
 
@@ -533,8 +583,8 @@ identifiers resolve normally; there is no global hard-coded service table.
   outcomes follow
   [`canonical_ir_fuel_and_resource_provisioning.md`](canonical_ir_fuel_and_resource_provisioning.md).
 - Additional operational-clause declarations.
-- Named service-row variables beyond the concrete envelope substitution used
-  by `invokes`.
+- Named or ordinary-export service-row variables beyond the concrete envelope
+  substitution used by `invokes` and per-requirement bounded installation rows.
 - Fixed-stack park/resume lowering and suspension-safe loans. WCSU-derived
   `StackPlan` owns capacity.
 - Component-version budgets and admission mechanics beyond the pinned-row law.

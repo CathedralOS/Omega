@@ -194,7 +194,7 @@ that exact checked call site and canonical terminal call operation; its runtime
 effects, crashes, and fuel are only those of the ordinary call. No source-level
 aggregate combines Type and Prop, and no generated output-package identity,
 projection, lifetime, or partial-move rule exists. Generic conformance
-application remains design-blocked on `OWNER_QUESTIONS.md` Q9.
+application remains design-blocked on `OWNER_QUESTIONS.md` Q6.
 
 A transparent logical definition uses `=`:
 
@@ -539,7 +539,7 @@ one distinct caller-local term with the same exact proposition and interface;
 omitted lanes bind none. Repeated calls reuse callee declarations and their
 producer provenance while minting distinct caller terms. A display spelling is
 never an identity oracle. Generic application is blocked on
-`OWNER_QUESTIONS.md` Q9.
+`OWNER_QUESTIONS.md` Q6.
 
 Proof-only evaluation, when a transparent body is actually
 needed, uses the ordinary gated build-time evaluator: semantic eligibility

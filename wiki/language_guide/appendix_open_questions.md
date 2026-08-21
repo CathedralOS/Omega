@@ -5,7 +5,7 @@ belongs in the relevant chapter or frozen design brief, not here. Immediate
 owner decisions belong in the repository-root `OWNER_QUESTIONS.md`;
 engineering work belongs in `TASKS.md`.
 
-Last pruned: 2026-08-19.
+Last pruned: 2026-08-20.
 
 ## Reach, resources, and progress
 
@@ -17,9 +17,10 @@ Last pruned: 2026-08-19.
 - Settle the quantitative resource algebra before adding entries such as
   `Alloc<Peak, Retained>` to reach rows, general owned-buffer splitting, or
   claiming compile-time reconciliation of local task-pool child leases.
-- Defer additional operational clauses and service-row polymorphism
-  until a concrete customer forces their declaration, coherence, and
-  separate-compilation rules.
+- Defer additional operational clauses and named or ordinary-export service-row
+  polymorphism until a concrete customer forces their declaration, coherence,
+  and separate-compilation rules. Installation-bound provider requirements
+  already admit one path-keyed bounded row that cannot escape its root closure.
 - Define scheduler operation contracts in terms of sealed progress
   profiles, including wake-one/wake-all and timed-wait placement.
 

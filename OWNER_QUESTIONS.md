@@ -67,26 +67,7 @@ x86-64 and AArch64 calling policies, preserve stack/alignment and machine-state
 contracts, and keep fixed-fuel meter elision a separately admitted installation
 decision.
 
-## Q4 — Provider-neutral interrupt acknowledgement settlement
-
-`InterruptAcknowledgement in Pending` is the semantic debt carried from one
-hard-interrupt arrival to its exact completion. The core
-`InterruptAcknowledgement::complete` boundary currently publishes `PortIo`,
-which fits the legacy PIC realization but falsely requires port-I/O authority
-from LAPIC/x2APIC providers whose acknowledgement is a `MachineControl`
-operation. Cathedral must not widen an x2APIC implementation to `PortIo` merely
-to satisfy that hardcoded effect.
-
-Choose how the provider-neutral acknowledgement requirement selects and
-publishes its realization-specific effect without leaking PIC or APIC mechanism
-into the semantic acknowledgement type. The decision must preserve the exact
-pending-to-completed linear transition, reject forgotten and duplicate
-completion, retain the selected provider and operation in checked/terminal
-evidence, and expose only the authority actually used by that realization. It
-must compose with both port-I/O PIC EOI and machine-control LAPIC/x2APIC EOI,
-without treating either mechanism as universally reachable.
-
-## Q5 — Trapping arithmetic inside contract predicates
+## Q4 — Trapping arithmetic inside contract predicates
 
 `Trapping` arithmetic has settled runtime behavior: invalid counts, overflow,
 and the other policy-defined failures trap instead of producing a value. A
@@ -104,7 +85,7 @@ reason about the trap edge, and what explicit term/effect and proof obligations
 terminal Psi carries. The compiler must not silently treat a potentially
 trapping contract term as a total mathematical operation.
 
-## Q6 — External-entry stack-domain accounting
+## Q5 — External-entry stack-domain accounting
 
 Terminal-Psi stack evidence derives the exact closure below a selected machine
 entry, but an external root also consumes provider-specific adapter and hardware
@@ -123,7 +104,7 @@ with `EntryStack::{Interrupted, Dedicated, ProviderSelected}` without placing
 OS-specific interrupt-frame vocabulary in the language or treating a numeric
 provider assertion as compiler-derived terminal evidence.
 
-## Q7 — Generic conformance application syntax
+## Q6 — Generic conformance application syntax
 
 A named conformance may own lifetime, type, const, and static-machine binders,
 and its subject and trait application may depend on them. The language guide
@@ -143,7 +124,7 @@ lifetime arguments erase while remaining part of semantic identity. The result
 must select one exact package-scoped conformance instance and normalized row
 map without visibility search, priority, or ambient uniqueness.
 
-## Q8 — Progress-profile classification and premise attachment
+## Q7 — Progress-profile classification and premise attachment
 
 Termination guarantees can retain sealed `ProgressProfileId` premises, but the
 ordinary domain and routed-requirement surface does not distinguish a progress

@@ -220,7 +220,8 @@ occurrence, not from `boundary` and not from another source marker:
 
 ```omega
 pub boundary trait InterruptEntry {
-    machine enter(acknowledgement: InterruptAcknowledgement in Pending);
+    machine enter(acknowledgement: InterruptAcknowledgement in Pending)
+    reaches <= MachineControl + PortIo;
 }
 
 pub domain InterruptAcknowledgement::Pending {

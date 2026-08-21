@@ -52,6 +52,10 @@ Must own:
   projection and non-observing writes, composes the restriction through calls,
   and retains exact outcome write footprints for dependent-fact invalidation.
 - Reach summaries, invocation edges, and boundary contract facts that later stages must preserve.
+- Bounded installation-row facts keyed by exact boundary-requirement path,
+  including the declared service upper bound, symbolic dependencies through
+  the owning installation closure, and rejection when an unresolved row would
+  escape into an ordinary callable package or component contract.
 - Nominal static-machine callback-use facts keyed by call site and machine
   argument ordinal, including the selected machine/satisfaction row, exact
   requirement overload, separate published and actual envelopes, their

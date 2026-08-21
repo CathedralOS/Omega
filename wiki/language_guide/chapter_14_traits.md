@@ -796,10 +796,38 @@ fingerprinting.
 Within a machine contract, an omitted `suspends` or `blocks` clause means
 false, and an omitted crash cause is forbidden. Within a refinement, omission
 means inherit; `suspends false` and `blocks false` explicitly narrow, while
-crash refinement may disprove inherited route predicates. `reaches;` means an empty row, while
-`reaches _;` introduces an independent abstract reach row for that
-requirement. Correlating several requirements with one named row is a later
-extension.
+crash refinement may disprove inherited route predicates. `reaches;` means an
+empty row, while `reaches _;` introduces an independent abstract reach row for
+that requirement, bounded by the inherited base row. Correlating several
+requirements with one named row is a later extension.
+
+An installation-bound provider requirement may instead introduce one fresh
+bounded abstract row directly:
+
+```omega
+boundary machine InterruptAcknowledgement::complete(self)
+reaches <= MachineControl + PortIo
+requires
+    self in InterruptAcknowledgement::Pending
+ensures true;
+```
+
+The normalized requirement path supplies the row identity. `<=` means that
+the selected realization publishes the exact row and that this row must be a
+subset of the written `+`-separated bound. It does not mean Boolean choice,
+exclusive-or, a lower bound, or authority acquisition; the empty row remains a
+legal realization. A fixed `reaches MachineControl + PortIo` instead makes that
+whole row the caller-visible ceiling before selection.
+
+Such an unresolved row may propagate through inferred internal call-graph
+metadata only inside the installation closure that owns the requirement. It
+cannot appear in an ordinary callable package or component contract. That
+boundary must first bind the provider, or publish a fixed conservative row.
+The installation manifest exposes the unresolved row and its bound, selection
+records the exact provider and operation row, and final admission rejects any
+remaining unresolved row. Distinct operations always introduce distinct rows;
+provider coherence is established by the installed binding and lineage, never
+by equal reach rows.
 
 The `satisfies` token consequently has three related grammatical uses. The
 right side of a name-first block declares one complete nominal edge; a machine

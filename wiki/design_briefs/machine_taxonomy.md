@@ -142,6 +142,10 @@ requirement's service-reach row, `suspends`/`blocks` fields, and guarded
 `crashes` buckets are public ceilings. The realization's checked provider behavior is derived from its
 binding/provider contract and must refine every ceiling during validation and
 admission; a `via` declaration does not author a second copy of them.
+An installation-bound requirement may carry one path-keyed abstract reach row
+with a written upper bound. Its realization supplies the exact row, and root
+admission substitutes it through that installation closure; it cannot escape
+as an unpinned ordinary import or remain unresolved in a final artifact.
 
 Checked adapters remain ordinary machines. A Console operation that obtains a
 handle and performs two writes is authored as an Omega body satisfying the

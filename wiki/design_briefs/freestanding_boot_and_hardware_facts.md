@@ -216,6 +216,17 @@ all obligations selected by the admitted plan to be settled. The concrete
 types, PIC/LAPIC protocol, timer source, vector policy, and transition machines
 belong to Cathedral.
 
+The provider-neutral completion boundary publishes a bounded abstract service
+row beneath `MachineControl + PortIo`. Its exact normalized requirement path
+identifies the row; a selected PIC completion resolves it to `PortIo`, while a
+selected LAPIC/x2APIC completion resolves it to `MachineControl`. The entry and
+completion rows remain distinct because row equality cannot establish
+provider identity. The installed-root receipt binds their exact operations,
+provider execution, acknowledgement policy, and token lineage instead.
+Unresolved rows and bounds remain visible in the installation manifest and may
+propagate only inside that root's installation closure; final admission rejects
+any unresolved row.
+
 Program entry, reset vectors, interrupt vectors, and callbacks are instances of
 the same target-declared slot model. Direction distinguishes roots, which the
 environment activates, from providers, which the program calls. Lifecycle,
