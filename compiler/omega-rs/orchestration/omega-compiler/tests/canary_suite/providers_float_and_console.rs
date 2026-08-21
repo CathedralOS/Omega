@@ -485,22 +485,9 @@ fn runtime_console_byte_replay_cross_target_canary_compiles() {
             std::process::id()
         ));
         let _ = fs::remove_dir_all(&scratch);
-        let src_dir = scratch.join("src");
-        fs::create_dir_all(&src_dir).expect("runtime byte replay scratch source");
-        fs::copy(canary.join("main.omg"), src_dir.join("main.omg"))
-            .expect("copy runtime byte replay canary");
-        fs::write(
-            src_dir.join("build.omg"),
-            hosted_main_program_entry_build(target),
-        )
-        .expect("write runtime byte replay target manifest");
-        compile(CompileOptions {
-            root_path: src_dir.join("main.omg"),
-            build_dir: Some(scratch.join("out")),
-            target_name: Some(target.to_owned()),
-            write_output: true,
-        })
-        .unwrap_or_else(|error| panic!("runtime byte replay must compile for {target}: {error:?}"));
+        compile_rooted_canary_for_target(&canary, scratch.join("out"), target).unwrap_or_else(
+            |error| panic!("runtime byte replay must compile for {target}: {error:?}"),
+        );
         let _ = fs::remove_dir_all(&scratch);
     }
 }

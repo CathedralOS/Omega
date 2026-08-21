@@ -2405,13 +2405,8 @@ fn runtime_wire_policy_authored_plan_exit_canary_runs() {
     let canary = pass_canary("wire/runtime_wire_policy_authored_plan_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-wire-policy-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("policy-authored wire plan canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("policy-authored wire plan canary should compile");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("policy-authored wire plan canary should run");
@@ -2434,13 +2429,8 @@ fn runtime_wire_policy_authored_nested_exit_canary_runs() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-wire-policy-nested-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("policy-authored nested wire plan canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("policy-authored nested wire plan canary should compile");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("policy-authored nested wire plan canary should run");

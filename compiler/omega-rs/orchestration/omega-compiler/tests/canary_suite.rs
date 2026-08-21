@@ -1396,6 +1396,21 @@ fn compile_rooted_canary_for_target_with_artifact_policy(
 // exercise production entry selection and may not substitute the legacy entry
 // seam.
 const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
+    "filesystem/discarded_self_call_literal_errno_exit",
+    "filesystem/field_receiver_method_exit",
+    "filesystem/self_value_call_literal_path_exit",
+    "filesystem/wrapper_open_with_exit",
+    "filesystem/wrapper_param_shadow_exit",
+    "host/runtime_console_byte_echo_exit",
+    "time/runtime_saturating_time_arith_exit",
+    "traits/runtime_typed_two_method_receivers_exit",
+    "types/runtime_i16_signed_arith_exit",
+    "types/runtime_i64_signed_arith_exit",
+    "types/runtime_i8_signed_arith_exit",
+    "types/runtime_u16_field_arith_exit",
+    "types/runtime_u8_field_arith_exit",
+    "wire/runtime_wire_policy_authored_nested_exit",
+    "wire/runtime_wire_policy_authored_plan_exit",
     "calls/runtime_dispatch_sibling_value_calls_exit",
     "calls/runtime_inline_repeated_receiver_value_calls_exit",
     "calls/runtime_value_call_struct_literal_arms_exit",
@@ -2624,6 +2639,21 @@ fn task_runtime_machine_selection_builds_omega_activation_sidecar() {
 }
 
 const ACTIVE_PASS_CANARIES: &[&str] = &[
+    "filesystem/discarded_self_call_literal_errno_exit",
+    "filesystem/field_receiver_method_exit",
+    "filesystem/self_value_call_literal_path_exit",
+    "filesystem/wrapper_open_with_exit",
+    "filesystem/wrapper_param_shadow_exit",
+    "host/runtime_console_byte_echo_exit",
+    "time/runtime_saturating_time_arith_exit",
+    "traits/runtime_typed_two_method_receivers_exit",
+    "types/runtime_i16_signed_arith_exit",
+    "types/runtime_i64_signed_arith_exit",
+    "types/runtime_i8_signed_arith_exit",
+    "types/runtime_u16_field_arith_exit",
+    "types/runtime_u8_field_arith_exit",
+    "wire/runtime_wire_policy_authored_nested_exit",
+    "wire/runtime_wire_policy_authored_plan_exit",
     "calls/runtime_dispatch_sibling_value_calls_exit",
     "calls/runtime_inline_repeated_receiver_value_calls_exit",
     "calls/runtime_value_call_struct_literal_arms_exit",

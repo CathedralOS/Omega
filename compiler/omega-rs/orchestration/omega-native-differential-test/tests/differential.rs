@@ -1300,6 +1300,63 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("slices/runtime_end_fixed_array_subslice_local_exit", 3),
 ];
 
+// These remain outside the ordinary four-host migration count until Linux has
+// the source-level Gui/Input providers documented in TASKS. Keeping the exact
+// set here prevents the reported backlog from silently changing when a GUI
+// fixture or an authored root is added or removed.
+const AUTHORED_ROOT_GUI_EXCLUSIONS: &[&str] = &[
+    "host/runtime_gui_foreground_window_exit",
+    "host/runtime_gui_window_blit_exit",
+    "host/runtime_gui_window_lifecycle_exit",
+    "host/runtime_tick_paced_marquee_exit",
+];
+
+#[test]
+fn run_canary_authored_root_inventory_is_pinned() {
+    use std::collections::BTreeSet;
+
+    let pass_root = repo_root().join("canaries/pass");
+    let run_canaries = RUN_CANARIES
+        .iter()
+        .map(|(canary, _)| *canary)
+        .collect::<BTreeSet<_>>();
+    assert_eq!(RUN_CANARIES.len(), 890, "RUN_CANARIES total drifted");
+    assert_eq!(
+        run_canaries.len(),
+        RUN_CANARIES.len(),
+        "RUN_CANARIES must remain duplicate-free"
+    );
+
+    let rooted = run_canaries
+        .iter()
+        .filter(|canary| pass_root.join(canary).join("build.omg").is_file())
+        .copied()
+        .collect::<BTreeSet<_>>();
+    let rootless = run_canaries
+        .difference(&rooted)
+        .copied()
+        .collect::<BTreeSet<_>>();
+    assert_eq!(rooted.len(), 810, "authored RUN root inventory drifted");
+    assert_eq!(rootless.len(), 80, "rootless RUN inventory drifted");
+
+    assert_eq!(AUTHORED_ROOT_GUI_EXCLUSIONS.len(), 4);
+    for canary in AUTHORED_ROOT_GUI_EXCLUSIONS {
+        assert!(
+            run_canaries.contains(canary),
+            "GUI exclusion {canary} must remain in RUN_CANARIES"
+        );
+        assert!(
+            rootless.contains(canary),
+            "GUI exclusion {canary} gained an authored root; remove the exclusion deliberately"
+        );
+    }
+    assert_eq!(
+        rootless.len() - AUTHORED_ROOT_GUI_EXCLUSIONS.len(),
+        76,
+        "the TASKS authored-root backlog excludes exactly the four pinned GUI fixtures"
+    );
+}
+
 /// Run canaries the suite executes that are DELIBERATELY not in `RUN_CANARIES`,
 /// each with the reason. The drift guard below asserts that every run canary the
 /// suite asserts an exit code for appears in exactly one of the two lists, so an

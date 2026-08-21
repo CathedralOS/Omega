@@ -279,33 +279,27 @@ fn runtime_atomic_compare_exchange_exit_canary_runs() {
 #[test]
 fn runtime_console_byte_echo_exit_canary_runs() {
     let canary = pass_canary("host/runtime_console_byte_echo_exit");
-    let main_path = canary.join("main.omg");
     let build_dir =
         std::env::temp_dir().join(format!("omega-console-byte-echo-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("console byte echo canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("console byte echo canary should compile");
 
-    let empty = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(build_dir.join(executable_name()))
         .stdin(std::process::Stdio::null())
         .output()
         .expect("console byte echo canary should run on empty stdin");
     assert_eq!(
-        empty.status.code(),
+        output.status.code(),
         Some(70),
         "empty stdin must take the Eof arm (the ZII zero slot), got {:?}\nstderr:\n{}",
-        empty.status.code(),
-        String::from_utf8_lossy(&empty.stderr)
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
     );
     assert!(
-        empty.stdout.is_empty(),
+        output.stdout.is_empty(),
         "empty stdin must echo nothing, got {:?}",
-        String::from_utf8_lossy(&empty.stdout)
+        String::from_utf8_lossy(&output.stdout)
     );
 
     let mut piped = Command::new(build_dir.join(executable_name()))
