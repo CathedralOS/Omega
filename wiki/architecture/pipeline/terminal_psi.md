@@ -1758,12 +1758,27 @@ proofs. The untrusted producer now has one kernel-checked recursive compositor
 for exact prior citations, atomic integer bounds, conjunctions, and arbitrary
 ordered disjunctions; this covers the common certificate spine, including the
 three-arm signed exact goal and the i1 joint goal. It deliberately performs no
-affine or interval analysis. Producers for the accepted definition-chain,
-cast-sandwich, affine-join, and correlated forbidden-root families must still
-materialize proofs of the atomic canonical leaves from their normalized
-analysis witnesses. Until then neither exact row switches reconstruction or
-gains an evidence-dependent fallback. No schema or reducer node is promoted,
-and terminal closure remains `fully-derived false`.
+affine or interval analysis. The proof-kernel boundary now also exposes one
+producer-visible `IntegerAffineWitness` checker for signed fixed same-carrier
+definition chains. A witness cites a nonempty, strictly increasing list of
+prior semantic-axiom rows and names a root and target; the checked result owns
+the derived coefficient and offset.
+The checker independently validates each cited equality, requires an SSA-value
+root and exact add/subtract/multiply-by-literal steps, and recomputes the
+normalized `A * root + B` form with checked arithmetic. Stale or reordered
+indices, malformed definitions, carrier drift, unsupported roots, target
+drift, ambiguity, and coefficient/offset overflow reject. This gives direct
+definition chains and the affine branches used by same-root and correlated
+analyses one common normalization-custody primitive. It is not a proof rule,
+does not serialize into a proof bundle, and proves no integer bound by itself.
+
+Producers for cast/shift chains and correlated forbidden-root analysis still
+need their own normalized witnesses. The affine families additionally need an
+independently checked conversion from a checked affine form plus cited root
+bounds to each required atomic target bound. Until those conversions can cover
+every accepted family, neither exact row switches reconstruction or gains an
+evidence-dependent fallback. No proof vocabulary, schema, or reducer node is
+promoted, and terminal closure remains `fully-derived false`.
 
 Proof-bundle v15 additionally carries exact fixed-integer `<=` endpoint
 substitution. One recursively checked relation child, one recursively checked

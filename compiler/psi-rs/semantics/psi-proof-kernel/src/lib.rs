@@ -8,6 +8,7 @@
 #![forbid(unsafe_code)]
 
 mod evidence;
+mod integer_affine;
 mod kernel;
 mod normalization;
 mod proof;
@@ -17,6 +18,10 @@ pub use evidence::{
     AcceptedFact, AcceptedFactRoute, AdmissionAcceptance, AdmissionEvidence, AdmissionKind,
     AdmissionProfile, AuthorizedAdmission, CertificateEnvelope, EvidenceError, EvidenceRoute,
     Obligation, ObligationClass, ProofSystemMarker, verify_obligation,
+};
+pub use integer_affine::{
+    CheckedIntegerAffineForm, IntegerAffineWitness, IntegerAffineWitnessError,
+    check_integer_affine_witness,
 };
 pub use kernel::{KernelError, PrimitiveJudgment, decide_primitive};
 pub use normalization::{
