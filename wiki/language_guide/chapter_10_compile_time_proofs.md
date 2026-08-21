@@ -761,6 +761,15 @@ The chosen operation, correspondence, relations, conformance application,
 lift/define kind, and contract proof survive checked and terminal identity.
 There is no ambient proof search and no per-call proof selection.
 
+Implementation status: the checked source boundary now recognizes only this
+sealed wrapper spelling and retains the exact resolved `F`, exact named
+`Respect`, and lift/define kind. It does not yet admit or execute the request;
+formation evidence, derived `RA`/`RR`, contract correspondence, and normalized
+result flow remain required. Bare calls on representatives or quotient values
+cannot discover a structurally similar proof machine. The older `%` pilot also
+still discovers relation laws structurally and therefore does not yet implement
+the explicitly named `Equivalence` selection described above.
+
 A quotient may retain an arbitrary representative unchanged at runtime and may
 therefore share its ABI without performing normalization. The representative
 is nevertheless opaque. Quotient formation suppresses synthesized structural

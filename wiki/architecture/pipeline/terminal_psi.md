@@ -1751,11 +1751,21 @@ It kernel-checks the candidate before emission. Missing projection or proof
 rejects; there is no evidence-dependent fallback to the legacy reducer, and
 the operation's own result equation is not available to justify itself.
 
-Exact divide/remainder remain on their explicitly trusted sufficient reducer.
-Their canonical proposition is now settled, and the existing kernel rules can
-check direct bound, disjunction, conjunction, transitivity, and substitution
-proofs. The untrusted producer now has one kernel-checked recursive compositor
-for exact prior citations, atomic integer bounds, conjunctions, and arbitrary
+The complete carrier-total landed-literal family shared by exact divide and
+exact remainder now reconstructs canonical `ExactDivisionDefined` directly.
+An unsigned nonzero divisor literal or signed divisor literal other than zero
+and `-1` selects this path solely from a prior semantic equality, and the
+untrusted recursive producer proves the selected order arm from that citation
+and a closed integer relation. Missing or excluded landing evidence rejects
+this path; no operation-result equation is available as proof authority. The
+existing proof rules and proof-bundle v15 codec carry these certificates
+without a vocabulary change. All other exact divide/remainder families remain
+on their explicitly trusted sufficient reducer, and both complete rows retain
+their current trust status. Their canonical proposition is settled, and the
+existing kernel rules can check direct bound, disjunction, conjunction,
+transitivity, and substitution proofs. The untrusted producer has one
+kernel-checked recursive compositor for exact prior citations, atomic integer
+bounds, conjunctions, and arbitrary
 ordered disjunctions; this covers the common certificate spine, including the
 three-arm signed exact goal and the i1 joint goal. It deliberately performs no
 affine or interval analysis. The proof-kernel boundary now also exposes one

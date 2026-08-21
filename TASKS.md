@@ -1174,8 +1174,18 @@ Remaining:
   `SaturatingIntegerRemainder` row now uses exact-tag canonical
   `NonzeroDivisor` reconstruction and the same untrusted, kernel-checked
   prior-fact producer. Signed `MIN % -1` remains total with result zero. All
-  four wrapping/saturating divide/remainder rows are now canonical; exact
-  divide/remainder remain on trusted sufficient reduction. Their exact-defined
+  four wrapping/saturating divide/remainder rows are now canonical. One
+  complete family shared by exact divide and exact remainder now also bypasses
+  trusted sufficient reduction: when the pre-site semantic ledger lands an
+  unsigned nonzero literal divisor, or a signed literal divisor other than
+  zero and `-1`, reconstruction selects canonical `ExactDivisionDefined` and
+  the existing untrusted recursive producer proves its order arm solely from
+  that landing equality and a closed integer relation. Missing, zero, or
+  signed `-1` landing evidence rejects this path; the operation result is not
+  available as proof authority. The current proof rules and proof-bundle v15
+  codec carry the certificate without a vocabulary change. All remaining
+  exact divide/remainder families stay on trusted sufficient reduction, so
+  neither complete row changes trust status. Their exact-defined
   prerequisite is nevertheless canonical and exact: unsigned requires
   `1 <= d`; signed widths at least two require the disjunction of `d <= -2`,
   `1 <= d`, and `(d <= -1) AND (MIN + 1 <= n)`; `i1` requires
@@ -1431,18 +1441,34 @@ Remaining:
   rather than being hidden inside the refactor.
   Target-neutral call validation has begun the same responsibility split. Its
   former 9,103-line `calls.rs` parent is now 1,338 lines. Runtime recursive-call
-  position checking and proof-machine structural/cited decrease validation live
-  in one 1,149-line `calls/recursion.rs` child; value-position expression-call
-  traversal, target/bound resolution, receiver/type discovery, and exact scan
-  diagnostics form a separate 2,069-line `calls/expression_scanning.rs` child.
-  Complete-or-opaque caller write-frame inference, expression/statement demand
-  collection, alias-origin propagation, and transition-cycle frame equations
-  now form a 4,621-line `calls/write_frames.rs` child. The parent preserves the
-  existing public and crate-private query surface; only receiver-member-chain
-  and resolved-state lookup are shared privately between sibling owners, while
-  every other decrease, citation, provenance, expression-walk, frame-equation,
-  and diagnostic helper remains private to its owner. Validation order, the
-  141-function inventory, and public API are unchanged.
+  position checking lives in a 222-line `calls/recursion.rs` child; its
+  943-line `recursion/proof_machines.rs` child owns proof-machine
+  structural/cited decrease validation, substitution matching, guard
+  provenance, and sub-state descent closure. The proof validator is its only
+  crate-visible export and reuses one parent-private self-call identity check.
+  Value-position expression-call
+  traversal, bound validation, and exact scan diagnostics form a separate
+  1,810-line `calls/expression_scanning.rs` child. Its 222-line
+  `expression_scanning/target_resolution.rs` child owns declared-receiver type
+  discovery, lowering-aligned target-channel replay, and the fail-closed
+  unresolved-call decision. The existing crate receiver-type query is
+  unchanged; only type-shell normalization and unresolved-call reporting are
+  shared privately back to traversal.
+  Complete-or-opaque caller write-frame inference, alias-origin propagation,
+  and transition-cycle frame equations now form a 4,079-line
+  `calls/write_frames.rs` child. Its 459-line `write_frames/demand.rs` child
+  owns the public resolver facade plus expression/statement demand collection
+  and conservative fallback; a separate 123-line
+  `write_frames/boundary_calls.rs` child owns boundary-trait signature
+  resolution and receiver/exclusive-argument write frames. The parent
+  preserves the existing public and crate-private query surface;
+  receiver-member-chain and resolved-state lookup remain the only top-level
+  sibling seams. The frame engine privately reuses two demand collection
+  helpers, while the boundary child exposes only its two existing queries and
+  one engine-internal parts helper; every other decrease, citation,
+  provenance, expression-walk, frame-equation, and diagnostic helper remains
+  private to its owner. Validation order, the 141-function inventory, and
+  public API are unchanged.
   Profiling the differential corpus also ruled out a wholesale Arena-to-
   `PagedArena` migration as a concurrency fix: `PagedArena` provides stable
   paged storage, not concurrent mutation, and the existing sound parallel
@@ -1524,7 +1550,7 @@ Remaining:
   The compiler pass/fail corpus umbrellas now use the same deterministic outer
   scheduler for checked-only, cross-target, rooted-target, Windows-host, and
   active backend members instead of leaving the large backend registries
-  serial. Each no-output backend compile defaults to two inner workers, with
+  serial. The first measured version used two inner workers, with
   `OMEGA_CANARY_JOBS` and `OMEGA_CANARY_INNER_WORKERS` retained as explicit
   profiling controls. On an eight-program heavyweight probe, four outer jobs
   and two inner workers reduced wall time from the one-outer/one-inner 65.42s
@@ -1536,11 +1562,16 @@ Remaining:
   repairing the corpus drift this broader gate exposed, the complete active
   pass umbrella finishes in 234.92s and the complete active fail umbrella in
   21.05s on the same host; both collect the whole registry rather than stopping
-  at the first failure. Dedicated native-canary helpers now use the same
+  at the first failure. Dedicated native-canary helpers initially used the same
   two-worker ceiling instead of multiplying Rust test-thread concurrency by a
   host-wide compiler pool. The exact float total-order test fell from 128.30s
   wall/998.98s aggregate CPU with fourteen inner workers to 91.83s/256.84s with
-  two; production compiler defaults remain unchanged.
+  two. A later fixed 112-compile mixed-corpus profile established the stronger
+  harness boundary now in production: eight independent outer jobs with one
+  inner worker completed in 13.00s, versus 21.26s for four outer jobs with two
+  inner workers; twelve outer jobs were no faster and consumed more memory.
+  Corpus compiles therefore default to outer eight / inner one, retain both
+  environment overrides, and leave production compiler defaults unchanged.
   The compiler canary integration suite is no longer a 48,301-line permutation
   file. Its shared compile helpers, exact corpus registries, and umbrella
   orchestration now form a 3,277-line root over twenty-one responsibility
@@ -2209,6 +2240,25 @@ Remaining N6/N8 work:
   lift/define kind, and contract proof in checked and terminal identity. Add no
   `lifts` clause, quotient operation map, visibility discovery, or per-call
   selection.
+
+  The first post-ruling representation rung is implemented without granting
+  admission. Typed calls recognize only the sealed
+  `Quotient::lift<F, Respect>` / `Quotient::define<F, Respect>` spelling and
+  retain the exact resolved representative entry, exact named conformance
+  application, and operation kind. Wrong-category, unresolved, wrong-arity,
+  and shadowed selections reject; structural proof-machine discovery is not a
+  fallback. The request remains deliberately non-executable until formation,
+  compiler-derived `RA`/`RR`, contract correspondence, and (for `define`)
+  positional/result-flow checks are implemented. The former bare
+  free/attached-call pilot and its implicit quotient return retagging are
+  retired rather than treated as a compatibility path.
+
+  Quotient formation itself is not yet migrated: the current `%` validator
+  still structurally recognizes boolean relation-law machines. This legacy
+  corpus is not settled authority. Replace it with the declaration's one
+  explicitly named `Equivalence` conformance in the static `where` surface,
+  including exact selection and anti-axiom provenance checks, before admitting
+  any retained lift/define request.
 - Suppress every synthesized representation observer on quotient formation.
   Add quotient-owned executable equality through an ordinary lifted operation
   with `DecidesEquivalence`; derive its `Respects` proof, and bind its optional

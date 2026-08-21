@@ -161,6 +161,17 @@ atom until a proved canonicalization supplies one unique encoding.
 Default-domain-constrained index values likewise remain blocked on their
 required facts and canonical proof admission.
 
+The first post-ruling quotient-operation carrier is likewise non-authoritative.
+Typed calls retain an exact representative entry, exact named conformance
+application, and `lift`/`define` kind only for the sealed `Quotient` spelling.
+They do not become checked or terminal operations until quotient formation,
+compiler-derived relations, correspondence, and contracts are independently
+validated. Bare representative calls cannot recover authority through
+structural proof-machine discovery. Quotient formation remains a separate
+legacy gap: its current boolean-relation pilot structurally scans law-machine
+contracts and must be replaced by the declaration's exact named `Equivalence`
+selection before the retained operation carrier can be admitted.
+
 Current domain representation keeps predicate bodies, semantic roles,
 establishment routes, aliases, and flow evidence independent. Operator homes
 come from an exact domain-qualified name or one unique declared-domain

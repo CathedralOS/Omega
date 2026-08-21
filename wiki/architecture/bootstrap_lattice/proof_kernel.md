@@ -338,10 +338,16 @@ unsigned fixed carrier. For a signed carrier of at least two bits it is the
 ordered disjunction `(d <= -2) OR (1 <= d) OR ((d <= -1) AND (MIN + 1 <= n))`.
 For signed i1 it is only `(d <= -1) AND (0 <= n)`. This is a proposition
 projection, not a reducer result: address carriers and mismatched operand types
-reject. Exact divide/remainder reconstruction remains on its trusted reducer
+reject. The complete carrier-total landed-literal family shared by exact
+divide and remainder now reconstructs this canonical goal directly: unsigned
+nonzero literals and signed literals other than zero and `-1` use only their
+prior semantic equality and a closed integer-order judgment. Missing or
+excluded landing evidence rejects, and no result equation participates. The
+existing proof rules and proof-bundle v15 codec need no vocabulary change.
+All other exact divide/remainder reconstruction remains on its trusted reducer
 until an untrusted producer can materialize kernel-checkable certificates for
 the accepted affine/correlated families without importing operation evidence.
-The producer-side common spine now recursively composes exact prior citations,
+The producer-side common spine recursively composes exact prior citations,
 integer-order leaves, conjunctions, and arbitrary ordered disjunctions and
 kernel-checks the result. The remaining work is to replace each trusted
 definition-chain, cast-sandwich, affine-join, and correlated forbidden-root

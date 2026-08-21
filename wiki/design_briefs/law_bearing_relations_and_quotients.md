@@ -702,12 +702,21 @@ optional root-selected ceiling; long or unlimited evaluation remains legal.
 
 ## Migration and acceptance
 
-The current N6 pilot accepts a generic `bool` relation and discovers
-`relation_reflexive`, `relation_symmetric`, and `relation_transitive` by naming
-convention. That is implemented legacy behavior, not the final semantic model.
-Migration must retain its heterogeneous-family coverage while replacing the
-decider and suffix lookup with proposition evidence and explicit selected
-conformances.
+The current N6 formation pilot accepts a generic `bool` relation and discovers
+reflexive, symmetric, and transitive shapes from ordinary proof-machine
+contracts. That is implemented legacy behavior, not the final semantic model
+and not quotient-formation authority. Migration must retain its
+heterogeneous-family coverage while replacing the decider and structural law
+scan with proposition evidence and the declaration's exact named
+`Equivalence` conformance.
+
+The first sealed-operation representation boundary is narrower and
+fail-closed. Typed calls retain the exact representative operation, exact named
+conformance application, and `lift`/`define` kind only for the sealed
+`Quotient` spelling. The carrier is non-authoritative: no checked or terminal
+operation is emitted until formation, compiler-derived relations,
+correspondence, and contracts are independently validated. The retired bare
+call pilot cannot recover authority through structural proof-machine discovery.
 
 Acceptance requires:
 
