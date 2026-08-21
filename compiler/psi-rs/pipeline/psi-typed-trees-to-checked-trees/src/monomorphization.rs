@@ -586,6 +586,7 @@ fn collect_machine_proposals_for_callee(
     const_proposals: &mut Vec<(usize, usize, TypeReferenceHandle)>,
 ) {
     let candidate = &candidates[callee.candidate_index];
+    let mut type_index = 0usize;
     let mut machine_index = 0usize;
     let mut evidence_index = 0usize;
     for selected in machine_arguments {
@@ -593,6 +594,21 @@ fn collect_machine_proposals_for_callee(
             continue;
         }
         let kind = program.symbols.get(selected.symbol).kind;
+        if matches!(
+            kind,
+            SymbolKind::BuiltinType | SymbolKind::Data | SymbolKind::TypeParameter
+        ) {
+            if type_index < candidate.type_parameters.len()
+                && let Some((handle, _, _)) = program
+                    .type_reference_table
+                    .named_references()
+                    .find(|(_, symbol, _)| *symbol == selected.symbol)
+            {
+                type_proposals.push((callee.candidate_index, type_index, handle));
+                type_index += 1;
+            }
+            continue;
+        }
         if matches!(
             kind,
             SymbolKind::Conformance | SymbolKind::ConformanceParameter
@@ -2019,6 +2035,7 @@ fn clone_specialized_machine(
     let mut cloned = source_machine.clone();
     cloned.symbol = machine_symbol;
     cloned.name = psi_typed_trees::name::Identifier::generated(generated_name);
+    cloned.attached_data = specialized_attached_data(source, candidate, source_machine);
     cloned.type_parameters = HandleSpan::empty();
     cloned.conformance_bounds.clear();
     cloned.owned_data = HandleSpan::empty();
@@ -2763,14 +2780,17 @@ fn evidence_argument_rewrites(
         .collect()
 }
 
+struct EvidenceRequirementRewrite {
+    placeholder: SymbolHandle,
+    target: SymbolHandle,
+    name: psi_typed_trees::name::Identifier,
+    application_arguments: Box<[StaticMachineArgument]>,
+}
+
 fn evidence_requirement_rewrites(
     program: &TypedTrees,
     candidate: &Candidate,
-) -> Vec<(
-    SymbolHandle,
-    SymbolHandle,
-    psi_typed_trees::name::Identifier,
-)> {
+) -> Vec<EvidenceRequirementRewrite> {
     let mut rewrites = Vec::new();
     for (parameter, binding) in candidate
         .evidence_parameters
@@ -2812,17 +2832,21 @@ fn evidence_requirement_rewrites(
             else {
                 continue;
             };
-            rewrites.push((
+            rewrites.push(EvidenceRequirementRewrite {
                 placeholder,
-                row.realization_state,
-                psi_typed_trees::name::Identifier::generated(
+                target: row.realization_state,
+                name: psi_typed_trees::name::Identifier::generated(
                     row.realization_name
                         .as_str()
                         .rsplit("::")
                         .next()
                         .unwrap_or(row.realization_name.as_str()),
                 ),
-            ));
+                application_arguments: binding
+                    .application
+                    .as_ref()
+                    .map_or_else(Box::default, |application| application.arguments.clone()),
+            });
         }
     }
     rewrites
@@ -2928,7 +2952,11 @@ fn rewrite_cloned_calls(
         .collect();
     let evidence_target_rewrites = evidence_requirement_rewrites(source, candidate);
     let mut target_rewrites = machine_rewrites.clone();
-    target_rewrites.extend(evidence_target_rewrites.iter().cloned());
+    target_rewrites.extend(
+        evidence_target_rewrites
+            .iter()
+            .map(|rewrite| (rewrite.placeholder, rewrite.target, rewrite.name.clone())),
+    );
     let mut argument_rewrites = machine_rewrites;
     argument_rewrites.extend(evidence_argument_rewrites(source, candidate));
     for state in program.machine_states.span_or_empty(states).to_vec() {
@@ -2938,10 +2966,11 @@ fn rewrite_cloned_calls(
             else {
                 continue;
             };
-            let was_evidence_dispatch = evidence_target_rewrites
+            let evidence_dispatch = evidence_target_rewrites
                 .iter()
-                .any(|(placeholder, _, _)| *placeholder == snapshot.target_symbol);
-            let evidence_receiver = was_evidence_dispatch
+                .find(|rewrite| rewrite.placeholder == snapshot.target_symbol);
+            let evidence_receiver = evidence_dispatch
+                .is_some()
                 .then(|| {
                     program
                         .statement_table
@@ -2976,6 +3005,9 @@ fn rewrite_cloned_calls(
                 call.receiver = receiver;
                 call.arguments = span_without_first(call.arguments);
             }
+            if let Some(rewrite) = evidence_dispatch {
+                call.machine_arguments = rewrite.application_arguments.clone();
+            }
             substitute_forwarded_machine_arguments(&mut call.machine_arguments, &argument_rewrites);
             if state_symbols
                 .iter()
@@ -2992,26 +3024,23 @@ fn rewrite_cloned_calls(
         .map(|(handle, _)| handle)
         .collect();
     for handle in handles {
+        let evidence_dispatch = match program.expression_table.expression(handle) {
+            ExpressionNode::Call(call) => evidence_target_rewrites
+                .iter()
+                .find(|rewrite| rewrite.placeholder == call.target_symbol),
+            _ => None,
+        };
         let evidence_receiver = match program.expression_table.expression(handle) {
-            ExpressionNode::Call(call)
-                if evidence_target_rewrites
-                    .iter()
-                    .any(|(placeholder, _, _)| *placeholder == call.target_symbol) =>
-            {
-                program
-                    .expression_table
-                    .expression_handles(call.arguments)
-                    .first()
-                    .copied()
-            }
+            ExpressionNode::Call(call) if evidence_dispatch.is_some() => program
+                .expression_table
+                .expression_handles(call.arguments)
+                .first()
+                .copied(),
             _ => None,
         };
         let ExpressionNode::Call(call) = program.expression_table.expression_mut(handle) else {
             continue;
         };
-        let was_evidence_dispatch = evidence_target_rewrites
-            .iter()
-            .any(|(placeholder, _, _)| *placeholder == call.target_symbol);
         if let Some((_, target, name)) = target_rewrites
             .iter()
             .find(|(parameter, _, _)| *parameter == call.target_symbol)
@@ -3019,9 +3048,14 @@ fn rewrite_cloned_calls(
             call.target_symbol = *target;
             call.target = name.clone();
         }
-        if was_evidence_dispatch && let Some(receiver) = evidence_receiver {
+        if evidence_dispatch.is_some()
+            && let Some(receiver) = evidence_receiver
+        {
             call.receiver = receiver;
             call.arguments = span_without_first(call.arguments);
+        }
+        if let Some(rewrite) = evidence_dispatch {
+            call.machine_arguments = rewrite.application_arguments.clone();
         }
         substitute_forwarded_machine_arguments(&mut call.machine_arguments, &argument_rewrites);
         if state_symbols
@@ -3353,7 +3387,11 @@ fn apply_specialization(program: &mut TypedTrees, candidate: &Candidate) {
         .collect();
     let evidence_target_rewrites = evidence_requirement_rewrites(program, candidate);
     let mut target_rewrites = machine_rewrites.clone();
-    target_rewrites.extend(evidence_target_rewrites.iter().cloned());
+    target_rewrites.extend(
+        evidence_target_rewrites
+            .iter()
+            .map(|rewrite| (rewrite.placeholder, rewrite.target, rewrite.name.clone())),
+    );
     let mut argument_rewrites = machine_rewrites;
     argument_rewrites.extend(evidence_argument_rewrites(program, candidate));
 
@@ -3372,10 +3410,11 @@ fn apply_specialization(program: &mut TypedTrees, candidate: &Candidate) {
             else {
                 continue;
             };
-            let was_evidence_dispatch = evidence_target_rewrites
+            let evidence_dispatch = evidence_target_rewrites
                 .iter()
-                .any(|(placeholder, _, _)| *placeholder == snapshot.target_symbol);
-            let evidence_receiver = was_evidence_dispatch
+                .find(|rewrite| rewrite.placeholder == snapshot.target_symbol);
+            let evidence_receiver = evidence_dispatch
+                .is_some()
                 .then(|| {
                     program
                         .statement_table
@@ -3410,6 +3449,9 @@ fn apply_specialization(program: &mut TypedTrees, candidate: &Candidate) {
                 call.receiver = receiver;
                 call.arguments = span_without_first(call.arguments);
             }
+            if let Some(rewrite) = evidence_dispatch {
+                call.machine_arguments = rewrite.application_arguments.clone();
+            }
             substitute_forwarded_machine_arguments(&mut call.machine_arguments, &argument_rewrites);
             if candidate.state_symbols.contains(&call.target_symbol) {
                 call.machine_arguments = Box::default();
@@ -3423,26 +3465,23 @@ fn apply_specialization(program: &mut TypedTrees, candidate: &Candidate) {
         .map(|(handle, _)| handle)
         .collect();
     for handle in expression_handles {
+        let evidence_dispatch = match program.expression_table.expression(handle) {
+            ExpressionNode::Call(call) => evidence_target_rewrites
+                .iter()
+                .find(|rewrite| rewrite.placeholder == call.target_symbol),
+            _ => None,
+        };
         let evidence_receiver = match program.expression_table.expression(handle) {
-            ExpressionNode::Call(call)
-                if evidence_target_rewrites
-                    .iter()
-                    .any(|(placeholder, _, _)| *placeholder == call.target_symbol) =>
-            {
-                program
-                    .expression_table
-                    .expression_handles(call.arguments)
-                    .first()
-                    .copied()
-            }
+            ExpressionNode::Call(call) if evidence_dispatch.is_some() => program
+                .expression_table
+                .expression_handles(call.arguments)
+                .first()
+                .copied(),
             _ => None,
         };
         let ExpressionNode::Call(call) = program.expression_table.expression_mut(handle) else {
             continue;
         };
-        let was_evidence_dispatch = evidence_target_rewrites
-            .iter()
-            .any(|(placeholder, _, _)| *placeholder == call.target_symbol);
         if let Some((_, symbol, name)) = target_rewrites
             .iter()
             .find(|(parameter, _, _)| *parameter == call.target_symbol)
@@ -3450,9 +3489,14 @@ fn apply_specialization(program: &mut TypedTrees, candidate: &Candidate) {
             call.target_symbol = *symbol;
             call.target = name.clone();
         }
-        if was_evidence_dispatch && let Some(receiver) = evidence_receiver {
+        if evidence_dispatch.is_some()
+            && let Some(receiver) = evidence_receiver
+        {
             call.receiver = receiver;
             call.arguments = span_without_first(call.arguments);
+        }
+        if let Some(rewrite) = evidence_dispatch {
+            call.machine_arguments = rewrite.application_arguments.clone();
         }
         substitute_forwarded_machine_arguments(&mut call.machine_arguments, &argument_rewrites);
         if candidate.state_symbols.contains(&call.target_symbol) {
@@ -3460,12 +3504,38 @@ fn apply_specialization(program: &mut TypedTrees, candidate: &Candidate) {
         }
     }
 
+    let attached_data = {
+        let template = &program.machines()[candidate.machine_index];
+        specialized_attached_data(program, candidate, template)
+    };
+    program.machines_mut()[candidate.machine_index].attached_data = attached_data;
     let specialized = program.machines()[candidate.machine_index].clone();
     resolve_specialized_receiver_calls(program, &specialized);
 
     let specialized = &mut program.machines_mut()[candidate.machine_index];
     specialized.type_parameters = HandleSpan::empty();
     specialized.conformance_bounds.clear();
+}
+
+fn specialized_attached_data(
+    program: &TypedTrees,
+    candidate: &Candidate,
+    machine: &psi_typed_trees::machine::Machine,
+) -> Option<psi_typed_trees::name::Identifier> {
+    let attached = machine.attached_data.as_ref()?;
+    let parameter_index = candidate
+        .type_parameters
+        .iter()
+        .position(|(_, name)| name == attached.as_str());
+    let Some(parameter_index) = parameter_index else {
+        return Some(attached.clone());
+    };
+    let binding = candidate.type_bindings[parameter_index]?;
+    match program.type_reference_table.type_reference(binding) {
+        TypeReferenceNode::Named { name, .. } => Some(name.clone()),
+        TypeReferenceNode::Generic { base_name, .. } => Some(base_name.clone()),
+        _ => Some(attached.clone()),
+    }
 }
 
 fn resolve_specialized_receiver_calls(

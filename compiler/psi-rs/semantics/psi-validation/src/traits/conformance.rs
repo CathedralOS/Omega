@@ -1321,7 +1321,36 @@ pub(super) fn validate_machine_state_satisfies_trait_signature_with_arguments(
 
     let trait_type_parameters = program.trait_type_parameters(trait_definition);
     let requirement_type_parameters = program.state_signature_type_parameters(requirement);
-    let actual_type_parameters = program.machine_type_parameters(machine);
+    // A machine authored inline in a generic conformance closes over that
+    // conformance name's telescope. Those captured parameters specialize the
+    // row realization, but they are not callable parameters of the trait
+    // requirement itself.
+    let captured_parameter_symbols = program
+        .conformances()
+        .iter()
+        .filter(|conformance| {
+            program
+                .closed_conformance_rows(conformance)
+                .is_some_and(|rows| {
+                    rows.iter().any(|row| {
+                        row.realization_machine == machine.symbol
+                            && matches!(
+                                row.source,
+                                psi_typed_trees::trait_definition::ConformanceRowSource::Inline
+                                    | psi_typed_trees::trait_definition::ConformanceRowSource::TraitDefault
+                            )
+                    })
+                })
+        })
+        .flat_map(|conformance| program.conformance_type_parameters(conformance))
+        .map(|parameter| parameter.symbol)
+        .collect::<Vec<_>>();
+    let actual_type_parameters = program
+        .machine_type_parameters(machine)
+        .iter()
+        .filter(|parameter| !captured_parameter_symbols.contains(&parameter.symbol))
+        .cloned()
+        .collect::<Vec<_>>();
     let indexed_law_telescope_groups = indexed_law_callable_telescope_groups(
         program,
         trait_definition,
@@ -1354,7 +1383,7 @@ pub(super) fn validate_machine_state_satisfies_trait_signature_with_arguments(
         .collect::<Vec<_>>();
     if let Some((index, (required, actual))) = effective_requirement_type_parameters
         .iter()
-        .zip(actual_type_parameters)
+        .zip(actual_type_parameters.iter())
         .enumerate()
         .find(|(_, (required, actual))| {
             !matches!(
@@ -1434,7 +1463,7 @@ pub(super) fn validate_machine_state_satisfies_trait_signature_with_arguments(
     type_bindings.extend(
         requirement_type_parameters
             .iter()
-            .zip(actual_type_parameters)
+            .zip(actual_type_parameters.iter())
             .filter_map(|(required, actual)| {
                 matches!(required.kind, TypeParameterKind::Type).then(|| TraitTypeBinding {
                     parameter_symbol: required.symbol,
@@ -1448,7 +1477,7 @@ pub(super) fn validate_machine_state_satisfies_trait_signature_with_arguments(
     );
     for (index, (required, actual)) in requirement_type_parameters
         .iter()
-        .zip(actual_type_parameters)
+        .zip(actual_type_parameters.iter())
         .enumerate()
     {
         match (&required.kind, &actual.kind) {

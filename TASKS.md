@@ -1503,11 +1503,15 @@ Remaining N6/N8 work:
   an argument-sensitive identity containing the exact declaration, explicit
   lifetime/type/const/static-machine lanes, subject, trait application, and
   closed row map. Different members of one conformance family now produce
-  different specialization identities. Remaining work is to instantiate the
-  selected row realization machines before binder-member rewriting, substitute
-  applications forwarded from an enclosing generic telescope, resolve uniquely
-  elided lifetimes instead of requiring them explicitly, and carry the closed
-  application into Terminal Psi verification.
+  different specialization identities. Inline and default realization machines
+  now close over the conformance telescope, and binder-member rewriting carries
+  the selected application's type arguments into the ordinary fixed-point
+  monomorphizer. Distinct family applications produce distinct executable row
+  instances. Remaining row work covers const/static-machine arguments and
+  generic attached carrier applications. Also substitute applications forwarded
+  from an enclosing generic telescope, resolve uniquely elided lifetimes instead
+  of requiring them explicitly, and carry the closed application into Terminal
+  Psi verification.
 - Add `Respects` over compiler-derived positional call telescopes, deriving its
   dependent domain, pointwise input relations, and lifted result relation.
 - Add exact-pair-selected heterogeneous constructor lifts. Dependent records
