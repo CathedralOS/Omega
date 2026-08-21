@@ -1861,3 +1861,25 @@ fn typed_snapshot_publishes_normalized_termination_witness() {
     assert!(witness.view_arguments.is_empty());
     assert!(witness.rank_range.is_none());
 }
+
+#[test]
+fn typed_snapshot_retains_trait_owned_operator_token() {
+    let source = r#"
+        trait Ranked<T> {
+            operator < compare(left: T, right: T) -> bool;
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let snapshot = typed.snapshot();
+    let [trait_definition] = snapshot.roots.traits.as_slice() else {
+        panic!("one trait snapshot expected");
+    };
+    let [requirement] = trait_definition.machines.as_slice() else {
+        panic!("one trait requirement expected");
+    };
+
+    assert_eq!(requirement.spelling, Some("<"));
+}

@@ -661,6 +661,8 @@ pub struct StateSnapshot {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct StateSignatureSnapshot {
     pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub spelling: Option<&'static str>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub lifetime_parameters: Vec<String>,
     pub type_parameters: Vec<String>,
@@ -1365,6 +1367,7 @@ fn state_signature_snapshot(
 ) -> StateSignatureSnapshot {
     StateSignatureSnapshot {
         name: signature.name.to_string(),
+        spelling: signature.spelling.map(|spelling| spelling.symbol()),
         lifetime_parameters: signature
             .lifetime_parameters
             .iter()

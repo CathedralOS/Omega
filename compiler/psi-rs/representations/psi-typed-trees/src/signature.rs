@@ -7,6 +7,9 @@ use psi_symbols::SymbolHandle;
 pub struct StateSignature {
     pub symbol: SymbolHandle,
     pub name: Identifier,
+    /// Fixed token owned by a trait requirement, retained as public
+    /// compatibility surface rather than used as bare dispatch identity.
+    pub spelling: Option<psi_language_core::OperatorSpelling>,
     pub lifetime_parameters: Vec<Identifier>,
     pub type_parameters: HandleSpan<crate::data::TypeParameter>,
     pub is_default: bool,
@@ -30,6 +33,7 @@ impl Default for StateSignature {
         Self {
             symbol: SymbolHandle::invalid(),
             name: Identifier::default(),
+            spelling: None,
             lifetime_parameters: Vec::new(),
             type_parameters: HandleSpan::empty(),
             is_default: false,

@@ -171,6 +171,7 @@ impl SyntaxTrees {
         let copied = self.copy_state_signature_node(other, signature);
         crate::item::StateSignatureNode {
             name: copied.name,
+            spelling: copied.spelling,
             lifetime_parameters: copied.lifetime_parameters,
             type_parameters: copied.type_parameters,
             is_default: copied.is_default,
@@ -911,6 +912,7 @@ impl SyntaxTrees {
     ) -> StateSignature {
         StateSignature {
             name: signature.name.clone(),
+            spelling: signature.spelling,
             lifetime_parameters: signature.lifetime_parameters.clone(),
             type_parameters: self.copy_type_parameter_span(other, signature.type_parameters),
             is_default: signature.is_default,
@@ -933,6 +935,7 @@ impl SyntaxTrees {
     ) -> StateSignature {
         StateSignature {
             name: signature.name.clone(),
+            spelling: signature.spelling,
             lifetime_parameters: signature.lifetime_parameters.clone(),
             type_parameters: self.copy_type_parameter_span(other, signature.type_parameters),
             is_default: signature.is_default,

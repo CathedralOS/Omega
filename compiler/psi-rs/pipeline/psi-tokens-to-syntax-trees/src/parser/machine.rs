@@ -398,6 +398,7 @@ fn parse_machine_parameter_contracts_in<'tokens, 'source>(
 
         let contract = psi_syntax_trees::item::StateSignature {
             name: name.clone(),
+            spelling: None,
             lifetime_parameters: nested_generic_parameters.lifetime_parameters,
             type_parameters: nested_type_parameters,
             is_default: false,

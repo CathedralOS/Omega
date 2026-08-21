@@ -13,6 +13,9 @@ pub struct StateSignature {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StateSignatureStorage {
+    /// Fixed token owned by a trait requirement. Structural machine-parameter
+    /// signatures and ordinary state signatures leave this empty.
+    pub spelling: Option<psi_language_core::OperatorSpelling>,
     pub lifetime_parameters: Vec<DiagnosticName>,
     pub type_parameters: HandleSpan<crate::data::TypeParameter>,
     pub is_default: bool,

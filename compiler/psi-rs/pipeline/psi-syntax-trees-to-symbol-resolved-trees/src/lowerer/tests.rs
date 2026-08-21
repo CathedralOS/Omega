@@ -2402,3 +2402,24 @@ fn source_backed_names_are_used_when_sources_are_available() {
         "builtins and synthetic roots should stay static"
     );
 }
+
+#[test]
+fn trait_operator_requirement_retains_fixed_token_after_resolution() {
+    let source = r#"
+        trait Ranked<T> {
+            operator < compare(left: T, right: T) -> bool;
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let program = lower_syntax_trees(&syntax).expect("resolve");
+    let trait_definition = program.traits.first().expect("Ranked trait");
+    let [requirement] = program.trait_machine_signatures(trait_definition.machines) else {
+        panic!("one trait operator requirement expected");
+    };
+
+    assert_eq!(
+        requirement.spelling.map(|spelling| spelling.symbol()),
+        Some("<")
+    );
+}

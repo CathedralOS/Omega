@@ -160,6 +160,7 @@ pub(crate) fn lower_state_signature(
     let mut typed_signature = typed::signature::StateSignature {
         symbol: signature.symbol,
         name: crate::name::lower_name(&signature.name),
+        spelling: signature.spelling,
         lifetime_parameters: signature
             .lifetime_parameters
             .iter()

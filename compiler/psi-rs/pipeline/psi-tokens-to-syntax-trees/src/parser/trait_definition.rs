@@ -48,6 +48,7 @@ pub(super) fn parse_trait_definition<'tokens, 'source>(
                 parse_proof_facts_until(syntax_trees, input, |input| {
                     input.at_punctuation(PunctuationKind::Semicolon)
                         || input.at_keyword(KeywordKind::Machine)
+                        || input.at_contextual("operator")
                         || input.at_punctuation(PunctuationKind::RightBrace)
                         || input.tokens.is_empty()
                 })?;
@@ -80,8 +81,25 @@ pub(super) fn parse_trait_definition<'tokens, 'source>(
                  the default -- drop the keyword and keep the body",
             ));
         }
-        input = input.take_keyword(KeywordKind::Machine, "machine")?;
+        let spelling = if input.at_contextual("operator") {
+            input = input.take_contextual("operator")?;
+            if input
+                .tokens
+                .first()
+                .is_some_and(|token| token.punctuation().is_some())
+            {
+                let (spelling, rest) = crate::parser::operator::parse_operator_spelling(input)?;
+                input = rest;
+                Some(spelling)
+            } else {
+                None
+            }
+        } else {
+            input = input.take_keyword(KeywordKind::Machine, "machine")?;
+            None
+        };
         let (mut signature, rest) = parse_trait_machine_signature(syntax_trees, input)?;
+        signature.spelling = spelling;
         let ((service_reaches, invokes, suspends, blocks, contracts, terminates_guarantee), rest) =
             parse_signature_clauses(syntax_trees, rest, true)?;
         // Body presence = the default marker.
@@ -259,6 +277,7 @@ fn parse_trait_machine_signature<'tokens, 'source>(
     Ok((
         StateSignature {
             name,
+            spelling: None,
             lifetime_parameters: generic_parameters.lifetime_parameters,
             type_parameters: generic_parameters.type_parameters,
             is_default: false,

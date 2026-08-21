@@ -242,6 +242,7 @@ fn records_checked_boundary_edges_for_boundary_trait_calls() {
         StateSignature {
             symbol: boundary_signature_symbol,
             name: Identifier::generated("write_line"),
+            spelling: None,
             type_parameters: Default::default(),
             is_default: false,
             parameters: Default::default(),
