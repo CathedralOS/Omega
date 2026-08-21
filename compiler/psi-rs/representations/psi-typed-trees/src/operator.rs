@@ -439,7 +439,7 @@ fn operator_matches_operands(
     let mut bindings = Vec::new();
     operand_types
         .iter()
-        .zip(parameters)
+        .zip(normalized_operand_parameters(parameters))
         .all(|(actual, expected)| {
             actual.is_none_or(|actual| {
                 type_reference_matches(
@@ -816,12 +816,11 @@ pub fn operator_operand_signature(program: &TypedTrees, operator: &OperatorDefin
             .collect(),
     );
     let parameters = program.operator_parameters(operator);
-    for parameter in parameters {
+    for parameter in normalized_operand_parameters(parameters) {
         collect_type_parameter_occurrences(program, parameter.type_reference, &mut normalizer);
     }
     let binders = normalizer.bindings();
-    parameters
-        .iter()
+    normalized_operand_parameters(parameters)
         .map(|parameter| {
             program
                 .normalized_type_identity_with_binders(parameter.type_reference, &binders)
@@ -829,6 +828,47 @@ pub fn operator_operand_signature(program: &TypedTrees, operator: &OperatorDefin
         })
         .collect::<Vec<_>>()
         .join(", ")
+}
+
+/// Canonical operand-type signature for a trait-owned operator requirement.
+/// Trait and requirement binders share one alpha-normalized telescope. An
+/// attached receiver is always position zero; otherwise the first explicit
+/// parameter is position zero, matching expression operand order.
+pub fn trait_operator_operand_signature(
+    program: &TypedTrees,
+    trait_definition: &crate::trait_definition::TraitDefinition,
+    requirement: &crate::signature::StateSignature,
+) -> String {
+    let mut normalizer = TypeParameterNormalizer::new(
+        program
+            .trait_type_parameters(trait_definition)
+            .iter()
+            .chain(program.state_signature_type_parameters(requirement))
+            .map(|parameter| parameter.symbol)
+            .collect(),
+    );
+    let parameters = program.state_signature_parameters(requirement);
+    for parameter in normalized_operand_parameters(parameters) {
+        collect_type_parameter_occurrences(program, parameter.type_reference, &mut normalizer);
+    }
+    let binders = normalizer.bindings();
+    normalized_operand_parameters(parameters)
+        .map(|parameter| {
+            program
+                .normalized_type_identity_with_binders(parameter.type_reference, &binders)
+                .into_string()
+        })
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+fn normalized_operand_parameters(
+    parameters: &[crate::signature::StateParameter],
+) -> impl Iterator<Item = &crate::signature::StateParameter> {
+    parameters
+        .iter()
+        .filter(|parameter| parameter.is_self)
+        .chain(parameters.iter().filter(|parameter| !parameter.is_self))
 }
 
 fn collect_type_parameter_occurrences(

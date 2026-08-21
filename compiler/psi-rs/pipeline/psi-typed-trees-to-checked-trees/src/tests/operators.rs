@@ -4,7 +4,9 @@ use psi_typed_trees::expression::{
     BinaryOperator, ExpressionNode, TableBinaryExpression, TableIndexedExpression,
     TableRangeExpression,
 };
-use psi_typed_trees::operator::{OperatorDefinition, resolve_spelling_for_operands};
+use psi_typed_trees::operator::{
+    OperatorDefinition, operator_operand_signature, resolve_spelling_for_operands,
+};
 use psi_typed_trees::types::TypeReferenceHandle;
 
 #[test]
@@ -350,6 +352,53 @@ fn binary_resolution_matches_the_complete_operand_tuple() {
 }
 
 #[test]
+fn attached_receiver_normalizes_to_operand_position_zero() {
+    let mut program = psi_typed_trees::TypedTrees::default();
+    let receiver_type = named_type(&mut program, "Receiver");
+    let right_type = named_type(&mut program, "Right");
+    let mut operator =
+        operator_with_spelling(SymbolHandle::from_arena_index(149), OperatorSpelling::Add);
+    for (name, type_reference, is_self) in
+        [("right", right_type, false), ("self", receiver_type, true)]
+    {
+        program.push_operator_parameter(
+            &mut operator,
+            StateParameter {
+                symbol: SymbolHandle::invalid(),
+                name: Identifier::generated(name),
+                type_reference,
+                is_const: false,
+                is_mutable: false,
+                is_self,
+            },
+        );
+    }
+    program.push_operator(operator);
+
+    assert_eq!(
+        operator_operand_signature(&program, &program.operators()[0]),
+        "named(name(Receiver)), named(name(Right))"
+    );
+    assert_eq!(
+        resolve_spelling_for_operands(
+            &program,
+            OperatorSpelling::Add,
+            &[Some(receiver_type), Some(right_type)],
+        )
+        .len(),
+        1
+    );
+    assert!(
+        resolve_spelling_for_operands(
+            &program,
+            OperatorSpelling::Add,
+            &[Some(right_type), Some(receiver_type)],
+        )
+        .is_empty()
+    );
+}
+
+#[test]
 fn complete_operand_matching_shares_generic_bindings_across_positions() {
     let generic_operator_symbol = SymbolHandle::from_arena_index(146);
     let heterogeneous_operator_symbol = SymbolHandle::from_arena_index(147);
@@ -451,6 +500,35 @@ fn checked_program_retains_trait_owned_operator_token() {
     };
 
     assert_eq!(requirement.spelling, Some(OperatorSpelling::Less));
+}
+
+#[test]
+fn trait_operator_bindings_are_unique_per_normalized_operand_telescope() {
+    let duplicate = r#"
+        trait Ranked<T> {
+            operator < compare(left: T, right: T) -> bool;
+            operator < before(first: T, second: T) -> bool;
+        }
+    "#;
+    let tokens = Lexer::new(duplicate).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let diagnostics = lower_typed_trees(typed).expect_err("duplicate trait token must reject");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("binds operator token `<` more than once")
+    }));
+
+    checked_program_from_source(
+        r#"
+        trait Ranked {
+            operator < compare_i32(left: i32, right: i32) -> bool;
+            operator < compare_u64(left: u64, right: u64) -> bool;
+        }
+        "#,
+    );
 }
 
 #[test]

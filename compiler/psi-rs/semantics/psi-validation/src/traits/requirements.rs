@@ -6,6 +6,7 @@ use crate::type_references::{
 use psi_diagnostics::Diagnostic;
 use psi_symbols::SymbolHandle;
 use psi_typed_trees::TypedTrees;
+use psi_typed_trees::operator::trait_operator_operand_signature;
 use psi_typed_trees::trait_definition::TraitDefinition;
 
 pub(crate) fn validate_trait_requirements(
@@ -14,6 +15,7 @@ pub(crate) fn validate_trait_requirements(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for trait_definition in program.traits() {
+        validate_trait_operator_bindings(program, trait_definition, diagnostics);
         let mut seen = Vec::new();
         for requirement in program.trait_requirements(trait_definition) {
             let Some(required_trait) = trait_definition_by_symbol(program, requirement.symbol)
@@ -95,6 +97,31 @@ pub(crate) fn validate_trait_requirements(
             &mut reported_cycle_symbols,
             diagnostics,
         );
+    }
+}
+
+fn validate_trait_operator_bindings(
+    program: &TypedTrees,
+    trait_definition: &TraitDefinition,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let mut seen = Vec::new();
+    for requirement in program.trait_machine_signatures(trait_definition) {
+        let Some(spelling) = requirement.spelling else {
+            continue;
+        };
+        let operands = trait_operator_operand_signature(program, trait_definition, requirement);
+        if seen.iter().any(|(prior_spelling, prior_operands)| {
+            *prior_spelling == spelling && prior_operands == &operands
+        }) {
+            diagnostics.push(Diagnostic::error(format!(
+                "trait `{}` binds operator token `{}` more than once for normalized operands `({operands})`; one trait requirement owns each token meaning",
+                trait_definition.name,
+                spelling.symbol(),
+            )));
+        } else {
+            seen.push((spelling, operands));
+        }
     }
 }
 
