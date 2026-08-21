@@ -2394,7 +2394,13 @@ Remaining N6/N8 work:
   and relation. Untyped or adapted arguments and nonquotient results reject;
   indexed relation applications wait for the fully instantiated representative
   operation telescope rather than guessing binder applications from the
-  quotient type. Every request still rejects as non-executable until exact
+  quotient type. The same plan now resolves exactly one representative
+  machine/state and retains its ordered runtime telescope (including attached
+  `self`, excluding proof-static `const` binders), parameter symbols/types/
+  mutability, result type, and machine/state contract spans. Missing or
+  duplicate state identities, open generic/static applications, and unresolved
+  results reject; static/const and positional correspondence remain explicitly
+  unresolved. Every request still rejects as non-executable until exact
   correspondence, the selected `Respects` contract, and normalized result flow
   are checked and retained in checked/terminal identity.
 - Suppress every synthesized representation observer on quotient formation.
