@@ -673,12 +673,24 @@ pub enum TypeParameterKind {
     /// requirement is mandatory and stored with the parameter rather than
     /// inferred from uses or instantiations. `None` exists only while the
     /// parser is between `<machine M>` and its declaration-site validation.
-    Machine { contract: Option<StateSignature> },
+    Machine {
+        contract: Option<MachineParameterContract>,
+    },
     /// A proof-formula parameter with a mandatory declaration-site
     /// application signature. It is never an executable callable.
     Proposition {
         contract: Option<PropositionParameterSignature>,
     },
+}
+
+/// Authored declaration-site contract for a static machine parameter.
+/// Structural contracts own their complete signature locally. Nominal
+/// contracts retain only the exact signature-free requirement path; symbol
+/// resolution binds that path once declarations and trait requirements exist.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum MachineParameterContract {
+    Structural(StateSignature),
+    Nominal { requirement: HandleSpan<Identifier> },
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

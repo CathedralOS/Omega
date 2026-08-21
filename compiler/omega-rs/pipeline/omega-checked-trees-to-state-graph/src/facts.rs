@@ -351,7 +351,13 @@ fn exact_callable_parameter(
             else {
                 continue;
             };
-            if type_parameter.symbol == target_symbol || contract.symbol == target_symbol {
+            if type_parameter.symbol == target_symbol {
+                let contract = program
+                    .machine_parameter_contract_view(contract)
+                    .expect(
+                        "checked machine-parameter contract must retain a valid requirement identity",
+                    )
+                    .signature();
                 target_count += 1;
                 parameter_count += program
                     .state_signature_parameters(contract)

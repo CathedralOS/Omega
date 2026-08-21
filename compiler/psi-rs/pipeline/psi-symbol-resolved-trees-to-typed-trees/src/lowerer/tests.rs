@@ -4,6 +4,58 @@ use psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
 use psi_tokens_to_syntax_trees::parse_syntax_trees;
 
 #[test]
+fn retains_exact_nominal_machine_parameter_identity_in_typed_trees() {
+    let source = r#"
+        boundary trait WindowProcedure {
+            machine call(value: u32) -> u64;
+        }
+
+        machine register<machine Selected>()
+        where machine Selected satisfies WindowProcedure::call;
+        {}
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let machine = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "register")
+        .expect("register machine");
+    let parameter = typed
+        .machine_type_parameters(machine)
+        .first()
+        .expect("Selected parameter");
+    let psi_typed_trees::data::TypeParameterKind::Machine { contract } = &parameter.kind else {
+        panic!("Selected should be a machine parameter")
+    };
+    let psi_typed_trees::data::MachineParameterContract::Nominal {
+        trait_definition,
+        requirement,
+    } = contract
+    else {
+        panic!("Selected should retain nominal identity")
+    };
+    let psi_typed_trees::data::MachineParameterContractView::Nominal {
+        trait_definition: definition,
+        requirement: signature,
+    } = typed
+        .machine_parameter_contract_view(contract)
+        .expect("valid exact requirement")
+    else {
+        panic!("nominal view")
+    };
+
+    assert_eq!(*trait_definition, definition.symbol);
+    assert_eq!(*requirement, signature.symbol);
+    assert_eq!(definition.name.as_str(), "WindowProcedure");
+    assert_eq!(signature.name.as_str(), "call");
+    assert_ne!(parameter.symbol, signature.symbol);
+    assert_eq!(typed.state_signature_parameters(signature).len(), 1);
+}
+
+#[test]
 fn retains_typed_name_owned_conformance_telescope() {
     let source = r#"
         trait Converter<Source, Target> {}

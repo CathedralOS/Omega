@@ -172,28 +172,47 @@ pub(crate) fn lower_type_parameters(
                         parameter.name.as_str()
                     ))
                 })?;
-                let lowered_contract = crate::state::lower_state_signature_parts(
-                    lowerer,
-                    syntax_trees,
-                    &contract.name,
-                    &contract.lifetime_parameters,
-                    contract.type_parameters,
-                    contract.parameters,
-                    contract.return_type,
-                    contract.is_default,
-                    contract.service_reaches,
-                    contract.invokes,
-                    contract.suspends,
-                    contract.blocks,
-                    contract.contracts,
-                    contract.terminates_guarantee,
-                )?;
-                (
-                    TypeParameterKind::Machine {
-                        contract: lowered_contract.signature,
-                    },
-                    Some(lowered_contract.service_reaches),
-                )
+                match contract {
+                    syntax::item::MachineParameterContract::Structural(contract) => {
+                        let lowered_contract = crate::state::lower_state_signature_parts(
+                            lowerer,
+                            syntax_trees,
+                            &contract.name,
+                            &contract.lifetime_parameters,
+                            contract.type_parameters,
+                            contract.parameters,
+                            contract.return_type,
+                            contract.is_default,
+                            contract.service_reaches,
+                            contract.invokes,
+                            contract.suspends,
+                            contract.blocks,
+                            contract.contracts,
+                            contract.terminates_guarantee,
+                        )?;
+                        (
+                            TypeParameterKind::Machine {
+                                contract: psi_symbol_resolved_trees::data::MachineParameterContract::Structural(
+                                    lowered_contract.signature,
+                                ),
+                            },
+                            Some(lowered_contract.service_reaches),
+                        )
+                    }
+                    syntax::item::MachineParameterContract::Nominal { requirement } => (
+                        TypeParameterKind::Machine {
+                            contract: psi_symbol_resolved_trees::data::MachineParameterContract::AuthoredNominal {
+                                requirement: syntax_trees
+                                    .items
+                                    .identifier_path_members(*requirement)
+                                    .iter()
+                                    .map(crate::name::lower_name)
+                                    .collect(),
+                            },
+                        },
+                        None,
+                    ),
+                }
             }
             syntax::item::TypeParameterKind::Proposition { contract } => {
                 let contract = contract.as_ref().ok_or_else(|| {

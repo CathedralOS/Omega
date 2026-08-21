@@ -55,9 +55,158 @@ fn machine_parameter_contract_survives_resolved_and_typed_trees() {
     else {
         panic!("typed Key should remain a machine parameter");
     };
+    let contract = typed
+        .machine_parameter_contract_view(contract)
+        .expect("structural Key contract")
+        .signature();
     assert_eq!(contract.name.as_str(), "Key");
     assert_eq!(typed.state_signature_parameters(contract).len(), 1);
     assert!(contract.return_type.is_valid());
+}
+
+#[test]
+fn nominal_machine_parameter_accepts_one_explicit_exact_satisfaction_row() {
+    let source = r#"
+        trait Handler {
+            machine call(value: i32) -> i32;
+        }
+
+        machine chosen(value: i32) -> i32
+        satisfies Handler::call
+        {
+            value
+        }
+
+        machine register<machine Selected>(value: i32) -> i32
+        where machine Selected satisfies Handler::call;
+        {
+            Selected(value)
+        }
+
+        machine caller(value: i32) -> i32 {
+            register<chosen>(value)
+        }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let register = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "register")
+        .expect("register template");
+    let selected = typed
+        .machine_type_parameters(register)
+        .first()
+        .expect("Selected parameter");
+    let psi_typed_trees::data::TypeParameterKind::Machine { contract } = &selected.kind else {
+        panic!("Selected should be a machine parameter")
+    };
+    assert!(matches!(
+        typed.machine_parameter_contract_view(contract),
+        Some(psi_typed_trees::data::MachineParameterContractView::Nominal {
+            trait_definition,
+            requirement,
+        }) if trait_definition.name.as_str() == "Handler"
+            && requirement.name.as_str() == "call"
+    ));
+    let register_symbol = register.symbol;
+
+    let checked = lower_typed_trees(typed)
+        .expect("an explicitly satisfied exact nominal requirement should specialize");
+    assert!(
+        checked
+            .machine_specializations
+            .iter()
+            .any(|specialization| specialization.template == register_symbol
+                && specialization.machine_arguments.len() == 1)
+    );
+}
+
+#[test]
+fn nominal_machine_parameter_rejects_structural_coincidence() {
+    let source = r#"
+        trait Handler {
+            machine call(value: i32) -> i32;
+        }
+
+        machine coincidental(value: i32) -> i32 {
+            value
+        }
+
+        machine register<machine Selected>(value: i32) -> i32
+        where machine Selected satisfies Handler::call;
+        {
+            Selected(value)
+        }
+
+        machine caller(value: i32) -> i32 {
+            register<coincidental>(value)
+        }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let diagnostics = lower_typed_trees(typed).expect_err("structural coincidence must reject");
+    let rendered = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    assert!(
+        rendered.contains("authored satisfaction row(s)")
+            && rendered.contains("structural coincidence establishes none"),
+        "unexpected diagnostics:\n{rendered}"
+    );
+}
+
+#[test]
+fn nominal_machine_parameter_rejects_a_different_authored_requirement() {
+    let source = r#"
+        trait Handler { machine call(value: i32) -> i32; }
+        trait Other { machine call(value: i32) -> i32; }
+
+        machine wrong(value: i32) -> i32
+        satisfies Other::call
+        {
+            value
+        }
+
+        machine register<machine Selected>(value: i32) -> i32
+        where machine Selected satisfies Handler::call;
+        {
+            Selected(value)
+        }
+
+        machine caller(value: i32) -> i32 {
+            register<wrong>(value)
+        }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let diagnostics = lower_typed_trees(typed).expect_err("wrong satisfaction row must reject");
+    let rendered = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    assert!(
+        rendered.contains("exact requirement `Handler::call`")
+            && rendered.contains("exactly one is required"),
+        "unexpected diagnostics:\n{rendered}"
+    );
 }
 
 #[test]
@@ -145,7 +294,10 @@ fn generic_body_call_resolves_to_machine_parameter_contract() {
     else {
         panic!("F should be a machine parameter");
     };
-    assert_eq!(contract.symbol, machine_parameter.symbol);
+    let contract = typed
+        .machine_parameter_contract_view(contract)
+        .expect("structural F contract")
+        .signature();
     assert!(
         typed
             .state_signature_parameters(contract)
@@ -1745,6 +1897,43 @@ fn generic_template_identity_pins_independent_operational_interfaces() {
         slot_reach_fingerprint("Filesystem"),
         slot_reach_fingerprint("Filesystem + Readable"),
         "machine-parameter identity must consume the normalized service row"
+    );
+}
+
+#[test]
+fn generic_template_identity_distinguishes_structural_and_nominal_machine_contracts() {
+    fn fingerprint(contract: &str) -> u64 {
+        let source = format!(
+            r#"
+                trait Handler {{
+                    machine call(value: i32) -> i32;
+                }}
+
+                machine admitted<machine F>(value: i32) -> i32
+                {contract}
+                {{
+                    0
+                }}
+            "#
+        );
+        let tokens = Lexer::new(&source)
+            .tokenize()
+            .expect("tokenize should succeed");
+        let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+        let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+        let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+        let admitted = typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "admitted")
+            .expect("generic template should exist");
+        crate::monomorphization::generic_machine_template_fingerprint(&typed, admitted.symbol)
+            .expect("generic template should have an identity")
+    }
+
+    assert_ne!(
+        fingerprint("where machine F(value: i32) -> i32;"),
+        fingerprint("where machine F satisfies Handler::call;")
     );
 }
 

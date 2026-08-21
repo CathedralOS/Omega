@@ -201,6 +201,39 @@ impl SymbolResolvedTrees {
             .span_or_empty(span)
     }
 
+    /// Project a machine-parameter contract to its single published signature
+    /// while retaining whether that signature is structurally owned or an
+    /// exact nominal trait requirement. Nominal ownership is revalidated here
+    /// so a mismatched symbol pair fails closed.
+    pub fn machine_parameter_contract_view<'program>(
+        &'program self,
+        contract: &'program data::MachineParameterContract,
+    ) -> Option<data::MachineParameterContractView<'program>> {
+        match contract {
+            data::MachineParameterContract::Structural(signature) => {
+                Some(data::MachineParameterContractView::Structural(signature))
+            }
+            data::MachineParameterContract::AuthoredNominal { .. } => None,
+            data::MachineParameterContract::Nominal {
+                trait_definition,
+                requirement,
+            } => {
+                let trait_definition = self
+                    .traits
+                    .iter()
+                    .find(|candidate| candidate.symbol == *trait_definition)?;
+                let requirement = self
+                    .trait_machine_signatures(trait_definition.machines)
+                    .iter()
+                    .find(|candidate| candidate.symbol == *requirement)?;
+                Some(data::MachineParameterContractView::Nominal {
+                    trait_definition,
+                    requirement,
+                })
+            }
+        }
+    }
+
     pub fn trait_type_parameters(
         &self,
         trait_definition: &crate::trait_definition::TraitDefinition,

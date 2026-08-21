@@ -1169,6 +1169,34 @@ impl TypedTrees {
             .span_or_empty(trait_definition.machines)
     }
 
+    pub fn machine_parameter_contract_view<'program>(
+        &'program self,
+        contract: &'program data::MachineParameterContract,
+    ) -> Option<data::MachineParameterContractView<'program>> {
+        match contract {
+            data::MachineParameterContract::Structural(signature) => {
+                Some(data::MachineParameterContractView::Structural(signature))
+            }
+            data::MachineParameterContract::Nominal {
+                trait_definition,
+                requirement,
+            } => {
+                let trait_definition = self
+                    .traits()
+                    .iter()
+                    .find(|candidate| candidate.symbol == *trait_definition)?;
+                let requirement = self
+                    .trait_machine_signatures(trait_definition)
+                    .iter()
+                    .find(|candidate| candidate.symbol == *requirement)?;
+                Some(data::MachineParameterContractView::Nominal {
+                    trait_definition,
+                    requirement,
+                })
+            }
+        }
+    }
+
     pub fn push_machine(&mut self, machine: machine::Machine) {
         self.tables
             .machines
@@ -1208,11 +1236,9 @@ impl TypedTrees {
         self.machine_type_parameters(machine)
             .iter()
             .find_map(|parameter| match &parameter.kind {
-                data::TypeParameterKind::Machine { contract }
-                    if parameter.symbol == symbol || contract.symbol == symbol =>
-                {
-                    Some(contract)
-                }
+                data::TypeParameterKind::Machine { contract } if parameter.symbol == symbol => self
+                    .machine_parameter_contract_view(contract)
+                    .map(data::MachineParameterContractView::signature),
                 _ => None,
             })
     }

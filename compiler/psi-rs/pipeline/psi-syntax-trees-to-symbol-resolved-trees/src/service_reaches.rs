@@ -331,6 +331,9 @@ fn normalize_machine_parameter_rows(
         let TypeParameterKind::Machine { contract } = &parameter.kind else {
             continue;
         };
+        let Some(contract) = contract.structural() else {
+            continue;
+        };
         let pending = pending_signature_service_reach(signature_service_reaches, contract.symbol);
         validate_signature_service_reaches(program, services, contract, pending)?;
         let mut names = pending
@@ -351,6 +354,9 @@ fn normalize_machine_parameter_rows(
     for span in spans {
         for parameter in type_parameters.span_mut_or_empty(span) {
             let TypeParameterKind::Machine { contract } = &mut parameter.kind else {
+                continue;
+            };
+            let Some(contract) = contract.structural_mut() else {
                 continue;
             };
             let names = service_reach_names
@@ -381,7 +387,9 @@ fn collect_parameter_spans(
     spans.push(span);
     for parameter in arena.span_or_empty(span) {
         if let TypeParameterKind::Machine { contract } = &parameter.kind {
-            collect_parameter_spans(arena, contract.type_parameters, spans);
+            if let Some(contract) = contract.structural() {
+                collect_parameter_spans(arena, contract.type_parameters, spans);
+            }
         }
     }
 }

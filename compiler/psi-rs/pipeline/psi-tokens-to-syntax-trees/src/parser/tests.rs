@@ -698,7 +698,7 @@ fn parses_name_owned_generic_conformance_telescope() {
         psi_syntax_trees::item::TypeParameterKind::Const { .. }
     ));
     let psi_syntax_trees::item::TypeParameterKind::Machine {
-        contract: Some(contract),
+        contract: Some(psi_syntax_trees::item::MachineParameterContract::Structural(contract)),
     } = &parameters[2].kind
     else {
         panic!("Convert should retain its authored machine contract");
@@ -3881,7 +3881,7 @@ fn parses_machine_parameter_with_mandatory_contract() {
     assert_eq!(parameters.len(), 1);
     assert_eq!(parameters[0].name.as_str(), "Key");
     let psi_syntax_trees::item::TypeParameterKind::Machine {
-        contract: Some(contract),
+        contract: Some(psi_syntax_trees::item::MachineParameterContract::Structural(contract)),
     } = &parameters[0].kind
     else {
         panic!("Key should carry its authored machine contract");
@@ -3900,6 +3900,146 @@ fn parses_machine_parameter_with_mandatory_contract() {
         parsed.items.capability_contracts(contract.contracts).len(),
         1
     );
+}
+
+#[test]
+fn parses_nominal_machine_parameter_requirement() {
+    let source = r#"
+        machine register<machine Selected>()
+        where machine Selected satisfies platform::WindowProcedure::call;
+        {
+            Selected()
+        }
+        "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let parsed = parse_syntax_trees(&tokens).expect("nominal machine contract should parse");
+    let machine = parsed
+        .root_items()
+        .find_map(|item| match item {
+            psi_syntax_trees::item::Item::Machine(machine) => Some(machine),
+            _ => None,
+        })
+        .expect("generic machine");
+    let [parameter] = parsed.items.type_parameters(machine.type_parameters) else {
+        panic!("expected one machine parameter");
+    };
+    let psi_syntax_trees::item::TypeParameterKind::Machine {
+        contract: Some(psi_syntax_trees::item::MachineParameterContract::Nominal { requirement }),
+    } = &parameter.kind
+    else {
+        panic!("Selected should retain its nominal requirement path");
+    };
+    assert_eq!(
+        parsed
+            .items
+            .identifier_path_members(*requirement)
+            .iter()
+            .map(|member| member.as_str())
+            .collect::<Vec<_>>(),
+        ["platform", "WindowProcedure", "call"]
+    );
+    assert!(!machine.bodyless);
+}
+
+#[test]
+fn parses_bodyless_nominal_machine_parameter_with_one_semicolon() {
+    let source = r#"
+        boundary machine register<machine Selected>()
+        where machine Selected satisfies WindowProcedure::call;
+        "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let parsed = parse_syntax_trees(&tokens).expect("bodyless nominal binder should parse");
+    let machine = parsed
+        .root_items()
+        .find_map(|item| match item {
+            psi_syntax_trees::item::Item::Machine(machine) => Some(machine),
+            _ => None,
+        })
+        .expect("bodyless generic machine");
+    assert!(machine.bodyless);
+    assert!(matches!(
+        parsed.items.type_parameters(machine.type_parameters)[0].kind,
+        psi_syntax_trees::item::TypeParameterKind::Machine {
+            contract: Some(psi_syntax_trees::item::MachineParameterContract::Nominal { .. })
+        }
+    ));
+}
+
+#[test]
+fn parses_structural_and_nominal_machine_parameter_contracts_together() {
+    let source = r#"
+        machine apply<machine Schema, machine Selected>()
+        where machine Schema(value: u64) -> u64;
+        where machine Selected satisfies WindowProcedure::call;
+        {
+        }
+        "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let parsed = parse_syntax_trees(&tokens).expect("mixed machine contracts should parse");
+    let machine = parsed
+        .root_items()
+        .find_map(|item| match item {
+            psi_syntax_trees::item::Item::Machine(machine) => Some(machine),
+            _ => None,
+        })
+        .expect("generic machine");
+    let parameters = parsed.items.type_parameters(machine.type_parameters);
+    assert!(matches!(
+        parameters[0].kind,
+        psi_syntax_trees::item::TypeParameterKind::Machine {
+            contract: Some(psi_syntax_trees::item::MachineParameterContract::Structural(_))
+        }
+    ));
+    assert!(matches!(
+        parameters[1].kind,
+        psi_syntax_trees::item::TypeParameterKind::Machine {
+            contract: Some(psi_syntax_trees::item::MachineParameterContract::Nominal { .. })
+        }
+    ));
+}
+
+#[test]
+fn rejects_malformed_nominal_machine_parameter_requirements() {
+    let cases = [
+        (
+            "where machine Selected satisfies WindowProcedure;",
+            "must name an exact `Trait::requirement`",
+        ),
+        (
+            "where machine Selected satisfies WindowProcedure::call as Choice;",
+            "do not accept `as Name`",
+        ),
+        (
+            "where machine Selected satisfies WindowProcedure::call via Native;",
+            "cannot use `via`",
+        ),
+        (
+            "where machine Selected satisfies WindowProcedure<u64>::call;",
+            "generic trait arguments are not supported",
+        ),
+    ];
+
+    for (contract, expected) in cases {
+        let source = format!("machine register<machine Selected>() {contract} {{ Selected() }}");
+        let tokens = Lexer::new(&source)
+            .tokenize()
+            .expect("tokenize should succeed");
+        let error = parse_syntax_trees(&tokens).expect_err("malformed nominal binder must reject");
+        assert!(
+            error.message.contains(expected),
+            "expected {expected:?}, got: {}",
+            error.message
+        );
+    }
 }
 
 #[test]
@@ -3953,7 +4093,7 @@ fn parses_higher_order_machine_parameter_contract() {
     let parameters = parsed.items.type_parameters(machine.type_parameters);
     assert_eq!(parameters.len(), 2);
     let psi_syntax_trees::item::TypeParameterKind::Machine {
-        contract: Some(schema),
+        contract: Some(psi_syntax_trees::item::MachineParameterContract::Structural(schema)),
     } = &parameters[0].kind
     else {
         panic!("Schema should carry its authored machine contract");
@@ -3962,7 +4102,7 @@ fn parses_higher_order_machine_parameter_contract() {
     assert_eq!(nested.len(), 1);
     assert_eq!(nested[0].name.as_str(), "Inner");
     let psi_syntax_trees::item::TypeParameterKind::Machine {
-        contract: Some(inner),
+        contract: Some(psi_syntax_trees::item::MachineParameterContract::Structural(inner)),
     } = &nested[0].kind
     else {
         panic!("Inner should carry its authored nested contract");
@@ -4034,7 +4174,7 @@ fn parses_machine_parameter_on_proof_data_declaration() {
     let parameters = parsed.items.type_parameters(data.type_parameters);
     assert_eq!(parameters.len(), 1);
     let psi_syntax_trees::item::TypeParameterKind::Machine {
-        contract: Some(contract),
+        contract: Some(psi_syntax_trees::item::MachineParameterContract::Structural(contract)),
     } = &parameters[0].kind
     else {
         panic!("S should retain its authored callable contract");

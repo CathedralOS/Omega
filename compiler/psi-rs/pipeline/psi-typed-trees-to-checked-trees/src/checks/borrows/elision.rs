@@ -44,7 +44,11 @@ pub(super) fn check_view_return_elision(
             else {
                 continue;
             };
-            check_bodyless_signature(program, contract, diagnostics);
+            let signature = program
+                .machine_parameter_contract_view(contract)
+                .expect("typed machine-parameter contract must retain a valid requirement identity")
+                .signature();
+            check_bodyless_signature(program, signature, diagnostics);
         }
     }
 

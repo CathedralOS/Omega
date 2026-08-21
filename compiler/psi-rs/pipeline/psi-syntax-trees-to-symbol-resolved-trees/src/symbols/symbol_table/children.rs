@@ -59,6 +59,7 @@ fn insert_machine_parameter_signature_children(
             Some(parameter_symbol),
             psi_symbol_resolved_trees::data::TypeParameterKind::Machine { contract },
         ) = (parameter_symbol, &parameter.kind)
+            && let Some(contract) = contract.structural()
         {
             insert_machine_parameter_signature_children(
                 builder,
@@ -104,13 +105,15 @@ pub(in crate::symbols::symbol_table) fn insert_conformance_symbol_children(
         };
         match &parameter.kind {
             psi_symbol_resolved_trees::data::TypeParameterKind::Machine { contract } => {
-                insert_machine_parameter_signature_children(
-                    builder,
-                    program,
-                    parameter_symbol,
-                    contract,
-                    has_sources,
-                );
+                if let Some(contract) = contract.structural() {
+                    insert_machine_parameter_signature_children(
+                        builder,
+                        program,
+                        parameter_symbol,
+                        contract,
+                        has_sources,
+                    );
+                }
             }
             psi_symbol_resolved_trees::data::TypeParameterKind::Proposition { contract } => {
                 builder.insert_children(

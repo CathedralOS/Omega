@@ -13,6 +13,7 @@ mod invariant;
 mod item;
 mod lowerer;
 mod machine;
+mod machine_parameter_requirements;
 mod measure;
 mod name;
 mod operator;

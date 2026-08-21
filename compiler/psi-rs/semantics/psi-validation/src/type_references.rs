@@ -3,7 +3,9 @@ use crate::symbols::TopLevelSymbols;
 use psi_diagnostics::Diagnostic;
 use psi_language_semantics::const_value::CanonicalConstValue;
 use psi_typed_trees::TypedTrees;
-use psi_typed_trees::data::{DataMember, TypeParameter, TypeParameterKind};
+use psi_typed_trees::data::{
+    DataMember, MachineParameterContract, TypeParameter, TypeParameterKind,
+};
 use psi_typed_trees::types::{
     FixedArrayLength, PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
@@ -595,7 +597,7 @@ fn validate_machine_data_argument(
     program: &TypedTrees,
     base_name: &str,
     parameter: &TypeParameter,
-    contract: &psi_typed_trees::signature::StateSignature,
+    contract: &MachineParameterContract,
     argument: TypeReferenceHandle,
     _type_parameter_scope: TypeParameterScope<'_>,
     diagnostics: &mut Vec<Diagnostic>,

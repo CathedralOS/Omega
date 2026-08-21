@@ -60,6 +60,10 @@ fn resolves_name_owned_conformance_telescope_in_its_own_scope() {
     else {
         panic!("Convert should be a machine parameter");
     };
+    let contract = program
+        .machine_parameter_contract_view(contract)
+        .expect("structural machine contract")
+        .signature();
     let contract_parameter = program
         .state_parameters(contract.parameters)
         .first()
@@ -71,6 +75,158 @@ fn resolves_name_owned_conformance_telescope_in_its_own_scope() {
     };
     assert_eq!(name.as_str(), "Source");
     assert_eq!(*symbol, parameters[0].symbol);
+}
+
+#[test]
+fn resolves_forward_declared_nominal_machine_parameter_to_exact_requirement() {
+    let source = r#"
+        machine register<machine Selected>(value: u32) -> u64
+        where machine Selected satisfies WindowProcedure::call;
+        {
+            Selected(value)
+        }
+
+        boundary trait WindowProcedure {
+            machine call(value: u32) -> u64;
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let program = lower_syntax_trees(&syntax).expect("resolve nominal requirement");
+    let machine = program
+        .machines
+        .iter()
+        .find(|machine| machine.name.as_str() == "register")
+        .expect("register machine");
+    let parameter = program
+        .machine_type_parameters(machine)
+        .first()
+        .expect("Selected parameter");
+    let psi_symbol_resolved_trees::data::TypeParameterKind::Machine { contract } = &parameter.kind
+    else {
+        panic!("Selected should be a machine parameter");
+    };
+    let psi_symbol_resolved_trees::data::MachineParameterContract::Nominal {
+        trait_definition,
+        requirement,
+    } = contract
+    else {
+        panic!("Selected should retain an exact nominal requirement");
+    };
+    let trait_definition_row = program
+        .traits
+        .iter()
+        .find(|definition| definition.name.as_str() == "WindowProcedure")
+        .expect("WindowProcedure trait");
+    let requirement_row = program
+        .trait_machine_signatures(trait_definition_row.machines)
+        .first()
+        .expect("call requirement");
+
+    assert_eq!(*trait_definition, trait_definition_row.symbol);
+    assert_eq!(*requirement, requirement_row.symbol);
+    assert_ne!(parameter.symbol, requirement_row.symbol);
+    let psi_symbol_resolved_trees::data::MachineParameterContractView::Nominal {
+        trait_definition,
+        requirement,
+    } = program
+        .machine_parameter_contract_view(contract)
+        .expect("valid nominal contract view")
+    else {
+        panic!("nominal view")
+    };
+    assert_eq!(trait_definition.name.as_str(), "WindowProcedure");
+    assert_eq!(requirement.name.as_str(), "call");
+    assert_eq!(program.state_parameters(requirement.parameters).len(), 1);
+}
+
+#[test]
+fn rejects_overloaded_nominal_machine_parameter_requirement() {
+    let source = r#"
+        trait WindowProcedure {
+            machine call(value: u32) -> u64;
+            machine call(value: u64) -> u64;
+        }
+
+        machine register<machine Selected>()
+        where machine Selected satisfies WindowProcedure::call;
+        {}
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let diagnostic = lower_syntax_trees(&syntax).expect_err("overload must reject");
+
+    assert!(
+        diagnostic
+            .to_string()
+            .contains("does not resolve to one exact trait requirement"),
+        "unexpected diagnostic: {diagnostic}"
+    );
+}
+
+#[test]
+fn rejects_unknown_nominal_machine_parameter_paths() {
+    for (path, expected) in [
+        ("MissingTrait::call", "does not resolve to one exact trait"),
+        (
+            "WindowProcedure::missing",
+            "does not resolve to one exact trait requirement",
+        ),
+    ] {
+        let source = format!(
+            r#"
+                trait WindowProcedure {{
+                    machine call(value: u32) -> u64;
+                }}
+
+                machine register<machine Selected>()
+                where machine Selected satisfies {path};
+                {{}}
+            "#
+        );
+        let tokens = Lexer::new(&source).tokenize().expect("tokenize");
+        let syntax = parse_syntax_trees(&tokens).expect("parse");
+        let diagnostic = lower_syntax_trees(&syntax).expect_err("unknown path must reject");
+        assert!(
+            diagnostic.to_string().contains(expected),
+            "unexpected diagnostic for {path}: {diagnostic}"
+        );
+    }
+}
+
+#[test]
+fn nominal_machine_parameter_view_rejects_mismatched_trait_requirement_pair() {
+    let source = r#"
+        trait First { machine call(value: u32) -> u64; }
+        trait Second { machine call(value: u32) -> u64; }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let program = lower_syntax_trees(&syntax).expect("resolve traits");
+    let first = program
+        .traits
+        .iter()
+        .find(|definition| definition.name.as_str() == "First")
+        .expect("First trait");
+    let second = program
+        .traits
+        .iter()
+        .find(|definition| definition.name.as_str() == "Second")
+        .expect("Second trait");
+    let second_requirement = program
+        .trait_machine_signatures(second.machines)
+        .first()
+        .expect("Second::call");
+    let mismatched = psi_symbol_resolved_trees::data::MachineParameterContract::Nominal {
+        trait_definition: first.symbol,
+        requirement: second_requirement.symbol,
+    };
+
+    assert!(
+        program
+            .machine_parameter_contract_view(&mismatched)
+            .is_none()
+    );
 }
 
 #[test]

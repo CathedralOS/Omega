@@ -96,17 +96,19 @@ fn assign_conformance_parameter_symbols(program: &mut SymbolResolvedTrees, symbo
             };
             let resolved_kind = match kind {
                 psi_symbol_resolved_trees::data::TypeParameterKind::Machine { mut contract } => {
-                    assign_machine_parameter_signature_symbols(
-                        symbols,
-                        data_type_parameters,
-                        state_parameters,
-                        child_type_references,
-                        type_constraints,
-                        &mut contract,
-                        parameter_symbol,
-                        &local_type_parameters,
-                        conformance.symbol,
-                    );
+                    if let Some(signature) = contract.structural_mut() {
+                        assign_machine_parameter_signature_symbols(
+                            symbols,
+                            data_type_parameters,
+                            state_parameters,
+                            child_type_references,
+                            type_constraints,
+                            signature,
+                            parameter_symbol,
+                            &local_type_parameters,
+                            conformance.symbol,
+                        );
+                    }
                     psi_symbol_resolved_trees::data::TypeParameterKind::Machine { contract }
                 }
                 psi_symbol_resolved_trees::data::TypeParameterKind::Proposition {
@@ -198,17 +200,19 @@ pub(super) fn assign_machine_parameter_signature_symbols(
                 TypeParameterKind::Const { type_reference }
             }
             TypeParameterKind::Machine { mut contract } => {
-                assign_machine_parameter_signature_symbols(
-                    symbols,
-                    data_type_parameters,
-                    state_parameters,
-                    child_type_references,
-                    type_constraints,
-                    &mut contract,
-                    parameter_symbol,
-                    &local_type_parameters,
-                    self_symbol,
-                );
+                if let Some(signature) = contract.structural_mut() {
+                    assign_machine_parameter_signature_symbols(
+                        symbols,
+                        data_type_parameters,
+                        state_parameters,
+                        child_type_references,
+                        type_constraints,
+                        signature,
+                        parameter_symbol,
+                        &local_type_parameters,
+                        self_symbol,
+                    );
+                }
                 TypeParameterKind::Machine { contract }
             }
             TypeParameterKind::Proposition { mut contract } => {
