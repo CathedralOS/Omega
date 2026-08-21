@@ -338,12 +338,16 @@ fn borrow_carrying_data_loans(
     initializers
         .into_iter()
         .flat_map(|initializer| {
-            let Some(place) = borrow_access_place(
+            // Aggregate leaves obey the same source-selection law as call
+            // arguments. A leaf may itself be a view-producing helper call;
+            // routing it through the call-aware resolver keeps the selected
+            // input loan instead of treating the call expression as no place.
+            let Some(place) = argument_borrow_loan_place(
                 program,
                 state.symbol,
                 statement_index,
-                initializer.expression,
                 machine_symbol,
+                initializer.expression,
             ) else {
                 return Vec::new();
             };

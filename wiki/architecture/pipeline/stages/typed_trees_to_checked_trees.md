@@ -173,6 +173,11 @@ Current ownership is:
   fixed-array local is caller-isolated and contributes no published write;
   structurally transparent helpers preserve that local origin. Recursive,
   generic, reference-bearing, or other computed local roots remain opaque.
+  Aggregate literal leaves that are view-producing helper calls retain the
+  helper signature's exact selected input loan through nested record,
+  active-sum, fixed-array, and concrete-generic structure; a call expression
+  cannot erase the leaf's borrow merely because it is not itself a canonical
+  place.
   The compiler-owned `as_mut_slice()` view preserves its backing array origin,
   including through a structurally transparent helper result or as a direct
   statement-call argument. An effect-free discarded value expression derived
