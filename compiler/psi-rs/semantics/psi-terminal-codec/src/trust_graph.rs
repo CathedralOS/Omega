@@ -78,6 +78,8 @@ const PROOF_KERNEL_EVIDENCE_SOURCE: &[u8] =
     include_bytes!("../../psi-proof-kernel/src/evidence.rs");
 const PROOF_KERNEL_KERNEL_SOURCE: &[u8] = include_bytes!("../../psi-proof-kernel/src/kernel.rs");
 const PROOF_KERNEL_PROOF_SOURCE: &[u8] = include_bytes!("../../psi-proof-kernel/src/proof.rs");
+const PROOF_CODEC_SOURCE: &[u8] = include_bytes!("proof_bundle.rs");
+const PROPOSITION_SOURCE: &[u8] = include_bytes!("../../../foundation/psi-core/src/proposition.rs");
 const TERMINAL_MODEL_SOURCE: &[u8] =
     include_bytes!("../../../representations/psi-terminal/src/module.rs");
 const TERMINAL_SEMANTICS_SOURCE: &[u8] = include_bytes!("../../psi-terminal-semantics/src/lib.rs");
@@ -510,17 +512,24 @@ fn registered_roots() -> Vec<TrustDependencyNode> {
             &[("psi-terminal/module.rs", TERMINAL_MODEL_SOURCE)],
         ),
         TrustDependencyNode::new(
-            "root:canonical-proof-calculus-v9",
+            "root:canonical-proof-calculus-v10",
             TrustDependencyKind::RegisteredRoot,
             TrustDependencyStatus::Registered,
             "terminal-Psi proof bundle and primitive calculus",
-            "proof-bundle-format-10",
+            "proof-bundle-format-13",
             "Psi proof-kernel architecture",
             "portable terminal-Psi proof checking",
             "The current small proof calculus is an explicit registered semantic root.",
             TrustAcceptingPolicy::RegisteredSemanticFoundation,
             Vec::new(),
-            &[("psi-proof-kernel/lib.rs", PROOF_KERNEL_LIB_SOURCE)],
+            &[
+                ("psi-core/proposition.rs", PROPOSITION_SOURCE),
+                ("psi-proof-kernel/evidence.rs", PROOF_KERNEL_EVIDENCE_SOURCE),
+                ("psi-proof-kernel/kernel.rs", PROOF_KERNEL_KERNEL_SOURCE),
+                ("psi-proof-kernel/lib.rs", PROOF_KERNEL_LIB_SOURCE),
+                ("psi-proof-kernel/proof.rs", PROOF_KERNEL_PROOF_SOURCE),
+                ("psi-terminal-codec/proof_bundle.rs", PROOF_CODEC_SOURCE),
+            ],
         ),
         TrustDependencyNode::new(
             "root:canonical-terminal-bytes-v15",
@@ -560,13 +569,13 @@ fn proof_kernel_node() -> TrustDependencyNode {
         TrustDependencyKind::TrustedImplementation,
         TrustDependencyStatus::TrustedJudgment,
         "Rust implementation of the current terminal proof calculus",
-        "rust-proof-kernel-v1",
+        "rust-proof-kernel-v2",
         "psi-proof-kernel",
         "portable proof bundle acceptance",
         "The current Rust kernel remains trusted until the independent low-rung checker closes the diamond.",
         TrustAcceptingPolicy::ExplicitMigrationTrust,
         dependencies(&[
-            "root:canonical-proof-calculus-v9",
+            "root:canonical-proof-calculus-v10",
             "root:explicit-rust-migration-policy",
         ]),
         &[
@@ -1106,6 +1115,23 @@ mod tests {
                 .filter(|node| node.kind() == TrustDependencyKind::RegisteredRoot)
                 .count(),
             4
+        );
+        let proof_calculus = graph
+            .nodes()
+            .iter()
+            .find(|node| node.identity() == "root:canonical-proof-calculus-v10")
+            .expect("current proof-calculus root");
+        assert_eq!(proof_calculus.version(), "proof-bundle-format-13");
+        let rust_kernel = graph
+            .nodes()
+            .iter()
+            .find(|node| node.identity() == "implementation:rust-proof-kernel")
+            .expect("current Rust proof kernel");
+        assert_eq!(rust_kernel.version(), "rust-proof-kernel-v2");
+        assert!(
+            rust_kernel
+                .dependencies()
+                .contains(&"root:canonical-proof-calculus-v10".to_owned())
         );
         assert_eq!(
             graph

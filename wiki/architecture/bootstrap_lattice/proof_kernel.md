@@ -63,6 +63,13 @@ need only understand the canonical proposition and derivation calculus. A
 component must still understand terminal Psi well enough to reconstruct the
 right propositions.
 
+The current production certificate calculus includes disjunction introduction
+with one explicit selected-arm index and one independently checked child proof,
+matching the low-rung Beta/Gamma `inl`/`inr` rules. The checker rejects a
+non-disjunction conclusion, an out-of-range arm, or a child conclusion that is
+not exactly the selected disjunct. This logical rule grants no authority to
+choose the artifact's canonical goal and by itself derives no ledger row.
+
 ### Canonical semantic ledger and untrusted reduction
 
 The deployment endpoint does not trust the current Rust verifier to choose a

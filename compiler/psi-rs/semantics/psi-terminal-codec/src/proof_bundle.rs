@@ -18,7 +18,7 @@ use sha2::{Digest, Sha256};
 
 const MAGIC: &[u8; 8] = b"PSIPRF\0\0";
 /// Single current pre-release proof vocabulary marker.
-const FORMAT_MARKER: u16 = 12;
+const FORMAT_MARKER: u16 = 13;
 const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-proof-bundle-fingerprint\0";
 const MAX_PROPOSITION_DEPTH: usize = 256;
 const MAX_SCALAR_TERM_DEPTH: usize = 256;
@@ -270,6 +270,9 @@ fn validate_proof_node(node: &ProofNode, depth: usize) -> Result<(), ProofCodecE
         ProofRule::ConjunctionElimination { conjunction, .. }
         | ProofRule::ImplicationIntroduction { body: conjunction } => {
             validate_proof_node(conjunction, depth + 1)
+        }
+        ProofRule::DisjunctionIntroduction { disjunct, .. } => {
+            validate_proof_node(disjunct, depth + 1)
         }
         ProofRule::ImplicationElimination {
             implication,
@@ -554,6 +557,11 @@ fn encode_proof_node(
             writer.u8(5);
             encode_proof_node(writer, conjunction, depth + 1, format_marker)?;
             writer.index("conjunct index", *conjunct)?;
+        }
+        ProofRule::DisjunctionIntroduction { disjunct, index } => {
+            writer.u8(9);
+            encode_proof_node(writer, disjunct, depth + 1, format_marker)?;
+            writer.index("disjunct index", *index)?;
         }
         ProofRule::ImplicationIntroduction { body } => {
             writer.u8(6);
@@ -1327,6 +1335,10 @@ fn decode_proof_node(
         8 => ProofRule::EqualityTransitivity {
             left_equals_middle: Box::new(decode_proof_node(reader, depth + 1, format_marker)?),
             middle_equals_right: Box::new(decode_proof_node(reader, depth + 1, format_marker)?),
+        },
+        9 => ProofRule::DisjunctionIntroduction {
+            disjunct: Box::new(decode_proof_node(reader, depth + 1, format_marker)?),
+            index: reader.index()?,
         },
         tag => return Err(ProofCodecError::InvalidTag("ProofRule", tag)),
     };

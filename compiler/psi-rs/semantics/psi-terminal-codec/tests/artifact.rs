@@ -29,7 +29,7 @@ fn proof_bundle_uses_one_current_canonical_vocabulary() {
     let bytes = encode_proof_bundle(&bundle).expect("representative proof bundle should encode");
 
     assert_eq!(&bytes[..8], b"PSIPRF\0\0");
-    assert_eq!(&bytes[8..10], &12_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &13_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
 
     let mut noncanonical = bytes.clone();
@@ -56,6 +56,16 @@ fn proof_bundle_uses_one_current_canonical_vocabulary() {
 #[test]
 fn proof_format_round_trips_terminal_proposition_disjunction() {
     let conclusion = Proposition::Disjunction(vec![Proposition::Truth, Proposition::Falsehood]);
+    let proof = ProofNode {
+        conclusion: conclusion.clone(),
+        rule: ProofRule::DisjunctionIntroduction {
+            disjunct: Box::new(ProofNode {
+                conclusion: Proposition::Truth,
+                rule: ProofRule::Assumption { index: 0 },
+            }),
+            index: 0,
+        },
+    };
     let bundle = ProofBundle {
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
@@ -63,16 +73,65 @@ fn proof_format_round_trips_terminal_proposition_disjunction() {
             route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
                 identity: evidence_id(71),
                 proof_system_marker: ProofSystemMarker::CURRENT,
-                proof: ProofNode {
-                    conclusion,
-                    rule: ProofRule::Primitive(PrimitiveJudgment::Truth),
-                },
+                proof: proof.clone(),
             }),
         }],
     };
+    let accepted = psi_proof_kernel::accept_certificate(
+        &PropositionContext::default(),
+        &conclusion,
+        &[Proposition::Truth],
+        &[],
+        &proof,
+    )
+    .expect("left disjunct certificate");
+    assert_eq!(
+        accepted.rules,
+        vec![
+            psi_proof_kernel::AcceptedProofRule::Assumption,
+            psi_proof_kernel::AcceptedProofRule::DisjunctionIntroduction,
+        ]
+    );
+    assert_eq!(accepted.assumptions.len(), 1);
+    assert_eq!(accepted.assumptions[0].index, 0);
+    assert_eq!(accepted.assumptions[0].proposition, Proposition::Truth);
+
     let bytes = encode_proof_bundle(&bundle).expect("disjunction proof bytes encode");
-    assert_eq!(&bytes[8..10], &12_u16.to_le_bytes());
-    assert_eq!(decode_proof_bundle(&bytes), Ok(bundle));
+    assert_eq!(&bytes[8..10], &13_u16.to_le_bytes());
+    assert_eq!(bytes[40], 9, "canonical disjunction-introduction tag");
+    assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
+
+    let mut corrupt_tag = bytes.clone();
+    corrupt_tag[40] = 10;
+    assert_eq!(
+        decode_proof_bundle(&corrupt_tag),
+        Err(ProofCodecError::InvalidTag("ProofRule", 10))
+    );
+
+    let mut corrupt_index = bytes.clone();
+    corrupt_index[47..51].copy_from_slice(&2_u32.to_le_bytes());
+    let decoded = decode_proof_bundle(&corrupt_index)
+        .expect("an out-of-range logical index remains syntactically canonical");
+    let EvidenceRoute::CertificateDerived(certificate) = &decoded.evidence[0].route else {
+        unreachable!("fixture carries a certificate")
+    };
+    assert_eq!(
+        psi_proof_kernel::check_certificate(
+            &PropositionContext::default(),
+            &conclusion,
+            &[Proposition::Truth],
+            &[],
+            &certificate.proof,
+        ),
+        Err(psi_proof_kernel::ProofError::UnknownDisjunct(2))
+    );
+
+    let mut stale = bytes;
+    stale[8..10].copy_from_slice(&12_u16.to_le_bytes());
+    assert_eq!(
+        decode_proof_bundle(&stale),
+        Err(ProofCodecError::UnsupportedFormatMarker(12))
+    );
 }
 
 #[test]
@@ -114,7 +173,7 @@ fn proof_format_round_trips_atomic_ieee_structural_equality() {
         }],
     };
     let bytes = encode_proof_bundle(&bundle).expect("IEEE proof bytes encode");
-    assert_eq!(&bytes[8..10], &12_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &13_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
 
     let mut inequality = bundle.clone();
@@ -176,7 +235,7 @@ fn proof_format_round_trips_atomic_byte_sequence_equality() {
         }],
     };
     let bytes = encode_proof_bundle(&bundle).expect("byte-sequence proof bytes encode");
-    assert_eq!(&bytes[8..10], &12_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &13_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
 
     let mut noncanonical = bundle;
@@ -220,7 +279,7 @@ fn proof_format_round_trips_structural_case_membership() {
         }],
     };
     let bytes = encode_proof_bundle(&bundle).expect("case-membership proof bytes encode");
-    assert_eq!(&bytes[8..10], &12_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &13_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle));
 }
 
@@ -316,7 +375,7 @@ fn proof_format_canonically_encodes_boolean_equality() {
     psi_proof_kernel::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
         .expect("reflexive Boolean-equality certificate");
     let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
-    assert_eq!(&bytes[8..10], &12_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &13_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
 
     let mut stale = bytes;
@@ -461,7 +520,7 @@ fn proof_format_canonically_encodes_integer_equality() {
     psi_proof_kernel::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
         .expect("reflexive integer-equality certificate");
     let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
-    assert_eq!(&bytes[8..10], &12_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &13_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
 }
 
@@ -491,7 +550,7 @@ fn proof_format_canonically_encodes_integer_ordering() {
     psi_proof_kernel::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
         .expect("reflexive integer-ordering certificate");
     let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
-    assert_eq!(&bytes[8..10], &12_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &13_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
 }
 
@@ -521,7 +580,7 @@ fn proof_format_canonically_encodes_integer_bitwise_terms() {
     psi_proof_kernel::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
         .expect("reflexive integer-bitwise certificate");
     let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
-    assert_eq!(&bytes[8..10], &12_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &13_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
 }
 
@@ -553,7 +612,7 @@ fn proof_format_canonically_encodes_wrapping_shift_terms() {
     psi_proof_kernel::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
         .expect("reflexive wrapping-shift certificate");
     let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
-    assert_eq!(&bytes[8..10], &12_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &13_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
 }
 
@@ -582,7 +641,7 @@ fn proof_format_canonically_encodes_integer_bitwise_not() {
     psi_proof_kernel::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
         .expect("reflexive integer-bitwise-not certificate");
     let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
-    assert_eq!(&bytes[8..10], &12_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &13_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
 }
 
@@ -612,7 +671,7 @@ fn proof_format_canonically_encodes_integer_widening() {
     psi_proof_kernel::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
         .expect("reflexive integer-widen certificate");
     let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
-    assert_eq!(&bytes[8..10], &12_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &13_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
 }
 
@@ -640,7 +699,7 @@ fn proof_format_canonically_encodes_address_carriers() {
     psi_proof_kernel::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
         .expect("reflexive address certificate");
     let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
-    assert_eq!(&bytes[8..10], &12_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &13_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle));
 }
 
@@ -672,7 +731,7 @@ fn proof_format_canonically_encodes_exact_right_shifts() {
     psi_proof_kernel::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
         .expect("reflexive exact-right-shift certificate");
     let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
-    assert_eq!(&bytes[8..10], &12_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &13_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle));
 }
 
@@ -704,7 +763,7 @@ fn proof_format_canonically_encodes_exact_left_shifts() {
     psi_proof_kernel::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
         .expect("reflexive exact-left-shift certificate");
     let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
-    assert_eq!(&bytes[8..10], &12_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &13_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle));
 }
 
@@ -734,7 +793,7 @@ fn proof_format_canonically_encodes_exact_integer_addition() {
     psi_proof_kernel::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
         .expect("reflexive exact-add certificate");
     let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
-    assert_eq!(&bytes[8..10], &12_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &13_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle));
 }
 
@@ -764,7 +823,7 @@ fn proof_format_canonically_encodes_exact_integer_subtraction() {
     psi_proof_kernel::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
         .expect("reflexive exact-subtract certificate");
     let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
-    assert_eq!(&bytes[8..10], &12_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &13_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle));
 }
 
@@ -794,7 +853,7 @@ fn proof_format_canonically_encodes_exact_integer_multiplication() {
     psi_proof_kernel::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
         .expect("reflexive exact-multiply certificate");
     let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
-    assert_eq!(&bytes[8..10], &12_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &13_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle));
 }
 
@@ -824,7 +883,7 @@ fn proof_format_canonically_encodes_exact_integer_division() {
     psi_proof_kernel::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
         .expect("reflexive exact-divide certificate");
     let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
-    assert_eq!(&bytes[8..10], &12_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &13_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle));
 }
 
@@ -854,7 +913,7 @@ fn proof_format_canonically_encodes_exact_integer_remainder() {
     psi_proof_kernel::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
         .expect("reflexive exact-remainder certificate");
     let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
-    assert_eq!(&bytes[8..10], &12_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &13_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle));
 }
 
@@ -884,7 +943,7 @@ fn proof_format_canonically_encodes_wrapping_integer_division() {
     psi_proof_kernel::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
         .expect("reflexive wrapping-divide certificate");
     let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
-    assert_eq!(&bytes[8..10], &12_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &13_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle));
 }
 
@@ -914,7 +973,7 @@ fn proof_format_canonically_encodes_wrapping_integer_remainder() {
     psi_proof_kernel::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
         .expect("reflexive wrapping-remainder certificate");
     let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
-    assert_eq!(&bytes[8..10], &12_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &13_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle));
 }
 
@@ -944,7 +1003,7 @@ fn proof_format_canonically_encodes_saturating_integer_division() {
     psi_proof_kernel::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
         .expect("reflexive saturating-divide certificate");
     let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
-    assert_eq!(&bytes[8..10], &12_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &13_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle));
 }
 
@@ -974,7 +1033,7 @@ fn proof_format_canonically_encodes_saturating_integer_remainder() {
     psi_proof_kernel::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
         .expect("reflexive saturating-remainder certificate");
     let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
-    assert_eq!(&bytes[8..10], &12_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &13_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle));
 }
 
@@ -1001,7 +1060,7 @@ fn proof_format_canonically_encodes_boolean_negation() {
     psi_proof_kernel::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
         .expect("reflexive Boolean-negation certificate");
     let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
-    assert_eq!(&bytes[8..10], &12_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &13_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
 }
 
@@ -1040,7 +1099,7 @@ fn proof_format_canonically_encodes_closed_wrapping_arithmetic() {
     )
     .expect("closed u8 wrapping addition proves 44");
     let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
-    assert_eq!(&bytes[8..10], &12_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &13_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
 }
 
@@ -1096,7 +1155,7 @@ fn proof_format_canonically_encodes_content_certificates() {
         .expect("reflexive content certificate");
 
     let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
-    assert_eq!(&bytes[8..10], &12_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &13_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
 }
 
@@ -1135,7 +1194,7 @@ fn proof_format_canonically_encodes_closed_saturating_arithmetic() {
     )
     .expect("closed u8 saturating addition proves 255");
     let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
-    assert_eq!(&bytes[8..10], &12_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &13_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
 }
 
@@ -1174,7 +1233,7 @@ fn proof_format_canonically_encodes_closed_wrapping_subtraction() {
     )
     .expect("closed u8 wrapping subtraction proves 251");
     let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
-    assert_eq!(&bytes[8..10], &12_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &13_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
 }
 
@@ -1213,7 +1272,7 @@ fn proof_format_canonically_encodes_closed_saturating_subtraction() {
     )
     .expect("closed u8 saturating subtraction proves zero");
     let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
-    assert_eq!(&bytes[8..10], &12_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &13_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
 }
 
@@ -1252,7 +1311,7 @@ fn proof_format_canonically_encodes_closed_wrapping_multiplication() {
     )
     .expect("closed u8 wrapping multiplication proves four");
     let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
-    assert_eq!(&bytes[8..10], &12_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &13_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
 }
 
@@ -1298,7 +1357,7 @@ fn proof_format_canonically_encodes_sum_case_content_certificates() {
     };
 
     let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
-    assert_eq!(&bytes[8..10], &12_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &13_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
 }
 
@@ -1337,7 +1396,7 @@ fn proof_format_canonically_encodes_closed_saturating_multiplication() {
     )
     .expect("closed u8 saturating multiplication proves 255");
     let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
-    assert_eq!(&bytes[8..10], &12_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &13_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
 }
 
@@ -1357,8 +1416,9 @@ fn proof_evidence_order_and_proof_depth_fail_closed() {
     for _ in 0..257 {
         proof = ProofNode {
             conclusion: Proposition::Truth,
-            rule: ProofRule::ImplicationIntroduction {
-                body: Box::new(proof),
+            rule: ProofRule::DisjunctionIntroduction {
+                disjunct: Box::new(proof),
+                index: 0,
             },
         };
     }
