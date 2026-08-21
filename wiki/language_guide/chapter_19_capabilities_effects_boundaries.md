@@ -259,6 +259,36 @@ Implementations and providers refine each ceiling independently. Imports use
 pinned requirement contracts, so later provider selection cannot widen a
 compiled consumer.
 
+One deliberately narrow exception supports installation-bound provider
+requirements whose exact service row is selected with the installed
+realization:
+
+```omega
+boundary machine InterruptAcknowledgement::complete(self)
+reaches <= MachineControl + PortIo
+requires
+    self in InterruptAcknowledgement::Pending
+ensures true;
+```
+
+This introduces one abstract row keyed by the exact normalized requirement
+path and bounded above by the ordinary `+`-separated service set. A fixed
+`reaches MachineControl + PortIo` publishes that union to callers immediately;
+`reaches <= MachineControl + PortIo` carries a symbolic exact row inside its
+installation closure until selection resolves it to `PortIo`,
+`MachineControl`, both, or the empty row. The row may not escape through an
+ordinary callable package or component contract. Such a boundary must bind it
+first or publish the fixed conservative bound. Manifests expose every
+unresolved row and bound, and final admission rejects an unresolved row.
+
+The form adds no Boolean reach algebra. `+` remains idempotent set union and
+`<=` is the subset bound; negation, subtraction, lower bounds, and exclusive-or
+do not exist. Provider-choice restrictions belong to provider admission, not
+the reach row. Separate requirements receive separate abstract rows. An
+installed-root receipt relates an interrupt entry to its completion provider;
+equal service rows would neither establish provider identity nor prove token
+lineage.
+
 No masking, subtraction, scoped allowance, or algebraic handlers exist. A
 checked in-memory Readable provider can remove a trust receipt and refine
 operational behavior, but the abstract Readable reach remains visible. Omega
@@ -286,6 +316,13 @@ Declared reach rows are ceilings. A trait can say "any implementation of this
 machine may reach at most these services." A concrete machine may declare the
 same set or a smaller set, because some providers reach fewer services on a
 given target. It may not declare a new service outside the trait requirement.
+
+For a bounded installation row, the written set is the preselection upper
+bound rather than the selected row. The selected provider's published row must
+be a subset, and that exact row replaces the symbolic row in the final installed
+closure. This preserves the ordinary pinned-import rule: only the explicitly
+installation-bound closure may remain symbolic, and no later provider may
+widen either its recorded bound or an ordinary compiled consumer.
 
 ```omega
 boundary trait Console {

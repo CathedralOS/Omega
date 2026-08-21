@@ -53,9 +53,12 @@ data InterruptAcknowledgement [linear] {
 }
 
 // One stable semantic requirement owns inbound acknowledgement establishment.
-// Platform interrupt roots inherit this requirement and may refine only its
-// calling/target plan. Installation—not an ordinary call—turns the exact
-// non-self parameter route into an introduction.
+// Platform interrupt roots inherit this requirement. Installation—not an
+// ordinary call—turns the exact non-self parameter route into an introduction.
+// The current PortIo row is a temporary bootstrap contract. The settled
+// surface migrates both this entry and complete below to distinct
+// `reaches <= MachineControl + PortIo` installation rows; implementation is
+// tracked under BOUNDED-INSTALLATION-REACH-ROWS.
 pub domain InterruptAcknowledgement::Pending {
     InterruptEntry::enter;
 }

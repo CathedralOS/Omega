@@ -680,6 +680,17 @@ deterministic fingerprint and the `omega-artifacts` `external_roots.json`
 projection report these facts and the complete boundary plan without leaking
 numeric entry addresses or private ranking/codegen proofs.
 
+An installation-bound requirement may contribute one bounded abstract service
+row spelled `reaches <= Bound`. Before provider selection, the root manifest
+records the requirement-path row identity, normalized bound, and every internal
+dependency on it. Ordinary callable package and component contracts cannot
+carry the unresolved row. Provider selection supplies the exact operation row;
+installation verifies it is a subset of the bound, substitutes it through the
+complete root closure, and rejects final admission if any row remains
+unresolved. Entry/completion or other multi-operation coherence is checked from
+the exact provider-execution binding and protocol lineage, never inferred from
+equal rows.
+
 Hardware-table construction and publication are consumer policy. Omega supplies
 generic symbolic materialization, checked instruction contracts, root
 accounting, and validation hooks; an OS package supplies its table schema,

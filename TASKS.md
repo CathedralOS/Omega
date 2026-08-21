@@ -653,7 +653,7 @@ Remaining:
   codecs, verification, fuel, and interpretation reject missing or redirected
   premises. Continue with case-payload paths and aggregate equality over text,
   floats, sums, and erased fields. Trapping predicate arithmetic is
-  design-blocked on owner Q5; imported crash capsules remain blocked on
+  design-blocked on owner Q4; imported crash capsules remain blocked on
   artifact identity and certificate binding.
 - **PROOF-CERTIFICATION-BRIDGE.** Emit kernel-checkable certificates from source
   automation. One recursive certificate owns one SCC, cites its ranking and
@@ -1278,10 +1278,25 @@ state through a raw address.
 - Bring up PIT+PIC first and LAPIC as the production provider. The hard root only
   acknowledges, records time, publishes a coalesced wake, and returns; fan-out
   runs in an ordinary task.
-- Completing the x2APIC acknowledgement transition is design-blocked on owner
-  Q6: the provider-neutral `InterruptAcknowledgement::complete` requirement
-  currently hardcodes `PortIo`, while x2APIC correctly uses `MachineControl`.
-  Do not grant false port-I/O reach to the x2APIC provider as a workaround.
+- **BOUNDED-INSTALLATION-REACH-ROWS.** Implement bounded installation reach
+  rows spelled `reaches <= Bound` on installation-bound boundary requirements.
+  Give each row the exact normalized
+  requirement path as identity, retain its `+`-union upper bound and internal
+  dependency closure, reject escape through ordinary callable package or
+  component contracts, expose unresolved rows and bounds in preselection
+  manifests, substitute the selected provider row throughout the root closure,
+  and reject final admission with any unresolved row. Do not add effect
+  negation, subtraction, lower bounds, exclusive-or, named row variables, or
+  cross-requirement correlation.
+- Migrate both `InterruptEntry::enter` and
+  `InterruptAcknowledgement::complete` from the temporary hardcoded `PortIo`
+  ceiling to distinct bounded installation rows beneath
+  `MachineControl + PortIo`. Bind entry/completion coherence through the exact
+  installed provider execution, acknowledgement policy, operation, and token
+  lineage rather than row equality. PIC completion resolves to `PortIo`;
+  LAPIC/x2APIC completion resolves to `MachineControl`. Checked and terminal
+  artifacts retain the selected provider, operation, bound, resolved row, and
+  refinement evidence without granting authority from reach.
 
 Acceptance: QEMU installs Cathedral-owned memory/interrupt structures, reports
 timer ticks over owned serial output, and halts between ticks. No customer-shaped
@@ -1345,7 +1360,7 @@ compiler concept is introduced.
   umbrella. The published checked operational root is retired; its plan remains
   only as a transient validation and independent-fact construction input.
   Continue removing umbrella carriers after their remaining consumers migrate.
-- **TPR4/TPR6 — design blocked on owner Q8.** Choose how an ordinary domain or
+- **TPR4/TPR6 — design blocked on owner Q7.** Choose how an ordinary domain or
   routed requirement is classified and attached as a progress premise before
   connecting progress-profile grants and receipts. Generic routed/domain
   requirements must not be treated as progress merely because they are
@@ -1395,7 +1410,7 @@ reach or trust, and private proof improvements do not change public identity.
   and general affine cleanup rather than claiming convergence from duplicated
   leaves.
   Provider-sized external adapter/arrival state is design-blocked on
-  `OWNER_QUESTIONS.md` Q8: stack-domain ownership across interrupted and
+  `OWNER_QUESTIONS.md` Q5: stack-domain ownership across interrupted and
   switched entry must be settled before this can become a complete root
   `StackPlan`. Zero-byte internal closures remain inadmissible until that
   adapter demand exists.
@@ -1442,7 +1457,7 @@ Remaining N6/N8 work:
   runtime work, cleanup, or fuel.
 
   Generic conformance application is design-blocked on
-  `OWNER_QUESTIONS.md` Q9. Runtime Type results retain their own multiplicity
+  `OWNER_QUESTIONS.md` Q6. Runtime Type results retain their own multiplicity
   independently of the proof lane.
   Keep proposition, evidence-term, and provenance identities separate; neither
   provenance nor display spelling is a term identity oracle.
@@ -1458,7 +1473,7 @@ Remaining N6/N8 work:
   selected normalized rows, and commits the map identity separately from
   callable static-machine arguments. Still instantiate generic conformance
   declarations over their own telescopes; the call-site application form and
-  permitted inference are design-blocked on `OWNER_QUESTIONS.md` Q9. Nested
+  permitted inference are design-blocked on `OWNER_QUESTIONS.md` Q6. Nested
   generic calls already forward the exact evidence selection through
   specialization. Identity retains declared name, telescope, optional subject,
   instantiated trait, and normalized rows. No visibility-, priority-, or
@@ -1566,7 +1581,7 @@ can produce installed code; validation binds exact final bytes and placement.
 These are pointers to the owning question or open design item, not duplicate
 specifications:
 
-- **EXTERNAL-ENTRY-STACK-DOMAIN:** owner Q6.
+- **EXTERNAL-ENTRY-STACK-DOMAIN:** owner Q5.
 - **FIXED-OPERATOR-SURFACE-BINDING:** owner Q1.
 - **UEFI-PHYSICAL-SEMANTIC-ENTRY-COMPOSITION:** owner Q2.
 - **SUM-MATERIALIZATION:** tagged-case placement vocabulary in
@@ -1575,13 +1590,12 @@ specifications:
   in `wiki/language_guide/appendix_open_questions.md`.
 - **CHECKED-RESULT-ARITHMETIC:** public carrier ruling for failure-returning
   checked arithmetic.
-- **TRAPPING-CONTRACT-ARITHMETIC:** owner Q5.
+- **TRAPPING-CONTRACT-ARITHMETIC:** owner Q4.
 - **IMPORTED-CRASH-CAPSULES:** realization/import/certificate identity in
   `wiki/language_guide/appendix_open_questions.md`.
 - **NATIVE-LOGICAL-FUEL-METERING:** owner Q3.
-- **PROVIDER-NEUTRAL-INTERRUPT-ACKNOWLEDGEMENT:** owner Q4.
-- **GENERIC-CONFORMANCE-APPLICATION:** owner Q7.
-- **PROGRESS-PROFILE-CLASSIFICATION:** owner Q8.
+- **GENERIC-CONFORMANCE-APPLICATION:** owner Q6.
+- **PROGRESS-PROFILE-CLASSIFICATION:** owner Q7.
 
 ## Platform-gated verification
 

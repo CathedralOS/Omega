@@ -58,6 +58,18 @@ The Psi interpreter follows a cataloged boundary only through that explicit
 private-field installation; absence fails closed instead of falling through to
 an external effect handler.
 
+An installation-bound boundary requirement may publish
+`reaches <= Bound`. Terminal Psi retains a symbolic row keyed by that exact
+requirement identity, the normalized `+`-union bound, and every internal
+call-graph dependency on the row. It never serializes Boolean effect formulas,
+a caller-authored provider choice, or one shared row inferred from equal
+service sets. The selected provider plan supplies the concrete operation row;
+installation verifies it is a subset of the bound and substitutes it through
+the complete root closure. Preselection manifests report the unresolved row
+and bound, selected manifests add the exact provider and operation, and final
+admission rejects any unresolved row. Such a row cannot cross an ordinary
+callable package or component boundary.
+
 ## Why the bootstrap stages are not the cut
 
 The older bootstrap lane does not provide a portable expression-lowering
@@ -195,7 +207,7 @@ in the declared caller, produce the declared scalar type, and call the linked
 callee; a missing, spurious, unknown, wrong-kind, wrong-caller, or
 mismatched-callee link rejects. The proof row adds no operation or fuel beyond
 that ordinary call. Outcome guards expose selectors only in applicable arms.
-Generic conformance application is blocked on `OWNER_QUESTIONS.md` Q9. Runtime
+Generic conformance application is blocked on `OWNER_QUESTIONS.md` Q6. Runtime
 Type results retain their ordinary multiplicity independently of the proof
 lane.
 
