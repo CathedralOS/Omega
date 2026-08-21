@@ -1,1 +1,1 @@
-missing a structurally matching respect proof machine
+use `Quotient::lift<F, Respect>` or `Quotient::define<F, Respect>`

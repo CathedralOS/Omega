@@ -727,6 +727,139 @@ fn proposition_type_and_const_arguments_forward_through_machine_binders() {
 }
 
 #[test]
+fn retains_exact_sealed_quotient_operation_request_without_admitting_it() {
+    let source = r#"
+        data Representative { value: i32; }
+        trait Respects {}
+        RepresentativeRespect: Representative satisfies Respects {}
+
+        machine representative(value: Representative) -> Representative { value }
+        machine wrapper(value: Representative) -> Representative {
+            Quotient::lift<representative, RepresentativeRespect>(value)
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let request = typed
+        .expression_table
+        .iter_expressions()
+        .find_map(|(_, expression)| match expression {
+            psi_typed_trees::expression::ExpressionNode::Call(call) => {
+                call.quotient_operation.as_ref()
+            }
+            _ => None,
+        })
+        .expect("sealed quotient request");
+
+    assert_eq!(
+        request.kind,
+        psi_typed_trees::expression::QuotientOperationKind::Lift
+    );
+    assert_eq!(
+        typed.symbols.name(
+            typed
+                .symbols
+                .get(request.representative_operation.symbol)
+                .parent,
+        ),
+        "representative"
+    );
+    assert_eq!(
+        typed
+            .symbols
+            .get(request.representative_operation.symbol)
+            .kind,
+        psi_symbols::SymbolKind::State
+    );
+    assert_eq!(
+        typed.symbols.name(request.respect_conformance.symbol),
+        "RepresentativeRespect"
+    );
+    assert_eq!(
+        typed.symbols.get(request.respect_conformance.symbol).kind,
+        psi_symbols::SymbolKind::Conformance
+    );
+}
+
+#[test]
+fn sealed_quotient_request_rejects_structural_proof_machine_discovery() {
+    let source = r#"
+        data Representative { value: i32; }
+        machine representative(value: Representative) -> Representative { value }
+        machine looks_like_respect() {}
+        machine wrapper(value: Representative) -> Representative {
+            Quotient::define<representative, looks_like_respect>(value)
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let diagnostic = lower_symbol_resolved_trees(&resolved)
+        .expect_err("a structural proof machine must not select Respect");
+
+    assert!(
+        diagnostic
+            .message
+            .contains("must resolve exactly to one named conformance"),
+        "unexpected diagnostic: {}",
+        diagnostic.message
+    );
+}
+
+#[test]
+fn sealed_quotient_define_requires_both_exact_static_identities() {
+    let source = r#"
+        data Representative { value: i32; }
+        machine representative(value: Representative) -> Representative { value }
+        machine wrapper(value: Representative) -> Representative {
+            Quotient::define<representative>(value)
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let diagnostic = lower_symbol_resolved_trees(&resolved)
+        .expect_err("define without an exact named conformance must reject");
+
+    assert!(
+        diagnostic
+            .message
+            .contains("requires exactly two static arguments"),
+        "unexpected diagnostic: {}",
+        diagnostic.message
+    );
+}
+
+#[test]
+fn sealed_quotient_namespace_cannot_be_shadowed() {
+    let source = r#"
+        data Representative { value: i32; }
+        trait Respects {}
+        RepresentativeRespect: Representative satisfies Respects {}
+        machine representative(value: Representative) -> Representative { value }
+
+        data Quotient {}
+        machine Quotient::lift(value: Representative) -> Representative { value }
+        machine wrapper(value: Representative) -> Representative {
+            Quotient::lift<representative, RepresentativeRespect>(value)
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let diagnostic = lower_symbol_resolved_trees(&resolved)
+        .expect_err("an authored Quotient namespace must not capture the sealed wrapper");
+
+    assert!(
+        diagnostic.message.contains("cannot be shadowed"),
+        "unexpected diagnostic: {}",
+        diagnostic.message
+    );
+}
+
+#[test]
 fn proposition_application_rejects_in_runtime_value_position() {
     let source = r#"
         proposition related(left: i32, right: i32);

@@ -1,10 +1,16 @@
-//! N6 proof quotient admission.
+//! N6 proof quotient migration boundary.
 //!
-//! A quotient declaration names an ordinary proof-only carrier family and an
-//! ordinary boolean relation machine. Admission is structural: the relation
-//! must have a pure checked two-carrier signature, and separately checked proof
-//! machines must expose reflexivity, symmetry, and transitivity through their
-//! ordinary `requires`/`ensures` contracts. No privileged law names are used.
+//! The declaration validator below is the legacy pilot: it still accepts an
+//! ordinary boolean relation and structurally discovers reflexivity, symmetry,
+//! and transitivity contracts. That is not the settled quotient-formation
+//! authority, which must select one exact named `Equivalence` conformance from
+//! the declaration's static `where` surface.
+//!
+//! Sealed `Quotient::lift`/`define` requests retain their exact source-selected
+//! operation and conformance identities, but this module rejects executable
+//! admission until formation, correspondence, and contract obligations are
+//! checked. Bare representative calls never discover structural respect proof
+//! machines and never acquire lift authority.
 
 use psi_diagnostics::Diagnostic;
 use psi_symbols::SymbolHandle;
@@ -23,6 +29,21 @@ pub(crate) fn validate_quotients(
     proof_only: &ProofOnlyClassification,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    for (_, expression) in program.expression_table.iter_expressions() {
+        let ExpressionNode::Call(call) = expression else {
+            continue;
+        };
+        if let Some(request) = &call.quotient_operation {
+            let operation = match request.kind {
+                psi_typed_trees::expression::QuotientOperationKind::Lift => "lift",
+                psi_typed_trees::expression::QuotientOperationKind::Define => "define",
+            };
+            diagnostics.push(Diagnostic::error(format!(
+                "`Quotient::{operation}` retains its exact representative operation and named conformance, but executable quotient operations are not admitted until quotient formation, correspondence, and result-flow obligations are independently checked",
+            )));
+        }
+    }
+
     for definition in program.data_definitions() {
         let Some(quotient) = &definition.quotient else {
             continue;
@@ -294,22 +315,20 @@ fn name_operand(program: &TypedTrees, expression: ExpressionHandle) -> Option<St
     }
 }
 
-/// A representative operation whose receiver (when attached) and complete
-/// carrier argument list have been lifted to one quotient. The candidate
-/// exists independently of certification so callers can replace a generic
-/// nominal-mismatch cascade with the precise missing-respect diagnostic.
-pub(crate) struct QuotientLiftCandidate<'program> {
+/// A bare representative call whose operands happen to be quotient values.
+/// This shape is retained only to replace generic nominal mismatch cascades
+/// with the settled explicit-wrapper diagnostic. It carries no admission.
+pub(crate) struct LegacyQuotientCallCandidate<'program> {
     pub(crate) quotient: &'program psi_typed_trees::data::DataDefinition,
     pub(crate) operation: &'program Machine,
-    pub(crate) certified: bool,
 }
 
-pub(crate) fn quotient_lift_candidate<'program>(
+pub(crate) fn legacy_quotient_call_candidate<'program>(
     program: &'program TypedTrees,
     receiver_type: Option<TypeReferenceHandle>,
     argument_types: &[Option<TypeReferenceHandle>],
     state: &'program State,
-) -> Option<QuotientLiftCandidate<'program>> {
+) -> Option<LegacyQuotientCallCandidate<'program>> {
     let parameters = program
         .state_parameters(state)
         .iter()
@@ -361,43 +380,39 @@ pub(crate) fn quotient_lift_candidate<'program>(
         }
     }
 
-    let certified = operation.supply_mode.is_checked_body()
-        && authored_behavior_is_empty(program, operation)
-        && operation_respects_quotient(program, operation, state, quotient);
-    Some(QuotientLiftCandidate {
+    Some(LegacyQuotientCallCandidate {
         quotient,
         operation,
-        certified,
     })
 }
 
-/// Resolve an operation attached to a quotient's representative carrier. This
-/// is deliberately a validation-only projection: the quotient remains
-/// proof-only and no representative or runtime dispatch target is reified.
-pub(crate) fn representative_operation_for_quotient<'program>(
+/// Identify a bare attached representative call solely for a precise
+/// migration diagnostic. This does not resolve the call, validate arguments,
+/// inspect proof machines, or grant any lift authority.
+pub(crate) fn legacy_attached_quotient_call_candidate<'program>(
     program: &'program TypedTrees,
     receiver_type: TypeReferenceHandle,
     target: &str,
-) -> Option<(&'program Machine, &'program State)> {
+) -> Option<LegacyQuotientCallCandidate<'program>> {
     let quotient = quotient_for_type(program, receiver_type)?;
     let carrier_symbol = base_data_symbol(program, quotient.quotient.as_ref()?.carrier)?;
     let carrier = program
         .data_definitions()
         .iter()
         .find(|definition| definition.symbol == carrier_symbol)?;
-    program.machines().iter().find_map(|machine| {
+    let operation = program.machines().iter().find(|machine| {
         machine
             .attached_data
             .as_ref()
             .is_some_and(|attached| attached.as_str() == carrier.name.as_str())
-            .then(|| {
-                program
-                    .machine_states(machine)
-                    .iter()
-                    .find(|state| state.name.as_str() == target)
-                    .map(|state| (machine, state))
-            })
-            .flatten()
+            && program
+                .machine_states(machine)
+                .iter()
+                .any(|state| state.name.as_str() == target)
+    })?;
+    Some(LegacyQuotientCallCandidate {
+        quotient,
+        operation,
     })
 }
 
@@ -412,91 +427,61 @@ fn quotient_for_type(
         .find(|definition| definition.symbol == symbol && definition.quotient.is_some())
 }
 
-fn operation_respects_quotient(
-    program: &TypedTrees,
-    operation: &Machine,
-    operation_state: &State,
-    quotient: &psi_typed_trees::data::DataDefinition,
-) -> bool {
-    let relation = quotient
-        .quotient
-        .as_ref()
-        .expect("quotient lift candidate has quotient metadata");
-    for proof in program.machines() {
-        if proof.symbol == operation.symbol
-            || !proof.supply_mode.is_checked_body()
-            || !authored_behavior_is_empty(program, proof)
-        {
-            continue;
-        }
-        let requires = contract_expression_handles(program, proof, SignatureContractKind::Requires);
-        let ensures = contract_expression_handles(program, proof, SignatureContractKind::Ensures);
-        for ensured in ensures {
-            let Some(relation_call) = fact_call(program, ensured) else {
-                continue;
-            };
-            if !call_matches_relation(program, relation_call, relation.relation_symbol) {
-                continue;
-            }
-            let relation_arguments = program
-                .expression_table
-                .expression_handles(relation_call.arguments);
-            let [left_result, right_result] = relation_arguments else {
-                continue;
-            };
-            let (ExpressionNode::Call(left_call), ExpressionNode::Call(right_call)) = (
-                program.expression_table.expression(*left_result),
-                program.expression_table.expression(*right_result),
-            ) else {
-                continue;
-            };
-            if !call_matches_operation(left_call, operation, operation_state)
-                || !call_matches_operation(right_call, operation, operation_state)
-            {
-                continue;
-            }
-            let Some(left_operands) = operation_call_operands(program, left_call, operation) else {
-                continue;
-            };
-            let Some(right_operands) = operation_call_operands(program, right_call, operation)
-            else {
-                continue;
-            };
-            let operation_arity = program.state_parameters(operation_state).iter().count();
-            if left_operands.len() != operation_arity
-                || right_operands.len() != operation_arity
-                || left_operands.is_empty()
-            {
-                continue;
-            }
-            let mut varies = false;
-            let respected = left_operands
-                .iter()
-                .zip(right_operands)
-                .all(|(left, right)| {
-                    if program
-                        .expression_table
-                        .expressions_structurally_equal(*left, right)
-                    {
-                        return true;
-                    }
-                    varies = true;
-                    requires.iter().any(|required| {
-                        relation_fact_matches_pair(
-                            program,
-                            *required,
-                            relation.relation_symbol,
-                            *left,
-                            right,
-                        )
-                    })
-                });
-            if respected && varies {
-                return true;
-            }
+#[cfg(test)]
+mod tests {
+    use super::validate_quotients;
+    use psi_symbols::SymbolHandle;
+    use psi_typed_trees::TypedTrees;
+    use psi_typed_trees::expression::{
+        ExpressionHandle, ExpressionNode, QuotientOperationKind, QuotientOperationRequest,
+        StaticMachineArgument, TableCallExpression,
+    };
+    use psi_typed_trees::name::Identifier;
+
+    fn static_argument(name: &'static str) -> StaticMachineArgument {
+        StaticMachineArgument {
+            path: vec![Identifier::generated_static(name)].into_boxed_slice(),
+            application: None,
+            const_literal: None,
+            evidence_projection: None,
+            symbol: SymbolHandle::invalid(),
         }
     }
-    false
+
+    #[test]
+    fn retained_sealed_request_is_not_executable_admission() {
+        let mut program = TypedTrees::default();
+        let arguments = program
+            .expression_table
+            .insert_expression_handles(std::iter::empty());
+        program
+            .expression_table
+            .insert(ExpressionNode::Call(TableCallExpression {
+                receiver: ExpressionHandle::invalid(),
+                target_symbol: SymbolHandle::invalid(),
+                target: Identifier::generated_static("lift"),
+                machine_arguments: Box::default(),
+                quotient_operation: Some(QuotientOperationRequest {
+                    kind: QuotientOperationKind::Lift,
+                    representative_operation: static_argument("representative"),
+                    respect_conformance: static_argument("ExactRespect"),
+                }),
+                arguments,
+                evidence_arguments: Box::default(),
+                operational_acknowledgement: Default::default(),
+            }));
+        let proof_only = psi_typed_trees::proof_only::classify(&program);
+        let mut diagnostics = Vec::new();
+
+        validate_quotients(&program, &proof_only, &mut diagnostics);
+
+        assert_eq!(diagnostics.len(), 1);
+        assert!(
+            diagnostics[0]
+                .message
+                .contains("executable quotient operations are not admitted")
+        );
+    }
 }
 
 fn authored_behavior_is_empty(program: &TypedTrees, machine: &Machine) -> bool {
@@ -506,115 +491,4 @@ fn authored_behavior_is_empty(program: &TypedTrees, machine: &Machine) -> bool {
         .is_empty()
         && !machine.suspends
         && !machine.blocks
-}
-
-fn operation_call_operands(
-    program: &TypedTrees,
-    call: &psi_typed_trees::expression::TableCallExpression,
-    operation: &Machine,
-) -> Option<Vec<ExpressionHandle>> {
-    let mut operands = Vec::new();
-    if operation.attached_data.is_some() {
-        if !call.receiver.is_valid() {
-            return None;
-        }
-        operands.push(call.receiver);
-    } else if call.receiver.is_valid() {
-        return None;
-    }
-    operands.extend_from_slice(program.expression_table.expression_handles(call.arguments));
-    Some(operands)
-}
-
-fn contract_expression_handles(
-    program: &TypedTrees,
-    machine: &Machine,
-    kind: SignatureContractKind,
-) -> Vec<ExpressionHandle> {
-    program
-        .machine_contracts(machine)
-        .iter()
-        .filter(|contract| contract.kind == kind)
-        .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))
-        .filter_map(|fact| match fact {
-            ProofFact::Expression(expression) => Some(*expression),
-            _ => None,
-        })
-        .collect()
-}
-
-fn fact_call(
-    program: &TypedTrees,
-    expression: ExpressionHandle,
-) -> Option<&psi_typed_trees::expression::TableCallExpression> {
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Call(call) => Some(call),
-        ExpressionNode::Binary(binary) if binary.operator == BinaryOperator::Equal => {
-            if matches!(
-                program.expression_table.expression(binary.right),
-                ExpressionNode::Boolean(true)
-            ) {
-                fact_call(program, binary.left)
-            } else if matches!(
-                program.expression_table.expression(binary.left),
-                ExpressionNode::Boolean(true)
-            ) {
-                fact_call(program, binary.right)
-            } else {
-                None
-            }
-        }
-        _ => None,
-    }
-}
-
-fn call_matches_relation(
-    program: &TypedTrees,
-    call: &psi_typed_trees::expression::TableCallExpression,
-    relation_symbol: SymbolHandle,
-) -> bool {
-    if call.target_symbol == relation_symbol {
-        return true;
-    }
-    find_machine(program, relation_symbol).is_some_and(|relation| {
-        call.target.as_str() == relation.name.as_str()
-            || program
-                .machine_states(relation)
-                .iter()
-                .any(|state| state.symbol == call.target_symbol)
-    })
-}
-
-fn call_matches_operation(
-    call: &psi_typed_trees::expression::TableCallExpression,
-    operation: &Machine,
-    state: &State,
-) -> bool {
-    call.target_symbol == operation.symbol
-        || call.target_symbol == state.symbol
-        || call.target.as_str() == operation.name.as_str()
-        || call.target.as_str() == state.name.as_str()
-}
-
-fn relation_fact_matches_pair(
-    program: &TypedTrees,
-    expression: ExpressionHandle,
-    relation_symbol: SymbolHandle,
-    left: ExpressionHandle,
-    right: ExpressionHandle,
-) -> bool {
-    let Some(call) = fact_call(program, expression) else {
-        return false;
-    };
-    if !call_matches_relation(program, call, relation_symbol) {
-        return false;
-    }
-    matches!(
-        program.expression_table.expression_handles(call.arguments),
-        [required_left, required_right]
-            if (program.expression_table.expressions_structurally_equal(*required_left, left)
-                && program.expression_table.expressions_structurally_equal(*required_right, right))
-                || (program.expression_table.expressions_structurally_equal(*required_left, right)
-                    && program.expression_table.expressions_structurally_equal(*required_right, left))
-    )
 }

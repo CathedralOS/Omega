@@ -1371,6 +1371,20 @@ fn validate_expression_call_bounds(
         }
     }
 
+    if let Some(receiver_type_reference) = receiver_type_reference
+        && let Some(candidate) = crate::quotients::legacy_attached_quotient_call_candidate(
+            program,
+            receiver_type_reference,
+            call.target.as_str(),
+        )
+    {
+        diagnostics.push(Diagnostic::error(format!(
+            "cannot implicitly lift attached representative operation `{}` onto quotient `{}`; use `Quotient::lift<F, Respect>` or `Quotient::define<F, Respect>` with one exact named conformance",
+            candidate.operation.name, candidate.quotient.name,
+        )));
+        return;
+    }
+
     // External machine receiver.
     if let Some(callee_machine) = receiver_type
         .and_then(|type_name| symbols.machine(type_name))

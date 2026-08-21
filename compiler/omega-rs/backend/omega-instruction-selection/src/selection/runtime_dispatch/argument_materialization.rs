@@ -1581,6 +1581,7 @@ fn resolve_prior_local_initializers_in_table(
                         target_symbol: call.target_symbol,
                         target: call.target,
                         machine_arguments: call.machine_arguments,
+                        quotient_operation: call.quotient_operation,
                         arguments,
                         evidence_arguments: call.evidence_arguments,
                         operational_acknowledgement: call.operational_acknowledgement,

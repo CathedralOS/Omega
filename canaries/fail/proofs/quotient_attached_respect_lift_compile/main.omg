@@ -1,5 +1,3 @@
-// N6: an attached pure carrier operation lifts through its receiver when an
-// ordinary structural respect proof relates the two receiver results.
 data Representative {
     case Zero;
     case Next(previous: Representative);
@@ -38,41 +36,15 @@ machine Representative::advance(self) -> Representative {
     self
 }
 
+// This structural theorem no longer grants implicit attached lift authority.
 machine advance_respects(a: Representative, b: Representative)
 requires equivalent(a, b)
 ensures equivalent(a.advance(), b.advance())
 {
 }
 
-machine lifted_advance(value: EquivalenceClass) -> EquivalenceClass {
+machine rejected_implicit_lift(value: EquivalenceClass) -> EquivalenceClass {
     value.advance()
-}
-
-machine Representative::combine(self, other: Representative) -> Representative {
-    self
-}
-
-machine combine_respects(
-    left_a: Representative,
-    left_b: Representative,
-    right_a: Representative,
-    right_b: Representative
-)
-requires
-    equivalent(left_a, left_b)
-    equivalent(right_a, right_b)
-ensures equivalent(
-    left_a.combine(right_a),
-    left_b.combine(right_b)
-)
-{
-}
-
-machine lifted_combine(
-    left: EquivalenceClass,
-    right: EquivalenceClass
-) -> EquivalenceClass {
-    left.combine(right)
 }
 
 data Main {
