@@ -1632,12 +1632,12 @@ fn discovered_exact_native_coverage_is_consistent() {
         0
     );
     let legacy_positive = coverage
-        .unique_legacy_owner("data/runtime_proof_only_data_declared_exit")
+        .unique_legacy_owner("collections/runtime_indexed_rmw_loop_exit")
         .expect("known legacy exact-native owner should be discovered");
     assert_eq!(legacy_positive.expected_status, 70);
     assert_eq!(
         legacy_positive.test_name,
-        "runtime_proof_only_data_declared_exit_canary_runs"
+        "runtime_indexed_rmw_loop_exit_canary_runs"
     );
     assert_eq!(
         coverage.legacy_owner_count("traits/boundary_trait_effects_host_call"),

@@ -3139,20 +3139,15 @@ fn runtime_dispatch_local_index_binary_write_exit_canary_runs() {
 #[test]
 fn runtime_dispatch_helper_local_alias_add_exit_canary_runs() {
     let canary = pass_canary("storage/runtime_dispatch_helper_local_alias_add_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-dispatch-helper-local-alias-add-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime dispatch helper local alias add canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
+        "runtime dispatch helper local alias add canary should compile from its authored root",
+    );
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()

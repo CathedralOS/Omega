@@ -1396,6 +1396,15 @@ fn compile_rooted_canary_for_target_with_artifact_policy(
 // exercise production entry selection and may not substitute the legacy entry
 // seam.
 const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
+    "data/case_membership_union_guard_exit",
+    "data/runtime_proof_only_data_declared_exit",
+    "dependent/runtime_requires_guarded_call_exit",
+    "expressions/arithmetic_domain_saturating_const_fold_exit",
+    "proofs/runtime_core_nat_declared_exit",
+    "proofs/runtime_core_rat_declared_exit",
+    "proofs/runtime_core_roster_ops_exit",
+    "proofs/runtime_nat_structural_recursion_exit",
+    "storage/runtime_dispatch_helper_local_alias_add_exit",
     "ownership/linear_state_call_handoff",
     "ownership/linear_transition_nested_call_handoff",
     "ownership/linear_repeated_transition_call_handoff",
@@ -3218,6 +3227,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "recast/runtime_offset_byte_recast_exit",
     "recast/runtime_guarded_offset_recast_exit",
     "recast/runtime_symbolic_stride_footprint_exit",
+    "data/case_membership_union_guard_exit",
     "data/runtime_proof_only_data_declared_exit",
     "arithmetic/runtime_u64_guarded_cap_store_exit",
     "calls/runtime_measured_tail_recursion_exit",
