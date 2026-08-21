@@ -1159,7 +1159,14 @@ Remaining:
   Address or type mismatch rejects. Existing kernel rules suffice, but the
   producer does not yet materialize canonical certificates for the accepted
   affine and correlated families. Keeping the exact rows trusted is therefore
-  an implementation gap, not a language-design blocker. No schema,
+  an implementation gap, not a language-design blocker. The producer now has
+  a kernel-checked recursive compositor for exact prior citations, atomic
+  integer-order proofs, conjunctions, and arbitrary ordered disjunctions,
+  covering the common certificate spine for the signed three-arm and `i1`
+  exact goals. The remaining definition-chain, cast-sandwich, affine/product/
+  shift, affine-join, and correlated forbidden-root analyzers must emit
+  normalized witnesses for those atomic leaves; no trusted reducer proposition
+  is imported as proof authority and no partial exact row migrated. No schema,
   reducer, semantic-operation, or other trust status is promoted; terminal
   `PSITERM\0` codec v18, proof-bundle v15, installation record v24, and
   `fully-derived false` remain unchanged.

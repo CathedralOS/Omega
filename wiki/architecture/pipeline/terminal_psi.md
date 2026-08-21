@@ -1754,10 +1754,16 @@ the operation's own result equation is not available to justify itself.
 Exact divide/remainder remain on their explicitly trusted sufficient reducer.
 Their canonical proposition is now settled, and the existing kernel rules can
 check direct bound, disjunction, conjunction, transitivity, and substitution
-proofs. The producer does not yet reconstruct certificates for the accepted
-affine/correlated sufficient families from prior facts, so neither exact row
-switches reconstruction or gains an evidence-dependent fallback. No schema or
-reducer node is promoted, and terminal closure remains `fully-derived false`.
+proofs. The untrusted producer now has one kernel-checked recursive compositor
+for exact prior citations, atomic integer bounds, conjunctions, and arbitrary
+ordered disjunctions; this covers the common certificate spine, including the
+three-arm signed exact goal and the i1 joint goal. It deliberately performs no
+affine or interval analysis. Producers for the accepted definition-chain,
+cast-sandwich, affine-join, and correlated forbidden-root families must still
+materialize proofs of the atomic canonical leaves from their normalized
+analysis witnesses. Until then neither exact row switches reconstruction or
+gains an evidence-dependent fallback. No schema or reducer node is promoted,
+and terminal closure remains `fully-derived false`.
 
 Proof-bundle v15 additionally carries exact fixed-integer `<=` endpoint
 substitution. One recursively checked relation child, one recursively checked
