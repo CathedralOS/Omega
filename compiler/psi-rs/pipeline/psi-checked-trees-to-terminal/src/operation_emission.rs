@@ -1,10 +1,13 @@
 //! Terminal operation emission and proof finalization.
 
 use super::*;
+use crate::nonzero_divisor_certificate::prove_nonzero_divisor;
 
 pub(super) fn finalize_operation_proofs(
     lowered: &mut LoweredTerminalPsi,
 ) -> Result<(), LoweringError> {
+    let validated = psi_terminal_verifier::validate_module(&lowered.semantic_module)
+        .map_err(LoweringError::InvalidTerminalModule)?;
     for site in reconstruct_operation_obligations(&lowered.semantic_module)
         .map_err(LoweringError::InvalidTerminalModule)?
     {
@@ -20,38 +23,37 @@ pub(super) fn finalize_operation_proofs(
         {
             continue;
         }
-        let assumptions = lowered
-            .semantic_module
-            .machines
-            .iter()
-            .find(|machine| {
-                machine.blocks.iter().any(|block| {
-                    block.operations.iter().any(|operation| {
-                        matches!(
-                            operation.kind,
-                            OperationKind::IntegerExactCast { obligation, .. }
-                                | OperationKind::ExactIntegerAdd { obligation, .. }
-                                | OperationKind::ExactIntegerSubtract { obligation, .. }
-                                | OperationKind::ExactIntegerMultiply { obligation, .. }
-                                | OperationKind::ExactIntegerShiftRight { obligation, .. }
-                                | OperationKind::ExactIntegerShiftLeft { obligation, .. }
-                                | OperationKind::ExactIntegerDivide { obligation, .. }
-                                | OperationKind::ExactIntegerRemainder { obligation, .. }
-                                if obligation == site.obligation.id
-                        )
-                    })
+        let owner = lowered.semantic_module.machines.iter().find_map(|machine| {
+            machine.blocks.iter().find_map(|block| {
+                block.operations.iter().find_map(|operation| {
+                    let (obligation, is_canonical_nonzero_pilot) =
+                        proof_bearing_operation_obligation(&operation.kind)?;
+                    (obligation == site.obligation.id)
+                        .then_some((machine, is_canonical_nonzero_pilot))
                 })
             })
-            .map(|machine| machine.contract.requires.as_slice())
+        });
+        let assumptions = owner
+            .map(|(machine, _)| machine.contract.requires.as_slice())
             .unwrap_or_default();
-        let proof = proof_from_available_facts(
-            &site.obligation.proposition,
-            assumptions,
-            &site.semantic_axioms,
-        );
-        let proof = proof.ok_or(LoweringError::ExactIntegerCastProofUnavailable(
-            site.obligation.id,
-        ))?;
+        let proof = if let Some((machine, true)) = owner {
+            let context = validated
+                .value_context(machine)
+                .map_err(LoweringError::InvalidTerminalModule)?;
+            prove_nonzero_divisor(
+                &context,
+                &site.obligation.proposition,
+                assumptions,
+                &site.semantic_axioms,
+            )
+        } else {
+            proof_from_available_facts(
+                &site.obligation.proposition,
+                assumptions,
+                &site.semantic_axioms,
+            )
+        };
+        let proof = proof.ok_or(LoweringError::OperationProofUnavailable(site.obligation.id))?;
         lowered.proof_bundle.evidence.push(ObligationEvidence {
             obligation: site.obligation.id,
             route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
@@ -67,6 +69,25 @@ pub(super) fn finalize_operation_proofs(
         .evidence
         .sort_by_key(|evidence| evidence.obligation);
     Ok(())
+}
+
+fn proof_bearing_operation_obligation(kind: &OperationKind) -> Option<(ObligationId, bool)> {
+    let (obligation, is_canonical_nonzero_pilot) = match kind {
+        OperationKind::IntegerExactCast { obligation, .. }
+        | OperationKind::ExactIntegerAdd { obligation, .. }
+        | OperationKind::ExactIntegerSubtract { obligation, .. }
+        | OperationKind::ExactIntegerMultiply { obligation, .. }
+        | OperationKind::ExactIntegerShiftRight { obligation, .. }
+        | OperationKind::ExactIntegerShiftLeft { obligation, .. }
+        | OperationKind::ExactIntegerDivide { obligation, .. }
+        | OperationKind::ExactIntegerRemainder { obligation, .. }
+        | OperationKind::WrappingIntegerRemainder { obligation, .. }
+        | OperationKind::SaturatingIntegerDivide { obligation, .. }
+        | OperationKind::SaturatingIntegerRemainder { obligation, .. } => (*obligation, false),
+        OperationKind::WrappingIntegerDivide { obligation, .. } => (*obligation, true),
+        _ => return None,
+    };
+    Some((obligation, is_canonical_nonzero_pilot))
 }
 
 fn proof_from_available_facts(

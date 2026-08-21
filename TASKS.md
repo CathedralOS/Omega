@@ -1077,10 +1077,9 @@ Remaining:
   with an identical middle and exact outer endpoints, allowing existing
   `d <= -2` evidence plus the closed `-2 <= -1` relation to establish the
   negative disjunct. Proof-bundle v14 assigns rule tag 10; the registered
-  calculus is v11 and the Rust kernel v3. This is capability only:
-  reconstruction still uses the legacy sufficient proposition, no producer
-  emits these certificates, all reducers and operation rows remain
-  `TrustedJudgment`, and the closure remains `fully-derived false`.
+  calculus is v11 and the Rust kernel v3. This initially landed as capability
+  only; the bounded wrapping-divide pilot below is its first production
+  consumer.
   The next bounded certificate capability adds
   `IntegerLessOrEqualSubstitution`. Two independently checked children prove
   one integer `<=` relation and one equality; endpoint 0 or 1 selects the left
@@ -1088,10 +1087,20 @@ Remaining:
   and either equality orientation is accepted. A non-order relation,
   non-equality evidence, unknown endpoint, changed untouched endpoint, or
   mismatched replacement rejects. Proof-bundle v15 assigns rule tag 11; the
-  registered calculus is v12 and the Rust kernel v4. This remains capability
-  only: no producer emits the certificate, no sufficient reducer or semantic
-  operation row is promoted, terminal `PSITERM\0` codec v18 and installation
-  record v24 remain unchanged, and the closure remains `fully-derived false`.
+  registered calculus is v12 and the Rust kernel v4. This initially landed as
+  capability only; the bounded wrapping-divide pilot below is its first
+  production consumer.
+  The complete `WrappingIntegerDivide` semantic row now reconstructs the
+  canonical `NonzeroDivisor` goal and uses an untrusted, kernel-checked
+  certificate producer over only machine requirements and pre-site semantic
+  axioms. The producer deterministically prefers the signed negative arm and
+  supports exact citation, integer-order transitivity, and literal equality
+  substitution. Missing projection or evidence rejects with no operation-result
+  self-justification and no fallback to the legacy reducer. Exact
+  divide/remainder, wrapping remainder, and saturating divide/remainder remain
+  on trusted sufficient reduction. No schema, reducer, or semantic-operation
+  trust status is promoted; terminal `PSITERM\0` codec v18, proof-bundle v15,
+  installation record v24, and `fully-derived false` remain unchanged.
   The bounded Gamma spike is complete. It canonical-decodes four exact current
   `PSITERM\0` v18 fixtures and audits a 54-row scalar ledger covering constants,
   Boolean not/equality, integer equality/order, bitwise operations, strict

@@ -6,8 +6,8 @@ use psi_core::{Proposition, ScalarTerm, ValueId};
 use psi_proof_kernel::{Obligation, ObligationClass};
 use psi_terminal::{OperationKind, TerminalMachine, TerminalModule, Terminator};
 use psi_terminal_semantics::{
-    goal_free_scalar_leaf_equation, proof_bearing_scalar_leaf_semantics,
-    structural_effect_leaf_observation,
+    OperationSemanticError, OperationSemanticTag, goal_free_scalar_leaf_equation,
+    proof_bearing_scalar_leaf_semantics, structural_effect_leaf_observation,
 };
 
 use crate::{ModuleError, validate_module};
@@ -191,15 +191,29 @@ pub(super) fn reconstruct_machine_semantics(
             if let Some(semantics) = proof_bearing_scalar_leaf_semantics(operation, &value_types)
                 .map_err(ModuleError::OperationSemanticSchema)?
             {
+                let proposition = if semantics.tag() == OperationSemanticTag::WrappingIntegerDivide
+                {
+                    semantics
+                        .canonical_goal()
+                        .kernel_proposition()
+                        .map_err(ModuleError::OperationSemanticSchema)?
+                        .ok_or(ModuleError::OperationSemanticSchema(
+                            OperationSemanticError::ProofBearingScalarSchemaMismatch(
+                                semantics.tag(),
+                            ),
+                        ))?
+                } else {
+                    reduce_proof_bearing_scalar_goal(
+                        &semantics,
+                        &axioms,
+                        &machine.contract.requires,
+                        &machine_parameter_values,
+                    )
+                };
                 operation_obligations.push(ReconstructedOperationObligation {
                     obligation: Obligation {
                         id: semantics.obligation(),
-                        proposition: reduce_proof_bearing_scalar_goal(
-                            &semantics,
-                            &axioms,
-                            &machine.contract.requires,
-                            &machine_parameter_values,
-                        ),
+                        proposition,
                         class: ObligationClass::Derivable,
                     },
                     semantic_axioms: axioms.clone(),

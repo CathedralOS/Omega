@@ -90,6 +90,7 @@ mod content_conservation;
 mod crash_routes;
 mod debug_map;
 mod evidence_lowering;
+mod nonzero_divisor_certificate;
 mod operation_emission;
 mod scalar_call_closure;
 mod scalar_graph_lowering;
@@ -963,7 +964,7 @@ pub enum LoweringError {
     DebugSemanticCodec(psi_terminal_codec::CodecError),
     InvalidDebugMap(psi_terminal_codec::DebugMapError),
     InvalidTerminalModule(psi_terminal_verifier::ModuleError),
-    ExactIntegerCastProofUnavailable(ObligationId),
+    OperationProofUnavailable(ObligationId),
     Unsupported(&'static str),
     InvalidPsiIntegerType,
     UnlandedIntegerLiteral,
