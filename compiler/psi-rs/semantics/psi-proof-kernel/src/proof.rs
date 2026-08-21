@@ -23,6 +23,10 @@ pub enum ProofRule {
         conjunction: Box<ProofNode>,
         conjunct: usize,
     },
+    DisjunctionIntroduction {
+        disjunct: Box<ProofNode>,
+        index: usize,
+    },
     ImplicationIntroduction {
         body: Box<ProofNode>,
     },
@@ -45,6 +49,7 @@ pub enum AcceptedProofRule {
     Assumption,
     ConjunctionIntroduction,
     ConjunctionElimination,
+    DisjunctionIntroduction,
     ImplicationIntroduction,
     ImplicationElimination,
     EqualityTransitivity,
@@ -231,6 +236,23 @@ fn check_node(
                 .then_some(())
                 .ok_or(ProofError::ConjunctConclusionMismatch)
         }
+        ProofRule::DisjunctionIntroduction { disjunct, index } => {
+            acceptance
+                .rules
+                .insert(AcceptedProofRule::DisjunctionIntroduction);
+            let Proposition::Disjunction(disjuncts) = &proof.conclusion else {
+                return Err(ProofError::RuleConclusionMismatch(
+                    "disjunction introduction",
+                ));
+            };
+            let selected = disjuncts
+                .get(*index)
+                .ok_or(ProofError::UnknownDisjunct(*index))?;
+            check_node(context, assumptions, semantic_axioms, disjunct, acceptance)?;
+            (selected == &disjunct.conclusion)
+                .then_some(())
+                .ok_or(ProofError::DisjunctConclusionMismatch)
+        }
         ProofRule::ImplicationIntroduction { body } => {
             acceptance
                 .rules
@@ -375,8 +397,10 @@ pub enum ProofError {
     UnknownAssumption(usize),
     AssumptionConclusionMismatch(usize),
     UnknownConjunct(usize),
+    UnknownDisjunct(usize),
     ConjunctionArityMismatch,
     ConjunctConclusionMismatch,
+    DisjunctConclusionMismatch,
     ImplicationPremiseMismatch,
     ImplicationConclusionMismatch,
     EqualityMiddleMismatch,
@@ -399,6 +423,98 @@ impl std::error::Error for ProofError {}
 mod tests {
     use super::*;
     use psi_core::PropositionId;
+
+    #[test]
+    fn disjunction_introduction_checks_one_exact_selected_child() {
+        let left = Proposition::Atom(PropositionId::new(1).expect("left atom"));
+        let right = Proposition::Atom(PropositionId::new(2).expect("right atom"));
+        let goal = Proposition::Disjunction(vec![left.clone(), right.clone()]);
+        let branch = |proposition: Proposition, assumption: usize, index: usize| ProofNode {
+            conclusion: goal.clone(),
+            rule: ProofRule::DisjunctionIntroduction {
+                disjunct: Box::new(ProofNode {
+                    conclusion: proposition,
+                    rule: ProofRule::Assumption { index: assumption },
+                }),
+                index,
+            },
+        };
+        let assumptions = vec![left.clone(), right.clone()];
+
+        for (proof, expected) in [
+            (branch(left.clone(), 0, 0), left.clone()),
+            (branch(right.clone(), 1, 1), right.clone()),
+        ] {
+            let accepted = accept_certificate(
+                &PropositionContext::default(),
+                &goal,
+                &assumptions,
+                &[],
+                &proof,
+            )
+            .expect("selected disjunct is independently established");
+            assert_eq!(
+                accepted.rules,
+                vec![
+                    AcceptedProofRule::Assumption,
+                    AcceptedProofRule::DisjunctionIntroduction,
+                ]
+            );
+            assert_eq!(
+                accepted.assumptions,
+                vec![AcceptedPremise {
+                    index: usize::from(expected == right),
+                    proposition: expected,
+                }]
+            );
+        }
+
+        assert_eq!(
+            check_certificate(
+                &PropositionContext::default(),
+                &goal,
+                &assumptions,
+                &[],
+                &branch(left.clone(), 0, 2),
+            ),
+            Err(ProofError::UnknownDisjunct(2))
+        );
+        assert_eq!(
+            check_certificate(
+                &PropositionContext::default(),
+                &goal,
+                &assumptions,
+                &[],
+                &branch(left.clone(), 0, 1),
+            ),
+            Err(ProofError::DisjunctConclusionMismatch)
+        );
+        let non_disjunction = Proposition::Implication {
+            premise: Box::new(left.clone()),
+            conclusion: Box::new(left.clone()),
+        };
+        assert_eq!(
+            check_certificate(
+                &PropositionContext::default(),
+                &non_disjunction,
+                &assumptions,
+                &[],
+                &ProofNode {
+                    conclusion: non_disjunction.clone(),
+                    rule: ProofRule::DisjunctionIntroduction {
+                        disjunct: Box::new(ProofNode {
+                            conclusion: left,
+                            rule: ProofRule::Assumption { index: 0 },
+                        }),
+                        index: 0,
+                    },
+                },
+            ),
+            Err(ProofError::RuleConclusionMismatch(
+                "disjunction introduction"
+            ))
+        );
+    }
 
     #[test]
     fn implication_certificate_is_checked_structurally() {

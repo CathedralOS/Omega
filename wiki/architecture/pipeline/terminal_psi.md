@@ -1302,7 +1302,7 @@ verifier independently requires both resolved leaves to have byte-sequence
 carrier types, and call substitution rebases both roots. The bounded slice
 admits field-to-field whole-record equality for `&[u8] in Domain` and
 `[u8; N] in Domain`; text literals and direct text `!=` remain fenced. Semantic
-codec v18, proof-bundle v12, and installation-record v24 encode this vocabulary.
+codec v18, proof-bundle v13, and installation-record v24 encode this vocabulary.
 A
 genuinely zero-member record instead normalizes equality to the
 existing Boolean `true` term; inequality uses the existing negation, and calls,
@@ -2034,6 +2034,11 @@ one current proof-system marker; stale markers reject. Evidence is strictly
 ordered by obligation identity and retains exact kernel rules, proof trees, and
 admission identities. Proof propositions preserve rule direction because cited
 axiom direction is significant even though the proof section is replaceable.
+Disjunction introduction records exactly one independently checked child and
+its selected canonical arm index; an absent arm, out-of-range index, or child
+whose conclusion differs from that arm rejects. This is proof-calculus
+capability only and does not promote any semantic-ledger row or sufficient-form
+reducer.
 
 `TerminalArtifactManifest` binds semantic and proof identities plus optional
 installation and debug hashes. Each role has a separate hash domain, and absent
