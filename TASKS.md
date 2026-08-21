@@ -1006,6 +1006,14 @@ Remaining:
   the semantic canaries remained 0.01-second work once compiled. This reduces
   codegen/link and artifact-I/O pressure without weakening compiler diagnostics
   or semantic validation.
+  A later apparent Rust frontend regression was build-cache accumulation, not
+  compiler execution: `target/debug/deps` had grown to 1,359,819 entries and a
+  rustc sample spent its startup in `SearchPath::new`/`readdir` before parsing
+  the crate. `cargo clean` removed 1,483,970 derived files (195.1 GiB). The same
+  proof-codec target then fell from 58.8s incremental to 2.86s cold and 0.68s
+  after touching `psi-core`. Treat a uniform per-crate pre-parse delay as Cargo
+  cache hygiene first; it is not evidence for Arena concurrency, test sharding,
+  linker changes, or disabled semantic gates.
   The real-source terminal-Psi differential suite now applies the same boundary:
   its former 10,520-line file is an 852-line artifact/native execution harness
   over ten contract, call/control, exact-arithmetic, scalar-operation, and
