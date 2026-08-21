@@ -37,6 +37,7 @@ pub use pipeline::{
     ProgramStorageEntryWholeRootAuthority, ProgramStorageEntryWholeRootAuthorityError,
     ProgramStorageEntryWholeRootLogicalValueCarrier, ProgramStorageEntryWholeRootLogicalValueError,
     ProgramStorageEntryWholeRootOperandCarrier, ProgramStorageEntryWholeRootOperandError,
+    ProgramStorageEntryWrapperBodyTemplatePlan, ProgramStorageEntryWrapperBodyTemplateStep,
     ProgramStorageEntryWrapperCallerFrameError, ProgramStorageEntryWrapperCallerFramePlan,
     ProgramStorageEntryWrapperCallerFrameStep, ProgramStorageEntryWrapperReceiverTransfer,
     ProgramStorageEntryWrapperRootTransferPlan, ProgramStorageEntryWrapperTransferPlan,

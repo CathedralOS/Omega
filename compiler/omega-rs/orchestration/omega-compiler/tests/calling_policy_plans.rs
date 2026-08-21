@@ -1471,6 +1471,7 @@ fn program_storage_entry_publishes_both_core_owned_root_positions() {
         (0x8000, 0x2000)
     );
     let lower_level_bridge = emitted_program_storage_bridge(free_roots.binding().clone(), None);
+    assert!(lower_level_bridge.wrapper_body_template().is_none());
     let missing_source =
         bind_program_storage_entry_whole_root_arguments(free_roots, &lower_level_bridge)
             .expect_err("a physical-plan-only bridge has no selected source ABI");
@@ -1594,6 +1595,47 @@ machine build(builder: &mut Build) {
     );
     assert_eq!(storage_inbound.shape().byte_size, 16);
     assert_eq!(storage_inbound.source_capture_write_range(), &(1..2));
+    let template = bridge
+        .wrapper_body_template()
+        .expect("receiver-free emitted bridge must retain its phase-alignment body template");
+    let source_identity =
+        omega_control_flow::MachineFunctionIdentity::source(bridge.continuation_key());
+    let wrapper_identity =
+        omega_control_flow::MachineFunctionIdentity::program_storage_entry_wrapper(
+            bridge.continuation_key(),
+        )
+        .expect("selected source identity admits one generated wrapper identity");
+    assert_eq!(template.wrapper_identity(), wrapper_identity);
+    assert_eq!(template.continuation_identity(), source_identity);
+    assert_eq!(template.continuation_symbol(), bridge.continuation_symbol());
+    assert_eq!(
+        template.continuation_text_range(),
+        &(bridge.continuation_text_offset()
+            ..bridge.continuation_text_offset() + bridge.continuation_text_size())
+    );
+    assert_eq!(
+        template.wrapper_symbol(),
+        omega_object_file::private_function_symbol_name(wrapper_identity)
+            .expect("canonical private wrapper symbol")
+    );
+    assert_eq!(template.steps().len(), 11);
+    assert!(matches!(
+        &template.steps()[2],
+        omega_compiler::ProgramStorageEntryWrapperBodyTemplateStep::CopyEntryIndirectU64ToOutgoingStack {
+            role: omega_compiler::ProgramStorageEntryRootRole::Image,
+            source_register: omega_calling_conventions::MachineRegister::X86Rcx,
+            source_byte_offset: 0,
+            stack_byte_offset: 32,
+        }
+    ));
+    assert_eq!(
+        &template.steps()[8],
+        &omega_compiler::ProgramStorageEntryWrapperBodyTemplateStep::CallSourceContinuation {
+            target: source_identity,
+        }
+    );
+    assert_eq!(bridge.entry_function_identity(), source_identity);
+    assert_ne!(bridge.entry_function_identity(), wrapper_identity);
     let installation = install_program_storage_entry_roots(
         &build_dir,
         bridge.binding().clone(),
