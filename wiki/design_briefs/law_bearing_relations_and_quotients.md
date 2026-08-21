@@ -789,6 +789,15 @@ rather than being classified as ambient. Exact side/owner/contract/fact
 coordinates are retained, but proposition substitution, `Q <-> P` checking,
 and the selected `Respects` clauses remain later obligations.
 
+The direct planning boundary now recognizes a result root only when the sealed
+request is the call at the exact root of the state's last expression statement.
+That records one unchanged fallthrough result edge. A request in an earlier
+expression statement, nested under another expression, or returned through a
+transition value remains outside this boundary and is rejected by the global
+non-executable fence. The retained fallthrough edge does not prove that every
+normal exit returns it unchanged: transition exits, aliases, forwarding states,
+and multi-state result flow still require the normalized result-flow judgment.
+
 Acceptance requires:
 
 1. primitive and witness-bearing proposition declarations retain their exact

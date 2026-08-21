@@ -113,49 +113,48 @@ fn reject_quotient_operation_requests(program: &TypedTrees, diagnostics: &mut Ve
     let mut direct_terminal_requests = Vec::new();
     for machine in program.machines() {
         for state in program.machine_states(machine) {
-            for statement in program.statement_table.statements(state.statement_nodes) {
-                let psi_typed_trees::statement::StatementNode::Expression(expression) = statement
-                else {
-                    continue;
-                };
-                let ExpressionNode::Call(call) = program.expression_table.expression(*expression)
-                else {
-                    continue;
-                };
-                let Some(request) = &call.quotient_operation else {
-                    continue;
-                };
-                if !direct_terminal_requests.contains(expression) {
-                    direct_terminal_requests.push(*expression);
+            let Some(psi_typed_trees::statement::StatementNode::Expression(expression)) = program
+                .statement_table
+                .statements(state.statement_nodes)
+                .last()
+            else {
+                continue;
+            };
+            let ExpressionNode::Call(call) = program.expression_table.expression(*expression)
+            else {
+                continue;
+            };
+            let Some(request) = &call.quotient_operation else {
+                continue;
+            };
+            direct_terminal_requests.push(*expression);
+            let operation = operation_name(request.kind);
+            match relation_plan::derive_direct_terminal_plan(
+                program, machine, state, call, request,
+            ) {
+                Ok(plan) => {
+                    let correspondence = plan
+                        .render_define_correspondence()
+                        .map(|value| format!(" plus exact {value}"))
+                        .unwrap_or_default();
+                    let precondition = plan
+                        .render_representative_precondition()
+                        .map(|value| format!(" plus exact {value}"))
+                        .unwrap_or_default();
+                    let public_precondition = plan
+                        .render_public_precondition()
+                        .map(|value| format!(" plus exact {value}"))
+                        .unwrap_or_default();
+                    diagnostics.push(Diagnostic::error(format!(
+                        "`Quotient::{operation}` has compiler-derived direct-terminal relations {} and {} plus exact representative telescope {}{correspondence}{public_precondition}{precondition} and one unchanged state-fallthrough result root, but executable quotient operations are not admitted until complete operation/static correspondence, the selected `Respects` contract, and all normalized result exits are independently checked",
+                        plan.render_ra(program),
+                        plan.render_rr(program),
+                        plan.render_representative_telescope(program),
+                    )))
                 }
-                let operation = operation_name(request.kind);
-                match relation_plan::derive_direct_terminal_plan(
-                    program, machine, state, call, request,
-                ) {
-                    Ok(plan) => {
-                        let correspondence = plan
-                            .render_define_correspondence()
-                            .map(|value| format!(" plus exact {value}"))
-                            .unwrap_or_default();
-                        let precondition = plan
-                            .render_representative_precondition()
-                            .map(|value| format!(" plus exact {value}"))
-                            .unwrap_or_default();
-                        let public_precondition = plan
-                            .render_public_precondition()
-                            .map(|value| format!(" plus exact {value}"))
-                            .unwrap_or_default();
-                        diagnostics.push(Diagnostic::error(format!(
-                            "`Quotient::{operation}` has compiler-derived direct-terminal relations {} and {} plus exact representative telescope {}{correspondence}{public_precondition}{precondition}, but executable quotient operations are not admitted until complete operation/static correspondence, the selected `Respects` contract, and normalized result flow are independently checked",
-                            plan.render_ra(program),
-                            plan.render_rr(program),
-                            plan.render_representative_telescope(program),
-                        )))
-                    }
-                    Err(reason) => diagnostics.push(Diagnostic::error(format!(
-                        "`Quotient::{operation}` retains its exact representative operation and named conformance, but its direct-terminal relation plan is unresolved ({reason}); executable quotient operations are not admitted",
-                    ))),
-                }
+                Err(reason) => diagnostics.push(Diagnostic::error(format!(
+                    "`Quotient::{operation}` retains its exact representative operation and named conformance, but its direct-terminal relation plan is unresolved ({reason}); executable quotient operations are not admitted",
+                ))),
             }
         }
     }
