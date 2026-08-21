@@ -14,15 +14,6 @@ enum Citation {
     SemanticAxiom(usize),
 }
 
-pub(super) fn prove_nonzero_divisor(
-    context: &PropositionContext,
-    goal: &Proposition,
-    assumptions: &[Proposition],
-    semantic_axioms: &[Proposition],
-) -> Option<ProofNode> {
-    prove_canonical_integer_proposition(context, goal, assumptions, semantic_axioms)
-}
-
 /// Build the recursive certificate shape shared by canonical integer goals.
 ///
 /// This is deliberately not an affine or interval analyzer. It composes exact
@@ -247,7 +238,7 @@ mod tests {
             Proposition::LessOrEqual(integer(integer_type, 1), divisor.clone()),
         ]);
         let requirements = [Proposition::LessOrEqual(divisor, integer(integer_type, -2))];
-        let proof = prove_nonzero_divisor(
+        let proof = prove_canonical_integer_proposition(
             &PropositionContext::from_value_types([(
                 ValueId::new(1).unwrap(),
                 ScalarType::Integer(integer_type),
@@ -273,7 +264,7 @@ mod tests {
             Proposition::LessOrEqual(divisor, integer(integer_type, -1)),
             positive.clone(),
         ]);
-        let proof = prove_nonzero_divisor(
+        let proof = prove_canonical_integer_proposition(
             &PropositionContext::from_value_types([(
                 ValueId::new(1).unwrap(),
                 ScalarType::Integer(integer_type),
@@ -303,7 +294,7 @@ mod tests {
             divisor,
             ScalarTerm::integer(integer_type, IntegerValue::Unsigned(5)).unwrap(),
         )];
-        let proof = prove_nonzero_divisor(
+        let proof = prove_canonical_integer_proposition(
             &PropositionContext::from_value_types([(
                 ValueId::new(1).unwrap(),
                 ScalarType::Integer(integer_type),
@@ -319,7 +310,7 @@ mod tests {
             ProofRule::IntegerLessOrEqualSubstitution { endpoint: 1, .. }
         ));
         assert!(
-            prove_nonzero_divisor(
+            prove_canonical_integer_proposition(
                 &PropositionContext::from_value_types([(
                     ValueId::new(1).unwrap(),
                     ScalarType::Integer(integer_type),
@@ -372,6 +363,73 @@ mod tests {
             ProofRule::ConjunctionIntroduction(ref conjuncts) if conjuncts.len() == 2
         ));
         assert!(prove_canonical_integer_proposition(&context, &goal, &[], &[]).is_none());
+    }
+
+    #[test]
+    fn exact_division_goal_composes_carrier_total_landed_literal_proofs() {
+        let unsigned = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        let unsigned_divisor = value(2, unsigned);
+        let unsigned_goal = Proposition::LessOrEqual(
+            ScalarTerm::integer(unsigned, IntegerValue::Unsigned(1)).expect("u8 literal"),
+            unsigned_divisor.clone(),
+        );
+        let unsigned_literal =
+            ScalarTerm::integer(unsigned, IntegerValue::Unsigned(5)).expect("u8 literal");
+        let unsigned_proof = prove_canonical_integer_proposition(
+            &two_value_context(unsigned),
+            &unsigned_goal,
+            &[],
+            &[Proposition::Equal(unsigned_divisor, unsigned_literal)],
+        )
+        .expect("landed positive literal proves unsigned definedness");
+        assert!(matches!(
+            unsigned_proof.rule,
+            ProofRule::IntegerLessOrEqualSubstitution { endpoint: 1, .. }
+        ));
+
+        let signed = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+        let signed_dividend = value(1, signed);
+        let signed_divisor = value(2, signed);
+        let signed_goal = Proposition::Disjunction(vec![
+            Proposition::LessOrEqual(signed_divisor.clone(), integer(signed, -2)),
+            Proposition::LessOrEqual(integer(signed, 1), signed_divisor.clone()),
+            Proposition::Conjunction(vec![
+                Proposition::LessOrEqual(signed_divisor.clone(), integer(signed, -1)),
+                Proposition::LessOrEqual(integer(signed, -127), signed_dividend),
+            ]),
+        ]);
+        let safe_fact = Proposition::Equal(signed_divisor.clone(), integer(signed, -3));
+        let signed_proof = prove_canonical_integer_proposition(
+            &two_value_context(signed),
+            &signed_goal,
+            &[],
+            &[safe_fact],
+        )
+        .expect("landed negative literal proves signed definedness");
+        let ProofRule::DisjunctionIntroduction { disjunct, index } = signed_proof.rule else {
+            panic!("signed exact division proves one canonical disjunct")
+        };
+        assert_eq!(index, 0);
+        assert!(matches!(
+            disjunct.rule,
+            ProofRule::IntegerLessOrEqualSubstitution { endpoint: 0, .. }
+        ));
+
+        for excluded in [0, -1] {
+            assert!(
+                prove_canonical_integer_proposition(
+                    &two_value_context(signed),
+                    &signed_goal,
+                    &[],
+                    &[Proposition::Equal(
+                        signed_divisor.clone(),
+                        integer(signed, excluded),
+                    )],
+                )
+                .is_none(),
+                "signed literal {excluded} is not carrier-total",
+            );
+        }
     }
 
     #[test]

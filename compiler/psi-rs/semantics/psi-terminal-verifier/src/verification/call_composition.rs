@@ -66,6 +66,7 @@ pub(super) fn compose_call_operation(
                         class: ObligationClass::Derivable,
                     },
                     semantic_axioms: axioms.clone(),
+                    canonical_certificate: false,
                 });
             }
             for guarantee in &callee.contract.ensures {
@@ -118,6 +119,7 @@ pub(super) fn compose_call_operation(
                         class: ObligationClass::Derivable,
                     },
                     semantic_axioms: axioms.clone(),
+                    canonical_certificate: false,
                 });
             }
             for guarantee in &callee.contract.ensures {
