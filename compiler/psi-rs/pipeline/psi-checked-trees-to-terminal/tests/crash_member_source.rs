@@ -554,6 +554,29 @@ const WHOLE_AGGREGATE_EQUALITY_SOURCE: &str = r#"
     }
 "#;
 
+const EMPTY_RECORD_EQUALITY_SOURCE: &str = r#"
+    trait Equatable {
+        machine equals(&self, rhs: &Self) -> bool;
+    }
+
+    data Empty {}
+    EmptyEquatable: Empty satisfies Equatable;
+
+    data Helper {}
+    machine Helper::inspect(left: Empty, right: Empty)
+    crashes Abort
+        left == right
+    {}
+
+    data Root {}
+    machine Root::enter(left: Empty, right: Empty)
+    crashes Abort
+        left == right
+    {
+        Helper::inspect(left, right);
+    }
+"#;
+
 #[test]
 fn direct_boolean_member_crash_route_survives_source_call_codec_and_interpretation() {
     struct Accept;
@@ -3875,6 +3898,120 @@ fn whole_aggregate_equality_expands_and_reconstructs_end_to_end() {
             Err(psi_terminal_verifier::ModuleError::CallCrashContinuationsMismatch { .. })
         ),
         "unexpected aggregate equality validation result: {invalid_result:?}"
+    );
+}
+
+#[test]
+fn empty_record_equality_reuses_boolean_constants_end_to_end() {
+    struct Accept;
+    impl TerminalEffectHandler for Accept {
+        fn handle_effect(&mut self, _: &TerminalEffect) -> Result<(), TerminalEffectRejection> {
+            Ok(())
+        }
+    }
+
+    let tokens = Lexer::new(EMPTY_RECORD_EQUALITY_SOURCE)
+        .tokenize()
+        .expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("check");
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::enter")
+        .expect("empty-record equality lowers through the existing Boolean constant carrier");
+
+    let root = &lowered.semantic_module.machines[0];
+    let helper = &lowered.semantic_module.machines[1];
+    for machine in [root, helper] {
+        let [CrashRouteGuard::Predicate(predicate)] =
+            machine.contract.crash_routes[0].alternatives.as_slice()
+        else {
+            panic!("empty-record equality should retain one predicate")
+        };
+        assert_eq!(
+            predicate.proposition(),
+            &Proposition::Equal(ScalarTerm::Boolean(true), ScalarTerm::Boolean(true))
+        );
+    }
+
+    let OperationKind::CallUnit {
+        crash_continuations,
+        ..
+    } = &root.blocks[0].operations[0].kind
+    else {
+        panic!("caller emits one structural Unit call")
+    };
+    let [CrashRouteGuard::Predicate(continuation)] = crash_continuations[0].alternatives.as_slice()
+    else {
+        panic!("call retains the empty-record equality continuation")
+    };
+    let CrashRouteGuard::Predicate(root_route) = &root.contract.crash_routes[0].alternatives[0]
+    else {
+        unreachable!()
+    };
+    assert_eq!(continuation, root_route);
+
+    let verified = psi_terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("verifier reconstructs the root-free constant continuation");
+    let fixed = derive_fixed_entry_fuel(&verified, lowered.semantic_module.entry)
+        .expect("empty-record equality route has fixed fuel");
+    validate_fixed_entry_fuel(&verified, &fixed).expect("fixed fuel recomputes");
+
+    let semantics = encode_module(&lowered.semantic_module).expect("semantic encode");
+    assert_eq!(
+        decode_module(&semantics),
+        Ok(lowered.semantic_module.clone())
+    );
+    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("proof encode");
+    assert_eq!(
+        decode_proof_bundle(&proof),
+        Ok(lowered.proof_bundle.clone())
+    );
+    let arguments = root
+        .structural_parameters
+        .iter()
+        .enumerate()
+        .map(|(index, parameter)| TerminalStructuralValue {
+            opaque_identity: 41 + u64::try_from(index).unwrap(),
+            structural_type: parameter.structural_type,
+            qualifications: Vec::new(),
+            path: Vec::new(),
+        })
+        .collect::<Vec<_>>();
+    let measured = interpret_terminal_artifact_with_effect_handler_measured(
+        &semantics,
+        &proof,
+        &AdmissionProfile::default(),
+        &[],
+        &arguments,
+        &mut Accept,
+    )
+    .expect("constant equality remains verified metadata at interpretation");
+    assert_eq!(measured.value(), TerminalExecutionResult::Unit);
+    assert_eq!(measured.usage().total_units(), fixed.ceiling_units());
+
+    let mut tampered = lowered.semantic_module.clone();
+    let OperationKind::CallUnit {
+        crash_continuations,
+        ..
+    } = &mut tampered.machines[0].blocks[0].operations[0].kind
+    else {
+        unreachable!()
+    };
+    crash_continuations[0].alternatives[0] = CrashRouteGuard::Predicate(CrashPredicateTerm::new(
+        Proposition::Equal(ScalarTerm::Boolean(true), ScalarTerm::Boolean(false)),
+    ));
+    let invalid_result = psi_terminal_verifier::validate_module(&tampered);
+    assert!(
+        matches!(
+            invalid_result,
+            Err(psi_terminal_verifier::ModuleError::CallCrashContinuationsMismatch { .. })
+        ),
+        "unexpected empty-record continuation result: {invalid_result:?}"
     );
 }
 

@@ -661,10 +661,12 @@ Remaining:
   relevant-record equality, fixed-width bitwise terms, policy-distinct integer
   arithmetic, evidence-bounded division/remainder, and exact or wrapping shifts;
   codecs, verification, fuel, and interpretation reject missing or redirected
-  premises. Continue with case-payload paths and aggregate equality over text,
-  floats, sums, and erased fields. Trapping predicate arithmetic is
-  design-blocked on owner Q4; imported crash capsules remain blocked on
-  artifact identity and certificate binding.
+  premises. Genuinely empty-record equality normalizes to the existing Boolean
+  constant carrier through calls and terminal verification; all-erased records
+  remain distinct and fenced. Continue with case-payload paths and aggregate
+  equality over text, floats, sums, and erased fields. Trapping predicate
+  arithmetic is design-blocked on owner Q4; imported crash capsules remain
+  blocked on artifact identity and certificate binding.
 - **PROOF-CERTIFICATION-BRIDGE.** Emit kernel-checkable certificates from source
   automation. One recursive certificate owns one SCC, cites its ranking and
   well-foundedness evidence once, and proves every internal edge decreases;

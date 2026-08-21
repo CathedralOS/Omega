@@ -118,6 +118,95 @@ fn crash_bucket_identity_includes_cause_routes_and_unconditional_presence() {
 }
 
 #[test]
+fn empty_record_equality_retains_existing_boolean_constant_carriers() {
+    let source = r#"
+    trait Equatable {
+        machine equals(&self, rhs: &Self) -> bool;
+    }
+
+    data Empty {}
+    EmptyEquatable: Empty satisfies Equatable;
+
+    machine equal(left: Empty, right: Empty)
+    crashes Abort
+        left == right
+    {}
+
+    machine not_equal(left: Empty, right: Empty)
+    crashes Abort
+        left != right
+    {}
+
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let checked = lower_typed_trees(typed).expect("checked lowering should succeed");
+    let scalar = |name: &str| {
+        let contract = checked
+            .facts
+            .contract_plans
+            .for_machine(symbol_of_checked(&checked, name))
+            .expect("contract plan");
+        let [bucket] = contract.crash.published() else {
+            panic!("{name} should publish one crash bucket")
+        };
+        let [psi_checked_trees::CrashRouteGuard::Predicate(predicate)] =
+            bucket.alternative_guards()
+        else {
+            panic!("{name} should publish one predicate")
+        };
+        predicate.scalar_expression().cloned()
+    };
+
+    assert_eq!(
+        scalar("equal"),
+        Some(psi_checked_trees::CheckedBooleanExpression::Constant(true))
+    );
+    assert_eq!(
+        scalar("not_equal"),
+        Some(psi_checked_trees::CheckedBooleanExpression::Not(Box::new(
+            psi_checked_trees::CheckedBooleanExpression::Constant(true)
+        )))
+    );
+}
+
+#[test]
+fn erased_record_equality_is_not_mistaken_for_empty_record_equality() {
+    let source = r#"
+    trait Equatable {
+        machine equals(&self, rhs: &Self) -> bool;
+    }
+
+    data Erased { proof [erased]: bool; }
+    ErasedEquatable: Erased satisfies Equatable;
+
+    machine erased_equal(left: Erased, right: Erased)
+    crashes Abort
+        left == right
+    {}
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let diagnostics = lower_typed_trees(typed)
+        .expect_err("erased semantic fields must not be treated as an empty record");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .to_string()
+            .contains("erased field `proof` has no runtime value")
+    }));
+}
+
+#[test]
 fn checked_crash_sites_are_body_evidence_not_contract_identity() {
     let source = r#"
     machine clear_body() -> i32
