@@ -1336,8 +1336,8 @@ fn run_canary_authored_root_inventory_is_pinned() {
         .difference(&rooted)
         .copied()
         .collect::<BTreeSet<_>>();
-    assert_eq!(rooted.len(), 855, "authored RUN root inventory drifted");
-    assert_eq!(rootless.len(), 35, "rootless RUN inventory drifted");
+    assert_eq!(rooted.len(), 879, "authored RUN root inventory drifted");
+    assert_eq!(rootless.len(), 11, "rootless RUN inventory drifted");
 
     assert_eq!(AUTHORED_ROOT_GUI_EXCLUSIONS.len(), 4);
     for canary in AUTHORED_ROOT_GUI_EXCLUSIONS {
@@ -1352,7 +1352,7 @@ fn run_canary_authored_root_inventory_is_pinned() {
     }
     assert_eq!(
         rootless.len() - AUTHORED_ROOT_GUI_EXCLUSIONS.len(),
-        31,
+        7,
         "the TASKS authored-root backlog excludes exactly the four pinned GUI fixtures"
     );
 }

@@ -942,18 +942,12 @@ fn runtime_f64_state_arg_exit_canary_runs() {
     // WriteRuntimeStorageInteger.  exit 72 = bad_flt (wrong bits); exit 71 =
     // bad_int (regression); exit 70 = both args arrived correctly.
     let canary = pass_canary("expressions/runtime_f64_state_arg_exit");
-    let main_path = canary.join("main.omg");
     let build_dir =
         std::env::temp_dir().join(format!("omega-f64-state-arg-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("f64 state arg canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("f64 state arg canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()

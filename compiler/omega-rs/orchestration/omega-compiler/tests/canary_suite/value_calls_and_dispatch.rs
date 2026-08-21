@@ -987,20 +987,14 @@ fn runtime_addr_algebra_exit_canary_runs() {
 #[test]
 fn runtime_ref_param_method_dispatch_exit_canary_runs() {
     let canary = pass_canary("traits/runtime_ref_param_method_dispatch_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-ref-param-method-dispatch-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("ref-param method dispatch canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("ref-param method dispatch canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -1056,20 +1050,14 @@ fn runtime_typed_two_method_receivers_exit_canary_runs() {
 #[test]
 fn runtime_dyn_single_impl_dispatch_exit_canary_runs() {
     let canary = pass_canary("traits/runtime_dyn_single_impl_dispatch_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-dyn-single-impl-dispatch-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("dyn single-impl dispatch canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("dyn single-impl dispatch canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -1129,20 +1117,14 @@ fn runtime_dyn_two_impl_dispatch_exit_canary_runs() {
     // Square::code() == 4 -> n == 94 -> exit 70. Mirrors the interpreter
     // coverage test dyn_two_impl_dispatch_selects_impl_by_runtime_type.
     let canary = pass_canary("traits/runtime_dyn_two_impl_dispatch_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-dyn-two-impl-dispatch-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("dyn two-impl dispatch canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("dyn two-impl dispatch canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -1167,20 +1149,14 @@ fn runtime_dyn_two_impl_dispatch_swapped_exit_canary_runs() {
     // -> n == 49 -> exit 70. A dispatcher that always picks the lexically-first
     // impl cannot pass both this and the unswapped canary (it scores 99 twice).
     let canary = pass_canary("traits/runtime_dyn_two_impl_dispatch_swapped_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-dyn-two-impl-dispatch-swapped-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("dyn two-impl swapped dispatch canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("dyn two-impl swapped dispatch canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -2829,20 +2805,14 @@ fn runtime_mutable_dynamic_indexed_machine_owned_parameter_write_exit_canary_run
 #[test]
 fn runtime_dispatch_local_index_binary_write_exit_canary_runs() {
     let canary = pass_canary("storage/runtime_dispatch_local_index_binary_write_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-local-index-binary-write-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime local index binary write canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("runtime local index binary write canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -2890,20 +2860,14 @@ fn runtime_dispatch_helper_local_alias_add_exit_canary_runs() {
 #[test]
 fn runtime_slice_alias_indexed_field_write_exit_canary_runs() {
     let canary = pass_canary("storage/runtime_slice_alias_indexed_field_write_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-slice-alias-indexed-field-write-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime slice alias indexed field write canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("runtime slice alias indexed field write canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
