@@ -1245,10 +1245,12 @@ Remaining:
   equality for the exact operand, and the producer cites it as an `Assumption`;
   zero-only, minimum-dividend, mistyped, or redirected premises reject. The next
   complete endpoint-transport family pairs an exact retained bound on `K` with
-  an independently retained `K == divisor` equality in either orientation. The
-  producer cites both children under `IntegerLessOrEqualSubstitution`, replacing
-  only the canonical endpoint; a missing bound, unrelated equality, weak bound,
-  or changed untouched endpoint rejects. A signed `i1`
+  an independently retained equality connecting `K` to the canonical divisor
+  or dividend endpoint in either orientation. The producer cites both children
+  under `IntegerLessOrEqualSubstitution`, replacing only that endpoint. Dividend
+  transport remains inside the signed joint arm and therefore also requires its
+  independent `divisor <= -1` premise. A missing companion bound, unrelated
+  equality, weak bound, or changed untouched endpoint rejects. A signed `i1`
   divisor fact alone remains
   insufficient because its canonical conjunction also requires the dividend
   premise. The complete retained-bound `i1` family now selects that conjunction
@@ -1557,7 +1559,7 @@ Remaining:
   unchanged; only type-shell normalization and unresolved-call reporting are
   shared privately back to per-call validation.
   Complete-or-opaque caller write-frame inference, alias-origin propagation,
-  and transition-cycle frame equations now form a 3,159-line
+  and transition-cycle frame equations now form a 3,097-line
   `calls/write_frames.rs` child. Its 459-line `write_frames/demand.rs` child
   owns the public resolver facade plus expression/statement demand collection
   and conservative fallback; a separate 123-line
@@ -1600,8 +1602,11 @@ Remaining:
   not alias mutation or frame resolution. A 46-line
   `write_frames/call_targets.rs` leaf owns free-machine entry selection and
   exact state-symbol lookup; the established crate/calls visibility surface is
-  re-exported unchanged, and the leaf performs no validation or inference. The
-  parent
+  re-exported unchanged, and the leaf performs no validation or inference. An
+  81-line `write_frames/path_instantiation.rs` leaf owns receiver/parameter/local
+  substitution for relative write paths and preserves exact versus
+  collection-coarse origins; its only callback is the existing parent-private
+  actual-argument origin query. The parent
   preserves the existing public and crate-private query surface;
   receiver-member-chain and resolved-state lookup remain the only top-level
   sibling seams. The frame engine privately reuses two demand collection
@@ -2422,15 +2427,20 @@ Remaining N6/N8 work:
   `self`, excluding proof-static `const` binders), parameter symbols/types/
   mutability, result type, and machine/state contract spans. Missing or
   duplicate state identities, open generic/static applications, and unresolved
-  results reject. A direct monomorphic `define` request now also requires exact
+  results reject. Closed type, literal-`const`, and static-machine applications
+  retain exact parameter/argument bindings on the telescope. An immutable
+  structural matcher substitutes those bindings through representative runtime
+  parameter and result types, including const-parametric array lengths, without
+  mutating the checked type arena; unsupported constrained/dynamic shapes fail
+  closed unless already canonically identical. A direct `define` request now also requires exact
   positional runtime correspondence: public parameter symbols in order,
   one-to-one unique runtime identities, quotient-carrier/representative-type or
   ordinary exact-type agreement, mutable/borrow mode and multiplicity
   preservation, and an exact representative-result carrier match. Attached
   representative `self` participates positionally without requiring a public
   parameter spelled `self`; reorder, duplication, locals/literals, arity,
-  borrowed-shell, type, and result drift reject. Static/const correspondence
-  remains explicitly unresolved. Every request still rejects as non-executable until exact
+  borrowed-shell, type, and result drift reject. Owner static/const and
+  contract-fact correspondence remain explicitly unresolved. Every request still rejects as non-executable until exact
   correspondence, the selected `Respects` contract, and normalized result flow
   are checked and retained in checked/terminal identity.
 - Suppress every synthesized representation observer on quotient formation.
@@ -2514,12 +2524,14 @@ conformance cannot change token meaning; and no accepted source contains a
 
 ### Boundary realization and nominal binding identity
 
-- Retire the parallel boundary-primitive registry: remove the top-level
-  `provider Name : Category;` item, operator-local `provider Name` clause,
-  `ProviderCategory` vocabulary, whitelist rules, registry collector, and
-  registry-specific canaries/reports. Migrate core slice, pointer, array, vector,
-  allocation, host-ABI, and related bootstrap declarations to ordinary exact
-  requirements with checked satisfiers or `satisfies ... via <Binding>` leaves.
+- The parallel boundary-primitive registry is retired. The top-level
+  `provider Name : Category;` item and operator-local `provider Name` clause no
+  longer parse or survive in syntax identity/snapshots; `ProviderCategory`, its
+  whitelist validator/collector, registry report rows, architecture coverage,
+  and registry-only canaries are deleted. Core slice, pointer, array, and vector
+  declarations are provider-agnostic exact boundary requirements, while
+  allocation and host-ABI realizations use the ordinary satisfier/external-leaf
+  path. Authored provider fields on ordinary data remain unrelated payload.
 - Make every boundary declaration provider-agnostic. Derive candidate
   `ProviderPlan` rows from exact satisfier identities and their complete
   contracts; select only through target defaults, authorized `build.omg`

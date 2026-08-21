@@ -34,11 +34,6 @@ pub(super) fn parse_operator_definition<'tokens, 'source>(
     let (parameters, input) = parse_optional_state_parameters(syntax_trees, input)?;
     let (return_type, mut input) = parse_optional_return_type(syntax_trees, input)?;
 
-    // The optional fixed token is part of the declaration head. `provider`
-    // remains a legacy trailing clause pending migration to ordinary satisfiers
-    // and provider-plan slots. Contracts stay contiguous in the arena because
-    // provider is stored on the operator itself.
-    let mut provider = None;
     let mut contract_start = Handle::invalid();
     let mut contract_count = 0u32;
     loop {
@@ -51,18 +46,6 @@ pub(super) fn parse_operator_definition<'tokens, 'source>(
             contract_count = contract_count
                 .checked_add(1)
                 .expect("operator contract span count overflow");
-            continue;
-        }
-        if input.at_contextual("provider") {
-            let after_keyword = input.take_contextual("provider")?;
-            let (path, rest) = parse_path_handle_span(after_keyword, |member| {
-                syntax_trees.items.append_identifier_path_member(member)
-            })?;
-            if provider.is_some() {
-                return Err(rest.error_here("duplicate `provider` clause on operator"));
-            }
-            provider = Some(path);
-            input = rest;
             continue;
         }
         break;
@@ -87,7 +70,6 @@ pub(super) fn parse_operator_definition<'tokens, 'source>(
             return_type,
             contracts,
             spelling,
-            provider,
             token_count,
         },
         input,
@@ -203,6 +185,5 @@ fn operator_contract_terminator(input: Input<'_, '_>) -> bool {
         || is_operator_contract_start(&input)
         || input.at_contextual("operator")
         || input.at_contextual("boundary")
-        || input.at_contextual("provider")
         || input.tokens.is_empty()
 }

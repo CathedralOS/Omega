@@ -1,5 +1,5 @@
 use omega_artifacts::{
-    BoundaryContract, BoundaryProviderEntry, BoundaryReport, BoundaryTarget, CapabilityBlastRadius,
+    BoundaryContract, BoundaryReport, BoundaryTarget, CapabilityBlastRadius,
     CapabilityBlastRadiusFlow, CapabilityBlastRadiusRoute, UncheckedBoundaryPolicy,
 };
 use omega_effects::build_boundary_provider_approval_registry;
@@ -560,30 +560,7 @@ pub(super) fn build_boundary_report(syntax: &SyntaxTrees) -> BoundaryReport {
         }
     }
 
-    append_provider_registry(&mut report, syntax);
-
     report
-}
-
-/// Adds the boundary primitive provider registry rows to the report: per
-/// provider, the governing contract, categorical host-authority requirement, and target
-/// applicability resolved from the boundary operator(s) bound to it. Registry
-/// diagnostics are discarded here; the compile pipeline reports them through
-/// its dedicated provider-validation step.
-fn append_provider_registry(report: &mut BoundaryReport, syntax: &SyntaxTrees) {
-    let mut discarded_diagnostics = Vec::new();
-    let registry = omega_effects::build_provider_registry(syntax, &mut discarded_diagnostics);
-
-    for provider in registry.providers() {
-        report.providers.insert(BoundaryProviderEntry {
-            name: provider.name.clone(),
-            category: provider.category.name().to_owned(),
-            contract_ref: provider.contract_ref.clone(),
-            requires_host_authority: provider.requires_host_authority,
-            target_applicability: provider.target_applicability.clone(),
-            origin_package: provider.origin_package.clone(),
-        });
-    }
 }
 
 fn collect_operator_boundary(
@@ -1211,10 +1188,7 @@ mod tests {
                 }
             }
 
-            provider omega::language::core::Slice : SliceIndexing;
-
             boundary operator Slice::index<T>(items: &[T], index: usize) -> T
-            provider omega::language::core::Slice
             requires
                 index < items.len;
 
@@ -1245,20 +1219,5 @@ mod tests {
         assert!(report.contracts.iter().any(|(_, contract)| {
             contract.capability == "operator" && contract.state == "Slice::index"
         }));
-
-        assert_eq!(report.providers.len(), 1);
-        let (_, provider) = report.providers.iter().next().expect("provider row");
-        assert_eq!(provider.name, "omega::language::core::Slice");
-        assert_eq!(provider.category, "SliceIndexing");
-        assert_eq!(provider.contract_ref.as_deref(), Some("Slice::index"));
-        assert!(
-            !provider.requires_host_authority,
-            "slice indexing provider should carry no host authority"
-        );
-        assert!(
-            provider.target_applicability.is_empty(),
-            "an operator without a named boundary applies to all targets"
-        );
-        assert_eq!(provider.origin_package, "omega::language::core");
     }
 }

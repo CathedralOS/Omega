@@ -23,10 +23,9 @@ use psi_arena::{Handle, HandleSpan};
 use psi_syntax_trees::SyntaxTrees;
 use psi_syntax_trees::item::{
     ConformanceBody, ConformanceMember, ExternalBinding, Item, ModuleDeclaration,
-    PackageDeclaration, ProviderDeclaration, State, WireDataDefinition, WireDataField,
-    WireDataMember, WireDataReserved, WireDataVersion,
+    PackageDeclaration, State, WireDataDefinition, WireDataField, WireDataMember, WireDataReserved,
+    WireDataVersion,
 };
-use psi_syntax_trees::operator_spelling::ProviderCategory;
 use psi_tokens::{KeywordKind, PunctuationKind};
 
 pub(super) fn parse_item<'tokens, 'source>(
@@ -204,12 +203,6 @@ pub(super) fn parse_item<'tokens, 'source>(
         return Ok((Item::Operator(item), rest));
     }
 
-    if input.at_contextual("provider") {
-        let input = input.take_contextual("provider")?;
-        let (item, rest) = parse_provider_declaration(syntax_trees, input)?;
-        return Ok((Item::Provider(item), rest));
-    }
-
     if input.at_keyword(KeywordKind::Host) {
         return Err(input.error_here(
             "authored `provides` declarations are retired (including `host ... provides`): \
@@ -380,7 +373,6 @@ pub(super) fn parse_item<'tokens, 'source>(
         "`package`",
         "`platform`",
         "`pub`",
-        "`provider`",
         "`trait`",
         "`boundary operator`",
         "`boundary data`",
@@ -779,30 +771,4 @@ fn take_optional_semicolon<'tokens, 'source>(
     } else {
         Ok(input)
     }
-}
-
-/// Parses the legacy bootstrap `provider <QualifiedName> : <Category>;` item.
-fn parse_provider_declaration<'tokens, 'source>(
-    syntax_trees: &mut SyntaxTrees,
-    input: Input<'tokens, 'source>,
-) -> ParseResult<'tokens, 'source, ProviderDeclaration> {
-    let (name, input) = parse_path_handle_span(input, |member| {
-        syntax_trees.items.append_identifier_path_member(member)
-    })?;
-    let input = input.take_punctuation(PunctuationKind::Colon, ":")?;
-    let (category_name, input) = input.take_identifier()?;
-    let category = ProviderCategory::from_name(category_name.as_str()).ok_or_else(|| {
-        input.error_here(format!(
-            "unknown provider category `{}`; expected one of {}",
-            category_name.as_str(),
-            ProviderCategory::ALL
-                .iter()
-                .map(|category| category.name())
-                .collect::<Vec<_>>()
-                .join(", ")
-        ))
-    })?;
-    let input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
-
-    Ok((ProviderDeclaration { name, category }, input))
 }

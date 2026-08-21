@@ -910,35 +910,6 @@ impl ArtifactWriter {
             "unchecked policies: {}\n",
             boundary_report.unchecked_policies.len()
         ));
-        output.push_str(&format!(
-            "boundary providers: {}\n\n",
-            boundary_report.providers.len()
-        ));
-
-        output.push_str("## Boundary Providers\n");
-        if boundary_report.providers.is_empty() {
-            output.push_str("none\n");
-        } else {
-            for (_, provider) in boundary_report.providers.iter() {
-                let contract = provider.contract_ref.as_deref().unwrap_or("none");
-                let targets = if provider.target_applicability.is_empty() {
-                    "all".to_owned()
-                } else {
-                    provider.target_applicability.join(", ")
-                };
-                output.push_str(&format!(
-                    "- provider `{}` [{}] contract `{}` host authority required {} targets {{{}}} origin `{}`\n",
-                    provider.name,
-                    provider.category,
-                    contract,
-                    provider.requires_host_authority,
-                    targets,
-                    provider.origin_package,
-                ));
-            }
-        }
-        output.push('\n');
-
         output.push_str("## Targets\n");
         if boundary_report.targets.is_empty() {
             output.push_str("none\n");
@@ -2466,22 +2437,6 @@ pub struct BoundaryReport {
     pub contracts: Arena<BoundaryContract>,
     pub unchecked_policies: Arena<UncheckedBoundaryPolicy>,
     pub capability_blast_radius: Arena<CapabilityBlastRadius>,
-    pub providers: Arena<BoundaryProviderEntry>,
-}
-
-/// One legacy registered boundary primitive provider. This compatibility row
-/// is replaced by the selected-realization report: exact requirement,
-/// realization symbol, nominal binding, target, admission, and receipt.
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct BoundaryProviderEntry {
-    pub name: String,
-    pub category: String,
-    /// The contract governing the provider, when a bound operator declares one.
-    pub contract_ref: Option<String>,
-    pub requires_host_authority: bool,
-    /// Targets the provider applies to; empty means all targets.
-    pub target_applicability: Vec<String>,
-    pub origin_package: String,
 }
 
 /// Theoretical blast radius for a single boundary capability: whether it is an

@@ -157,8 +157,7 @@ pub fn build_type_surface_report(syntax_trees: &SyntaxTrees) -> TypeSurfaceRepor
                     );
                 }
             }
-            Item::Provider(_)
-            | Item::WireData(_)
+            Item::WireData(_)
             | Item::Export(_)
             | Item::Conformance(_)
             | Item::Module(_)
@@ -609,7 +608,6 @@ mod tests {
             return_type: generic_type,
             contracts: HandleSpan::empty(),
             spelling: None,
-            provider: None,
             token_count: 1,
         }));
 
@@ -658,7 +656,6 @@ mod tests {
             return_type: target_type,
             contracts: HandleSpan::empty(),
             spelling: None,
-            provider: None,
             token_count: 1,
         });
 

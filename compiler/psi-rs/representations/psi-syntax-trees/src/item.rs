@@ -1,6 +1,6 @@
 use crate::identifier::Identifier;
 use psi_arena::{Arena, Handle, HandleSpan};
-use psi_language_core::operator_spelling::{OperatorSpelling, ProviderCategory};
+use psi_language_core::operator_spelling::OperatorSpelling;
 
 pub type ItemHandle = Handle<Item>;
 pub type StateParameterHandle = Handle<StateParameterNode>;
@@ -23,7 +23,6 @@ pub enum Item {
     Operator(OperatorDefinition),
     Package(PackageDeclaration),
     Proposition(PropositionDefinition),
-    Provider(ProviderDeclaration),
     Export(ExportItem),
     Use(UseItem),
     Machine(Machine),
@@ -52,24 +51,6 @@ pub struct ConstDefinition {
     pub name: Identifier,
     pub type_reference: crate::types::TypeReferenceHandle,
     pub value: crate::expression::ExpressionHandle,
-}
-
-/// Legacy bootstrap boundary-provider declaration. The destination grammar has
-/// no parallel provider item; exact satisfiers declare candidates and provider
-/// slots select them.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ProviderDeclaration {
-    pub name: HandleSpan<Identifier>,
-    pub category: ProviderCategory,
-}
-
-impl Default for ProviderDeclaration {
-    fn default() -> Self {
-        Self {
-            name: HandleSpan::empty(),
-            category: ProviderCategory::SliceIndexing,
-        }
-    }
 }
 
 impl ExternalBinding {
@@ -374,9 +355,6 @@ pub struct OperatorDefinition {
     pub contracts: HandleSpan<CapabilityContract>,
     /// Optional compiler-owned fixed token from the declaration head.
     pub spelling: Option<OperatorSpelling>,
-    /// Legacy bootstrap provider clause, retired once boundary operators use
-    /// ordinary exact satisfiers and selected provider-plan rows.
-    pub provider: Option<HandleSpan<Identifier>>,
     pub token_count: usize,
 }
 

@@ -3,7 +3,7 @@ use omega::language::core::vec;
 // Confirms the owned Vec surface is browsable end to end: importing the core
 // `vec` module brings in the length / capacity measures and the
 // push / index / as_slice / as_mut_slice boundary contracts (with their
-// requires/ensures and the `vec_views` provider binding), and the program
+// requires/ensures on provider-agnostic boundary requirements), and the program
 // type-checks cleanly. Construction intentionally waits for the explicit
 // Arena-backed `Allocation<T>` surface; Vec has no ambient allocator shortcut.
 

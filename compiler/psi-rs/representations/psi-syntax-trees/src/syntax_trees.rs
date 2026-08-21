@@ -115,7 +115,6 @@ impl SyntaxTrees {
             | Item::Operator(_)
             | Item::Package(_)
             | Item::Proposition(_)
-            | Item::Provider(_)
             | Item::Target(_)
             | Item::WireData(_)
             | Item::Use(_) => {}
@@ -329,10 +328,6 @@ impl SyntaxTrees {
                     },
                 })
             }
-            Item::Provider(provider) => Item::Provider(crate::item::ProviderDeclaration {
-                name: self.copy_item_identifier_span(other, provider.name),
-                category: provider.category,
-            }),
             Item::Export(export_item) => Item::Export(crate::item::ExportItem {
                 path: self.copy_item_identifier_span(other, export_item.path),
                 alias: export_item.alias.clone(),
@@ -421,9 +416,6 @@ impl SyntaxTrees {
             return_type: self.copy_type_reference_handle(other, operator.return_type),
             contracts: self.copy_capability_contract_span(other, operator.contracts),
             spelling: operator.spelling,
-            provider: operator
-                .provider
-                .map(|provider| self.copy_item_identifier_span(other, provider)),
             token_count: operator.token_count,
         }
     }
