@@ -449,6 +449,14 @@ Current ownership is:
   at one key rejects, and structural selections do not enter this nominal
   table. Callback envelope/refinement and thunk-placement plans are not yet
   fields of this identity slice.
+  The row now also joins the requirement capsule's normalized contract
+  fingerprint to the selected machine's normalized declared contract
+  fingerprint and retains an explicit admission-refinement receipt over those
+  endpoints. These identities deliberately exclude inferred witnesses. They
+  must not be presented as the selected machine's complete realized
+  operational envelope; effective reach/invocation, transitive
+  suspension/blocking, checked termination/crash, and future
+  mutation/capability/resource rows remain separate axes.
   Published routes are removed
   only when the call evaluator proves them false; proved-true routes become
   unconditional, unknown routes are re-encoded in the caller's positional

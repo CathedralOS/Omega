@@ -161,6 +161,36 @@ fn nominal_machine_parameter_accepts_one_explicit_exact_satisfaction_row() {
         nominal_use.canonical_requirement_overload,
         canonical_requirement_overload
     );
+    let published_fingerprint = checked
+        .facts
+        .contract_plans
+        .crash_capsule(satisfaction_trait, satisfaction_requirement)
+        .expect("published nominal requirement capsule")
+        .target_contract_fingerprint();
+    let actual_fingerprint = checked
+        .facts
+        .contract_plans
+        .for_machine(chosen_symbol)
+        .expect("selected machine contract plan")
+        .fingerprint;
+    assert_eq!(
+        nominal_use
+            .published_requirement_envelope
+            .contract_fingerprint,
+        published_fingerprint
+    );
+    assert_eq!(
+        nominal_use.selected_actual_envelope.contract_fingerprint,
+        actual_fingerprint
+    );
+    assert_eq!(
+        nominal_use.refinement.published_requirement_fingerprint,
+        published_fingerprint
+    );
+    assert_eq!(
+        nominal_use.refinement.selected_actual_fingerprint,
+        actual_fingerprint
+    );
 }
 
 #[test]
@@ -219,6 +249,22 @@ fn nominal_machine_use_identity_survives_forwarded_specialization_rounds() {
     assert_ne!(
         selected_uses[0].registration_operation,
         selected_uses[1].registration_operation
+    );
+    assert!(selected_uses.iter().all(|nominal_use| {
+        nominal_use
+            .published_requirement_envelope
+            .contract_fingerprint
+            == nominal_use.refinement.published_requirement_fingerprint
+            && nominal_use.selected_actual_envelope.contract_fingerprint
+                == nominal_use.refinement.selected_actual_fingerprint
+    }));
+    assert_eq!(
+        selected_uses[0].published_requirement_envelope,
+        selected_uses[1].published_requirement_envelope
+    );
+    assert_eq!(
+        selected_uses[0].selected_actual_envelope,
+        selected_uses[1].selected_actual_envelope
     );
 }
 

@@ -68,28 +68,6 @@ pub(crate) fn build_check_facts(
     let mut semantic = build_semantic_facts(program, &proof);
     let domains = build_domain_facts(program, &semantic);
     let dynamic_conformances = build_dynamic_conformance_facts(program)?;
-    let nominal_machine_uses = psi_checked_trees::NominalMachineUseFacts::try_with_uses(
-        nominal_machine_uses.into_iter().map(|nominal_use| {
-            psi_checked_trees::CheckedNominalMachineUse {
-                site: match nominal_use.site {
-                    psi_validation::ValidatedNominalMachineUseSite::Statement(handle) => {
-                        psi_checked_trees::NominalMachineUseSite::Statement(handle)
-                    }
-                    psi_validation::ValidatedNominalMachineUseSite::Expression(handle) => {
-                        psi_checked_trees::NominalMachineUseSite::Expression(handle)
-                    }
-                },
-                registration_operation: nominal_use.registration_operation,
-                static_machine_ordinal: nominal_use.static_machine_ordinal,
-                selected_machine: nominal_use.selected_machine,
-                selected_entry: nominal_use.selected_entry,
-                satisfaction_trait: nominal_use.satisfaction_trait,
-                satisfaction_requirement: nominal_use.satisfaction_requirement,
-                canonical_requirement_overload: nominal_use.canonical_requirement_overload,
-            }
-        }),
-    )
-    .map_err(|message| vec![psi_diagnostics::Diagnostic::error(message)])?;
     let service_reach_inference = psi_effects::infer_service_reaches(program, &operational);
     let mut flow = build_flow_facts_with_service_reaches(
         program,
@@ -149,6 +127,8 @@ pub(crate) fn build_check_facts(
         &operators,
         &validation_facts.exact_integer_casts,
     );
+    let nominal_machine_uses =
+        build_nominal_machine_use_facts(nominal_machine_uses, &contract_plans)?;
     // CRY1: materialize the effective structural policy once in the checked
     // fact layer; authored clauses remain minimum promises on typed data.
     let carry = carry::build_carry_facts(program);
@@ -176,6 +156,65 @@ pub(crate) fn build_check_facts(
         contract_plans,
         carry,
     ))
+}
+
+fn build_nominal_machine_use_facts(
+    nominal_machine_uses: Vec<psi_validation::ValidatedNominalMachineUse>,
+    contract_plans: &psi_checked_trees::MachineContractPlans,
+) -> Result<psi_checked_trees::NominalMachineUseFacts, Vec<psi_diagnostics::Diagnostic>> {
+    let mut checked = Vec::with_capacity(nominal_machine_uses.len());
+    for nominal_use in nominal_machine_uses {
+        let Some(published) = contract_plans.crash_capsule(
+            nominal_use.satisfaction_trait,
+            nominal_use.satisfaction_requirement,
+        ) else {
+            return Err(vec![psi_diagnostics::Diagnostic::error(
+                "admitted nominal machine use is missing its published requirement contract identity",
+            )]);
+        };
+        let Some(actual) = contract_plans.for_machine(nominal_use.selected_machine) else {
+            return Err(vec![psi_diagnostics::Diagnostic::error(
+                "admitted nominal machine use is missing its selected machine contract identity",
+            )]);
+        };
+        let published_fingerprint = published.target_contract_fingerprint();
+        let actual_fingerprint = actual.fingerprint;
+        if published_fingerprint == 0 || actual_fingerprint == 0 {
+            return Err(vec![psi_diagnostics::Diagnostic::error(
+                "admitted nominal machine use retained an empty contract-envelope identity",
+            )]);
+        }
+        checked.push(psi_checked_trees::CheckedNominalMachineUse {
+            site: match nominal_use.site {
+                psi_validation::ValidatedNominalMachineUseSite::Statement(handle) => {
+                    psi_checked_trees::NominalMachineUseSite::Statement(handle)
+                }
+                psi_validation::ValidatedNominalMachineUseSite::Expression(handle) => {
+                    psi_checked_trees::NominalMachineUseSite::Expression(handle)
+                }
+            },
+            registration_operation: nominal_use.registration_operation,
+            static_machine_ordinal: nominal_use.static_machine_ordinal,
+            selected_machine: nominal_use.selected_machine,
+            selected_entry: nominal_use.selected_entry,
+            satisfaction_trait: nominal_use.satisfaction_trait,
+            satisfaction_requirement: nominal_use.satisfaction_requirement,
+            canonical_requirement_overload: nominal_use.canonical_requirement_overload,
+            published_requirement_envelope:
+                psi_checked_trees::CheckedMachineContractEnvelopeIdentity {
+                    contract_fingerprint: published_fingerprint,
+                },
+            selected_actual_envelope: psi_checked_trees::CheckedMachineContractEnvelopeIdentity {
+                contract_fingerprint: actual_fingerprint,
+            },
+            refinement: psi_checked_trees::CheckedMachineContractRefinement {
+                published_requirement_fingerprint: published_fingerprint,
+                selected_actual_fingerprint: actual_fingerprint,
+            },
+        });
+    }
+    psi_checked_trees::NominalMachineUseFacts::try_with_uses(checked)
+        .map_err(|message| vec![psi_diagnostics::Diagnostic::error(message)])
 }
 
 fn build_termination_facts(program: &TypedTrees) -> psi_checked_trees::TerminationFacts {
