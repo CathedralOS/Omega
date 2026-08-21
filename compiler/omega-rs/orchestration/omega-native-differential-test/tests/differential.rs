@@ -16,8 +16,9 @@
 //! code documents the suite's own assertion and lets us sanity-check native against it.
 
 use omega_compiler::{
-    CheckedCompilation, CompileOptions, compile_to_checked, compile_with_test_entry,
-    compile_with_test_entry_and_worker_count,
+    ArtifactEmissionPolicy, CheckedCompilation, CompileOptions, compile_to_checked,
+    compile_with_test_entry_and_artifact_policy,
+    compile_with_test_entry_worker_count_and_artifact_policy,
 };
 use psi_checked_interpreter::{InterpretOutcome, interpret_entry};
 use std::fs;
@@ -2780,10 +2781,17 @@ fn try_compile_and_run_native_with_stdin(
         write_output: true,
     };
     let compile_result = match native_worker_count {
-        Some(worker_count) => {
-            compile_with_test_entry_and_worker_count(options, "Main::main", worker_count)
-        }
-        None => compile_with_test_entry(options, "Main::main"),
+        Some(worker_count) => compile_with_test_entry_worker_count_and_artifact_policy(
+            options,
+            "Main::main",
+            worker_count,
+            ArtifactEmissionPolicy::OutputOnly,
+        ),
+        None => compile_with_test_entry_and_artifact_policy(
+            options,
+            "Main::main",
+            ArtifactEmissionPolicy::OutputOnly,
+        ),
     };
     if let Err(diagnostics) = compile_result {
         let _ = fs::remove_dir_all(&build_dir);
