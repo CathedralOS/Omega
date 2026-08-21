@@ -7,7 +7,7 @@ use crate::pipeline::artifacts::{
 use crate::pipeline::boundary_report::{
     write_boundary_report, write_boundary_report_with_capabilities,
 };
-use crate::pipeline::compile_options::CompileOptions;
+use crate::pipeline::compile_options::{ArtifactEmissionPolicy, CompileOptions};
 use crate::pipeline::compile_policy::{
     ExecutableTcbBuildPolicy, ExecutableTcbInstallationAuthorization,
 };
@@ -31,6 +31,20 @@ pub fn compile(options: CompileOptions) -> Result<CompileReport, Vec<Diagnostic>
     compile_with_policy(options, ExecutableTcbBuildPolicy::default())
 }
 
+/// Compile with an explicit auxiliary-artifact policy. Executable/object
+/// installation still follows `CompileOptions::write_output`.
+#[doc(hidden)]
+pub fn compile_with_artifact_policy(
+    options: CompileOptions,
+    artifact_policy: ArtifactEmissionPolicy,
+) -> Result<CompileReport, Vec<Diagnostic>> {
+    run_on_compile_thread(move || {
+        Compiler::with_executable_tcb_policy(options, ExecutableTcbBuildPolicy::default())
+            .with_artifact_policy(artifact_policy)
+            .compile()
+    })
+}
+
 /// Test-harness seam for outer schedulers that run independent compilations
 /// concurrently. Production compilation keeps using host parallelism; a
 /// bounded corpus runner can select one worker here and avoid multiplying its
@@ -41,11 +55,27 @@ pub fn compile_with_test_entry_and_worker_count(
     entry_machine_name: impl Into<String>,
     worker_count: usize,
 ) -> Result<CompileReport, Vec<Diagnostic>> {
+    compile_with_test_entry_worker_count_and_artifact_policy(
+        options,
+        entry_machine_name,
+        worker_count,
+        ArtifactEmissionPolicy::Full,
+    )
+}
+
+#[doc(hidden)]
+pub fn compile_with_test_entry_worker_count_and_artifact_policy(
+    options: CompileOptions,
+    entry_machine_name: impl Into<String>,
+    worker_count: usize,
+    artifact_policy: ArtifactEmissionPolicy,
+) -> Result<CompileReport, Vec<Diagnostic>> {
     let entry_machine_name = entry_machine_name.into();
     run_on_compile_thread(move || {
         Compiler::with_executable_tcb_policy(options, ExecutableTcbBuildPolicy::default())
             .with_test_entry(entry_machine_name)
             .with_worker_count(worker_count)
+            .with_artifact_policy(artifact_policy)
             .compile()
     })
 }
@@ -57,10 +87,24 @@ pub fn compile_with_test_entry(
     options: CompileOptions,
     entry_machine_name: impl Into<String>,
 ) -> Result<CompileReport, Vec<Diagnostic>> {
+    compile_with_test_entry_and_artifact_policy(
+        options,
+        entry_machine_name,
+        ArtifactEmissionPolicy::Full,
+    )
+}
+
+#[doc(hidden)]
+pub fn compile_with_test_entry_and_artifact_policy(
+    options: CompileOptions,
+    entry_machine_name: impl Into<String>,
+    artifact_policy: ArtifactEmissionPolicy,
+) -> Result<CompileReport, Vec<Diagnostic>> {
     let entry_machine_name = entry_machine_name.into();
     run_on_compile_thread(move || {
         Compiler::with_executable_tcb_policy(options, ExecutableTcbBuildPolicy::default())
             .with_test_entry(entry_machine_name)
+            .with_artifact_policy(artifact_policy)
             .compile()
     })
 }
@@ -428,6 +472,7 @@ pub struct Compiler {
     executable_tcb_policy: ExecutableTcbBuildPolicy,
     test_entry_machine_name: Option<String>,
     worker_count: Option<usize>,
+    artifact_policy: ArtifactEmissionPolicy,
 }
 
 impl Compiler {
@@ -440,6 +485,7 @@ impl Compiler {
             executable_tcb_policy,
             test_entry_machine_name: None,
             worker_count: None,
+            artifact_policy: ArtifactEmissionPolicy::Full,
         }
     }
 
@@ -453,8 +499,14 @@ impl Compiler {
         self
     }
 
+    fn with_artifact_policy(mut self, artifact_policy: ArtifactEmissionPolicy) -> Self {
+        self.artifact_policy = artifact_policy;
+        self
+    }
+
     pub fn compile(self) -> Result<CompileReport, Vec<Diagnostic>> {
         let mut timings = CompileTimings::default();
+        let emit_auxiliary_artifacts = self.artifact_policy.emits_auxiliary_artifacts();
 
         let (source_file_count, mut syntax) = source_files_to_syntax_trees(
             &self.options.root_path,
@@ -496,15 +548,23 @@ impl Compiler {
                 _ => None,
             })
             .collect();
-        remove_stale_phase_diagrams(&self.options)?;
-        write_pipeline_index(&self.options)?;
-        write_syntax_snapshot(&self.options, &syntax)?;
-        write_boundary_report(&self.options, &syntax.syntax_trees)?;
+        if emit_auxiliary_artifacts {
+            remove_stale_phase_diagrams(&self.options)?;
+            write_pipeline_index(&self.options)?;
+            write_syntax_snapshot(&self.options, &syntax)?;
+        }
+        write_boundary_report(
+            &self.options,
+            &syntax.syntax_trees,
+            emit_auxiliary_artifacts,
+        )?;
         validate_boundary_providers(&syntax.syntax_trees)?;
         let syntax_trees = syntax.syntax_trees.clone();
 
         let resolved = syntax_trees_to_symbol_resolved_trees(syntax, &mut timings)?;
-        write_resolved_snapshot(&self.options, &resolved)?;
+        if emit_auxiliary_artifacts {
+            write_resolved_snapshot(&self.options, &resolved)?;
+        }
 
         let mut typed = symbol_resolved_trees_to_typed_trees(resolved, &mut timings)?;
         psi_build_time_evaluation::evaluate_pre_check(
@@ -572,7 +632,9 @@ impl Compiler {
             &typed,
             build_config.freestanding,
         )?;
-        write_typed_snapshot(&self.options, &typed)?;
+        if emit_auxiliary_artifacts {
+            write_typed_snapshot(&self.options, &typed)?;
+        }
         let provider_plans = crate::pipeline::provider_plans::derive_satisfies_plans(
             &syntax_trees,
             &typed,
@@ -619,6 +681,7 @@ impl Compiler {
             &self.options,
             &typed,
             &build_config.wire_compatibility_demands,
+            emit_auxiliary_artifacts,
         )?;
 
         // Capture the selected provider's validated source calling plans
@@ -671,6 +734,7 @@ impl Compiler {
             &provider_plans,
             &checked.selected_provider_plans,
             &generic_accepted_template_fingerprints,
+            emit_auxiliary_artifacts,
         )?;
         crate::pipeline::operator_adapter_dispatch::rewrite_selected_operator_adapter_calls(
             Arc::get_mut(&mut checked.program)
@@ -698,16 +762,23 @@ impl Compiler {
             selected_native_target,
         )?;
         checked.task_activations = Arc::new(task_activations);
-        write_checked_snapshot(
+        if emit_auxiliary_artifacts {
+            write_checked_snapshot(
+                &self.options,
+                &checked.program,
+                entry_machine_name.as_deref(),
+                &checked.selected_provider_plans,
+                &checked.task_activations,
+            )?;
+        }
+        write_boundary_report_with_capabilities(
             &self.options,
+            &syntax_trees,
             &checked.program,
-            entry_machine_name.as_deref(),
-            &checked.selected_provider_plans,
-            &checked.task_activations,
+            emit_auxiliary_artifacts,
         )?;
-        write_boundary_report_with_capabilities(&self.options, &syntax_trees, &checked.program)?;
-        let backend_surface =
-            build_backend_surface_report(&checked.program, entry_machine_name.as_deref());
+        let backend_surface = (emit_auxiliary_artifacts && self.options.write_output)
+            .then(|| build_backend_surface_report(&checked.program, entry_machine_name.as_deref()));
 
         // A check-only compilation with no selected runtime root ends at
         // checked semantics. Requiring an entry merely to produce the
@@ -715,7 +786,9 @@ impl Compiler {
         // policy; callers that need native validation either select an exact
         // `ProgramEntry` or use the explicit legacy test-entry seam.
         if !self.options.write_output && entry_machine_name.is_none() {
-            write_pipeline_shell(&self.options)?;
+            if emit_auxiliary_artifacts {
+                write_pipeline_shell(&self.options)?;
+            }
             return Ok(CompileReport {
                 root_path: self.options.root_path,
                 source_file_count,
@@ -733,9 +806,13 @@ impl Compiler {
             .worker_count
             .map_or_else(WorkerPool::with_available_parallelism, WorkerPool::new);
         let state_graph = checked_trees_to_state_graph(&checked, workers.handle(), &mut timings)?;
-        write_state_graph_snapshot(&self.options, &state_graph)?;
+        if emit_auxiliary_artifacts {
+            write_state_graph_snapshot(&self.options, &state_graph)?;
+        }
         let control_flow = state_graph_to_control_flow(state_graph, &mut timings)?;
-        write_control_flow_snapshot(&self.options, &control_flow)?;
+        if emit_auxiliary_artifacts {
+            write_control_flow_snapshot(&self.options, &control_flow)?;
+        }
 
         // Build image subsystem and freestanding trust independently. PE
         // consumes the subsystem metadata; other formats ignore it. The
@@ -810,11 +887,17 @@ impl Compiler {
                 .map_err(|diagnostic| vec![Diagnostic::error(diagnostic.to_string())])
             })
             .transpose()?;
-        if self.options.write_output {
+        if self.options.write_output && emit_auxiliary_artifacts {
             if let Some(bridge) = &program_storage_entry_bridge {
                 write_program_storage_entry_snapshot(&self.options, bridge)?;
             }
-            write_backend_report(&self.options, &backend_surface, &backend.plan)?;
+            write_backend_report(
+                &self.options,
+                backend_surface
+                    .as_ref()
+                    .expect("full output compilation must build its backend report surface"),
+                &backend.plan,
+            )?;
         }
 
         let (emission_plan, emitted) =
@@ -826,19 +909,24 @@ impl Compiler {
                 &executable_tcb_installation_authorization,
                 emitted,
                 &backend.plan.encoded_machine.semantics.boundaries.footprints,
+                emit_auxiliary_artifacts,
             )?;
-            write_emission_plan(
-                &self.options,
-                &backend.plan,
-                &emission_plan,
-                Some(output_path.as_path()),
-            )?;
-            write_timings(&self.options, timings.as_slice())?;
-        } else {
+            if emit_auxiliary_artifacts {
+                write_emission_plan(
+                    &self.options,
+                    &backend.plan,
+                    &emission_plan,
+                    Some(output_path.as_path()),
+                )?;
+                write_timings(&self.options, timings.as_slice())?;
+            }
+        } else if emit_auxiliary_artifacts {
             write_emission_plan(&self.options, &backend.plan, &emission_plan, None)?;
         }
 
-        write_pipeline_shell(&self.options)?;
+        if emit_auxiliary_artifacts {
+            write_pipeline_shell(&self.options)?;
+        }
 
         Ok(CompileReport {
             root_path: self.options.root_path,

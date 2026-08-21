@@ -66,6 +66,25 @@ Use this rule when a pass starts to sprawl:
 - If it chooses storage, ABI, instruction, relocation, or image form, it belongs
   in the backend lowering stages.
 
+## Operational Artifact Emission
+
+Pipeline viewers and diagnostic reports are observations of a compilation, not
+semantic gates. `ArtifactEmissionPolicy::OutputOnly` therefore suppresses the
+HTML, JSON, text, Markdown, timing, and disassembly bundle used for interactive
+inspection while preserving every fail-closed validation that normally feeds
+those reports. Wire compatibility demands, capability-ledger checks, trust
+consistency checks, trust-lock enforcement, and final executable-footprint
+certification still run. If output installation is requested, the primary
+object or executable and any installation records required by its semantics
+still exist; otherwise an output-only check need not create a build directory.
+
+Production entry points retain full artifacts by default. Corpus schedulers may
+select output-only mode for independent pass/fail compiles whose assertions are
+the diagnostics, checked result, or installed primary output. Tests that inspect
+a report continue to use full emission. This keeps observability selectable at
+the orchestration boundary without turning report generation into language
+semantics or duplicating policy through every representation stage.
+
 ## Representation Root Shape
 
 Durable representations should make their semantic spine visible at the root.

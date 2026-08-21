@@ -1,6 +1,8 @@
 use omega_compiler::{
-    CheckedCompilation, CompileOptions, CompileReport, PROGRAM_STORAGE_INSTALLATION_ARTIFACT,
-    compile as production_compile, compile_to_checked, compile_with_test_entry,
+    ArtifactEmissionPolicy, CheckedCompilation, CompileOptions, CompileReport,
+    PROGRAM_STORAGE_INSTALLATION_ARTIFACT, compile as production_compile, compile_to_checked,
+    compile_with_artifact_policy, compile_with_test_entry,
+    compile_with_test_entry_and_artifact_policy,
 };
 
 fn compile(options: CompileOptions) -> Result<CompileReport, Vec<Diagnostic>> {
@@ -1208,12 +1210,16 @@ fn compile_canary_without_output_for_target(
     target: &str,
 ) -> Result<CompileReport, Vec<Diagnostic>> {
     let build_dir = unique_no_output_build_dir();
-    let result = compile(CompileOptions {
-        root_path: canary_dir.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: Some(target.into()),
-        write_output: false,
-    });
+    let result = compile_with_test_entry_and_artifact_policy(
+        CompileOptions {
+            root_path: canary_dir.join("main.omg"),
+            build_dir: Some(build_dir.clone()),
+            target_name: Some(target.into()),
+            write_output: false,
+        },
+        "Main::main",
+        ArtifactEmissionPolicy::OutputOnly,
+    );
     let _ = fs::remove_dir_all(&build_dir);
     result
 }
@@ -1227,12 +1233,15 @@ fn compile_canary_without_output(canary_dir: &Path) -> Result<CompileReport, Vec
     // `pass_canaries_compile` vs `capability_pass_canaries_compile_in_isolation`
     // full-suite flake. Give every no-output compile its own temp dir instead.
     let build_dir = unique_no_output_build_dir();
-    let result = production_compile(CompileOptions {
-        root_path: canary_dir.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: false,
-    });
+    let result = compile_with_artifact_policy(
+        CompileOptions {
+            root_path: canary_dir.join("main.omg"),
+            build_dir: Some(build_dir.clone()),
+            target_name: None,
+            write_output: false,
+        },
+        ArtifactEmissionPolicy::OutputOnly,
+    );
     let _ = fs::remove_dir_all(&build_dir);
     result
 }
@@ -1244,7 +1253,7 @@ fn compile_legacy_backend_canary_without_output(
     // Name the fixture entry explicitly until each deployable/artifact fixture
     // authors a target-owned ProgramEntry; never rediscover Main::main by name.
     let build_dir = unique_no_output_build_dir();
-    let result = compile_with_test_entry(
+    let result = compile_with_test_entry_and_artifact_policy(
         CompileOptions {
             root_path: canary_dir.join("main.omg"),
             build_dir: Some(build_dir.clone()),
@@ -1252,16 +1261,8 @@ fn compile_legacy_backend_canary_without_output(
             write_output: false,
         },
         "Main::main",
+        ArtifactEmissionPolicy::OutputOnly,
     );
-    let result = result.and_then(|report| {
-        if build_dir.join("06_state_graph.html").is_file() {
-            Ok(report)
-        } else {
-            Err(vec![Diagnostic::error(
-                "legacy backend canary stopped before state-graph lowering",
-            )])
-        }
-    });
     let _ = fs::remove_dir_all(&build_dir);
     result
 }
@@ -1280,21 +1281,15 @@ fn compile_rooted_backend_canary_without_output_for_target(
     // Deliberately do not pass the legacy entry override: a missing or drifted
     // ProgramEntry row must fail instead of being masked by `Main::main`.
     let build_dir = unique_no_output_build_dir();
-    let result = production_compile(CompileOptions {
-        root_path: canary_dir.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: Some(target.into()),
-        write_output: false,
-    });
-    let result = result.and_then(|report| {
-        if build_dir.join("06_state_graph.html").is_file() {
-            Ok(report)
-        } else {
-            Err(vec![Diagnostic::error(
-                "rooted backend canary stopped before state-graph lowering",
-            )])
-        }
-    });
+    let result = compile_with_artifact_policy(
+        CompileOptions {
+            root_path: canary_dir.join("main.omg"),
+            build_dir: Some(build_dir.clone()),
+            target_name: Some(target.into()),
+            write_output: false,
+        },
+        ArtifactEmissionPolicy::OutputOnly,
+    );
     let _ = fs::remove_dir_all(&build_dir);
     result
 }

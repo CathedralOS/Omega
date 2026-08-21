@@ -1,6 +1,76 @@
 use super::*;
 
 #[test]
+fn output_only_checks_suppress_artifacts_without_suppressing_wire_validation() {
+    let success_build_dir = unique_no_output_build_dir();
+    let success = compile_with_artifact_policy(
+        CompileOptions {
+            root_path: pass_canary("dependent/boundary_equality_recast_witness_compile")
+                .join("main.omg"),
+            build_dir: Some(success_build_dir.clone()),
+            target_name: None,
+            write_output: false,
+        },
+        ArtifactEmissionPolicy::OutputOnly,
+    )
+    .expect("output-only frontend check should succeed");
+    assert!(!success.wrote_output);
+    assert!(
+        !success_build_dir.exists(),
+        "output-only frontend checks should not materialize an artifact directory"
+    );
+
+    let failure_build_dir = unique_no_output_build_dir();
+    let diagnostics = compile_with_artifact_policy(
+        CompileOptions {
+            root_path: fail_canary("wire/wire_compatibility_preservation_unmet").join("main.omg"),
+            build_dir: Some(failure_build_dir.clone()),
+            target_name: None,
+            write_output: false,
+        },
+        ArtifactEmissionPolicy::OutputOnly,
+    )
+    .expect_err("output-only mode must retain wire compatibility validation");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("unknown preservation")),
+        "expected the unsatisfied wire fact, got {diagnostics:#?}"
+    );
+    assert!(
+        !failure_build_dir.exists(),
+        "a rejected output-only check should not materialize report artifacts"
+    );
+}
+
+#[test]
+fn output_only_backend_compile_keeps_primary_image_and_certification() {
+    let build_dir = unique_no_output_build_dir();
+    let report = compile_with_artifact_policy(
+        CompileOptions {
+            root_path: pass_canary("build/explicit_program_entry_binding").join("main.omg"),
+            build_dir: Some(build_dir.clone()),
+            target_name: Some("windows_x64".into()),
+            write_output: true,
+        },
+        ArtifactEmissionPolicy::OutputOnly,
+    )
+    .expect("output-only backend compile should still certify and install its image");
+    assert!(report.wrote_output);
+    assert!(build_dir.join("omega-program.exe").is_file());
+    let entries = fs::read_dir(&build_dir)
+        .expect("read output-only build directory")
+        .map(|entry| entry.expect("read output-only build entry").file_name())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        entries,
+        [std::ffi::OsString::from("omega-program.exe")],
+        "output-only backend compilation must omit auxiliary reports"
+    );
+    let _ = fs::remove_dir_all(build_dir);
+}
+
+#[test]
 fn boundary_trait_canary_reports_capability_use() {
     let canary = pass_canary("traits/boundary_trait_effects_host_call");
     let main_path = canary.join("main.omg");

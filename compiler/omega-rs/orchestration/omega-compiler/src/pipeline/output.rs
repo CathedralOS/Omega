@@ -13,6 +13,7 @@ pub(super) fn write_output(
     executable_tcb_authorization: &ExecutableTcbInstallationAuthorization,
     emitted: EmittedProgram,
     footprints: &omega_target_operations::BoundaryFootprintPlan,
+    emit_auxiliary_artifacts: bool,
 ) -> Result<std::path::PathBuf, Vec<Diagnostic>> {
     executable_tcb_authorization.authorize_installation();
     let build_dir = options.build_dir();
@@ -62,6 +63,7 @@ pub(super) fn write_output(
             &compiler_text_validation,
             &compiler_function_validation,
             &image.executable_regions,
+            emit_auxiliary_artifacts,
         )?;
 
         // The GUI-subsystem translation for Mach-O: PE stamps Subsystem 2 into
@@ -98,6 +100,7 @@ fn write_executable_region_inventory(
     compiler_text_validation: &omega_image::CompilerTextValidationEvidence,
     compiler_function_validation: &omega_image::CompilerFunctionValidationEvidence,
     inventory: &omega_image::PlacedExecutableRegionInventory,
+    emit_auxiliary_artifacts: bool,
 ) -> Result<(), Vec<Diagnostic>> {
     fn push_string(output: &mut String, value: &str) {
         output.push('"');
@@ -165,6 +168,9 @@ fn write_executable_region_inventory(
     certificate
         .validate_identity()
         .map_err(|diagnostic| vec![diagnostic])?;
+    if !emit_auxiliary_artifacts {
+        return Ok(());
+    }
     let coverage = &certificate.coverage;
     let inventory = &certificate.inventory;
     let mut json = format!(

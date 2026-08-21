@@ -70,6 +70,7 @@ pub(super) fn write_trust_report(
     provider_plans: &[omega_effects::provider_plan::ProviderPlan],
     selected_provider_plans: &omega_effects::SelectedProviderPlanFacts,
     generic_accepted_template_fingerprints: &GenericAcceptedTemplateFingerprints,
+    emit_auxiliary_artifacts: bool,
 ) -> Result<(), Vec<Diagnostic>> {
     let typed = &checked.typed;
     let mut report = TrustReport::default();
@@ -407,11 +408,14 @@ pub(super) fn write_trust_report(
             });
     }
 
-    let writer =
-        ArtifactWriter::new(&options.build_dir()).map_err(|diagnostic| vec![diagnostic])?;
-    writer
-        .write_trust_report(&report)
-        .map_err(|diagnostic| vec![diagnostic])
+    if emit_auxiliary_artifacts {
+        let writer =
+            ArtifactWriter::new(&options.build_dir()).map_err(|diagnostic| vec![diagnostic])?;
+        writer
+            .write_trust_report(&report)
+            .map_err(|diagnostic| vec![diagnostic])?;
+    }
+    Ok(())
 }
 
 fn accepted_instance_contract_fingerprint(
