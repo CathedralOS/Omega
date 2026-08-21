@@ -1914,25 +1914,31 @@ predecessor value rejects. The 1,983-byte scalar fixture produces a 3,607-byte
 modeled ledger and a 2,984-byte prospective reconstruction certificate. The
 695-byte structural/effect fixture produces a 185-byte ledger and a 164-byte
 prospective certificate. A separate 697-byte fixture canonical-decodes exact
-Unit and boundary call custody. The assembled typed core is 4,977 lines
-(198,803 bytes, 423 functions) with maximum source nesting 25. A separately
-gated 97-line PSITERM-neutral byte layer owns the checked byte cursor,
+Unit and boundary call custody. The assembled typed core is 4,982 lines
+(198,971 bytes, 423 functions) with maximum source nesting 25. A separately
+gated 109-line PSITERM-neutral byte layer owns the checked byte cursor,
 fixed-width `u16`/`u32`, exact low/high-half `u64`, and exact four-limb `u128`
-primitives. A separately gated 309-line terminal-codec layer owns the exact
+primitives, including exact unsigned `u64` order. A separately gated 592-line
+terminal-codec layer owns the exact
 current envelope, canonical Boolean, optional and required full-width semantic-ID
 carriers with exact equality and canonical unsigned order,
 the complete Boolean/
 fixed-signed/fixed-unsigned/address type grammar with widths `1..=128`, exact
 signed/unsigned 128-bit integer-value payloads, and length-prefixed UTF-8
-decoding with malformed-encoding rejection. All three
-bounded decoders consume its single typed header result, and structural
-consumers use its scalar/type/value results. Scalar declarations and boundary
+decoding with malformed-encoding rejection. Its separate v16 structural-leaf
+module owns exact IEEE kind/format, byte-sequence carriers, full-width canonical
+structural fields, and atomic proposition tags `11`/`12`; nonempty paths and
+root-then-lexicographic operand order are checked at the atom boundary. All
+three bounded decoders consume only its 302-line header/scalar/type/value subset.
+The structural-leaf module is independently gated but deliberately excluded
+from the bounded spike, so it adds byte grammar without adding ledger authority.
+Scalar declarations and boundary
 results retain the complete decoded type grammar, and integer-constant
 operations retain exact signed/unsigned 128-bit payloads; only the bounded
 operation rows remain limited to Boolean/i8/i16 and perform signed-i8 narrowing.
 The bounded spike narrows identities to a zero high half after complete
 decoding, while
-tags, recursive vocabulary, and monomorphic semantic result types remain
+remaining recursive vocabulary and monomorphic semantic result types remain
 spike-local. This clears the required
 feasibility gate; it does not make the bounded subset production-authoritative
 or mark any trust-graph dependency derived.

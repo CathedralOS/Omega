@@ -809,27 +809,32 @@ Remaining:
   697-byte fixture canonical-decodes exact `CallUnit` and `BoundaryCall`
   custody, including qualified affine resources, structural requirements,
   claim transfer, completion receipt, and boundary identity. The assembled
-  typed core is 4,977 lines / 198,803 bytes / 423 functions, with maximum
+  typed core is 4,982 lines / 198,971 bytes / 423 functions, with maximum
   source nesting 25. Its PSITERM-neutral byte cursor, checked
   `u8`/little-endian `u16`/`u32`, and exact low/high-half `u64` primitives are
-  now a separately gated 97-line reusable layer, including an exact four-limb
-  `u128` carrier. A separately gated 309-line
-  terminal-codec layer owns the exact current magic/format/vocabulary envelope
+  now a separately gated 109-line reusable layer, including exact unsigned
+  `u64` order and an exact four-limb `u128` carrier. A separately gated
+  592-line terminal-codec layer owns the exact current
+  magic/format/vocabulary envelope
   plus canonical Boolean, optional and required full-width semantic-ID carriers,
   exact identity equality/order, and length-prefixed UTF-8 grammar, together
   with the complete Boolean/fixed-signed/
   fixed-unsigned/address scalar-type grammar and exact widths `1..=128`, plus
   exact signed/unsigned 128-bit integer-value payloads; it
   rejects header/scalar/type/value drift plus overlong, surrogate, out-of-range,
-  isolated-continuation, and truncated encodings. All three bounded decoders
-  consume the shared header result and structural consumers use the shared
-  scalar/type/value results. Scalar declarations and boundary results now retain
+  isolated-continuation, and truncated encodings. Its separate v16 structural-
+  leaf module additionally owns exact IEEE kind/format, byte-sequence carrier,
+  full-width canonical path, and atomic proposition tags `11`/`12`, including
+  nonempty paths and canonical operand order. All three bounded decoders consume
+  only the 302-line header/scalar/type/value subset; the structural-leaf module
+  remains independently gated and outside their claimed semantics. Scalar
+  declarations and boundary results now retain
   the complete decoded type grammar; the bounded operation rows still admit
   only Boolean/i8/i16. Integer-constant operations retain exact signed/unsigned
   128-bit payloads until that row policy selects and narrows signed i8. The
   bounded spike narrows identities to a zero high half only in explicit adapters
   after complete decoding;
-  tags, recursive vocabulary, and monomorphic type-specific results remain
+  remaining recursive vocabulary and monomorphic type-specific results remain
   spike-owned. The
   bounded thirty-two-kind scalar leaf slice now resolves through five composed,
   exact-unique policy-cohort schema tables: each row owns result shape,

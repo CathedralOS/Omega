@@ -1,0 +1,52 @@
+; Exact current v16 structural-leaf codec vocabulary.  These are byte grammar
+; carriers only: the bounded ledger spike does not import them and gains no new
+; semantic authority from this shared layer.
+
+(data TerminalIeeeFloatComparisonKind
+  (TerminalIeeeEqual)
+  (TerminalIeeeNotEqual))
+(data RTerminalIeeeFloatComparisonKind
+  (RTerminalIeeeFloatComparisonKind TerminalIeeeFloatComparisonKind Bytes)
+  (RTerminalIeeeFloatComparisonKindBad))
+
+(data TerminalIeeeFloatFormat
+  (TerminalIeeeBinary32)
+  (TerminalIeeeBinary64))
+(data RTerminalIeeeFloatFormat
+  (RTerminalIeeeFloatFormat TerminalIeeeFloatFormat Bytes)
+  (RTerminalIeeeFloatFormatBad))
+
+(data TerminalByteSequenceCarrier
+  (TerminalBorrowedByteView)
+  (TerminalBoundedOwnedBytes U64))
+(data RTerminalByteSequenceCarrier
+  (RTerminalByteSequenceCarrier TerminalByteSequenceCarrier Bytes)
+  (RTerminalByteSequenceCarrierBad))
+
+(data TerminalCanonicalStructuralPathSegment
+  (TerminalStructuralField TerminalSemanticId)
+  (TerminalStructuralFixedIndex U64))
+(data TerminalCanonicalStructuralPath
+  (TerminalStructuralPathNil)
+  (TerminalStructuralPathCons
+    TerminalCanonicalStructuralPathSegment TerminalCanonicalStructuralPath))
+(data RTerminalCanonicalStructuralPath
+  (RTerminalCanonicalStructuralPath TerminalCanonicalStructuralPath Bytes)
+  (RTerminalCanonicalStructuralPathBad))
+
+(data TerminalCanonicalStructuralField
+  (TerminalCanonicalStructuralField
+    TerminalSemanticId TerminalCanonicalStructuralPath))
+(data RTerminalCanonicalStructuralField
+  (RTerminalCanonicalStructuralField TerminalCanonicalStructuralField Bytes)
+  (RTerminalCanonicalStructuralFieldBad))
+
+(data TerminalStructuralLeafProposition
+  (TerminalIeeeFloatComparison
+    TerminalIeeeFloatComparisonKind TerminalIeeeFloatFormat
+    TerminalCanonicalStructuralField TerminalCanonicalStructuralField)
+  (TerminalByteSequenceEqual
+    TerminalCanonicalStructuralField TerminalCanonicalStructuralField))
+(data RTerminalStructuralLeafProposition
+  (RTerminalStructuralLeafProposition TerminalStructuralLeafProposition Bytes)
+  (RTerminalStructuralLeafPropositionBad))

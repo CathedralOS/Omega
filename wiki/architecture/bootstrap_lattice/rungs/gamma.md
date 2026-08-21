@@ -83,7 +83,7 @@ in `compiler/gamma/terminal-ledger-spike/`. The typed program consumes exact
 current terminal-Psi bytes, validates a closed subset, and emits/audits ranked
 semantic rows. Both the Beta-written reference interpreter and the independent
 Python evaluator agree on the positive fixture, an asymmetric join rejection,
-and malformed-byte rejection. The assembled core is 4,977 lines rather than a
+and malformed-byte rejection. The assembled core is 4,982 lines rather than a
 permutation-expanded verifier. Its bounded thirty-two-kind scalar leaf semantics
 now live in five composed exact-unique policy-cohort schema tables; one generic
 interpreter consumes result, denotation, goal, fact, crash, fuel, and frontier
@@ -116,7 +116,7 @@ The spike also makes one scaling limit concrete: the monomorphic type system
 requires a distinct parse-result ADT for each decoded type. Completing the
 structural/effect and canonical call slices plus the shared terminal envelope,
 scalar, semantic-identity, scalar-type, integer-value, and UTF-8 decoders grow
-the assembled core to 198,803 bytes, 182 data declarations, and 423 typed
+the assembled core to 198,971 bytes, 182 data declarations, and 423 typed
 functions, at nesting
 depth 25.
 That repetition is an engineering/audit cost, not a reason to weaken the
@@ -135,6 +135,11 @@ carriers retain exact values and canonical identity order, the complete current
 scalar-type grammar retains carrier/sign/
 width, integer values retain their exact raw two's-complement or unsigned bits,
 and strings retain raw bytes without assigning identity or path meaning.
+An independently gated structural-leaf module in the same directory owns the
+exact v16 IEEE kind/format, byte-sequence carrier, full-width canonical
+structural-field path, and atomic proposition-tag grammar. It checks nonempty
+paths and canonical operand order but is intentionally not imported by the
+bounded ledger spike, which still rejects those tags.
 The bounded fixture narrows IDs and types only in explicit consumer adapters.
 If the complete closed vocabulary cannot remain auditable after those
 extractions, that is the point for an explicit Gamma rung-design correction.
