@@ -317,7 +317,7 @@ pub(super) fn enforce_trust_lockfile(
             ))]);
         }
     };
-    if let Some(existing) = existing {
+    if let Some(existing) = existing.as_deref() {
         let pinned = parse_trust_lock(&existing, &lock_path)?;
         validate_complete_receipt_set(&pinned, &rows, &lock_path)?;
     } else if rows.is_empty() {
@@ -325,6 +325,9 @@ pub(super) fn enforce_trust_lockfile(
     }
 
     let output = render_trust_lock(&rows);
+    if existing.as_deref() == Some(output.as_str()) {
+        return Ok(());
+    }
     std::fs::write(&lock_path, output).map_err(|error| {
         vec![Diagnostic::error(format!(
             "failed to write {}: {error}",
@@ -905,5 +908,52 @@ mod tests {
         .expect("empty first approval");
         assert!(!lock_path.exists());
         std::fs::remove_dir_all(&root).expect("remove empty lock test directory");
+    }
+
+    #[test]
+    fn identical_valid_lock_is_not_rewritten() {
+        let root =
+            std::env::temp_dir().join(format!("omega-lock-identical-noop-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).expect("create identical lock test directory");
+        let lock_path = root.join("omega.lock");
+        let pinned = "0000000000000001  accepted fact: Existing\n";
+        std::fs::write(&lock_path, pinned).expect("write identical pinned lock");
+
+        let mut permissions = std::fs::metadata(&lock_path)
+            .expect("read identical lock metadata")
+            .permissions();
+        permissions.set_readonly(true);
+        std::fs::set_permissions(&lock_path, permissions).expect("make identical lock read-only");
+
+        enforce_trust_lockfile(
+            PreparedTrustLock {
+                lock_path: Some(lock_path.clone()),
+                rows: vec![receipt("accepted fact: Existing", 1)],
+            },
+            &CheckedTrees::default(),
+        )
+        .expect("an identical validated lock must require no write access");
+        assert_eq!(
+            std::fs::read_to_string(&lock_path).expect("read unchanged identical lock"),
+            pinned
+        );
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&lock_path, std::fs::Permissions::from_mode(0o600))
+                .expect("restore identical lock permissions");
+        }
+        #[cfg(windows)]
+        {
+            let mut permissions = std::fs::metadata(&lock_path)
+                .expect("read identical lock metadata for cleanup")
+                .permissions();
+            permissions.set_readonly(false);
+            std::fs::set_permissions(&lock_path, permissions)
+                .expect("restore identical lock permissions");
+        }
+        std::fs::remove_dir_all(&root).expect("remove identical lock test directory");
     }
 }
