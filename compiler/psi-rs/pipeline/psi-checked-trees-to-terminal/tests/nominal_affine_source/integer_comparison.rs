@@ -751,6 +751,84 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
                 )
         }));
     }
+    let carrier_total_literal_division_obligations = entry
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .filter_map(|operation| {
+            let (right, obligation, is_remainder) = match operation.kind {
+                OperationKind::ExactIntegerDivide {
+                    right, obligation, ..
+                } => (right, obligation, false),
+                OperationKind::ExactIntegerRemainder {
+                    right, obligation, ..
+                } => (right, obligation, true),
+                _ => return None,
+            };
+            entry
+                .blocks
+                .iter()
+                .flat_map(|block| &block.operations)
+                .find_map(|candidate| {
+                    (candidate.result.scalar_ref().map(|result| result.id) == Some(right))
+                        .then(|| match candidate.kind {
+                            OperationKind::IntegerConstant { value }
+                                if matches!(
+                                    value,
+                                    IntegerValue::Unsigned(value) if value != 0
+                                ) || matches!(
+                                    value,
+                                    IntegerValue::Signed(value) if value != 0 && value != -1
+                                ) => Some(value),
+                            _ => None,
+                        })
+                        .flatten()
+                })
+                .map(|literal| (obligation, literal, is_remainder))
+        })
+        .collect::<Vec<_>>();
+    assert!(carrier_total_literal_division_obligations.iter().any(
+        |(_, literal, _)| matches!(literal, IntegerValue::Unsigned(_))
+    ));
+    assert!(carrier_total_literal_division_obligations.iter().any(
+        |(_, literal, _)| matches!(literal, IntegerValue::Signed(_))
+    ));
+    assert!(carrier_total_literal_division_obligations.iter().any(
+        |(_, _, is_remainder)| !is_remainder
+    ));
+    assert!(carrier_total_literal_division_obligations.iter().any(
+        |(_, _, is_remainder)| *is_remainder
+    ));
+    for (obligation, literal, _) in &carrier_total_literal_division_obligations {
+        let evidence = lowered
+            .proof_bundle
+            .evidence
+            .iter()
+            .find(|evidence| evidence.obligation == *obligation)
+            .expect("carrier-total literal exact operation has evidence");
+        let EvidenceRoute::CertificateDerived(certificate) = &evidence.route else {
+            panic!("carrier-total literal exact operation has a recursive certificate")
+        };
+        match literal {
+            IntegerValue::Unsigned(_) => {
+                assert!(matches!(certificate.proof.conclusion, Proposition::LessOrEqual(_, _)));
+                assert!(matches!(
+                    certificate.proof.rule,
+                    ProofRule::IntegerLessOrEqualSubstitution { endpoint: 1, .. }
+                ));
+            }
+            IntegerValue::Signed(_) => {
+                assert!(matches!(
+                    certificate.proof.conclusion,
+                    Proposition::Disjunction(ref disjuncts) if disjuncts.len() == 3
+                ));
+                assert!(matches!(
+                    certificate.proof.rule,
+                    ProofRule::DisjunctionIntroduction { .. }
+                ));
+            }
+        }
+    }
     let exact_divide_obligation = entry
         .blocks
         .iter()
@@ -3860,6 +3938,10 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
     assert_eq!(decode_module(&semantics).unwrap(), lowered.semantic_module);
     let proof = encode_proof_bundle(&lowered.proof_bundle)
         .expect("shared integer convergence proof encodes");
+    assert_eq!(
+        decode_proof_bundle(&proof).expect("shared integer convergence proof decodes"),
+        lowered.proof_bundle,
+    );
     // The canonical source-to-terminal path and interpreter remain part of
     // every test run. The exhaustive mutation matrix performs 92 independent
     // full verifier replays and is intentionally opt-in; focused verifier

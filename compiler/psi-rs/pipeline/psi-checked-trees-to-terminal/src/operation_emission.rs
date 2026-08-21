@@ -1,7 +1,7 @@
 //! Terminal operation emission and proof finalization.
 
 use super::*;
-use crate::nonzero_divisor_certificate::prove_nonzero_divisor;
+use crate::nonzero_divisor_certificate::prove_canonical_integer_proposition;
 
 pub(super) fn finalize_operation_proofs(
     lowered: &mut LoweredTerminalPsi,
@@ -26,21 +26,21 @@ pub(super) fn finalize_operation_proofs(
         let owner = lowered.semantic_module.machines.iter().find_map(|machine| {
             machine.blocks.iter().find_map(|block| {
                 block.operations.iter().find_map(|operation| {
-                    let (obligation, is_canonical_nonzero_row) =
-                        proof_bearing_operation_obligation(&operation.kind)?;
-                    (obligation == site.obligation.id)
-                        .then_some((machine, is_canonical_nonzero_row))
+                    let obligation = proof_bearing_operation_obligation(&operation.kind)?;
+                    (obligation == site.obligation.id).then_some(machine)
                 })
             })
         });
         let assumptions = owner
-            .map(|(machine, _)| machine.contract.requires.as_slice())
+            .map(|machine| machine.contract.requires.as_slice())
             .unwrap_or_default();
-        let proof = if let Some((machine, true)) = owner {
+        let proof = if let Some(machine) = owner
+            && site.canonical_certificate
+        {
             let context = validated
                 .value_context(machine)
                 .map_err(LoweringError::InvalidTerminalModule)?;
-            prove_nonzero_divisor(
+            prove_canonical_integer_proposition(
                 &context,
                 &site.obligation.proposition,
                 assumptions,
@@ -71,8 +71,8 @@ pub(super) fn finalize_operation_proofs(
     Ok(())
 }
 
-fn proof_bearing_operation_obligation(kind: &OperationKind) -> Option<(ObligationId, bool)> {
-    let (obligation, is_canonical_nonzero_row) = match kind {
+fn proof_bearing_operation_obligation(kind: &OperationKind) -> Option<ObligationId> {
+    let obligation = match kind {
         OperationKind::IntegerExactCast { obligation, .. }
         | OperationKind::ExactIntegerAdd { obligation, .. }
         | OperationKind::ExactIntegerSubtract { obligation, .. }
@@ -80,14 +80,14 @@ fn proof_bearing_operation_obligation(kind: &OperationKind) -> Option<(Obligatio
         | OperationKind::ExactIntegerShiftRight { obligation, .. }
         | OperationKind::ExactIntegerShiftLeft { obligation, .. }
         | OperationKind::ExactIntegerDivide { obligation, .. }
-        | OperationKind::ExactIntegerRemainder { obligation, .. } => (*obligation, false),
-        OperationKind::WrappingIntegerDivide { obligation, .. }
+        | OperationKind::ExactIntegerRemainder { obligation, .. }
+        | OperationKind::WrappingIntegerDivide { obligation, .. }
         | OperationKind::WrappingIntegerRemainder { obligation, .. }
         | OperationKind::SaturatingIntegerDivide { obligation, .. }
-        | OperationKind::SaturatingIntegerRemainder { obligation, .. } => (*obligation, true),
+        | OperationKind::SaturatingIntegerRemainder { obligation, .. } => *obligation,
         _ => return None,
     };
-    Some((obligation, is_canonical_nonzero_row))
+    Some(obligation)
 }
 
 fn proof_from_available_facts(

@@ -6,8 +6,9 @@ use psi_core::{Proposition, ScalarTerm, ValueId};
 use psi_proof_kernel::{Obligation, ObligationClass};
 use psi_terminal::{OperationKind, TerminalMachine, TerminalModule, Terminator};
 use psi_terminal_semantics::{
-    OperationSemanticError, OperationSemanticTag, goal_free_scalar_leaf_equation,
-    proof_bearing_scalar_leaf_semantics, structural_effect_leaf_observation,
+    CanonicalScalarGoal, OperationSemanticError, OperationSemanticTag,
+    goal_free_scalar_leaf_equation, proof_bearing_scalar_leaf_semantics,
+    structural_effect_leaf_observation,
 };
 
 use crate::{ModuleError, validate_module};
@@ -22,6 +23,9 @@ use super::sufficient_reduction::reduce_proof_bearing_scalar_goal;
 pub struct ReconstructedOperationObligation {
     pub obligation: Obligation,
     pub semantic_axioms: Vec<Proposition>,
+    /// The obligation is the operation schema's canonical kernel proposition,
+    /// not a proposition selected by a trusted sufficient-form reducer.
+    pub canonical_certificate: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -191,13 +195,17 @@ pub(super) fn reconstruct_machine_semantics(
             if let Some(semantics) = proof_bearing_scalar_leaf_semantics(operation, &value_types)
                 .map_err(ModuleError::OperationSemanticSchema)?
             {
-                let proposition = if matches!(
+                let canonical_certificate = matches!(
                     semantics.tag(),
                     OperationSemanticTag::WrappingIntegerDivide
                         | OperationSemanticTag::WrappingIntegerRemainder
                         | OperationSemanticTag::SaturatingIntegerDivide
                         | OperationSemanticTag::SaturatingIntegerRemainder
-                ) {
+                ) || exact_division_has_carrier_total_landed_divisor(
+                    semantics.canonical_goal(),
+                    &axioms,
+                );
+                let proposition = if canonical_certificate {
                     semantics
                         .canonical_goal()
                         .kernel_proposition()
@@ -222,6 +230,7 @@ pub(super) fn reconstruct_machine_semantics(
                         class: ObligationClass::Derivable,
                     },
                     semantic_axioms: axioms.clone(),
+                    canonical_certificate,
                 });
                 axioms.push(semantics.result_equation().clone());
                 continue;
@@ -386,6 +395,7 @@ pub(super) fn reconstruct_machine_semantics(
                                 class: ObligationClass::Derivable,
                             },
                             semantic_axioms: axioms.clone(),
+                            canonical_certificate: false,
                         });
                     }
                 }
@@ -414,6 +424,7 @@ pub(super) fn reconstruct_machine_semantics(
                                 class: ObligationClass::Derivable,
                             },
                             semantic_axioms: axioms.clone(),
+                            canonical_certificate: false,
                         });
                     }
                 }
@@ -453,6 +464,35 @@ pub(super) fn reconstruct_machine_semantics(
         operation_obligations,
         exit_axioms: guaranteed,
     })
+}
+
+/// The complete literal-divisor exact divide/remainder family. A directly
+/// landed unsigned nonzero literal or signed literal other than zero and -1
+/// makes definedness independent of the dividend. Its canonical proof needs
+/// only the prior literal equality plus closed integer order; no value-root
+/// custody or operation-definition authority participates.
+fn exact_division_has_carrier_total_landed_divisor(
+    goal: &CanonicalScalarGoal,
+    semantic_axioms: &[Proposition],
+) -> bool {
+    let CanonicalScalarGoal::ExactDivisionDefined {
+        integer_type,
+        right,
+        ..
+    } = goal
+    else {
+        return false;
+    };
+    let Some(value) = super::known_integer_term_value(*integer_type, right, semantic_axioms) else {
+        return false;
+    };
+    match (integer_type.sign(), value) {
+        (psi_core::IntegerSign::Unsigned, psi_core::IntegerValue::Unsigned(value)) => value != 0,
+        (psi_core::IntegerSign::Signed, psi_core::IntegerValue::Signed(value)) => {
+            value != 0 && value != -1
+        }
+        _ => false,
+    }
 }
 
 fn true_condition_fact(
@@ -551,5 +591,71 @@ fn append_successor_fact(
 fn push_unique(propositions: &mut Vec<Proposition>, proposition: Proposition) {
     if !propositions.contains(&proposition) {
         propositions.push(proposition);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use psi_core::{IntegerSign, IntegerType, IntegerValue, ScalarType};
+
+    fn value(id: u64, integer_type: IntegerType) -> ScalarTerm {
+        ScalarTerm::value(
+            ValueId::new(id).expect("value id"),
+            ScalarType::Integer(integer_type),
+        )
+    }
+
+    #[test]
+    fn exact_division_selects_canonical_certificate_only_for_carrier_total_landed_literals() {
+        let unsigned = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        let unsigned_right = value(2, unsigned);
+        let unsigned_goal = CanonicalScalarGoal::ExactDivisionDefined {
+            integer_type: unsigned,
+            left: value(1, unsigned),
+            right: unsigned_right.clone(),
+        };
+        assert!(exact_division_has_carrier_total_landed_divisor(
+            &unsigned_goal,
+            &[Proposition::Equal(
+                unsigned_right.clone(),
+                ScalarTerm::integer(unsigned, IntegerValue::Unsigned(5)).expect("u8 literal"),
+            )],
+        ));
+        assert!(!exact_division_has_carrier_total_landed_divisor(
+            &unsigned_goal,
+            &[Proposition::Equal(
+                unsigned_right,
+                ScalarTerm::integer(unsigned, IntegerValue::Unsigned(0)).expect("u8 literal"),
+            )],
+        ));
+
+        let signed = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+        for (literal, expected) in [(-3, true), (1, true), (0, false), (-1, false)] {
+            assert_eq!(
+                exact_division_has_carrier_total_landed_divisor(
+                    &CanonicalScalarGoal::ExactDivisionDefined {
+                        integer_type: signed,
+                        left: value(3, signed),
+                        right: value(4, signed),
+                    },
+                    &[Proposition::Equal(
+                        value(4, signed),
+                        ScalarTerm::integer(signed, IntegerValue::Signed(literal))
+                            .expect("i8 literal"),
+                    )],
+                ),
+                expected,
+                "signed literal {literal}",
+            );
+        }
+        assert!(!exact_division_has_carrier_total_landed_divisor(
+            &CanonicalScalarGoal::ExactDivisionDefined {
+                integer_type: signed,
+                left: value(3, signed),
+                right: value(4, signed),
+            },
+            &[],
+        ));
     }
 }
