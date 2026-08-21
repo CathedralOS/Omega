@@ -242,7 +242,7 @@ fn resolve_operator_adapter_call(
         .machine_trait_conformances(provider)
         .iter()
         .filter(|conformance| {
-            conformance.via.is_none()
+            conformance.external_binding.is_none()
                 && conformance.name.as_str() == namespace.as_str()
                 && conformance.requirement.as_ref().map(|name| name.as_str())
                     == Some(requirement.as_str())

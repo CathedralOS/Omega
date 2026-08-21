@@ -1318,6 +1318,10 @@ fn retains_external_realization_mechanism_without_rendering_classification() {
         mechanism,
         psi_language_semantics::ExternalBindingMechanism::CompilerIntrinsic
     );
+    let [conformance] = program.machine_trait_conformances(leaf.satisfies) else {
+        panic!("external leaf must retain one exact satisfaction row");
+    };
+    assert_eq!(conformance.external_binding, Some(binding));
 }
 
 #[test]

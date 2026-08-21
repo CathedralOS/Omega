@@ -280,7 +280,7 @@ fn validate_program_internal(
             let via_count = program
                 .machine_trait_conformances(machine)
                 .iter()
-                .filter(|conformance| conformance.via.is_some())
+                .filter(|conformance| conformance.external_binding.is_some())
                 .count();
             let is_external = matches!(
                 machine.supply_mode,

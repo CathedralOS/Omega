@@ -607,12 +607,6 @@ impl ExternalBindingTable {
         self.renderings.push(rendering.to_owned());
         ExternalBindingId(self.renderings.len() as u32)
     }
-
-    pub fn rendering(&self, id: ExternalBindingId) -> Option<&str> {
-        id.0.checked_sub(1)
-            .and_then(|index| self.renderings.get(index as usize))
-            .map(String::as_str)
-    }
 }
 
 /// Decision 19/22 (STR4 checked plans, slice 1): the deterministic

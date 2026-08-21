@@ -94,7 +94,7 @@ pub(crate) fn lower_machine(
                     .as_ref()
                     .map(crate::name::lower_name),
                 alias: conformance.alias.as_ref().map(crate::name::lower_name),
-                via: conformance.via.clone(),
+                external_binding: conformance.external_binding,
             },
         );
     }

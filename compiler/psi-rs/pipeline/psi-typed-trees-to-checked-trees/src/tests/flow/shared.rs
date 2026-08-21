@@ -283,7 +283,7 @@ fn records_checked_boundary_edges_for_boundary_trait_calls() {
             name: Identifier::generated("Console"),
             requirement: None,
             alias: None,
-            via: None,
+            external_binding: None,
             ..Default::default()
         },
     );
