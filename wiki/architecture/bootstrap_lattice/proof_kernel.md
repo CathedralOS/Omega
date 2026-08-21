@@ -368,6 +368,21 @@ recomputes the mapped endpoint with checked arithmetic and rejects malformed
 root/literal/target shapes, overflow, or an endpoint outside the carrier. It
 accepts no proof or citation authority and is not a `ProofRule`.
 
+The contiguous pure-cast core also has a non-serialized checked witness.
+`IntegerCastChainWitness` selects a nonempty, strictly increasing sequence of
+canonical semantic equalities from one SSA root to one SSA target. Every step
+must be an adjacent 8/16/32/64 fixed `IntegerExactCast` that is neither an
+identity nor a widening; declared carriers and actual term types must agree
+exactly. The checked result owns the complete carrier sequence, exact selected
+axiom indices, and the intersection of all carrier ranges. Thus narrowing and
+cross-sign casts normalize only their surviving representable values and never
+become a total or lossy conversion claim. Reversed, stale, reordered,
+discontinuous, cyclic, address, non-native, and target-drifted words reject.
+This one core is shared by direct one-cast sandwiches and contiguous multi-cast
+prefix/suffix sandwiches, but it neither proves cast definedness nor checks the
+surrounding arithmetic families. Mixed widening/cast words remain a distinct
+normalization problem.
+
 An intentionally versioned recursive proof-rule integration must still bind
 the root-bound proof and every normalization equality into the accepted premise
 closure. Cast/shift witness forms and the correlated forbidden-root conversion

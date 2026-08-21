@@ -1783,6 +1783,27 @@ its caller must independently establish the supplied root-bound proposition.
 It remains a non-serialized prerequisite API, not a `ProofRule` or certificate
 leaf.
 
+The common pure-cast spine now has the same kind of producer-visible custody.
+`IntegerCastChainWitness` binds one or more contiguous partial fixed-native
+`IntegerExactCast` definitions to exact root and target SSA values. The checker
+requires strictly increasing semantic-axiom indices, canonical result-equality
+orientation, exact adjacent source/target continuity, and the same 8/16/32/64
+fixed-carrier partial-edge rule used by the accepted cast sandwiches. It
+retains the complete carrier word and computes the exact intersection of every
+carrier as the surviving mathematical root interval. A narrowing or cross-sign
+edge is therefore never claimed total or lossy: only values in that
+intersection survive. Identity, widening-shaped, address, non-native, stale,
+reordered, reversed, discontinuous, cyclic, and target-drifted claims reject.
+The checked core covers both one-cast sandwiches and the contiguous multi-cast
+spine shared by computed-prefix, computed-suffix, and two-sided families.
+
+This cast checker accepts no proof authority, does not establish that its root
+is a machine parameter, and does not validate the surrounding prefix/suffix
+algebra. Heterogeneous words containing `IntegerWiden` require their own
+normalization witness. No cast result, carrier interval, or selected axiom is a
+certificate premise until a future intentionally versioned proof integration
+binds it explicitly.
+
 Producers for cast/shift chains and correlated forbidden-root analysis still
 need their own normalized witnesses. Affine certificate production still needs
 an intentionally versioned proof-rule integration that recursively checks the

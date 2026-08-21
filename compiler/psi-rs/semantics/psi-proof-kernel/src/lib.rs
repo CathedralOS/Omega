@@ -9,6 +9,7 @@
 
 mod evidence;
 mod integer_affine;
+mod integer_cast;
 mod kernel;
 mod normalization;
 mod proof;
@@ -22,6 +23,10 @@ pub use evidence::{
 pub use integer_affine::{
     CheckedIntegerAffineForm, IntegerAffineBoundConversionError, IntegerAffineWitness,
     IntegerAffineWitnessError, check_integer_affine_bound_conversion, check_integer_affine_witness,
+};
+pub use integer_cast::{
+    CheckedIntegerCastChain, IntegerCastChainWitness, IntegerCastChainWitnessError,
+    check_integer_cast_chain_witness,
 };
 pub use kernel::{KernelError, PrimitiveJudgment, decide_primitive};
 pub use normalization::{
