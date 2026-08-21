@@ -757,6 +757,18 @@ carrier/result drift fail closed. Static/`const` correspondence, aliases and
 normalized multi-state result flow remain later obligations, so this direct
 correspondence still grants no execution authority.
 
+Representative static applications now have a separate non-authoritative
+closure check. The selected entry's declaration telescope is paired exactly
+and in order with explicit type, literal `const`, and static-machine arguments;
+nested data/machine applications must themselves be closed. Wrong category,
+arity drift, bare generic arguments, evidence projections, proposition-family
+arguments, and lifetime-bearing applications fail closed. A valid generic
+application is materialized by the non-authoritative checker as exact
+parameter/argument pairs, but is not yet attached to an admitted plan: it still
+waits for immutable substitution into the representative
+runtime/result/contract telescope and therefore cannot feed correspondence or
+execution.
+
 Acceptance requires:
 
 1. primitive and witness-bearing proposition declarations retain their exact

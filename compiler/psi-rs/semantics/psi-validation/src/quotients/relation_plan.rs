@@ -7,14 +7,16 @@
 use psi_arena::HandleSpan;
 use psi_symbols::SymbolHandle;
 use psi_typed_trees::TypedTrees;
+use psi_typed_trees::data::{TypeParameter, TypeParameterKind};
 use psi_typed_trees::expression::{
     ExpressionHandle, ExpressionNode, QuotientOperationKind, QuotientOperationRequest,
-    TableCallExpression,
+    StaticMachineArgument, TableCallExpression,
 };
 use psi_typed_trees::machine::Machine;
+use psi_typed_trees::name::Identifier;
 use psi_typed_trees::signature::SignatureContract;
 use psi_typed_trees::state::State;
-use psi_typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+use psi_typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 use std::fmt;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -72,6 +74,26 @@ pub(super) struct DefineRuntimeCorrespondence {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum RepresentativeStaticBindingKind {
+    Type,
+    Const,
+    Machine,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct RepresentativeStaticBinding {
+    pub(super) parameter: SymbolHandle,
+    pub(super) kind: RepresentativeStaticBindingKind,
+    pub(super) argument: StaticMachineArgument,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct RepresentativeStaticApplication {
+    pub(super) lifetime_arguments: Vec<Identifier>,
+    pub(super) bindings: Vec<RepresentativeStaticBinding>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum RelationPlanError {
     UnresolvedArgumentType(usize),
     UnresolvedInputRelationApplication(usize),
@@ -80,6 +102,11 @@ pub(super) enum RelationPlanError {
     RepresentativeEntryDoesNotResolveExactly,
     RepresentativeApplicationRequiresSubstitution,
     RepresentativeResultTypeIsUnresolved,
+    RepresentativeStaticArityMismatch,
+    RepresentativeStaticArgumentCategoryMismatch(usize),
+    RepresentativeStaticArgumentIsOpen(usize),
+    RepresentativeLifetimeApplicationRequiresElision,
+    RepresentativePropositionApplicationUnsupported(usize),
     DefineOwnerRequiresSubstitution,
     DefineRuntimeArityMismatch,
     DefineParameterIdentityNotUnique,
@@ -114,6 +141,24 @@ impl fmt::Display for RelationPlanError {
             ),
             Self::RepresentativeResultTypeIsUnresolved => formatter.write_str(
                 "the representative operation has no exact result type",
+            ),
+            Self::RepresentativeStaticArityMismatch => formatter.write_str(
+                "the representative static application does not exactly match its declaration parameter arity",
+            ),
+            Self::RepresentativeStaticArgumentCategoryMismatch(position) => write!(
+                formatter,
+                "representative static argument {position} has the wrong declaration category"
+            ),
+            Self::RepresentativeStaticArgumentIsOpen(position) => write!(
+                formatter,
+                "representative static argument {position} is not one closed application"
+            ),
+            Self::RepresentativeLifetimeApplicationRequiresElision => formatter.write_str(
+                "representative lifetime arguments require the ordinary call-site elision judgment",
+            ),
+            Self::RepresentativePropositionApplicationUnsupported(position) => write!(
+                formatter,
+                "representative proposition argument {position} has no closed application boundary yet"
             ),
             Self::DefineOwnerRequiresSubstitution => formatter.write_str(
                 "the quotient-facing definition is generic and requires exact owner-telescope substitution",
@@ -378,23 +423,14 @@ fn derive_representative_telescope(
     program: &TypedTrees,
     request: &QuotientOperationRequest,
 ) -> Result<RepresentativeTelescope, RelationPlanError> {
-    if request.representative_operation.application.is_some() {
-        return Err(RelationPlanError::RepresentativeApplicationRequiresSubstitution);
-    }
-    let mut matches = program.machines().iter().flat_map(|machine| {
-        program
-            .machine_states(machine)
-            .iter()
-            .filter(|state| state.symbol == request.representative_operation.symbol)
-            .map(move |state| (machine, state))
-    });
-    let Some((machine, state)) = matches.next() else {
-        return Err(RelationPlanError::RepresentativeEntryDoesNotResolveExactly);
-    };
-    if matches.next().is_some() {
-        return Err(RelationPlanError::RepresentativeEntryDoesNotResolveExactly);
-    }
-    if !program.machine_type_parameters(machine).is_empty() {
+    let (machine, state) =
+        representative_machine_state(program, request.representative_operation.symbol)?;
+    let static_application = derive_exact_representative_static_application(program, request)?;
+    if !static_application.bindings.is_empty() {
+        // The exact category/application witness is now available, but the
+        // declaration's parameter/result types still contain binder symbols.
+        // Do not call that declaration telescope instantiated until the
+        // immutable substitution judgment is implemented.
         return Err(RelationPlanError::RepresentativeApplicationRequiresSubstitution);
     }
     if !state.return_type.is_valid() {
@@ -422,6 +458,156 @@ fn derive_representative_telescope(
         machine_contracts: machine.contracts,
         state_contracts: state.contracts,
     })
+}
+
+fn representative_machine_state(
+    program: &TypedTrees,
+    state_symbol: SymbolHandle,
+) -> Result<(&Machine, &State), RelationPlanError> {
+    let mut matches = program.machines().iter().flat_map(|machine| {
+        program
+            .machine_states(machine)
+            .iter()
+            .filter(|state| state.symbol == state_symbol)
+            .map(move |state| (machine, state))
+    });
+    let Some((machine, state)) = matches.next() else {
+        return Err(RelationPlanError::RepresentativeEntryDoesNotResolveExactly);
+    };
+    if matches.next().is_some() {
+        return Err(RelationPlanError::RepresentativeEntryDoesNotResolveExactly);
+    }
+    Ok((machine, state))
+}
+
+fn derive_exact_representative_static_application(
+    program: &TypedTrees,
+    request: &QuotientOperationRequest,
+) -> Result<RepresentativeStaticApplication, RelationPlanError> {
+    let (machine, _) =
+        representative_machine_state(program, request.representative_operation.symbol)?;
+    validate_static_application(
+        program,
+        &machine.lifetime_parameters,
+        program.machine_type_parameters(machine),
+        &request.representative_operation,
+    )
+}
+
+fn validate_static_application(
+    program: &TypedTrees,
+    lifetime_parameters: &[Identifier],
+    parameters: &[TypeParameter],
+    selected: &StaticMachineArgument,
+) -> Result<RepresentativeStaticApplication, RelationPlanError> {
+    if !lifetime_parameters.is_empty() {
+        return Err(RelationPlanError::RepresentativeLifetimeApplicationRequiresElision);
+    }
+    let empty_lifetimes: &[Identifier] = &[];
+    let empty_arguments: &[StaticMachineArgument] = &[];
+    let (lifetime_arguments, arguments) = selected
+        .application
+        .as_ref()
+        .map(|application| {
+            (
+                application.lifetime_arguments.as_ref(),
+                application.arguments.as_ref(),
+            )
+        })
+        .unwrap_or((empty_lifetimes, empty_arguments));
+    if !lifetime_arguments.is_empty() || arguments.len() != parameters.len() {
+        return Err(RelationPlanError::RepresentativeStaticArityMismatch);
+    }
+
+    let mut bindings = Vec::with_capacity(arguments.len());
+    for (position, (parameter, argument)) in parameters.iter().zip(arguments).enumerate() {
+        let kind = match &parameter.kind {
+            TypeParameterKind::Type => {
+                validate_closed_type_argument(program, argument, position)?;
+                RepresentativeStaticBindingKind::Type
+            }
+            TypeParameterKind::Const { .. } => {
+                if argument.const_literal.is_none()
+                    || argument.symbol.is_valid()
+                    || argument.application.is_some()
+                    || argument.evidence_projection.is_some()
+                {
+                    return Err(
+                        RelationPlanError::RepresentativeStaticArgumentCategoryMismatch(position),
+                    );
+                }
+                RepresentativeStaticBindingKind::Const
+            }
+            TypeParameterKind::Machine { .. } => {
+                if argument.const_literal.is_some() || argument.evidence_projection.is_some() {
+                    return Err(
+                        RelationPlanError::RepresentativeStaticArgumentCategoryMismatch(position),
+                    );
+                }
+                let (machine, _) =
+                    representative_machine_state(program, argument.symbol).map_err(|_| {
+                        RelationPlanError::RepresentativeStaticArgumentCategoryMismatch(position)
+                    })?;
+                validate_static_application(
+                    program,
+                    &machine.lifetime_parameters,
+                    program.machine_type_parameters(machine),
+                    argument,
+                )?;
+                RepresentativeStaticBindingKind::Machine
+            }
+            TypeParameterKind::Proposition { .. } => {
+                return Err(
+                    RelationPlanError::RepresentativePropositionApplicationUnsupported(position),
+                );
+            }
+        };
+        bindings.push(RepresentativeStaticBinding {
+            parameter: parameter.symbol,
+            kind,
+            argument: argument.clone(),
+        });
+    }
+    Ok(RepresentativeStaticApplication {
+        lifetime_arguments: lifetime_arguments.to_vec(),
+        bindings,
+    })
+}
+
+fn validate_closed_type_argument(
+    program: &TypedTrees,
+    argument: &StaticMachineArgument,
+    position: usize,
+) -> Result<(), RelationPlanError> {
+    if argument.const_literal.is_some() || argument.evidence_projection.is_some() {
+        return Err(RelationPlanError::RepresentativeStaticArgumentCategoryMismatch(position));
+    }
+    let Some(data) = program
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.symbol == argument.symbol)
+    else {
+        let primitive = argument.application.is_none()
+            && argument.path.len() == 1
+            && PrimitiveType::from_name(argument.path[0].as_str()).is_some();
+        if primitive {
+            return Ok(());
+        }
+        return Err(RelationPlanError::RepresentativeStaticArgumentCategoryMismatch(position));
+    };
+    let nested = validate_static_application(
+        program,
+        &data.lifetime_parameters,
+        program.data_type_parameters(data),
+        argument,
+    );
+    match nested {
+        Ok(_) => Ok(()),
+        Err(RelationPlanError::RepresentativeStaticArityMismatch) => Err(
+            RelationPlanError::RepresentativeStaticArgumentIsOpen(position),
+        ),
+        Err(error) => Err(error),
+    }
 }
 
 enum ExactRelationLookup {
@@ -540,13 +726,17 @@ fn relation_name(program: &TypedTrees, symbol: SymbolHandle) -> String {
 #[cfg(test)]
 mod tests {
     use super::{
-        InputRelation, RelationPlanError, derive_direct_terminal_plan,
+        InputRelation, RelationPlanError, RepresentativeStaticBindingKind,
+        derive_direct_terminal_plan, derive_exact_representative_static_application,
         derive_representative_telescope,
     };
     use psi_arena::HandleSpan;
     use psi_symbols::SymbolHandle;
     use psi_typed_trees::TypedTrees;
-    use psi_typed_trees::data::{DataDefinition, QuotientDefinition};
+    use psi_typed_trees::data::{
+        DataDefinition, MachineParameterContract, QuotientDefinition, TypeParameter,
+        TypeParameterKind,
+    };
     use psi_typed_trees::expression::{
         ExpressionHandle, ExpressionNode, QuotientOperationKind, QuotientOperationRequest,
         StaticMachineArgument, StaticSymbolApplication, TableCallExpression, TableNamePath,
@@ -717,6 +907,92 @@ mod tests {
         program.push_machine_state(&mut machine, state);
         program.push_machine(machine);
         request_with_representative(symbol(91))
+    }
+
+    fn push_generic_representative_application(
+        program: &mut TypedTrees,
+    ) -> QuotientOperationRequest {
+        let unit = program.type_reference_table.insert(TypeReferenceNode::Unit);
+        let type_symbol = symbol(600);
+        program.push_data_definition(DataDefinition {
+            symbol: type_symbol,
+            name: Identifier::generated_static("StaticType"),
+            ..Default::default()
+        });
+
+        let mut selected_machine = Machine {
+            symbol: symbol(610),
+            name: Identifier::generated_static("selected"),
+            ..Default::default()
+        };
+        program.push_machine_state(
+            &mut selected_machine,
+            State {
+                symbol: symbol(611),
+                return_type: unit,
+                ..Default::default()
+            },
+        );
+        program.push_machine(selected_machine);
+
+        let mut representative = Machine {
+            symbol: symbol(620),
+            name: Identifier::generated_static("generic_representative"),
+            ..Default::default()
+        };
+        for parameter in [
+            TypeParameter {
+                symbol: symbol(622),
+                name: Identifier::generated_static("T"),
+                kind: TypeParameterKind::Type,
+                ..Default::default()
+            },
+            TypeParameter {
+                symbol: symbol(623),
+                name: Identifier::generated_static("N"),
+                kind: TypeParameterKind::Const {
+                    type_reference: unit,
+                },
+                ..Default::default()
+            },
+            TypeParameter {
+                symbol: symbol(624),
+                name: Identifier::generated_static("F"),
+                kind: TypeParameterKind::Machine {
+                    contract: MachineParameterContract::default(),
+                },
+                ..Default::default()
+            },
+        ] {
+            program.push_machine_type_parameter(&mut representative, parameter);
+        }
+        program.push_machine_state(
+            &mut representative,
+            State {
+                symbol: symbol(621),
+                return_type: unit,
+                ..Default::default()
+            },
+        );
+        program.push_machine(representative);
+
+        let mut type_argument = static_argument("StaticType");
+        type_argument.symbol = type_symbol;
+        let const_argument = StaticMachineArgument {
+            path: Box::default(),
+            application: None,
+            const_literal: Some(Default::default()),
+            evidence_projection: None,
+            symbol: SymbolHandle::invalid(),
+        };
+        let mut machine_argument = static_argument("selected");
+        machine_argument.symbol = symbol(611);
+        let mut request = request_with_representative(symbol(621));
+        request.representative_operation.application = Some(Box::new(StaticSymbolApplication {
+            lifetime_arguments: Box::default(),
+            arguments: vec![type_argument, const_argument, machine_argument].into_boxed_slice(),
+        }));
+        request
     }
 
     #[test]
@@ -926,16 +1202,48 @@ mod tests {
 
     #[test]
     fn representative_telescope_rejects_unsubstituted_static_application() {
-        let program = TypedTrees::default();
-        let mut request = request_with_representative(symbol(91));
-        request.representative_operation.application = Some(Box::new(StaticSymbolApplication {
-            lifetime_arguments: Box::default(),
-            arguments: Box::default(),
-        }));
+        let mut program = TypedTrees::default();
+        let request = push_generic_representative_application(&mut program);
+
+        let application = derive_exact_representative_static_application(&program, &request)
+            .expect("closed type/const/machine application must retain exact bindings");
+        assert_eq!(application.bindings.len(), 3);
+        assert_eq!(application.bindings[0].parameter, symbol(622));
+        assert_eq!(
+            application.bindings[0].kind,
+            RepresentativeStaticBindingKind::Type
+        );
+        assert_eq!(application.bindings[1].parameter, symbol(623));
+        assert_eq!(
+            application.bindings[1].kind,
+            RepresentativeStaticBindingKind::Const
+        );
+        assert_eq!(application.bindings[2].parameter, symbol(624));
+        assert_eq!(
+            application.bindings[2].kind,
+            RepresentativeStaticBindingKind::Machine
+        );
 
         assert_eq!(
             derive_representative_telescope(&program, &request),
             Err(RelationPlanError::RepresentativeApplicationRequiresSubstitution)
+        );
+    }
+
+    #[test]
+    fn representative_static_application_rejects_const_category_near_miss() {
+        let mut program = TypedTrees::default();
+        let mut request = push_generic_representative_application(&mut program);
+        let application = request
+            .representative_operation
+            .application
+            .as_mut()
+            .expect("generic application");
+        application.arguments[1] = application.arguments[0].clone();
+
+        assert_eq!(
+            derive_exact_representative_static_application(&program, &request),
+            Err(RelationPlanError::RepresentativeStaticArgumentCategoryMismatch(1))
         );
     }
 
