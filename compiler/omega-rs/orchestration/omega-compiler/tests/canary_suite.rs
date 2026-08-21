@@ -1396,6 +1396,16 @@ fn compile_rooted_canary_for_target_with_artifact_policy(
 // exercise production entry selection and may not substitute the legacy entry
 // seam.
 const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
+    "core/numeric_cross_signed_negative_traps",
+    "core/numeric_cross_signed_unsigned_overflow_traps",
+    "core/numeric_trapping_conversion_overflow",
+    "filesystem/repeated_dir_walk_scan_exit",
+    "filesystem/windows_wrapper_exists_exit",
+    "float/float_trapping_divide_zero_traps",
+    "float/float_trapping_invalid_traps",
+    "float/float_trapping_overflow_traps",
+    "float/float_trapping_propagated_infinity_traps",
+    "float/float_trapping_propagated_nan_traps",
     "calls/runtime_arm_target_host_result_exit",
     "collections/runtime_indexed_rmw_loop_exit",
     "dungeon/runtime_ordered_room_dispatch_real_show_states_exit",

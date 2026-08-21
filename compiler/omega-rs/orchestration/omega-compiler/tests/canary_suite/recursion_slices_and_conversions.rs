@@ -995,13 +995,8 @@ fn numeric_trapping_conversion_overflow_aborts() {
     let build_dir = std::env::temp_dir().join(format!("omega-numeric-trap-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("trapping numeric conversion should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("trapping numeric conversion should compile from its authored root");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -1087,22 +1082,18 @@ fn numeric_cross_signed_trapping_conversions_abort() {
         ));
         let _ = fs::remove_dir_all(&build_dir);
 
-        compile(CompileOptions {
-            root_path: canary.join("main.omg"),
-            build_dir: Some(build_dir.clone()),
-            target_name: None,
-            write_output: true,
-        })
-        .unwrap_or_else(|diagnostics| {
-            panic!(
-                "{label} trapping conversion should compile:\n{}",
-                diagnostics
-                    .iter()
-                    .map(ToString::to_string)
-                    .collect::<Vec<_>>()
-                    .join("\n")
-            )
-        });
+        compile_rooted_canary_for_native_host(&canary, build_dir.clone()).unwrap_or_else(
+            |diagnostics| {
+                panic!(
+                    "{label} trapping conversion should compile:\n{}",
+                    diagnostics
+                        .iter()
+                        .map(ToString::to_string)
+                        .collect::<Vec<_>>()
+                        .join("\n")
+                )
+            },
+        );
 
         let output = Command::new(build_dir.join(executable_name()))
             .output()

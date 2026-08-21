@@ -672,13 +672,8 @@ fn repeated_dir_walk_scan_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-fs-repeat-scan-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("repeated dir-walk canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("repeated dir-walk canary should compile from its authored root");
 
     let output = Command::new(build_dir.join(executable_name()))
         .current_dir(&build_dir)
