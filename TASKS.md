@@ -166,6 +166,17 @@ Remaining:
   not allocate or write the caller-copy stack area, populate RCX/RDX, emit a
   wrapper body or call edge, realize the callee inbound ABI, claim native
   execution, or admit attached/zero-sized-receiver entries.
+  The operand carrier can now move into a sealed planning-only wrapper caller-
+  frame plan. For that same exact ABI it retains the balanced 72-byte outgoing
+  reservation/release, the 32-byte shadow area, four ordered eight-byte recipe
+  writes at `rsp+32/+40/+48/+56`, and subsequent address-binding recipe rows
+  for `RCX=&rsp+32` and `RDX=&rsp+48`. Reservation, release, alignment,
+  role/index, operand bytes, field offsets, copy ranges, pointer registers, and
+  step ordering are revalidated; rejection returns the intact operand and
+  authority chain. These are immutable planning rows only: no machine
+  operation allocates or writes stack storage, changes RCX/RDX, inserts a
+  wrapper, emits a call or relocation, selects a new object entry, or proves
+  native execution.
   Production builds therefore still lack a source-compatible attached-root
   value/authority carrier (or separate hidden supply), generated wrapper body,
   and source-function inbound realization; defining that disposition at the

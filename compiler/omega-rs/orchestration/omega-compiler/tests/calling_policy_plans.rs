@@ -13,9 +13,9 @@ use omega_compiler::{
     bind_program_storage_entry_whole_root_operands,
     bind_recorded_program_storage_entry_whole_root_arguments, compile, compile_to_checked,
     evaluate_calling_policy_plan, install_program_storage_entry_provider_invocation,
-    install_program_storage_entry_roots, program_storage_installation_record_json,
-    selected_external_root_entry_fact_bindings, selected_external_root_provider_plan,
-    selected_external_root_provider_plan_id,
+    install_program_storage_entry_roots, plan_program_storage_entry_wrapper_caller_frame,
+    program_storage_installation_record_json, selected_external_root_entry_fact_bindings,
+    selected_external_root_provider_plan, selected_external_root_provider_plan_id,
 };
 use omega_instruction_selection::derive_boundary_entry_storage;
 use psi_extents::{
@@ -1684,6 +1684,178 @@ machine build(builder: &mut Build) {
             .root_authority(omega_compiler::ProgramStorageEntryRootRole::Image)
             .base(),
         0x1000
+    );
+    let caller_frame = plan_program_storage_entry_wrapper_caller_frame(operands)
+        .expect("exact operand images should plan one balanced wrapper caller frame");
+    assert_eq!(caller_frame.shadow_byte_count(), 32);
+    assert_eq!(caller_frame.outgoing_reservation_byte_count(), 72);
+    assert_eq!(caller_frame.outgoing_release_byte_count(), 72);
+    assert_eq!(caller_frame.pre_call_stack_alignment(), 16);
+    use omega_compiler::ProgramStorageEntryWrapperCallerFrameStep::{
+        BindCallerCopyAddress, WriteExtentWord,
+    };
+    let [
+        WriteExtentWord {
+            role: image_base_role,
+            visible_parameter_index: image_base_visible,
+            call_parameter_index: image_base_call,
+            field: image_base_field,
+            operand_byte_offset: image_base_operand_offset,
+            stack_byte_offset: image_base_stack_offset,
+            bytes: image_base_bytes,
+        },
+        WriteExtentWord {
+            role: image_length_role,
+            field: image_length_field,
+            operand_byte_offset: image_length_operand_offset,
+            stack_byte_offset: image_length_stack_offset,
+            bytes: image_length_bytes,
+            ..
+        },
+        WriteExtentWord {
+            role: storage_base_role,
+            field: storage_base_field,
+            operand_byte_offset: storage_base_operand_offset,
+            stack_byte_offset: storage_base_stack_offset,
+            bytes: storage_base_bytes,
+            ..
+        },
+        WriteExtentWord {
+            role: storage_length_role,
+            field: storage_length_field,
+            operand_byte_offset: storage_length_operand_offset,
+            stack_byte_offset: storage_length_stack_offset,
+            bytes: storage_length_bytes,
+            ..
+        },
+        BindCallerCopyAddress {
+            role: image_address_role,
+            register: image_address_register,
+            caller_copy_stack_byte_offset: image_copy_offset,
+            caller_copy_byte_count: image_copy_size,
+            caller_copy_alignment: image_copy_alignment,
+            ..
+        },
+        BindCallerCopyAddress {
+            role: storage_address_role,
+            register: storage_address_register,
+            caller_copy_stack_byte_offset: storage_copy_offset,
+            caller_copy_byte_count: storage_copy_size,
+            caller_copy_alignment: storage_copy_alignment,
+            ..
+        },
+    ] = caller_frame.steps()
+    else {
+        panic!("caller-frame recipe must retain four writes followed by two address bindings")
+    };
+    assert_eq!(
+        (
+            *image_base_role,
+            *image_base_visible,
+            *image_base_call,
+            *image_base_field,
+            *image_base_operand_offset,
+            *image_base_stack_offset,
+            *image_base_bytes,
+        ),
+        (
+            omega_compiler::ProgramStorageEntryRootRole::Image,
+            0,
+            0,
+            omega_compiler::ProgramEntrySourceExtentFieldRole::Base,
+            0,
+            32,
+            0x1000_u64.to_le_bytes(),
+        )
+    );
+    assert_eq!(
+        (
+            *image_length_role,
+            *image_length_field,
+            *image_length_operand_offset,
+            *image_length_stack_offset,
+            *image_length_bytes,
+        ),
+        (
+            omega_compiler::ProgramStorageEntryRootRole::Image,
+            omega_compiler::ProgramEntrySourceExtentFieldRole::Length,
+            8,
+            40,
+            0x800_u64.to_le_bytes(),
+        )
+    );
+    assert_eq!(
+        (
+            *storage_base_role,
+            *storage_base_field,
+            *storage_base_operand_offset,
+            *storage_base_stack_offset,
+            *storage_base_bytes,
+        ),
+        (
+            omega_compiler::ProgramStorageEntryRootRole::InitialStorage,
+            omega_compiler::ProgramEntrySourceExtentFieldRole::Base,
+            0,
+            48,
+            0x8000_u64.to_le_bytes(),
+        )
+    );
+    assert_eq!(
+        (
+            *storage_length_role,
+            *storage_length_field,
+            *storage_length_operand_offset,
+            *storage_length_stack_offset,
+            *storage_length_bytes,
+        ),
+        (
+            omega_compiler::ProgramStorageEntryRootRole::InitialStorage,
+            omega_compiler::ProgramEntrySourceExtentFieldRole::Length,
+            8,
+            56,
+            0x2000_u64.to_le_bytes(),
+        )
+    );
+    assert_eq!(
+        (
+            *image_address_role,
+            *image_address_register,
+            *image_copy_offset,
+            *image_copy_size,
+            *image_copy_alignment,
+        ),
+        (
+            omega_compiler::ProgramStorageEntryRootRole::Image,
+            omega_calling_conventions::MachineRegister::X86Rcx,
+            32,
+            16,
+            8,
+        )
+    );
+    assert_eq!(
+        (
+            *storage_address_role,
+            *storage_address_register,
+            *storage_copy_offset,
+            *storage_copy_size,
+            *storage_copy_alignment,
+        ),
+        (
+            omega_compiler::ProgramStorageEntryRootRole::InitialStorage,
+            omega_calling_conventions::MachineRegister::X86Rdx,
+            48,
+            16,
+            8,
+        )
+    );
+    assert_eq!(
+        caller_frame
+            .operands()
+            .logical_values()
+            .arguments()
+            .root_authority(omega_compiler::ProgramStorageEntryRootRole::InitialStorage)
+            .length(),
+        0x2000
     );
     let _ = fs::remove_dir_all(directory);
 }

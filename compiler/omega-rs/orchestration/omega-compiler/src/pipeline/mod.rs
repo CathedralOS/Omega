@@ -20,6 +20,7 @@ mod program_storage_root_argument_binding;
 mod program_storage_root_authority;
 mod program_storage_source_call;
 mod program_storage_wrapper;
+mod program_storage_wrapper_frame;
 mod project;
 mod provider_approval;
 mod provider_plans;
@@ -100,6 +101,10 @@ pub use program_storage_source_call::{
 pub use program_storage_wrapper::{
     ProgramStorageEntryRootRole, ProgramStorageEntryWrapperReceiverTransfer,
     ProgramStorageEntryWrapperRootTransferPlan, ProgramStorageEntryWrapperTransferPlan,
+};
+pub use program_storage_wrapper_frame::{
+    ProgramStorageEntryWrapperCallerFrameError, ProgramStorageEntryWrapperCallerFramePlan,
+    ProgramStorageEntryWrapperCallerFrameStep, plan_program_storage_entry_wrapper_caller_frame,
 };
 pub use provider_plans::{
     AdmittedExternalRootEntryFactHandoff, BoundExternalRootPostHandoffWriterInvocation,
