@@ -11,9 +11,7 @@
 // - mutable views carry the same overlap and borrow obligations as their
 //   source owner.
 //
-// The settled source head writes the literal token immediately after
-// `operator`. The `spelling` clauses below are bootstrap compatibility syntax
-// pending the mechanical parser/corpus migration, not accepted final syntax.
+// Fixed operator tokens are written directly in the declaration head.
 
 // Legacy boundary-primitive registry syntax retained until the ordinary
 // satisfier/ProviderPlan migration lands. The destination declaration carries
@@ -22,8 +20,7 @@ provider omega::language::core::slice_indexing : SliceIndexing;
 
 boundary operator Slice::Length<T>(items: &[T]) -> u64;
 
-boundary operator Slice::index<T>(items: &[T], index: u64) -> T
-spelling []
+boundary operator [] Slice::index<T>(items: &[T], index: u64) -> T
 provider omega::language::core::slice_indexing
 requires
     index < items.len;
@@ -56,8 +53,7 @@ boundary operator Slice::to_mut<T>(items: &mut [T], end: u64) -> &mut [T]
 requires
     end <= items.len;
 
-boundary operator Slice::range<T>(items: &[T], start: u64, end: u64) -> &[T]
-spelling [..]
+boundary operator [..] Slice::range<T>(items: &[T], start: u64, end: u64) -> &[T]
 provider omega::language::core::slice_indexing
 requires
     start <= end && end <= items.len;

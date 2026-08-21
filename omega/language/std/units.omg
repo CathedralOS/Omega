@@ -66,34 +66,32 @@ domain<T, const U: Unit> T::Quantity<U>;
 
 // Per-pair operator declarations state only the carrier operations this first
 // package actually serves. They do not impose arithmetic on every carrier that
-// may participate in Quantity<U>. The settled source head writes the literal
-// token immediately after `operator`; these retained `spelling` clauses are
-// bootstrap compatibility syntax pending the mechanical parser/corpus
-// migration.
-operator Quantity::add_i64_meters(
+// may participate in Quantity<U>. Fixed tokens are part of the declaration
+// head and remain attached to these deliberately narrow carrier pairs.
+operator + Quantity::add_i64_meters(
     left: i64 in Quantity<Units::METER>,
     right: i64 in Quantity<Units::METER>
-) -> i64 in Quantity<Units::METER> spelling +;
+) -> i64 in Quantity<Units::METER>;
 
-operator Quantity::add_f64_meters(
+operator + Quantity::add_f64_meters(
     left: f64 in Quantity<Units::METER>,
     right: f64 in Quantity<Units::METER>
-) -> f64 in Quantity<Units::METER> spelling +;
+) -> f64 in Quantity<Units::METER>;
 
-operator Quantity::divide_i64_meters_by_seconds(
+operator / Quantity::divide_i64_meters_by_seconds(
     distance: i64 in Quantity<Units::METER>,
     duration: i64 in Quantity<Units::SECOND>
-) -> i64 in Quantity<Units::METER_PER_SECOND> spelling /;
+) -> i64 in Quantity<Units::METER_PER_SECOND>;
 
-operator Quantity::divide_f64_meters_by_seconds(
+operator / Quantity::divide_f64_meters_by_seconds(
     distance: f64 in Quantity<Units::METER>,
     duration: f64 in Quantity<Units::SECOND>
-) -> f64 in Quantity<Units::METER_PER_SECOND> spelling /;
+) -> f64 in Quantity<Units::METER_PER_SECOND>;
 
-operator Quantity::divide_f64_kilometers_by_hours(
+operator / Quantity::divide_f64_kilometers_by_hours(
     distance: f64 in Quantity<Units::KILOMETER>,
     duration: f64 in Quantity<Units::HOUR>
-) -> f64 in Quantity<Units::KILOMETER_PER_HOUR> spelling /;
+) -> f64 in Quantity<Units::KILOMETER_PER_HOUR>;
 
 machine meters_i64(value: i64) -> i64 in Quantity<Units::METER> {
     value as i64 in Quantity<Units::METER>

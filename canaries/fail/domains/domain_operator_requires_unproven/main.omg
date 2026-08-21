@@ -17,8 +17,7 @@ domain Quantity::Additive
 requires
     self.value >= 0;
 
-operator Quantity::Additive::add(left: Quantity, right: Quantity) -> Quantity
-spelling +
+operator + Quantity::Additive::add(left: Quantity, right: Quantity) -> Quantity
 requires
     right in Quantity::Additive;
 

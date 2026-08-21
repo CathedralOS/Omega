@@ -1,8 +1,7 @@
 //! Fixed operator-token identities and boundary provider categories.
 //!
 //! The token set and operand-directed semantics are settled. The source head
-//! writes the literal token immediately after `operator`; the parser's current
-//! `spelling` clause remains temporary bootstrap syntax pending migration.
+//! writes the literal token immediately after `operator`.
 
 /// The legal fixed operator tokens. A named operator may be associated with
 /// one token; receiver/operand machinery then picks the unique candidate. The

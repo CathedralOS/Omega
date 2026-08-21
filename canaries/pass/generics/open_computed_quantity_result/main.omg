@@ -11,7 +11,7 @@ trait IndexAdd {
     ensures add(add(a, b), c) == add(a, add(b, c));
 }
 
-operator IndexAlgebra::plus(left: u64, right: u64) -> u64 spelling +;
+operator + IndexAlgebra::plus(left: u64, right: u64) -> u64;
 
 // A deliberately small AC algebra is enough for this normalizer canary. The
 // selected public `+` operation is constant-three; PDI3 cares that this exact

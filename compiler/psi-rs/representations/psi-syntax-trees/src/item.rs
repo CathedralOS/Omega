@@ -371,7 +371,7 @@ pub struct OperatorDefinition {
     pub parameters: HandleSpan<StateParameterHandle>,
     pub return_type: crate::types::TypeReferenceHandle,
     pub contracts: HandleSpan<CapabilityContract>,
-    /// Optional `spelling <symbol>` clause (frozen Wave 0 decision #3).
+    /// Optional compiler-owned fixed token from the declaration head.
     pub spelling: Option<OperatorSpelling>,
     /// Legacy bootstrap provider clause, retired once boundary operators use
     /// ordinary exact satisfiers and selected provider-plan rows.

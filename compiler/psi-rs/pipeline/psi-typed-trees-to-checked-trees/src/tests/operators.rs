@@ -16,7 +16,7 @@ fn signature_requires_selects_domain_operator_without_flow_lookup() {
         requires
             self.value >= 0;
 
-        operator Quantity::Additive::add(left: Quantity, right: Quantity) -> Quantity spelling +;
+        operator + Quantity::Additive::add(left: Quantity, right: Quantity) -> Quantity;
 
         data Main {}
 
@@ -78,7 +78,7 @@ fn denotation_role_on_bodyless_declared_type_selects_domain_operator() {
     let source = r#"
         domain i32::Degrees;
 
-        operator i32::Degrees::add(left: i32, right: i32) -> i32 spelling +;
+        operator + i32::Degrees::add(left: i32, right: i32) -> i32;
 
         data Main {}
 
@@ -102,15 +102,15 @@ fn closed_index_instances_select_distinct_same_carrier_operators() {
     let source = r#"
         domain<T, const U: i32> T::Quantity<U>;
 
-        operator Quantity::meters_per_second(
+        operator / Quantity::meters_per_second(
             distance: f64 in Quantity<1>,
             duration: f64 in Quantity<2>
-        ) -> f64 in Quantity<3> spelling /;
+        ) -> f64 in Quantity<3>;
 
-        operator Quantity::kilometers_per_hour(
+        operator / Quantity::kilometers_per_hour(
             distance: f64 in Quantity<4>,
             duration: f64 in Quantity<5>
-        ) -> f64 in Quantity<6> spelling /;
+        ) -> f64 in Quantity<6>;
 
         machine rates(
             meters: f64 in Quantity<1>,
@@ -158,7 +158,7 @@ fn explicit_mint_initializer_selects_domain_operator() {
         requires
             self >= 0;
 
-        operator i32::Degrees::add(left: i32, right: i32) -> i32 spelling +;
+        operator + i32::Degrees::add(left: i32, right: i32) -> i32;
 
         data Main {}
 
@@ -181,7 +181,7 @@ fn flow_established_membership_does_not_select_domain_operator() {
         requires
             self >= 0;
 
-        operator i32::Degrees::add(left: i32, right: i32) -> i32 spelling +;
+        operator + i32::Degrees::add(left: i32, right: i32) -> i32;
 
         data Main { value: i32 in Wrapping; }
 
@@ -216,7 +216,7 @@ fn declared_binding_selects_domain_index_operator() {
 
         domain Buffer::Indexed;
 
-        operator Buffer::Indexed::index(items: Buffer, index: u64) -> i32 spelling [];
+        operator [] Buffer::Indexed::index(items: Buffer, index: u64) -> i32;
 
         data Main {}
 
@@ -433,7 +433,7 @@ fn checked_program_from_source(source: &str) -> psi_checked_trees::CheckedTrees 
 #[test]
 fn aggregate_parameter_field_spelling_retains_float_operator_fact() {
     let source = r#"
-        boundary operator Float::add(left: f64, right: f64) -> f64 spelling +;
+        boundary operator + Float::add(left: f64, right: f64) -> f64;
 
         data Pair {
             first: f64;
@@ -482,10 +482,10 @@ fn has_selected_domain_add(checked: &psi_checked_trees::CheckedTrees) -> bool {
 #[test]
 fn records_checked_float_policy_adapters_from_operand_domains() {
     let source = r#"
-        boundary operator Float::add(left: f32, right: f32) -> f32 spelling +;
-        boundary operator Float::add(left: f64, right: f64) -> f64 spelling +;
-        boundary operator Float::subtract(left: f64, right: f64) -> f64 spelling -;
-        boundary operator Float::multiply(left: f32, right: f32) -> f32 spelling *;
+        boundary operator + Float::add(left: f32, right: f32) -> f32;
+        boundary operator + Float::add(left: f64, right: f64) -> f64;
+        boundary operator - Float::subtract(left: f64, right: f64) -> f64;
+        boundary operator * Float::multiply(left: f32, right: f32) -> f32;
 
         data Main {
             saturated_field: f32 in Saturating;
@@ -615,7 +615,7 @@ fn resolves_spelled_operator_from_named_call_result_type() {
     let source = r#"
         data F32 {}
 
-        boundary operator Float::add(left: f32, right: f32) -> f32 spelling +;
+        boundary operator + Float::add(left: f32, right: f32) -> f32;
         boundary operator F32::multiply_then_add(
             left: f32,
             right: f32,

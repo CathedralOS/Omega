@@ -1,5 +1,5 @@
 // Operator-contract bounds attribution: importing the core slice surface makes
-// `Slice::range ... spelling [..] ... requires start <= end && end <= items.len`
+// `operator [..] Slice::range ... requires start <= end && end <= items.len`
 // the governing boundary operator for the subslice below. The failed start
 // bound must therefore name the operator and its `requires` clause so the user
 // can browse to `Slice::range` and read the contract that sourced the

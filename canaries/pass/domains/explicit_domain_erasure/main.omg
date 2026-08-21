@@ -8,7 +8,7 @@ requires
 
 domain i32::Degrees;
 
-operator i32::Degrees::add(left: i32, right: i32) -> i32 spelling +;
+operator + i32::Degrees::add(left: i32, right: i32) -> i32;
 
 data Token {
     value: u64;

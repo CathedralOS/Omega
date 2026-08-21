@@ -1,20 +1,17 @@
-// Bootstrap coverage for the parser's temporary fixed-token binding clause.
-// The settled header-token form will replace this bootstrap syntax. Named
-// identities and operand-directed selection remain intact. The provider item
-// and clause below are separately retired bootstrap registry syntax.
+// Fixed-token declaration heads retain named identities and operand-directed
+// selection. The provider item and clauses below are separately retired
+// bootstrap registry syntax.
 
 provider omega::host::canary_indexing : SliceIndexing;
 
-operator i32::add(left: i32, right: i32) -> i32 spelling +;
+operator + i32::add(left: i32, right: i32) -> i32;
 
-boundary operator Slice::index<T>(items: &[T], index: u64) -> T
-spelling []
+boundary operator [] Slice::index<T>(items: &[T], index: u64) -> T
 provider omega::host::canary_indexing
 requires
     index < items.len;
 
-boundary operator Slice::range<T>(items: &[T], start: u64, end: u64) -> &[T]
-spelling [..]
+boundary operator [..] Slice::range<T>(items: &[T], start: u64, end: u64) -> &[T]
 provider omega::host::canary_indexing
 requires
     start <= end && end <= items.len;

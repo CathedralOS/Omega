@@ -1424,8 +1424,7 @@ fn parses_guarded_crash_buckets_on_machines_and_requirements() {
 #[test]
 fn parses_guarded_crash_bucket_on_operator_contract() {
     let source = r#"
-        operator divide(numerator: i32, denominator: i32) -> i32
-        spelling /
+        operator / divide(numerator: i32, denominator: i32) -> i32
         crashes Trap
             denominator == 0;
     "#;
@@ -1448,6 +1447,73 @@ fn parses_guarded_crash_bucket_on_operator_contract() {
     };
     assert_eq!(*cause, psi_syntax_trees::item::CrashCause::Trap);
     assert_eq!(parsed.items.proof_facts(contract.facts).len(), 1);
+}
+
+#[test]
+fn parses_fixed_operator_tokens_in_declaration_heads() {
+    let source = r#"
+        operator + add(left: i32, right: i32) -> i32;
+        boundary operator [] Slice::index(items: &[u8], index: u64) -> u8;
+        boundary operator [..] Slice::range(items: &[u8], start: u64, end: u64) -> &[u8];
+        operator named(left: i32, right: i32) -> i32;
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let parsed = parse_syntax_trees(&tokens).expect("fixed-token heads should parse");
+    let operators = parsed
+        .root_items()
+        .filter_map(|item| match item {
+            psi_syntax_trees::item::Item::Operator(operator) => Some(operator),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+
+    assert_eq!(operators.len(), 4);
+    assert_eq!(
+        operators[0].spelling,
+        Some(psi_language_core::OperatorSpelling::Add)
+    );
+    assert_eq!(
+        operators[1].spelling,
+        Some(psi_language_core::OperatorSpelling::Index)
+    );
+    assert_eq!(
+        operators[2].spelling,
+        Some(psi_language_core::OperatorSpelling::Range)
+    );
+    assert_eq!(operators[3].spelling, None);
+}
+
+#[test]
+fn rejects_retired_operator_spelling_clause() {
+    let source = "operator add(left: i32, right: i32) -> i32 spelling +;";
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let error = parse_syntax_trees(&tokens).expect_err("retired clause must reject");
+
+    assert!(
+        error.message.contains("expected `;`"),
+        "got: {}",
+        error.message
+    );
+}
+
+#[test]
+fn rejects_unknown_or_multiple_fixed_operator_tokens() {
+    for source in [
+        "operator && both(left: bool, right: bool) -> bool;",
+        "operator + - ambiguous(left: i32, right: i32) -> i32;",
+    ] {
+        let tokens = Lexer::new(source)
+            .tokenize()
+            .expect("tokenize should succeed");
+        assert!(
+            parse_syntax_trees(&tokens).is_err(),
+            "unknown or multiple fixed tokens must reject: {source}"
+        );
+    }
 }
 
 #[test]
@@ -3460,7 +3526,7 @@ fn rejects_legacy_domain_body_predicates_with_migration_guidance() {
 fn rejects_nested_domain_operators_with_top_level_home_guidance() {
     let source = r#"
         domain i32::Degrees {
-            operator add(left: i32, right: i32) -> i32 spelling +;
+            operator + add(left: i32, right: i32) -> i32;
         }
         "#;
 

@@ -18,7 +18,7 @@ trait IndexAdd {
     ensures add(add(a, b), c) == add(a, add(b, c));
 }
 
-operator IndexAlgebra::plus(left: u64, right: u64) -> u64 spelling +;
+operator + IndexAlgebra::plus(left: u64, right: u64) -> u64;
 
 machine plus_index(a: u64, b: u64) -> u64
 satisfies IndexAlgebra::plus, IndexAdd::add as Canonical

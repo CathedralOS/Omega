@@ -1,5 +1,5 @@
 // Bounds-from-operator integration: importing the core slice surface brings the
-// `Slice::index ... spelling [] ... requires index < items.len` boundary
+// `operator [] Slice::index ... requires index < items.len` boundary
 // operator into scope. The `self.values[0]` access below has its bounds
 // obligation sourced from that operator's `requires` contract (see the
 // validation seam in checks/ranges/indexes/validation.rs) and discharged by the

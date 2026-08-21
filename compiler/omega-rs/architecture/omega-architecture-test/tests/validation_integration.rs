@@ -3957,7 +3957,7 @@ fn distinct_semantic_roles_compose_in_one_domain_chain() {
         r#"
         domain i32::Degrees;
 
-        operator i32::Degrees::add(left: i32, right: i32) -> i32 spelling +;
+        operator + i32::Degrees::add(left: i32, right: i32) -> i32;
 
         data Holder {
             value: i32 in Degrees & Wrapping;
@@ -5933,8 +5933,7 @@ mod provider_registry {
             r#"
             provider omega::language::core::Slice : SliceIndexing;
 
-            boundary operator omega::language::core::index<T>(items: &[T], index: u64) -> T
-            spelling []
+            boundary operator [] omega::language::core::index<T>(items: &[T], index: u64) -> T
             provider omega::language::core::Slice
             requires
                 index < items.len;
