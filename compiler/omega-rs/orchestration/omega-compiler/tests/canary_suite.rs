@@ -1573,6 +1573,16 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "dungeon/runtime_ordered_room_dispatch_loop_exit",
     "dungeon/runtime_room_use_reentry_exit",
     "control_flow/runtime_tuple_matrix_exhaustive_exit",
+    "domains/executable_domain_membership_expression_exit",
+    "domains/executable_domain_membership_intersection_guard_exit",
+    "domains/executable_imported_domain_membership_exit",
+    "domains/executable_imported_domain_membership_guard_exit",
+    "domains/executable_domain_membership_union_guard_exit",
+    "domains/executable_domain_membership_union_value_exit",
+    "types/runtime_addr_value_flow_exit",
+    "types/runtime_addr_algebra_exit",
+    "control_flow/runtime_sum_tuple_matrix_exhaustive_exit",
+    "traits/trait_generic_bound_static_dispatch",
     "calls/recursive_result_bind_first_arg",
     "calls/guarded_value_call_arm_exit",
     "calls/nested_machine_continuation",
@@ -2388,27 +2398,6 @@ fn compile_single_file_hosted_main(
     fs::create_dir_all(&source).expect("create exact-entry hosted source directory");
     fs::copy(canary.join("main.omg"), source.join("main.omg"))
         .expect("copy single-file hosted canary");
-    fs::write(
-        source.join("build.omg"),
-        hosted_main_program_entry_build(target),
-    )
-    .expect("write exact hosted ProgramEntry binding");
-    production_compile(CompileOptions {
-        root_path: source.join("main.omg"),
-        build_dir: Some(scratch.join("out")),
-        target_name: Some(target.into()),
-        write_output: true,
-    })
-}
-
-fn compile_hosted_main(
-    canary: &Path,
-    scratch: &Path,
-    target: &str,
-) -> Result<CompileReport, Vec<Diagnostic>> {
-    let _ = fs::remove_dir_all(scratch);
-    let source = scratch.join("source");
-    copy_dir_recursive(canary, &source).expect("copy hosted canary source tree");
     fs::write(
         source.join("build.omg"),
         hosted_main_program_entry_build(target),

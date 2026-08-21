@@ -751,13 +751,8 @@ fn trait_generic_bound_static_dispatch_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("bounded generic call should compile natively");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("bounded generic call should compile natively from its authored root");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("bounded generic call canary should run");
@@ -2066,13 +2061,9 @@ fn runtime_sum_tuple_matrix_exhaustive_exit_canary_runs() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-sum-tuple-matrix-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("sum-tuple transition canary should compile without a `_` arm");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
+        "sum-tuple transition canary should compile from its authored root without a `_` arm",
+    );
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("sum-tuple transition canary should run");

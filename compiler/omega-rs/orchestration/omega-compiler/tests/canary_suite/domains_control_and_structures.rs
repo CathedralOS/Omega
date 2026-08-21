@@ -322,8 +322,10 @@ fn executable_domain_membership_expression_exit_canary_runs() {
         "omega-runtime-domain-membership-expression-{}",
         std::process::id()
     ));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
-        .expect("executable domain membership expression canary should compile");
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.join("out")).expect(
+        "executable domain membership expression canary should compile from its authored root",
+    );
 
     let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
@@ -347,8 +349,10 @@ fn executable_imported_domain_membership_exit_canary_runs() {
         "omega-runtime-imported-domain-membership-expression-{}",
         std::process::id()
     ));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
-        .expect("executable imported domain membership canary should compile");
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.join("out")).expect(
+        "executable imported domain membership canary should compile from its authored root",
+    );
 
     let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
@@ -372,8 +376,10 @@ fn executable_imported_domain_membership_guard_exit_canary_runs() {
         "omega-runtime-imported-domain-membership-guard-{}",
         std::process::id()
     ));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
-        .expect("executable imported domain membership guard canary should compile");
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.join("out")).expect(
+        "executable imported domain membership guard canary should compile from its authored root",
+    );
 
     let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
@@ -450,8 +456,10 @@ fn executable_domain_membership_intersection_guard_exit_canary_runs() {
         "omega-runtime-domain-membership-intersection-{}",
         std::process::id()
     ));
-    compile_hosted_main(&canary, &scratch, native_hosted_target())
-        .expect("executable domain membership intersection canary should compile");
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.join("out")).expect(
+        "executable domain membership intersection canary should compile from its authored root",
+    );
 
     let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
@@ -475,8 +483,9 @@ fn executable_domain_membership_union_guard_exit_canary_runs() {
         "omega-runtime-domain-membership-union-{}",
         std::process::id()
     ));
-    compile_hosted_main(&canary, &scratch, native_hosted_target())
-        .expect("executable domain membership union canary should compile");
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+        .expect("executable domain membership union canary should compile from its authored root");
 
     let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
@@ -500,8 +509,10 @@ fn executable_domain_membership_union_value_exit_canary_runs() {
         "omega-runtime-domain-membership-union-value-{}",
         std::process::id()
     ));
-    compile_hosted_main(&canary, &scratch, native_hosted_target())
-        .expect("executable domain membership union value canary should compile");
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.join("out")).expect(
+        "executable domain membership union value canary should compile from its authored root",
+    );
 
     let output = Command::new(scratch.join("out").join(executable_name()))
         .output()

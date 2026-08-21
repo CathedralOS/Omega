@@ -1035,13 +1035,8 @@ fn runtime_addr_value_flow_exit_canary_runs() {
     let canary = pass_canary("types/runtime_addr_value_flow_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-addrflow-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("addr value-flow canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("addr value-flow canary should compile from its authored root");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("addr value-flow canary should run");
@@ -1060,13 +1055,8 @@ fn runtime_addr_algebra_exit_canary_runs() {
     let canary = pass_canary("types/runtime_addr_algebra_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-addralg-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("addr algebra canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("addr algebra canary should compile from its authored root");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("addr algebra canary should run");
