@@ -985,20 +985,14 @@ fn runtime_let_local_nested_state_arg_exit_canary_runs() {
     // LocalStorage slot and its initializer is a pure place expression.  exit
     // 72 = wrong arm (set2 taken instead of set1); exit 70 = correct.
     let canary = pass_canary("calls/runtime_let_local_nested_state_arg_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-let-local-nested-state-arg-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("let-local nested state arg canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("let-local nested state arg canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
