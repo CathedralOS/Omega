@@ -53,6 +53,11 @@ Must own:
   arguments or decide that the application satisfies an evidence binder.
 - Preserving named-transition evidence identifiers separately from runtime
   transition arguments while the target state acquires symbol identity.
+- Preflighting signature-free requirement paths after symbol assignment and
+  before normalization consumes their authored form. An overloaded exact
+  trait requirement family produces one declaration-anchored compatibility
+  diagnostic plus source-ordered diagnostics for every affected nominal
+  machine binder and authored domain route.
 
 Must not own:
 
@@ -84,6 +89,10 @@ The implementation should stay split by identity task:
 
 - `lowerer.rs` owns stage entry and the top-level lowering conveyor. Integration
   coverage belongs in `lowerer/tests.rs`, not inline with the entrypoint.
+- `signature_free_requirements.rs` owns exact shared resolution policy and the
+  pre-normalization overload-compatibility report. Declaration families are
+  deduplicated by trait symbol and requirement name; use diagnostics retain
+  their authored leaf spans rather than relying on rewritten paths.
 - `SymbolResolvedTrees::with_roots` and `SymbolResolvedRoots::with_roots` are
   the representation seams for joining resolved root arenas, resolved tables,
   and the published symbol table.

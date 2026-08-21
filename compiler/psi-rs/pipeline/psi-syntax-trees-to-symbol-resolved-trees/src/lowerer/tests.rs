@@ -156,11 +156,22 @@ fn rejects_overloaded_nominal_machine_parameter_requirement() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let diagnostic = lower_syntax_trees(&syntax).expect_err("overload must reject");
 
+    assert_eq!(diagnostic.len(), 2);
+    assert!(
+        diagnostic[0]
+            .message
+            .contains("declaring trait `WindowProcedure`")
+    );
+    assert!(diagnostic[0].message.contains("source-compatibility break"));
+    assert!(
+        diagnostic[1]
+            .message
+            .contains("does not resolve to one exact trait requirement")
+    );
     assert!(
         diagnostic
-            .to_string()
-            .contains("does not resolve to one exact trait requirement"),
-        "unexpected diagnostic: {diagnostic}"
+            .iter()
+            .all(|diagnostic| diagnostic.source_span.is_some())
     );
 }
 
@@ -188,8 +199,8 @@ fn rejects_unknown_nominal_machine_parameter_paths() {
         let syntax = parse_syntax_trees(&tokens).expect("parse");
         let diagnostic = lower_syntax_trees(&syntax).expect_err("unknown path must reject");
         assert!(
-            diagnostic.to_string().contains(expected),
-            "unexpected diagnostic for {path}: {diagnostic}"
+            psi_diagnostics::format_diagnostics(&diagnostic).contains(expected),
+            "unexpected diagnostic for {path}: {diagnostic:?}"
         );
     }
 }
@@ -427,7 +438,7 @@ fn closed_conformance_blocks_never_fall_back_to_ambient_attached_machines() {
     let diagnostic = lower_syntax_trees(&syntax_trees)
         .expect_err("closed map must ignore the ambient attached look-alike");
     assert!(
-        diagnostic
+        diagnostic[0]
             .message
             .contains("is incomplete: missing `Ranked::before`")
     );
@@ -695,7 +706,7 @@ fn inherited_requirement_collisions_require_trait_qualified_rows() {
     let diagnostic = lower_syntax_trees(&syntax_trees)
         .expect_err("a short row name must not choose one inherited declaration");
     assert!(
-        diagnostic
+        diagnostic[0]
             .message
             .contains("is ambiguous across inherited traits")
     );
@@ -1199,7 +1210,7 @@ fn rejects_unknown_machine_service_reach_before_resolved_trees() {
         .expect_err("unknown machine service reach must not enter resolved trees");
 
     assert!(
-        diagnostic
+        diagnostic[0]
             .message
             .contains("machine `work` declares unknown boundary service `MissingService`")
     );
@@ -1224,7 +1235,7 @@ fn rejects_ordinary_trait_in_machine_service_reach_before_resolved_trees() {
         .expect_err("ordinary traits must not enter a service row");
 
     assert!(
-        diagnostic
+        diagnostic[0]
             .message
             .contains("machine `work` declares unknown boundary service `Policy`")
     );
@@ -1245,7 +1256,7 @@ fn rejects_unknown_machine_parameter_service_reach_before_resolved_trees() {
     let diagnostic = lower_syntax_trees(&syntax_trees)
         .expect_err("unknown machine-parameter reach must not enter resolved trees");
 
-    assert!(diagnostic.message.contains(
+    assert!(diagnostic[0].message.contains(
         "machine-parameter requirement `F` state `F` declares unknown boundary service `MissingService`"
     ));
 }
@@ -1271,7 +1282,7 @@ fn rejects_authored_service_reach_on_external_realization_before_resolved_trees(
         .expect_err("external realization must derive rather than repeat service reach");
 
     assert!(
-        diagnostic
+        diagnostic[0]
             .message
             .contains("repeats an authored `reaches` row")
     );
@@ -1620,7 +1631,7 @@ fn rejects_ambiguous_inferred_domain_operator_home() {
     let diagnostic = lower_syntax_trees(&syntax_trees)
         .expect_err("competing operand domains must not infer an operator home");
     assert!(
-        diagnostic
+        diagnostic[0]
             .message
             .contains("has more than one possible domain home")
     );
@@ -1800,7 +1811,7 @@ fn ordinary_requirement_route_rejects_parameter_domain_as_introduction() {
     let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
     let diagnostic = lower_syntax_trees(&syntax_trees)
         .expect_err("an ordinary call must treat its parameter domain as a precondition");
-    assert!(diagnostic.message.contains(
+    assert!(diagnostic[0].message.contains(
         "does not name the domain on its exact result or an exact non-self external-root parameter"
     ));
 }
@@ -1820,7 +1831,7 @@ fn rejects_unresolved_authored_domain_requirement_route() {
     let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
     let diagnostic = lower_syntax_trees(&syntax_trees).expect_err("route must resolve exactly");
     assert!(
-        diagnostic
+        diagnostic[0]
             .message
             .contains("does not resolve to one exact trait")
     );
@@ -1845,11 +1856,55 @@ fn rejects_overloaded_signature_free_domain_requirement_route() {
     let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
     let diagnostic = lower_syntax_trees(&syntax_trees)
         .expect_err("a signature-free requirement path must not choose among overloads");
+    assert_eq!(diagnostic.len(), 2);
+    assert!(diagnostic[0].message.contains("declaring trait `Issuer`"));
+    assert!(
+        diagnostic[1]
+            .message
+            .contains("does not resolve to one exact trait requirement")
+    );
     assert!(
         diagnostic
+            .iter()
+            .all(|diagnostic| diagnostic.source_span.is_some())
+    );
+}
+
+#[test]
+fn signature_free_overload_reports_one_declaration_and_every_affected_use() {
+    let source = r#"
+        data Token { value: u64; }
+        domain Token::Issued { Issuer::issue; }
+
+        trait Issuer {
+            machine issue(value: u64) -> Token in Issued;
+            machine issue(value: i64) -> Token in Issued;
+        }
+
+        machine register<machine Selected>()
+        where machine Selected satisfies Issuer::issue;
+        {}
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let diagnostics = lower_syntax_trees(&syntax).expect_err("overload must reject every use");
+
+    assert_eq!(diagnostics.len(), 3);
+    assert!(diagnostics[0].message.contains("declaring trait `Issuer`"));
+    assert!(diagnostics[1].message.starts_with("domain `Token::Issued`"));
+    assert!(
+        diagnostics[2]
             .message
-            .contains("does not resolve to one exact trait requirement"),
-        "unexpected diagnostic: {diagnostic}"
+            .starts_with("nominal machine parameter `Selected`")
+    );
+    assert!(
+        diagnostics
+            .iter()
+            .all(|diagnostic| diagnostic.source_span.is_some())
+    );
+    assert!(
+        diagnostics[1].source_span.unwrap().span.start
+            < diagnostics[2].source_span.unwrap().span.start
     );
 }
 

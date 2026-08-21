@@ -42,8 +42,7 @@ pub fn evaluate_const_generic_calls(
         );
     }
     let probe = psi_generic_instances::normalize_pre_resolution(probe)?;
-    let resolved = psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&probe)
-        .map_err(|diagnostic| vec![diagnostic])?;
+    let resolved = psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&probe)?;
     let typed = psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .map_err(|diagnostic| vec![diagnostic])?;
     let admission = crate::BuildTimeAdmissionPlan::infer(&typed);

@@ -1244,7 +1244,11 @@ Owners:
   another trait, and keeps nominal and structural specializations distinct in
   template identity. Checked-only filesystem pass/fail canaries now pin unique
   and overloaded signature-free paths for both nominal callback binders and
-  authored domain routes. The checked identity spine is also implemented:
+  authored domain routes. Declaration-side compatibility reporting is also
+  implemented: after symbols are assigned and before authored paths are
+  normalized, one diagnostic names each overloaded declaring-trait family and
+  source-ordered diagnostics name every affected nominal binder or domain
+  route. The checked identity spine is also implemented:
   every admitted nominal use retains its exact statement/expression site,
   static-machine ordinal, registration operation, selected machine and entry,
   unique satisfaction trait/requirement, and canonical requirement-overload
@@ -1260,8 +1264,7 @@ Owners:
   remaining envelope slice must aggregate those per-axis published/actual rows
   without relabeling a declared fingerprint as inferred behavior. Also
   remaining are target thunk placement, registration leases/unregister,
-  declaration-side ambiguity reporting, and cross-target registered-callback
-  canaries.
+  and cross-target registered-callback canaries.
 - Implement the narrow Windows `user32` canary without exposing a raw code
   address. Derive `Atomic::interruption_fence` same-context evidence from the
   installed external-root route and reject it elsewhere.
