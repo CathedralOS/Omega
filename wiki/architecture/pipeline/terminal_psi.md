@@ -1725,38 +1725,37 @@ direct denotation, exact operand/result shape, six canonical goal shapes, the
 normal-successor equation, crash behavior, fuel, and frontier policy. Artifact
 reconstruction consumes one typed observation rather than reconstructing those
 twelve local equations in operation-specific branches. A separate migration
-dispatcher still chooses the legacy sufficient proposition for nine rows and
-is explicitly hashed into each affected reduction dependency. The two wrapping
-rows and `SaturatingIntegerDivide` instead select their canonical proposition
-directly from their exact operation tags. This does not certify the remaining
-reducers, and the current closure remains `fully-derived false`.
+dispatcher still chooses the legacy sufficient proposition for eight rows and
+is explicitly hashed into each affected reduction dependency. The four
+wrapping/saturating divide/remainder rows instead select their canonical
+proposition directly from their exact operation tags. This does not certify the
+remaining reducers, and the current closure remains `fully-derived false`.
 
 Only the `NonzeroDivisor` carrier currently has an exact kernel-proposition
 projection. Unsigned fixed integers use `1 <= d`; signed fixed integers of at
 least two bits use the ordered disjunction `(d <= -1) OR (1 <= d)`; signed
 one-bit integers use only `d <= -1`, because `+1` is outside that carrier.
 Address carriers and mismatched divisor types reject. The other five canonical
-goal shapes remain deliberately unprojected. For the whole-row wrapping divide,
-wrapping remainder, and saturating-divide pilots, reconstruction selects this
-canonical goal solely from the exact operation tag. An untrusted producer
-searches only the owning machine requirements and verifier-reconstructed facts
-preceding the site,
-deterministically prefers the signed negative arm, and materializes exact
+goal shapes remain deliberately unprojected. For the four whole-row wrapping
+and saturating divide/remainder pilots, reconstruction selects this canonical
+goal solely from the exact operation tag. An untrusted producer searches only
+the owning machine requirements and verifier-reconstructed facts preceding the
+site, deterministically prefers the signed negative arm, and materializes exact
 citation, integer-`<=` transitivity, or literal-equality substitution evidence.
 It kernel-checks the candidate before emission. Missing projection or proof
 rejects; there is no evidence-dependent fallback to the legacy reducer, and
 the operation's own result equation is not available to justify itself.
 
-Saturating remainder and exact divide/remainder remain on their explicitly
-trusted sufficient reducers. No schema or reducer node is promoted by these
-pilots, and terminal closure remains `fully-derived false`.
+Exact divide/remainder remain on their explicitly trusted sufficient reducer.
+No schema or reducer node is promoted by these pilots, and terminal closure
+remains `fully-derived false`.
 
 Proof-bundle v15 additionally carries exact fixed-integer `<=` endpoint
 substitution. One recursively checked relation child, one recursively checked
 equality child, and an endpoint index zero or one must reconstruct the exact
 conclusion while leaving the other endpoint unchanged. This permits a future
 untrusted producer to transport a closed literal bound across the preceding
-SSA equality for that literal. The three canonical nonzero pilots consume that
+SSA equality for that literal. The four canonical nonzero pilots consume that
 capability; no reducer or operation row is promoted by doing so.
 
 That producer status is also the module boundary. Structural Unit-plan

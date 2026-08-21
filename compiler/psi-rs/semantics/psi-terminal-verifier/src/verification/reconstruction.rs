@@ -196,6 +196,7 @@ pub(super) fn reconstruct_machine_semantics(
                     OperationSemanticTag::WrappingIntegerDivide
                         | OperationSemanticTag::WrappingIntegerRemainder
                         | OperationSemanticTag::SaturatingIntegerDivide
+                        | OperationSemanticTag::SaturatingIntegerRemainder
                 ) {
                     semantics
                         .canonical_goal()
