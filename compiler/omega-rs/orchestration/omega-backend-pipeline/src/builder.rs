@@ -14,7 +14,7 @@ use omega_core::parallel::WorkerPoolHandle;
 use omega_data_planning::build_target_data_plan;
 use omega_layout::build_layout_plan;
 use omega_machine_emission::{MachineEmissionInput, emit_machine_bytes};
-use omega_object_file::object_entry_symbol_name;
+use omega_object_file::entry_symbol_name;
 use omega_object_file_planning::{ObjectPlanningInput, build_object_plan};
 use omega_platform_interface::build_host_call_plan_with_workers;
 use omega_relocations::{RelocationPlanningInput, build_relocation_plan};
@@ -421,7 +421,7 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
                 runtime_abi: &runtime_abi,
                 entry_key: backend_plan.entry_key,
                 entry_boundary_plan: backend_plan.entry_boundary_plan.as_ref(),
-                entry_symbol: object_entry_symbol_name(&backend_plan.object).into(),
+                entry_symbol: entry_symbol_name(backend_plan.target).into(),
                 program: program.as_ref(),
                 selected_provider_plans: selected_provider_plans.as_ref(),
                 control_flow: &backend_plan.control_flow,
