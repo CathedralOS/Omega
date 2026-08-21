@@ -9,7 +9,9 @@ impl OperationSemanticQuery for AbstractOperationKind {
             Self::EnterFunction
             | Self::LeaveFunction
             | Self::CallInternalFunction { .. }
-            | Self::LoadOutgoingStackAddress { .. } => AbstractOperationDomain::FunctionBoundary,
+            | Self::LoadOutgoingStackAddress { .. }
+            | Self::ReserveOutgoingStackFrame { .. }
+            | Self::ReleaseOutgoingStackFrame { .. } => AbstractOperationDomain::FunctionBoundary,
 
             Self::EnterDispatchLoop { .. }
             | Self::EnterDispatchCase { .. }

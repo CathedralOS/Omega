@@ -45,18 +45,31 @@ fn preserves_private_function_identity_through_machine_lowering() {
 #[test]
 fn lowers_outgoing_stack_address_to_exact_machine_kind() {
     let mut assigned = AssignedTargetOperationPlan::default();
-    let instructions =
-        assigned
-            .code
-            .instructions
-            .insert_many([omega_assigned_target_operations::AssignedOperation {
+    assigned.target = omega_target::NativeTarget::uefi_x64();
+    let instructions = assigned.code.instructions.insert_many([
+        omega_assigned_target_operations::AssignedOperation {
+            kind:
+                omega_assigned_target_operations::AssignedOperationKind::ReserveOutgoingStackFrame {
+                    byte_count: 72,
+                },
+            ..Default::default()
+        },
+        omega_assigned_target_operations::AssignedOperation {
             kind:
                 omega_assigned_target_operations::AssignedOperationKind::LoadOutgoingStackAddress {
                     register: omega_calling_conventions::MachineRegister::X86Rdx,
                     stack_byte_offset: 48,
                 },
             ..Default::default()
-        }]);
+        },
+        omega_assigned_target_operations::AssignedOperation {
+            kind:
+                omega_assigned_target_operations::AssignedOperationKind::ReleaseOutgoingStackFrame {
+                    byte_count: 72,
+                },
+            ..Default::default()
+        },
+    ]);
     assigned
         .code
         .functions
@@ -66,9 +79,13 @@ fn lowers_outgoing_stack_address_to_exact_machine_kind() {
             instructions,
         });
     let machine = build_machine_instructions(&assigned).expect("machine lowering");
-    let [instruction] = machine.code.instructions.storage_slice() else {
-        panic!("one caller-frame address instruction should lower")
+    let [reserve, instruction, release] = machine.code.instructions.storage_slice() else {
+        panic!("balanced caller-frame address instructions should lower")
     };
+    assert_eq!(
+        reserve.kind,
+        omega_machine_instructions::MachineInstructionKind::OutgoingStackFrameReserve
+    );
     assert_eq!(
         instruction.kind,
         omega_machine_instructions::MachineInstructionKind::OutgoingStackAddressLoad
@@ -79,6 +96,10 @@ fn lowers_outgoing_stack_address_to_exact_machine_kind() {
             register: omega_calling_conventions::MachineRegister::X86Rdx,
             stack_byte_offset: 48,
         }
+    );
+    assert_eq!(
+        release.kind,
+        omega_machine_instructions::MachineInstructionKind::OutgoingStackFrameRelease
     );
 }
 

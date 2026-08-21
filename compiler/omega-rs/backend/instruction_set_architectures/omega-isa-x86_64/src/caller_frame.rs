@@ -1,7 +1,7 @@
 //! Compiler-private Microsoft x64 caller-frame address mechanics.
 //!
-//! These encoders only compute an address relative to the current RSP. They do
-//! not reserve or write stack storage and do not perform a call.
+//! These encoders cover compiler-private balanced RSP adjustment and address
+//! computation. They do not write stack storage or perform a call.
 
 use crate::x86_gpr_number;
 use omega_calling_conventions::{MachineRegister, MachineState, MachineStateSet, RegisterSet};
@@ -9,6 +9,75 @@ use psi_diagnostics::Diagnostic;
 
 pub const fn outgoing_stack_address_load_width() -> usize {
     8
+}
+
+fn validate_outgoing_stack_frame_byte_count(byte_count: u32) -> Result<(), Diagnostic> {
+    if byte_count < 32 {
+        return Err(Diagnostic::error(
+            "Microsoft x64 outgoing stack frame must retain at least 32 shadow bytes",
+        ));
+    }
+    if byte_count > i32::MAX as u32 {
+        return Err(Diagnostic::error(
+            "Microsoft x64 outgoing stack frame exceeds positive disp32",
+        ));
+    }
+    if byte_count % 16 != 8 {
+        return Err(Diagnostic::error(
+            "Microsoft x64 outgoing stack frame must be 8 modulo 16 bytes",
+        ));
+    }
+    Ok(())
+}
+
+/// `sub/add rsp, imm` width: imm8 through 127, otherwise imm32.
+pub fn outgoing_stack_frame_adjust_width(byte_count: u32) -> Result<usize, Diagnostic> {
+    validate_outgoing_stack_frame_byte_count(byte_count)?;
+    Ok(rsp_adjust_width(byte_count as usize))
+}
+
+pub fn encode_outgoing_stack_frame_reserve_bytes(byte_count: u32) -> Result<Vec<u8>, Diagnostic> {
+    validate_outgoing_stack_frame_byte_count(byte_count)?;
+    let mut bytes = Vec::with_capacity(rsp_adjust_width(byte_count as usize));
+    append_sub_rsp(&mut bytes, byte_count as usize);
+    Ok(bytes)
+}
+
+pub fn encode_outgoing_stack_frame_release_bytes(byte_count: u32) -> Result<Vec<u8>, Diagnostic> {
+    validate_outgoing_stack_frame_byte_count(byte_count)?;
+    let mut bytes = Vec::with_capacity(rsp_adjust_width(byte_count as usize));
+    append_add_rsp(&mut bytes, byte_count as usize);
+    Ok(bytes)
+}
+
+pub fn outgoing_stack_frame_adjust_register_writes() -> RegisterSet {
+    RegisterSet::new([MachineRegister::X86Rsp])
+}
+
+pub fn outgoing_stack_frame_adjust_additional_machine_state() -> MachineStateSet {
+    MachineStateSet::new([MachineState::Flags, MachineState::StackPointer])
+}
+
+pub(crate) fn rsp_adjust_width(reserve: usize) -> usize {
+    if reserve <= 127 { 4 } else { 7 }
+}
+
+pub(crate) fn append_sub_rsp(bytes: &mut Vec<u8>, reserve: usize) {
+    if reserve <= 127 {
+        bytes.extend([0x48, 0x83, 0xec, reserve as u8]);
+    } else {
+        bytes.extend([0x48, 0x81, 0xec]);
+        bytes.extend((reserve as u32).to_le_bytes());
+    }
+}
+
+pub(crate) fn append_add_rsp(bytes: &mut Vec<u8>, reserve: usize) {
+    if reserve <= 127 {
+        bytes.extend([0x48, 0x83, 0xc4, reserve as u8]);
+    } else {
+        bytes.extend([0x48, 0x81, 0xc4]);
+        bytes.extend((reserve as u32).to_le_bytes());
+    }
 }
 
 /// Encode `lea register, [rsp + disp32]` for one Microsoft x64 positional
@@ -78,5 +147,27 @@ mod tests {
         assert!(
             encode_outgoing_stack_address_load_bytes(MachineRegister::X86Rcx, u32::MAX).is_err()
         );
+    }
+
+    #[test]
+    fn encodes_exact_balanced_seventy_two_byte_frame() {
+        assert_eq!(
+            encode_outgoing_stack_frame_reserve_bytes(72).unwrap(),
+            [0x48, 0x83, 0xec, 0x48]
+        );
+        assert_eq!(
+            encode_outgoing_stack_frame_release_bytes(72).unwrap(),
+            [0x48, 0x83, 0xc4, 0x48]
+        );
+        assert_eq!(outgoing_stack_frame_adjust_width(72).unwrap(), 4);
+    }
+
+    #[test]
+    fn rejects_invalid_outgoing_frame_sizes() {
+        for byte_count in [0, 24, 32, 64, i32::MAX as u32 + 1] {
+            assert!(outgoing_stack_frame_adjust_width(byte_count).is_err());
+            assert!(encode_outgoing_stack_frame_reserve_bytes(byte_count).is_err());
+            assert!(encode_outgoing_stack_frame_release_bytes(byte_count).is_err());
+        }
     }
 }

@@ -810,6 +810,16 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
                 register: *register,
                 stack_byte_offset: *stack_byte_offset,
             },
+            omega_abstract_operations::AbstractOperationKind::ReserveOutgoingStackFrame {
+                byte_count,
+            } => Self::ReserveOutgoingStackFrame {
+                byte_count: *byte_count,
+            },
+            omega_abstract_operations::AbstractOperationKind::ReleaseOutgoingStackFrame {
+                byte_count,
+            } => Self::ReleaseOutgoingStackFrame {
+                byte_count: *byte_count,
+            },
             omega_abstract_operations::AbstractOperationKind::BeginPlatformCall => Self::BeginPlatformCall,
             omega_abstract_operations::AbstractOperationKind::HostOperation { .. } => {
                 panic!("abstract host operation ordinals must be lowered in omega-abstract-operations-to-target-operations")

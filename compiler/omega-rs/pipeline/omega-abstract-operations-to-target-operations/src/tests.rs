@@ -57,9 +57,21 @@ fn preserves_outgoing_stack_address_recipe_in_target_plan() {
     let mut abstract_operations = AbstractOperationPlan::default();
     let instructions = abstract_operations.code.instructions.insert_many([
         omega_abstract_operations::AbstractOperation {
+            kind: omega_abstract_operations::AbstractOperationKind::ReserveOutgoingStackFrame {
+                byte_count: 72,
+            },
+            ..Default::default()
+        },
+        omega_abstract_operations::AbstractOperation {
             kind: omega_abstract_operations::AbstractOperationKind::LoadOutgoingStackAddress {
                 register: MachineRegister::X86Rcx,
                 stack_byte_offset: 32,
+            },
+            ..Default::default()
+        },
+        omega_abstract_operations::AbstractOperation {
+            kind: omega_abstract_operations::AbstractOperationKind::ReleaseOutgoingStackFrame {
+                byte_count: 72,
             },
             ..Default::default()
         },
@@ -79,15 +91,24 @@ fn preserves_outgoing_stack_address_recipe_in_target_plan() {
         &HostCallPlan::default(),
         &abstract_operations,
     );
-    let [instruction] = target_operations.code.instructions.storage_slice() else {
-        panic!("one caller-frame address recipe should survive lowering")
+    let [reserve, instruction, release] = target_operations.code.instructions.storage_slice()
+    else {
+        panic!("balanced caller-frame recipes should survive lowering")
     };
+    assert_eq!(
+        reserve.kind,
+        omega_target_operations::TargetOperationKind::ReserveOutgoingStackFrame { byte_count: 72 }
+    );
     assert_eq!(
         instruction.kind,
         omega_target_operations::TargetOperationKind::LoadOutgoingStackAddress {
             register: MachineRegister::X86Rcx,
             stack_byte_offset: 32,
         }
+    );
+    assert_eq!(
+        release.kind,
+        omega_target_operations::TargetOperationKind::ReleaseOutgoingStackFrame { byte_count: 72 }
     );
 }
 

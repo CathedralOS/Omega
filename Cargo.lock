@@ -191,6 +191,7 @@ dependencies = [
  "omega-calling-conventions",
  "omega-control-flow",
  "omega-machine-instructions",
+ "omega-target",
  "psi-arena",
  "psi-diagnostics",
  "psi-language-semantics",

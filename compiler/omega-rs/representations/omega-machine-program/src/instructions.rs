@@ -123,6 +123,8 @@ pub enum MachineInstructionKind {
     InternalFunctionCall,
     /// Compiler-private `lea reg, [rsp+disp32]` caller-frame address recipe.
     OutgoingStackAddressLoad,
+    OutgoingStackFrameReserve,
+    OutgoingStackFrameRelease,
     HostCallSequence,
     /// The x86 `hlt` privileged instruction (`asm { hlt }`). Zero operands,
     /// no relocation. See the privileged_effects_and_binary_trust brief.

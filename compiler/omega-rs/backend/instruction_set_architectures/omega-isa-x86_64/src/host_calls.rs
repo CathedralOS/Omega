@@ -4,6 +4,8 @@ use super::{
     append_mov_r15_imm64, append_mov_rax_imm64, append_mov_rdx_imm64, disp32,
     encode_outgoing_stack_address_load_bytes, immediate_i32, x86_gpr_number,
 };
+use crate::caller_frame::rsp_adjust_width;
+pub(super) use crate::caller_frame::{append_add_rsp, append_sub_rsp};
 use omega_calling_conventions::{
     CallPlan, CallSignature, CallingPolicy, EntryControl, HostCapability, HostOperation,
     HostOperationKey, IndirectPointerLocation, MachineRegister, RegisterSet, SystemVEightbyteClass,
@@ -678,29 +680,6 @@ fn win64_import_reserve_bytes(stack_bytes: usize) -> usize {
     // smallest area that covers every slot/copy and leaves rsp 16-byte aligned
     // immediately before CALL, including odd-sized indirect record copies.
     (stack_bytes + 8).next_multiple_of(16) - 8
-}
-
-/// `sub/add rsp, imm` width: the imm8 form (4 bytes) up to 127, else imm32 (7).
-fn rsp_adjust_width(reserve: usize) -> usize {
-    if reserve <= 127 { 4 } else { 7 }
-}
-
-pub(super) fn append_sub_rsp(bytes: &mut Vec<u8>, reserve: usize) {
-    if reserve <= 127 {
-        bytes.extend([0x48, 0x83, 0xec, reserve as u8]); // sub rsp, imm8
-    } else {
-        bytes.extend([0x48, 0x81, 0xec]); // sub rsp, imm32
-        bytes.extend((reserve as u32).to_le_bytes());
-    }
-}
-
-pub(super) fn append_add_rsp(bytes: &mut Vec<u8>, reserve: usize) {
-    if reserve <= 127 {
-        bytes.extend([0x48, 0x83, 0xc4, reserve as u8]); // add rsp, imm8
-    } else {
-        bytes.extend([0x48, 0x81, 0xc4]); // add rsp, imm32
-        bytes.extend((reserve as u32).to_le_bytes());
-    }
 }
 
 /// Register-indirect near call -- `call r/m64` in the `FF /2` register-DIRECT

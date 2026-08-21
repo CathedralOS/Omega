@@ -114,6 +114,12 @@ pub enum CompilerInstructionValidationKind {
         register: omega_calling_conventions::MachineRegister,
         stack_byte_offset: u32,
     },
+    OutgoingStackFrameReserve {
+        byte_count: u32,
+    },
+    OutgoingStackFrameRelease {
+        byte_count: u32,
+    },
     DispatchLoopEnter {
         entry_dispatch_index: u32,
     },

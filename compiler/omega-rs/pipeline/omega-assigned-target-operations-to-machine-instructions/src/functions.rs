@@ -18,6 +18,10 @@ pub(crate) fn append_machine_instructions(
     else {
         return Ok(HandleSpan::empty());
     };
+    crate::outgoing_stack_frames::validate_outgoing_stack_frames(
+        assigned_target_operations.target,
+        selected_instructions,
+    )?;
 
     output_instructions.try_insert_many(selected_instructions.iter().enumerate().map(
         |(selected_offset, selected_instruction)| {

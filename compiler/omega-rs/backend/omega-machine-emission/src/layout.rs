@@ -1063,6 +1063,15 @@ fn machine_instruction_width(
             }
             omega_isa_x86_64::outgoing_stack_address_load_width()
         }
+        SelectedInstructionKind::ReserveOutgoingStackFrame { byte_count }
+        | SelectedInstructionKind::ReleaseOutgoingStackFrame { byte_count } => {
+            if input.target.architecture != omega_target::Architecture::X86_64 {
+                return Err(Diagnostic::error(
+                    "outgoing stack frames are supported only on x86-64",
+                ));
+            }
+            omega_isa_x86_64::outgoing_stack_frame_adjust_width(*byte_count)?
+        }
         SelectedInstructionKind::LeaveFunction => return_width(input.target.architecture),
         SelectedInstructionKind::EvaluateDispatchGuard { .. }
         | SelectedInstructionKind::LeaveDispatchLoop

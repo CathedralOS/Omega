@@ -5,6 +5,7 @@ use psi_diagnostics::Diagnostic;
 mod builder;
 mod code;
 mod functions;
+mod outgoing_stack_frames;
 mod semantics;
 mod shapes;
 #[cfg(test)]

@@ -383,6 +383,16 @@ fn compiler_instruction_validation_kind(
             register: *register,
             stack_byte_offset: *stack_byte_offset,
         }),
+        SelectedInstructionKind::ReserveOutgoingStackFrame { byte_count } => {
+            Some(CompilerInstructionValidationKind::OutgoingStackFrameReserve {
+                byte_count: *byte_count,
+            })
+        }
+        SelectedInstructionKind::ReleaseOutgoingStackFrame { byte_count } => {
+            Some(CompilerInstructionValidationKind::OutgoingStackFrameRelease {
+                byte_count: *byte_count,
+            })
+        }
         SelectedInstructionKind::EnterDispatchLoop {
             entry_dispatch_index,
             ..

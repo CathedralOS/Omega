@@ -531,6 +531,12 @@ pub enum TargetOperationKind {
         register: omega_calling_conventions::MachineRegister,
         stack_byte_offset: u32,
     },
+    ReserveOutgoingStackFrame {
+        byte_count: u32,
+    },
+    ReleaseOutgoingStackFrame {
+        byte_count: u32,
+    },
     BeginPlatformCall,
     HostOperation {
         operation_key: HostOperationKey,
