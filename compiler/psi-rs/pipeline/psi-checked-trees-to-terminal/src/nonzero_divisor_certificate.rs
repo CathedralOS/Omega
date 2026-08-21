@@ -384,6 +384,32 @@ mod tests {
             unsigned_direct.rule,
             ProofRule::Assumption { index: 0 }
         ));
+        let unsigned_stronger = prove_canonical_integer_proposition(
+            &two_value_context(unsigned),
+            &unsigned_goal,
+            &[Proposition::LessOrEqual(
+                ScalarTerm::integer(unsigned, IntegerValue::Unsigned(2))
+                    .expect("stronger u8 floor"),
+                unsigned_divisor.clone(),
+            )],
+            &[],
+        )
+        .expect("stronger unsigned divisor floor composes transitively");
+        let ProofRule::IntegerLessOrEqualTransitivity {
+            left_less_or_equal_middle,
+            middle_less_or_equal_right,
+        } = unsigned_stronger.rule
+        else {
+            panic!("stronger unsigned floor uses exact transitivity")
+        };
+        assert!(matches!(
+            left_less_or_equal_middle.rule,
+            ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation)
+        ));
+        assert!(matches!(
+            middle_less_or_equal_right.rule,
+            ProofRule::Assumption { index: 0 }
+        ));
         let unsigned_literal =
             ScalarTerm::integer(unsigned, IntegerValue::Unsigned(5)).expect("u8 literal");
         let unsigned_proof = prove_canonical_integer_proposition(
@@ -422,6 +448,66 @@ mod tests {
         };
         assert_eq!(index, 1);
         assert!(matches!(disjunct.rule, ProofRule::Assumption { index: 0 }));
+        let stronger_positive_proof = prove_canonical_integer_proposition(
+            &two_value_context(signed),
+            &signed_goal,
+            &[Proposition::LessOrEqual(
+                integer(signed, 3),
+                signed_divisor.clone(),
+            )],
+            &[],
+        )
+        .expect("stronger signed positive floor composes transitively");
+        let ProofRule::DisjunctionIntroduction { disjunct, index } = stronger_positive_proof.rule
+        else {
+            panic!("stronger positive floor selects its canonical arm")
+        };
+        assert_eq!(index, 1);
+        let ProofRule::IntegerLessOrEqualTransitivity {
+            left_less_or_equal_middle,
+            middle_less_or_equal_right,
+        } = disjunct.rule
+        else {
+            panic!("stronger signed positive floor uses exact transitivity")
+        };
+        assert!(matches!(
+            left_less_or_equal_middle.rule,
+            ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation)
+        ));
+        assert!(matches!(
+            middle_less_or_equal_right.rule,
+            ProofRule::Assumption { index: 0 }
+        ));
+        let stronger_negative_proof = prove_canonical_integer_proposition(
+            &two_value_context(signed),
+            &signed_goal,
+            &[Proposition::LessOrEqual(
+                signed_divisor.clone(),
+                integer(signed, -3),
+            )],
+            &[],
+        )
+        .expect("stronger signed negative ceiling composes transitively");
+        let ProofRule::DisjunctionIntroduction { disjunct, index } = stronger_negative_proof.rule
+        else {
+            panic!("stronger negative ceiling selects its canonical arm")
+        };
+        assert_eq!(index, 0);
+        let ProofRule::IntegerLessOrEqualTransitivity {
+            left_less_or_equal_middle,
+            middle_less_or_equal_right,
+        } = disjunct.rule
+        else {
+            panic!("stronger signed negative ceiling uses exact transitivity")
+        };
+        assert!(matches!(
+            left_less_or_equal_middle.rule,
+            ProofRule::Assumption { index: 0 }
+        ));
+        assert!(matches!(
+            middle_less_or_equal_right.rule,
+            ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation)
+        ));
         let safe_fact = Proposition::Equal(signed_divisor.clone(), integer(signed, -3));
         let signed_proof = prove_canonical_integer_proposition(
             &two_value_context(signed),
