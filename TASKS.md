@@ -1265,7 +1265,12 @@ Remaining:
   `K == divisor`. The producer nests the two-citation transitivity proof beneath
   endpoint substitution in deterministic ledger order. A missing or
   disconnected middle relation, weak signed ceiling, redirected equality, or
-  wrong endpoint rejects. A signed `i1`
+  wrong endpoint rejects. The signed joint arm now admits the corresponding
+  complete dividend sibling: an exact `divisor <= -1`, plus
+  `MIN + 1 <= M`, `M <= K`, and `K == dividend`. The producer constructs the
+  ordered conjunction and nests the two dividend-floor citations beneath
+  endpoint substitution; a missing or disconnected middle fact cannot prove
+  the arm. A signed `i1`
   divisor fact alone remains
   insufficient because its canonical conjunction also requires the dividend
   premise. The complete retained-bound `i1` family now selects that conjunction
@@ -1574,7 +1579,7 @@ Remaining:
   unchanged; only type-shell normalization and unresolved-call reporting are
   shared privately back to per-call validation.
   Complete-or-opaque caller write-frame inference, alias-origin propagation,
-  and transition-cycle frame equations now form a 3,017-line
+  and transition-cycle frame equations now form a 2,988-line
   `calls/write_frames.rs` child. Its 459-line `write_frames/demand.rs` child
   owns the public resolver facade plus expression/statement demand collection
   and conservative fallback; a separate 123-line
@@ -1616,10 +1621,11 @@ Remaining:
   `write_frames/assignment_targets.rs` leaf owns
   declared target-type lookup and structural/effectful assignment-place shape
   classification; it depends only on typed-place and syntactic-effect queries,
-  not alias mutation or frame resolution. A 46-line
-  `write_frames/call_targets.rs` leaf owns free-machine entry selection and
-  exact state-symbol lookup; the established crate/calls visibility surface is
-  re-exported unchanged, and the leaf performs no validation or inference. An
+  not alias mutation or frame resolution. An 80-line
+  `write_frames/call_targets.rs` leaf owns free-machine entry selection, exact
+  state-symbol lookup, and the fail-closed concrete discarded-result shape
+  query; the established crate/calls visibility surface is re-exported
+  unchanged, and the leaf performs no write-frame inference. An
   81-line `write_frames/path_instantiation.rs` leaf owns receiver/parameter/local
   substitution for relative write paths and preserves exact versus
   collection-coarse origins; its only callback is the existing parent-private
@@ -2432,7 +2438,8 @@ Remaining N6/N8 work:
   compiler-derived `RA`/`RR`, contract correspondence, positional arguments,
   and normalized result flow are independently certified.
   The first relation-planning prerequisite is now implemented without granting
-  admission. A monomorphic request at the root of one state's result expression
+  admission. A monomorphic request at the exact root of one state's final
+  expression statement
   derives a non-authoritative plan whose `RA` retains every operand: exact
   quotient type and relation identity for quotient positions, and exact typed
   equality for ordinary positions. `RR` retains the exact quotient result type
@@ -2464,7 +2471,11 @@ Remaining N6/N8 work:
   expression dependency on the corresponding quotient-bearing runtime
   positions; exact side/owner/contract/fact coordinates are retained and
   unresolved value identities reject. These partitions prove no `Q <-> P`
-  equivalence or `Respects` clause. Every request still rejects as non-executable until exact
+  equivalence or `Respects` clause. The exact final-expression call additionally
+  retains one unchanged state-fallthrough result edge; earlier expression
+  statements, nested requests, and transition values cannot claim that edge.
+  This does not prove all-normal-exit result flow through aliases, transitions,
+  or state forwarding. Every request still rejects as non-executable until exact
   correspondence, the selected `Respects` contract, and normalized result flow
   are checked and retained in checked/terminal identity.
 - Suppress every synthesized representation observer on quotient formation.
