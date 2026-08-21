@@ -1284,15 +1284,18 @@ canonical conjunction. Float leaves use an atomic format-annotated IEEE `==`
 proposition rather than mathematical `Equal`, preserving NaN non-reflexivity and
 signed-zero equality. Direct float-field `!=` uses the same atomic proposition
 with an explicit comparison kind, preserving the complementary IEEE result
-without a second verifier family. Each leaf keeps its left and right parameter root;
+without a second verifier family. Whole-record float `!=` reuses the canonical
+equality conjunction as the premise of `P -> Falsehood`, so aggregate float
+negation adds neither a duplicate leaf family nor De Morgan permutations. Each
+leaf keeps its left and right parameter root;
 call verification independently substitutes both roots and rejects redirecting
 either operand even when the replacement path is otherwise valid and
 same-typed; float leaves additionally require the exact declared format. A
 genuinely zero-member record instead normalizes equality to the
 existing Boolean `true` term; inequality uses the existing negation, and calls,
 codecs, verification, fixed fuel, and interpretation reuse that carrier. An
-all-erased record is not empty and remains fenced. Aggregate float inequality,
-text, sum/case, erased-field, and written `equals` bodies remain
+all-erased record is not empty and remains fenced. Text, sum/case, erased-field,
+and written `equals` bodies remain
 outside this bounded terminal slice. Arithmetic over
 same-typed relevant fixed-integer members accepts Exact addition, subtraction,
 and multiplication: each member or fixed-integer-literal operand retains its

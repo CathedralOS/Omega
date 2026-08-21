@@ -685,11 +685,13 @@ Remaining:
   rebasing. Direct structural-field `!=` uses the same atomic carrier with an
   explicit comparison kind. The verifier resolves both exact paths and formats
   independently; the carrier preserves IEEE NaN and signed-zero behavior rather
-  than laundering either operator through mathematical `Equal`. Semantic codec
-  v15, proof-bundle v9, and installation-record v21 retain the term.
+  than laundering either operator through mathematical `Equal`. Whole-record
+  float `!=` canonically negates the already-sorted equality conjunction as
+  `P -> Falsehood`; projected calls rebase every leaf below that implication.
+  Semantic codec v15, proof-bundle v9, and installation-record v21 retain the
+  term.
   Continue with case-payload paths and aggregate equality over text, sums, and
-  erased fields; whole-record float inequality remains fenced until aggregate
-  negation has one canonical proposition normalization. Trapping predicate
+  erased fields. Trapping predicate
   arithmetic is design-blocked on owner Q4; imported crash capsules remain
   blocked on artifact identity and certificate binding.
 - **PROOF-CERTIFICATION-BRIDGE.** Emit kernel-checkable certificates from source

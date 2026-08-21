@@ -568,6 +568,11 @@ const IEEE_FLOAT_AGGREGATE_EQUALITY_SOURCE: &str = r#"
         left == right
     {}
 
+    machine Helper::different(left: Samples, right: Samples)
+    crashes Abort
+        left != right
+    {}
+
     data Root {}
     machine Root::enter(left: Samples, right: Samples)
     crashes Abort
@@ -587,6 +592,31 @@ const IEEE_FLOAT_AGGREGATE_EQUALITY_SOURCE: &str = r#"
     crashes Abort
         left.narrow != right.narrow
     {}
+
+    data AggregateDifferent {}
+    machine AggregateDifferent::enter(left: Samples, right: Samples)
+    crashes Abort
+        left != right
+    {
+        Helper::different(left, right);
+    }
+
+    data Pair { left: Samples; right: Samples; }
+    data ProjectedHelper {}
+    machine ProjectedHelper::different(pair: Pair)
+    crashes Abort
+        !(pair.left.narrow == pair.right.narrow && pair.left.wide == pair.right.wide)
+    {}
+
+    data Envelope { pair: Pair; shadow: Pair; }
+    data ProjectedDifferent {}
+    machine ProjectedDifferent::enter(envelope: Envelope)
+    crashes Abort
+        !(envelope.pair.left.narrow == envelope.pair.right.narrow
+            && envelope.pair.left.wide == envelope.pair.right.wide)
+    {
+        ProjectedHelper::different(envelope.pair);
+    }
 "#;
 
 const EMPTY_RECORD_EQUALITY_SOURCE: &str = r#"
@@ -4090,6 +4120,141 @@ fn ieee_float_aggregate_equality_is_atomic_and_canonical_end_to_end() {
         decode_module(&different_bytes),
         Ok(different.semantic_module)
     );
+
+    let aggregate_different =
+        psi_checked_trees_to_terminal::lower_machine(&checked, "AggregateDifferent::enter")
+            .expect("aggregate IEEE inequality lowers as canonical negation");
+    let aggregate_root = &aggregate_different.semantic_module.machines[0];
+    let [CrashRouteGuard::Predicate(aggregate_route)] = aggregate_root.contract.crash_routes[0]
+        .alternatives
+        .as_slice()
+    else {
+        unreachable!()
+    };
+    let Proposition::Implication {
+        premise,
+        conclusion,
+    } = aggregate_route.proposition()
+    else {
+        panic!("aggregate IEEE inequality is equality implying falsehood")
+    };
+    assert_eq!(conclusion.as_ref(), &Proposition::Falsehood);
+    let Proposition::Conjunction(equalities) = premise.as_ref() else {
+        panic!("two-field aggregate equality remains the negated conjunction")
+    };
+    assert!(equalities.iter().all(|proposition| matches!(
+        proposition,
+        Proposition::IeeeFloatComparison {
+            kind: psi_core::IeeeFloatComparisonKind::Equal,
+            ..
+        }
+    )));
+    let OperationKind::CallUnit {
+        crash_continuations,
+        ..
+    } = &aggregate_root.blocks[0].operations[0].kind
+    else {
+        panic!("aggregate inequality caller emits one structural Unit call")
+    };
+    let [CrashRouteGuard::Predicate(aggregate_continuation)] =
+        crash_continuations[0].alternatives.as_slice()
+    else {
+        unreachable!()
+    };
+    assert_eq!(aggregate_continuation, aggregate_route);
+    psi_terminal_verifier::verify_module(
+        &aggregate_different.semantic_module,
+        &aggregate_different.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("verifier reconstructs aggregate IEEE negation through the call");
+
+    let mut redirected_aggregate = aggregate_different.semantic_module.clone();
+    let OperationKind::CallUnit {
+        crash_continuations,
+        ..
+    } = &mut redirected_aggregate.machines[0].blocks[0].operations[0].kind
+    else {
+        unreachable!()
+    };
+    let CrashRouteGuard::Predicate(predicate) = &mut crash_continuations[0].alternatives[0] else {
+        unreachable!()
+    };
+    let mut proposition = predicate.proposition().clone();
+    let Proposition::Implication { premise, .. } = &mut proposition else {
+        unreachable!()
+    };
+    let Proposition::Conjunction(conjuncts) = premise.as_mut() else {
+        unreachable!()
+    };
+    let Some(Proposition::IeeeFloatComparison { left, right, .. }) = conjuncts
+        .iter_mut()
+        .find(|item| matches!(item, Proposition::IeeeFloatComparison { .. }))
+    else {
+        unreachable!()
+    };
+    *right = psi_core::IeeeFloatStructuralField::new(left.root(), right.path().to_vec())
+        .expect("redirected IEEE field path remains nonempty");
+    *predicate = CrashPredicateTerm::new(proposition);
+    let invalid_result = psi_terminal_verifier::validate_module(&redirected_aggregate);
+    assert!(
+        matches!(
+            invalid_result,
+            Err(psi_terminal_verifier::ModuleError::CallCrashContinuationsMismatch { .. })
+        ),
+        "unexpected aggregate IEEE inequality validation result: {invalid_result:?}"
+    );
+
+    let aggregate_bytes =
+        encode_module(&aggregate_different.semantic_module).expect("aggregate inequality encode");
+    assert_eq!(
+        decode_module(&aggregate_bytes),
+        Ok(aggregate_different.semantic_module)
+    );
+
+    let projected_different =
+        psi_checked_trees_to_terminal::lower_machine(&checked, "ProjectedDifferent::enter")
+            .expect("projected aggregate IEEE inequality lowers");
+    let projected_root = &projected_different.semantic_module.machines[0];
+    let [CrashRouteGuard::Predicate(projected_route)] = projected_root.contract.crash_routes[0]
+        .alternatives
+        .as_slice()
+    else {
+        unreachable!()
+    };
+    let Proposition::Implication { premise, .. } = projected_route.proposition() else {
+        panic!("projected aggregate inequality retains canonical negation")
+    };
+    let Proposition::Conjunction(projected_equalities) = premise.as_ref() else {
+        unreachable!()
+    };
+    assert!(projected_equalities.iter().all(|proposition| matches!(
+        proposition,
+        Proposition::IeeeFloatComparison { left, right, .. }
+            if left.path().len() == 3 && right.path().len() == 3
+    )));
+    let OperationKind::CallUnit {
+        structural_arguments,
+        crash_continuations,
+        ..
+    } = &projected_root.blocks[0].operations[0].kind
+    else {
+        unreachable!()
+    };
+    assert_eq!(structural_arguments.len(), 1);
+    assert_eq!(structural_arguments[0].path.len(), 1);
+    let [CrashRouteGuard::Predicate(projected_continuation)] =
+        crash_continuations[0].alternatives.as_slice()
+    else {
+        unreachable!()
+    };
+    assert_eq!(projected_continuation, projected_route);
+    psi_terminal_verifier::verify_module(
+        &projected_different.semantic_module,
+        &projected_different.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("verifier reconstructs nonempty prefixes below aggregate IEEE negation");
 
     let mut wrong_format = reversed.semantic_module.clone();
     let [CrashRouteGuard::Predicate(predicate)] = wrong_format.machines[0].contract.crash_routes[0]

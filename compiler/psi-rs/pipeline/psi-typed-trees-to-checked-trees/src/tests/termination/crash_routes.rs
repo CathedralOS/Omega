@@ -270,6 +270,11 @@ fn ieee_float_fields_retain_atomic_structural_equality() {
         left == right
     {}
 
+    machine whole_not_equal(left: Samples, right: Samples)
+    crashes Abort
+        left != right
+    {}
+
     machine narrow(left: Samples, right: Samples)
     crashes Abort
         left.narrow == right.narrow
@@ -335,6 +340,11 @@ fn ieee_float_fields_retain_atomic_structural_equality() {
     let psi_checked_trees::CheckedBooleanExpression::And { left, right } = scalar("whole") else {
         panic!("two-field float record equality is one conjunction")
     };
+    assert!(matches!(
+        scalar("whole_not_equal"),
+        psi_checked_trees::CheckedBooleanExpression::Not(operand)
+            if matches!(*operand, psi_checked_trees::CheckedBooleanExpression::And { .. })
+    ));
     let formats = [format(&left), format(&right)];
     assert!(formats.contains(&Some(psi_typed_trees::types::PrimitiveType::F32)));
     assert!(formats.contains(&Some(psi_typed_trees::types::PrimitiveType::F64)));

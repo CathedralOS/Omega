@@ -965,6 +965,36 @@ pub(super) fn lower_structural_crash_route_buckets(
         structural_types: &[StructuralTypeDeclaration],
         runtime_requirements: &[Proposition],
     ) -> Result<Proposition, LoweringError> {
+        fn contains_ieee_float_comparison(expression: &CheckedBooleanExpression) -> bool {
+            match expression {
+                CheckedBooleanExpression::IeeeFloatComparison { .. } => true,
+                CheckedBooleanExpression::Not(operand) => contains_ieee_float_comparison(operand),
+                CheckedBooleanExpression::Equal { left, right }
+                | CheckedBooleanExpression::And { left, right }
+                | CheckedBooleanExpression::Or { left, right } => {
+                    contains_ieee_float_comparison(left) || contains_ieee_float_comparison(right)
+                }
+                CheckedBooleanExpression::Constant(_)
+                | CheckedBooleanExpression::Parameter { .. }
+                | CheckedBooleanExpression::Local { .. }
+                | CheckedBooleanExpression::StructuralParameterField { .. }
+                | CheckedBooleanExpression::IntegerComparison { .. } => false,
+            }
+        }
+
+        if let CheckedBooleanExpression::Not(operand) = expression
+            && contains_ieee_float_comparison(operand)
+        {
+            return Ok(Proposition::Implication {
+                premise: Box::new(lower_proposition(
+                    operand,
+                    parameters,
+                    structural_types,
+                    runtime_requirements,
+                )?),
+                conclusion: Box::new(Proposition::Falsehood),
+            });
+        }
         if let CheckedBooleanExpression::IeeeFloatComparison {
             kind,
             primitive_type,
@@ -1181,6 +1211,13 @@ pub(super) fn substitute_structural_crash_route_roots(
                 for proposition in propositions.iter_mut() {
                     substitute_proposition(proposition, substitutions)?;
                 }
+            }
+            Proposition::Implication {
+                premise,
+                conclusion,
+            } => {
+                substitute_proposition(premise, substitutions)?;
+                substitute_proposition(conclusion, substitutions)?;
             }
             Proposition::IeeeFloatComparison { left, right, .. } => {
                 for field in [left, right] {
