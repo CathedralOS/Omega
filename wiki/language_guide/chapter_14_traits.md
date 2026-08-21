@@ -164,6 +164,21 @@ satisfier machines may back a public conformance: callers name the authorized
 conformance surface, not its private realization. Two semantic rows remain
 distinct even when a later lowering safely shares their physical code.
 
+A requirement path used without a call signature must resolve to exactly one
+of those rows. This rule applies uniformly to domain establishment routes,
+nominal static-machine binders, and every other signature-free requirement
+reference. A short path that names several overloads rejects; visibility or a
+unique currently selected satisfier never chooses one. `as Name` on a
+`satisfies` declaration names the satisfying conformance and is not an overload
+selector. No general source spelling for signature-free overloaded references
+is currently provided; authors give requirements used in those positions
+distinct names.
+
+Consequently, adding an overload to an existing requirement name is a breaking
+change for every signature-free reference to that name, including references
+in other packages. Compatibility reporting must surface that consequence at
+the trait declaration as well as at each newly ambiguous use.
+
 Selection happens where concrete code meets an abstract requirement. Every
 whole-trait implementation has a package-scoped name, and every use passes that
 evidence explicitly. A generic evidence binder uses the same right-hand

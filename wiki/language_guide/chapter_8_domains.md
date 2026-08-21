@@ -207,6 +207,13 @@ installed external root. Every predicate obligation is checked at the
 established subject once; later uses consume the resulting guarantee rather
 than re-proving it.
 
+Because a route entry carries no call signature, its requirement path must
+resolve uniquely. An overloaded short name is ambiguous and rejects; route
+resolution never inspects visible or selected conformances to choose one.
+Adding an overload can therefore break route lists in other packages. This is
+the language-wide signature-free requirement-addressing rule, not a special
+domain rule.
+
 The same parameter remains an ordinary precondition when checked code calls
 the requirement directly. Direction comes from the installed external-root
 occurrence, not from `boundary` and not from another source marker:

@@ -216,10 +216,12 @@ selected symbol at every use; the example above emits a direct
 
 Rules:
 
-- `<machine M>` binds a machine **symbol** at the spelling site, checked
-  against its `where machine` signature and monomorphized per instance like
-  every generic. After substitution, each use of `M` is a direct static
-  call. No runtime value exists — the parameter is gone by codegen.
+- `<machine M>` binds a machine **symbol** at the spelling site. Its
+  `where machine` clause supplies either a structural callable signature or
+  one exact nominal requirement, and the selected symbol is checked against
+  that contract. Ordinary specialization substitutes it like every generic;
+  after substitution, each use of `M` is a direct static call. No runtime
+  value exists — the parameter is gone by codegen.
 - A static-machine selection in `requires` or `ensures` instantiates a logical
   contract schema, not an executable call site. It is checked against the same
   callable requirement but does not by itself monomorphize the selected generic
@@ -252,13 +254,17 @@ Rules:
   machine parameter uses that same judgment. Specialization first replaces
   `Schema` and `Selected`, then continues to a fixed point until the nested
   call is direct and contains no runtime callable representation.
-- Every machine parameter must have an authored `where machine M(...)`
-  contract at its declaration. The compiler never infers that abstraction
-  from `M(...)` uses or from the machines currently supplied by consumers,
-  even in a whole-program build with only one instantiation. Missing the
-  contract is a declaration-site error; a declared but unused parameter gets
-  the ordinary unused-parameter warning. If exactly one implementation is
-  intended, call that concrete machine instead of declaring a generic.
+- Every machine parameter must have an authored contract at its declaration.
+  The structural form is `where machine M(...)`; the nominal form is
+  `where machine M satisfies Trait::requirement`. The nominal requirement
+  supplies its complete parameter/result shape, contracts, operational
+  ceilings, and any boundary calling/entry plan, so its signature is not
+  repeated. The compiler never infers either abstraction from `M(...)` uses,
+  matching signatures, visible conformances, or the machines currently
+  supplied by consumers, even in a whole-program build with only one
+  instantiation. Missing or ambiguous contracts reject. If exactly one
+  implementation is intended, call that concrete machine instead of declaring
+  a generic.
 - Type and result parameters may be inferred from the selected machine and
   ordinary arguments. For example, `map<Card::power>(cards)` specializes
   `map<T, U, machine F>` with `T = Card`, `U = u64`, and every `F(value)` call

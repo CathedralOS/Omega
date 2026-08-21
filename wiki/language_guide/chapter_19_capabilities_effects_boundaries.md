@@ -1237,10 +1237,33 @@ boundary machine ApplicationWindow::dispatch(
 }
 ```
 
-When a registration operation expects `WindowProcedure`, passing
-`ApplicationWindow::dispatch` selects that conformance. The compiler validates
-the evaluated `CallPlan + StatePlan` and generates the native inbound thunk.
-The native code address exists only in the binding lowering.
+A registration operation names that exact nominal requirement on its static
+machine binder:
+
+```omega
+boundary machine register_window_procedure<machine Procedure>(
+    class_name: &[u8] in CString
+) -> Registration
+where machine Procedure satisfies WindowProcedure::call;
+
+let registration =
+    register_window_procedure<ApplicationWindow::dispatch>(class_name);
+```
+
+The requirement supplies the binder's complete signature and contract; they
+are not repeated structurally. The selected machine must carry an explicit
+satisfaction row for the exact requirement. Signature coincidence and visible
+uniqueness never establish the relationship. Because the path appears without
+a call signature, `WindowProcedure::call` must resolve to one overload or the
+declaration rejects under the general signature-free requirement-path rule.
+
+The compiler validates the published callback envelope, the selected machine's
+actual refining envelope, and their evaluated `CallPlan + StatePlan`, then
+generates the native inbound thunk. The native code address exists only in the
+binding lowering. The returned linear registration owns unregistration and any
+code/component lease. Its occurrence provenance retains the selected machine,
+but a public caller may reason from the narrower actual envelope only when the
+API explicitly forwards that guarantee.
 
 A durable registration operation returns a linear package value. Its terminal
 operation unregisters the callback and releases any code or component lease

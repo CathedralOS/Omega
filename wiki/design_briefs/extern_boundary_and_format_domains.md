@@ -1,6 +1,6 @@
 # Design Brief: Extern Boundaries And Foreign Formats
 
-Current as of 2026-08-19. This brief defines the durable extern model. Concrete
+Current as of 2026-08-20. This brief defines the durable extern model. Concrete
 binding/layout grammar remains subject to the referenced subsystem briefs.
 
 ## Abstract API, target binding
@@ -349,10 +349,16 @@ return. Bounded recovery from a genuine hang requires process isolation.
 
 A callback protocol is declared by an ordinary boundary requirement carrying
 its `Calling<C>` policy. A named static `boundary machine` explicitly satisfies
-that requirement. Passing the machine to a registration operation selects the
-conformance, validates its `CallPlan + StatePlan`, and lets the compiler
-materialize the foreign ABI thunk and relocation inside that exact binding. The
-source surface does not need a general function-pointer value.
+that requirement. The registration operation declares
+`where machine Selected satisfies Trait::requirement`; the nominal requirement
+supplies the complete signature and contract without structural repetition.
+Passing the selected machine chooses its explicit satisfaction row, validates
+the published and actual refining envelopes plus their `CallPlan + StatePlan`,
+and lets the compiler materialize the foreign ABI thunk and relocation inside
+that exact binding. Signature coincidence and unique visibility are not
+selection rules. A signature-free requirement path must resolve uniquely or
+reject, consistently with domain route lists. The source surface does not need
+a general function-pointer value.
 
 Durable registration returns an ordinary linear package value. It owns the
 foreign registration and any code/component lease needed to keep the entry
@@ -360,7 +366,9 @@ valid; its explicit terminal operation unregisters before releasing those
 obligations. Call-scoped callback parameters remain borrowed for the call.
 Foreign context storage carries an inert protocol token or generational handle,
 while the owning state remains in an Omega registry or another ordinary
-package-owned value.
+package-owned value. The registration occurrence retains the selected machine
+in provenance, but possession alone imports no narrower implementation facts;
+an API forwards any caller-visible guarantee explicitly.
 
 Synchronous entry and deferred registration are separate contracts. A bodyful
 machine infers its `invokes` set from the body, including forwarding through
