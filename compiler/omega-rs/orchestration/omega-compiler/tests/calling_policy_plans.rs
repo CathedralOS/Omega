@@ -10,6 +10,7 @@ use omega_compiler::{
     bind_emitted_program_storage_entry_native_bridge, bind_program_storage_entry_plan,
     bind_program_storage_entry_whole_root_arguments,
     bind_program_storage_entry_whole_root_logical_values,
+    bind_program_storage_entry_whole_root_operands,
     bind_recorded_program_storage_entry_whole_root_arguments, compile, compile_to_checked,
     evaluate_calling_policy_plan, install_program_storage_entry_provider_invocation,
     install_program_storage_entry_roots, program_storage_installation_record_json,
@@ -1643,6 +1644,47 @@ machine build(builder: &mut Build) {
         assert_eq!(base.byte_offset(), 0);
         assert_eq!(length.byte_offset(), 8);
     }
+    let operands = bind_program_storage_entry_whole_root_operands(values)
+        .expect("exact logical Extents should bind their indirect operand images");
+    let [image_operand, storage_operand] = operands.operands();
+    assert_eq!(
+        image_operand.pointer(),
+        omega_calling_conventions::IndirectPointerLocation::Register(
+            omega_calling_conventions::MachineRegister::X86Rcx,
+        )
+    );
+    assert_eq!(image_operand.caller_copy_byte_range(), 32..48);
+    assert_eq!(
+        image_operand.bytes(),
+        &[
+            0x00, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x08, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00,
+        ]
+    );
+    assert_eq!(
+        storage_operand.pointer(),
+        omega_calling_conventions::IndirectPointerLocation::Register(
+            omega_calling_conventions::MachineRegister::X86Rdx,
+        )
+    );
+    assert_eq!(storage_operand.caller_copy_byte_range(), 48..64);
+    assert_eq!(
+        storage_operand.bytes(),
+        &[
+            0x00, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x20, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00,
+        ]
+    );
+    assert_eq!(image_operand.byte_size(), 16);
+    assert_eq!(storage_operand.alignment(), 8);
+    assert_eq!(
+        operands
+            .logical_values()
+            .arguments()
+            .root_authority(omega_compiler::ProgramStorageEntryRootRole::Image)
+            .base(),
+        0x1000
+    );
     let _ = fs::remove_dir_all(directory);
 }
 

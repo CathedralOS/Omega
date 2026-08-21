@@ -155,6 +155,17 @@ Remaining:
   target-layout, or wrapping-geometry drift returns the intact prior carrier.
   These are logical values only: no bytes, registers, stack locations, wrapper
   body, call, or execution evidence is produced.
+  Those receiver-free logical values can now move into a sealed indirect-
+  operand image carrier for the exact admitted UEFI/Microsoft x64 ABI. It
+  retains little-endian `{base,length}` bytes beside each immutable
+  `ValuePlacement`, requires Image through RCX with caller copy `32..48` and
+  InitialStorage through RDX with caller copy `48..64`, and rejects role,
+  index, field-layout, shape, pointer, range, size, alignment, overlap, or
+  target drift while returning the intact authority-bearing logical carrier.
+  The byte images are geometry, not authority. This slice deliberately does
+  not allocate or write the caller-copy stack area, populate RCX/RDX, emit a
+  wrapper body or call edge, realize the callee inbound ABI, claim native
+  execution, or admit attached/zero-sized-receiver entries.
   Production builds therefore still lack a source-compatible attached-root
   value/authority carrier (or separate hidden supply), generated wrapper body,
   and source-function inbound realization; defining that disposition at the

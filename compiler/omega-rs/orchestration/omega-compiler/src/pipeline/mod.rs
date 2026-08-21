@@ -14,6 +14,7 @@ mod operator_adapter_dispatch;
 mod output;
 mod program_entry_source_signature;
 mod program_storage_entry;
+mod program_storage_extent_operand;
 mod program_storage_extent_value;
 mod program_storage_root_argument_binding;
 mod program_storage_root_authority;
@@ -69,6 +70,10 @@ pub use program_storage_entry::{
     bind_emitted_program_storage_entry_native_bridge, bind_generated_program_storage_entry_plan,
     bind_program_storage_entry_plan, install_and_activate_program_storage_entry_receiver,
     install_program_storage_entry_provider_invocation, install_program_storage_entry_roots,
+};
+pub use program_storage_extent_operand::{
+    ProgramStorageEntryExtentOperandImage, ProgramStorageEntryWholeRootOperandCarrier,
+    ProgramStorageEntryWholeRootOperandError, bind_program_storage_entry_whole_root_operands,
 };
 pub use program_storage_extent_value::{
     ProgramStorageEntryExtentLogicalValue, ProgramStorageEntryWholeRootLogicalValueCarrier,
