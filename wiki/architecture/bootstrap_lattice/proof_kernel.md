@@ -381,7 +381,13 @@ missing or crossed equalities reject. A complete nested endpoint family may
 first derive the canonical bound on `K` from one stronger retained bound and a
 closed same-carrier order fact, then transport it through equality. Its proof
 nests `IntegerLessOrEqualTransitivity` beneath substitution; weak bounds,
-missing equalities, or wrong endpoints reject. A signed `i1` divisor
+missing equalities, or wrong endpoints reject. The next complete nested family
+replaces that closed side with a second exact citation: unsigned `1 <= M` and
+`M <= K`, or signed `K <= M` and `M <= -2`, followed by `K == divisor`.
+The proof nests two-citation transitivity beneath endpoint substitution in
+deterministic ledger order. Missing or disconnected middle relations, weak
+signed ceilings, redirected equalities, or wrong endpoints reject. A signed
+`i1` divisor
 fact alone cannot prove its two-premise conjunction. When exact prior
 `divisor <= -1` and `0 <= dividend` propositions are both independently
 retained, the complete `i1` family cites them and constructs that conjunction;
