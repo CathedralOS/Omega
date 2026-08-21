@@ -38,6 +38,163 @@ fn compiler_validation_identity_without_a_footprint_derivation_rejects() {
 }
 
 #[test]
+fn outgoing_stack_address_final_bytes_and_footprint_replay_fail_closed() {
+    use omega_machine_bytes::{
+        CompilerInstructionValidationKind, EncodedMachineFunction, EncodedMachineInstruction,
+    };
+    use omega_machine_instructions::{BoundaryFootprintFragment, BoundaryFootprintFragmentOrigin};
+    use psi_arena::HandleSpan;
+
+    let target = NativeTarget::uefi_x64();
+    let enter = omega_isa_x86_64::encode_function_enter_bytes();
+    let address = omega_isa_x86_64::encode_outgoing_stack_address_load_bytes(
+        omega_calling_conventions::MachineRegister::X86Rcx,
+        32,
+    )
+    .expect("exact RCX caller-copy address");
+    let leave = omega_isa_x86_64::encode_return_bytes();
+    let final_bytes = enter
+        .into_iter()
+        .chain(address)
+        .chain(leave)
+        .collect::<Vec<_>>();
+    let mut plan =
+        omega_machine_bytes::EncodedMachinePlan::with_capacity(target, 1, 3, final_bytes.len());
+    let enter_bytes = plan.code.bytes.insert_many(enter);
+    let address_bytes = plan.code.bytes.insert_many(address);
+    let leave_bytes = plan.code.bytes.insert_many(leave);
+    let first = plan.code.instructions.insert(EncodedMachineInstruction {
+        selected_instruction_index: 0,
+        bytes: enter_bytes,
+        compiler_validation_kind: Some(CompilerInstructionValidationKind::FunctionEnter),
+        ..Default::default()
+    });
+    let address_row = plan.code.instructions.insert(EncodedMachineInstruction {
+        selected_instruction_index: 1,
+        bytes: address_bytes,
+        compiler_validation_kind: Some(
+            CompilerInstructionValidationKind::OutgoingStackAddressLoad {
+                register: omega_calling_conventions::MachineRegister::X86Rcx,
+                stack_byte_offset: 32,
+            },
+        ),
+        ..Default::default()
+    });
+    plan.code.instructions.insert(EncodedMachineInstruction {
+        selected_instruction_index: 2,
+        bytes: leave_bytes,
+        compiler_validation_kind: Some(CompilerInstructionValidationKind::FunctionReturn),
+        ..Default::default()
+    });
+    plan.code.functions.insert(EncodedMachineFunction {
+        symbol: "synthetic_wrapper".into(),
+        identity: Default::default(),
+        byte_offset: 0,
+        byte_count: final_bytes.len(),
+        instructions: HandleSpan::from_parts(first, 3),
+    });
+    plan.code.byte_count = final_bytes.len();
+
+    let mut semantics = omega_machine_bytes::EncodedMachineSemanticSummary::default();
+    semantics
+        .boundaries
+        .footprints
+        .boundary_contract_fingerprint = Some(0x5151);
+    let enter_footprint = omega_calling_conventions::StateFootprintEvidence::new(
+        omega_isa_x86_64::function_enter_register_writes(),
+        omega_isa_x86_64::function_enter_additional_machine_state(),
+    );
+    let address_footprint = omega_calling_conventions::StateFootprintEvidence::new(
+        omega_isa_x86_64::outgoing_stack_address_load_register_writes(
+            omega_calling_conventions::MachineRegister::X86Rcx,
+        ),
+        omega_isa_x86_64::outgoing_stack_address_load_additional_machine_state(),
+    );
+    let return_footprint = omega_calling_conventions::StateFootprintEvidence::new(
+        omega_isa_x86_64::return_register_writes(),
+        omega_isa_x86_64::return_additional_machine_state(),
+    );
+    semantics
+        .boundaries
+        .footprints
+        .fragments
+        .push(BoundaryFootprintFragment {
+            origin: BoundaryFootprintFragmentOrigin::CallReturnMechanics,
+            evidence: omega_calling_conventions::compose_state_footprints([
+                &enter_footprint,
+                &address_footprint,
+                &return_footprint,
+            ]),
+        });
+    let object = omega_object_file::ObjectPlan::with_capacity(target, 0, 0);
+    let relocations = RelocationPlan::with_target(target);
+    let evidence = validate_compiler_function_instruction_boundaries(
+        omega_target::Architecture::X86_64,
+        &plan.code,
+        &final_bytes,
+        &object,
+        &relocations,
+        &semantics,
+    )
+    .expect("exact address load should replay with no relocation");
+    assert_eq!(evidence.instruction_count, 3);
+
+    let address_offset = enter.len();
+    for tamper_offset in [address_offset, address_offset + 2, address_offset + 4] {
+        let mut tampered = final_bytes.clone();
+        tampered[tamper_offset] ^= 1;
+        assert!(
+            validate_compiler_function_instruction_boundaries(
+                omega_target::Architecture::X86_64,
+                &plan.code,
+                &tampered,
+                &object,
+                &relocations,
+                &semantics,
+            )
+            .is_err()
+        );
+    }
+
+    let mut redirected = plan.code.clone();
+    redirected
+        .instructions
+        .get_mut(address_row)
+        .compiler_validation_kind = Some(
+        CompilerInstructionValidationKind::OutgoingStackAddressLoad {
+            register: omega_calling_conventions::MachineRegister::X86Rdx,
+            stack_byte_offset: 32,
+        },
+    );
+    assert!(
+        validate_compiler_function_instruction_boundaries(
+            omega_target::Architecture::X86_64,
+            &redirected,
+            &final_bytes,
+            &object,
+            &relocations,
+            &semantics,
+        )
+        .is_err()
+    );
+
+    let mut incomplete_footprint = semantics.clone();
+    incomplete_footprint.boundaries.footprints.fragments[0].evidence =
+        omega_calling_conventions::compose_state_footprints([&enter_footprint, &return_footprint]);
+    assert!(
+        validate_compiler_function_instruction_boundaries(
+            omega_target::Architecture::X86_64,
+            &plan.code,
+            &final_bytes,
+            &object,
+            &relocations,
+            &incomplete_footprint,
+        )
+        .is_err()
+    );
+}
+
+#[test]
 fn aarch64_indirect_call_replay_reconstructs_bytes_and_page_sites() {
     use omega_calling_conventions::{
         CallSignature, CallingPolicy, HostBindingMechanism, ValueLocation, ValueShape,

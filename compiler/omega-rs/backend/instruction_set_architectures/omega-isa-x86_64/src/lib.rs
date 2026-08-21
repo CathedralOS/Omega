@@ -1,4 +1,5 @@
 mod atomics;
+mod caller_frame;
 mod dispatch;
 mod encoding_primitives;
 mod function_boundary;
@@ -13,6 +14,7 @@ mod syscalls;
 mod wire;
 
 pub use atomics::*;
+pub use caller_frame::*;
 pub use dispatch::*;
 pub(crate) use encoding_primitives::*;
 pub use function_boundary::*;

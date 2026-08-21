@@ -738,6 +738,21 @@ pub(super) fn encode_machine_instruction_bytes(
                 }
             })
         }
+        SelectedInstructionKind::LoadOutgoingStackAddress {
+            register,
+            stack_byte_offset,
+        } => {
+            if input.target.architecture != omega_target::Architecture::X86_64 {
+                return Err(Diagnostic::error(
+                    "outgoing stack-address loads are supported only on x86-64",
+                ));
+            }
+            Ok(omega_isa_x86_64::encode_outgoing_stack_address_load_bytes(
+                *register,
+                *stack_byte_offset,
+            )?
+            .to_vec())
+        }
         SelectedInstructionKind::EnterFunction
         | SelectedInstructionKind::EnterDispatchLoop { .. }
         | SelectedInstructionKind::EnterDispatchCase { .. }

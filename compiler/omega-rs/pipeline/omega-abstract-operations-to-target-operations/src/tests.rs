@@ -53,6 +53,45 @@ fn preserves_generated_function_identity_in_target_plan() {
 }
 
 #[test]
+fn preserves_outgoing_stack_address_recipe_in_target_plan() {
+    let mut abstract_operations = AbstractOperationPlan::default();
+    let instructions = abstract_operations.code.instructions.insert_many([
+        omega_abstract_operations::AbstractOperation {
+            kind: omega_abstract_operations::AbstractOperationKind::LoadOutgoingStackAddress {
+                register: MachineRegister::X86Rcx,
+                stack_byte_offset: 32,
+            },
+            ..Default::default()
+        },
+    ]);
+    abstract_operations
+        .code
+        .functions
+        .insert(AbstractFunctionPlan {
+            symbol: Arc::from("synthetic_wrapper"),
+            identity: MachineFunctionIdentity::default(),
+            instructions,
+        });
+    let target = NativeTarget::uefi_x64();
+    let target_operations = build_target_operation_plan(
+        target,
+        &build_host_abi_plan(target),
+        &HostCallPlan::default(),
+        &abstract_operations,
+    );
+    let [instruction] = target_operations.code.instructions.storage_slice() else {
+        panic!("one caller-frame address recipe should survive lowering")
+    };
+    assert_eq!(
+        instruction.kind,
+        omega_target_operations::TargetOperationKind::LoadOutgoingStackAddress {
+            register: MachineRegister::X86Rcx,
+            stack_byte_offset: 32,
+        }
+    );
+}
+
+#[test]
 fn copies_abstract_value_summary_to_target_plan() {
     let mut abstract_operations = AbstractOperationPlan::default();
     let machine_symbol = SymbolHandle::from_arena_index(1);

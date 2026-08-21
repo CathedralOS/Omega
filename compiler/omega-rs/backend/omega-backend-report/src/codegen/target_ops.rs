@@ -850,6 +850,10 @@ fn selected_instruction_name(
         SelectedInstructionKind::CallInternalFunction { target } => {
             format!("call internal function {target:?}")
         }
+        SelectedInstructionKind::LoadOutgoingStackAddress {
+            register,
+            stack_byte_offset,
+        } => format!("load outgoing stack address rsp+{stack_byte_offset} -> {register:?}"),
         SelectedInstructionKind::BeginPlatformCall => {
             let platform_call = backend_plan
                 .host_calls

@@ -20,6 +20,20 @@ fn operation_kinds_expose_host_boundary_domain() {
 }
 
 #[test]
+fn outgoing_stack_address_is_compiler_function_boundary_mechanics() {
+    let operation = AbstractOperationKind::LoadOutgoingStackAddress {
+        register: omega_calling_conventions::MachineRegister::X86Rcx,
+        stack_byte_offset: 32,
+    };
+    assert_eq!(
+        operation.semantic_domain(),
+        AbstractOperationDomain::FunctionBoundary
+    );
+    assert!(!operation.crosses_host_boundary());
+    assert!(!operation.touches_runtime_storage());
+}
+
+#[test]
 fn operation_kinds_expose_runtime_storage_domains() {
     let guard = AbstractOperationKind::EvaluateDispatchGuard {
         guard_lowering: StateGuardLowering::CompareRuntimeValue,

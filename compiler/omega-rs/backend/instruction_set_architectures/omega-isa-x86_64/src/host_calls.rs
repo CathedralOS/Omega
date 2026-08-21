@@ -1,8 +1,8 @@
 use super::{
     X86_64RelocationSite, X86_64RelocationSiteKind, append_load_r8_from_r10,
     append_load_r10_from_r10, append_load_rdx_from_r10, append_mov_r10_imm64, append_mov_r11_imm64,
-    append_mov_r15_imm64, append_mov_rax_imm64, append_mov_rdx_imm64, disp32, immediate_i32,
-    x86_gpr_number,
+    append_mov_r15_imm64, append_mov_rax_imm64, append_mov_rdx_imm64, disp32,
+    encode_outgoing_stack_address_load_bytes, immediate_i32, x86_gpr_number,
 };
 use omega_calling_conventions::{
     CallPlan, CallSignature, CallingPolicy, EntryControl, HostCapability, HostOperation,
@@ -1193,16 +1193,18 @@ fn append_win64_indirect_aggregate_argument<T: InstructionOperandLike>(
 
     match *pointer {
         IndirectPointerLocation::Register(register) => {
-            append_win64_lea_register_from_rsp(bytes, register, *copy_stack_byte_offset)?;
+            bytes.extend(encode_outgoing_stack_address_load_bytes(
+                register,
+                *copy_stack_byte_offset,
+            )?);
         }
         IndirectPointerLocation::Stack {
             stack_byte_offset, ..
         } => {
-            append_win64_lea_register_from_rsp(
-                bytes,
+            bytes.extend(encode_outgoing_stack_address_load_bytes(
                 MachineRegister::X86Rax,
                 *copy_stack_byte_offset,
-            )?;
+            )?);
             bytes.extend([0x48, 0x89, 0x84, 0x24]); // mov [rsp+disp32], rax
             bytes.extend(
                 i32::try_from(stack_byte_offset)
@@ -1213,42 +1215,6 @@ fn append_win64_indirect_aggregate_argument<T: InstructionOperandLike>(
             );
         }
     }
-    Ok(())
-}
-
-fn append_win64_lea_register_from_rsp(
-    bytes: &mut Vec<u8>,
-    register: MachineRegister,
-    stack_byte_offset: u32,
-) -> Result<(), Diagnostic> {
-    let register_number = x86_gpr_number(register).ok_or_else(|| {
-        Diagnostic::error(format!(
-            "Microsoft x64 aggregate pointer uses unsupported register {register:?}"
-        ))
-    })?;
-    if !matches!(
-        register,
-        MachineRegister::X86Rax
-            | MachineRegister::X86Rcx
-            | MachineRegister::X86Rdx
-            | MachineRegister::X86R8
-            | MachineRegister::X86R9
-    ) {
-        return Err(Diagnostic::error(format!(
-            "Microsoft x64 aggregate pointer uses non-positional register {register:?}"
-        )));
-    }
-    bytes.extend([
-        0x48 | if register_number >= 8 { 0x04 } else { 0 },
-        0x8d,
-        0x84 | ((register_number & 7) << 3),
-        0x24,
-    ]); // lea selected register, [rsp+disp32]
-    bytes.extend(
-        i32::try_from(stack_byte_offset)
-            .map_err(|_| Diagnostic::error("Microsoft x64 copy offset exceeds disp32"))?
-            .to_le_bytes(),
-    );
     Ok(())
 }
 

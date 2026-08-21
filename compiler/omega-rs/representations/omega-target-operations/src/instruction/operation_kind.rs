@@ -525,6 +525,12 @@ pub enum TargetOperationKind {
     CallInternalFunction {
         target: omega_control_flow::MachineFunctionIdentity,
     },
+    /// Compiler-private x86-64 caller-frame address calculation. It carries no
+    /// stack reservation, store, call, or relocation claim.
+    LoadOutgoingStackAddress {
+        register: omega_calling_conventions::MachineRegister,
+        stack_byte_offset: u32,
+    },
     BeginPlatformCall,
     HostOperation {
         operation_key: HostOperationKey,

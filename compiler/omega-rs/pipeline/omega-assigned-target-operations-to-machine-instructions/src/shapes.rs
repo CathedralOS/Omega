@@ -121,6 +121,9 @@ pub(super) fn lower_machine_instruction_kind(
         SelectedInstructionKind::CallInternalFunction { .. } => {
             MachineInstructionKind::InternalFunctionCall
         }
+        SelectedInstructionKind::LoadOutgoingStackAddress { .. } => {
+            MachineInstructionKind::OutgoingStackAddressLoad
+        }
         SelectedInstructionKind::MachineHalt => MachineInstructionKind::MachineHalt,
         SelectedInstructionKind::MemoryFence(kind) => MachineInstructionKind::MemoryFence(*kind),
         SelectedInstructionKind::InterruptControl(kind) => {

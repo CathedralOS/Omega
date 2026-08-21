@@ -689,6 +689,13 @@ pub enum AbstractOperationKind {
     CallInternalFunction {
         target: omega_control_flow::MachineFunctionIdentity,
     },
+    /// Compiler-private caller-frame recipe: compute one address at a positive
+    /// displacement from the current RSP into an ABI argument register. This
+    /// does not reserve or write stack storage and does not perform a call.
+    LoadOutgoingStackAddress {
+        register: omega_calling_conventions::MachineRegister,
+        stack_byte_offset: u32,
+    },
     BeginPlatformCall,
     HostOperation {
         operation_ordinal: u16,

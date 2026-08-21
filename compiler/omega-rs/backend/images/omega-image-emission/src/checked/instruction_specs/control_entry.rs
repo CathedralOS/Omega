@@ -18,6 +18,23 @@ pub(super) fn expected_control_entry_spec(
                         77u8,
                         CompilerInstructionRelocationRecipe::InternalFunctionCall { target },
                     ),
+                    omega_machine_bytes::CompilerInstructionValidationKind::OutgoingStackAddressLoad {
+                        register,
+                        stack_byte_offset,
+                    } => (
+                        None,
+                        match architecture {
+                            Architecture::X86_64 => omega_isa_x86_64::encode_outgoing_stack_address_load_bytes(
+                                register,
+                                stack_byte_offset,
+                            )?.to_vec(),
+                            Architecture::Aarch64 => return Err(Diagnostic::error(
+                                "outgoing stack-address loads are supported only on x86-64",
+                            )),
+                        },
+                        78u8,
+                        CompilerInstructionRelocationRecipe::None,
+                    ),
                     omega_machine_bytes::CompilerInstructionValidationKind::FunctionEnter => (
                         Some(0),
                         match architecture {

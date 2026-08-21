@@ -113,6 +113,92 @@ mod tests {
     }
 
     #[test]
+    fn emits_exact_outgoing_stack_address_loads_without_relocations() {
+        let target = NativeTarget::uefi_x64();
+        let assigned_target_operations = AssignedTargetOperationPlan::default();
+        let host_abi = build_host_abi_plan(target);
+        let data = omega_target_operations::TargetDataPlan::default();
+        let mut machine_instructions = MachineInstructionPlan::with_capacity(target, 1, 2);
+        let instructions = machine_instructions.code.instructions.insert_many([
+            MachineInstruction {
+                selected_instruction_index: 0,
+                source_kind: SelectedInstructionKind::LoadOutgoingStackAddress {
+                    register: MachineRegister::X86Rcx,
+                    stack_byte_offset: 32,
+                },
+                kind: MachineInstructionKind::OutgoingStackAddressLoad,
+            },
+            MachineInstruction {
+                selected_instruction_index: 1,
+                source_kind: SelectedInstructionKind::LoadOutgoingStackAddress {
+                    register: MachineRegister::X86Rdx,
+                    stack_byte_offset: 48,
+                },
+                kind: MachineInstructionKind::OutgoingStackAddressLoad,
+            },
+        ]);
+        machine_instructions
+            .code
+            .functions
+            .insert(MachineInstructionFunction {
+                symbol: "synthetic_wrapper".into(),
+                identity: MachineFunctionIdentity::default(),
+                instructions,
+            });
+        let encoded = emit_machine_bytes(MachineEmissionInput {
+            target,
+            assigned_target_operations: &assigned_target_operations,
+            machine_instructions: &machine_instructions,
+            host_abi: &host_abi,
+            data: &data,
+            terminal_dispatch_index: 0,
+        })
+        .expect("outgoing stack-address emission");
+        assert_eq!(
+            encoded.code.bytes.storage_slice(),
+            [
+                0x48, 0x8d, 0x8c, 0x24, 32, 0, 0, 0, 0x48, 0x8d, 0x94, 0x24, 48, 0, 0, 0,
+            ]
+        );
+        let kinds = encoded
+            .code
+            .instructions
+            .iter()
+            .map(|(_, instruction)| instruction.compiler_validation_kind.clone())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            kinds,
+            [
+                Some(
+                    omega_machine_bytes::CompilerInstructionValidationKind::OutgoingStackAddressLoad {
+                        register: MachineRegister::X86Rcx,
+                        stack_byte_offset: 32,
+                    },
+                ),
+                Some(
+                    omega_machine_bytes::CompilerInstructionValidationKind::OutgoingStackAddressLoad {
+                        register: MachineRegister::X86Rdx,
+                        stack_byte_offset: 48,
+                    },
+                ),
+            ]
+        );
+
+        let aarch64_target = NativeTarget::linux_arm64();
+        let aarch64_abi = build_host_abi_plan(aarch64_target);
+        let diagnostic = emit_machine_bytes(MachineEmissionInput {
+            target: aarch64_target,
+            assigned_target_operations: &assigned_target_operations,
+            machine_instructions: &machine_instructions,
+            host_abi: &aarch64_abi,
+            data: &data,
+            terminal_dispatch_index: 0,
+        })
+        .expect_err("the RSP-relative operation must remain x86-64-only");
+        assert!(diagnostic.message.contains("only on x86-64"));
+    }
+
+    #[test]
     fn copies_machine_semantic_summaries_to_encoded_plan() {
         let target = NativeTarget::host();
         let continuation = StateKey {
