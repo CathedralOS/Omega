@@ -191,8 +191,11 @@ pub(super) fn reconstruct_machine_semantics(
             if let Some(semantics) = proof_bearing_scalar_leaf_semantics(operation, &value_types)
                 .map_err(ModuleError::OperationSemanticSchema)?
             {
-                let proposition = if semantics.tag() == OperationSemanticTag::WrappingIntegerDivide
-                {
+                let proposition = if matches!(
+                    semantics.tag(),
+                    OperationSemanticTag::WrappingIntegerDivide
+                        | OperationSemanticTag::WrappingIntegerRemainder
+                ) {
                     semantics
                         .canonical_goal()
                         .kernel_proposition()

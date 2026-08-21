@@ -746,8 +746,8 @@ fn reduction_nodes() -> Vec<TrustDependencyNode> {
         ),
         (
             "reduction:integer-divide-remainder",
-            "exact divide/remainder plus wrapping-remainder and saturating divide/remainder sufficient forms",
-            "integer-divide-remainder-v2",
+            "exact divide/remainder plus saturating divide/remainder sufficient forms",
+            "integer-divide-remainder-v3",
             "verification/integer_divide_remainder.rs",
             INTEGER_DIVIDE_REMAINDER_SOURCE,
         ),
