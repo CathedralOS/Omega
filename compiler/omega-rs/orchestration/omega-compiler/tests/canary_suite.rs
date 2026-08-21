@@ -75,6 +75,8 @@ mod artifact_footprints;
 mod content_text_and_carriers;
 #[path = "canary_suite/domains_control_and_structures.rs"]
 mod domains_control_and_structures;
+#[path = "canary_suite/exact_native_coverage.rs"]
+mod exact_native_coverage;
 #[path = "canary_suite/float_plans_and_policies.rs"]
 mod float_plans_and_policies;
 use float_plans_and_policies::retained_float_differential_result_identity;
@@ -2116,128 +2118,6 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "recast/runtime_slice_view_mutable_write_exit",
     "recast/runtime_symbolic_stride_footprint_exit",
 ];
-
-/// Rooted fixtures whose dedicated tests already compile the authored host
-/// root, execute the resulting native image, and assert its exact exit status.
-///
-/// `pass_canaries_compile` omits only this audited cohort. The registry keeps
-/// the fixture, test identity, and defining source together so its consistency
-/// test can fail closed if the dedicated native coverage is removed or
-/// weakened.
-struct DedicatedExactNativeRootedCanary {
-    canary: &'static str,
-    test_name: &'static str,
-    test_source_path: &'static str,
-}
-
-const DEDICATED_EXACT_NATIVE_ROOTED_CANARIES: &[DedicatedExactNativeRootedCanary] = &[
-    DedicatedExactNativeRootedCanary {
-        canary: "collections/runtime_loop_counter_init_hoisted_exit",
-        test_name: "runtime_loop_counter_init_hoisted_exit_canary_runs",
-        test_source_path: "tests/canary_suite/recursion_slices_and_conversions.rs",
-    },
-    DedicatedExactNativeRootedCanary {
-        canary: "collections/runtime_nested_const_product_index_exit",
-        test_name: "runtime_nested_const_product_index_exit_canary_runs",
-        test_source_path: "tests/canary_suite/generics_and_dependent_facts.rs",
-    },
-    DedicatedExactNativeRootedCanary {
-        canary: "collections/runtime_nested_loop_fill_exit",
-        test_name: "runtime_nested_loop_fill_exit_canary_runs",
-        test_source_path: "tests/canary_suite/recursion_slices_and_conversions.rs",
-    },
-    DedicatedExactNativeRootedCanary {
-        canary: "collections/runtime_palindrome_two_pointer_exit",
-        test_name: "runtime_palindrome_two_pointer_exit_canary_runs",
-        test_source_path: "tests/canary_suite/proof_and_float_suites.rs",
-    },
-    DedicatedExactNativeRootedCanary {
-        canary: "dependent/runtime_dependent_ordering_chain_exit",
-        test_name: "runtime_dependent_ordering_chain_exit_canary_runs",
-        test_source_path: "tests/canary_suite/generics_and_dependent_facts.rs",
-    },
-    DedicatedExactNativeRootedCanary {
-        canary: "dependent/runtime_dependent_param_range_exit",
-        test_name: "runtime_dependent_param_range_exit_canary_runs",
-        test_source_path: "tests/canary_suite/generics_and_dependent_facts.rs",
-    },
-    DedicatedExactNativeRootedCanary {
-        canary: "dependent/runtime_dependent_product_index_exit",
-        test_name: "runtime_dependent_product_index_exit_canary_runs",
-        test_source_path: "tests/canary_suite/generics_and_dependent_facts.rs",
-    },
-    DedicatedExactNativeRootedCanary {
-        canary: "dependent/runtime_dependent_subtract_exit",
-        test_name: "runtime_dependent_subtract_exit_canary_runs",
-        test_source_path: "tests/canary_suite/generics_and_dependent_facts.rs",
-    },
-    DedicatedExactNativeRootedCanary {
-        canary: "dependent/runtime_requires_subtract_exit",
-        test_name: "runtime_requires_subtract_exit_canary_runs",
-        test_source_path: "tests/canary_suite/generics_and_dependent_facts.rs",
-    },
-    DedicatedExactNativeRootedCanary {
-        canary: "dependent/runtime_sibling_len_index_exit",
-        test_name: "runtime_sibling_len_index_exit_canary_runs",
-        test_source_path: "tests/canary_suite/generics_and_dependent_facts.rs",
-    },
-    DedicatedExactNativeRootedCanary {
-        canary: "dungeon/runtime_clear_carve_render_string_fields_exit",
-        test_name: "runtime_clear_carve_render_string_fields_exit_canary_runs",
-        test_source_path: "tests/canary_suite/domains_control_and_structures.rs",
-    },
-    DedicatedExactNativeRootedCanary {
-        canary: "dungeon/runtime_direct_boolean_conjunction_exit",
-        test_name: "runtime_direct_boolean_conjunction_exit_canary_runs",
-        test_source_path: "tests/canary_suite/domains_control_and_structures.rs",
-    },
-    DedicatedExactNativeRootedCanary {
-        canary: "dungeon/runtime_enemy_clear_reentry_exit",
-        test_name: "runtime_enemy_clear_reentry_exit_canary_runs",
-        test_source_path: "tests/canary_suite/domains_control_and_structures.rs",
-    },
-    DedicatedExactNativeRootedCanary {
-        canary: "dungeon/runtime_full_level_wrapper_lookup_string_field_exit",
-        test_name: "runtime_full_level_wrapper_lookup_string_field_exit_canary_runs",
-        test_source_path: "tests/canary_suite/domains_control_and_structures.rs",
-    },
-    DedicatedExactNativeRootedCanary {
-        canary: "dungeon/runtime_guarded_inline_leaf_arm_skip_exit",
-        test_name: "runtime_guarded_inline_leaf_arm_skip_exit_canary_runs",
-        test_source_path: "tests/canary_suite/abi_runtime_values_and_strings.rs",
-    },
-    DedicatedExactNativeRootedCanary {
-        canary: "dungeon/runtime_multi_room_reentry_exit",
-        test_name: "runtime_multi_room_reentry_exit_canary_runs",
-        test_source_path: "tests/canary_suite/domains_control_and_structures.rs",
-    },
-    DedicatedExactNativeRootedCanary {
-        canary: "dungeon/runtime_ordered_room_dispatch_exit",
-        test_name: "runtime_ordered_room_dispatch_exit_canary_runs",
-        test_source_path: "tests/canary_suite/abi_runtime_values_and_strings.rs",
-    },
-    DedicatedExactNativeRootedCanary {
-        canary: "dungeon/runtime_ordered_room_dispatch_after_call_exit",
-        test_name: "runtime_ordered_room_dispatch_after_call_exit_canary_runs",
-        test_source_path: "tests/canary_suite/abi_runtime_values_and_strings.rs",
-    },
-    DedicatedExactNativeRootedCanary {
-        canary: "dungeon/runtime_ordered_room_dispatch_game_shape_exit",
-        test_name: "runtime_ordered_room_dispatch_game_shape_exit_canary_runs",
-        test_source_path: "tests/canary_suite/abi_runtime_values_and_strings.rs",
-    },
-    DedicatedExactNativeRootedCanary {
-        canary: "dungeon/runtime_ordered_room_dispatch_large_machine_exit",
-        test_name: "runtime_ordered_room_dispatch_large_machine_exit_canary_runs",
-        test_source_path: "tests/canary_suite/abi_runtime_values_and_strings.rs",
-    },
-];
-
-fn has_dedicated_exact_native_coverage(canary: &str) -> bool {
-    DEDICATED_EXACT_NATIVE_ROOTED_CANARIES
-        .iter()
-        .any(|coverage| coverage.canary == canary)
-}
 
 // These deployable native probes assert target-specific provider semantics.
 // Cross-compile their exact authored root on every development host instead

@@ -1470,10 +1470,37 @@ fn pass_canaries_compile() {
         .filter(selected)
         .collect::<Vec<_>>();
     selected_count += selected_active.len();
+    let coverage_started = std::time::Instant::now();
+    let exact_native_coverage = exact_native_coverage::ExactNativeCanaryCoverageIndex::discover()
+        .unwrap_or_else(|diagnostic| {
+            panic!("cannot audit dedicated exact-native canary coverage: {diagnostic}")
+        });
+    let coverage_elapsed = coverage_started.elapsed();
+    let elided_count = selected_active
+        .iter()
+        .filter(|canary_name| {
+            ROOTED_BACKEND_PASS_CANARIES.contains(canary_name)
+                && exact_native_coverage.unique_owner(canary_name).is_some()
+        })
+        .count();
     let active = selected_active
         .into_iter()
-        .filter(|canary_name| !has_dedicated_exact_native_coverage(canary_name))
+        .filter(|canary_name| {
+            !ROOTED_BACKEND_PASS_CANARIES.contains(canary_name)
+                || exact_native_coverage.unique_owner(canary_name).is_none()
+        })
         .collect::<Vec<_>>();
+    if std::env::var_os("OMEGA_PASS_CANARY_REPORT_COUNTS").is_some() {
+        eprintln!(
+            "pass-canary coverage: selected={} exact-native-elided={} umbrella-compiled={} source-files={} source-bytes={} scan-micros={}",
+            active.len() + elided_count,
+            elided_count,
+            active.len(),
+            exact_native_coverage.source_file_count(),
+            exact_native_coverage.source_byte_count(),
+            coverage_elapsed.as_micros(),
+        );
+    }
     failures.extend(
         run_bounded_canary_jobs(&active, |canary_name| {
             let canary = pass_canary(canary_name);
@@ -1511,84 +1538,69 @@ fn pass_canaries_compile() {
 }
 
 #[test]
-fn dedicated_exact_native_rooted_canary_registry_is_consistent() {
+fn discovered_exact_native_rooted_coverage_is_consistent() {
+    let started = std::time::Instant::now();
+    let coverage = exact_native_coverage::ExactNativeCanaryCoverageIndex::discover()
+        .expect("canary test sources should form one exact-native coverage index");
+    let elapsed = started.elapsed();
+    let rooted_active = ROOTED_BACKEND_PASS_CANARIES
+        .iter()
+        .copied()
+        .filter(|canary| ACTIVE_PASS_CANARIES.contains(canary))
+        .collect::<Vec<_>>();
+    let uniquely_covered = rooted_active
+        .iter()
+        .filter(|canary| coverage.unique_owner(canary).is_some())
+        .count();
     assert_eq!(
-        DEDICATED_EXACT_NATIVE_ROOTED_CANARIES.len(),
-        20,
-        "the bounded duplicate-elision cohort must change deliberately"
+        uniquely_covered,
+        exact_native_coverage::EXPECTED_UNIQUE_ROOTED_ACTIVE_COVERAGE,
+        "the discovered duplicate-elision cohort must change deliberately after auditing every added or removed owner"
     );
-
-    for (index, coverage) in DEDICATED_EXACT_NATIVE_ROOTED_CANARIES.iter().enumerate() {
-        assert!(
-            !DEDICATED_EXACT_NATIVE_ROOTED_CANARIES[..index]
-                .iter()
-                .any(|earlier| earlier.canary == coverage.canary),
-            "duplicate dedicated exact-native coverage row for {}",
-            coverage.canary
-        );
-        assert!(
-            ROOTED_BACKEND_PASS_CANARIES.contains(&coverage.canary),
-            "{} lost its authored-root backend classification",
-            coverage.canary
-        );
-        assert!(
-            ACTIVE_PASS_CANARIES.contains(&coverage.canary),
-            "{} is no longer an active pass canary",
-            coverage.canary
-        );
-
-        let fixture = pass_canary(coverage.canary);
+    assert!(coverage.source_file_count() >= 25);
+    assert!(coverage.source_byte_count() > 1_000_000);
+    assert!(coverage.test_body_count() > coverage.qualifying_test_count());
+    for canary in rooted_active
+        .iter()
+        .filter(|canary| coverage.unique_owner(canary).is_some())
+    {
+        let fixture = pass_canary(canary);
         assert!(
             fixture.join("main.omg").is_file() && fixture.join("build.omg").is_file(),
             "{} must retain both its source and authored root",
-            coverage.canary
-        );
-
-        let test_source = fs::read_to_string(
-            Path::new(env!("CARGO_MANIFEST_DIR")).join(coverage.test_source_path),
-        )
-        .unwrap_or_else(|error| {
-            panic!(
-                "cannot read dedicated test source {} for {}: {error}",
-                coverage.test_source_path, coverage.canary
-            )
-        });
-        let test_declaration = format!("fn {}()", coverage.test_name);
-        let declarations = test_source
-            .match_indices(&test_declaration)
-            .collect::<Vec<_>>();
-        let [(test_start, _)] = declarations.as_slice() else {
-            panic!(
-                "{} must name one exact dedicated test declaration `{test_declaration}`",
-                coverage.canary
-            );
-        };
-        let declaration_prefix = &test_source[..*test_start];
-        let test_attributes_start = declaration_prefix.rfind("#[test]").unwrap_or_else(|| {
-            panic!(
-                "{} dedicated native owner `{}` lost its test attribute",
-                coverage.canary, coverage.test_name
-            )
-        });
-        let test_attributes = &declaration_prefix[test_attributes_start..];
-        assert!(
-            !test_attributes.contains("#[ignore") && !test_attributes.contains("\nfn "),
-            "{} dedicated native owner `{}` must remain an enabled test",
-            coverage.canary,
-            coverage.test_name
-        );
-        let test_tail = &test_source[*test_start..];
-        let test_end = test_tail.find("\n#[test]").unwrap_or(test_tail.len());
-        let test_body = &test_tail[..test_end];
-        assert!(
-            test_body.contains(&format!("pass_canary(\"{}\")", coverage.canary))
-                && test_body.contains("compile_rooted_canary_for_native_host")
-                && test_body.contains("Command::new")
-                && test_body.contains("output.status.code()"),
-            "{} dedicated test must retain authored-root native compile, execution, and exact status coverage",
-            coverage.canary
+            canary
         );
     }
+    let positive = coverage
+        .unique_owner("arithmetic/runtime_unsigned_modulo_call_argument_exit")
+        .expect("known exact-native owner should be discovered");
+    assert_eq!(positive.expected_status, 70);
+    assert_eq!(
+        positive.test_name,
+        "runtime_unsigned_modulo_call_argument_exit_canary_runs"
+    );
+    assert!(
+        positive
+            .source_path
+            .ends_with("canary_suite/arithmetic_and_data.rs")
+    );
+    assert_eq!(
+        coverage.owner_count("ownership/linear_state_call_handoff"),
+        0
+    );
+    assert_eq!(
+        coverage.owner_count("collections/record_array_field_access"),
+        0
+    );
+    eprintln!(
+        "exact-native coverage index: files={} bytes={} test-bodies={} qualifying-tests={} unique-rooted-active={} scan-micros={}",
+        coverage.source_file_count(),
+        coverage.source_byte_count(),
+        coverage.test_body_count(),
+        coverage.qualifying_test_count(),
+        uniquely_covered,
+        elapsed.as_micros(),
+    );
 }
 
 #[test]
