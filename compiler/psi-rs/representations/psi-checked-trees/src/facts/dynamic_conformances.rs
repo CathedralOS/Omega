@@ -19,6 +19,8 @@ pub struct DynamicConformanceSelectionFact {
     pub machine: SymbolHandle,
     pub state: SymbolHandle,
     pub statement_index: usize,
+    /// Exact local/parameter/owned-data/field declaration at the leaf of
+    /// `source_path`; never a synthesized member-accessor identity.
     pub source_symbol: SymbolHandle,
     pub source_name: Identifier,
     pub source_path: Vec<Identifier>,
