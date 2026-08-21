@@ -127,7 +127,16 @@ Remaining:
   and after residuals only by borrow, and fails closed while returning the
   intact carrier if asked for two whole roots. This is not an outbound source
   argument: it cannot move residual authority during the live receiver loan or
-  make two separated remainders satisfy one `Extent in Granted` formal.
+  make two separated remainders satisfy one `Extent in Granted` formal. The
+  receiver-free whole-root form can now bind to the exact emitted bridge's
+  retained free continuation ABI. That sealed carrier owns both `Extent`
+  authorities and retains ordered Image/InitialStorage declaration indices,
+  call indices, nominal identities, shapes, and address-free placements;
+  bridge-binding, target-slot, source-continuation, callable, role/order,
+  type/shape/placement, receiver, and Unit-result drift reject while returning
+  the intact authority. It does not materialize operand bytes, populate
+  registers or stack, emit the call edge, or claim native execution. Attached
+  and zero-sized-receiver forms remain deliberately excluded.
   Production builds therefore still lack a source-compatible attached-root
   value/authority carrier (or separate hidden supply), generated wrapper body,
   and source-function inbound realization; defining that disposition at the

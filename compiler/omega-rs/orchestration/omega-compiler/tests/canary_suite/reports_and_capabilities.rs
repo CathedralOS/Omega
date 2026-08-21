@@ -112,6 +112,60 @@ fn disposable_native_canary_helper_emits_only_the_primary_image() {
     let _ = fs::remove_dir_all(build_dir);
 }
 
+fn artifact_file_footprint(directory: &Path) -> (usize, u64) {
+    fs::read_dir(directory)
+        .expect("read artifact footprint directory")
+        .map(|entry| entry.expect("read artifact footprint entry"))
+        .fold((0, 0), |(count, bytes), entry| {
+            let metadata = entry.metadata().expect("read artifact footprint metadata");
+            if metadata.is_dir() {
+                let (child_count, child_bytes) = artifact_file_footprint(&entry.path());
+                (count + child_count, bytes + child_bytes)
+            } else {
+                (count + 1, bytes + metadata.len())
+            }
+        })
+}
+
+#[test]
+fn rooted_native_helpers_separate_disposable_and_auxiliary_artifacts() {
+    let canary = pass_canary("ownership/linear_transfer_and_consume");
+    let scratch = unique_no_output_build_dir();
+    let output_only = scratch.join("output-only");
+    let full = scratch.join("full");
+
+    compile_rooted_canary_for_native_host(&canary, output_only.clone())
+        .expect("ordinary rooted native helper should compile");
+    compile_rooted_canary_for_native_host_with_auxiliary_artifacts(&canary, full.clone())
+        .expect("explicit rooted report helper should compile");
+
+    assert_native_exit_code(
+        &output_only,
+        0,
+        "output-only rooted linear transfer and consume canary",
+    );
+
+    assert!(output_only.join(executable_name()).is_file());
+    assert_native_exit_code(&output_only, 0, "output-only rooted helper canary");
+    assert!(!output_only.join("backend_report.txt").exists());
+    assert!(full.join(executable_name()).is_file());
+    assert!(full.join("backend_report.txt").is_file());
+    let output_only_footprint = artifact_file_footprint(&output_only);
+    let full_footprint = artifact_file_footprint(&full);
+    assert_eq!(
+        output_only_footprint.0, 1,
+        "ordinary rooted native builds must retain only the primary image"
+    );
+    assert!(full_footprint.0 > output_only_footprint.0);
+    assert!(full_footprint.1 > output_only_footprint.1);
+    eprintln!(
+        "rooted native artifact footprint: full={} files/{} bytes output-only={} files/{} bytes",
+        full_footprint.0, full_footprint.1, output_only_footprint.0, output_only_footprint.1,
+    );
+
+    let _ = fs::remove_dir_all(scratch);
+}
+
 #[test]
 fn boundary_trait_canary_reports_capability_use() {
     let canary = pass_canary("traits/boundary_trait_effects_host_call");
@@ -379,7 +433,7 @@ fn backend_report_renders_ownership_summary_events() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    compile_rooted_canary_for_native_host_with_auxiliary_artifacts(&canary, build_dir.clone())
         .expect("linear transfer and consume canary should compile from its authored root");
     assert_native_exit_code(&build_dir, 0, "linear transfer and consume canary");
 
@@ -457,7 +511,7 @@ fn backend_report_renders_transparent_record_claim_paths() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    compile_rooted_canary_for_native_host_with_auxiliary_artifacts(&canary, build_dir.clone())
         .expect("transparent record frontier canary should compile from its authored root");
     assert_native_exit_code(&build_dir, 0, "transparent record frontier canary");
 
@@ -516,7 +570,7 @@ fn backend_report_realizes_state_call_entry_at_call_site() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    compile_rooted_canary_for_native_host_with_auxiliary_artifacts(&canary, build_dir.clone())
         .expect("linear state-call handoff canary should compile from its authored root");
     assert_native_exit_code(&build_dir, 0, "linear state-call handoff canary");
 
@@ -558,9 +612,10 @@ fn backend_report_separates_transition_and_nested_call_ordinals() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
-        "linear nested-call transition handoff canary should compile from its authored root",
-    );
+    compile_rooted_canary_for_native_host_with_auxiliary_artifacts(&canary, build_dir.clone())
+        .expect(
+            "linear nested-call transition handoff canary should compile from its authored root",
+        );
     assert_native_exit_code(
         &build_dir,
         0,
@@ -620,9 +675,10 @@ fn backend_report_separates_repeated_transition_call_ordinals() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
-        "repeated-target linear transition-call canary should compile from its authored root",
-    );
+    compile_rooted_canary_for_native_host_with_auxiliary_artifacts(&canary, build_dir.clone())
+        .expect(
+            "repeated-target linear transition-call canary should compile from its authored root",
+        );
     assert_native_exit_code(
         &build_dir,
         0,
@@ -753,7 +809,7 @@ fn linear_obligation_survives_dispatched_call_continuation() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    compile_rooted_canary_for_native_host_with_auxiliary_artifacts(&canary, build_dir.clone())
         .expect("linear call-continuation canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
@@ -826,7 +882,7 @@ fn backend_report_preserves_fresh_state_call_result_origin() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    compile_rooted_canary_for_native_host_with_auxiliary_artifacts(&canary, build_dir.clone())
         .expect("fresh linear state-call result canary should compile from its authored root");
     assert_native_exit_code(&build_dir, 0, "fresh linear state-call result canary");
 
@@ -868,9 +924,10 @@ fn backend_report_preserves_path_aligned_multi_claim_state_result() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
-        "path-aligned multi-claim state result canary should compile from its authored root",
-    );
+    compile_rooted_canary_for_native_host_with_auxiliary_artifacts(&canary, build_dir.clone())
+        .expect(
+            "path-aligned multi-claim state result canary should compile from its authored root",
+        );
     assert_native_exit_code(
         &build_dir,
         0,
@@ -909,7 +966,7 @@ fn backend_report_preserves_direct_aggregate_state_result_mapping() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    compile_rooted_canary_for_native_host_with_auxiliary_artifacts(&canary, build_dir.clone())
         .expect("direct aggregate state result canary should compile from its authored root");
     assert_native_exit_code(&build_dir, 0, "direct aggregate state result canary");
 

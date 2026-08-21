@@ -3,14 +3,15 @@ use omega_calling_conventions::{
     Preemption, ValueShape,
 };
 use omega_compiler::{
-    PROGRAM_STORAGE_INSTALLATION_ARTIFACT, ProgramStorageEntryBridgeError,
+    CompileOptions, PROGRAM_STORAGE_INSTALLATION_ARTIFACT, ProgramStorageEntryBridgeError,
     ProgramStorageEntryInitialStorageAuthorityKind, ProgramStorageInstallationHandoffError,
     ProgramStorageRootInput, SelectedExternalRootProviderPlan, SelectedProgramStorageEntryPlan,
     bind_emitted_program_storage_entry_native_bridge, bind_program_storage_entry_plan,
-    compile_to_checked, evaluate_calling_policy_plan,
-    install_program_storage_entry_provider_invocation, install_program_storage_entry_roots,
-    program_storage_installation_record_json, selected_external_root_entry_fact_bindings,
-    selected_external_root_provider_plan, selected_external_root_provider_plan_id,
+    bind_program_storage_entry_whole_root_arguments, compile, compile_to_checked,
+    evaluate_calling_policy_plan, install_program_storage_entry_provider_invocation,
+    install_program_storage_entry_roots, program_storage_installation_record_json,
+    selected_external_root_entry_fact_bindings, selected_external_root_provider_plan,
+    selected_external_root_provider_plan_id,
 };
 use omega_instruction_selection::derive_boundary_entry_storage;
 use psi_extents::{
@@ -1451,7 +1452,136 @@ fn program_storage_entry_publishes_both_core_owned_root_positions() {
         ),
         (0x8000, 0x2000)
     );
+    let lower_level_bridge = emitted_program_storage_bridge(free_roots.binding().clone(), None);
+    let missing_source =
+        bind_program_storage_entry_whole_root_arguments(free_roots, &lower_level_bridge)
+            .expect_err("a physical-plan-only bridge has no selected source ABI");
+    assert!(
+        missing_source
+            .diagnostic()
+            .0
+            .contains("sealed selected source")
+    );
+    let free_roots = missing_source.into_authority();
+    assert_eq!(free_roots.initial_storage().length(), 0x2000);
     let _ = fs::remove_dir_all(main_path.parent().expect("temporary policy directory"));
+}
+
+#[test]
+fn receiver_free_whole_root_authority_binds_exact_continuation_abi() {
+    let directory = std::env::temp_dir().join(format!(
+        "omega-free-program-storage-arguments-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&directory);
+    fs::create_dir_all(&directory).expect("create free program-storage project");
+    let source = include_str!(
+        "../../../../../canaries/pass/build/uefi_program_entry_storage_roots/main.omg"
+    );
+    let prefix = source
+        .split_once("data Boot {")
+        .expect("UEFI canary retains its Boot declaration")
+        .0;
+    fs::write(
+        directory.join("main.omg"),
+        format!(
+            r#"{prefix}data Boot {{ }}
+
+machine Boot::launch(
+    image: Extent in Granted,
+    initial_storage: Extent in Granted
+) {{
+    transition {{
+        _ -> retain(image as Extent, initial_storage as Extent)
+    }}
+
+    state retain(image: Extent, initial_storage: Extent) {{
+        transition {{
+            _ -> retain(image, initial_storage)
+        }}
+    }}
+}}
+"#
+        ),
+    )
+    .expect("write receiver-free source");
+    fs::write(
+        directory.join("build.omg"),
+        r#"target uefi_x64 {
+}
+
+machine build(builder: &mut Build) {
+    builder.subsystem = Subsystem::EfiApplication;
+    builder.freestanding = true;
+    builder.roots.bind(uefi_x86_64::ProgramEntry, Boot::launch);
+}
+"#,
+    )
+    .expect("write receiver-free build root");
+    let build_dir = directory.join("build");
+    let report = compile(CompileOptions {
+        root_path: directory.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: Some("uefi_x64".into()),
+        write_output: true,
+    })
+    .expect("receiver-free UEFI entry should retain its source ABI");
+    let bridge = report
+        .program_storage_entry_bridge
+        .expect("receiver-free UEFI entry bridge");
+    assert!(matches!(
+        bridge.continuation_abi().expect("source ABI").receiver(),
+        omega_compiler::ProgramStorageEntryContinuationReceiverAbiPlan::Free
+    ));
+    let installed = install_program_storage_entry_roots(
+        &build_dir,
+        bridge.binding().clone(),
+        compiler_root_input(701, 0x1000, 0x800),
+        compiler_root_input(702, 0x8000, 0x2000),
+    )
+    .expect("install exact receiver-free roots")
+    .into_roots()
+    .expect("receiver-free roots require no activation");
+    let authority = installed
+        .into_root_authority_disposition()
+        .expect("exact whole-root disposition")
+        .try_into_receiver_free_whole_roots()
+        .expect("receiver-free whole roots");
+    let carrier = bind_program_storage_entry_whole_root_arguments(authority, &bridge)
+        .expect("exact authority/ABI join");
+    let [image, initial_storage] = carrier.arguments();
+    assert_eq!(
+        image.role(),
+        omega_compiler::ProgramStorageEntryRootRole::Image
+    );
+    assert_eq!(image.visible_parameter_index(), 0);
+    assert_eq!(image.call_parameter_index(), 0);
+    assert_eq!(
+        initial_storage.role(),
+        omega_compiler::ProgramStorageEntryRootRole::InitialStorage
+    );
+    assert_eq!(initial_storage.visible_parameter_index(), 1);
+    assert_eq!(initial_storage.call_parameter_index(), 1);
+    assert_eq!(
+        image.placement(),
+        &bridge.continuation_abi().unwrap().call().parameters[0]
+    );
+    assert_eq!(
+        initial_storage.placement(),
+        &bridge.continuation_abi().unwrap().call().parameters[1]
+    );
+    assert_eq!(
+        (
+            carrier
+                .root_authority(omega_compiler::ProgramStorageEntryRootRole::Image)
+                .base(),
+            carrier
+                .root_authority(omega_compiler::ProgramStorageEntryRootRole::InitialStorage)
+                .length()
+        ),
+        (0x1000, 0x2000)
+    );
+    let _ = fs::remove_dir_all(directory);
 }
 
 fn root_input_for_provider_invocation(

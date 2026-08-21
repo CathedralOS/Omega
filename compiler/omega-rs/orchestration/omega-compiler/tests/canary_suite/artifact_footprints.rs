@@ -1537,7 +1537,11 @@ fn compiler_body_frame_base_indexed_text_assembly_footprints_reach_aarch64_artif
     ));
     let _ = fs::remove_dir_all(&scratch);
     let output = scratch.join("out");
-    compile_rooted_canary_for_target(&canary, output.clone(), "linux_arm64")
+    compile_rooted_canary_for_target_with_auxiliary_artifacts(
+        &canary,
+        output.clone(),
+        "linux_arm64",
+    )
     .unwrap_or_else(|diagnostics| {
         panic!(
             "compiler-body frame-base-indexed text assembly should compile for linux_arm64: {diagnostics:?}"
@@ -1614,13 +1618,12 @@ fn compiler_body_text_stored_append_footprints_reach_artifacts() {
         ));
         let _ = fs::remove_dir_all(&scratch);
         let output = scratch.join("out");
-        compile_rooted_canary_for_target(&canary, output.clone(), target).unwrap_or_else(
-            |diagnostics| {
+        compile_rooted_canary_for_target_with_auxiliary_artifacts(&canary, output.clone(), target)
+            .unwrap_or_else(|diagnostics| {
                 panic!(
                     "compiler-body stored-text appends should compile for {target}: {diagnostics:?}"
                 )
-            },
-        );
+            });
         let footprints = fs::read_to_string(output.join("08_boundary_footprints.json"))
             .expect("compiler-body stored-text append evidence should be written");
         assert!(
@@ -1763,7 +1766,12 @@ fn compiler_body_bounded_buffer_literal_append_footprints_reach_artifacts() {
         ));
         let _ = fs::remove_dir_all(&scratch);
         let output = scratch.join("out");
-        compile_rooted_canary_for_target(&canary, output.clone(), target).unwrap_or_else(
+        compile_rooted_canary_for_target_with_auxiliary_artifacts(
+            &canary,
+            output.clone(),
+            target,
+        )
+        .unwrap_or_else(
             |diagnostics| {
                 panic!(
                     "compiler-body bounded-buffer literal appends should compile for {target}: {diagnostics:?}"
@@ -1795,11 +1803,10 @@ fn compiler_body_string_write_footprints_reach_x86_and_aarch64_artifacts() {
         ));
         let _ = fs::remove_dir_all(&scratch);
         let output = scratch.join("out");
-        compile_rooted_canary_for_target(&canary, output.clone(), target).unwrap_or_else(
-            |diagnostics| {
+        compile_rooted_canary_for_target_with_auxiliary_artifacts(&canary, output.clone(), target)
+            .unwrap_or_else(|diagnostics| {
                 panic!("compiler-body string writes should compile for {target}: {diagnostics:?}")
-            },
-        );
+            });
         let footprints = fs::read_to_string(output.join("08_boundary_footprints.json"))
             .expect("compiler-body string-write footprint evidence should be written");
         assert!(
@@ -2560,7 +2567,12 @@ fn compiler_body_bounded_buffer_write_footprints_reach_x86_and_aarch64_artifacts
         ));
         let _ = fs::remove_dir_all(&scratch);
         let output = scratch.join("out");
-        compile_rooted_canary_for_target(&canary, output.clone(), target).unwrap_or_else(
+        compile_rooted_canary_for_target_with_auxiliary_artifacts(
+            &canary,
+            output.clone(),
+            target,
+        )
+        .unwrap_or_else(
             |diagnostics| {
                 panic!(
                     "compiler-body bounded-buffer writes should compile for {target}: {diagnostics:?}"
@@ -3040,11 +3052,10 @@ fn runtime_value_guard_footprints_reach_x86_and_aarch64_artifacts() {
         ));
         let _ = fs::remove_dir_all(&scratch);
         let output = scratch.join("out");
-        compile_rooted_canary_for_target(&canary, output.clone(), target).unwrap_or_else(
-            |diagnostics| {
+        compile_rooted_canary_for_target_with_auxiliary_artifacts(&canary, output.clone(), target)
+            .unwrap_or_else(|diagnostics| {
                 panic!("runtime-value guard should compile for {target}: {diagnostics:?}")
-            },
-        );
+            });
         let abstract_operations = fs::read_to_string(output.join("08_abstract_operations.html"))
             .expect("runtime-value guard abstract operations should be written");
         let footprints = fs::read_to_string(output.join("08_boundary_footprints.json"))
