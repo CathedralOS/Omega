@@ -1,4 +1,4 @@
-//! Focused certificates for the canonical fixed-integer nonzero-divisor goal.
+//! Focused certificates for canonical fixed-integer order propositions.
 //!
 //! This producer deliberately consumes only machine requirements and facts
 //! reconstructed before the operation site. It never sees the operation's own
@@ -20,27 +20,69 @@ pub(super) fn prove_nonzero_divisor(
     assumptions: &[Proposition],
     semantic_axioms: &[Proposition],
 ) -> Option<ProofNode> {
-    let proof = match goal {
-        Proposition::LessOrEqual(_, _) => prove_integer_bound(goal, assumptions, semantic_axioms)?,
-        Proposition::Disjunction(disjuncts) if disjuncts.len() == 2 => {
+    prove_canonical_integer_proposition(context, goal, assumptions, semantic_axioms)
+}
+
+/// Build the recursive certificate shape shared by canonical integer goals.
+///
+/// This is deliberately not an affine or interval analyzer. It composes exact
+/// prior citations and the small checked order rules; producers for richer
+/// families must still materialize proofs of the atomic leaves.
+pub(super) fn prove_canonical_integer_proposition(
+    context: &PropositionContext,
+    goal: &Proposition,
+    assumptions: &[Proposition],
+    semantic_axioms: &[Proposition],
+) -> Option<ProofNode> {
+    let proof = build_canonical_integer_proposition(goal, assumptions, semantic_axioms)?;
+    check_certificate(context, goal, assumptions, semantic_axioms, &proof)
+        .is_ok()
+        .then_some(proof)
+}
+
+fn build_canonical_integer_proposition(
+    goal: &Proposition,
+    assumptions: &[Proposition],
+    semantic_axioms: &[Proposition],
+) -> Option<ProofNode> {
+    for (citation, fact) in cited_facts(assumptions, semantic_axioms) {
+        if fact == goal {
+            return Some(citation.proof(fact));
+        }
+    }
+    match goal {
+        Proposition::Truth => Some(ProofNode {
+            conclusion: Proposition::Truth,
+            rule: ProofRule::Primitive(PrimitiveJudgment::Truth),
+        }),
+        Proposition::LessOrEqual(_, _) => prove_integer_bound(goal, assumptions, semantic_axioms),
+        Proposition::Conjunction(conjuncts) => Some(ProofNode {
+            conclusion: goal.clone(),
+            rule: ProofRule::ConjunctionIntroduction(
+                conjuncts
+                    .iter()
+                    .map(|conjunct| {
+                        build_canonical_integer_proposition(conjunct, assumptions, semantic_axioms)
+                    })
+                    .collect::<Option<Vec<_>>>()?,
+            ),
+        }),
+        Proposition::Disjunction(disjuncts) => {
             let (index, disjunct) =
                 disjuncts.iter().enumerate().find_map(|(index, disjunct)| {
-                    prove_integer_bound(disjunct, assumptions, semantic_axioms)
+                    build_canonical_integer_proposition(disjunct, assumptions, semantic_axioms)
                         .map(|proof| (index, proof))
                 })?;
-            ProofNode {
+            Some(ProofNode {
                 conclusion: goal.clone(),
                 rule: ProofRule::DisjunctionIntroduction {
                     disjunct: Box::new(disjunct),
                     index,
                 },
-            }
+            })
         }
-        _ => return None,
-    };
-    check_certificate(context, goal, assumptions, semantic_axioms, &proof)
-        .is_ok()
-        .then_some(proof)
+        _ => None,
+    }
 }
 
 fn prove_integer_bound(
@@ -187,6 +229,14 @@ mod tests {
         ScalarTerm::integer(integer_type, IntegerValue::Signed(value)).expect("integer")
     }
 
+    fn two_value_context(integer_type: IntegerType) -> PropositionContext {
+        PropositionContext::from_value_types([
+            (ValueId::new(1).unwrap(), ScalarType::Integer(integer_type)),
+            (ValueId::new(2).unwrap(), ScalarType::Integer(integer_type)),
+        ])
+        .unwrap()
+    }
+
     #[test]
     fn signed_goal_prefers_negative_arm_and_tightens_requirement() {
         let integer_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
@@ -280,6 +330,76 @@ mod tests {
                 &[],
             )
             .is_none()
+        );
+    }
+
+    #[test]
+    fn exact_division_goal_composes_ordered_three_arm_and_joint_exception_proofs() {
+        let integer_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+        let dividend = value(1, integer_type);
+        let divisor = value(2, integer_type);
+        let negative_safe = Proposition::LessOrEqual(divisor.clone(), integer(integer_type, -2));
+        let positive_safe = Proposition::LessOrEqual(integer(integer_type, 1), divisor.clone());
+        let negative_one = Proposition::LessOrEqual(divisor.clone(), integer(integer_type, -1));
+        let dividend_safe = Proposition::LessOrEqual(integer(integer_type, -127), dividend.clone());
+        let goal = Proposition::Disjunction(vec![
+            negative_safe.clone(),
+            positive_safe,
+            Proposition::Conjunction(vec![negative_one.clone(), dividend_safe.clone()]),
+        ]);
+
+        let context = two_value_context(integer_type);
+        let negative = prove_canonical_integer_proposition(&context, &goal, &[negative_safe], &[])
+            .expect("first exact-division arm is cited");
+        assert!(matches!(
+            negative.rule,
+            ProofRule::DisjunctionIntroduction { index: 0, .. }
+        ));
+
+        let joint = prove_canonical_integer_proposition(
+            &context,
+            &goal,
+            &[negative_one, dividend_safe],
+            &[],
+        )
+        .expect("joint -1/dividend exception is composed");
+        let ProofRule::DisjunctionIntroduction { disjunct, index } = joint.rule else {
+            panic!("exact division uses disjunction introduction")
+        };
+        assert_eq!(index, 2);
+        assert!(matches!(
+            disjunct.rule,
+            ProofRule::ConjunctionIntroduction(ref conjuncts) if conjuncts.len() == 2
+        ));
+        assert!(prove_canonical_integer_proposition(&context, &goal, &[], &[]).is_none());
+    }
+
+    #[test]
+    fn i1_exact_division_goal_requires_both_joint_bounds() {
+        let integer_type = IntegerType::new(IntegerSign::Signed, 1).expect("i1");
+        let dividend = value(1, integer_type);
+        let divisor = value(2, integer_type);
+        let divisor_negative = Proposition::LessOrEqual(divisor, integer(integer_type, -1));
+        let dividend_nonnegative = Proposition::LessOrEqual(integer(integer_type, 0), dividend);
+        let goal =
+            Proposition::Conjunction(vec![divisor_negative.clone(), dividend_nonnegative.clone()]);
+        assert!(
+            prove_canonical_integer_proposition(
+                &two_value_context(integer_type),
+                &goal,
+                std::slice::from_ref(&divisor_negative),
+                &[],
+            )
+            .is_none()
+        );
+        assert!(
+            prove_canonical_integer_proposition(
+                &two_value_context(integer_type),
+                &goal,
+                &[divisor_negative, dividend_nonnegative],
+                &[],
+            )
+            .is_some()
         );
     }
 }

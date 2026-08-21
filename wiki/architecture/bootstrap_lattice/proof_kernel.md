@@ -341,6 +341,12 @@ projection, not a reducer result: address carriers and mismatched operand types
 reject. Exact divide/remainder reconstruction remains on its trusted reducer
 until an untrusted producer can materialize kernel-checkable certificates for
 the accepted affine/correlated families without importing operation evidence.
+The producer-side common spine now recursively composes exact prior citations,
+integer-order leaves, conjunctions, and arbitrary ordered disjunctions and
+kernel-checks the result. The remaining work is to replace each trusted
+definition-chain, cast-sandwich, affine-join, and correlated forbidden-root
+analysis outcome with a normalized witness that proves those atomic leaves;
+the common compositor does not treat the reducer's proposition as a premise.
 
 The consolidated divide/remainder cross-cast rule admits a nonempty landed-
 literal exact-divide/remainder chain on either side of one partial fixed-native
