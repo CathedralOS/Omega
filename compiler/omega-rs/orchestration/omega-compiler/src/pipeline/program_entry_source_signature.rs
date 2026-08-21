@@ -36,6 +36,7 @@ pub struct ProgramEntrySourceVisibleParameterSignature {
     /// not a source formal index or an outbound ABI parameter index.
     visible_parameter_index: usize,
     normalized_type_identity: String,
+    value_shape: omega_calling_conventions::ValueShape,
     is_const: bool,
     is_mutable: bool,
 }
@@ -51,6 +52,12 @@ impl ProgramEntrySourceVisibleParameterSignature {
 
     pub fn normalized_type_identity(&self) -> &str {
         &self.normalized_type_identity
+    }
+
+    /// Exact address-free shape derived from this typed source declaration,
+    /// independently of the physical arrival calling plan.
+    pub const fn value_shape(&self) -> omega_calling_conventions::ValueShape {
+        self.value_shape
     }
 
     pub const fn is_const(&self) -> bool {
@@ -187,6 +194,7 @@ impl SelectedProgramEntrySourceSignature {
                     role: ProgramStorageEntryRootRole::Image,
                     visible_parameter_index: 0,
                     normalized_type_identity: image,
+                    value_shape: _,
                     is_const: false,
                     is_mutable: false,
                 },
@@ -194,6 +202,7 @@ impl SelectedProgramEntrySourceSignature {
                     role: ProgramStorageEntryRootRole::InitialStorage,
                     visible_parameter_index: 1,
                     normalized_type_identity: initial_storage,
+                    value_shape: _,
                     is_const: false,
                     is_mutable: false,
                 }
@@ -224,6 +233,9 @@ impl SelectedProgramEntrySourceSignature {
             .is_some_and(str::is_empty)
             || self.visible_parameters.iter().any(|parameter| {
                 parameter.normalized_type_identity.is_empty()
+                    || parameter.value_shape.byte_size == 0
+                    || parameter.value_shape.alignment == 0
+                    || !parameter.value_shape.alignment.is_power_of_two()
                     || parameter.is_const
                     || parameter.is_mutable
             })
@@ -239,6 +251,7 @@ impl SelectedProgramEntrySourceSignature {
         role: ProgramStorageEntryRootRole,
         visible_parameter_index: usize,
         normalized_type_identity: String,
+        value_shape: omega_calling_conventions::ValueShape,
         is_const: bool,
         is_mutable: bool,
     ) -> ProgramEntrySourceVisibleParameterSignature {
@@ -246,6 +259,7 @@ impl SelectedProgramEntrySourceSignature {
             role,
             visible_parameter_index,
             normalized_type_identity,
+            value_shape,
             is_const,
             is_mutable,
         }
@@ -281,6 +295,7 @@ mod tests {
                     ProgramStorageEntryRootRole::Image,
                     0,
                     "Extent in Granted".into(),
+                    omega_calling_conventions::ValueShape::integer(16, 8),
                     false,
                     false,
                 ),
@@ -288,6 +303,7 @@ mod tests {
                     ProgramStorageEntryRootRole::InitialStorage,
                     1,
                     "Extent in Granted".into(),
+                    omega_calling_conventions::ValueShape::integer(16, 8),
                     false,
                     false,
                 ),

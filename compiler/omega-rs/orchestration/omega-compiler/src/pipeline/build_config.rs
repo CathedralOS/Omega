@@ -309,23 +309,36 @@ pub(crate) fn validate_selected_program_entry_shape(
     let visible_parameters = visible
         .iter()
         .enumerate()
-        .map(|(index, parameter)| {
+        .map(|(index, parameter)| -> Result<_, Diagnostic> {
             let role = match index {
                 0 => super::ProgramStorageEntryRootRole::Image,
                 1 => super::ProgramStorageEntryRootRole::InitialStorage,
                 _ => unreachable!("selected source shape validation fixed visible arity"),
             };
-            super::SelectedProgramEntrySourceSignature::visible_parameter(
+            let value_shape =
+                super::calling_policy_plans::selected_program_storage_source_value_shape(
+                    typed,
+                    selected.slot,
+                    parameter.type_reference,
+                )
+            .map_err(|diagnostic| {
+                Diagnostic::error(format!(
+                    "selected entry machine `{machine_name}` visible parameter {index} has no exact ABI value shape: {diagnostic}"
+                ))
+            })?;
+            Ok(super::SelectedProgramEntrySourceSignature::visible_parameter(
                 role,
                 index,
                 typed
                     .normalized_type_identity(parameter.type_reference)
                     .into_string(),
+                value_shape,
                 parameter.is_const,
                 parameter.is_mutable,
-            )
+            ))
         })
-        .collect();
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|diagnostic| vec![diagnostic])?;
     super::SelectedProgramEntrySourceSignature::from_checked_typed_entry(
         selected.slot,
         machine.symbol,

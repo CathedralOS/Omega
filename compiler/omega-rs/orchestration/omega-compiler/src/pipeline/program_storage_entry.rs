@@ -313,8 +313,8 @@ pub struct ProgramStorageEntryProviderInvocation {
 pub struct ProgramStorageEntryNativeBridgePlan {
     binding: ProgramStorageEntryPlanBinding,
     wrapper_transfer: super::program_storage_wrapper::ProgramStorageEntryWrapperTransferPlan,
-    continuation_staging:
-        super::program_storage_source_call::ProgramStorageEntryContinuationStagingPlan,
+    continuation_abi:
+        Option<super::program_storage_source_call::ProgramStorageEntryContinuationAbiPlan>,
     selected_provider: Option<super::provider_plans::SelectedExternalRootProviderPlan>,
     target_profile: String,
     entry_symbol: String,
@@ -349,13 +349,13 @@ impl ProgramStorageEntryNativeBridgePlan {
         &self.wrapper_transfer
     }
 
-    /// Non-authoritative receiver shape/placement staging for a future
-    /// generated wrapper. This carries no checked source signature, root
-    /// arguments, root authority, callee realization, or emitted call.
-    pub const fn continuation_staging(
+    /// Complete address-free internal ABI for compiler-generated bindings.
+    /// Lower-level physical-plan tests without a sealed source declaration
+    /// retain `None`. Neither form carries runtime root values or authority.
+    pub const fn continuation_abi(
         &self,
-    ) -> &super::program_storage_source_call::ProgramStorageEntryContinuationStagingPlan {
-        &self.continuation_staging
+    ) -> Option<&super::program_storage_source_call::ProgramStorageEntryContinuationAbiPlan> {
+        self.continuation_abi.as_ref()
     }
 
     pub const fn selected_provider(
@@ -468,19 +468,22 @@ impl ProgramStorageEntryNativeBridgePlan {
             .provider_invocation()
             .expect("physical bridge activation retains its selected provider invocation");
         let receiver_placement = activation.placement().clone();
-        let continuation_receiver = match self
-            .continuation_staging
-            .bind_activation_loan(&receiver_placement, activation.receiver().len())
-        {
-            Ok(receiver) => receiver,
-            Err(diagnostic) => {
-                return Err(ProgramStorageEntryBridgeError::ContinuationReceiverStaging(
-                    Box::new(ProgramStorageEntryContinuationReceiverStagingError {
-                        roots: activation.finish(),
-                        diagnostic,
-                    }),
-                ));
+        let continuation_receiver = if let Some(continuation_abi) = &self.continuation_abi {
+            match continuation_abi
+                .bind_activation_loan(&receiver_placement, activation.receiver().len())
+            {
+                Ok(receiver) => Some(receiver),
+                Err(diagnostic) => {
+                    return Err(ProgramStorageEntryBridgeError::ContinuationReceiverBinding(
+                        Box::new(ProgramStorageEntryContinuationReceiverBindingError {
+                            roots: activation.finish(),
+                            diagnostic,
+                        }),
+                    ));
+                }
             }
+        } else {
+            None
         };
         let output = execute(ProgramStorageEntrySourceContinuationHandoff {
             bridge: self,
@@ -505,7 +508,7 @@ pub struct ProgramStorageEntrySourceContinuationHandoff<'a> {
     provider_invocation: ProgramStorageEntryProviderInvocation,
     receiver_placement: ProgramEntryReceiverPlacementRecord,
     continuation_receiver:
-        super::program_storage_source_call::ProgramStorageEntryContinuationReceiverBinding,
+        Option<super::program_storage_source_call::ProgramStorageEntryContinuationReceiverBinding>,
     receiver: &'a mut [u8],
 }
 
@@ -538,19 +541,20 @@ impl ProgramStorageEntrySourceContinuationHandoff<'_> {
         self.bridge.source_signature()
     }
 
-    pub const fn continuation_staging(
+    pub const fn continuation_abi(
         &self,
-    ) -> &super::program_storage_source_call::ProgramStorageEntryContinuationStagingPlan {
-        self.bridge.continuation_staging()
+    ) -> Option<&super::program_storage_source_call::ProgramStorageEntryContinuationAbiPlan> {
+        self.bridge.continuation_abi()
     }
 
-    /// Exact mapped receiver loan bound to the non-authoritative placement
-    /// candidate. The live mutable loan remains held by this handoff. This is
-    /// not evidence for a complete source call or any root argument.
+    /// Exact mapped receiver loan bound to the retained outbound ABI. A
+    /// lower-level physical-plan-only handoff has no ABI binding. Neither form
+    /// carries a root value or detachable authority.
     pub const fn continuation_receiver(
         &self,
-    ) -> &super::program_storage_source_call::ProgramStorageEntryContinuationReceiverBinding {
-        &self.continuation_receiver
+    ) -> Option<&super::program_storage_source_call::ProgramStorageEntryContinuationReceiverBinding>
+    {
+        self.continuation_receiver.as_ref()
     }
 
     pub const fn continuation_key(&self) -> omega_control_flow::StateKey {
@@ -704,15 +708,20 @@ pub fn bind_emitted_program_storage_entry_native_bridge(
             &binding,
             continuation_key,
         )?;
-    let continuation_staging =
-        super::program_storage_source_call::plan_program_storage_entry_continuation_staging(
-            encoded_machine.target,
-            &wrapper_transfer,
-        )?;
+    let continuation_abi = binding
+        .source_signature()
+        .map(|source_signature| {
+            super::program_storage_source_call::plan_program_storage_entry_continuation_abi(
+                encoded_machine.target,
+                &wrapper_transfer,
+                source_signature,
+            )
+        })
+        .transpose()?;
     Ok(ProgramStorageEntryNativeBridgePlan {
         binding,
         wrapper_transfer,
-        continuation_staging,
+        continuation_abi,
         selected_provider,
         target_profile,
         entry_symbol: entry.name.clone(),
@@ -1153,14 +1162,14 @@ impl std::fmt::Display for ProgramEntryReceiverActivationError {
 impl std::error::Error for ProgramEntryReceiverActivationError {}
 
 /// A generated physical bridge failed while installing its selected provider,
-/// activating its mapped receiver, or checking the post-activation receiver
-/// staging candidate. Only the installation and activation variants retain
-/// the complete carrier needed to retry their respective transition.
+/// activating its mapped receiver, or binding the post-activation receiver to
+/// its retained outbound ABI. Only the installation and activation variants
+/// retain the complete carrier needed to retry their respective transition.
 #[derive(Debug)]
 pub enum ProgramStorageEntryBridgeError {
     Installation(ProgramStorageInstallationHandoffError),
     Activation(ProgramEntryReceiverActivationError),
-    ContinuationReceiverStaging(Box<ProgramStorageEntryContinuationReceiverStagingError>),
+    ContinuationReceiverBinding(Box<ProgramStorageEntryContinuationReceiverBindingError>),
 }
 
 impl std::fmt::Display for ProgramStorageEntryBridgeError {
@@ -1168,25 +1177,25 @@ impl std::fmt::Display for ProgramStorageEntryBridgeError {
         match self {
             Self::Installation(error) => std::fmt::Display::fmt(error, formatter),
             Self::Activation(error) => std::fmt::Display::fmt(error, formatter),
-            Self::ContinuationReceiverStaging(error) => std::fmt::Display::fmt(error, formatter),
+            Self::ContinuationReceiverBinding(error) => std::fmt::Display::fmt(error, formatter),
         }
     }
 }
 
 impl std::error::Error for ProgramStorageEntryBridgeError {}
 
-/// A post-activation receiver-staging rejection returns the already-partitioned
+/// A post-activation receiver-ABI rejection returns the already-partitioned
 /// installation: image, receiver reservation, and every conserved remainder.
 /// It does not reconstruct a whole `InitialStorage` argument and therefore is
 /// not, by itself, a retry carrier for a source call. The mutable mapping loan
 /// is released when dispatch returns this error.
 #[derive(Debug)]
-pub struct ProgramStorageEntryContinuationReceiverStagingError {
+pub struct ProgramStorageEntryContinuationReceiverBindingError {
     roots: InstalledProgramStorageRoots,
     diagnostic: ProgramStorageEntryDiagnostic,
 }
 
-impl ProgramStorageEntryContinuationReceiverStagingError {
+impl ProgramStorageEntryContinuationReceiverBindingError {
     pub const fn diagnostic(&self) -> &ProgramStorageEntryDiagnostic {
         &self.diagnostic
     }
@@ -1196,13 +1205,13 @@ impl ProgramStorageEntryContinuationReceiverStagingError {
     }
 }
 
-impl std::fmt::Display for ProgramStorageEntryContinuationReceiverStagingError {
+impl std::fmt::Display for ProgramStorageEntryContinuationReceiverBindingError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         std::fmt::Display::fmt(&self.diagnostic, formatter)
     }
 }
 
-impl std::error::Error for ProgramStorageEntryContinuationReceiverStagingError {}
+impl std::error::Error for ProgramStorageEntryContinuationReceiverBindingError {}
 
 /// Report-only identity and geometry of one installed program-storage root.
 /// This value carries no grant and cannot recreate an [`Extent`].

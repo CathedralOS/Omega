@@ -10,18 +10,12 @@ use super::*;
 #[test]
 fn runtime_atomic_load_store_exit_canary_runs() {
     let canary = pass_canary("atomics/runtime_atomic_load_store_exit");
-    let main_path = canary.join("main.omg");
     let build_dir =
         std::env::temp_dir().join(format!("omega-atomic-load-store-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("atomic load/store canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("atomic load/store canary should compile from its authored root");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -45,18 +39,12 @@ fn runtime_atomic_load_store_exit_canary_runs() {
 #[test]
 fn runtime_atomic_fetch_add_exit_canary_runs() {
     let canary = pass_canary("atomics/runtime_atomic_fetch_add_exit");
-    let main_path = canary.join("main.omg");
     let build_dir =
         std::env::temp_dir().join(format!("omega-atomic-fetch-add-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("atomic fetch_add canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("atomic fetch_add canary should compile from its authored root");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -78,18 +66,12 @@ fn runtime_atomic_fetch_add_exit_canary_runs() {
 #[test]
 fn runtime_atomic_fetch_sub_exit_canary_runs() {
     let canary = pass_canary("atomics/runtime_atomic_fetch_sub_exit");
-    let main_path = canary.join("main.omg");
     let build_dir =
         std::env::temp_dir().join(format!("omega-atomic-fetch-sub-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path.clone(),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("atomic fetch_sub canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("atomic fetch_sub canary should compile from its authored root");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -104,25 +86,11 @@ fn runtime_atomic_fetch_sub_exit_canary_runs() {
     );
     let _ = fs::remove_dir_all(&build_dir);
 
-    let arm_source = std::env::temp_dir().join(format!(
-        "omega-atomic-fetch-sub-arm-source-{}",
-        std::process::id()
-    ));
     let arm_dir =
         std::env::temp_dir().join(format!("omega-atomic-fetch-sub-arm-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&arm_source);
     let _ = fs::remove_dir_all(&arm_dir);
-    fs::create_dir_all(&arm_source).expect("create arm64 fetch_sub source directory");
-    fs::copy(&main_path, arm_source.join("main.omg")).expect("copy arm64 fetch_sub source");
-    fs::write(arm_source.join("build.omg"), "target linux_arm64 {\n}\n")
-        .expect("write arm64 fetch_sub target frontier");
-    compile(CompileOptions {
-        root_path: arm_source.join("main.omg"),
-        build_dir: Some(arm_dir.clone()),
-        target_name: Some("linux_arm64".to_owned()),
-        write_output: true,
-    })
-    .expect("atomic fetch_sub canary should cross-compile for linux_arm64");
+    compile_rooted_canary_for_target(&canary, arm_dir.clone(), "linux_arm64")
+        .expect("atomic fetch_sub canary should cross-compile from its authored root");
     let elf = fs::read(arm_dir.join("omega-program")).expect("arm64 fetch_sub ELF should exist");
     assert!(
         elf.windows(4).any(|word| word == [0xf1, 0x03, 0x11, 0x4b]),
@@ -132,25 +100,18 @@ fn runtime_atomic_fetch_sub_exit_canary_runs() {
         elf.windows(4).any(|word| word == [0x1a, 0x02, 0xf1, 0xb8]),
         "arm64 fetch_sub must contain LDADDAL w17,w26,[x16]"
     );
-    let _ = fs::remove_dir_all(&arm_source);
     let _ = fs::remove_dir_all(&arm_dir);
 }
 
 #[test]
 fn runtime_atomic_fetch_xor_exit_canary_runs() {
     let canary = pass_canary("atomics/runtime_atomic_fetch_xor_exit");
-    let main_path = canary.join("main.omg");
     let build_dir =
         std::env::temp_dir().join(format!("omega-atomic-fetch-xor-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path.clone(),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("atomic fetch_xor canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("atomic fetch_xor canary should compile from its authored root");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("atomic fetch_xor canary should run");
@@ -163,49 +124,28 @@ fn runtime_atomic_fetch_xor_exit_canary_runs() {
     );
     let _ = fs::remove_dir_all(&build_dir);
 
-    let arm_source = std::env::temp_dir().join(format!(
-        "omega-atomic-fetch-xor-arm-source-{}",
-        std::process::id()
-    ));
     let arm_dir =
         std::env::temp_dir().join(format!("omega-atomic-fetch-xor-arm-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&arm_source);
     let _ = fs::remove_dir_all(&arm_dir);
-    fs::create_dir_all(&arm_source).expect("create arm64 fetch_xor source directory");
-    fs::copy(&main_path, arm_source.join("main.omg")).expect("copy arm64 fetch_xor source");
-    fs::write(arm_source.join("build.omg"), "target linux_arm64 {\n}\n")
-        .expect("write arm64 fetch_xor target frontier");
-    compile(CompileOptions {
-        root_path: arm_source.join("main.omg"),
-        build_dir: Some(arm_dir.clone()),
-        target_name: Some("linux_arm64".to_owned()),
-        write_output: true,
-    })
-    .expect("atomic fetch_xor canary should cross-compile for linux_arm64");
+    compile_rooted_canary_for_target(&canary, arm_dir.clone(), "linux_arm64")
+        .expect("atomic fetch_xor canary should cross-compile from its authored root");
     let elf = fs::read(arm_dir.join("omega-program")).expect("arm64 fetch_xor ELF should exist");
     assert!(
         elf.windows(4).any(|word| word == [0x1a, 0x22, 0xf1, 0xb8]),
         "arm64 fetch_xor must contain LDEORAL w17,w26,[x16]"
     );
-    let _ = fs::remove_dir_all(&arm_source);
     let _ = fs::remove_dir_all(&arm_dir);
 }
 
 #[test]
 fn runtime_atomic_fetch_or_exit_canary_runs() {
     let canary = pass_canary("atomics/runtime_atomic_fetch_or_exit");
-    let main_path = canary.join("main.omg");
     let build_dir =
         std::env::temp_dir().join(format!("omega-atomic-fetch-or-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path.clone(),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("atomic fetch_or canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("atomic fetch_or canary should compile from its authored root");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("atomic fetch_or canary should run");
@@ -218,49 +158,28 @@ fn runtime_atomic_fetch_or_exit_canary_runs() {
     );
     let _ = fs::remove_dir_all(&build_dir);
 
-    let arm_source = std::env::temp_dir().join(format!(
-        "omega-atomic-fetch-or-arm-source-{}",
-        std::process::id()
-    ));
     let arm_dir =
         std::env::temp_dir().join(format!("omega-atomic-fetch-or-arm-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&arm_source);
     let _ = fs::remove_dir_all(&arm_dir);
-    fs::create_dir_all(&arm_source).expect("create arm64 fetch_or source directory");
-    fs::copy(&main_path, arm_source.join("main.omg")).expect("copy arm64 fetch_or source");
-    fs::write(arm_source.join("build.omg"), "target linux_arm64 {\n}\n")
-        .expect("write arm64 fetch_or target frontier");
-    compile(CompileOptions {
-        root_path: arm_source.join("main.omg"),
-        build_dir: Some(arm_dir.clone()),
-        target_name: Some("linux_arm64".to_owned()),
-        write_output: true,
-    })
-    .expect("atomic fetch_or canary should cross-compile for linux_arm64");
+    compile_rooted_canary_for_target(&canary, arm_dir.clone(), "linux_arm64")
+        .expect("atomic fetch_or canary should cross-compile from its authored root");
     let elf = fs::read(arm_dir.join("omega-program")).expect("arm64 fetch_or ELF should exist");
     assert!(
         elf.windows(4).any(|word| word == [0x1a, 0x32, 0xf1, 0xb8]),
         "arm64 fetch_or must contain LDSETAL w17,w26,[x16]"
     );
-    let _ = fs::remove_dir_all(&arm_source);
     let _ = fs::remove_dir_all(&arm_dir);
 }
 
 #[test]
 fn runtime_atomic_fetch_and_exit_canary_runs() {
     let canary = pass_canary("atomics/runtime_atomic_fetch_and_exit");
-    let main_path = canary.join("main.omg");
     let build_dir =
         std::env::temp_dir().join(format!("omega-atomic-fetch-and-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path.clone(),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("atomic fetch_and canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("atomic fetch_and canary should compile from its authored root");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("atomic fetch_and canary should run");
@@ -273,49 +192,28 @@ fn runtime_atomic_fetch_and_exit_canary_runs() {
     );
     let _ = fs::remove_dir_all(&build_dir);
 
-    let arm_source = std::env::temp_dir().join(format!(
-        "omega-atomic-fetch-and-arm-source-{}",
-        std::process::id()
-    ));
     let arm_dir =
         std::env::temp_dir().join(format!("omega-atomic-fetch-and-arm-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&arm_source);
     let _ = fs::remove_dir_all(&arm_dir);
-    fs::create_dir_all(&arm_source).expect("create arm64 fetch_and source directory");
-    fs::copy(&main_path, arm_source.join("main.omg")).expect("copy arm64 fetch_and source");
-    fs::write(arm_source.join("build.omg"), "target linux_arm64 {\n}\n")
-        .expect("write arm64 fetch_and target frontier");
-    compile(CompileOptions {
-        root_path: arm_source.join("main.omg"),
-        build_dir: Some(arm_dir.clone()),
-        target_name: Some("linux_arm64".to_owned()),
-        write_output: true,
-    })
-    .expect("atomic fetch_and canary should cross-compile for linux_arm64");
+    compile_rooted_canary_for_target(&canary, arm_dir.clone(), "linux_arm64")
+        .expect("atomic fetch_and canary should cross-compile from its authored root");
     let elf = fs::read(arm_dir.join("omega-program")).expect("arm64 fetch_and ELF should exist");
     assert!(
         elf.windows(8)
             .any(|window| window == [0xf1, 0x03, 0x31, 0x2a, 0x1a, 0x12, 0xf1, 0xb8]),
         "arm64 fetch_and must contain MVN w17,w17 then LDCLRAL w17,w26,[x16]"
     );
-    let _ = fs::remove_dir_all(&arm_source);
     let _ = fs::remove_dir_all(&arm_dir);
 }
 
 #[test]
 fn runtime_atomic_swap_exit_canary_runs() {
     let canary = pass_canary("atomics/runtime_atomic_swap_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-atomic-swap-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path.clone(),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("atomic swap canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("atomic swap canary should compile from its authored root");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -329,31 +227,16 @@ fn runtime_atomic_swap_exit_canary_runs() {
     );
     let _ = fs::remove_dir_all(&build_dir);
 
-    let arm_source = std::env::temp_dir().join(format!(
-        "omega-atomic-swap-arm-source-{}",
-        std::process::id()
-    ));
     let arm_dir =
         std::env::temp_dir().join(format!("omega-atomic-swap-arm-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&arm_source);
     let _ = fs::remove_dir_all(&arm_dir);
-    fs::create_dir_all(&arm_source).expect("create arm64 swap source directory");
-    fs::copy(&main_path, arm_source.join("main.omg")).expect("copy arm64 swap source");
-    fs::write(arm_source.join("build.omg"), "target linux_arm64 {\n}\n")
-        .expect("write arm64 swap target frontier");
-    compile(CompileOptions {
-        root_path: arm_source.join("main.omg"),
-        build_dir: Some(arm_dir.clone()),
-        target_name: Some("linux_arm64".to_owned()),
-        write_output: true,
-    })
-    .expect("atomic swap canary should cross-compile for linux_arm64");
+    compile_rooted_canary_for_target(&canary, arm_dir.clone(), "linux_arm64")
+        .expect("atomic swap canary should cross-compile from its authored root");
     let elf = fs::read(arm_dir.join("omega-program")).expect("arm64 swap ELF should exist");
     assert!(
         elf.windows(4).any(|word| word == [0x1a, 0x82, 0xf1, 0xb8]),
         "arm64 swap must contain SWPAL w17,w26,[x16]"
     );
-    let _ = fs::remove_dir_all(&arm_source);
     let _ = fs::remove_dir_all(&arm_dir);
 }
 
@@ -364,18 +247,12 @@ fn runtime_atomic_swap_exit_canary_runs() {
 #[test]
 fn runtime_atomic_compare_exchange_exit_canary_runs() {
     let canary = pass_canary("atomics/runtime_atomic_compare_exchange_exit");
-    let main_path = canary.join("main.omg");
     let build_dir =
         std::env::temp_dir().join(format!("omega-atomic-cmpxchg-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("atomic compare_exchange canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("atomic compare_exchange canary should compile from its authored root");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
