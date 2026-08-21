@@ -218,6 +218,87 @@ pub(crate) struct BoundaryCallingPlanRealization {
     pub(crate) boundary_entry_plan: BoundaryEntryPlan,
 }
 
+/// Bind checked nominal callback authority back to the one target-owned plan
+/// realization that produced its retained fingerprint. This runs before any
+/// backend lowering so a missing, duplicated, or changed placement recipe
+/// cannot silently fall back to a convention oracle.
+pub(crate) fn validate_nominal_callback_placement_bindings(
+    checked: &psi_checked_trees::CheckedTrees,
+    realizations: &[BoundaryCallingPlanRealization],
+) -> Result<(), Vec<Diagnostic>> {
+    let mut diagnostics = Vec::new();
+    for nominal_use in &checked.facts.nominal_machine_uses.uses {
+        let matching = realizations
+            .iter()
+            .filter(|realization| {
+                realization.boundary_trait == nominal_use.satisfaction_trait
+                    && realization.requirement_machine == nominal_use.satisfaction_requirement
+                    && realization.boundary_arguments.is_empty()
+            })
+            .collect::<Vec<_>>();
+        let Some(placement) = nominal_use.callback_placement else {
+            if !matching.is_empty() {
+                diagnostics.push(Diagnostic::error(format!(
+                    "nominal callback use for `{}` lost its evaluated boundary calling-plan identity",
+                    nominal_use.canonical_requirement_overload
+                )));
+            }
+            continue;
+        };
+        let [realization] = matching.as_slice() else {
+            diagnostics.push(Diagnostic::error(format!(
+                "nominal callback use for `{}` resolves to {} target calling-plan realizations; exactly one is required",
+                nominal_use.canonical_requirement_overload,
+                matching.len()
+            )));
+            continue;
+        };
+        let realized_signature = CallSignature {
+            parameters: realization
+                .boundary_entry_plan
+                .call
+                .parameters
+                .iter()
+                .map(|placement| placement.shape)
+                .collect(),
+            result: realization
+                .boundary_entry_plan
+                .call
+                .result
+                .as_ref()
+                .map(|placement| placement.shape),
+        };
+        let validated = match omega_calling_conventions::validate_boundary_entry_plan(
+            realization.boundary_entry_plan.clone(),
+            &realized_signature,
+        ) {
+            Ok(validated) => validated,
+            Err(error) => {
+                diagnostics.push(Diagnostic::error(format!(
+                    "nominal callback use for `{}` retained an invalid target calling-plan realization: {error}",
+                    nominal_use.canonical_requirement_overload
+                )));
+                continue;
+            }
+        };
+        let realized_fingerprint = validated.contract_fingerprint();
+        if realization.fingerprint != realized_fingerprint
+            || placement.boundary_calling_plan_fingerprint != realized_fingerprint
+        {
+            diagnostics.push(Diagnostic::error(format!(
+                "nominal callback use for `{}` does not bind its exact evaluated target calling plan",
+                nominal_use.canonical_requirement_overload
+            )));
+        }
+    }
+
+    if diagnostics.is_empty() {
+        Ok(())
+    } else {
+        Err(diagnostics)
+    }
+}
+
 /// Discover concrete `Calling<C>` relationships, evaluate `C::plan` once for
 /// every method in the boundary service surface, and retain only canonical
 /// evaluated identities on the typed program.
@@ -1879,6 +1960,109 @@ fn u32_value(value: &BuildTimeValue, context: &str) -> Result<u32, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn nominal_callback_fixture() -> (
+        psi_checked_trees::CheckedTrees,
+        Vec<BoundaryCallingPlanRealization>,
+    ) {
+        let validated = evaluate_ordinary_boundary_entry_plan(
+            CallingPolicy::MicrosoftX64,
+            &CallSignature::default(),
+        )
+        .expect("empty ordinary boundary plan");
+        let fingerprint = validated.contract_fingerprint();
+        let boundary_trait = psi_symbols::SymbolHandle::from_arena_index(1);
+        let requirement = psi_symbols::SymbolHandle::from_arena_index(2);
+        let nominal_use = psi_checked_trees::CheckedNominalMachineUse {
+            site: psi_checked_trees::NominalMachineUseSite::Expression(
+                psi_typed_trees::expression::ExpressionHandle::from_arena_index(1),
+            ),
+            registration_operation: psi_symbols::SymbolHandle::from_arena_index(3),
+            static_machine_ordinal: 0,
+            selected_machine: psi_symbols::SymbolHandle::from_arena_index(4),
+            selected_entry: psi_symbols::SymbolHandle::from_arena_index(5),
+            satisfaction_trait: boundary_trait,
+            satisfaction_requirement: requirement,
+            canonical_requirement_overload: "Handler::call(i32)->i32".to_owned(),
+            published_requirement_envelope:
+                psi_checked_trees::CheckedMachineContractEnvelopeIdentity {
+                    contract_fingerprint: 6,
+                },
+            selected_actual_envelope: psi_checked_trees::CheckedMachineContractEnvelopeIdentity {
+                contract_fingerprint: 7,
+            },
+            callback_placement: Some(psi_checked_trees::CheckedCallbackPlacementIdentity {
+                boundary_calling_plan_fingerprint: fingerprint,
+            }),
+            refinement: psi_checked_trees::CheckedMachineContractRefinement {
+                published_requirement_fingerprint: 6,
+                selected_actual_fingerprint: 7,
+            },
+        };
+        let mut checked = psi_checked_trees::CheckedTrees::default();
+        checked.facts.nominal_machine_uses =
+            psi_checked_trees::NominalMachineUseFacts::try_with_uses([nominal_use])
+                .expect("valid nominal callback row");
+        let realization = BoundaryCallingPlanRealization {
+            boundary_trait,
+            boundary_arguments: Vec::new(),
+            requirement_machine: requirement,
+            fingerprint,
+            boundary_entry_plan: validated.plan().clone(),
+        };
+        (checked, vec![realization])
+    }
+
+    #[test]
+    fn nominal_callback_placement_binds_one_exact_evaluated_plan() {
+        let (checked, realizations) = nominal_callback_fixture();
+
+        validate_nominal_callback_placement_bindings(&checked, &realizations)
+            .expect("exact checked and target plan identities should bind");
+    }
+
+    #[test]
+    fn nominal_callback_placement_rejects_missing_or_drifting_plan() {
+        let (mut checked, realizations) = nominal_callback_fixture();
+        let missing = validate_nominal_callback_placement_bindings(&checked, &[])
+            .expect_err("a checked callback cannot lose its target plan");
+        assert!(
+            missing[0]
+                .message
+                .contains("0 target calling-plan realizations")
+        );
+
+        let duplicated = vec![realizations[0].clone(), realizations[0].clone()];
+        let duplicate = validate_nominal_callback_placement_bindings(&checked, &duplicated)
+            .expect_err("one callback cannot bind duplicate target plans");
+        assert!(
+            duplicate[0]
+                .message
+                .contains("2 target calling-plan realizations")
+        );
+
+        checked.facts.nominal_machine_uses.uses[0]
+            .callback_placement
+            .as_mut()
+            .expect("callback placement")
+            .boundary_calling_plan_fingerprint ^= 1;
+        let drift = validate_nominal_callback_placement_bindings(&checked, &realizations)
+            .expect_err("a changed target plan identity must reject");
+        assert!(
+            drift[0]
+                .message
+                .contains("does not bind its exact evaluated target calling plan")
+        );
+
+        checked.facts.nominal_machine_uses.uses[0].callback_placement = None;
+        let lost = validate_nominal_callback_placement_bindings(&checked, &realizations)
+            .expect_err("a callback plan realization requires a checked join key");
+        assert!(
+            lost[0]
+                .message
+                .contains("lost its evaluated boundary calling-plan identity")
+        );
+    }
 
     fn four_f32_array_signature() -> MaterializedBoundarySignature {
         MaterializedBoundarySignature {

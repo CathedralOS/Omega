@@ -128,7 +128,7 @@ pub(crate) fn build_check_facts(
         &validation_facts.exact_integer_casts,
     );
     let nominal_machine_uses =
-        build_nominal_machine_use_facts(nominal_machine_uses, &contract_plans)?;
+        build_nominal_machine_use_facts(program, nominal_machine_uses, &contract_plans)?;
     // CRY1: materialize the effective structural policy once in the checked
     // fact layer; authored clauses remain minimum promises on typed data.
     let carry = carry::build_carry_facts(program);
@@ -159,6 +159,7 @@ pub(crate) fn build_check_facts(
 }
 
 fn build_nominal_machine_use_facts(
+    program: &TypedTrees,
     nominal_machine_uses: Vec<psi_validation::ValidatedNominalMachineUse>,
     contract_plans: &psi_checked_trees::MachineContractPlans,
 ) -> Result<psi_checked_trees::NominalMachineUseFacts, Vec<psi_diagnostics::Diagnostic>> {
@@ -184,6 +185,23 @@ fn build_nominal_machine_use_facts(
                 "admitted nominal machine use retained an empty contract-envelope identity",
             )]);
         }
+        let callback_placement = program
+            .boundary_calling_plan_fingerprint(
+                nominal_use.satisfaction_trait,
+                nominal_use.satisfaction_requirement,
+            )
+            .map(|boundary_calling_plan_fingerprint| {
+                psi_checked_trees::CheckedCallbackPlacementIdentity {
+                    boundary_calling_plan_fingerprint,
+                }
+            });
+        if callback_placement
+            .is_some_and(|placement| placement.boundary_calling_plan_fingerprint == 0)
+        {
+            return Err(vec![psi_diagnostics::Diagnostic::error(
+                "admitted nominal callback use is missing its evaluated boundary calling-plan identity",
+            )]);
+        }
         checked.push(psi_checked_trees::CheckedNominalMachineUse {
             site: match nominal_use.site {
                 psi_validation::ValidatedNominalMachineUseSite::Statement(handle) => {
@@ -207,6 +225,7 @@ fn build_nominal_machine_use_facts(
             selected_actual_envelope: psi_checked_trees::CheckedMachineContractEnvelopeIdentity {
                 contract_fingerprint: actual_fingerprint,
             },
+            callback_placement,
             refinement: psi_checked_trees::CheckedMachineContractRefinement {
                 published_requirement_fingerprint: published_fingerprint,
                 selected_actual_fingerprint: actual_fingerprint,

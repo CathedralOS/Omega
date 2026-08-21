@@ -191,6 +191,66 @@ fn nominal_machine_parameter_accepts_one_explicit_exact_satisfaction_row() {
         nominal_use.refinement.selected_actual_fingerprint,
         actual_fingerprint
     );
+    assert_eq!(nominal_use.callback_placement, None);
+}
+
+#[test]
+fn nominal_callback_use_retains_exact_evaluated_placement_identity() {
+    let source = r#"
+        boundary trait Handler {
+            machine call(value: i32) -> i32;
+        }
+
+        boundary machine chosen(value: i32) -> i32
+        satisfies Handler::call
+        {
+            value
+        }
+
+        boundary machine register<machine Selected>(value: i32) -> i32
+        where machine Selected satisfies Handler::call;
+        {
+            Selected(value)
+        }
+
+        machine caller(value: i32) -> i32 {
+            register<chosen>(value)
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let mut typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let handler = typed
+        .traits()
+        .iter()
+        .find(|definition| definition.name.as_str() == "Handler")
+        .expect("Handler boundary trait");
+    let handler_symbol = handler.symbol;
+    let requirement_symbol = typed
+        .trait_machine_signatures(handler)
+        .first()
+        .expect("Handler::call")
+        .symbol;
+    let expected_fingerprint = 0x2a7c_6b19_d331_85e1;
+    typed.record_boundary_calling_plan(psi_typed_trees::typed_trees::BoundaryCallingPlanIdentity {
+        boundary_trait: handler_symbol,
+        boundary_arguments: Vec::new(),
+        requirement_machine: requirement_symbol,
+        fingerprint: expected_fingerprint,
+    });
+
+    let checked = lower_typed_trees(typed).expect("nominal callback selection should check");
+    let [nominal_use] = checked.facts.nominal_machine_uses.uses.as_slice() else {
+        panic!("one nominal callback use")
+    };
+
+    assert_eq!(
+        nominal_use.callback_placement,
+        Some(psi_checked_trees::CheckedCallbackPlacementIdentity {
+            boundary_calling_plan_fingerprint: expected_fingerprint,
+        })
+    );
 }
 
 #[test]
