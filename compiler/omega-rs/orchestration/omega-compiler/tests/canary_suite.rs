@@ -1336,10 +1336,48 @@ fn compile_rooted_canary_for_native_host(
     compile_rooted_canary_for_target(canary_dir, build_dir, native_hosted_target())
 }
 
+fn compile_rooted_canary_for_native_host_with_auxiliary_artifacts(
+    canary_dir: &Path,
+    build_dir: PathBuf,
+) -> Result<CompileReport, Vec<Diagnostic>> {
+    compile_rooted_canary_for_target_with_auxiliary_artifacts(
+        canary_dir,
+        build_dir,
+        native_hosted_target(),
+    )
+}
+
 fn compile_rooted_canary_for_target(
     canary_dir: &Path,
     build_dir: PathBuf,
     target: &str,
+) -> Result<CompileReport, Vec<Diagnostic>> {
+    compile_rooted_canary_for_target_with_artifact_policy(
+        canary_dir,
+        build_dir,
+        target,
+        ArtifactEmissionPolicy::OutputOnly,
+    )
+}
+
+fn compile_rooted_canary_for_target_with_auxiliary_artifacts(
+    canary_dir: &Path,
+    build_dir: PathBuf,
+    target: &str,
+) -> Result<CompileReport, Vec<Diagnostic>> {
+    compile_rooted_canary_for_target_with_artifact_policy(
+        canary_dir,
+        build_dir,
+        target,
+        ArtifactEmissionPolicy::Full,
+    )
+}
+
+fn compile_rooted_canary_for_target_with_artifact_policy(
+    canary_dir: &Path,
+    build_dir: PathBuf,
+    target: &str,
+    artifact_policy: ArtifactEmissionPolicy,
 ) -> Result<CompileReport, Vec<Diagnostic>> {
     compile_with_worker_count_and_artifact_policy(
         CompileOptions {
@@ -1349,7 +1387,7 @@ fn compile_rooted_canary_for_target(
             write_output: true,
         },
         canary_backend_worker_count(),
-        ArtifactEmissionPolicy::Full,
+        artifact_policy,
     )
 }
 
