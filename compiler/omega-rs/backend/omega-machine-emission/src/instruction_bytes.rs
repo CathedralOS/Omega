@@ -388,6 +388,13 @@ fn compiler_instruction_validation_kind(
                 byte_count: *byte_count,
             })
         }
+        SelectedInstructionKind::WriteOutgoingStackU64 {
+            stack_byte_offset,
+            value,
+        } => Some(CompilerInstructionValidationKind::OutgoingStackU64Write {
+            stack_byte_offset: *stack_byte_offset,
+            value: *value,
+        }),
         SelectedInstructionKind::ReleaseOutgoingStackFrame { byte_count } => {
             Some(CompilerInstructionValidationKind::OutgoingStackFrameRelease {
                 byte_count: *byte_count,

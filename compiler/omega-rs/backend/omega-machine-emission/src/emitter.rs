@@ -118,7 +118,7 @@ mod tests {
         let assigned_target_operations = AssignedTargetOperationPlan::default();
         let host_abi = build_host_abi_plan(target);
         let data = omega_target_operations::TargetDataPlan::default();
-        let mut machine_instructions = MachineInstructionPlan::with_capacity(target, 1, 4);
+        let mut machine_instructions = MachineInstructionPlan::with_capacity(target, 1, 8);
         let instructions = machine_instructions.code.instructions.insert_many([
             MachineInstruction {
                 selected_instruction_index: 0,
@@ -127,6 +127,38 @@ mod tests {
             },
             MachineInstruction {
                 selected_instruction_index: 1,
+                source_kind: SelectedInstructionKind::WriteOutgoingStackU64 {
+                    stack_byte_offset: 32,
+                    value: 0x1000,
+                },
+                kind: MachineInstructionKind::OutgoingStackU64Write,
+            },
+            MachineInstruction {
+                selected_instruction_index: 2,
+                source_kind: SelectedInstructionKind::WriteOutgoingStackU64 {
+                    stack_byte_offset: 40,
+                    value: 0x800,
+                },
+                kind: MachineInstructionKind::OutgoingStackU64Write,
+            },
+            MachineInstruction {
+                selected_instruction_index: 3,
+                source_kind: SelectedInstructionKind::WriteOutgoingStackU64 {
+                    stack_byte_offset: 48,
+                    value: 0x8000,
+                },
+                kind: MachineInstructionKind::OutgoingStackU64Write,
+            },
+            MachineInstruction {
+                selected_instruction_index: 4,
+                source_kind: SelectedInstructionKind::WriteOutgoingStackU64 {
+                    stack_byte_offset: 56,
+                    value: 0x2000,
+                },
+                kind: MachineInstructionKind::OutgoingStackU64Write,
+            },
+            MachineInstruction {
+                selected_instruction_index: 5,
                 source_kind: SelectedInstructionKind::LoadOutgoingStackAddress {
                     register: MachineRegister::X86Rcx,
                     stack_byte_offset: 32,
@@ -134,7 +166,7 @@ mod tests {
                 kind: MachineInstructionKind::OutgoingStackAddressLoad,
             },
             MachineInstruction {
-                selected_instruction_index: 2,
+                selected_instruction_index: 6,
                 source_kind: SelectedInstructionKind::LoadOutgoingStackAddress {
                     register: MachineRegister::X86Rdx,
                     stack_byte_offset: 48,
@@ -142,7 +174,7 @@ mod tests {
                 kind: MachineInstructionKind::OutgoingStackAddressLoad,
             },
             MachineInstruction {
-                selected_instruction_index: 3,
+                selected_instruction_index: 7,
                 source_kind: SelectedInstructionKind::ReleaseOutgoingStackFrame { byte_count: 72 },
                 kind: MachineInstructionKind::OutgoingStackFrameRelease,
             },
@@ -164,13 +196,26 @@ mod tests {
             terminal_dispatch_index: 0,
         })
         .expect("outgoing stack-address emission");
-        assert_eq!(
-            encoded.code.bytes.storage_slice(),
-            [
-                0x48, 0x83, 0xec, 0x48, 0x48, 0x8d, 0x8c, 0x24, 32, 0, 0, 0, 0x48, 0x8d, 0x94,
-                0x24, 48, 0, 0, 0, 0x48, 0x83, 0xc4, 0x48,
-            ]
+        let mut expected =
+            omega_isa_x86_64::encode_outgoing_stack_frame_reserve_bytes(72).expect("reserve bytes");
+        for (offset, value) in [(32, 0x1000), (40, 0x800), (48, 0x8000), (56, 0x2000)] {
+            expected.extend(
+                omega_isa_x86_64::encode_outgoing_stack_u64_write_bytes(offset, value)
+                    .expect("word bytes"),
+            );
+        }
+        expected.extend(
+            omega_isa_x86_64::encode_outgoing_stack_address_load_bytes(MachineRegister::X86Rcx, 32)
+                .expect("RCX address"),
         );
+        expected.extend(
+            omega_isa_x86_64::encode_outgoing_stack_address_load_bytes(MachineRegister::X86Rdx, 48)
+                .expect("RDX address"),
+        );
+        expected.extend(
+            omega_isa_x86_64::encode_outgoing_stack_frame_release_bytes(72).expect("release bytes"),
+        );
+        assert_eq!(encoded.code.bytes.storage_slice(), expected);
         let kinds = encoded
             .code
             .instructions
@@ -183,6 +228,30 @@ mod tests {
                 Some(
                     omega_machine_bytes::CompilerInstructionValidationKind::OutgoingStackFrameReserve {
                         byte_count: 72,
+                    },
+                ),
+                Some(
+                    omega_machine_bytes::CompilerInstructionValidationKind::OutgoingStackU64Write {
+                        stack_byte_offset: 32,
+                        value: 0x1000,
+                    },
+                ),
+                Some(
+                    omega_machine_bytes::CompilerInstructionValidationKind::OutgoingStackU64Write {
+                        stack_byte_offset: 40,
+                        value: 0x800,
+                    },
+                ),
+                Some(
+                    omega_machine_bytes::CompilerInstructionValidationKind::OutgoingStackU64Write {
+                        stack_byte_offset: 48,
+                        value: 0x8000,
+                    },
+                ),
+                Some(
+                    omega_machine_bytes::CompilerInstructionValidationKind::OutgoingStackU64Write {
+                        stack_byte_offset: 56,
+                        value: 0x2000,
                     },
                 ),
                 Some(
@@ -216,6 +285,37 @@ mod tests {
             terminal_dispatch_index: 0,
         })
         .expect_err("the RSP-relative operation must remain x86-64-only");
+        assert!(diagnostic.message.contains("only on x86-64"));
+
+        let mut aarch64_write = MachineInstructionPlan::with_capacity(aarch64_target, 1, 1);
+        let instructions = aarch64_write
+            .code
+            .instructions
+            .insert_many([MachineInstruction {
+                selected_instruction_index: 0,
+                source_kind: SelectedInstructionKind::WriteOutgoingStackU64 {
+                    stack_byte_offset: 32,
+                    value: u64::MAX,
+                },
+                kind: MachineInstructionKind::OutgoingStackU64Write,
+            }]);
+        aarch64_write
+            .code
+            .functions
+            .insert(MachineInstructionFunction {
+                symbol: "synthetic_aarch64_wrapper".into(),
+                identity: MachineFunctionIdentity::default(),
+                instructions,
+            });
+        let diagnostic = emit_machine_bytes(MachineEmissionInput {
+            target: aarch64_target,
+            assigned_target_operations: &assigned_target_operations,
+            machine_instructions: &aarch64_write,
+            host_abi: &aarch64_abi,
+            data: &data,
+            terminal_dispatch_index: 0,
+        })
+        .expect_err("outgoing u64 writes must remain x86-64-only");
         assert!(diagnostic.message.contains("only on x86-64"));
     }
 

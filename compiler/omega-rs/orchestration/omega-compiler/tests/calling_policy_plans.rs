@@ -14,8 +14,9 @@ use omega_compiler::{
     bind_recorded_program_storage_entry_whole_root_arguments, compile, compile_to_checked,
     evaluate_calling_policy_plan, install_program_storage_entry_provider_invocation,
     install_program_storage_entry_roots, plan_program_storage_entry_wrapper_caller_frame,
-    program_storage_installation_record_json, selected_external_root_entry_fact_bindings,
-    selected_external_root_provider_plan, selected_external_root_provider_plan_id,
+    program_storage_installation_record_json, reserve_program_storage_entry_outgoing_stack_frame,
+    selected_external_root_entry_fact_bindings, selected_external_root_provider_plan,
+    selected_external_root_provider_plan_id,
 };
 use omega_instruction_selection::derive_boundary_entry_storage;
 use psi_extents::{
@@ -1856,6 +1857,35 @@ machine build(builder: &mut Build) {
             .root_authority(omega_compiler::ProgramStorageEntryRootRole::InitialStorage)
             .length(),
         0x2000
+    );
+    let reserved = reserve_program_storage_entry_outgoing_stack_frame(caller_frame)
+        .expect("exact caller frame should yield sealed write authority");
+    assert_eq!(reserved.frame_byte_count(), 72);
+    assert_eq!(reserved.shadow_byte_range(), 0..32);
+    assert_eq!(reserved.image_writable_byte_range(), 32..48);
+    assert_eq!(reserved.initial_storage_writable_byte_range(), 48..64);
+    assert_eq!(
+        std::array::from_fn(|index| {
+            let word = &reserved.words()[index];
+            (word.stack_byte_offset(), word.value(), *word.bytes())
+        }),
+        [
+            (32, 0x1000, 0x1000_u64.to_le_bytes()),
+            (40, 0x800, 0x800_u64.to_le_bytes()),
+            (48, 0x8000, 0x8000_u64.to_le_bytes()),
+            (56, 0x2000, 0x2000_u64.to_le_bytes()),
+        ]
+    );
+    let recovered_frame = reserved.into_caller_frame();
+    assert_eq!(recovered_frame.outgoing_reservation_byte_count(), 72);
+    assert_eq!(
+        recovered_frame
+            .operands()
+            .logical_values()
+            .arguments()
+            .root_authority(omega_compiler::ProgramStorageEntryRootRole::Image)
+            .base(),
+        0x1000
     );
     let _ = fs::remove_dir_all(directory);
 }

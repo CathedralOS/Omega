@@ -28,6 +28,10 @@ fn operation_kinds_expose_host_boundary_domain() {
 fn outgoing_stack_address_is_compiler_function_boundary_mechanics() {
     for operation in [
         TargetOperationKind::ReserveOutgoingStackFrame { byte_count: 72 },
+        TargetOperationKind::WriteOutgoingStackU64 {
+            stack_byte_offset: 32,
+            value: 1,
+        },
         TargetOperationKind::LoadOutgoingStackAddress {
             register: omega_calling_conventions::MachineRegister::X86Rdx,
             stack_byte_offset: 48,

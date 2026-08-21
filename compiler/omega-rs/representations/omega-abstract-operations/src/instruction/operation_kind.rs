@@ -699,6 +699,10 @@ pub enum AbstractOperationKind {
     ReserveOutgoingStackFrame {
         byte_count: u32,
     },
+    WriteOutgoingStackU64 {
+        stack_byte_offset: u32,
+        value: u64,
+    },
     ReleaseOutgoingStackFrame {
         byte_count: u32,
     },

@@ -63,6 +63,13 @@ fn preserves_outgoing_stack_address_recipe_in_target_plan() {
             ..Default::default()
         },
         omega_abstract_operations::AbstractOperation {
+            kind: omega_abstract_operations::AbstractOperationKind::WriteOutgoingStackU64 {
+                stack_byte_offset: 32,
+                value: 0x1020,
+            },
+            ..Default::default()
+        },
+        omega_abstract_operations::AbstractOperation {
             kind: omega_abstract_operations::AbstractOperationKind::LoadOutgoingStackAddress {
                 register: MachineRegister::X86Rcx,
                 stack_byte_offset: 32,
@@ -91,13 +98,21 @@ fn preserves_outgoing_stack_address_recipe_in_target_plan() {
         &HostCallPlan::default(),
         &abstract_operations,
     );
-    let [reserve, instruction, release] = target_operations.code.instructions.storage_slice()
+    let [reserve, write, instruction, release] =
+        target_operations.code.instructions.storage_slice()
     else {
         panic!("balanced caller-frame recipes should survive lowering")
     };
     assert_eq!(
         reserve.kind,
         omega_target_operations::TargetOperationKind::ReserveOutgoingStackFrame { byte_count: 72 }
+    );
+    assert_eq!(
+        write.kind,
+        omega_target_operations::TargetOperationKind::WriteOutgoingStackU64 {
+            stack_byte_offset: 32,
+            value: 0x1020,
+        }
     );
     assert_eq!(
         instruction.kind,

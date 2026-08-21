@@ -11,6 +11,10 @@ pub const fn outgoing_stack_address_load_width() -> usize {
     8
 }
 
+pub const fn outgoing_stack_u64_write_width() -> usize {
+    18
+}
+
 fn validate_outgoing_stack_frame_byte_count(byte_count: u32) -> Result<(), Diagnostic> {
     if byte_count < 32 {
         return Err(Diagnostic::error(
@@ -78,6 +82,42 @@ pub(crate) fn append_add_rsp(bytes: &mut Vec<u8>, reserve: usize) {
         bytes.extend([0x48, 0x81, 0xc4]);
         bytes.extend((reserve as u32).to_le_bytes());
     }
+}
+
+pub(crate) fn append_store_rax_to_rsp_disp32(
+    bytes: &mut Vec<u8>,
+    stack_byte_offset: u32,
+) -> Result<(), Diagnostic> {
+    let displacement = i32::try_from(stack_byte_offset)
+        .map_err(|_| Diagnostic::error("Microsoft x64 stack offset exceeds positive disp32"))?;
+    bytes.extend([0x48, 0x89, 0x84, 0x24]);
+    bytes.extend(displacement.to_le_bytes());
+    Ok(())
+}
+
+pub fn encode_outgoing_stack_u64_write_bytes(
+    stack_byte_offset: u32,
+    value: u64,
+) -> Result<[u8; 18], Diagnostic> {
+    if stack_byte_offset < 32 || stack_byte_offset % 8 != 0 {
+        return Err(Diagnostic::error(
+            "Microsoft x64 outgoing u64 write must be aligned beyond shadow space",
+        ));
+    }
+    let mut bytes = Vec::with_capacity(outgoing_stack_u64_write_width());
+    crate::append_mov_rax_imm64(&mut bytes, value);
+    append_store_rax_to_rsp_disp32(&mut bytes, stack_byte_offset)?;
+    bytes
+        .try_into()
+        .map_err(|_| Diagnostic::error("Microsoft x64 outgoing u64 write lost its canonical width"))
+}
+
+pub fn outgoing_stack_u64_write_register_writes() -> RegisterSet {
+    RegisterSet::new([MachineRegister::X86Rax])
+}
+
+pub fn outgoing_stack_u64_write_additional_machine_state() -> MachineStateSet {
+    MachineStateSet::new([MachineState::StackPointer])
 }
 
 /// Encode `lea register, [rsp + disp32]` for one Microsoft x64 positional
@@ -169,5 +209,19 @@ mod tests {
             assert!(encode_outgoing_stack_frame_reserve_bytes(byte_count).is_err());
             assert!(encode_outgoing_stack_frame_release_bytes(byte_count).is_err());
         }
+    }
+
+    #[test]
+    fn encodes_exact_full_width_outgoing_word() {
+        assert_eq!(
+            encode_outgoing_stack_u64_write_bytes(32, 0xfedc_ba98_7654_3210).unwrap(),
+            [
+                0x48, 0xb8, 0x10, 0x32, 0x54, 0x76, 0x98, 0xba, 0xdc, 0xfe, 0x48, 0x89, 0x84, 0x24,
+                0x20, 0, 0, 0,
+            ]
+        );
+        assert!(encode_outgoing_stack_u64_write_bytes(24, 1).is_err());
+        assert!(encode_outgoing_stack_u64_write_bytes(33, 1).is_err());
+        assert!(encode_outgoing_stack_u64_write_bytes(u32::MAX - 7, 1).is_err());
     }
 }

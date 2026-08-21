@@ -48,6 +48,23 @@ pub(super) fn expected_control_entry_spec(
                         79u8,
                         CompilerInstructionRelocationRecipe::None,
                     ),
+                    omega_machine_bytes::CompilerInstructionValidationKind::OutgoingStackU64Write {
+                        stack_byte_offset,
+                        value,
+                    } => (
+                        None,
+                        match architecture {
+                            Architecture::X86_64 => omega_isa_x86_64::encode_outgoing_stack_u64_write_bytes(
+                                stack_byte_offset,
+                                value,
+                            )?.to_vec(),
+                            Architecture::Aarch64 => return Err(Diagnostic::error(
+                                "outgoing stack u64 writes are supported only on x86-64",
+                            )),
+                        },
+                        81u8,
+                        CompilerInstructionRelocationRecipe::None,
+                    ),
                     omega_machine_bytes::CompilerInstructionValidationKind::OutgoingStackFrameRelease {
                         byte_count,
                     } => (

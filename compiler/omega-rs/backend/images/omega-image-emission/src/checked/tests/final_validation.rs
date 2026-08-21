@@ -49,26 +49,39 @@ fn balanced_outgoing_stack_frame_final_bytes_and_footprint_replay_fail_closed() 
     let enter = omega_isa_x86_64::encode_function_enter_bytes();
     let reserve = omega_isa_x86_64::encode_outgoing_stack_frame_reserve_bytes(72)
         .expect("exact outgoing frame reservation");
+    let writes = [(32, 0x1000), (40, 0x800), (48, 0x8000), (56, 0x2000)].map(|(offset, value)| {
+        omega_isa_x86_64::encode_outgoing_stack_u64_write_bytes(offset, value)
+            .expect("exact outgoing word")
+    });
     let address = omega_isa_x86_64::encode_outgoing_stack_address_load_bytes(
         omega_calling_conventions::MachineRegister::X86Rcx,
         32,
     )
     .expect("exact RCX caller-copy address");
+    let storage_address = omega_isa_x86_64::encode_outgoing_stack_address_load_bytes(
+        omega_calling_conventions::MachineRegister::X86Rdx,
+        48,
+    )
+    .expect("exact RDX caller-copy address");
     let release = omega_isa_x86_64::encode_outgoing_stack_frame_release_bytes(72)
         .expect("exact outgoing frame release");
     let leave = omega_isa_x86_64::encode_return_bytes();
     let final_bytes = enter
         .into_iter()
         .chain(reserve.iter().copied())
+        .chain(writes.iter().flatten().copied())
         .chain(address)
+        .chain(storage_address)
         .chain(release.iter().copied())
         .chain(leave)
         .collect::<Vec<_>>();
     let mut plan =
-        omega_machine_bytes::EncodedMachinePlan::with_capacity(target, 1, 5, final_bytes.len());
+        omega_machine_bytes::EncodedMachinePlan::with_capacity(target, 1, 10, final_bytes.len());
     let enter_bytes = plan.code.bytes.insert_many(enter);
     let reserve_bytes = plan.code.bytes.insert_many(reserve.iter().copied());
+    let write_bytes = writes.map(|bytes| plan.code.bytes.insert_many(bytes));
     let address_bytes = plan.code.bytes.insert_many(address);
+    let storage_address_bytes = plan.code.bytes.insert_many(storage_address);
     let release_bytes = plan.code.bytes.insert_many(release.iter().copied());
     let leave_bytes = plan.code.bytes.insert_many(leave);
     let first = plan.code.instructions.insert(EncodedMachineInstruction {
@@ -85,8 +98,26 @@ fn balanced_outgoing_stack_frame_final_bytes_and_footprint_replay_fail_closed() 
         ),
         ..Default::default()
     });
+    let write_rows = [(32, 0x1000), (40, 0x800), (48, 0x8000), (56, 0x2000)]
+        .into_iter()
+        .zip(write_bytes)
+        .enumerate()
+        .map(|(index, ((stack_byte_offset, value), bytes))| {
+            plan.code.instructions.insert(EncodedMachineInstruction {
+                selected_instruction_index: index as u32 + 2,
+                bytes,
+                compiler_validation_kind: Some(
+                    CompilerInstructionValidationKind::OutgoingStackU64Write {
+                        stack_byte_offset,
+                        value,
+                    },
+                ),
+                ..Default::default()
+            })
+        })
+        .collect::<Vec<_>>();
     let address_row = plan.code.instructions.insert(EncodedMachineInstruction {
-        selected_instruction_index: 2,
+        selected_instruction_index: 6,
         bytes: address_bytes,
         compiler_validation_kind: Some(
             CompilerInstructionValidationKind::OutgoingStackAddressLoad {
@@ -96,8 +127,19 @@ fn balanced_outgoing_stack_frame_final_bytes_and_footprint_replay_fail_closed() 
         ),
         ..Default::default()
     });
+    plan.code.instructions.insert(EncodedMachineInstruction {
+        selected_instruction_index: 7,
+        bytes: storage_address_bytes,
+        compiler_validation_kind: Some(
+            CompilerInstructionValidationKind::OutgoingStackAddressLoad {
+                register: omega_calling_conventions::MachineRegister::X86Rdx,
+                stack_byte_offset: 48,
+            },
+        ),
+        ..Default::default()
+    });
     let release_row = plan.code.instructions.insert(EncodedMachineInstruction {
-        selected_instruction_index: 3,
+        selected_instruction_index: 8,
         bytes: release_bytes,
         compiler_validation_kind: Some(
             CompilerInstructionValidationKind::OutgoingStackFrameRelease { byte_count: 72 },
@@ -105,7 +147,7 @@ fn balanced_outgoing_stack_frame_final_bytes_and_footprint_replay_fail_closed() 
         ..Default::default()
     });
     plan.code.instructions.insert(EncodedMachineInstruction {
-        selected_instruction_index: 4,
+        selected_instruction_index: 9,
         bytes: leave_bytes,
         compiler_validation_kind: Some(CompilerInstructionValidationKind::FunctionReturn),
         ..Default::default()
@@ -115,7 +157,7 @@ fn balanced_outgoing_stack_frame_final_bytes_and_footprint_replay_fail_closed() 
         identity: Default::default(),
         byte_offset: 0,
         byte_count: final_bytes.len(),
-        instructions: HandleSpan::from_parts(first, 5),
+        instructions: HandleSpan::from_parts(first, 10),
     });
     plan.code.byte_count = final_bytes.len();
 
@@ -134,9 +176,19 @@ fn balanced_outgoing_stack_frame_final_bytes_and_footprint_replay_fail_closed() 
         ),
         omega_isa_x86_64::outgoing_stack_address_load_additional_machine_state(),
     );
+    let storage_address_footprint = omega_calling_conventions::StateFootprintEvidence::new(
+        omega_isa_x86_64::outgoing_stack_address_load_register_writes(
+            omega_calling_conventions::MachineRegister::X86Rdx,
+        ),
+        omega_isa_x86_64::outgoing_stack_address_load_additional_machine_state(),
+    );
     let adjust_footprint = omega_calling_conventions::StateFootprintEvidence::new(
         omega_isa_x86_64::outgoing_stack_frame_adjust_register_writes(),
         omega_isa_x86_64::outgoing_stack_frame_adjust_additional_machine_state(),
+    );
+    let write_footprint = omega_calling_conventions::StateFootprintEvidence::new(
+        omega_isa_x86_64::outgoing_stack_u64_write_register_writes(),
+        omega_isa_x86_64::outgoing_stack_u64_write_additional_machine_state(),
     );
     let return_footprint = omega_calling_conventions::StateFootprintEvidence::new(
         omega_isa_x86_64::return_register_writes(),
@@ -151,7 +203,9 @@ fn balanced_outgoing_stack_frame_final_bytes_and_footprint_replay_fail_closed() 
             evidence: omega_calling_conventions::compose_state_footprints([
                 &enter_footprint,
                 &adjust_footprint,
+                &write_footprint,
                 &address_footprint,
+                &storage_address_footprint,
                 &adjust_footprint,
                 &return_footprint,
             ]),
@@ -167,13 +221,17 @@ fn balanced_outgoing_stack_frame_final_bytes_and_footprint_replay_fail_closed() 
         &semantics,
     )
     .expect("exact balanced outgoing frame should replay with no relocation");
-    assert_eq!(evidence.instruction_count, 5);
+    assert_eq!(evidence.instruction_count, 10);
 
     let reserve_offset = enter.len();
-    let address_offset = reserve_offset + reserve.len();
-    let release_offset = address_offset + address.len();
+    let writes_offset = reserve_offset + reserve.len();
+    let address_offset = writes_offset + writes.iter().map(|bytes| bytes.len()).sum::<usize>();
+    let release_offset = address_offset + address.len() + storage_address.len();
     for tamper_offset in [
         reserve_offset,
+        writes_offset,
+        writes_offset + 2,
+        writes_offset + 10,
         address_offset,
         address_offset + 2,
         release_offset,
@@ -202,6 +260,48 @@ fn balanced_outgoing_stack_frame_final_bytes_and_footprint_replay_fail_closed() 
             register: omega_calling_conventions::MachineRegister::X86Rdx,
             stack_byte_offset: 32,
         },
+    );
+
+    let mut redirected_write = plan.code.clone();
+    redirected_write
+        .instructions
+        .get_mut(write_rows[0])
+        .compiler_validation_kind =
+        Some(CompilerInstructionValidationKind::OutgoingStackU64Write {
+            stack_byte_offset: 40,
+            value: 0x1000,
+        });
+    assert!(
+        validate_compiler_function_instruction_boundaries(
+            omega_target::Architecture::X86_64,
+            &redirected_write,
+            &final_bytes,
+            &object,
+            &relocations,
+            &semantics,
+        )
+        .is_err()
+    );
+
+    let mut redirected_value = plan.code.clone();
+    redirected_value
+        .instructions
+        .get_mut(write_rows[0])
+        .compiler_validation_kind =
+        Some(CompilerInstructionValidationKind::OutgoingStackU64Write {
+            stack_byte_offset: 32,
+            value: 0x1001,
+        });
+    assert!(
+        validate_compiler_function_instruction_boundaries(
+            omega_target::Architecture::X86_64,
+            &redirected_value,
+            &final_bytes,
+            &object,
+            &relocations,
+            &semantics,
+        )
+        .is_err()
     );
 
     let mut mismatched_release = plan.code.clone();
@@ -279,6 +379,28 @@ fn balanced_outgoing_stack_frame_final_bytes_and_footprint_replay_fail_closed() 
             &object,
             &relocations,
             &incomplete_footprint,
+        )
+        .is_err()
+    );
+
+    let mut missing_write_footprint = semantics.clone();
+    missing_write_footprint.boundaries.footprints.fragments[0].evidence =
+        omega_calling_conventions::compose_state_footprints([
+            &enter_footprint,
+            &adjust_footprint,
+            &address_footprint,
+            &storage_address_footprint,
+            &adjust_footprint,
+            &return_footprint,
+        ]);
+    assert!(
+        validate_compiler_function_instruction_boundaries(
+            omega_target::Architecture::X86_64,
+            &plan.code,
+            &final_bytes,
+            &object,
+            &relocations,
+            &missing_write_footprint,
         )
         .is_err()
     );

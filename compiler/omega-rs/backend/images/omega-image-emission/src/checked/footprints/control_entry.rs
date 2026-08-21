@@ -45,6 +45,16 @@ pub(super) fn control_entry_footprint_parts(
                 omega_isa_x86_64::outgoing_stack_frame_adjust_additional_machine_state(),
             )
         }
+        CompilerInstructionValidationKind::OutgoingStackU64Write { .. } => {
+            if architecture != Architecture::X86_64 {
+                return None;
+            }
+            (
+                BoundaryFootprintFragmentOrigin::CallReturnMechanics,
+                omega_isa_x86_64::outgoing_stack_u64_write_register_writes(),
+                omega_isa_x86_64::outgoing_stack_u64_write_additional_machine_state(),
+            )
+        }
         CompilerInstructionValidationKind::FunctionEnter => match architecture {
             Architecture::X86_64 => (
                 BoundaryFootprintFragmentOrigin::CallReturnMechanics,

@@ -857,6 +857,10 @@ fn selected_instruction_name(
         SelectedInstructionKind::ReserveOutgoingStackFrame { byte_count } => {
             format!("reserve outgoing stack frame ({byte_count} bytes)")
         }
+        SelectedInstructionKind::WriteOutgoingStackU64 {
+            stack_byte_offset,
+            value,
+        } => format!("write outgoing stack u64 {value:#x} at rsp+{stack_byte_offset}"),
         SelectedInstructionKind::ReleaseOutgoingStackFrame { byte_count } => {
             format!("release outgoing stack frame ({byte_count} bytes)")
         }
