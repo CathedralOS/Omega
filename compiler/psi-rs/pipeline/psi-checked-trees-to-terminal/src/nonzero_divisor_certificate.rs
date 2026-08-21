@@ -366,7 +366,7 @@ mod tests {
     }
 
     #[test]
-    fn exact_division_goal_composes_carrier_total_landed_literal_proofs() {
+    fn exact_division_goal_composes_complete_landed_literal_proofs() {
         let unsigned = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
         let unsigned_divisor = value(2, unsigned);
         let unsigned_goal = Proposition::LessOrEqual(
@@ -430,6 +430,31 @@ mod tests {
                 "signed literal {excluded} is not carrier-total",
             );
         }
+
+        let exceptional_proof = prove_canonical_integer_proposition(
+            &two_value_context(signed),
+            &signed_goal,
+            &[],
+            &[
+                Proposition::Equal(signed_divisor, integer(signed, -1)),
+                Proposition::Equal(value(1, signed), integer(signed, -7)),
+            ],
+        )
+        .expect("landed -1 and nonminimum dividend prove the exceptional arm");
+        let ProofRule::DisjunctionIntroduction { disjunct, index } = exceptional_proof.rule else {
+            panic!("signed -1 exact division proves the joint exceptional arm")
+        };
+        assert_eq!(index, 2);
+        let ProofRule::ConjunctionIntroduction(conjuncts) = disjunct.rule else {
+            panic!("signed -1 arm proves both canonical bounds")
+        };
+        assert_eq!(conjuncts.len(), 2);
+        assert!(
+            conjuncts.iter().all(|proof| matches!(
+                proof.rule,
+                ProofRule::IntegerLessOrEqualSubstitution { .. }
+            ))
+        );
     }
 
     #[test]
@@ -459,5 +484,21 @@ mod tests {
             )
             .is_some()
         );
+
+        let landed = [
+            Proposition::Equal(value(2, integer_type), integer(integer_type, -1)),
+            Proposition::Equal(value(1, integer_type), integer(integer_type, 0)),
+        ];
+        let proof = prove_canonical_integer_proposition(
+            &two_value_context(integer_type),
+            &goal,
+            &[],
+            &landed,
+        )
+        .expect("landed i1 -1/zero pair proves exact definedness");
+        assert!(matches!(
+            proof.rule,
+            ProofRule::ConjunctionIntroduction(ref conjuncts) if conjuncts.len() == 2
+        ));
     }
 }
