@@ -348,6 +348,23 @@ definition-chain, cast-sandwich, affine-join, and correlated forbidden-root
 analysis outcome with a normalized witness that proves those atomic leaves;
 the common compositor does not treat the reducer's proposition as a premise.
 
+The first such normalization prerequisite is producer-visible but not a proof
+rule. `IntegerAffineWitness` binds a signed fixed same-carrier root and target
+to a nonempty, strictly increasing list of exact prior semantic-axiom indices.
+The kernel independently validates each selected equality and replays only
+exact add, subtract, or multiply-by-same-carrier-literal steps, recomputing the
+checked `A * root + B` coefficients. The root must be an SSA value; stale or
+reordered indices, malformed equations, carrier or target drift, ambiguous
+orientation, unsupported roots, and checked-arithmetic overflow reject. This
+normalizes the definition-chain facts shared by direct affine analysis and the
+two branches of same-root/correlated analysis without trusting an analyzer's
+coefficients. It neither derives an atomic order proposition nor crosses a cast
+or shift. Checked affine-bound conversion, cast/shift witness forms, and the
+correlated forbidden-root conversion remain producer work before either exact
+divide/remainder row can leave `TrustedJudgment`. Because no serialized proof
+rule or deployed reconstruction path changed, proof-bundle v15, terminal codec
+v18, installation record v24, and the current trust statuses remain unchanged.
+
 The consolidated divide/remainder cross-cast rule admits a nonempty landed-
 literal exact-divide/remainder chain on either side of one partial fixed-native
 cast when the other side is a nonempty affine or shift chain. When

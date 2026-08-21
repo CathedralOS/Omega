@@ -1167,13 +1167,20 @@ Remaining:
   a kernel-checked recursive compositor for exact prior citations, atomic
   integer-order proofs, conjunctions, and arbitrary ordered disjunctions,
   covering the common certificate spine for the signed three-arm and `i1`
-  exact goals. The remaining definition-chain, cast-sandwich, affine/product/
-  shift, affine-join, and correlated forbidden-root analyzers must emit
-  normalized witnesses for those atomic leaves; no trusted reducer proposition
-  is imported as proof authority and no partial exact row migrated. No schema,
-  reducer, semantic-operation, or other trust status is promoted; terminal
-  `PSITERM\0` codec v18, proof-bundle v15, installation record v24, and
-  `fully-derived false` remain unchanged.
+  exact goals. A producer-visible proof-kernel checker now binds signed fixed
+  same-carrier affine normalization to a nonempty, strictly ordered set of
+  prior semantic-axiom equalities. It independently replays exact
+  add/subtract/multiply-by-literal definitions and recomputes checked
+  `A * root + B`, rejecting stale, reordered, malformed, ambiguous,
+  cross-carrier, non-value-root, target-drifted, or overflowing witnesses. This
+  is a common prerequisite for direct definition chains and both affine
+  branches used by same-root/correlated analysis, not an order proof or a
+  serialized proof rule. The remaining work is checked affine-bound
+  conversion plus cast/shift and correlated forbidden-root witnesses; no
+  trusted reducer proposition is imported as proof authority and no partial
+  exact row migrated. No schema, reducer, semantic-operation, or other trust
+  status is promoted; terminal `PSITERM\0` codec v18, proof-bundle v15,
+  installation record v24, and `fully-derived false` remain unchanged.
   The bounded Gamma spike is complete. It canonical-decodes four exact current
   `PSITERM\0` v18 fixtures and audits a 54-row scalar ledger covering constants,
   Boolean not/equality, integer equality/order, bitwise operations, strict
