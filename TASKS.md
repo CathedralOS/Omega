@@ -1210,8 +1210,22 @@ Remaining:
   representable intersection, never total or lossy conversion. The checker
   accepts no proof authority, does not establish machine-parameter custody or
   surrounding prefix/suffix algebra, and leaves heterogeneous widening/cast
-  words separate. Proof integration plus shift and correlated forbidden-root
-  witnesses remain; no trusted reducer proposition is imported as proof
+  words separate. A third non-serialized common checker now normalizes the
+  complete exact-shift core shared by direct, cast-adjacent, affine-adjacent,
+  and divide/remainder-adjacent families. It binds a nonempty, strictly ordered
+  word of canonical exact-left/right semantic equalities from one fixed-native
+  SSA root to its target. Closed counts require no cited fact; every nonclosed
+  count must be landed by an exact earlier canonical equality. Heterogeneous
+  fixed-native count carriers are retained, and every mathematical count must
+  be nonnegative and less than the value width. The checked form preserves the
+  exact direction/count/index word rather than an unsound cumulative summary
+  for mixed shifts. Unsupported carriers, nonexact operations, unlanded, late,
+  reversed, mistyped, negative, or out-of-range counts, stale or reordered
+  definitions, discontinuity, cycles, and target drift reject. This checker
+  accepts no proof authority, establishes no root custody, and proves neither
+  left-shift overflow safety nor a surrounding interval/preimage claim. Proof
+  integration plus a correlated forbidden-root witness remain; no trusted
+  reducer proposition is imported as proof
   authority and no partial exact row migrated. No schema, reducer,
   semantic-operation, or other trust status is promoted; terminal `PSITERM\0`
   codec v18, proof-bundle v15, installation record v24, and `fully-derived
@@ -1397,12 +1411,16 @@ Remaining:
   split; exact host-service grant custody remains a separate authority task
   rather than being hidden inside the refactor.
   Target-neutral call validation has begun the same responsibility split. Its
-  9,103-line `calls.rs` parent is now 7,973 lines, while runtime recursive-call
+  former 9,103-line `calls.rs` parent is now 5,935 lines. Runtime recursive-call
   position checking and proof-machine structural/cited decrease validation live
-  in one 1,154-line `calls/recursion.rs` child. The parent exposes only the two
-  existing crate-private validators; decrease, citation, sub-state provenance,
-  expression walking, and diagnostic construction helpers remain private to
-  the child, and validation order and public API are unchanged.
+  in one 1,149-line `calls/recursion.rs` child; value-position expression-call
+  traversal, target/bound resolution, receiver/type discovery, and exact scan
+  diagnostics form a separate 2,069-line `calls/expression_scanning.rs` child.
+  The parent re-exports only the six existing crate-private validators/helpers;
+  one receiver-member-chain helper is shared privately back to parent frame
+  analysis, and every other decrease, citation, provenance, expression-walk,
+  and diagnostic helper remains private to its owner. Validation order, the
+  141-function inventory, and public API are unchanged.
   Profiling the differential corpus also ruled out a wholesale Arena-to-
   `PagedArena` migration as a concurrency fix: `PagedArena` provides stable
   paged storage, not concurrent mutation, and the existing sound parallel
