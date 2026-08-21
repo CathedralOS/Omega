@@ -141,6 +141,11 @@ Current ownership is:
   `checks/borrows/overlap/indexes.rs` owns index and range overlap policy, and
   handles normalized fixed-index/range pairs as well as range/range pairs;
   `checks/borrows/details.rs` owns diagnostic lifetime explanations.
+  Aggregate loan construction recursively preserves exact record, active-case,
+  and fixed-index owner paths. Direct helper-call results and moved/projected
+  borrow-carrying aggregates nested inside those literals are expanded beneath
+  the enclosing path prefix, retaining their source selection and read/mutable
+  polarity rather than becoming opaque at the nested expression boundary.
   `checks/borrows/persistent.rs` admits borrow-carrying writes backed only by
   immutable artifact-lifetime storage (direct/nested literals, folded literal
   joins, and machine results whose every value exit resolves to such a source),

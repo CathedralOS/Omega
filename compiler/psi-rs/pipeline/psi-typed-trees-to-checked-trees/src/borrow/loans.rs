@@ -7,7 +7,7 @@ use crate::semantic_calls::find_state;
 
 use super::accesses::{self, borrow_access_place};
 use super::tracker::{BorrowOwnerSegment, StateLoanTracker};
-use aggregate::borrowed_initializers;
+use aggregate::{BorrowedInitializerKind, borrowed_initializers};
 use owner_paths::{
     owner_path_from_place_segments, owner_path_matches, place_path_matches_owner_prefix,
 };
@@ -245,6 +245,8 @@ fn reference_local_borrow_loans(
 /// the value borrows the source its reference field is initialized from.
 /// Struct/case literals and fixed arrays are followed recursively so wrapping
 /// one or several views in another checked aggregate cannot erase their loans.
+/// A nested direct helper call or moved/projected aggregate is then expanded
+/// under the enclosing field/index prefix with its original loan polarity.
 fn borrow_carrying_data_loans(
     program: &psi_typed_trees::TypedTrees,
     state: &psi_typed_trees::state::State,
@@ -253,78 +255,26 @@ fn borrow_carrying_data_loans(
     local_data: &psi_checked_trees::statement::TableLocalData,
     loan_trackers: &[StateLoanTracker],
 ) -> Vec<StatementBorrowLoan> {
-    // A call-produced aggregate has no field initializer expressions to walk.
-    // Its explicit result lifetime still identifies one source argument, so
-    // attach that source to the aggregate as a whole. Field and nested uses
-    // overlap this root path and therefore keep the source loan live.
-    if let psi_checked_trees::expression::ExpressionNode::Call(call) = program
-        .expression_table
-        .expression(local_data.initial_value)
-    {
-        let field_loans = helper_call_aggregate_borrow_loans(
+    if matches!(
+        program
+            .expression_table
+            .expression(local_data.initial_value),
+        psi_checked_trees::expression::ExpressionNode::Call(_)
+            | psi_checked_trees::expression::ExpressionNode::Name(_)
+            | psi_checked_trees::expression::ExpressionNode::Member(_)
+            | psi_checked_trees::expression::ExpressionNode::Indexed(_)
+    ) {
+        return aggregate_expression_borrow_loans(
             program,
             state.symbol,
             statement_index,
             machine_symbol,
             local_data,
-            call,
+            local_data.type_reference,
+            local_data.initial_value,
+            &[],
             loan_trackers,
         );
-        if !field_loans.is_empty() {
-            return field_loans;
-        }
-
-        let Some(place) = helper_call_borrow_loan_place(
-            program,
-            state.symbol,
-            statement_index,
-            machine_symbol,
-            call,
-        ) else {
-            return Vec::new();
-        };
-        return rebase_borrow_places_through_local_loans(program, place, loan_trackers)
-            .into_iter()
-            .map(|(place, source_owner_symbol)| StatementBorrowLoan {
-                owner_symbol: local_data.symbol,
-                owner_name: local_data.name.clone(),
-                owner_path: Vec::new(),
-                place,
-                source_owner_symbol,
-                kind: if is_mutably_borrow_carrying_data(program, local_data.type_reference) {
-                    psi_checked_trees::BorrowAccessKind::Mutable
-                } else {
-                    psi_checked_trees::BorrowAccessKind::Read
-                },
-            })
-            .collect();
-    }
-
-    // Moving or copying a borrow-carrying local/projection must transfer every
-    // loan contained by that value. The source local's tracked projection is
-    // rebased to the new owner's root; no initializer literal exists to
-    // rediscover the original borrowed expressions.
-    if matches!(
-        program
-            .expression_table
-            .expression(local_data.initial_value),
-        psi_checked_trees::expression::ExpressionNode::Name(_)
-            | psi_checked_trees::expression::ExpressionNode::Member(_)
-            | psi_checked_trees::expression::ExpressionNode::Indexed(_)
-    ) {
-        if let Some(source) = borrow_access_place(
-            program,
-            state.symbol,
-            statement_index,
-            local_data.initial_value,
-            machine_symbol,
-        ) {
-            let transferred =
-                transferred_aggregate_loans(program, local_data, &source, loan_trackers);
-            if !transferred.is_empty() {
-                return transferred;
-            }
-        }
     }
 
     let initializers = borrowed_initializers(
@@ -337,17 +287,88 @@ fn borrow_carrying_data_loans(
 
     initializers
         .into_iter()
-        .flat_map(|initializer| {
-            // Aggregate leaves obey the same source-selection law as call
-            // arguments. A leaf may itself be a view-producing helper call;
-            // routing it through the call-aware resolver keeps the selected
-            // input loan instead of treating the call expression as no place.
-            let Some(place) = argument_borrow_loan_place(
+        .flat_map(|initializer| match initializer.kind {
+            BorrowedInitializerKind::Reference { is_mutable } => {
+                // Aggregate leaves obey the same source-selection law as call
+                // arguments. A leaf may itself be a view-producing helper call;
+                // routing it through the call-aware resolver keeps the selected
+                // input loan instead of treating the call expression as no place.
+                let Some(place) = argument_borrow_loan_place(
+                    program,
+                    state.symbol,
+                    statement_index,
+                    machine_symbol,
+                    initializer.expression,
+                ) else {
+                    return Vec::new();
+                };
+                rebase_borrow_places_through_local_loans(program, place, loan_trackers)
+                    .into_iter()
+                    .map(|(place, source_owner_symbol)| StatementBorrowLoan {
+                        owner_symbol: local_data.symbol,
+                        owner_name: local_data.name.clone(),
+                        owner_path: initializer.owner_path.clone(),
+                        place,
+                        source_owner_symbol,
+                        kind: if is_mutable {
+                            psi_checked_trees::BorrowAccessKind::Mutable
+                        } else {
+                            psi_checked_trees::BorrowAccessKind::Read
+                        },
+                    })
+                    .collect()
+            }
+            BorrowedInitializerKind::Aggregate { type_reference } => {
+                aggregate_expression_borrow_loans(
+                    program,
+                    state.symbol,
+                    statement_index,
+                    machine_symbol,
+                    local_data,
+                    type_reference,
+                    initializer.expression,
+                    &initializer.owner_path,
+                    loan_trackers,
+                )
+            }
+        })
+        .collect()
+}
+
+#[allow(clippy::too_many_arguments)]
+fn aggregate_expression_borrow_loans(
+    program: &psi_typed_trees::TypedTrees,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    machine_symbol: SymbolHandle,
+    local_data: &psi_checked_trees::statement::TableLocalData,
+    type_reference: psi_typed_trees::types::TypeReferenceHandle,
+    expression: ExpressionHandle,
+    owner_path_prefix: &[BorrowOwnerSegment],
+    loan_trackers: &[StateLoanTracker],
+) -> Vec<StatementBorrowLoan> {
+    match program.expression_table.expression(expression) {
+        psi_checked_trees::expression::ExpressionNode::Call(call) => {
+            let field_loans = helper_call_aggregate_borrow_loans(
                 program,
-                state.symbol,
+                state_symbol,
                 statement_index,
                 machine_symbol,
-                initializer.expression,
+                local_data,
+                call,
+                owner_path_prefix,
+                loan_trackers,
+            );
+            if !field_loans.is_empty() {
+                return field_loans;
+            }
+
+            let Some(place) = helper_call_borrow_loan_place(
+                program,
+                state_symbol,
+                statement_index,
+                machine_symbol,
+                call,
             ) else {
                 return Vec::new();
             };
@@ -356,18 +377,39 @@ fn borrow_carrying_data_loans(
                 .map(|(place, source_owner_symbol)| StatementBorrowLoan {
                     owner_symbol: local_data.symbol,
                     owner_name: local_data.name.clone(),
-                    owner_path: initializer.owner_path.clone(),
+                    owner_path: owner_path_prefix.to_vec(),
                     place,
                     source_owner_symbol,
-                    kind: if initializer.is_mutable {
+                    kind: if is_mutably_borrow_carrying_data(program, type_reference) {
                         psi_checked_trees::BorrowAccessKind::Mutable
                     } else {
                         psi_checked_trees::BorrowAccessKind::Read
                     },
                 })
-                .collect::<Vec<_>>()
-        })
-        .collect()
+                .collect()
+        }
+        psi_checked_trees::expression::ExpressionNode::Name(_)
+        | psi_checked_trees::expression::ExpressionNode::Member(_)
+        | psi_checked_trees::expression::ExpressionNode::Indexed(_) => {
+            let Some(source) = borrow_access_place(
+                program,
+                state_symbol,
+                statement_index,
+                expression,
+                machine_symbol,
+            ) else {
+                return Vec::new();
+            };
+            transferred_aggregate_loans(
+                program,
+                local_data,
+                &source,
+                owner_path_prefix,
+                loan_trackers,
+            )
+        }
+        _ => Vec::new(),
+    }
 }
 
 fn helper_call_aggregate_borrow_loans(
@@ -377,6 +419,7 @@ fn helper_call_aggregate_borrow_loans(
     machine_symbol: SymbolHandle,
     local_data: &psi_checked_trees::statement::TableLocalData,
     call: &psi_checked_trees::expression::TableCallExpression,
+    owner_path_prefix: &[BorrowOwnerSegment],
     loan_trackers: &[StateLoanTracker],
 ) -> Vec<StatementBorrowLoan> {
     let ViewReturnSource::Fields { fields } = call_view_return_source(program, call.target_symbol)
@@ -402,13 +445,17 @@ fn helper_call_aggregate_borrow_loans(
             };
             rebase_borrow_places_through_local_loans(program, place, loan_trackers)
                 .into_iter()
-                .map(|(place, source_owner_symbol)| StatementBorrowLoan {
-                    owner_symbol: local_data.symbol,
-                    owner_name: local_data.name.clone(),
-                    owner_path: field.owner_path.clone(),
-                    place,
-                    source_owner_symbol,
-                    kind: field.kind.clone(),
+                .map(|(place, source_owner_symbol)| {
+                    let mut owner_path = owner_path_prefix.to_vec();
+                    owner_path.extend(field.owner_path.iter().copied());
+                    StatementBorrowLoan {
+                        owner_symbol: local_data.symbol,
+                        owner_name: local_data.name.clone(),
+                        owner_path,
+                        place,
+                        source_owner_symbol,
+                        kind: field.kind.clone(),
+                    }
                 })
                 .collect::<Vec<_>>()
         })
@@ -419,6 +466,7 @@ fn transferred_aggregate_loans(
     program: &psi_typed_trees::TypedTrees,
     local_data: &psi_checked_trees::statement::TableLocalData,
     source: &accesses::BorrowAccessPlace,
+    owner_path_prefix: &[BorrowOwnerSegment],
     loan_trackers: &[StateLoanTracker],
 ) -> Vec<StatementBorrowLoan> {
     loan_trackers
@@ -440,10 +488,12 @@ fn transferred_aggregate_loans(
                     return None;
                 };
 
+            let mut prefixed_owner_path = owner_path_prefix.to_vec();
+            prefixed_owner_path.extend(owner_path);
             Some(StatementBorrowLoan {
                 owner_symbol: local_data.symbol,
                 owner_name: local_data.name.clone(),
-                owner_path,
+                owner_path: prefixed_owner_path,
                 place: loan.place.clone(),
                 source_owner_symbol: loan.owner_symbol,
                 kind: loan.kind.clone(),

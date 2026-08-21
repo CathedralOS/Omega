@@ -1575,6 +1575,10 @@ checked-result arithmetic decision listed below.
 - Finish outlives constraints, persistent/parameter-backed owners, aggregate
   borrow propagation, runtime-index expressions beyond exact immutable
   local/state-parameter forwarding, loan-root rebasing, and exact R5 facts.
+  Direct helper-call results and moved/projected borrow-carrying aggregates now
+  retain exact source loans, enclosing field/fixed-index paths, and polarity
+  when nested inside another literal; remaining computed aggregate expression
+  forms still need the same propagation law.
 - Materialize dynamic descriptors for pass-through, rebound, and escaping
   borrows from the retained exact conformance rows and declaring-trait symbol.
   Bodyless/bare requirements do not license `dyn`; ambiguous same-carrier
