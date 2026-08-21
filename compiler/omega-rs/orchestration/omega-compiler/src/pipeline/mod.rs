@@ -52,7 +52,7 @@ pub use program_storage_entry::{
     InstalledImageSubextent, InstalledProgramStorageRoots, PartitionedProgramStorageRoots,
     ProgramEntryReceiverActivation, ProgramEntryReceiverActivationError,
     ProgramEntryReceiverPlacementRecord, ProgramEntryReceiverStoragePlan,
-    ProgramStorageEntryBridgeError, ProgramStorageEntryContinuationReceiverStagingError,
+    ProgramStorageEntryBridgeError, ProgramStorageEntryContinuationReceiverBindingError,
     ProgramStorageEntryDiagnostic, ProgramStorageEntryExecutorDispatch,
     ProgramStorageEntryNativeBridgePlan, ProgramStorageEntryParameter,
     ProgramStorageEntryPlanBinding, ProgramStorageEntryProviderInvocation,
@@ -66,8 +66,9 @@ pub use program_storage_entry::{
     install_program_storage_entry_provider_invocation, install_program_storage_entry_roots,
 };
 pub use program_storage_source_call::{
+    ProgramStorageEntryContinuationAbiPlan, ProgramStorageEntryContinuationReceiverAbiPlan,
     ProgramStorageEntryContinuationReceiverBinding,
-    ProgramStorageEntryContinuationReceiverStagingPlan, ProgramStorageEntryContinuationStagingPlan,
+    ProgramStorageEntryContinuationVisibleArgumentPlan,
 };
 pub use program_storage_wrapper::{
     ProgramStorageEntryRootRole, ProgramStorageEntryWrapperReceiverTransfer,

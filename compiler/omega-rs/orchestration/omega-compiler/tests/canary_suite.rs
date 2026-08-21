@@ -1493,6 +1493,16 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "dungeon/runtime_ordered_room_dispatch_after_call_exit",
     "dungeon/runtime_ordered_room_dispatch_game_shape_exit",
     "dungeon/runtime_ordered_room_dispatch_large_machine_exit",
+    "atomics/runtime_atomic_load_store_exit",
+    "atomics/runtime_atomic_fetch_add_exit",
+    "atomics/runtime_atomic_fetch_sub_exit",
+    "atomics/runtime_atomic_fetch_xor_exit",
+    "atomics/runtime_atomic_fetch_or_exit",
+    "atomics/runtime_atomic_fetch_and_exit",
+    "atomics/runtime_atomic_swap_exit",
+    "atomics/runtime_atomic_compare_exchange_exit",
+    "structs/runtime_enum_classify_dispatch_exit",
+    "structs/runtime_nested_field_accumulate_loop_exit",
     "calls/recursive_result_bind_first_arg",
     "calls/guarded_value_call_arm_exit",
     "calls/nested_machine_continuation",
@@ -2170,6 +2180,56 @@ const DEDICATED_EXACT_NATIVE_ROOTED_CANARIES: &[DedicatedExactNativeRootedCanary
         canary: "dependent/runtime_sibling_len_index_exit",
         test_name: "runtime_sibling_len_index_exit_canary_runs",
         test_source_path: "tests/canary_suite/generics_and_dependent_facts.rs",
+    },
+    DedicatedExactNativeRootedCanary {
+        canary: "dungeon/runtime_clear_carve_render_string_fields_exit",
+        test_name: "runtime_clear_carve_render_string_fields_exit_canary_runs",
+        test_source_path: "tests/canary_suite/domains_control_and_structures.rs",
+    },
+    DedicatedExactNativeRootedCanary {
+        canary: "dungeon/runtime_direct_boolean_conjunction_exit",
+        test_name: "runtime_direct_boolean_conjunction_exit_canary_runs",
+        test_source_path: "tests/canary_suite/domains_control_and_structures.rs",
+    },
+    DedicatedExactNativeRootedCanary {
+        canary: "dungeon/runtime_enemy_clear_reentry_exit",
+        test_name: "runtime_enemy_clear_reentry_exit_canary_runs",
+        test_source_path: "tests/canary_suite/domains_control_and_structures.rs",
+    },
+    DedicatedExactNativeRootedCanary {
+        canary: "dungeon/runtime_full_level_wrapper_lookup_string_field_exit",
+        test_name: "runtime_full_level_wrapper_lookup_string_field_exit_canary_runs",
+        test_source_path: "tests/canary_suite/domains_control_and_structures.rs",
+    },
+    DedicatedExactNativeRootedCanary {
+        canary: "dungeon/runtime_guarded_inline_leaf_arm_skip_exit",
+        test_name: "runtime_guarded_inline_leaf_arm_skip_exit_canary_runs",
+        test_source_path: "tests/canary_suite/abi_runtime_values_and_strings.rs",
+    },
+    DedicatedExactNativeRootedCanary {
+        canary: "dungeon/runtime_multi_room_reentry_exit",
+        test_name: "runtime_multi_room_reentry_exit_canary_runs",
+        test_source_path: "tests/canary_suite/domains_control_and_structures.rs",
+    },
+    DedicatedExactNativeRootedCanary {
+        canary: "dungeon/runtime_ordered_room_dispatch_exit",
+        test_name: "runtime_ordered_room_dispatch_exit_canary_runs",
+        test_source_path: "tests/canary_suite/abi_runtime_values_and_strings.rs",
+    },
+    DedicatedExactNativeRootedCanary {
+        canary: "dungeon/runtime_ordered_room_dispatch_after_call_exit",
+        test_name: "runtime_ordered_room_dispatch_after_call_exit_canary_runs",
+        test_source_path: "tests/canary_suite/abi_runtime_values_and_strings.rs",
+    },
+    DedicatedExactNativeRootedCanary {
+        canary: "dungeon/runtime_ordered_room_dispatch_game_shape_exit",
+        test_name: "runtime_ordered_room_dispatch_game_shape_exit_canary_runs",
+        test_source_path: "tests/canary_suite/abi_runtime_values_and_strings.rs",
+    },
+    DedicatedExactNativeRootedCanary {
+        canary: "dungeon/runtime_ordered_room_dispatch_large_machine_exit",
+        test_name: "runtime_ordered_room_dispatch_large_machine_exit_canary_runs",
+        test_source_path: "tests/canary_suite/abi_runtime_values_and_strings.rs",
     },
 ];
 

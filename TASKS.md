@@ -98,30 +98,31 @@ Remaining:
   width, and opcode-tampered call claims fail closed. No production builder
   emits that operation yet, and it deliberately carries no invented argument
   or receiver placement. Production builds still emit and select
-  `Source(entry StateKey)`. The native bridge now retains only a non-
-  authoritative continuation staging plan, distinct from the physical arrival
-  `BoundaryEntryPlan`. That staging plan itself carries no source signature,
-  root-value carrier, root authority, or complete `CallPlan`. For an
-  attached entry it stages the first compiler-private ABI position as a hidden
-  receiver-pointer candidate, and the production executor gate binds that
-  candidate to the exact mapped address and live activation loan; identity,
-  shape, alignment, and loan-length drift reject. The free form is recorded but
-  has no production executor traversal because the current gate requires
-  receiver activation. The bridge now separately retains the exact checked
+  `Source(entry StateKey)`. The native bridge now retains an address-free
+  outbound continuation ABI, distinct from the physical arrival
+  `BoundaryEntryPlan`. The bridge separately retains the exact checked
   source declaration signature captured before typed ownership moves into the
   backend: target slot, machine/state symbols and names, canonical normalized
   callable identity, Unit result, free-versus-mutable receiver identity, and
-  ordered receiver-excluded visible parameter type/mode rows. Those facts are
-  rechecked against the exact lowered continuation, selected slot, arrival
-  parameter identities, and checked receiver layout; they carry no ABI shape,
-  runtime value, `Extent`, or root authority. Attached receiver storage
-  partitions `InitialStorage`,
-  and its potentially noncontiguous conserved remainders cannot be invented as
-  one outbound `Extent`. Production builds therefore still lack an exact
-  source root-value/authority carrier, outbound ABI plan, generated wrapper
-  body, and source-function inbound realization; defining the conserved
-  residual argument (or separate hidden supply), emitting the body, realizing
-  its placements,
+  ordered receiver-excluded visible parameter type/mode/shape rows. Those facts
+  are rechecked against the exact lowered continuation, selected slot, arrival
+  parameter identities, and checked receiver layout. For the currently
+  admitted UEFI x86-64 schema only, the compiler-private Microsoft x64 policy now derives
+  one complete `CallPlan` over the optional receiver followed by Image and
+  InitialStorage, with Unit result, and validates every placement against the
+  sealed declaration shape. A future SysV/AAPCS schema remains fenced until the
+  structural classification graph is retained. The production executor gate
+  binds the attached receiver placement to the exact mapped address and live
+  activation loan; identity, shape, alignment, and loan-length drift reject.
+  The free form has a complete layout but no production executor traversal
+  because the current gate requires receiver activation. The ABI plan carries
+  no runtime root value, `Extent`, root authority, wrapper body, emitted call,
+  or callee inbound realization. Attached receiver storage partitions
+  `InitialStorage`, and its potentially noncontiguous conserved remainders
+  cannot be invented as one outbound `Extent`. Production builds therefore still lack an exact
+  source root-value/authority carrier, generated wrapper body, and source-
+  function inbound realization; defining the conserved residual argument (or
+  separate hidden supply), emitting the body, realizing its runtime values,
   defining the installation-carrier linkage, adding the
   exact native call edge to the retained operation, and retaining resulting
   native bridge evidence remain before this slice is complete.
@@ -166,8 +167,10 @@ Remaining:
   product-index probes likewise retain their exact programs under authored
   four-host roots. Ten dungeon reentry, Boolean/ordered dispatch, and
   string-field lookup regressions now also run their unchanged Unit entries
-  through authored roots. The tracked corpus audit leaves 117 legacy fixtures
-  without an authored `build.omg` root.
+  through authored roots. Eight atomic operation probes and two structural
+  dispatch/nested-field probes now share authored roots across native execution
+  and the existing AArch64 opcode checks. The tracked corpus audit leaves 107
+  legacy fixtures without an authored `build.omg` root.
   Continue migrating those fixtures through production entry
   selection; replace result-as-process-exit probes with ordinary Unit entries
   and explicit exit providers rather than preserving the legacy entry seam.

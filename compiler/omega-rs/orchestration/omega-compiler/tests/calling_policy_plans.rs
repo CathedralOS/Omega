@@ -1252,15 +1252,7 @@ fn program_storage_entry_publishes_both_core_owned_root_positions() {
                     omega_compiler::ProgramStorageEntryWrapperReceiverTransfer::BorrowedActivationLoan(_)
                 ));
                 assert!(handoff.source_signature().is_none());
-                let staging = handoff.continuation_staging();
-                assert_eq!(staging.continuation_identity(), transfer.continuation_identity());
-                assert!(matches!(
-                    staging.receiver(),
-                    omega_compiler::ProgramStorageEntryContinuationReceiverStagingPlan::BorrowedActivationLoan {
-                        candidate_parameter_index: 0,
-                        ..
-                    }
-                ));
+                assert!(handoff.continuation_abi().is_none());
                 assert_eq!(handoff.continuation_key(), expected_continuation);
                 assert_eq!(handoff.continuation_symbol(), "program_storage_test_entry");
                 assert_eq!(
@@ -1281,17 +1273,7 @@ fn program_storage_entry_publishes_both_core_owned_root_positions() {
                     ),
                     (0x9008, 8)
                 );
-                let receiver = handoff.continuation_receiver();
-                assert_eq!(receiver.candidate_parameter_index(), 0);
-                assert_eq!(receiver.mapped_address(), 0x9008);
-                let omega_compiler::ProgramStorageEntryContinuationReceiverStagingPlan::BorrowedActivationLoan {
-                    candidate_placement,
-                    ..
-                } = staging.receiver()
-                else {
-                    panic!("attached entry must stage its receiver")
-                };
-                assert_eq!(receiver.candidate_placement(), candidate_placement);
+                assert!(handoff.continuation_receiver().is_none());
                 assert_eq!(handoff.receiver(), &[0; 8]);
                 handoff.receiver()[3] = 70;
                 handoff.provider_invocation()
@@ -1304,8 +1286,8 @@ fn program_storage_entry_publishes_both_core_owned_root_positions() {
             ProgramStorageEntryBridgeError::Activation(error) => {
                 panic!("physical receiver activation should succeed: {error}")
             }
-            ProgramStorageEntryBridgeError::ContinuationReceiverStaging(error) => {
-                panic!("physical receiver staging check should succeed: {error}")
+            ProgramStorageEntryBridgeError::ContinuationReceiverBinding(error) => {
+                panic!("physical receiver ABI check should succeed: {error}")
             }
         });
     assert_eq!(executor_count.get(), 1);

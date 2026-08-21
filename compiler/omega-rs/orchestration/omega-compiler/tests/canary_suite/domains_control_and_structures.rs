@@ -2121,8 +2121,9 @@ fn runtime_enum_classify_dispatch_exit_canary_runs() {
     // multi-arm enum dispatch, in one program -> exit 70.
     let canary = pass_canary("structs/runtime_enum_classify_dispatch_exit");
     let scratch = std::env::temp_dir().join(format!("omega-enum-classify-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
-        .expect("enum classify-dispatch canary should compile");
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+        .expect("enum classify-dispatch canary should compile from its authored root");
     let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("enum classify-dispatch canary should run");
@@ -2145,8 +2146,9 @@ fn runtime_nested_field_accumulate_loop_exit_canary_runs() {
     let canary = pass_canary("structs/runtime_nested_field_accumulate_loop_exit");
     let scratch =
         std::env::temp_dir().join(format!("omega-nested-accum-loop-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
-        .expect("nested-field accumulate-loop canary should compile");
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+        .expect("nested-field accumulate-loop canary should compile from its authored root");
 
     let output = Command::new(scratch.join("out").join(executable_name()))
         .output()

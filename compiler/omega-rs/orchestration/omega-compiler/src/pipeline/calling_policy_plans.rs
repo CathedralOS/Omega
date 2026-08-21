@@ -854,6 +854,38 @@ fn value_shape_from_type(
     }
 }
 
+/// Derive the flat ABI value shape for the currently admitted UEFI/Microsoft
+/// program-storage source schema. The richer `BoundaryValueShape` graph is not
+/// retained here, so any future SysV/AAPCS source schema must add and consume
+/// structural classification rather than passing this fence.
+pub(crate) fn selected_program_storage_source_value_shape(
+    typed: &TypedTrees,
+    slot: omega_target::ProgramEntrySlotDeclaration,
+    type_reference: TypeReferenceHandle,
+) -> Result<ValueShape, String> {
+    if slot.owner != omega_target::TargetProfile::UefiX64
+        || slot.schema != omega_target::ProgramEntrySchema::ProgramStorageApplication
+        || slot.visible_parameters
+            != omega_target::ProgramEntryVisibleParameters::ImageAndInitialStorage
+        || slot.calling_convention
+            != Some(omega_target::ProgramEntryCallingConvention::MicrosoftX64)
+    {
+        return Err(
+            "flat selected-source shape derivation is restricted to the exact UEFI/Microsoft program-storage schema"
+                .into(),
+        );
+    }
+    value_shape_from_type(
+        typed,
+        type_reference,
+        &[],
+        &mut Vec::new(),
+        &mut Vec::new(),
+        &mut Vec::new(),
+    )
+    .map(|(shape, _)| shape)
+}
+
 fn push_boundary_shape(
     shapes: &mut Vec<BoundaryValueShape>,
     shape: BoundaryValueShape,

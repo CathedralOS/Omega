@@ -248,6 +248,41 @@ fn uefi_program_entry_retains_exact_storage_root_binding() {
         initial_storage.normalized_type_identity(),
         binding.initial_storage().parameter_type_identity()
     );
+    let continuation_abi = bridge
+        .continuation_abi()
+        .expect("production bridge must retain its complete outbound ABI");
+    assert_eq!(
+        continuation_abi.normalized_callable_identity(),
+        source_signature.normalized_callable_identity()
+    );
+    assert_eq!(
+        continuation_abi.call().policy,
+        omega_calling_conventions::CallingPolicy::MicrosoftX64
+    );
+    assert!(continuation_abi.call().result.is_none());
+    assert_eq!(continuation_abi.call().parameters.len(), 3);
+    assert!(matches!(
+        continuation_abi.receiver(),
+        omega_compiler::ProgramStorageEntryContinuationReceiverAbiPlan::BorrowedActivationLoan {
+            parameter_index: 0,
+            ..
+        }
+    ));
+    let [image_abi, initial_storage_abi] = continuation_abi.visible_arguments() else {
+        panic!("UEFI continuation ABI must place both visible root declarations")
+    };
+    assert_eq!(image_abi.call_parameter_index(), 1);
+    assert_eq!(initial_storage_abi.call_parameter_index(), 2);
+    assert_eq!(image_abi.shape(), image.value_shape());
+    assert_eq!(initial_storage_abi.shape(), initial_storage.value_shape());
+    assert_eq!(
+        image_abi.placement(),
+        &continuation_abi.call().parameters[1]
+    );
+    assert_eq!(
+        initial_storage_abi.placement(),
+        &continuation_abi.call().parameters[2]
+    );
     assert!(
         bridge.selected_provider().is_none(),
         "the current UEFI profile has no physical provider selection to claim as installed"
@@ -1479,7 +1514,7 @@ fn pass_canaries_compile() {
 fn dedicated_exact_native_rooted_canary_registry_is_consistent() {
     assert_eq!(
         DEDICATED_EXACT_NATIVE_ROOTED_CANARIES.len(),
-        10,
+        20,
         "the bounded duplicate-elision cohort must change deliberately"
     );
 
