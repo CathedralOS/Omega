@@ -40,7 +40,7 @@ use psi_language_semantics::{
     TerminationInterface,
 };
 use psi_symbols::SymbolHandle;
-use psi_typed_trees::data::{TypeParameter, TypeParameterKind};
+use psi_typed_trees::data::{MachineParameterContract, TypeParameter, TypeParameterKind};
 use psi_typed_trees::domain::DomainDefinition;
 use psi_typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCastExpression};
 use psi_typed_trees::machine::Machine;

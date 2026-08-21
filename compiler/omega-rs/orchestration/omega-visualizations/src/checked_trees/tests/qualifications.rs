@@ -568,11 +568,11 @@ fn qualification_manifest_accepts_exact_independent_semantic_sources() {
             symbol: parameter_symbol,
             name: Identifier::generated("Dependency"),
             kind: TypeParameterKind::Machine {
-                contract: StateSignature {
+                contract: MachineParameterContract::Structural(StateSignature {
                     symbol: parameter_signature_symbol,
                     name: Identifier::generated("invoke"),
                     ..Default::default()
-                },
+                }),
             },
             ..Default::default()
         },
