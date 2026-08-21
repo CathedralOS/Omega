@@ -2095,7 +2095,7 @@ fn runtime_enum_match_breadth_exit_canary_runs() {
     let canary = pass_canary("expressions/runtime_enum_match_breadth_exit");
     let scratch =
         std::env::temp_dir().join(format!("omega-enum-match-breadth-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("enum match breadth canary should compile");
 
     let output = Command::new(scratch.join("out").join(executable_name()))

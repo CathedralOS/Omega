@@ -940,7 +940,7 @@ fn runtime_machine_owned_indexed_nested_room_copy_exit_canary_runs() {
         "omega-runtime-machine-owned-indexed-nested-room-copy-{}",
         std::process::id()
     ));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("runtime machine-owned indexed nested room copy canary should compile");
 
     let output = Command::new(scratch.join("out").join(executable_name()))
@@ -1365,7 +1365,7 @@ fn runtime_param_domain_forward_exit_canary_runs() {
 
     let scratch =
         std::env::temp_dir().join(format!("omega-param-domain-forward-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("param domain forward canary should compile");
 
     let output = Command::new(scratch.join("out").join(executable_name()))
@@ -1407,7 +1407,7 @@ fn runtime_case_payload_domain_forward_exit_canary_runs() {
         "omega-case-payload-domain-forward-{}",
         std::process::id()
     ));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("case payload domain forward canary should compile");
 
     let output = Command::new(scratch.join("out").join(executable_name()))
@@ -1720,7 +1720,7 @@ fn runtime_indexed_struct_field_write_exit_canary_runs() {
         "omega-runtime-indexed-struct-field-{}",
         std::process::id()
     ));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("runtime indexed struct-field write canary should compile");
 
     let output = Command::new(scratch.join("out").join(executable_name()))
@@ -1963,7 +1963,7 @@ fn runtime_result_match_exit_canary_runs() {
     // sums the Ok values to 10 and counts 1 Err -> exit 70.
     let canary = pass_canary("errors/runtime_result_match_exit");
     let scratch = std::env::temp_dir().join(format!("omega-result-match-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("result match canary should compile");
     let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
@@ -2192,7 +2192,7 @@ fn runtime_indexed_write_const_read_exit_canary_runs() {
         "omega-indexed-write-const-read-{}",
         std::process::id()
     ));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("indexed-write/const-read canary should compile");
 
     let output = Command::new(scratch.join("out").join(executable_name()))
@@ -2215,7 +2215,7 @@ fn runtime_indexed_rmw_temp_exit_canary_runs() {
     let canary = pass_canary("slices/runtime_indexed_rmw_temp_exit");
     let scratch =
         std::env::temp_dir().join(format!("omega-indexed-rmw-temp-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("indexed-rmw-temp canary should compile");
 
     let output = Command::new(scratch.join("out").join(executable_name()))
@@ -2240,7 +2240,7 @@ fn runtime_indexed_write_adjacent_field_exit_canary_runs() {
         "omega-indexed-write-adjacent-{}",
         std::process::id()
     ));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("indexed-write-adjacent-field canary should compile");
 
     let output = Command::new(scratch.join("out").join(executable_name()))
@@ -2263,7 +2263,7 @@ fn runtime_join_meet_bound_exit_canary_runs() {
     let canary = pass_canary("slices/runtime_join_meet_bound_exit");
     let scratch =
         std::env::temp_dir().join(format!("omega-join-meet-bound-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("join-meet-bound canary should compile");
 
     let output = Command::new(scratch.join("out").join(executable_name()))

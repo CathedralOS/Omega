@@ -331,14 +331,18 @@ Remaining:
   host-output, state-loop, reference-field, and dungeon-guard probes now retain
   the same direct Unit entries under authored four-host roots; their three
   target-specific footprint consumers use those checked-in roots as well. The
+  final broad portable cohort adds twenty-four expression, slice/index, Result,
+  text-domain, storage, and closed trait-dispatch fixtures without changing
+  their direct Unit programs; the frame-indexed footprint consumer now uses
+  that checked-in root as well. The
   local-named dynamic devirtualization fixture remains rootless because
   production entry selection currently rejects its state-graph source
   declaration as missing or ambiguous. The bounded-product index fixture has a
   production-root proof gap; the referenced-local sibling-guard and tuple-
   transition fixtures still expose legacy result-returning entry seams; raw
   Windows and GUI fixtures remain platform-bound. A registry-derived inventory
-  now pins 890 `RUN_CANARIES`, 855 with authored roots, and 35 rootless. The
-  tracked backlog is 31 after separately excluding the exact four GUI fixtures
+  now pins 890 `RUN_CANARIES`, 879 with authored roots, and 11 rootless. The
+  tracked backlog is 7 after separately excluding the exact four GUI fixtures
   that still lack a general Linux `Gui`/`Input` provider. The earlier reported
   backlog of 18 was incorrect: its baseline parser omitted 39 multiline-form
   RUN rows, then

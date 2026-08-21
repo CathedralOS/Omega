@@ -1255,20 +1255,14 @@ fn runtime_frame_array_slice_parameter_alias_exit_canary_runs() {
 #[test]
 fn runtime_slice_len_transition_exit_canary_runs() {
     let canary = pass_canary("slices/runtime_slice_len_transition_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-slice-len-transition-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime slice len transition canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("runtime slice len transition canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -1595,13 +1589,8 @@ fn runtime_local_aggregate_into_let_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("local-aggregate-into-let canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("local-aggregate-into-let canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -1631,13 +1620,8 @@ fn runtime_field_array_element_value_operand_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("field-array value-operand canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("field-array value-operand canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -1792,20 +1776,14 @@ fn runtime_nested_subslice_fixed_index_exit_canary_runs() {
 #[test]
 fn runtime_slice_fixed_index_guard_exit_canary_runs() {
     let canary = pass_canary("slices/runtime_slice_fixed_index_guard_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-slice-fixed-index-guard-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime slice fixed index guard canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("runtime slice fixed index guard canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -1825,20 +1803,14 @@ fn runtime_slice_fixed_index_guard_exit_canary_runs() {
 #[test]
 fn runtime_local_slice_len_comparison_value_exit_canary_runs() {
     let canary = pass_canary("slices/runtime_local_slice_len_comparison_value_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-local-slice-len-comparison-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime local slice len comparison canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("runtime local slice len comparison canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -1858,20 +1830,14 @@ fn runtime_local_slice_len_comparison_value_exit_canary_runs() {
 #[test]
 fn runtime_slice_index_transition_exit_canary_runs() {
     let canary = pass_canary("slices/runtime_slice_index_transition_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-slice-index-transition-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime slice index transition canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("runtime slice index transition canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -1891,20 +1857,14 @@ fn runtime_slice_index_transition_exit_canary_runs() {
 #[test]
 fn runtime_slice_iteration_exit_canary_runs() {
     let canary = pass_canary("slices/runtime_slice_iteration_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-slice-iteration-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime slice iteration canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("runtime slice iteration canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
