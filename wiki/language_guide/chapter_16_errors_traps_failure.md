@@ -161,6 +161,13 @@ They are not the conjunctive list used by `requires`. Repeating a clause for the
 same cause contributes more alternatives to the same canonical bucket. A
 route predicate is an ordinary Boolean proof expression and may use
 `&&`, `||`, or other ordinary operators internally.
+Like every contract expression, it must be total. Direct Trapping arithmetic
+therefore rejects and cannot itself create a crash route. Authors restate a
+primitive's trap condition with explicit total denotations such as
+`embed(value)` for fixed integers and addresses or `Float::meaning32(value)`
+for `f32`; the executable body remains the sole source of the derived crash
+site. See
+[Total Specification Arithmetic](../design_briefs/total_specification_arithmetic.md).
 
 One cause appears per clause. The formatter renders one route per line and
 starts routes below the cause. A clause with no routes is unconditional.

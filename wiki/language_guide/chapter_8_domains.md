@@ -972,6 +972,18 @@ later operation must prove the Exact obligations anew. This does not recover a
 mathematical value lost by earlier wrapping. Selecting or removing a non-Exact
 policy is explicit because it changes future operator behavior.
 
+Contract expressions admit only total operations. Exact arithmetic remains
+legal there because its representability obligation is discharged when the
+term forms. Wrapping and Saturating make representable-range overflow total but
+retain independent primitive obligations such as a nonzero divisor. Direct
+Trapping arithmetic rejects because its failure is resolved by runtime control,
+which the proof logic does not have. A contract that needs the mathematical
+payload writes `embed(value)` explicitly; fixed-width integers and addresses
+embed into proof `Int` with derived carrier-range facts. A same-carrier
+`value as T` instead removes the policy and selects Exact `T` arithmetic with
+its ordinary formation obligations. See
+[Total Specification Arithmetic](../design_briefs/total_specification_arithmetic.md).
+
 **Normalization is not entailment.** A small deterministic, confluent,
 terminating normalizer owns what a domain expression *is*; type identity,
 semantic interface identity, and monomorphization keys depend only on it. The

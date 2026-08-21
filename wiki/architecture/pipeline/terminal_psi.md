@@ -1337,7 +1337,17 @@ at the greatest possible count; a zero count or a compile-known value that shift
 safely is self-proving. The producer canonically orders the complete requirement
 package, and projected calls rebase one exact obligation per requirement.
 Independent verification reconstructs the count and overflow checks and rejects
-missing or weakened evidence. Trapping arithmetic remains fail-closed here.
+missing or weakened evidence. Direct Trapping arithmetic remains forbidden in
+predicate terms. An explicit fixed-integer or address `embed` instead lowers to
+an unbounded proof-`Int` term carrying the source carrier identity and exact
+derived range; an explicit same-carrier `as` lowers to Exact arithmetic and
+retains its discharged representability obligations. Wrapping and Saturating
+predicate nodes retain their distinct total denotations. Terminal Psi never
+creates a proof-side Trapping node or a predicate-generated crash effect.
+Executable Trapping operations separately retain their compiler-owned
+primitive trap predicate and path-conditioned crash site. Verification checks
+that denotation against the primitive catalog and proves the derived guard is
+covered by the authored same-cause route disjunction.
 Exact division and remainder accept a
 same-carrier literal divisor only when it is nonzero and cannot trigger signed
 `MIN / -1` overflow. Wrapping and Saturating division and remainder accept any

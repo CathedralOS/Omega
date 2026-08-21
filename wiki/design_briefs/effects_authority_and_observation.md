@@ -176,6 +176,14 @@ clause denotes their disjunction. An empty route list denotes `true`. Omitting a
 cause from a published contract forbids that cause. Private omission infers a
 summary.
 
+Every route guard is a total proof expression. Direct Trapping arithmetic is
+therefore forbidden in the guard and cannot create a crash route by being
+"evaluated." Fixed integers and addresses use explicit proof-`Int` embedding;
+floats use `FloatMeaning`. The body operation alone creates the derived crash
+site, under the primitive-specific guard defined by the compiler-owned
+denotation catalog. See
+[Total Specification Arithmetic](total_specification_arithmetic.md).
+
 The initial cause identities are `Trap` and `Abort`. Cause identity controls
 policy and lowering; both are no-successor, no-cleanup exits.
 

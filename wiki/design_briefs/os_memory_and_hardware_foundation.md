@@ -107,9 +107,11 @@ The fields carry runtime geometry. `Extent::Granted` states that the geometry
 descends from a live admitted or checked authority claim. Constructing the same
 fields creates an unqualified linear value. Operations that consume range
 authority require `Granted`, so a fabricated or dequalified Extent has no legal
-resource consumer. `no_wrap` proves in proof-level natural arithmetic that the
-embedded base plus length does not exceed the target address-space bound; it
-does not perform wrapping `addr` addition.
+resource consumer. `no_wrap` embeds the base and length into proof `Int`, uses
+their derived nonnegative carrier ranges, and proves their unbounded sum does
+not exceed the target address-space bound; it does not perform wrapping `addr`
+addition. Content projection then converts those nonnegative coordinates into
+the `IntervalSet<Nat>` algebra explicitly.
 
 An admitted platform provider originates a root only by satisfying the
 owner-authored `ExtentRootProvider::grant` requirement. The caller supplies the

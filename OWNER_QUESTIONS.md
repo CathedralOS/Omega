@@ -67,25 +67,7 @@ x86-64 and AArch64 calling policies, preserve stack/alignment and machine-state
 contracts, and keep fixed-fuel meter elision a separately admitted installation
 decision.
 
-## Q4 — Trapping arithmetic inside contract predicates
-
-`Trapping` arithmetic has settled runtime behavior: invalid counts, overflow,
-and the other policy-defined failures trap instead of producing a value. A
-`requires`, `ensures`, or `crashes` predicate is specification evidence rather
-than an ordinary runtime expression, however, and the language does not define
-what happens when evaluating a trapping arithmetic subterm would trap.
-
-Choose whether trapping arithmetic is permitted in contract predicates and, if
-it is, what proposition it denotes on a trapping input. In particular, decide
-whether the trap contributes an exact `Trap` crash route for the governed
-machine, makes the proposition partial or false, or requires separate
-nontrapping evidence (collapsing that occurrence to Exact behavior). The ruling
-must define how body execution and specification evaluation relate, how callers
-reason about the trap edge, and what explicit term/effect and proof obligations
-terminal Psi carries. The compiler must not silently treat a potentially
-trapping contract term as a total mathematical operation.
-
-## Q5 — External-entry stack-domain accounting
+## Q4 — External-entry stack-domain accounting
 
 Terminal-Psi stack evidence derives the exact closure below a selected machine
 entry, but an external root also consumes provider-specific adapter and hardware
@@ -104,7 +86,7 @@ with `EntryStack::{Interrupted, Dedicated, ProviderSelected}` without placing
 OS-specific interrupt-frame vocabulary in the language or treating a numeric
 provider assertion as compiler-derived terminal evidence.
 
-## Q6 — Progress-profile classification and premise attachment
+## Q5 — Progress-profile classification and premise attachment
 
 Termination guarantees can retain sealed `ProgressProfileId` premises, but the
 ordinary domain and routed-requirement surface does not distinguish a progress
@@ -118,7 +100,7 @@ witnesses outside public contract identity. Generic routed/domain requirements
 must not become progress premises merely because they are predicate-free,
 provider-backed, or mentioned by a terminating machine.
 
-## Q7 — Quotient-operation respect selection surface
+## Q6 — Quotient-operation respect selection surface
 
 Quotient lifting requires one exact named `Respects` conformance, and its
 argument relation is derived from the operation's positional call telescope
@@ -138,7 +120,7 @@ non-lifetime arguments. The selection must remain explicit, argument-sensitive,
 and retained in checked and terminal identity, with no visibility search,
 priority, or structural proof-machine discovery.
 
-## Q8 — Registered-callback private placement contract
+## Q7 — Registered-callback private placement contract
 
 The settled callback surface selects a named static machine through
 `where machine Selected satisfies Trait::requirement`. The requirement's
