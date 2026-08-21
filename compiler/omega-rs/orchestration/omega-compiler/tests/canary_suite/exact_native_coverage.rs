@@ -4,6 +4,8 @@ use std::path::{Path, PathBuf};
 
 pub(super) const EXPECTED_UNIQUE_ROOTED_ACTIVE_COVERAGE: usize = 690;
 pub(super) const EXPECTED_UNIQUE_LEGACY_ACTIVE_COVERAGE: usize = 6;
+pub(super) const EXPECTED_UNIQUE_CROSS_TARGET_COVERAGE: usize = 32;
+pub(super) const EXPECTED_UNIQUE_ROOTED_TARGET_COVERAGE: usize = 3;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct ExactNativeCanaryOwner {
@@ -12,14 +14,23 @@ pub(super) struct ExactNativeCanaryOwner {
     pub(super) expected_status: i32,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct ExactTargetCanaryOwner {
+    pub(super) test_name: String,
+    pub(super) source_path: PathBuf,
+}
+
 #[derive(Debug)]
 pub(super) struct ExactNativeCanaryCoverageIndex {
     rooted_owners: BTreeMap<String, Vec<ExactNativeCanaryOwner>>,
     legacy_owners: BTreeMap<String, Vec<ExactNativeCanaryOwner>>,
+    cross_target_owners: BTreeMap<(String, String), Vec<ExactTargetCanaryOwner>>,
+    rooted_target_owners: BTreeMap<(String, String), Vec<ExactTargetCanaryOwner>>,
     source_file_count: usize,
     source_byte_count: usize,
     test_body_count: usize,
     qualifying_test_count: usize,
+    qualifying_target_compile_count: usize,
 }
 
 impl ExactNativeCanaryCoverageIndex {
@@ -61,10 +72,13 @@ impl ExactNativeCanaryCoverageIndex {
         Self {
             rooted_owners: BTreeMap::new(),
             legacy_owners: BTreeMap::new(),
+            cross_target_owners: BTreeMap::new(),
+            rooted_target_owners: BTreeMap::new(),
             source_file_count: 0,
             source_byte_count: 0,
             test_body_count: 0,
             qualifying_test_count: 0,
+            qualifying_target_compile_count: 0,
         }
     }
 
@@ -83,22 +97,35 @@ impl ExactNativeCanaryCoverageIndex {
         let structure = mask_source(source, true);
         for test in enabled_test_functions(&structure, &code) {
             self.test_body_count += 1;
-            let Some((kind, canary, expected_status)) = exact_native_coverage(&test.body) else {
-                continue;
-            };
-            self.qualifying_test_count += 1;
-            let owners = match kind {
-                ExactNativeOwnerKind::Rooted => &mut self.rooted_owners,
-                ExactNativeOwnerKind::Legacy => &mut self.legacy_owners,
-            };
-            owners
-                .entry(canary)
-                .or_default()
-                .push(ExactNativeCanaryOwner {
-                    test_name: test.name,
-                    source_path: path.to_path_buf(),
-                    expected_status,
-                });
+            if let Some((kind, canary, expected_status)) = exact_native_coverage(&test.body) {
+                self.qualifying_test_count += 1;
+                let owners = match kind {
+                    ExactNativeOwnerKind::Rooted => &mut self.rooted_owners,
+                    ExactNativeOwnerKind::Legacy => &mut self.legacy_owners,
+                };
+                owners
+                    .entry(canary)
+                    .or_default()
+                    .push(ExactNativeCanaryOwner {
+                        test_name: test.name.clone(),
+                        source_path: path.to_path_buf(),
+                        expected_status,
+                    });
+            }
+            for (kind, canary, target) in exact_target_coverage(&test.body) {
+                self.qualifying_target_compile_count += 1;
+                let owners = match kind {
+                    ExactTargetOwnerKind::CrossTarget => &mut self.cross_target_owners,
+                    ExactTargetOwnerKind::RootedTarget => &mut self.rooted_target_owners,
+                };
+                owners
+                    .entry((canary, target))
+                    .or_default()
+                    .push(ExactTargetCanaryOwner {
+                        test_name: test.name.clone(),
+                        source_path: path.to_path_buf(),
+                    });
+            }
         }
     }
 
@@ -118,6 +145,30 @@ impl ExactNativeCanaryCoverageIndex {
         owner_count(&self.legacy_owners, canary)
     }
 
+    pub(super) fn unique_cross_target_owner(
+        &self,
+        canary: &str,
+        target: &str,
+    ) -> Option<&ExactTargetCanaryOwner> {
+        unique_target_owner(&self.cross_target_owners, canary, target)
+    }
+
+    pub(super) fn unique_rooted_target_owner(
+        &self,
+        canary: &str,
+        target: &str,
+    ) -> Option<&ExactTargetCanaryOwner> {
+        unique_target_owner(&self.rooted_target_owners, canary, target)
+    }
+
+    pub(super) fn cross_target_owner_count(&self, canary: &str, target: &str) -> usize {
+        target_owner_count(&self.cross_target_owners, canary, target)
+    }
+
+    pub(super) fn rooted_target_owner_count(&self, canary: &str, target: &str) -> usize {
+        target_owner_count(&self.rooted_target_owners, canary, target)
+    }
+
     pub(super) const fn source_file_count(&self) -> usize {
         self.source_file_count
     }
@@ -132,6 +183,10 @@ impl ExactNativeCanaryCoverageIndex {
 
     pub(super) const fn qualifying_test_count(&self) -> usize {
         self.qualifying_test_count
+    }
+
+    pub(super) const fn qualifying_target_compile_count(&self) -> usize {
+        self.qualifying_target_compile_count
     }
 }
 
@@ -148,6 +203,28 @@ fn unique_owner<'index>(
 
 fn owner_count(owners: &BTreeMap<String, Vec<ExactNativeCanaryOwner>>, canary: &str) -> usize {
     owners.get(canary).map_or(0, Vec::len)
+}
+
+fn unique_target_owner<'index>(
+    owners: &'index BTreeMap<(String, String), Vec<ExactTargetCanaryOwner>>,
+    canary: &str,
+    target: &str,
+) -> Option<&'index ExactTargetCanaryOwner> {
+    let owners = owners.get(&(canary.to_owned(), target.to_owned()))?;
+    let [owner] = owners.as_slice() else {
+        return None;
+    };
+    Some(owner)
+}
+
+fn target_owner_count(
+    owners: &BTreeMap<(String, String), Vec<ExactTargetCanaryOwner>>,
+    canary: &str,
+    target: &str,
+) -> usize {
+    owners
+        .get(&(canary.to_owned(), target.to_owned()))
+        .map_or(0, Vec::len)
 }
 
 struct TestFunction {
@@ -288,6 +365,12 @@ enum ExactNativeOwnerKind {
     Legacy,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ExactTargetOwnerKind {
+    CrossTarget,
+    RootedTarget,
+}
+
 fn exact_native_coverage(body: &str) -> Option<(ExactNativeOwnerKind, String, i32)> {
     if !body.contains("Command::new(") || !body.contains(".output()") {
         return None;
@@ -325,6 +408,206 @@ fn exact_native_coverage(body: &str) -> Option<(ExactNativeOwnerKind, String, i3
         return None;
     }
     Some((kind, canary.clone(), status_digits.parse().ok()?))
+}
+
+fn exact_target_coverage(body: &str) -> Vec<(ExactTargetOwnerKind, String, String)> {
+    let canaries = exact_pass_canary_literals(body);
+    let [canary] = canaries.as_slice() else {
+        return Vec::new();
+    };
+    let compact = body
+        .chars()
+        .filter(|character| !character.is_whitespace())
+        .collect::<String>();
+    let mut coverage = Vec::new();
+
+    for function in [
+        "compile_canary_without_output_for_target",
+        "compile",
+        "compile_with_auxiliary_artifacts",
+    ] {
+        for call in exact_successful_calls(&compact, function) {
+            let target = if function == "compile_canary_without_output_for_target" {
+                let arguments = top_level_arguments(call.arguments);
+                let [canary_argument, target_argument] = arguments.as_slice() else {
+                    continue;
+                };
+                if *canary_argument != "&canary" {
+                    continue;
+                }
+                exact_string_literal(target_argument)
+            } else {
+                exact_compile_options_target(call.arguments)
+            };
+            if let Some(target) = target {
+                coverage.push((
+                    ExactTargetOwnerKind::CrossTarget,
+                    canary.clone(),
+                    target.to_owned(),
+                ));
+            }
+        }
+    }
+
+    for function in [
+        "compile_rooted_canary_for_target",
+        "compile_rooted_canary_for_target_with_auxiliary_artifacts",
+    ] {
+        for call in exact_successful_calls(&compact, function) {
+            let arguments = top_level_arguments(call.arguments);
+            let [canary_argument, _, target_argument] = arguments.as_slice() else {
+                continue;
+            };
+            if *canary_argument != "&canary" {
+                continue;
+            }
+            if let Some(target) = exact_string_literal(target_argument) {
+                coverage.push((
+                    ExactTargetOwnerKind::RootedTarget,
+                    canary.clone(),
+                    target.to_owned(),
+                ));
+            }
+        }
+    }
+    coverage
+}
+
+struct ExactCall<'source> {
+    arguments: &'source str,
+}
+
+fn exact_successful_calls<'source>(
+    source: &'source str,
+    function: &str,
+) -> Vec<ExactCall<'source>> {
+    let mut calls = Vec::new();
+    let needle = format!("{function}(");
+    let mut cursor = 0usize;
+    while let Some(offset) = source[cursor..].find(&needle) {
+        let function_start = cursor + offset;
+        let preceded_by_identifier = function_start
+            .checked_sub(1)
+            .and_then(|index| source.as_bytes().get(index))
+            .is_some_and(|byte| byte.is_ascii_alphanumeric() || matches!(*byte, b'_' | b':'));
+        let opening = function_start + function.len();
+        let Some(closing) = matching_delimiter(source, opening, b'(', b')') else {
+            break;
+        };
+        if !preceded_by_identifier && successful_result_suffix(&source[closing + 1..]) {
+            calls.push(ExactCall {
+                arguments: &source[opening + 1..closing],
+            });
+        }
+        cursor = closing + 1;
+    }
+    calls
+}
+
+fn successful_result_suffix(suffix: &str) -> bool {
+    if suffix.starts_with(".expect(") || suffix.starts_with(".unwrap(") {
+        return true;
+    }
+    const UNWRAP_OR_ELSE: &str = ".unwrap_or_else";
+    if !suffix.starts_with(UNWRAP_OR_ELSE) {
+        return false;
+    }
+    let opening = UNWRAP_OR_ELSE.len();
+    let Some(closing) = matching_delimiter(suffix, opening, b'(', b')') else {
+        return false;
+    };
+    suffix[opening + 1..closing].contains("panic!(")
+}
+
+fn matching_delimiter(source: &str, opening: usize, open: u8, close: u8) -> Option<usize> {
+    let bytes = source.as_bytes();
+    if bytes.get(opening) != Some(&open) {
+        return None;
+    }
+    let mut depth = 0usize;
+    let mut index = opening;
+    while index < bytes.len() {
+        match bytes[index] {
+            b'"' => index = string_end(bytes, index)?,
+            b'\'' if is_character_literal(bytes, index) => index = character_end(bytes, index)?,
+            byte if byte == open => depth += 1,
+            byte if byte == close => {
+                depth = depth.checked_sub(1)?;
+                if depth == 0 {
+                    return Some(index);
+                }
+            }
+            _ => {}
+        }
+        index += 1;
+    }
+    None
+}
+
+fn top_level_arguments(arguments: &str) -> Vec<&str> {
+    let bytes = arguments.as_bytes();
+    let mut result = Vec::new();
+    let mut start = 0usize;
+    let mut parens = 0usize;
+    let mut braces = 0usize;
+    let mut brackets = 0usize;
+    let mut index = 0usize;
+    while index < bytes.len() {
+        match bytes[index] {
+            b'"' => index = string_end(bytes, index).unwrap_or(bytes.len() - 1),
+            b'\'' if is_character_literal(bytes, index) => {
+                index = character_end(bytes, index).unwrap_or(bytes.len() - 1);
+            }
+            b'(' => parens += 1,
+            b')' => parens = parens.saturating_sub(1),
+            b'{' => braces += 1,
+            b'}' => braces = braces.saturating_sub(1),
+            b'[' => brackets += 1,
+            b']' => brackets = brackets.saturating_sub(1),
+            b',' if parens == 0 && braces == 0 && brackets == 0 => {
+                result.push(&arguments[start..index]);
+                start = index + 1;
+            }
+            _ => {}
+        }
+        index += 1;
+    }
+    if start < arguments.len() {
+        result.push(&arguments[start..]);
+    }
+    result
+}
+
+fn exact_compile_options_target(arguments: &str) -> Option<&str> {
+    let options = arguments
+        .strip_prefix("CompileOptions{")?
+        .strip_suffix('}')?;
+    if options.matches("root_path:").count() != 1
+        || !options.contains("root_path:canary.join(\"main.omg\")")
+        || options.matches("target_name:").count() != 1
+        || options.matches("write_output:").count() != 1
+        || !options.contains("write_output:true")
+    {
+        return None;
+    }
+    let target = options.split_once("target_name:Some(\"")?.1;
+    let (target, suffix) = target.split_once('"')?;
+    if !(suffix.starts_with(".into())") || suffix.starts_with(".to_owned())")) {
+        return None;
+    }
+    valid_target_literal(target).then_some(target)
+}
+
+fn exact_string_literal(argument: &str) -> Option<&str> {
+    let target = argument.strip_prefix('"')?.strip_suffix('"')?;
+    valid_target_literal(target).then_some(target)
+}
+
+fn valid_target_literal(target: &str) -> bool {
+    !target.is_empty()
+        && target
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-'))
 }
 
 fn exact_pass_canary_literals(body: &str) -> Vec<String> {
@@ -510,4 +793,118 @@ fn exact_native_source_index_is_strict_and_ambiguity_fails_closed() {
     let ambiguous = ExactNativeCanaryCoverageIndex::from_sources(&[("ambiguous.rs", &ambiguous)]);
     assert_eq!(ambiguous.legacy_owner_count("demo/legacy"), 2);
     assert!(ambiguous.unique_legacy_owner("demo/legacy").is_none());
+}
+
+#[test]
+fn exact_target_source_index_preserves_entry_semantics_and_fails_closed() {
+    let cross = r#"
+        #[test]
+        fn cross() {
+            let canary = pass_canary("demo/cross");
+            compile(CompileOptions {
+                root_path: canary.join("main.omg"),
+                build_dir: Some(build),
+                target_name: Some("linux_x64".into()),
+                write_output: true,
+            }).expect("cross target should compile");
+        }
+    "#;
+    let cross_helper = r#"
+        #[test]
+        fn cross_helper() {
+            let canary = pass_canary("demo/cross-helper");
+            compile_canary_without_output_for_target(&canary, "uefi_x64").unwrap();
+        }
+    "#;
+    let rooted = r#"
+        #[test]
+        fn rooted() {
+            let canary = pass_canary("demo/rooted-target");
+            compile_rooted_canary_for_target(&canary, x64_build, "linux_x64").unwrap();
+            compile_rooted_canary_for_target_with_auxiliary_artifacts(
+                &canary,
+                arm_build,
+                "linux_arm64",
+            ).expect("rooted arm target should compile");
+        }
+    "#;
+    let ignored = cross.replace("#[test]", "#[test]\n#[ignore]");
+    let configured = cross.replace("#[test]", "#[cfg(windows)]\n\n#[test]");
+    let dynamic_canary = cross.replace("pass_canary(\"demo/cross\")", "pass_canary(canary_name)");
+    let synthesized = cross.replace(
+        "root_path: canary.join(\"main.omg\")",
+        "root_path: source.join(\"main.omg\")",
+    );
+    let dynamic_target = cross.replace(
+        "target_name: Some(\"linux_x64\".into())",
+        "target_name: Some(target.into())",
+    );
+    let no_success = cross.replace(").expect(\"cross target should compile\");", ");");
+    let recovered_error = cross.replace(
+        ").expect(\"cross target should compile\");",
+        ").unwrap_or_else(|_| fallback_report);",
+    );
+    let production_rooted = cross.replace(
+        "compile(CompileOptions",
+        "production_compile(CompileOptions",
+    );
+    let multiple_canaries = cross.replace(
+        "let canary =",
+        "let other = pass_canary(\"demo/other\"); let canary =",
+    );
+    let ambiguous = cross.replace("fn cross", "fn first") + &cross.replace("fn cross", "fn second");
+    let index = ExactNativeCanaryCoverageIndex::from_sources(&[
+        ("cross.rs", cross),
+        ("cross_helper.rs", cross_helper),
+        ("rooted.rs", rooted),
+        ("ignored.rs", &ignored),
+        ("configured.rs", &configured),
+        ("dynamic_canary.rs", &dynamic_canary),
+        ("synthesized.rs", &synthesized),
+        ("dynamic_target.rs", &dynamic_target),
+        ("no_success.rs", &no_success),
+        ("recovered_error.rs", &recovered_error),
+        ("production_rooted.rs", &production_rooted),
+        ("multiple_canaries.rs", &multiple_canaries),
+    ]);
+
+    let owner = index
+        .unique_cross_target_owner("demo/cross", "linux_x64")
+        .expect("one enabled exact legacy-entry target owner should qualify");
+    assert_eq!(owner.test_name, "cross");
+    assert!(owner.source_path.ends_with("cross.rs"));
+    assert!(
+        index
+            .unique_cross_target_owner("demo/cross-helper", "uefi_x64")
+            .is_some()
+    );
+    assert!(
+        index
+            .unique_rooted_target_owner("demo/rooted-target", "linux_x64")
+            .is_some()
+    );
+    assert!(
+        index
+            .unique_rooted_target_owner("demo/rooted-target", "linux_arm64")
+            .is_some()
+    );
+    assert_eq!(
+        index.rooted_target_owner_count("demo/cross", "linux_x64"),
+        0
+    );
+    assert_eq!(
+        index.cross_target_owner_count("demo/rooted-target", "linux_x64"),
+        0
+    );
+
+    let ambiguous = ExactNativeCanaryCoverageIndex::from_sources(&[("ambiguous.rs", &ambiguous)]);
+    assert_eq!(
+        ambiguous.cross_target_owner_count("demo/cross", "linux_x64"),
+        2
+    );
+    assert!(
+        ambiguous
+            .unique_cross_target_owner("demo/cross", "linux_x64")
+            .is_none()
+    );
 }

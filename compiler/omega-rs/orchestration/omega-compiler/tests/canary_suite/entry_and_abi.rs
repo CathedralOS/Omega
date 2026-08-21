@@ -1381,12 +1381,35 @@ fn pass_canaries_compile() {
         .flatten(),
     );
 
-    let cross_target = CROSS_TARGET_PASS_CANARIES
+    let coverage_started = std::time::Instant::now();
+    let exact_native_coverage = exact_native_coverage::ExactNativeCanaryCoverageIndex::discover()
+        .unwrap_or_else(|diagnostic| {
+            panic!("cannot audit dedicated exact-native canary coverage: {diagnostic}")
+        });
+    let coverage_elapsed = coverage_started.elapsed();
+
+    let selected_cross_target = CROSS_TARGET_PASS_CANARIES
         .iter()
         .copied()
         .filter(|(canary_name, _)| selected(canary_name))
         .collect::<Vec<_>>();
-    selected_count += cross_target.len();
+    selected_count += selected_cross_target.len();
+    let cross_target_elided_count = selected_cross_target
+        .iter()
+        .filter(|(canary_name, target)| {
+            exact_native_coverage
+                .unique_cross_target_owner(canary_name, target)
+                .is_some()
+        })
+        .count();
+    let cross_target = selected_cross_target
+        .into_iter()
+        .filter(|(canary_name, target)| {
+            exact_native_coverage
+                .unique_cross_target_owner(canary_name, target)
+                .is_none()
+        })
+        .collect::<Vec<_>>();
     failures.extend(
         run_bounded_canary_jobs(&cross_target, |(canary_name, target)| {
             let canary = pass_canary(canary_name);
@@ -1408,12 +1431,28 @@ fn pass_canaries_compile() {
         .flatten(),
     );
 
-    let rooted_target = ROOTED_TARGET_BACKEND_PASS_CANARIES
+    let selected_rooted_target = ROOTED_TARGET_BACKEND_PASS_CANARIES
         .iter()
         .copied()
         .filter(|(canary_name, _)| selected(canary_name))
         .collect::<Vec<_>>();
-    selected_count += rooted_target.len();
+    selected_count += selected_rooted_target.len();
+    let rooted_target_elided_count = selected_rooted_target
+        .iter()
+        .filter(|(canary_name, target)| {
+            exact_native_coverage
+                .unique_rooted_target_owner(canary_name, target)
+                .is_some()
+        })
+        .count();
+    let rooted_target = selected_rooted_target
+        .into_iter()
+        .filter(|(canary_name, target)| {
+            exact_native_coverage
+                .unique_rooted_target_owner(canary_name, target)
+                .is_none()
+        })
+        .collect::<Vec<_>>();
     failures.extend(
         run_bounded_canary_jobs(&rooted_target, |(canary_name, target)| {
             let canary = pass_canary(canary_name);
@@ -1470,12 +1509,6 @@ fn pass_canaries_compile() {
         .filter(selected)
         .collect::<Vec<_>>();
     selected_count += selected_active.len();
-    let coverage_started = std::time::Instant::now();
-    let exact_native_coverage = exact_native_coverage::ExactNativeCanaryCoverageIndex::discover()
-        .unwrap_or_else(|diagnostic| {
-            panic!("cannot audit dedicated exact-native canary coverage: {diagnostic}")
-        });
-    let coverage_elapsed = coverage_started.elapsed();
     let rooted_elided_count = selected_active
         .iter()
         .filter(|canary_name| {
@@ -1510,11 +1543,15 @@ fn pass_canaries_compile() {
         .collect::<Vec<_>>();
     if std::env::var_os("OMEGA_PASS_CANARY_REPORT_COUNTS").is_some() {
         eprintln!(
-            "pass-canary coverage: selected={} rooted-exact-native-elided={} legacy-exact-native-elided={} umbrella-compiled={} source-files={} source-bytes={} scan-micros={}",
+            "pass-canary coverage: selected-active={} rooted-exact-native-elided={} legacy-exact-native-elided={} active-compiled={} cross-target-elided={} cross-target-compiled={} rooted-target-elided={} rooted-target-compiled={} source-files={} source-bytes={} scan-micros={}",
             active.len() + rooted_elided_count + legacy_elided_count,
             rooted_elided_count,
             legacy_elided_count,
             active.len(),
+            cross_target_elided_count,
+            cross_target.len(),
+            rooted_target_elided_count,
+            rooted_target.len(),
             exact_native_coverage.source_file_count(),
             exact_native_coverage.source_byte_count(),
             coverage_elapsed.as_micros(),
@@ -1580,6 +1617,18 @@ fn discovered_exact_native_coverage_is_consistent() {
         .iter()
         .filter(|canary| coverage.unique_legacy_owner(canary).is_some())
         .count();
+    let uniquely_cross_target = CROSS_TARGET_PASS_CANARIES
+        .iter()
+        .filter(|(canary, target)| coverage.unique_cross_target_owner(canary, target).is_some())
+        .count();
+    let uniquely_rooted_target = ROOTED_TARGET_BACKEND_PASS_CANARIES
+        .iter()
+        .filter(|(canary, target)| {
+            coverage
+                .unique_rooted_target_owner(canary, target)
+                .is_some()
+        })
+        .count();
     assert_eq!(
         uniquely_rooted,
         exact_native_coverage::EXPECTED_UNIQUE_ROOTED_ACTIVE_COVERAGE,
@@ -1589,6 +1638,16 @@ fn discovered_exact_native_coverage_is_consistent() {
         uniquely_legacy,
         exact_native_coverage::EXPECTED_UNIQUE_LEGACY_ACTIVE_COVERAGE,
         "the discovered legacy duplicate-elision cohort must change deliberately after auditing every added or removed owner"
+    );
+    assert_eq!(
+        uniquely_cross_target,
+        exact_native_coverage::EXPECTED_UNIQUE_CROSS_TARGET_COVERAGE,
+        "the discovered cross-target duplicate-elision cohort must change deliberately after auditing every exact fixture/target owner"
+    );
+    assert_eq!(
+        uniquely_rooted_target,
+        exact_native_coverage::EXPECTED_UNIQUE_ROOTED_TARGET_COVERAGE,
+        "the discovered rooted-target duplicate-elision cohort must change deliberately after auditing every exact fixture/target owner"
     );
     assert!(coverage.source_file_count() >= 25);
     assert!(coverage.source_byte_count() > 1_000_000);
@@ -1643,14 +1702,46 @@ fn discovered_exact_native_coverage_is_consistent() {
         coverage.legacy_owner_count("traits/boundary_trait_effects_host_call"),
         0
     );
+    let cross_target_positive = coverage
+        .unique_cross_target_owner("targets/sysv_small_result_entry", "linux_x64")
+        .expect("known exact cross-target owner should be discovered");
+    assert_eq!(
+        cross_target_positive.test_name,
+        "sysv_small_result_entry_loads_rax_and_rdx"
+    );
+    assert!(
+        cross_target_positive
+            .source_path
+            .ends_with("canary_suite/entry_and_abi.rs")
+    );
+    assert_eq!(
+        coverage.cross_target_owner_count("build/receiver_bound_program_entry", "windows_x64"),
+        0,
+        "known cross-target control without a dedicated exact owner must remain in the umbrella"
+    );
+    let rooted_target_positive = coverage
+        .unique_rooted_target_owner("providers/external_leaf_syscall_compile", "linux_arm64")
+        .expect("known exact rooted-target owner should be discovered");
+    assert_eq!(
+        rooted_target_positive.test_name,
+        "external_leaf_syscall_reaches_linux_x64_backend"
+    );
+    assert_eq!(
+        coverage.rooted_target_owner_count("time/runtime_time_host_native_exit", "windows_x64"),
+        0,
+        "known rooted-target control without a dedicated exact owner must remain in the umbrella"
+    );
     eprintln!(
-        "exact-native coverage index: files={} bytes={} test-bodies={} qualifying-tests={} unique-rooted-active={} unique-legacy-active={} scan-micros={}",
+        "exact-native coverage index: files={} bytes={} test-bodies={} qualifying-tests={} qualifying-target-compiles={} unique-rooted-active={} unique-legacy-active={} unique-cross-target={} unique-rooted-target={} scan-micros={}",
         coverage.source_file_count(),
         coverage.source_byte_count(),
         coverage.test_body_count(),
         coverage.qualifying_test_count(),
+        coverage.qualifying_target_compile_count(),
         uniquely_rooted,
         uniquely_legacy,
+        uniquely_cross_target,
+        uniquely_rooted_target,
         elapsed.as_micros(),
     );
 }
