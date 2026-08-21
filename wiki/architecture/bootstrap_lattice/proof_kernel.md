@@ -70,6 +70,15 @@ non-disjunction conclusion, an out-of-range arm, or a child conclusion that is
 not exactly the selected disjunct. This logical rule grants no authority to
 choose the artifact's canonical goal and by itself derives no ledger row.
 
+The calculus also includes exact transitivity for terminal fixed-integer `<=`.
+It checks both child derivations, their identical middle term, and the exact
+outer endpoints. Together with the closed-integer primitive and disjunction
+introduction, this can derive the negative arm of the canonical signed nonzero
+goal from a tighter bound such as `d <= -2`. The rule mirrors the accepted
+low-rung `int-le-trans` theorem, but the Rust checker remains an explicit
+trusted implementation until a checked terminal-carrier bridge closes the
+independent checker diamond.
+
 ### Canonical semantic ledger and untrusted reduction
 
 The deployment endpoint does not trust the current Rust verifier to choose a

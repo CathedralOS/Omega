@@ -9,7 +9,9 @@
 
 use std::collections::BTreeMap;
 
-use psi_core::{IntegerValue, Proposition, PropositionError, ScalarTerm, ScalarType, ValueId};
+use psi_core::{
+    IntegerType, IntegerValue, Proposition, PropositionError, ScalarTerm, ScalarType, ValueId,
+};
 use psi_terminal::{Operation, OperationKind};
 
 mod call_composition;
@@ -232,6 +234,11 @@ pub enum OperationSemanticError {
     DuplicateCallCompositionRow(OperationSemanticTag),
     UnexpectedCallCompositionRow(OperationSemanticTag),
     CallCompositionSchemaMismatch(OperationSemanticTag),
+    NonzeroDivisorRequiresFixedInteger(IntegerType),
+    NonzeroDivisorTypeMismatch {
+        declared: IntegerType,
+        actual: ScalarType,
+    },
     InvalidProposition(PropositionError),
 }
 

@@ -1302,7 +1302,7 @@ verifier independently requires both resolved leaves to have byte-sequence
 carrier types, and call substitution rebases both roots. The bounded slice
 admits field-to-field whole-record equality for `&[u8] in Domain` and
 `[u8; N] in Domain`; text literals and direct text `!=` remain fenced. Semantic
-codec v18, proof-bundle v13, and installation-record v24 encode this vocabulary.
+codec v18, proof-bundle v14, and installation-record v24 encode this vocabulary.
 A
 genuinely zero-member record instead normalizes equality to the
 existing Boolean `true` term; inequality uses the existing negation, and calls,
@@ -1729,6 +1729,16 @@ dispatcher still chooses the legacy sufficient proposition and is explicitly
 hashed into each affected reduction dependency. This does not certify a
 reducer: the typed canonical-goal carrier is not yet a kernel derivation, and
 the current closure remains `fully-derived false`.
+
+Only the `NonzeroDivisor` carrier currently has an exact kernel-proposition
+projection. Unsigned fixed integers use `1 <= d`; signed fixed integers of at
+least two bits use the ordered disjunction `(d <= -1) OR (1 <= d)`; signed
+one-bit integers use only `d <= -1`, because `+1` is outside that carrier.
+Address carriers and mismatched divisor types reject. The other five canonical
+goal shapes remain deliberately unprojected. This proposition construction and
+the proof calculus that can discharge it are capability only: reconstruction
+still selects the legacy sufficient proposition, no producer emits these
+certificates yet, and no operation row changes trust status.
 
 That producer status is also the module boundary. Structural Unit-plan
 construction must not accumulate every sufficient-form recognizer merely

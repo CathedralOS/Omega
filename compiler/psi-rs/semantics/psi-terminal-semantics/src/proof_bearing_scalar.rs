@@ -6,7 +6,10 @@
 
 use std::collections::BTreeMap;
 
-use psi_core::{IntegerType, ObligationId, Proposition, ScalarTerm, ScalarType, ValueId};
+use psi_core::{
+    IntegerCarrier, IntegerSign, IntegerType, IntegerValue, ObligationId, Proposition, ScalarTerm,
+    ScalarType, ValueId,
+};
 use psi_terminal::{Operation, OperationKind};
 
 use super::{
@@ -332,6 +335,61 @@ impl CanonicalScalarGoal {
             Self::ExactDivisionDefined { .. } => ScalarLeafGoalShape::ExactDivisionDefined,
             Self::NonzeroDivisor { .. } => ScalarLeafGoalShape::NonzeroDivisor,
         }
+    }
+
+    /// Project the one canonical goal whose proposition vocabulary is fully
+    /// settled. Other goal shapes remain explicit typed carriers until their
+    /// own exact proposition mappings land.
+    pub fn kernel_proposition(&self) -> Result<Option<Proposition>, OperationSemanticError> {
+        let Self::NonzeroDivisor {
+            integer_type,
+            divisor,
+        } = self
+        else {
+            return Ok(None);
+        };
+        if integer_type.carrier() != IntegerCarrier::Fixed {
+            return Err(OperationSemanticError::NonzeroDivisorRequiresFixedInteger(
+                *integer_type,
+            ));
+        }
+        if divisor.scalar_type() != ScalarType::Integer(*integer_type) {
+            return Err(OperationSemanticError::NonzeroDivisorTypeMismatch {
+                declared: *integer_type,
+                actual: divisor.scalar_type(),
+            });
+        }
+
+        let proposition = match integer_type.sign() {
+            IntegerSign::Unsigned => Proposition::LessOrEqual(
+                ScalarTerm::integer(*integer_type, IntegerValue::Unsigned(1))
+                    .map_err(OperationSemanticError::InvalidProposition)?,
+                divisor.clone(),
+            ),
+            IntegerSign::Signed => {
+                let negative = Proposition::LessOrEqual(
+                    divisor.clone(),
+                    ScalarTerm::integer(*integer_type, IntegerValue::Signed(-1))
+                        .map_err(OperationSemanticError::InvalidProposition)?,
+                );
+                if integer_type.bits() == 1 {
+                    negative
+                } else {
+                    Proposition::Disjunction(vec![
+                        negative,
+                        Proposition::LessOrEqual(
+                            ScalarTerm::integer(*integer_type, IntegerValue::Signed(1))
+                                .map_err(OperationSemanticError::InvalidProposition)?,
+                            divisor.clone(),
+                        ),
+                    ])
+                }
+            }
+        };
+        proposition
+            .validate()
+            .map_err(OperationSemanticError::InvalidProposition)?;
+        Ok(Some(proposition))
     }
 }
 
@@ -908,6 +966,148 @@ mod tests {
             Err(OperationSemanticError::OperandShapeMismatch(
                 OperationSemanticTag::ExactIntegerAdd,
             )),
+        );
+    }
+
+    #[test]
+    fn nonzero_divisor_projects_the_exact_fixed_carrier_proposition() {
+        let signed = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+        let signed_divisor = ScalarTerm::value(
+            ValueId::new(20).expect("signed divisor"),
+            ScalarType::Integer(signed),
+        );
+        let negative_one = ScalarTerm::integer(signed, IntegerValue::Signed(-1)).expect("-1i8");
+        let positive_one = ScalarTerm::integer(signed, IntegerValue::Signed(1)).expect("1i8");
+        assert_eq!(
+            CanonicalScalarGoal::NonzeroDivisor {
+                integer_type: signed,
+                divisor: signed_divisor.clone(),
+            }
+            .kernel_proposition(),
+            Ok(Some(Proposition::Disjunction(vec![
+                Proposition::LessOrEqual(signed_divisor.clone(), negative_one),
+                Proposition::LessOrEqual(positive_one, signed_divisor),
+            ]))),
+        );
+
+        let unsigned = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        let unsigned_divisor = ScalarTerm::value(
+            ValueId::new(21).expect("unsigned divisor"),
+            ScalarType::Integer(unsigned),
+        );
+        let one = ScalarTerm::integer(unsigned, IntegerValue::Unsigned(1)).expect("1u8");
+        assert_eq!(
+            CanonicalScalarGoal::NonzeroDivisor {
+                integer_type: unsigned,
+                divisor: unsigned_divisor.clone(),
+            }
+            .kernel_proposition(),
+            Ok(Some(Proposition::LessOrEqual(one, unsigned_divisor))),
+        );
+    }
+
+    #[test]
+    fn nonzero_divisor_handles_i1_and_rejects_invalid_carrier_identity() {
+        let i1 = IntegerType::new(IntegerSign::Signed, 1).expect("i1");
+        let divisor = ScalarTerm::value(
+            ValueId::new(22).expect("i1 divisor"),
+            ScalarType::Integer(i1),
+        );
+        assert_eq!(
+            CanonicalScalarGoal::NonzeroDivisor {
+                integer_type: i1,
+                divisor: divisor.clone(),
+            }
+            .kernel_proposition(),
+            Ok(Some(Proposition::LessOrEqual(
+                divisor,
+                ScalarTerm::integer(i1, IntegerValue::Signed(-1)).expect("-1i1"),
+            ))),
+        );
+
+        let address = IntegerType::address(64).expect("address64");
+        assert_eq!(
+            CanonicalScalarGoal::NonzeroDivisor {
+                integer_type: address,
+                divisor: ScalarTerm::value(
+                    ValueId::new(23).expect("address divisor"),
+                    ScalarType::Integer(address),
+                ),
+            }
+            .kernel_proposition(),
+            Err(OperationSemanticError::NonzeroDivisorRequiresFixedInteger(
+                address,
+            )),
+        );
+
+        let i8 = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+        assert_eq!(
+            CanonicalScalarGoal::NonzeroDivisor {
+                integer_type: i8,
+                divisor: ScalarTerm::boolean(true),
+            }
+            .kernel_proposition(),
+            Err(OperationSemanticError::NonzeroDivisorTypeMismatch {
+                declared: i8,
+                actual: ScalarType::Boolean,
+            }),
+        );
+
+        let u8 = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        assert_eq!(
+            CanonicalScalarGoal::NonzeroDivisor {
+                integer_type: i8,
+                divisor: ScalarTerm::value(
+                    ValueId::new(25).expect("wrong-carrier divisor"),
+                    ScalarType::Integer(u8),
+                ),
+            }
+            .kernel_proposition(),
+            Err(OperationSemanticError::NonzeroDivisorTypeMismatch {
+                declared: i8,
+                actual: ScalarType::Integer(u8),
+            }),
+        );
+    }
+
+    #[test]
+    fn unsettled_canonical_goal_shapes_do_not_project_to_kernel_propositions() {
+        let integer = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+        let value = ScalarTerm::value(
+            ValueId::new(24).expect("value"),
+            ScalarType::Integer(integer),
+        );
+        let goals = [
+            CanonicalScalarGoal::ExactCastRepresentable {
+                source_type: integer,
+                target_type: integer,
+                operand: value.clone(),
+            },
+            CanonicalScalarGoal::ExactShiftCount {
+                value_type: integer,
+                count_type: integer,
+                count: value.clone(),
+            },
+            CanonicalScalarGoal::ExactShiftLeftRepresentable {
+                value_type: integer,
+                count_type: integer,
+                value: value.clone(),
+                count: value.clone(),
+            },
+            CanonicalScalarGoal::ExactArithmeticRepresentable {
+                integer_type: integer,
+                expression: value.clone(),
+            },
+            CanonicalScalarGoal::ExactDivisionDefined {
+                integer_type: integer,
+                left: value.clone(),
+                right: value,
+            },
+        ];
+        assert!(
+            goals
+                .iter()
+                .all(|goal| goal.kernel_proposition() == Ok(None))
         );
     }
 }

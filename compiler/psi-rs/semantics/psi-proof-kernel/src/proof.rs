@@ -38,6 +38,10 @@ pub enum ProofRule {
         left_equals_middle: Box<ProofNode>,
         middle_equals_right: Box<ProofNode>,
     },
+    IntegerLessOrEqualTransitivity {
+        left_less_or_equal_middle: Box<ProofNode>,
+        middle_less_or_equal_right: Box<ProofNode>,
+    },
 }
 
 /// Proof-rule families exercised by one accepted certificate. The set is a
@@ -53,6 +57,7 @@ pub enum AcceptedProofRule {
     ImplicationIntroduction,
     ImplicationElimination,
     EqualityTransitivity,
+    IntegerLessOrEqualTransitivity,
 }
 
 /// One premise that materially participates in an accepted derivation.
@@ -385,6 +390,48 @@ fn check_node(
                 _ => Err(ProofError::RulePremiseMismatch("equality transitivity")),
             }
         }
+        ProofRule::IntegerLessOrEqualTransitivity {
+            left_less_or_equal_middle,
+            middle_less_or_equal_right,
+        } => {
+            acceptance
+                .rules
+                .insert(AcceptedProofRule::IntegerLessOrEqualTransitivity);
+            check_node(
+                context,
+                assumptions,
+                semantic_axioms,
+                left_less_or_equal_middle,
+                acceptance,
+            )?;
+            check_node(
+                context,
+                assumptions,
+                semantic_axioms,
+                middle_less_or_equal_right,
+                acceptance,
+            )?;
+            match (
+                &left_less_or_equal_middle.conclusion,
+                &middle_less_or_equal_right.conclusion,
+                &proof.conclusion,
+            ) {
+                (
+                    Proposition::LessOrEqual(left, first_middle),
+                    Proposition::LessOrEqual(second_middle, right),
+                    Proposition::LessOrEqual(expected_left, expected_right),
+                ) => {
+                    if first_middle != second_middle {
+                        return Err(ProofError::IntegerOrderMiddleMismatch);
+                    }
+                    if left != expected_left || right != expected_right {
+                        return Err(ProofError::IntegerOrderConclusionMismatch);
+                    }
+                    Ok(())
+                }
+                _ => Err(ProofError::RulePremiseMismatch("integer <= transitivity")),
+            }
+        }
     }
 }
 
@@ -406,6 +453,8 @@ pub enum ProofError {
     EqualityMiddleMismatch,
     EqualityAlgebraMismatch,
     EqualityConclusionMismatch,
+    IntegerOrderMiddleMismatch,
+    IntegerOrderConclusionMismatch,
     CertificateConclusionMismatch,
     RuleConclusionMismatch(&'static str),
     RulePremiseMismatch(&'static str),
@@ -513,6 +562,162 @@ mod tests {
             Err(ProofError::RuleConclusionMismatch(
                 "disjunction introduction"
             ))
+        );
+    }
+
+    #[test]
+    fn integer_order_transitivity_weakens_a_negative_bound_for_nonzero() {
+        use psi_core::{IntegerSign, IntegerType, IntegerValue, ScalarTerm, ScalarType, ValueId};
+
+        let integer = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+        let divisor = ScalarTerm::value(
+            ValueId::new(1).expect("divisor"),
+            ScalarType::Integer(integer),
+        );
+        let literal =
+            |value| ScalarTerm::integer(integer, IntegerValue::Signed(value)).expect("i8 literal");
+        let negative_two_bound = Proposition::LessOrEqual(divisor.clone(), literal(-2));
+        let negative_one_bound = Proposition::LessOrEqual(divisor.clone(), literal(-1));
+        let positive_bound = Proposition::LessOrEqual(literal(1), divisor.clone());
+        let goal = Proposition::Disjunction(vec![negative_one_bound.clone(), positive_bound]);
+        let weakened = ProofNode {
+            conclusion: negative_one_bound,
+            rule: ProofRule::IntegerLessOrEqualTransitivity {
+                left_less_or_equal_middle: Box::new(ProofNode {
+                    conclusion: negative_two_bound.clone(),
+                    rule: ProofRule::SemanticAxiom { index: 0 },
+                }),
+                middle_less_or_equal_right: Box::new(ProofNode {
+                    conclusion: Proposition::LessOrEqual(literal(-2), literal(-1)),
+                    rule: ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation),
+                }),
+            },
+        };
+        let proof = ProofNode {
+            conclusion: goal.clone(),
+            rule: ProofRule::DisjunctionIntroduction {
+                disjunct: Box::new(weakened),
+                index: 0,
+            },
+        };
+        let context = PropositionContext::from_value_types([(
+            ValueId::new(1).expect("divisor"),
+            ScalarType::Integer(integer),
+        )])
+        .expect("context");
+        let acceptance = accept_certificate(
+            &context,
+            &goal,
+            &[],
+            std::slice::from_ref(&negative_two_bound),
+            &proof,
+        )
+        .expect("the tighter negative bound proves the canonical negative arm");
+        assert_eq!(
+            acceptance.rules,
+            vec![
+                AcceptedProofRule::Primitive,
+                AcceptedProofRule::SemanticAxiom,
+                AcceptedProofRule::DisjunctionIntroduction,
+                AcceptedProofRule::IntegerLessOrEqualTransitivity,
+            ]
+        );
+        assert_eq!(
+            acceptance.semantic_axioms,
+            vec![AcceptedPremise {
+                index: 0,
+                proposition: negative_two_bound,
+            }]
+        );
+    }
+
+    #[test]
+    fn integer_order_transitivity_requires_exact_middle_endpoints_and_relations() {
+        use psi_core::{IntegerSign, IntegerType, IntegerValue, ScalarTerm, ScalarType, ValueId};
+
+        let integer = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+        let left = ScalarTerm::value(ValueId::new(1).expect("left"), ScalarType::Integer(integer));
+        let literal =
+            |value| ScalarTerm::integer(integer, IntegerValue::Signed(value)).expect("i8 literal");
+        let first = Proposition::LessOrEqual(left.clone(), literal(-2));
+        let context = PropositionContext::from_value_types([(
+            ValueId::new(1).expect("left"),
+            ScalarType::Integer(integer),
+        )])
+        .expect("context");
+        let proof = |second: Proposition, conclusion: Proposition| ProofNode {
+            conclusion,
+            rule: ProofRule::IntegerLessOrEqualTransitivity {
+                left_less_or_equal_middle: Box::new(ProofNode {
+                    conclusion: first.clone(),
+                    rule: ProofRule::Assumption { index: 0 },
+                }),
+                middle_less_or_equal_right: Box::new(ProofNode {
+                    conclusion: second,
+                    rule: ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation),
+                }),
+            },
+        };
+
+        let expected = Proposition::LessOrEqual(left.clone(), literal(-1));
+        assert_eq!(
+            check_certificate(
+                &context,
+                &expected,
+                std::slice::from_ref(&first),
+                &[],
+                &proof(
+                    Proposition::LessOrEqual(literal(-3), literal(-1)),
+                    expected.clone(),
+                ),
+            ),
+            Err(ProofError::IntegerOrderMiddleMismatch),
+        );
+
+        let wider = IntegerType::new(IntegerSign::Signed, 16).expect("i16");
+        let wider_literal =
+            |value| ScalarTerm::integer(wider, IntegerValue::Signed(value)).expect("i16 literal");
+        assert_eq!(
+            check_certificate(
+                &context,
+                &expected,
+                std::slice::from_ref(&first),
+                &[],
+                &proof(
+                    Proposition::LessOrEqual(wider_literal(-2), wider_literal(-1)),
+                    expected.clone(),
+                ),
+            ),
+            Err(ProofError::IntegerOrderMiddleMismatch),
+        );
+
+        let wrong_conclusion = Proposition::LessOrEqual(left, literal(0));
+        assert_eq!(
+            check_certificate(
+                &context,
+                &wrong_conclusion,
+                std::slice::from_ref(&first),
+                &[],
+                &proof(
+                    Proposition::LessOrEqual(literal(-2), literal(-1)),
+                    wrong_conclusion.clone(),
+                ),
+            ),
+            Err(ProofError::IntegerOrderConclusionMismatch),
+        );
+
+        assert_eq!(
+            check_certificate(
+                &context,
+                &expected,
+                &[first.clone()],
+                &[],
+                &proof(
+                    Proposition::Equal(literal(-2), literal(-2)),
+                    expected.clone(),
+                ),
+            ),
+            Err(ProofError::RulePremiseMismatch("integer <= transitivity")),
         );
     }
 
