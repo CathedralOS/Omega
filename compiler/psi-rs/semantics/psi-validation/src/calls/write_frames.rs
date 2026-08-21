@@ -20,6 +20,7 @@ use psi_typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 mod boundary_calls;
 mod demand;
 mod isolation;
+mod place_paths;
 mod transparent_effects;
 
 use boundary_calls::known_boundary_call_written_paths_for_parts;
@@ -31,6 +32,10 @@ use isolation::{
     struct_literal_field_is_primitive, struct_literal_field_type,
     struct_literal_matches_expected_type, struct_literal_type_is_caller_isolated,
     type_is_caller_isolated_local,
+};
+use place_paths::{
+    FramePathPrecision, FramePlaceOrigin, append_place_suffix, coarse_place_path, frame_place_path,
+    split_place_root,
 };
 use transparent_effects::{
     call_is_transparent_mutable_slice_view, expression_is_effectful_for_transparent_result,
@@ -511,18 +516,6 @@ fn summarize_state_written_paths(
 
     complete_state_summaries.push((state.symbol, written.clone()));
     Some(written)
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum FramePathPrecision {
-    Exact,
-    CollectionCoarse,
-}
-
-#[derive(Debug, Clone)]
-struct FramePlaceOrigin {
-    path: String,
-    precision: FramePathPrecision,
 }
 
 /// Recover the caller-visible origin of the deliberately narrow stable local-
@@ -3787,51 +3780,4 @@ fn instantiate_written_path_with_origins(
     // A write whose root is neither local nor a known parameter is externally
     // visible in a way this rung cannot instantiate safely.
     None
-}
-
-fn split_place_root(path: &str) -> (&str, &str) {
-    let boundary = path.find(['.', '[']).unwrap_or(path.len());
-    path.split_at(boundary)
-}
-
-fn append_place_suffix(base: &str, suffix: &str) -> String {
-    format!("{base}{suffix}")
-}
-
-/// Coarsen indexed writes to their collection (`self.cells[i]` writes
-/// `self.cells`). The value environment does not track index-sensitive facts.
-fn coarse_place_path(program: &TypedTrees, expression: ExpressionHandle) -> Option<String> {
-    Some(frame_place_path(program, expression)?.path)
-}
-
-/// Recover a frame path together with whether indexing discarded element
-/// identity. Collection-coarse paths are absorbing: callers must not append a
-/// callee/member suffix and accidentally manufacture `self.cells.value` from
-/// a write through `self.cells[i].value`.
-fn frame_place_path(
-    program: &TypedTrees,
-    expression: ExpressionHandle,
-) -> Option<FramePlaceOrigin> {
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Mutable(inner) => frame_place_path(program, *inner),
-        ExpressionNode::Indexed(indexed) => {
-            let mut collection = frame_place_path(program, indexed.collection)?;
-            collection.precision = FramePathPrecision::CollectionCoarse;
-            Some(collection)
-        }
-        ExpressionNode::Member(member) => {
-            let receiver = frame_place_path(program, member.receiver)?;
-            Some(match receiver.precision {
-                FramePathPrecision::Exact => FramePlaceOrigin {
-                    path: format!("{}.{}", receiver.path, member.member.as_str()),
-                    precision: FramePathPrecision::Exact,
-                },
-                FramePathPrecision::CollectionCoarse => receiver,
-            })
-        }
-        _ => Some(FramePlaceOrigin {
-            path: arithmetic_domains::place_path(program, expression)?,
-            precision: FramePathPrecision::Exact,
-        }),
-    }
 }
