@@ -374,7 +374,14 @@ the canonical divisor or dividend endpoint in either orientation.
 `IntegerLessOrEqualSubstitution` cites both premises and changes only that
 endpoint. Dividend transport remains in the joint arm and requires its separate
 `divisor <= -1` proof. A missing companion bound, unrelated equality, weak bound,
-or changed untouched endpoint rejects. A signed `i1` divisor
+or changed untouched endpoint rejects. For signed `i1`, both canonical
+conjuncts may be transported independently: `Kd <= -1` through `Kd == divisor`
+and `0 <= Kn` through `Kn == dividend`. Both substitutions remain mandatory;
+missing or crossed equalities reject. A complete nested endpoint family may
+first derive the canonical bound on `K` from one stronger retained bound and a
+closed same-carrier order fact, then transport it through equality. Its proof
+nests `IntegerLessOrEqualTransitivity` beneath substitution; weak bounds,
+missing equalities, or wrong endpoints reject. A signed `i1` divisor
 fact alone cannot prove its two-premise conjunction. When exact prior
 `divisor <= -1` and `0 <= dividend` propositions are both independently
 retained, the complete `i1` family cites them and constructs that conjunction;

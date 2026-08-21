@@ -1791,7 +1791,14 @@ canonical divisor or dividend endpoint in either orientation. The producer
 cites both through integer-order substitution and changes only that endpoint.
 Dividend transport stays inside the joint arm and requires its independent
 `divisor <= -1` proof. A missing companion bound, unrelated equality, weak bound,
-or changed untouched endpoint rejects. A signed `i1` divisor
+or changed untouched endpoint rejects. Signed `i1` may independently transport
+both canonical conjuncts: `Kd <= -1` through `Kd == divisor`, and `0 <= Kn`
+through `Kn == dividend`. Both substitutions remain mandatory; missing or
+crossed equalities reject. A complete nested endpoint family may first derive
+the canonical bound on `K` from one stronger retained bound and closed
+same-carrier order, then transport it through equality. The producer nests
+integer-order transitivity beneath substitution; weak bounds, missing
+equalities, or wrong endpoints reject. A signed `i1` divisor
 fact alone remains
 insufficient because the canonical conjunction also needs its dividend premise.
 The complete retained-bound `i1` family selects that conjunction when exact

@@ -85,40 +85,10 @@ fn prove_integer_bound(
         return None;
     };
 
-    for (citation, fact) in cited_facts(assumptions, semantic_axioms) {
-        if fact == goal {
-            return Some(citation.proof(fact));
-        }
-    }
-
-    for (citation, fact) in cited_facts(assumptions, semantic_axioms) {
-        let Proposition::LessOrEqual(fact_left, fact_right) = fact else {
-            continue;
-        };
-        if fact_left == goal_left {
-            let tail = Proposition::LessOrEqual(fact_right.clone(), goal_right.clone());
-            if let Some(tail) = closed_integer_relation(tail) {
-                return Some(ProofNode {
-                    conclusion: goal.clone(),
-                    rule: ProofRule::IntegerLessOrEqualTransitivity {
-                        left_less_or_equal_middle: Box::new(citation.proof(fact)),
-                        middle_less_or_equal_right: Box::new(tail),
-                    },
-                });
-            }
-        }
-        if fact_right == goal_right {
-            let head = Proposition::LessOrEqual(goal_left.clone(), fact_left.clone());
-            if let Some(head) = closed_integer_relation(head) {
-                return Some(ProofNode {
-                    conclusion: goal.clone(),
-                    rule: ProofRule::IntegerLessOrEqualTransitivity {
-                        left_less_or_equal_middle: Box::new(head),
-                        middle_less_or_equal_right: Box::new(citation.proof(fact)),
-                    },
-                });
-            }
-        }
+    if let Some(proof) =
+        prove_exact_or_closed_transitive_integer_bound(goal, assumptions, semantic_axioms)
+    {
+        return Some(proof);
     }
 
     for (left_citation, left_fact) in cited_facts(assumptions, semantic_axioms) {
@@ -165,13 +135,15 @@ fn prove_integer_bound(
             } else {
                 continue;
             };
-            if let Some((relation_citation, relation_fact)) =
-                cited_facts(assumptions, semantic_axioms).find(|(_, fact)| *fact == &relation)
-            {
+            if let Some(relation_proof) = prove_exact_or_closed_transitive_integer_bound(
+                &relation,
+                assumptions,
+                semantic_axioms,
+            ) {
                 return Some(ProofNode {
                     conclusion: goal.clone(),
                     rule: ProofRule::IntegerLessOrEqualSubstitution {
-                        relation: Box::new(relation_citation.proof(relation_fact)),
+                        relation: Box::new(relation_proof),
                         equality: Box::new(citation.proof(fact)),
                         endpoint,
                     },
@@ -187,6 +159,51 @@ fn prove_integer_bound(
                         relation: Box::new(relation),
                         equality: Box::new(citation.proof(fact)),
                         endpoint,
+                    },
+                });
+            }
+        }
+    }
+    None
+}
+
+fn prove_exact_or_closed_transitive_integer_bound(
+    goal: &Proposition,
+    assumptions: &[Proposition],
+    semantic_axioms: &[Proposition],
+) -> Option<ProofNode> {
+    let Proposition::LessOrEqual(goal_left, goal_right) = goal else {
+        return None;
+    };
+    for (citation, fact) in cited_facts(assumptions, semantic_axioms) {
+        if fact == goal {
+            return Some(citation.proof(fact));
+        }
+    }
+    for (citation, fact) in cited_facts(assumptions, semantic_axioms) {
+        let Proposition::LessOrEqual(fact_left, fact_right) = fact else {
+            continue;
+        };
+        if fact_left == goal_left {
+            let tail = Proposition::LessOrEqual(fact_right.clone(), goal_right.clone());
+            if let Some(tail) = closed_integer_relation(tail) {
+                return Some(ProofNode {
+                    conclusion: goal.clone(),
+                    rule: ProofRule::IntegerLessOrEqualTransitivity {
+                        left_less_or_equal_middle: Box::new(citation.proof(fact)),
+                        middle_less_or_equal_right: Box::new(tail),
+                    },
+                });
+            }
+        }
+        if fact_right == goal_right {
+            let head = Proposition::LessOrEqual(goal_left.clone(), fact_left.clone());
+            if let Some(head) = closed_integer_relation(head) {
+                return Some(ProofNode {
+                    conclusion: goal.clone(),
+                    rule: ProofRule::IntegerLessOrEqualTransitivity {
+                        left_less_or_equal_middle: Box::new(head),
+                        middle_less_or_equal_right: Box::new(citation.proof(fact)),
                     },
                 });
             }
@@ -1115,6 +1132,195 @@ mod tests {
         assert!(matches!(
             proof.rule,
             ProofRule::ConjunctionIntroduction(ref conjuncts) if conjuncts.len() == 2
+        ));
+    }
+
+    #[test]
+    fn i1_exact_division_goal_transports_both_joint_endpoints() {
+        let integer_type = IntegerType::new(IntegerSign::Signed, 1).expect("i1");
+        let context = PropositionContext::from_value_types([
+            (ValueId::new(1).unwrap(), ScalarType::Integer(integer_type)),
+            (ValueId::new(2).unwrap(), ScalarType::Integer(integer_type)),
+            (ValueId::new(3).unwrap(), ScalarType::Integer(integer_type)),
+            (ValueId::new(4).unwrap(), ScalarType::Integer(integer_type)),
+        ])
+        .expect("four i1 values");
+        let goal = Proposition::Conjunction(vec![
+            Proposition::LessOrEqual(value(2, integer_type), integer(integer_type, -1)),
+            Proposition::LessOrEqual(integer(integer_type, 0), value(1, integer_type)),
+        ]);
+        let assumptions = [
+            Proposition::LessOrEqual(value(3, integer_type), integer(integer_type, -1)),
+            Proposition::Equal(value(3, integer_type), value(2, integer_type)),
+            Proposition::LessOrEqual(integer(integer_type, 0), value(4, integer_type)),
+            Proposition::Equal(value(4, integer_type), value(1, integer_type)),
+        ];
+        let proof = prove_canonical_integer_proposition(&context, &goal, &assumptions, &[])
+            .expect("both i1 joint endpoints transport independently");
+        let ProofRule::ConjunctionIntroduction(conjuncts) = proof.rule else {
+            panic!("i1 endpoint transport constructs the canonical conjunction")
+        };
+        assert_eq!(conjuncts.len(), 2);
+        let ProofRule::IntegerLessOrEqualSubstitution {
+            relation,
+            equality,
+            endpoint,
+        } = &conjuncts[0].rule
+        else {
+            panic!("i1 divisor bound uses endpoint substitution")
+        };
+        assert_eq!(*endpoint, 0);
+        assert!(matches!(relation.rule, ProofRule::Assumption { index: 0 }));
+        assert!(matches!(equality.rule, ProofRule::Assumption { index: 1 }));
+        let ProofRule::IntegerLessOrEqualSubstitution {
+            relation,
+            equality,
+            endpoint,
+        } = &conjuncts[1].rule
+        else {
+            panic!("i1 dividend bound uses endpoint substitution")
+        };
+        assert_eq!(*endpoint, 1);
+        assert!(matches!(relation.rule, ProofRule::Assumption { index: 2 }));
+        assert!(matches!(equality.rule, ProofRule::Assumption { index: 3 }));
+
+        let crossed = [
+            Proposition::LessOrEqual(value(3, integer_type), integer(integer_type, -1)),
+            Proposition::Equal(value(3, integer_type), value(1, integer_type)),
+            Proposition::LessOrEqual(integer(integer_type, 0), value(4, integer_type)),
+            Proposition::Equal(value(4, integer_type), value(2, integer_type)),
+        ];
+        assert!(
+            prove_canonical_integer_proposition(&context, &goal, &crossed, &[]).is_none(),
+            "crossed i1 endpoint equalities cannot prove the joint goal",
+        );
+        assert!(
+            prove_canonical_integer_proposition(&context, &goal, &assumptions[..3], &[]).is_none(),
+            "missing dividend equality cannot prove the joint goal",
+        );
+    }
+
+    #[test]
+    fn exact_division_goal_nests_closed_transitivity_under_endpoint_transport() {
+        let unsigned = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        let unsigned_context = PropositionContext::from_value_types([
+            (ValueId::new(1).unwrap(), ScalarType::Integer(unsigned)),
+            (ValueId::new(2).unwrap(), ScalarType::Integer(unsigned)),
+            (ValueId::new(3).unwrap(), ScalarType::Integer(unsigned)),
+        ])
+        .expect("three u8 values");
+        let unsigned_goal = Proposition::LessOrEqual(
+            ScalarTerm::integer(unsigned, IntegerValue::Unsigned(1)).expect("u8 one"),
+            value(2, unsigned),
+        );
+        let unsigned_proof = prove_canonical_integer_proposition(
+            &unsigned_context,
+            &unsigned_goal,
+            &[
+                Proposition::LessOrEqual(
+                    ScalarTerm::integer(unsigned, IntegerValue::Unsigned(2))
+                        .expect("stronger u8 floor"),
+                    value(3, unsigned),
+                ),
+                Proposition::Equal(value(3, unsigned), value(2, unsigned)),
+            ],
+            &[],
+        )
+        .expect("stronger intermediate bound transports to the unsigned divisor");
+        let ProofRule::IntegerLessOrEqualSubstitution {
+            relation,
+            equality,
+            endpoint,
+        } = unsigned_proof.rule
+        else {
+            panic!("unsigned stronger endpoint transport uses substitution")
+        };
+        assert_eq!(endpoint, 1);
+        let ProofRule::IntegerLessOrEqualTransitivity {
+            left_less_or_equal_middle,
+            middle_less_or_equal_right,
+        } = relation.rule
+        else {
+            panic!("transported unsigned relation uses closed transitivity")
+        };
+        assert!(matches!(
+            left_less_or_equal_middle.rule,
+            ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation)
+        ));
+        assert!(matches!(
+            middle_less_or_equal_right.rule,
+            ProofRule::Assumption { index: 0 }
+        ));
+        assert!(matches!(equality.rule, ProofRule::Assumption { index: 1 }));
+        assert!(
+            prove_canonical_integer_proposition(
+                &unsigned_context,
+                &unsigned_goal,
+                &[
+                    Proposition::LessOrEqual(
+                        ScalarTerm::integer(unsigned, IntegerValue::Unsigned(0))
+                            .expect("weak u8 floor"),
+                        value(3, unsigned),
+                    ),
+                    Proposition::Equal(value(3, unsigned), value(2, unsigned)),
+                ],
+                &[],
+            )
+            .is_none(),
+            "weak transported bound cannot prove unsigned definedness",
+        );
+
+        let signed = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+        let signed_context = PropositionContext::from_value_types([
+            (ValueId::new(1).unwrap(), ScalarType::Integer(signed)),
+            (ValueId::new(2).unwrap(), ScalarType::Integer(signed)),
+            (ValueId::new(3).unwrap(), ScalarType::Integer(signed)),
+        ])
+        .expect("three i8 values");
+        let signed_divisor = value(2, signed);
+        let signed_goal = Proposition::Disjunction(vec![
+            Proposition::LessOrEqual(signed_divisor.clone(), integer(signed, -2)),
+            Proposition::LessOrEqual(integer(signed, 1), signed_divisor.clone()),
+            Proposition::Conjunction(vec![
+                Proposition::LessOrEqual(signed_divisor, integer(signed, -1)),
+                Proposition::LessOrEqual(integer(signed, -127), value(1, signed)),
+            ]),
+        ]);
+        let signed_proof = prove_canonical_integer_proposition(
+            &signed_context,
+            &signed_goal,
+            &[
+                Proposition::LessOrEqual(value(3, signed), integer(signed, -3)),
+                Proposition::Equal(value(3, signed), value(2, signed)),
+            ],
+            &[],
+        )
+        .expect("stronger intermediate ceiling transports to the signed divisor");
+        let ProofRule::DisjunctionIntroduction { disjunct, index } = signed_proof.rule else {
+            panic!("signed stronger transport selects its canonical arm")
+        };
+        assert_eq!(index, 0);
+        let ProofRule::IntegerLessOrEqualSubstitution {
+            relation, endpoint, ..
+        } = disjunct.rule
+        else {
+            panic!("signed stronger endpoint transport uses substitution")
+        };
+        assert_eq!(endpoint, 0);
+        let ProofRule::IntegerLessOrEqualTransitivity {
+            left_less_or_equal_middle,
+            middle_less_or_equal_right,
+        } = relation.rule
+        else {
+            panic!("transported signed relation uses closed transitivity")
+        };
+        assert!(matches!(
+            left_less_or_equal_middle.rule,
+            ProofRule::Assumption { index: 0 }
+        ));
+        assert!(matches!(
+            middle_less_or_equal_right.rule,
+            ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation)
         ));
     }
 
