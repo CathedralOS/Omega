@@ -843,20 +843,14 @@ fn value_call_sequential_result_slots_exit_canary_runs() {
     // ops after the StateCall and defers the leaf expansion to after the LAST
     // such op, so `rr` is written before the copy fires.
     let canary = pass_canary("calls/value_call_sequential_result_slots_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-value-call-sequential-result-slots-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("sequential result slots canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("sequential result slots canary should compile from its authored root");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -916,20 +910,14 @@ fn value_call_sequential_self_capture_exit_canary_runs() {
     // shape cannot silently regress. exit 70 = a1 = cap() = self.seed = 9,
     // a2 = add(40) = 49, self.v = a1 + 61 = 70.
     let canary = pass_canary("calls/value_call_sequential_self_capture_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-value-call-sequential-self-capture-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("sequential self-capture canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("sequential self-capture canary should compile from its authored root");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()

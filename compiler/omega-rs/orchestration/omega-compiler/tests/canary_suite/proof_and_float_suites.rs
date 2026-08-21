@@ -736,13 +736,8 @@ fn runtime_sum_field_store_payload_exit_canary_runs() {
     let build_dir = std::env::temp_dir().join(format!("omega-sumfield-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("sum-field-store payload canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("sum-field-store payload canary should compile from its authored root");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
