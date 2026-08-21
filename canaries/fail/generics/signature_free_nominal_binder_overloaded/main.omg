@@ -1,0 +1,18 @@
+// FAIL canary (ENT4): a signature-free nominal binder cannot choose among
+// same-named requirement overloads.
+
+trait Handler {
+    machine call(value: i32) -> i32;
+    machine call(value: i64) -> i64;
+}
+
+machine register<machine Selected>()
+where machine Selected satisfies Handler::call;
+{
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

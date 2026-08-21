@@ -1,0 +1,21 @@
+// FAIL canary (ENT4): a signature-free domain route cannot choose among
+// same-named requirement overloads.
+
+data Token {
+    value: u64;
+}
+
+domain Token::Issued {
+    Issuer::issue;
+}
+
+trait Issuer {
+    machine issue(value: u64) -> Token in Issued;
+    machine issue(value: i64) -> Token in Issued;
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

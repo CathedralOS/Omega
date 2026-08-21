@@ -1,0 +1,20 @@
+// PASS canary (ENT4): an authored domain route resolves one exact checked
+// trait requirement and retains that nominal introduction authority.
+
+data Token {
+    value: u64;
+}
+
+domain Token::Issued {
+    Issuer::issue;
+}
+
+trait Issuer {
+    machine issue(value: u64) -> Token in Issued;
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}
