@@ -1250,11 +1250,18 @@ Owners:
   unique satisfaction trait/requirement, and canonical requirement-overload
   identity. Validation captures that authority before specialization consumes
   the authored arguments and again after each fixed-point cloning round, while
-  structural machine parameters publish no nominal row. Remaining work is to
-  enrich that row with separate published/actual envelopes and explicit
-  refinement evidence, realize target thunk placement, lower registration
-  leases/unregister, report declaration-side ambiguity, and add cross-target
-  registered-callback canaries.
+  structural machine parameters publish no nominal row. Each row now also
+  pins the normalized published-requirement contract identity separately from
+  the selected machine's normalized declared contract identity and retains an
+  explicit admission-refinement receipt binding those endpoints. This is not
+  yet the narrower realized actual envelope: effective service reach and
+  invocation, transitive suspension/blocking, checked termination/crash, and
+  later mutation/capability/resource ceilings remain independent facts. The
+  remaining envelope slice must aggregate those per-axis published/actual rows
+  without relabeling a declared fingerprint as inferred behavior. Also
+  remaining are target thunk placement, registration leases/unregister,
+  declaration-side ambiguity reporting, and cross-target registered-callback
+  canaries.
 - Implement the narrow Windows `user32` canary without exposing a raw code
   address. Derive `Atomic::interruption_fence` same-context evidence from the
   installed external-root route and reject it elsewhere.

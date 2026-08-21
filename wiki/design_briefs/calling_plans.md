@@ -575,6 +575,16 @@ conflicting identities for one site and ordinal reject. Structural machine
 parameters deliberately produce no nominal-use row. Published/actual envelope
 projection, refinement evidence, and target placement remain later slices.
 
+The identity row additionally pins two separate normalized public-contract
+endpoints: the callback requirement capsule and the selected machine's declared
+contract plan. A validated-refinement receipt explicitly binds those two
+fingerprints, rather than asking consumers to infer a relationship from
+adjacent identities. This is only the public contract-envelope identity slice.
+The selected machine's narrower realized facts—effective reach/invocations,
+transitive suspension/blocking, checked termination/crash, and later
+mutation/capability/resource ceilings—remain independent and must be assembled
+before installation may claim a complete actual envelope.
+
 Lowering alone materializes the thunk relocation at the plan's exact native
 argument or nested field. Neither the static machine argument nor its address
 becomes an Omega runtime value. A retained `Registration` keeps the exact

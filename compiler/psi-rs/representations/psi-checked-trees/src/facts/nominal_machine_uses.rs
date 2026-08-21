@@ -8,6 +8,17 @@ pub enum NominalMachineUseSite {
     Expression(ExpressionHandle),
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CheckedMachineContractEnvelopeIdentity {
+    pub contract_fingerprint: u64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CheckedMachineContractRefinement {
+    pub published_requirement_fingerprint: u64,
+    pub selected_actual_fingerprint: u64,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedNominalMachineUse {
     pub site: NominalMachineUseSite,
@@ -18,6 +29,12 @@ pub struct CheckedNominalMachineUse {
     pub satisfaction_trait: SymbolHandle,
     pub satisfaction_requirement: SymbolHandle,
     pub canonical_requirement_overload: String,
+    pub published_requirement_envelope: CheckedMachineContractEnvelopeIdentity,
+    pub selected_actual_envelope: CheckedMachineContractEnvelopeIdentity,
+    /// Receipt for the callable-refinement judgment already discharged by
+    /// static-machine admission. The endpoints remain explicit so consumers
+    /// never infer the relationship merely from two nearby identities.
+    pub refinement: CheckedMachineContractRefinement,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -31,6 +48,26 @@ impl NominalMachineUseFacts {
     ) -> Result<Self, String> {
         let mut retained = Vec::new();
         for nominal_use in uses {
+            if nominal_use
+                .published_requirement_envelope
+                .contract_fingerprint
+                == 0
+                || nominal_use.selected_actual_envelope.contract_fingerprint == 0
+            {
+                return Err("nominal machine use retained an empty envelope identity".to_owned());
+            }
+            if nominal_use.refinement.published_requirement_fingerprint
+                != nominal_use
+                    .published_requirement_envelope
+                    .contract_fingerprint
+                || nominal_use.refinement.selected_actual_fingerprint
+                    != nominal_use.selected_actual_envelope.contract_fingerprint
+            {
+                return Err(
+                    "nominal machine use refinement receipt does not bind its envelope identities"
+                        .to_owned(),
+                );
+            }
             if let Some(existing) = retained
                 .iter()
                 .find(|existing: &&CheckedNominalMachineUse| {
@@ -76,6 +113,16 @@ mod tests {
             satisfaction_trait: SymbolHandle::from_arena_index(5),
             satisfaction_requirement: SymbolHandle::from_arena_index(6),
             canonical_requirement_overload: "Handler::call".to_owned(),
+            published_requirement_envelope: CheckedMachineContractEnvelopeIdentity {
+                contract_fingerprint: 7,
+            },
+            selected_actual_envelope: CheckedMachineContractEnvelopeIdentity {
+                contract_fingerprint: 8,
+            },
+            refinement: CheckedMachineContractRefinement {
+                published_requirement_fingerprint: 7,
+                selected_actual_fingerprint: 8,
+            },
         }
     }
 
@@ -98,5 +145,17 @@ mod tests {
             .expect_err("the same site and ordinal must have one admitted identity");
 
         assert!(message.contains("conflicting admitted identities"));
+    }
+
+    #[test]
+    fn refinement_receipt_must_bind_the_retained_envelope_identities() {
+        let first = nominal_use(3);
+        let mut second = first.clone();
+        second.refinement.selected_actual_fingerprint = 9;
+
+        let message = NominalMachineUseFacts::try_with_uses([first, second])
+            .expect_err("a refinement receipt cannot cite a different endpoint");
+
+        assert!(message.contains("does not bind its envelope identities"));
     }
 }
