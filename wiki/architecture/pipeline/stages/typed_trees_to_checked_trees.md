@@ -61,6 +61,11 @@ Must own:
   requirement overload, separate published and actual envelopes, their
   refinement judgment, and the target placement recipe. Signature matching or
   visible uniqueness never manufactures such a fact.
+  Pre-specialization selection validation derives service reach while its
+  operational inference plan is transient, then projects machine-keyed
+  suspension and blocking rows and threads those axes independently through
+  callable-shape refinement. Missing inferred rows fall back to the matching
+  authored axis only; suspension never supplies blocking or vice versa.
 - Checked value origins for ranking witnesses, initializers, statement values,
   call arguments, transition guards/targets, and nested expression children.
 - A durable checked-flow representation of calls and transitions.

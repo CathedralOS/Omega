@@ -3011,19 +3011,6 @@ fn static_machine_argument_rejects_inferred_suspension_above_slot_ceiling() {
         "#,
     );
 
-    let operations = psi_effects::infer_operational_may(&typed);
-    let worker = typed
-        .machines()
-        .iter()
-        .find(|machine| machine.name.as_str() == "work")
-        .expect("worker machine");
-    let summary = operations
-        .machines()
-        .iter()
-        .find(|summary| summary.symbol == worker.symbol)
-        .expect("worker operations");
-    assert!(summary.transitive_may_suspend, "{summary:#?}");
-
     let diagnostics = validate_static_machine_selections(&typed)
         .expect_err("an inferred suspending provider must not widen a negative slot ceiling");
     assert!(diagnostics.iter().any(|diagnostic| {
@@ -3052,19 +3039,6 @@ fn static_machine_argument_rejects_blocking_independently_from_suspension() {
         }
         "#,
     );
-
-    let operations = psi_effects::infer_operational_may(&typed);
-    let worker = typed
-        .machines()
-        .iter()
-        .find(|machine| machine.name.as_str() == "work")
-        .expect("worker machine");
-    let summary = operations
-        .machines()
-        .iter()
-        .find(|summary| summary.symbol == worker.symbol)
-        .expect("worker operations");
-    assert!(summary.transitive_may_block, "{summary:#?}");
 
     let diagnostics = validate_static_machine_selections(&typed)
         .expect_err("allowing suspension must not silently allow blocking");

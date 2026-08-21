@@ -18,18 +18,57 @@ use psi_typed_trees::state::State;
 use psi_typed_trees::statement::StatementNode;
 use psi_typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
 
+#[derive(Clone, Copy)]
+struct MachineSuspensionRow {
+    symbol: SymbolHandle,
+    transitive_may_suspend: bool,
+}
+
+#[derive(Clone, Copy)]
+struct MachineBlockingRow {
+    symbol: SymbolHandle,
+    transitive_may_block: bool,
+}
+
+fn project_operational_rows(
+    operational: &psi_effects::OperationalPlan,
+) -> (Vec<MachineSuspensionRow>, Vec<MachineBlockingRow>) {
+    let suspensions = operational
+        .machines()
+        .iter()
+        .map(|summary| MachineSuspensionRow {
+            symbol: summary.symbol,
+            transitive_may_suspend: summary.transitive_may_suspend,
+        })
+        .collect();
+    let blockings = operational
+        .machines()
+        .iter()
+        .map(|summary| MachineBlockingRow {
+            symbol: summary.symbol,
+            transitive_may_block: summary.transitive_may_block,
+        })
+        .collect();
+    (suspensions, blockings)
+}
+
 pub(crate) fn validate_static_machine_arguments(
     program: &TypedTrees,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let operational = psi_effects::infer_operational_may(program);
-    let service_reaches = psi_effects::infer_service_reaches(program, &operational);
+    let (service_reaches, suspensions, blockings) = {
+        let operational = psi_effects::infer_operational_may(program);
+        let service_reaches = psi_effects::infer_service_reaches(program, &operational);
+        let (suspensions, blockings) = project_operational_rows(&operational);
+        (service_reaches, suspensions, blockings)
+    };
     let invocations = psi_effects::infer_synchronous_invocations(program);
     for (_, expression) in program.expression_table.iter_expressions() {
         if let ExpressionNode::Call(call) = expression {
             validate_call_selection(
                 program,
-                &operational,
+                &suspensions,
+                &blockings,
                 &service_reaches,
                 &invocations,
                 call.target_symbol,
@@ -46,7 +85,8 @@ pub(crate) fn validate_static_machine_arguments(
                 if let StatementNode::Call(call) = statement {
                     validate_call_selection(
                         program,
-                        &operational,
+                        &suspensions,
+                        &blockings,
                         &service_reaches,
                         &invocations,
                         call.target_symbol,
@@ -74,7 +114,8 @@ pub fn validate_static_machine_selections(program: &TypedTrees) -> Result<(), Ve
 
 fn validate_call_selection(
     program: &TypedTrees,
-    operational: &psi_effects::OperationalPlan,
+    suspensions: &[MachineSuspensionRow],
+    blockings: &[MachineBlockingRow],
     service_reaches: &psi_effects::ServiceReachInferencePlan,
     invocations: &psi_effects::InvocationInferencePlan,
     target_symbol: SymbolHandle,
@@ -214,7 +255,8 @@ fn validate_call_selection(
         let requirement = machine_parameter_signature(program, requirement);
         validate_selected_callable_shape(
             program,
-            operational,
+            suspensions,
+            blockings,
             service_reaches,
             invocations,
             target_name,
@@ -232,7 +274,8 @@ fn validate_call_selection(
 #[allow(clippy::too_many_arguments)]
 fn validate_selected_callable_shape(
     program: &TypedTrees,
-    operational: &psi_effects::OperationalPlan,
+    suspensions: &[MachineSuspensionRow],
+    blockings: &[MachineBlockingRow],
     service_reaches: &psi_effects::ServiceReachInferencePlan,
     invocations: &psi_effects::InvocationInferencePlan,
     generic_call: &str,
@@ -247,7 +290,8 @@ fn validate_selected_callable_shape(
     if let Some((actual_machine, actual_state)) = machine_and_state(program, selected_symbol) {
         validate_callable_shape(
             program,
-            operational,
+            suspensions,
+            blockings,
             service_reaches,
             invocations,
             generic_call,
@@ -301,7 +345,8 @@ fn validate_selected_callable_shape(
 #[allow(clippy::too_many_arguments)]
 fn validate_callable_shape(
     program: &TypedTrees,
-    operational: &psi_effects::OperationalPlan,
+    suspensions: &[MachineSuspensionRow],
+    blockings: &[MachineBlockingRow],
     service_reaches: &psi_effects::ServiceReachInferencePlan,
     invocations: &psi_effects::InvocationInferencePlan,
     generic_call: &str,
@@ -317,10 +362,12 @@ fn validate_callable_shape(
         "machine argument `{}` for `{generic_call}`",
         actual_machine.name
     );
-    let inferred = operational
-        .machines()
+    let inferred_suspension = suspensions
         .iter()
-        .find(|summary| summary.symbol == actual_machine.symbol);
+        .find(|row| row.symbol == actual_machine.symbol);
+    let inferred_blocking = blockings
+        .iter()
+        .find(|row| row.symbol == actual_machine.symbol);
     let actual_services = service_reaches
         .for_machine(actual_machine.symbol)
         .map(|summary| service_reaches.services(summary.effective))
@@ -329,11 +376,11 @@ fn validate_callable_shape(
                 .service_reach_rows
                 .services(actual_machine.service_reach_row)
         });
-    let actual_may_suspend = inferred
-        .map(|summary| summary.transitive_may_suspend)
+    let actual_may_suspend = inferred_suspension
+        .map(|row| row.transitive_may_suspend)
         .unwrap_or(actual_machine.suspends);
-    let actual_may_block = inferred
-        .map(|summary| summary.transitive_may_block)
+    let actual_may_block = inferred_blocking
+        .map(|row| row.transitive_may_block)
         .unwrap_or(actual_machine.blocks);
     let actual_invocations = invocations
         .for_machine(actual_machine.symbol)
@@ -771,12 +818,17 @@ pub(crate) fn validate_data_machine_selection(
         return;
     }
     let requirement = machine_parameter_signature(program, requirement);
-    let operational = psi_effects::infer_operational_may(program);
-    let service_reaches = psi_effects::infer_service_reaches(program, &operational);
+    let (service_reaches, suspensions, blockings) = {
+        let operational = psi_effects::infer_operational_may(program);
+        let service_reaches = psi_effects::infer_service_reaches(program, &operational);
+        let (suspensions, blockings) = project_operational_rows(&operational);
+        (service_reaches, suspensions, blockings)
+    };
     let invocations = psi_effects::infer_synchronous_invocations(program);
     validate_selected_callable_shape(
         program,
-        &operational,
+        &suspensions,
+        &blockings,
         &service_reaches,
         &invocations,
         family_name,
