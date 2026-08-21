@@ -14,14 +14,20 @@ pub(super) fn write_wire_protocol_report(
     options: &CompileOptions,
     typed: &TypedTrees,
     compatibility_demands: &[super::build_config::WireCompatibilityDemand],
+    emit_auxiliary_artifacts: bool,
 ) -> Result<(), Vec<Diagnostic>> {
+    if !emit_auxiliary_artifacts && compatibility_demands.is_empty() {
+        return Ok(());
+    }
     let report = build_wire_protocol_report(typed, compatibility_demands);
 
-    let writer =
-        ArtifactWriter::new(&options.build_dir()).map_err(|diagnostic| vec![diagnostic])?;
-    writer
-        .write_wire_protocol_report(&report)
-        .map_err(|diagnostic| vec![diagnostic])?;
+    if emit_auxiliary_artifacts {
+        let writer =
+            ArtifactWriter::new(&options.build_dir()).map_err(|diagnostic| vec![diagnostic])?;
+        writer
+            .write_wire_protocol_report(&report)
+            .map_err(|diagnostic| vec![diagnostic])?;
+    }
 
     let diagnostics = report
         .demands
