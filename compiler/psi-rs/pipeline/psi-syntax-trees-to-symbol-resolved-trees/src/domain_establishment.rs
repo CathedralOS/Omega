@@ -7,6 +7,10 @@ use psi_symbol_resolved_trees::signature::{SignatureContract, SignatureContractK
 use psi_symbol_resolved_trees::types::TypeReference;
 use psi_symbols::SymbolHandle;
 
+use crate::signature_free_requirements::{
+    SignatureFreeRequirementResolutionError, resolve_signature_free_requirement, same_semantic_name,
+};
+
 /// Normalize authored domain-introduction relationships after every
 /// declaration and contract fact has a symbol.
 ///
@@ -42,53 +46,35 @@ fn collect_authored_requirement_routes(
             )));
         }
         for path in &domain.authored_routes {
-            let [trait_path @ .., requirement_name] = path.as_slice() else {
-                return Err(Diagnostic::error(format!(
-                    "domain `{}` establishment route must name an exact `Trait::requirement`",
-                    domain.name
-                )));
-            };
-            if trait_path.is_empty() {
-                return Err(Diagnostic::error(format!(
-                    "domain `{}` establishment route must name an exact `Trait::requirement`",
-                    domain.name
-                )));
-            }
-            let trait_name = trait_path
-                .iter()
-                .map(|member| member.as_str())
-                .collect::<Vec<_>>()
-                .join("::");
-            let matching_traits = program
-                .traits
-                .iter()
-                .filter(|definition| same_semantic_name(definition.name.as_str(), &trait_name))
-                .collect::<Vec<_>>();
-            let [trait_definition] = matching_traits.as_slice() else {
-                return Err(Diagnostic::error(format!(
-                    "domain `{}` establishment route `{}` does not resolve to one exact trait",
-                    domain.name,
-                    path.iter()
-                        .map(|member| member.as_str())
-                        .collect::<Vec<_>>()
-                        .join("::")
-                )));
-            };
-            let matching_requirements = program
-                .trait_machine_signatures(trait_definition.machines)
-                .iter()
-                .filter(|signature| signature.name.as_str() == requirement_name.as_str())
-                .collect::<Vec<_>>();
-            let [requirement] = matching_requirements.as_slice() else {
-                return Err(Diagnostic::error(format!(
-                    "domain `{}` establishment route `{}` does not resolve to one exact trait requirement",
-                    domain.name,
-                    path.iter()
-                        .map(|member| member.as_str())
-                        .collect::<Vec<_>>()
-                        .join("::")
-                )));
-            };
+            let resolved = resolve_signature_free_requirement(program, path).map_err(|error| {
+                let route = path
+                    .iter()
+                    .map(|member| member.as_str())
+                    .collect::<Vec<_>>()
+                    .join("::");
+                match error {
+                    SignatureFreeRequirementResolutionError::InvalidPath => Diagnostic::error(
+                        format!(
+                            "domain `{}` establishment route must name an exact `Trait::requirement`",
+                            domain.name
+                        ),
+                    ),
+                    SignatureFreeRequirementResolutionError::TraitNotUnique => {
+                        Diagnostic::error(format!(
+                            "domain `{}` establishment route `{route}` does not resolve to one exact trait",
+                            domain.name
+                        ))
+                    }
+                    SignatureFreeRequirementResolutionError::RequirementNotUnique => {
+                        Diagnostic::error(format!(
+                            "domain `{}` establishment route `{route}` does not resolve to one exact trait requirement",
+                            domain.name
+                        ))
+                    }
+                }
+            })?;
+            let trait_definition = resolved.trait_definition;
+            let requirement = resolved.requirement;
             if !requirement_authorizes_domain_subject(
                 program,
                 requirement,
@@ -285,10 +271,4 @@ fn expression_is_bare_result(
         return false;
     };
     name.as_str() == "result"
-}
-
-fn same_semantic_name(left: &str, right: &str) -> bool {
-    left == right
-        || (!left.contains("::") && right.rsplit("::").next().is_some_and(|leaf| leaf == left))
-        || (!right.contains("::") && left.rsplit("::").next().is_some_and(|leaf| leaf == right))
 }
