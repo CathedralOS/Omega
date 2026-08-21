@@ -1509,10 +1509,14 @@ Remaining N6/N8 work:
   monomorphizer. Distinct family applications produce distinct executable row
   instances. Literal const and concrete static-machine arguments now enter the
   same specialization tuple, including calls through a captured static-machine
-  parameter inside the row body. Remaining row work covers generic attached
-  carrier applications. Also substitute applications forwarded from an enclosing
-  generic telescope, resolve uniquely elided lifetimes instead of requiring them
-  explicitly, and carry the closed application into Terminal Psi verification.
+  parameter inside the row body. Specializing an enclosing generic machine now
+  recursively substitutes type, const, and static-machine arguments inside a
+  forwarded conformance application before the next fixed-point pass. Generic
+  carriers retain their full instantiated subject identity (for example
+  `Box<Card>`) while executable attached-row lookup uses the carrier's declared
+  base namespace. Remaining work is to resolve uniquely elided lifetimes instead
+  of requiring them explicitly and carry the closed application into Terminal
+  Psi verification.
 - Add `Respects` over compiler-derived positional call telescopes, deriving its
   dependent domain, pointwise input relations, and lifted result relation.
 - Add exact-pair-selected heterogeneous constructor lifts. Dependent records

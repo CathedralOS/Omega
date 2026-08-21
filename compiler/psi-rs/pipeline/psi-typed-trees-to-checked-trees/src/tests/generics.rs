@@ -1570,6 +1570,188 @@ fn generic_conformance_static_machine_argument_specializes_its_selected_row() {
 }
 
 #[test]
+fn outer_generic_specialization_substitutes_nested_conformance_application() {
+    let source = r#"
+        trait Ranked {
+            machine Self::before(&self, other: &Self) -> bool;
+        }
+        data Card {}
+
+        FieldOrder<Element>: Element satisfies Ranked {
+            machine before(&self, other: &Element) -> bool { true }
+        }
+
+        machine choose<Element, Order: Element satisfies Ranked>(
+            left: &Element,
+            right: &Element
+        ) -> bool {
+            Order::before(left, right)
+        }
+
+        machine forward<Element>(left: &Element, right: &Element) -> bool {
+            choose<Element, FieldOrder<Element>>(left, right)
+        }
+
+        machine caller(left: &Card, right: &Card) -> bool {
+            forward<Card>(left, right)
+        }
+    "#;
+
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("forwarded closed application");
+    let application = checked
+        .machine_specializations
+        .iter()
+        .filter_map(|specialization| specialization.conformance_applications.first())
+        .find(|application| application.subject_identity.as_deref() == Some("Card"))
+        .expect("concrete forwarded application");
+    assert_eq!(application.type_arguments, ["Card"]);
+    assert!(
+        checked
+            .machine_specializations
+            .iter()
+            .any(|specialization| {
+                checked
+                    .machines()
+                    .iter()
+                    .find(|machine| machine.symbol == specialization.template)
+                    .is_some_and(|machine| machine.name.as_str().contains("FieldOrder::before"))
+                    && specialization.type_arguments == ["Card"]
+            })
+    );
+}
+
+#[test]
+fn outer_generic_specialization_substitutes_all_nested_conformance_lanes() {
+    let source = r#"
+        trait Ranked {
+            machine Self::before(&self, other: &Self) -> bool;
+        }
+        data Card {}
+
+        machine rank(value: &Card) -> bool { true }
+
+        FieldOrder<Element, const Rank: u64, machine TieBreak>:
+            Element satisfies Ranked
+        where machine TieBreak(value: &Element) -> bool;
+        {
+            machine before(&self, other: &Element) -> bool {
+                transition { _ -> TieBreak(self) }
+            }
+        }
+
+        machine choose<Element, Order: Element satisfies Ranked>(
+            left: &Element,
+            right: &Element
+        ) -> bool {
+            Order::before(left, right)
+        }
+
+        machine forward<Element, const Rank: u64, machine TieBreak>(
+            left: &Element,
+            right: &Element
+        ) -> bool
+        where machine TieBreak(value: &Element) -> bool;
+        {
+            choose<Element, FieldOrder<Element, Rank, TieBreak>>(left, right)
+        }
+
+        machine caller(left: &Card, right: &Card) -> bool {
+            forward<Card, 7, rank>(left, right)
+        }
+    "#;
+
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let rank = typed
+        .machines()
+        .iter()
+        .find_map(|machine| {
+            (machine.name.as_str() == "rank")
+                .then(|| {
+                    typed
+                        .machine_states(machine)
+                        .first()
+                        .map(|state| state.symbol)
+                })
+                .flatten()
+        })
+        .expect("rank state");
+    let checked = lower_typed_trees(typed).expect("fully forwarded closed application");
+    let row = checked
+        .machine_specializations
+        .iter()
+        .find(|specialization| {
+            checked
+                .machines()
+                .iter()
+                .find(|machine| machine.symbol == specialization.template)
+                .is_some_and(|machine| machine.name.as_str().contains("FieldOrder::before"))
+        })
+        .expect("selected row specialization");
+    assert_eq!(row.type_arguments, ["Card"]);
+    assert_eq!(row.const_arguments, ["7"]);
+    assert_eq!(row.machine_arguments, [rank]);
+}
+
+#[test]
+fn generic_carrier_conformance_application_specializes_its_selected_row() {
+    let source = r#"
+        trait Ranked {
+            machine Self::before(&self, other: &Self) -> bool;
+        }
+        data Card {}
+        data Box<Element> {}
+
+        FieldOrder<Element>: Element satisfies Ranked {
+            machine before(&self, other: &Element) -> bool { true }
+        }
+
+        machine choose<Element, Order: Element satisfies Ranked>(
+            left: &Element,
+            right: &Element
+        ) -> bool {
+            Order::before(left, right)
+        }
+
+        machine caller(left: &Box<Card>, right: &Box<Card>) -> bool {
+            choose<Box<Card>, FieldOrder<Box<Card>>>(left, right)
+        }
+    "#;
+
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("generic-carrier selected row");
+    let application = checked
+        .machine_specializations
+        .iter()
+        .filter_map(|specialization| specialization.conformance_applications.first())
+        .find(|application| application.subject_identity.as_deref() == Some("Box<Card>"))
+        .expect("closed generic-carrier application");
+    assert_eq!(application.type_arguments, ["Box<Card>"]);
+    assert!(
+        checked
+            .machine_specializations
+            .iter()
+            .any(|specialization| {
+                checked
+                    .machines()
+                    .iter()
+                    .find(|machine| machine.symbol == specialization.template)
+                    .is_some_and(|machine| machine.name.as_str().contains("FieldOrder::before"))
+                    && specialization.type_arguments == ["Box<Card>"]
+            })
+    );
+}
+
+#[test]
 fn explicit_conformance_binder_rejects_a_map_for_the_wrong_subject() {
     let source = r#"
         trait Ranked {
