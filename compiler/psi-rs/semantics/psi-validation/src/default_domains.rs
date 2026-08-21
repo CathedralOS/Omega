@@ -85,6 +85,11 @@ fn analyze_default_domain_writes(
     diagnostics: &mut Vec<Diagnostic>,
     crash_sites: &mut Vec<OpenInvariantCrashSite>,
 ) {
+    // Every state walk consults the same immutable call-resolution catalog.
+    // Building it per fixpoint visit repeated the whole-program symbol scan
+    // hundreds of times for larger programs without changing any result.
+    let call_frames = crate::calls::CallFrameResolver::new(program);
+
     // R2 rung 3 slice 11 (+ multi-state extension): per-machine
     // establishment SUMMARIES -- the self places a callee DEFINITELY
     // establishes, walked with born_zero=false (a callee runs at arbitrary
@@ -109,6 +114,7 @@ fn analyze_default_domain_writes(
                 vec![
                     walk_state(
                         program,
+                        call_frames.as_ref(),
                         machine,
                         &states[0],
                         &[],
@@ -135,6 +141,7 @@ fn analyze_default_domain_writes(
                     .map(|(index, state)| {
                         walk_state(
                             program,
+                            call_frames.as_ref(),
                             machine,
                             state,
                             &entry[index],
@@ -254,6 +261,7 @@ fn analyze_default_domain_writes(
                 .map(|(index, state)| {
                     walk_state(
                         program,
+                        call_frames.as_ref(),
                         machine,
                         state,
                         &entry_established[index],
@@ -347,6 +355,7 @@ fn analyze_default_domain_writes(
         for (index, state) in states.iter().enumerate() {
             walk_state(
                 program,
+                call_frames.as_ref(),
                 machine,
                 state,
                 &entry_established[index],
@@ -476,6 +485,7 @@ enum SymbolicValue {
 /// monotone).
 fn walk_state(
     program: &TypedTrees,
+    call_frames: Option<&crate::calls::CallFrameResolver<'_>>,
     machine: &Machine,
     state: &State,
     entry_established: &[String],
@@ -494,8 +504,6 @@ fn walk_state(
     // case because it is globally monotone.
     let mut poisoned_all = false;
     let mut poisoned_paths: Vec<String> = Vec::new();
-    let mut call_frames = None;
-    let mut call_frames_initialized = false;
     // Slice 11: establishment ADDED by callee summaries at call sites.
     let mut call_established: Vec<String> = Vec::new();
     // WINDOW TRANSPORT: windows still open from predecessor states
@@ -554,13 +562,7 @@ fn walk_state(
             StatementNode::Call(call) => {
                 refuse_open_windows(&tracked, &inherited_windows, "a call", diagnostics);
                 preserve_proven_establishment(&tracked, &mut call_established);
-                if !call_frames_initialized {
-                    call_frames = crate::calls::CallFrameResolver::new(program);
-                    call_frames_initialized = true;
-                }
-                let written = call_frames
-                    .as_ref()
-                    .and_then(|frames| frames.may_write_paths(machine, call));
+                let written = call_frames.and_then(|frames| frames.may_write_paths(machine, call));
                 if let Some(written) = written {
                     tracked.retain(|place| {
                         !written.iter().any(|written| {
