@@ -57,11 +57,11 @@ fn crash_target_coordinate_fixture() -> (
             symbol: generic_parameter,
             name: Identifier::generated("Worker"),
             kind: TypeParameterKind::Machine {
-                contract: StateSignature {
+                contract: MachineParameterContract::Structural(StateSignature {
                     symbol: generic_contract,
                     name: Identifier::generated("invoke"),
                     ..Default::default()
-                },
+                }),
             },
             ..Default::default()
         },
@@ -217,11 +217,11 @@ fn machine_contract_manifest_crash_target_coordinates_reject_ambiguous_generic()
                 symbol: target,
                 name: Identifier::generated("Worker"),
                 kind: TypeParameterKind::Machine {
-                    contract: StateSignature {
+                    contract: MachineParameterContract::Structural(StateSignature {
                         symbol: target,
                         name: Identifier::generated("invoke"),
                         ..Default::default()
-                    },
+                    }),
                 },
                 ..Default::default()
             },

@@ -491,7 +491,7 @@ fn validate_qualification_source(
     evidence: &psi_facts::QualificationEvidence,
 ) {
     use psi_language_semantics::QualificationEvidenceOrigin;
-    use psi_typed_trees::data::TypeParameterKind;
+    use psi_typed_trees::data::{MachineParameterContract, TypeParameterKind};
 
     if evidence.origin == QualificationEvidenceOrigin::AdmittedReceipt {
         qualification_requirement_identity(program, evidence);
@@ -539,15 +539,31 @@ fn validate_qualification_source(
         .iter()
         .filter(|definition| definition.symbol == source)
         .count();
-    let generic_signature_matches = program
+    let trait_requirement_matches = program
+        .traits()
+        .iter()
+        .flat_map(|definition| program.trait_machine_signatures(definition))
+        .filter(|requirement| requirement.symbol == source)
+        .count();
+    let generic_parameter_matches = program
+        .machines()
+        .iter()
+        .flat_map(|machine| program.machine_type_parameters(machine))
+        .filter(|parameter| {
+            matches!(&parameter.kind, TypeParameterKind::Machine { .. })
+                && parameter.symbol == source
+        })
+        .count();
+    let structural_contract_matches = program
         .machines()
         .iter()
         .flat_map(|machine| program.machine_type_parameters(machine))
         .filter(|parameter| {
             matches!(
                 &parameter.kind,
-                TypeParameterKind::Machine { contract }
-                    if parameter.symbol == source
+                TypeParameterKind::Machine {
+                    contract: MachineParameterContract::Structural(contract),
+                } if contract.symbol == source
             )
         })
         .count();
@@ -556,7 +572,9 @@ fn validate_qualification_source(
         + root_operator_matches
         + domain_operator_matches
         + trait_matches
-        + generic_signature_matches;
+        + trait_requirement_matches
+        + generic_parameter_matches
+        + structural_contract_matches;
     assert_eq!(
         matches, 1,
         "non-admitted qualification evidence source must resolve to exactly one retained typed semantic declaration",
