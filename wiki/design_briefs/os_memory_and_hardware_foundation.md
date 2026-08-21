@@ -630,6 +630,17 @@ at an exact installed/provider-issuance occurrence carrying its receipt.
 Viewing, ending a loan, and resident-preserving retirement merely borrow or
 forward an existing claim; they never establish a new one.
 
+The concrete foundation representation enforces the provider-issued owned
+portion of that lifecycle before the source-visible domain is wired through.
+Provider transfer seals one nonzero resident-claim identity into a dormant
+Stable carrier. Activating the carrier requires a fresh nonzero placed-
+occurrence identity; every derived field and primitive-access request retains
+both. Resident-preserving retirement ends that occurrence and returns the same
+claim and provider receipts to the dormant carrier. A later view uses a new
+occurrence without reminting custody. Ordinary borrowed views carry neither
+identity, and the dormant carrier exposes neither field access nor a route to a
+bare `Extent`.
+
 Known plan, supply, rights, and geometry incompatibility rejects compilation or
 installation. Genuinely dynamic geometry, validation, or establishment-time
 revision checks return ordinary cases. The instantiated core operation derives

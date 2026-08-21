@@ -211,6 +211,14 @@ Owners:
   `Vacant`, split/merge rejection, borrow versus owned-view continuity,
   resident-preserving retirement, partial-view retirement fences, and explicit
   migration through `Vacant`. Carry non-runtime custody in the resident claim.
+  The concrete foundation now seals a provider-issued nonzero
+  `ResidentClaimId` into dormant owned Stable content; explicit view consumes
+  that carrier into a fresh nonzero `PlacedOccurrenceId`, field/access/lowering
+  requests retain both identities, and resident-preserving retirement returns
+  the same claim and receipts for a later fresh view. Ordinary borrowed views
+  retain neither identity. Source-visible domain establishment, borrowed
+  resident loans, `Vacant` transitions, partial moves, Terminal propagation,
+  and installation remain.
 - Complete the atomic 2x2 compare-exchange family: existing observing strong
   and weak forms require copyable residents; new non-observing strong and weak
   forms return the proposal on failure and may transfer affine or linear

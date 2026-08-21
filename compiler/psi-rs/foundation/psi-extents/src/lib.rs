@@ -111,6 +111,7 @@ normalized_extent_identity!(
     ExtentContentCustodyReceiptId,
     "extent-content-custody-receipt"
 );
+normalized_extent_identity!(ResidentClaimId, "resident-claim");
 
 use std::collections::BTreeSet;
 
@@ -468,6 +469,7 @@ pub struct ProviderExistingContentGrant {
     provenance: ExtentProvenanceId,
     era: MappingEraId,
     interpretation: ExtentContentInterpretationId,
+    resident_claim: ResidentClaimId,
     validity_receipt: ExtentContentValidityReceiptId,
     custody_receipt: ExtentContentCustodyReceiptId,
 }
@@ -503,6 +505,10 @@ impl ProviderExistingContentGrant {
 
     pub const fn interpretation(&self) -> ExtentContentInterpretationId {
         self.interpretation
+    }
+
+    pub const fn resident_claim(&self) -> ResidentClaimId {
+        self.resident_claim
     }
 
     pub const fn validity_receipt(&self) -> ExtentContentValidityReceiptId {
@@ -613,6 +619,7 @@ impl ExtentRootGrant {
         base: u64,
         length: u64,
         interpretation: ExtentContentInterpretationId,
+        resident_claim: ResidentClaimId,
         validity_receipt: ExtentContentValidityReceiptId,
         custody_receipt: ExtentContentCustodyReceiptId,
     ) -> Result<(Extent, ProviderExistingContentGrant), ExistingContentMintError> {
@@ -643,6 +650,7 @@ impl ExtentRootGrant {
             provenance: self.provenance,
             era: self.era,
             interpretation,
+            resident_claim,
             validity_receipt,
             custody_receipt,
         };
@@ -2072,6 +2080,7 @@ mod tests {
                 0x8000,
                 64,
                 id(82, ExtentContentInterpretationId::from_normalized_identity),
+                id(85, ResidentClaimId::from_normalized_identity),
                 id(83, ExtentContentValidityReceiptId::from_normalized_identity),
                 id(84, ExtentContentCustodyReceiptId::from_normalized_identity),
             )
@@ -2083,8 +2092,43 @@ mod tests {
         assert_eq!(content.provenance(), extent.provenance());
         assert_eq!(content.era(), extent.era());
         assert_eq!(content.interpretation().normalized_identity(), 82);
+        assert_eq!(content.resident_claim().normalized_identity(), 85);
         assert_eq!(content.validity_receipt().normalized_identity(), 83);
         assert_eq!(content.custody_receipt().normalized_identity(), 84);
+    }
+
+    #[test]
+    fn coincident_provider_content_issuances_retain_distinct_resident_claims() {
+        let (_, first) = root_grant(91)
+            .mint_provider_existing_content(
+                0xa000,
+                64,
+                id(92, ExtentContentInterpretationId::from_normalized_identity),
+                id(93, ResidentClaimId::from_normalized_identity),
+                id(94, ExtentContentValidityReceiptId::from_normalized_identity),
+                id(95, ExtentContentCustodyReceiptId::from_normalized_identity),
+            )
+            .expect("first resident provider issuance");
+        let (_, second) = root_grant(96)
+            .mint_provider_existing_content(
+                0xa000,
+                64,
+                id(92, ExtentContentInterpretationId::from_normalized_identity),
+                id(97, ResidentClaimId::from_normalized_identity),
+                id(94, ExtentContentValidityReceiptId::from_normalized_identity),
+                id(95, ExtentContentCustodyReceiptId::from_normalized_identity),
+            )
+            .expect("second resident provider issuance");
+
+        assert_eq!(
+            (first.base(), first.length()),
+            (second.base(), second.length())
+        );
+        assert_eq!(first.interpretation(), second.interpretation());
+        assert_eq!(first.validity_receipt(), second.validity_receipt());
+        assert_eq!(first.custody_receipt(), second.custody_receipt());
+        assert_ne!(first.origin(), second.origin());
+        assert_ne!(first.resident_claim(), second.resident_claim());
     }
 
     #[test]
@@ -2094,6 +2138,7 @@ mod tests {
                 0x9000,
                 64,
                 id(87, ExtentContentInterpretationId::from_normalized_identity),
+                id(90, ResidentClaimId::from_normalized_identity),
                 id(88, ExtentContentValidityReceiptId::from_normalized_identity),
                 id(89, ExtentContentCustodyReceiptId::from_normalized_identity),
             )

@@ -669,6 +669,14 @@ re-viewing create new view occurrences but never new resident custody. Ordinary
 in-artifact calls substitute those occurrences into callee parameters rather
 than creating roots.
 
+The current concrete foundation carrier implements the provider-issued owned
+cycle directly: provider transfer seals one nonzero resident claim into dormant
+Stable content, each explicit owned view supplies a fresh nonzero placed-
+occurrence identity, primitive access retains both, and resident-preserving
+retirement returns the unchanged claim and provider receipts. This does not yet
+make the generic domain source-visible or implement borrowed resident loans,
+`Vacant` transitions, partial moves, or Terminal and installation propagation.
+
 The instantiated operation derives its requirements from `P`, `T`, and the
 exact source. Geometry and access demand come from normalized `P`; total decode,
 encodability, and default-domain predicates come from `T`; facts about external
