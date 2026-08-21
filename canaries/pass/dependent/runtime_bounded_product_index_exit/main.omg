@@ -1,6 +1,8 @@
 // RUN CANARY (exit 7) + interpreter differential. R3's bounded-product
 // entailment (the ONE closed rule, ch12 brief S8): RUNTIME dims with NO
 // literal ranges, coupled only by `requires self.rows * self.cols <= 12`.
+// The contract widens both factors before multiplication so its proposition
+// is total without changing the mathematical coupling.
 // The strict dependent params carry `y < rows` / `x < cols`; the rule
 // bounds `y * self.cols` by K (multiply half) and `y*cols + x` by K-1
 // (add half) -- so the ranged temp `idx: u32 [0..=11]` STORE-PROVES (the
@@ -22,7 +24,7 @@ machine Main::main(&mut self) {
     self.pixels[11] = 7;
     self.j = 2;
     self.k = 3;
-    transition self.rows * self.cols <= 12 { true -> hop() _ -> bad() }
+    transition (self.rows as u64) * (self.cols as u64) <= 12 { true -> hop() _ -> bad() }
     state hop(&mut self) {
         self.walk();
         let code: i32 = self.out;
@@ -30,7 +32,8 @@ machine Main::main(&mut self) {
     }
     state bad(&mut self) { self.console.exit_process(9); }
 }
-machine Main::walk(&mut self) requires self.rows * self.cols <= 12 {
+machine Main::walk(&mut self)
+requires (self.rows as u64) * (self.cols as u64) <= 12 {
     transition self.j < self.rows && self.k < self.cols { true -> read(self.j, self.k) _ -> miss() }
     state read(&mut self, y: u32 [0..self.rows], x: u32 [0..self.cols]) {
         let idx: u32 [0..=11] = y * self.cols + x;
