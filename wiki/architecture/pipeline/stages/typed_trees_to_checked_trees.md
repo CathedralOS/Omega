@@ -451,14 +451,18 @@ Current ownership is:
   plan, the row also retains its nonzero fingerprint as the target-placement
   join key. Ordinary nominal selections retain no callback placement; the
   target-owned plan and emitted thunk remain outside checked Psi.
-  The row now also joins the requirement capsule's normalized contract
-  fingerprint to the selected machine's normalized declared contract
-  fingerprint and retains an explicit admission-refinement receipt over those
-  endpoints. These identities deliberately exclude inferred witnesses. They
-  must not be presented as the selected machine's complete realized
-  operational envelope; effective reach/invocation, transitive
-  suspension/blocking, checked termination/crash, and future
-  mutation/capability/resource rows remain separate axes.
+  The row also joins the requirement capsule's normalized contract fingerprint
+  to the selected machine's normalized declared contract fingerprint and
+  retains an explicit admission-refinement receipt over those endpoints. The
+  published capsule separately carries canonical service reach, synchronous
+  invocation, suspension, blocking, termination, and crash axes. One
+  exact-machine realized envelope aggregates effective checked reach and
+  invocation, transitive suspension and blocking, checked termination and
+  crash evidence, mutation frames, and capability flows while preserving their
+  independent provenance. Crash evidence is refreshed after path-conditioned
+  validation mutates that axis. Neither envelope changes the published
+  fingerprint or promotes inferred witnesses into caller facts; resource
+  ceilings remain separate until that checked representation exists.
   Published routes are removed
   only when the call evaluator proves them false; proved-true routes become
   unconditional, unknown routes are re-encoded in the caller's positional

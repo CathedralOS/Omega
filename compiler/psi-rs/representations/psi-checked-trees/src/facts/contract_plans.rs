@@ -508,15 +508,20 @@ pub struct CheckedCrashCallSite {
     surviving_buckets: Vec<CrashRouteBucket>,
 }
 
-/// Source-independent crash-contract projection for a callable requirement
-/// that has no local `MachineContractPlan`. The fingerprint pins the complete
-/// normalized callable contract; `published_buckets` is the crash ceiling that
-/// call-site selection may refine without reopening the authored signature.
+/// Source-independent published envelope for a callable requirement that has
+/// no local `MachineContractPlan`. The fingerprint pins the complete normalized
+/// callable contract; independent operational axes and the crash ceiling stay
+/// directly queryable without reopening the authored signature.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CrashContractCapsule {
     target_machine: SymbolHandle,
     target_state: SymbolHandle,
     target_contract_fingerprint: u64,
+    published_service_reach: Vec<String>,
+    published_synchronous_invocations: Vec<String>,
+    published_may_suspend: bool,
+    published_may_block: bool,
+    published_termination: TerminationGuarantee,
     published_buckets: Vec<CrashRouteBucket>,
 }
 
@@ -533,8 +538,33 @@ impl CrashContractCapsule {
             target_machine,
             target_state,
             target_contract_fingerprint,
+            published_service_reach: Vec::new(),
+            published_synchronous_invocations: Vec::new(),
+            published_may_suspend: false,
+            published_may_block: false,
+            published_termination: TerminationGuarantee::NoGuarantee,
             published_buckets,
         }
+    }
+
+    pub fn with_operational_envelope(
+        mut self,
+        mut published_service_reach: Vec<String>,
+        mut published_synchronous_invocations: Vec<String>,
+        published_may_suspend: bool,
+        published_may_block: bool,
+        published_termination: TerminationGuarantee,
+    ) -> Self {
+        published_service_reach.sort();
+        published_service_reach.dedup();
+        published_synchronous_invocations.sort();
+        published_synchronous_invocations.dedup();
+        self.published_service_reach = published_service_reach;
+        self.published_synchronous_invocations = published_synchronous_invocations;
+        self.published_may_suspend = published_may_suspend;
+        self.published_may_block = published_may_block;
+        self.published_termination = published_termination;
+        self
     }
 
     pub const fn target_machine(&self) -> SymbolHandle {
@@ -551,6 +581,26 @@ impl CrashContractCapsule {
 
     pub fn published_buckets(&self) -> &[CrashRouteBucket] {
         &self.published_buckets
+    }
+
+    pub fn published_service_reach(&self) -> &[String] {
+        &self.published_service_reach
+    }
+
+    pub fn published_synchronous_invocations(&self) -> &[String] {
+        &self.published_synchronous_invocations
+    }
+
+    pub const fn published_may_suspend(&self) -> bool {
+        self.published_may_suspend
+    }
+
+    pub const fn published_may_block(&self) -> bool {
+        self.published_may_block
+    }
+
+    pub const fn published_termination(&self) -> &TerminationGuarantee {
+        &self.published_termination
     }
 }
 
@@ -967,6 +1017,10 @@ pub struct MachineContractPlans {
     /// own local machine plans. Their normalized callable identity and crash
     /// projection live here for modular call-site selection.
     pub crash_capsules: Vec<CrashContractCapsule>,
+    /// Checked implementation axes assembled under the same exact machine
+    /// identity as `machines`. Published requirement capsules remain separate;
+    /// this row is the narrower realized endpoint used by callback admission.
+    pub realized_envelopes: Vec<RealizedMachineContractEnvelope>,
 }
 
 impl MachineContractPlans {
@@ -983,6 +1037,33 @@ impl MachineContractPlans {
             capsule.target_machine == target_machine && capsule.target_state == target_state
         })
     }
+
+    pub fn realized_envelope(
+        &self,
+        machine: SymbolHandle,
+    ) -> Option<&RealizedMachineContractEnvelope> {
+        self.realized_envelopes
+            .iter()
+            .find(|envelope| envelope.machine == machine)
+    }
+}
+
+/// Complete currently-checkable implementation envelope for one concrete
+/// machine. These axes are evidence, not a replacement public contract
+/// fingerprint. Resource ceilings remain independent until their checked
+/// representation exists.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RealizedMachineContractEnvelope {
+    pub machine: SymbolHandle,
+    pub contract_fingerprint: u64,
+    pub effective_service_reach: Vec<String>,
+    pub effective_synchronous_invocations: Vec<String>,
+    pub checked_may_suspend: bool,
+    pub checked_may_block: bool,
+    pub checked_termination: TerminationGuarantee,
+    pub checked_crash: CrashPlan,
+    pub mutation: Vec<crate::StateWriteFramePlan>,
+    pub capabilities: Vec<psi_effects::CapabilityFlowFact>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1323,11 +1404,32 @@ mod tests {
                 CrashRouteBucket::unconditional(CrashCause::Trap),
                 CrashRouteBucket::unconditional(CrashCause::Abort),
             ],
+        )
+        .with_operational_envelope(
+            vec!["Window".to_owned(), "Clock".to_owned(), "Window".to_owned()],
+            vec!["service:Events".to_owned(), "service:Events".to_owned()],
+            true,
+            false,
+            TerminationGuarantee::Terminates {
+                premises: Vec::new(),
+            },
         );
         assert_eq!(capsule.published_buckets().len(), 2);
+        assert_eq!(capsule.published_service_reach(), ["Clock", "Window"]);
+        assert_eq!(
+            capsule.published_synchronous_invocations(),
+            ["service:Events"]
+        );
+        assert!(capsule.published_may_suspend());
+        assert!(!capsule.published_may_block());
+        assert!(matches!(
+            capsule.published_termination(),
+            TerminationGuarantee::Terminates { .. }
+        ));
         let plans = MachineContractPlans {
             machines: Vec::new(),
             crash_capsules: vec![capsule],
+            realized_envelopes: Vec::new(),
         };
         assert_eq!(
             plans

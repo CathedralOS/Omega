@@ -251,6 +251,43 @@ fn nominal_callback_use_retains_exact_evaluated_placement_identity() {
             boundary_calling_plan_fingerprint: expected_fingerprint,
         })
     );
+    let published = checked
+        .facts
+        .contract_plans
+        .crash_capsule(
+            nominal_use.satisfaction_trait,
+            nominal_use.satisfaction_requirement,
+        )
+        .expect("callback requirement envelope");
+    assert_eq!(
+        published.target_contract_fingerprint(),
+        nominal_use
+            .published_requirement_envelope
+            .contract_fingerprint
+    );
+    assert!(published.published_service_reach().is_empty());
+    assert!(published.published_synchronous_invocations().is_empty());
+    assert!(!published.published_may_suspend());
+    assert!(!published.published_may_block());
+    assert_eq!(
+        published.published_termination(),
+        &psi_language_semantics::TerminationGuarantee::NoGuarantee
+    );
+
+    let actual = checked
+        .facts
+        .contract_plans
+        .realized_envelope(nominal_use.selected_machine)
+        .expect("selected callback actual envelope");
+    assert_eq!(
+        actual.contract_fingerprint,
+        nominal_use.selected_actual_envelope.contract_fingerprint
+    );
+    assert!(actual.effective_service_reach.is_empty());
+    assert!(actual.effective_synchronous_invocations.is_empty());
+    assert!(!actual.checked_may_suspend);
+    assert!(!actual.checked_may_block);
+    assert!(actual.capabilities.is_empty());
 }
 
 #[test]

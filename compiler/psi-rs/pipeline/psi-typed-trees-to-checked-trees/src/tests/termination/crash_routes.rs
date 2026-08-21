@@ -913,6 +913,28 @@ fn checked_crash_calls_retain_invocation_specific_route_refinement() {
             .expect("contract plan")
     };
 
+    for name in [
+        "risky",
+        "safe",
+        "certain",
+        "forwarded",
+        "local_forwarded",
+        "computed_local_forwarded",
+        "conditioned",
+    ] {
+        let machine = symbol_of_checked(&checked, name);
+        assert_eq!(
+            checked
+                .facts
+                .contract_plans
+                .realized_envelope(machine)
+                .expect("realized contract envelope")
+                .checked_crash,
+            plan(name).crash,
+            "the realized envelope must retain post-validation crash evidence for {name}",
+        );
+    }
+
     let [safe_call] = plan("safe").crash.checked_calls() else {
         panic!("the crash-capable invocation should retain one checked call row")
     };

@@ -1264,10 +1264,15 @@ Owners:
   structural machine parameters publish no nominal row. Each row now also
   pins the normalized published-requirement contract identity separately from
   the selected machine's normalized declared contract identity and retains an
-  explicit admission-refinement receipt binding those endpoints. This is not
-  yet the narrower realized actual envelope: effective service reach and
-  invocation, transitive suspension/blocking, checked termination/crash, and
-  later mutation/capability/resource ceilings remain independent facts. The
+  explicit admission-refinement receipt binding those endpoints. Requirement
+  capsules now also retain canonical published service reach and synchronous
+  invocation rows plus suspension, blocking, termination, and crash ceilings.
+  A separate exact-machine realized envelope aggregates effective checked
+  reach/invocation, transitive suspension/blocking, checked termination/crash,
+  mutation frames, and capability-flow evidence without relabeling any of it as
+  public contract identity. Crash evidence is refreshed after path-conditioned
+  checked validation, rather than snapshot before that pass. Resource ceilings
+  remain independent until their checked representation exists. The
   checked row now also retains an optional nonzero evaluated boundary-calling
   plan fingerprint. Ordinary nominal binders retain no callback placement;
   boundary callback uses gain the exact join key that target lowering must use
@@ -1285,9 +1290,8 @@ Owners:
   `StateKey`, rejects a lost entry before instruction selection, and assigns a
   deterministic compiler-private thunk symbol joined by placement-row index.
   The symbol is planned object identity only and never an Omega value. The
-  remaining envelope slice must aggregate those per-axis published/actual rows
-  without relabeling a declared fingerprint as inferred behavior. Also
-  remaining are multi-entry/re-entrant target instruction lowering and the
+  remaining slices are resource-ceiling aggregation,
+  multi-entry/re-entrant target instruction lowering, and the
   private registration relocation (whose binding placement is design-blocked
   on `OWNER_QUESTIONS.md` Q8),
   registration leases/unregister,

@@ -852,6 +852,7 @@ mod tests {
                 fingerprint: 0,
             }],
             crash_capsules: Vec::new(),
+            realized_envelopes: Vec::new(),
         };
         checked
     }
