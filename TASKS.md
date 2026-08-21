@@ -1004,6 +1004,14 @@ Remaining:
   CPU. It removed duplicated parallel work but moved the critical path onto one
   worker doing linear cache scans, increasing latency by 25%. No cache code was
   retained; the next attempt needs an indexed canonical key/recipe.
+  Two later sampled Stage-05 fixes keep that rule. Default-domain analysis now
+  builds one invocation-local call-frame resolver instead of reconstructing it
+  for every fixpoint state visit, reducing the warmed checked phase from 6.754s
+  to 5.338–5.386s. Named result-overload resolution now builds one source-
+  ordered machine-family index keyed by exact normalized path and parameters,
+  with direct entry-symbol lookup; operator and trait semantics are unchanged
+  and the index is not retained. On the same canary that reduced Stage 05 again
+  to 4.743–4.817s and full compile wall time to 5.51–5.64s.
   Corpus-level bounded parallelism is viable at the harness boundary: the
   differential runner now defaults to four independent jobs with one native
   backend worker each, retains deterministic corpus-order reporting, and
@@ -1016,9 +1024,10 @@ Remaining:
   eight-canary probe fell again from 4.00s to 2.86s with all pairs matching.
   Semantic validation, trust policy, and final-footprint certification remain
   enabled. The native leg
-  uses the same original source and explicit `Main::main` entry seam as the
-  canonical canary suite; the former generated target wrapper discarded
-  value-returning entry codes and produced false mismatches.
+  uses each original source's authored target-owned `ProgramEntry` when present
+  and the bounded legacy `Main::main` seam only for the remaining unrooted
+  corpus; the former generated target wrapper discarded value-returning entry
+  codes and produced false mismatches.
   The compiler canary integration suite is no longer a 48,301-line permutation
   file. Its shared compile helpers, exact corpus registries, and umbrella
   orchestration now form a 3,277-line root over twenty-one responsibility
