@@ -16,7 +16,9 @@ use psi_typed_trees::machine::Machine;
 use psi_typed_trees::name::Identifier;
 use psi_typed_trees::signature::SignatureContract;
 use psi_typed_trees::state::State;
-use psi_typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
+use psi_typed_trees::types::{
+    FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode,
+};
 use std::fmt;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -60,6 +62,7 @@ pub(super) struct RepresentativeTelescope {
     pub(super) return_type: TypeReferenceHandle,
     pub(super) machine_contracts: HandleSpan<SignatureContract>,
     pub(super) state_contracts: HandleSpan<SignatureContract>,
+    pub(super) static_application: RepresentativeStaticApplication,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -100,7 +103,6 @@ pub(super) enum RelationPlanError {
     ResultIsNotQuotient,
     UnresolvedResultRelationApplication,
     RepresentativeEntryDoesNotResolveExactly,
-    RepresentativeApplicationRequiresSubstitution,
     RepresentativeResultTypeIsUnresolved,
     RepresentativeStaticArityMismatch,
     RepresentativeStaticArgumentCategoryMismatch(usize),
@@ -135,9 +137,6 @@ impl fmt::Display for RelationPlanError {
             ),
             Self::RepresentativeEntryDoesNotResolveExactly => formatter.write_str(
                 "the retained representative entry symbol does not resolve to exactly one machine state",
-            ),
-            Self::RepresentativeApplicationRequiresSubstitution => formatter.write_str(
-                "the representative operation has a generic/static application that requires exact telescope substitution",
             ),
             Self::RepresentativeResultTypeIsUnresolved => formatter.write_str(
                 "the representative operation has no exact result type",
@@ -284,7 +283,7 @@ fn derive_define_runtime_correspondence(
     }
 
     let mut positions = Vec::with_capacity(arguments.len());
-    for (position, (((public, argument), relation), representative)) in public_parameters
+    for (position, (((public, argument), relation), representative_parameter)) in public_parameters
         .iter()
         .zip(arguments)
         .zip(input_relations)
@@ -297,24 +296,30 @@ fn derive_define_runtime_correspondence(
         if argument_symbol != public.symbol {
             return Err(RelationPlanError::DefineArgumentOrderMismatch(position));
         }
-        if public.is_mutable != representative.is_mutable {
+        if public.is_mutable != representative_parameter.is_mutable {
             return Err(RelationPlanError::DefineParameterModeMismatch(position));
         }
         if !input_relation_matches_public_type(program, *relation, public.type_reference)
             || !input_relation_matches_representative_type(
                 program,
                 *relation,
-                representative.type_reference,
+                representative_parameter.type_reference,
+                &representative.static_application.bindings,
             )
         {
             return Err(RelationPlanError::DefineParameterTypeMismatch(position));
         }
         positions.push(DefineRuntimePosition {
             public_parameter: public.symbol,
-            representative_parameter: representative.symbol,
+            representative_parameter: representative_parameter.symbol,
         });
     }
-    if !quotient_carrier_matches_type(program, result_relation, representative.return_type) {
+    if !quotient_carrier_matches_type(
+        program,
+        result_relation,
+        representative.return_type,
+        &representative.static_application.bindings,
+    ) {
         return Err(RelationPlanError::DefineResultTypeMismatch);
     }
     Ok(DefineRuntimeCorrespondence { positions })
@@ -355,14 +360,14 @@ fn input_relation_matches_representative_type(
     program: &TypedTrees,
     relation: InputRelation,
     representative_type: TypeReferenceHandle,
+    substitutions: &[RepresentativeStaticBinding],
 ) -> bool {
     match relation {
         InputRelation::ExactEquality(public_type) => {
-            program.normalized_type_identity(public_type)
-                == program.normalized_type_identity(representative_type)
+            substituted_type_matches(program, representative_type, public_type, substitutions)
         }
         InputRelation::Quotient(relation) => {
-            quotient_carrier_matches_type(program, relation, representative_type)
+            quotient_carrier_matches_type(program, relation, representative_type, substitutions)
         }
     }
 }
@@ -383,6 +388,7 @@ fn quotient_carrier_matches_type(
     program: &TypedTrees,
     relation: ExactQuotientRelation,
     representative_type: TypeReferenceHandle,
+    substitutions: &[RepresentativeStaticBinding],
 ) -> bool {
     if !matches!(
         program
@@ -415,8 +421,218 @@ fn quotient_carrier_matches_type(
         return false;
     };
     quotient.properties.multiplicity == carrier.properties.multiplicity
-        && program.normalized_type_identity(metadata.carrier)
-            == program.normalized_type_identity(representative_type)
+        && substituted_type_matches(
+            program,
+            representative_type,
+            metadata.carrier,
+            substitutions,
+        )
+}
+
+/// Compare one declaration type against a concrete use without mutating the
+/// checked type arena. Only the exact, closed static application retained on
+/// the representative telescope may replace a declaration binder.
+fn substituted_type_matches(
+    program: &TypedTrees,
+    template: TypeReferenceHandle,
+    concrete: TypeReferenceHandle,
+    substitutions: &[RepresentativeStaticBinding],
+) -> bool {
+    let template_node = program.type_reference_table.type_reference(template);
+    let concrete_node = program.type_reference_table.type_reference(concrete);
+    match (template_node, concrete_node) {
+        (
+            TypeReferenceNode::Named { symbol, .. },
+            TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. },
+        ) => substitutions
+            .iter()
+            .find(|binding| binding.parameter == *symbol)
+            .map_or_else(
+                || {
+                    program.normalized_type_identity(template)
+                        == program.normalized_type_identity(concrete)
+                },
+                |binding| {
+                    binding.kind != RepresentativeStaticBindingKind::Const
+                        && static_argument_matches_type(
+                            program,
+                            &binding.argument,
+                            concrete,
+                            substitutions,
+                        )
+                },
+            ),
+        (
+            TypeReferenceNode::Reference {
+                referee: template_referee,
+                is_mutable: template_mutable,
+                ..
+            },
+            TypeReferenceNode::Reference {
+                referee: concrete_referee,
+                is_mutable: concrete_mutable,
+                ..
+            },
+        ) => {
+            template_mutable == concrete_mutable
+                && substituted_type_matches(
+                    program,
+                    *template_referee,
+                    *concrete_referee,
+                    substitutions,
+                )
+        }
+        (
+            TypeReferenceNode::FixedArray {
+                element_type: template_element,
+                length: template_length,
+            },
+            TypeReferenceNode::FixedArray {
+                element_type: concrete_element,
+                length: concrete_length,
+            },
+        ) => {
+            substituted_type_matches(program, *template_element, *concrete_element, substitutions)
+                && substituted_array_length_matches(template_length, concrete_length, substitutions)
+        }
+        (
+            TypeReferenceNode::Slice {
+                element_type: template_element,
+            },
+            TypeReferenceNode::Slice {
+                element_type: concrete_element,
+            },
+        ) => substituted_type_matches(program, *template_element, *concrete_element, substitutions),
+        (
+            TypeReferenceNode::Generic {
+                base_symbol: template_base,
+                lifetime_arguments: template_lifetimes,
+                arguments: template_arguments,
+                ..
+            },
+            TypeReferenceNode::Generic {
+                base_symbol: concrete_base,
+                lifetime_arguments: concrete_lifetimes,
+                arguments: concrete_arguments,
+                ..
+            },
+        ) => {
+            if let Some(binding) = substitutions
+                .iter()
+                .find(|binding| binding.parameter == *template_base)
+            {
+                return binding.kind != RepresentativeStaticBindingKind::Const
+                    && static_argument_matches_type(
+                        program,
+                        &binding.argument,
+                        concrete,
+                        substitutions,
+                    );
+            }
+            let template_arguments = program
+                .type_reference_table
+                .type_reference_handles(*template_arguments);
+            let concrete_arguments = program
+                .type_reference_table
+                .type_reference_handles(*concrete_arguments);
+            template_base == concrete_base
+                && template_lifetimes == concrete_lifetimes
+                && template_arguments.len() == concrete_arguments.len()
+                && template_arguments
+                    .iter()
+                    .zip(concrete_arguments)
+                    .all(|(template, concrete)| {
+                        substituted_type_matches(program, *template, *concrete, substitutions)
+                    })
+        }
+        (TypeReferenceNode::Unit, TypeReferenceNode::Unit) => true,
+        // Constrained/const-expression/dynamic-trait identities can contain
+        // more than a closed type/const/machine binder. Until their own exact
+        // substitution judgments exist, only an already-identical type passes.
+        _ => {
+            program.normalized_type_identity(template) == program.normalized_type_identity(concrete)
+        }
+    }
+}
+
+fn substituted_array_length_matches(
+    template: &FixedArrayLength,
+    concrete: &FixedArrayLength,
+    substitutions: &[RepresentativeStaticBinding],
+) -> bool {
+    match (template, concrete) {
+        (FixedArrayLength::Literal(template), FixedArrayLength::Literal(concrete)) => {
+            template == concrete
+        }
+        (FixedArrayLength::ConstParameter { symbol, .. }, FixedArrayLength::Literal(concrete)) => {
+            substitutions
+                .iter()
+                .find(|binding| {
+                    binding.parameter == *symbol
+                        && binding.kind == RepresentativeStaticBindingKind::Const
+                })
+                .and_then(|binding| binding.argument.const_literal.as_ref())
+                .and_then(|literal| literal.value_u64())
+                .and_then(|literal| usize::try_from(literal).ok())
+                == Some(*concrete)
+        }
+        (FixedArrayLength::ConstParameter { symbol, .. }, _) => {
+            !substitutions
+                .iter()
+                .any(|binding| binding.parameter == *symbol)
+                && template == concrete
+        }
+        _ => template == concrete,
+    }
+}
+
+fn static_argument_matches_type(
+    program: &TypedTrees,
+    argument: &StaticMachineArgument,
+    concrete: TypeReferenceHandle,
+    substitutions: &[RepresentativeStaticBinding],
+) -> bool {
+    if argument.const_literal.is_some() || argument.evidence_projection.is_some() {
+        return false;
+    }
+    let concrete_node = program.type_reference_table.type_reference(concrete);
+    let Some(application) = argument.application.as_ref() else {
+        let TypeReferenceNode::Named { symbol, name } = concrete_node else {
+            return false;
+        };
+        return if argument.symbol.is_valid() {
+            argument.symbol == *symbol
+        } else {
+            !symbol.is_valid()
+                && argument.path.len() == 1
+                && argument.path[0].as_str() == name.as_str()
+        };
+    };
+    let TypeReferenceNode::Generic {
+        base_symbol,
+        lifetime_arguments,
+        arguments,
+        ..
+    } = concrete_node
+    else {
+        return false;
+    };
+    if argument.symbol != *base_symbol
+        || application.lifetime_arguments.as_ref() != lifetime_arguments.as_slice()
+    {
+        return false;
+    }
+    let concrete_arguments = program
+        .type_reference_table
+        .type_reference_handles(*arguments);
+    application.arguments.len() == concrete_arguments.len()
+        && application
+            .arguments
+            .iter()
+            .zip(concrete_arguments)
+            .all(|(argument, concrete)| {
+                static_argument_matches_type(program, argument, *concrete, substitutions)
+            })
 }
 
 fn derive_representative_telescope(
@@ -426,13 +642,6 @@ fn derive_representative_telescope(
     let (machine, state) =
         representative_machine_state(program, request.representative_operation.symbol)?;
     let static_application = derive_exact_representative_static_application(program, request)?;
-    if !static_application.bindings.is_empty() {
-        // The exact category/application witness is now available, but the
-        // declaration's parameter/result types still contain binder symbols.
-        // Do not call that declaration telescope instantiated until the
-        // immutable substitution judgment is implemented.
-        return Err(RelationPlanError::RepresentativeApplicationRequiresSubstitution);
-    }
     if !state.return_type.is_valid() {
         return Err(RelationPlanError::RepresentativeResultTypeIsUnresolved);
     }
@@ -457,6 +666,7 @@ fn derive_representative_telescope(
         return_type: state.return_type,
         machine_contracts: machine.contracts,
         state_contracts: state.contracts,
+        static_application,
     })
 }
 
@@ -728,7 +938,7 @@ mod tests {
     use super::{
         InputRelation, RelationPlanError, RepresentativeStaticBindingKind,
         derive_direct_terminal_plan, derive_exact_representative_static_application,
-        derive_representative_telescope,
+        derive_representative_telescope, substituted_type_matches,
     };
     use psi_arena::HandleSpan;
     use psi_symbols::SymbolHandle;
@@ -749,7 +959,7 @@ mod tests {
     use psi_typed_trees::signature::StateParameter;
     use psi_typed_trees::state::State;
     use psi_typed_trees::statement::StatementNode;
-    use psi_typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+    use psi_typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
 
     fn symbol(index: u32) -> SymbolHandle {
         SymbolHandle::from_arena_index(index)
@@ -966,14 +1176,27 @@ mod tests {
         ] {
             program.push_machine_type_parameter(&mut representative, parameter);
         }
-        program.push_machine_state(
-            &mut representative,
-            State {
-                symbol: symbol(621),
-                return_type: unit,
+        let representative_type = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
+                symbol: symbol(622),
+                name: Identifier::generated_static("T"),
+            });
+        let mut representative_state = State {
+            symbol: symbol(621),
+            return_type: representative_type,
+            ..Default::default()
+        };
+        program.push_state_parameter(
+            &mut representative_state,
+            StateParameter {
+                symbol: symbol(625),
+                name: Identifier::generated_static("value"),
+                type_reference: representative_type,
                 ..Default::default()
             },
         );
+        program.push_machine_state(&mut representative, representative_state);
         program.push_machine(representative);
 
         let mut type_argument = static_argument("StaticType");
@@ -1201,7 +1424,7 @@ mod tests {
     }
 
     #[test]
-    fn representative_telescope_rejects_unsubstituted_static_application() {
+    fn representative_telescope_retains_closed_static_application_for_substitution() {
         let mut program = TypedTrees::default();
         let request = push_generic_representative_application(&mut program);
 
@@ -1224,9 +1447,217 @@ mod tests {
             RepresentativeStaticBindingKind::Machine
         );
 
+        let telescope = derive_representative_telescope(&program, &request)
+            .expect("a closed static application is retained on the telescope");
+        assert_eq!(telescope.static_application, application);
+    }
+
+    #[test]
+    fn immutable_telescope_substitution_covers_type_const_and_machine_binders() {
+        let mut program = TypedTrees::default();
+        let request = push_generic_representative_application(&mut program);
+        let bindings = derive_representative_telescope(&program, &request)
+            .expect("closed application")
+            .static_application
+            .bindings;
+
+        let type_template = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
+                symbol: symbol(622),
+                name: Identifier::generated_static("T"),
+            });
+        let type_concrete = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
+                symbol: symbol(600),
+                name: Identifier::generated_static("StaticType"),
+            });
+        assert!(substituted_type_matches(
+            &program,
+            type_template,
+            type_concrete,
+            &bindings,
+        ));
+
+        let machine_template = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
+                symbol: symbol(624),
+                name: Identifier::generated_static("F"),
+            });
+        let machine_concrete = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
+                symbol: symbol(611),
+                name: Identifier::generated_static("selected"),
+            });
+        assert!(substituted_type_matches(
+            &program,
+            machine_template,
+            machine_concrete,
+            &bindings,
+        ));
+
+        let unit = program.type_reference_table.insert(TypeReferenceNode::Unit);
+        let array_template = program
+            .type_reference_table
+            .insert(TypeReferenceNode::FixedArray {
+                element_type: unit,
+                length: FixedArrayLength::ConstParameter {
+                    symbol: symbol(623),
+                    name: Identifier::generated_static("N"),
+                },
+            });
+        let array_concrete = program
+            .type_reference_table
+            .insert(TypeReferenceNode::FixedArray {
+                element_type: unit,
+                length: FixedArrayLength::Literal(0),
+            });
+        assert!(substituted_type_matches(
+            &program,
+            array_template,
+            array_concrete,
+            &bindings,
+        ));
+    }
+
+    #[test]
+    fn immutable_telescope_substitution_rejects_type_and_const_near_misses() {
+        let mut program = TypedTrees::default();
+        let request = push_generic_representative_application(&mut program);
+        let bindings = derive_representative_telescope(&program, &request)
+            .expect("closed application")
+            .static_application
+            .bindings;
+        let type_template = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
+                symbol: symbol(622),
+                name: Identifier::generated_static("T"),
+            });
+        program.push_data_definition(DataDefinition {
+            symbol: symbol(601),
+            name: Identifier::generated_static("OtherType"),
+            ..Default::default()
+        });
+        let other_type = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
+                symbol: symbol(601),
+                name: Identifier::generated_static("OtherType"),
+            });
+        assert!(!substituted_type_matches(
+            &program,
+            type_template,
+            other_type,
+            &bindings,
+        ));
+
+        let unit = program.type_reference_table.insert(TypeReferenceNode::Unit);
+        let array_template = program
+            .type_reference_table
+            .insert(TypeReferenceNode::FixedArray {
+                element_type: unit,
+                length: FixedArrayLength::ConstParameter {
+                    symbol: symbol(623),
+                    name: Identifier::generated_static("N"),
+                },
+            });
+        let wrong_length = program
+            .type_reference_table
+            .insert(TypeReferenceNode::FixedArray {
+                element_type: unit,
+                length: FixedArrayLength::Literal(1),
+            });
+        assert!(!substituted_type_matches(
+            &program,
+            array_template,
+            wrong_length,
+            &bindings,
+        ));
+        let stale_length = program
+            .type_reference_table
+            .insert(TypeReferenceNode::FixedArray {
+                element_type: unit,
+                length: FixedArrayLength::ConstParameter {
+                    symbol: symbol(623),
+                    name: Identifier::generated_static("N"),
+                },
+            });
+        assert!(!substituted_type_matches(
+            &program,
+            array_template,
+            stale_length,
+            &bindings,
+        ));
+    }
+
+    #[test]
+    fn define_correspondence_applies_closed_representative_type_substitution() {
+        let mut program = TypedTrees::default();
+        let mut request = push_generic_representative_application(&mut program);
+        request.kind = QuotientOperationKind::Define;
+        let carrier = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
+                symbol: symbol(600),
+                name: Identifier::generated_static("StaticType"),
+            });
+        program.push_proposition(PropositionDefinition {
+            symbol: symbol(2),
+            name: Identifier::generated_static("ExactR"),
+            ..Default::default()
+        });
+        program.push_data_definition(DataDefinition {
+            symbol: symbol(1),
+            name: Identifier::generated_static("ExactQ"),
+            quotient: Some(QuotientDefinition {
+                carrier,
+                relation: vec![Identifier::generated_static("ExactR")],
+                relation_symbol: symbol(2),
+                equivalence: None,
+            }),
+            ..Default::default()
+        });
+        let quotient = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
+                symbol: symbol(1),
+                name: Identifier::generated_static("ExactQ"),
+            });
+        let public_symbol = symbol(3);
+        let argument = named_argument(&mut program, "value", public_symbol);
+        let arguments = program
+            .expression_table
+            .insert_expression_handles([argument]);
+        let call = call_with_arguments(arguments);
+        let mut state = State {
+            return_type: quotient,
+            ..Default::default()
+        };
+        program.push_state_parameter(
+            &mut state,
+            StateParameter {
+                symbol: public_symbol,
+                name: Identifier::generated_static("value"),
+                type_reference: quotient,
+                ..Default::default()
+            },
+        );
+
+        let plan =
+            derive_direct_terminal_plan(&program, &Machine::default(), &state, &call, &request)
+                .expect("closed T := StaticType must instantiate the runtime telescope");
         assert_eq!(
-            derive_representative_telescope(&program, &request),
-            Err(RelationPlanError::RepresentativeApplicationRequiresSubstitution)
+            plan.define_correspondence
+                .expect("define correspondence")
+                .positions,
+            vec![super::DefineRuntimePosition {
+                public_parameter: public_symbol,
+                representative_parameter: symbol(625),
+            }]
         );
     }
 

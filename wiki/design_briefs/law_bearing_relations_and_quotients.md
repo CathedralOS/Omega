@@ -739,12 +739,15 @@ The same non-authoritative plan resolves the selected representative entry by
 its exact state symbol and retains its ordered runtime telescope, including an
 attached receiver and excluding proof-static `const` binders, together with its
 exact result and machine/state contract spans. Open generic/static applications
-wait for exact substitution rather than using the declaration telescope. This
-does not discharge static/`const` argument correspondence or validate
-`Respects`; runtime positional correspondence is derived only for the direct
-monomorphic `define` shape below.
+fail closed. A closed application retains its exact type, literal-`const`, and
+static-machine bindings; an immutable structural substitution judgment applies
+those bindings to representative runtime parameter and result types without
+rewriting the checked type arena. This does not substitute contract facts or
+validate `Respects`; runtime positional correspondence is derived only for the
+direct `define` shape below.
 
-For the same direct, monomorphic `define` shape, validation now also derives a
+For the same direct `define` shape with a monomorphic quotient-facing owner,
+validation now also derives a
 non-authoritative runtime correspondence only when every authored argument is
 the exact public parameter at the same position, every quotient parameter's
 carrier (or ordinary parameter's exact type) matches the representative
@@ -754,7 +757,8 @@ participate by position and need not force the public parameter to be spelled
 `self`. Reordering,
 duplication, locals/constants, arity drift, borrowed quotient shells, and
 carrier/result drift fail closed. Static/`const` correspondence, aliases and
-normalized multi-state result flow remain later obligations, so this direct
+contract-fact correspondence, aliases, and normalized multi-state result flow
+remain later obligations, so this direct
 correspondence still grants no execution authority.
 
 Representative static applications now have a separate non-authoritative
@@ -764,10 +768,12 @@ nested data/machine applications must themselves be closed. Wrong category,
 arity drift, bare generic arguments, evidence projections, proposition-family
 arguments, and lifetime-bearing applications fail closed. A valid generic
 application is materialized by the non-authoritative checker as exact
-parameter/argument pairs, but is not yet attached to an admitted plan: it still
-waits for immutable substitution into the representative
-runtime/result/contract telescope and therefore cannot feed correspondence or
-execution.
+parameter/argument pairs and is retained on the representative telescope.
+Immutable substitution covers exact named/generic/reference/slice/array
+runtime and result type identities, including literal substitution for array
+length `const` binders; constrained, const-expression, and dynamic-trait shapes
+pass only when already canonically identical. Contract propositions and owner
+static correspondence remain unresolved, and no such plan can feed execution.
 
 Acceptance requires:
 
