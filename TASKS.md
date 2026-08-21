@@ -74,14 +74,19 @@ Remaining:
   planning selects one exact symbol/identity pair, and synthetic wrapper gates
   retain the source continuation's symbol and text interval separately rather
   than relabeling it. Duplicate, redirected, missing-continuation, and
-  interval-drift claims reject. The retained bridge plan also owns a sealed
-  platform executor gate: only the exact selected physical-provider
+  interval-drift claims reject. Object planning now publishes every encoded
+  function through a compiler-private identity-to-text-symbol linkage table;
+  duplicate identities, canonical link-name collisions, overlapping or out-of-
+  bounds intervals, and tampered table bindings fail closed. A future wrapper
+  call relocation can therefore target the exact retained source continuation
+  without rediscovering it by name. The retained bridge plan also owns a
+  sealed platform executor gate: only the exact selected physical-provider
   installation and mapped, zeroed receiver activation can construct its
   borrowed continuation handoff, and the executor runs before that activation
   is finished. This gate intentionally does not claim that native bytes
   executed. Production builds still emit and select `Source(entry StateKey)`
   because no generated wrapper body or call exists yet; emitting that body,
-  defining its carrier ABI/linkage and mapped receiver address, adding the
+  defining its carrier ABI and mapped receiver address, adding the
   exact native call edge, and retaining resulting native bridge evidence remain
   before this slice is complete.
 
@@ -114,8 +119,10 @@ Remaining:
   fixtures now preserve their ownership and transition programs in direct Unit
   entries with explicit exit providers. Ten named float provider and conversion
   matrices now also use authored roots for native and cross-target differential
-  execution. The tracked corpus audit leaves 167 legacy fixtures without an
-  authored `build.omg` root.
+  execution. Ten indexed string-concat, bounded-carrier, slice-alias, and guard
+  probes now consume the same checked-in four-host roots in their native and
+  cross-target artifact tests. The tracked corpus audit leaves 157 legacy
+  fixtures without an authored `build.omg` root.
   Continue migrating those fixtures through production entry
   selection; replace result-as-process-exit probes with ordinary Unit entries
   and explicit exit providers rather than preserving the legacy entry seam.
@@ -752,10 +759,19 @@ Remaining:
   direct binary and named-float `Trapping` arithmetic plus direct Trapping
   conversions. Comparisons, bitwise inspection, float classification,
   Wrapping/Saturating operations, and non-reserved custom float calls remain
-  total; proof expressions do not create crash sites. Finish the settled total-
-  specification arithmetic slice: retain explicit fixed-
-  integer/address embeddings into proof `Int` with their derived carrier-range
-  facts. Explicit same-carrier policy-erasure `as` coercions now retain the
+  total; proof expressions do not create crash sites. Wrapping/Saturating
+  division and remainder now form in concrete and direct abstract Prop only
+  when an independently accepted prior fact proves the divisor interval
+  nonzero; carrier-overflow policy does not define division by zero, and the
+  fact containing a partial term cannot justify that term's own formation.
+  Finish the settled total-specification arithmetic slice: retain explicit
+  fixed-integer/address embeddings into proof `Int` with their derived carrier-
+  range facts. This remains blocked on a real vocabulary dependency: the
+  shipped core `embed` is a transitional ordinary machine returning structural
+  `Nat`, while typed primitive expressions and Terminal `ScalarTerm` have no
+  unbounded proof-`Int` embedding that can retain and independently verify the
+  source carrier identity/range; do not substitute dead checked evidence.
+  Explicit same-carrier policy-erasure `as` coercions now retain the
   ordinary Exact representability obligation in concrete machine/state Prop
   and across the direct abstract signature form; only independently accepted
   prior `requires` facts discharge it, so the proposition containing an

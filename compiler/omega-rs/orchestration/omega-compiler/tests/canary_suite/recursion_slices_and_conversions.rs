@@ -1998,20 +1998,14 @@ fn runtime_slice_iteration_exit_canary_runs() {
 #[test]
 fn runtime_string_concat_membership_exit_canary_runs() {
     let canary = pass_canary("text/runtime_string_concat_membership_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-string-concat-membership-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime string concat membership canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("runtime string concat membership canary should compile from its authored root");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -2031,20 +2025,14 @@ fn runtime_string_concat_membership_exit_canary_runs() {
 #[test]
 fn runtime_string_field_concat_exit_canary_runs() {
     let canary = pass_canary("text/runtime_string_field_concat_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-string-field-concat-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime string field concat canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("runtime string field concat canary should compile from its authored root");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -2064,20 +2052,15 @@ fn runtime_string_field_concat_exit_canary_runs() {
 #[test]
 fn runtime_machine_owned_indexed_string_field_concat_exit_canary_runs() {
     let canary = pass_canary("text/runtime_machine_owned_indexed_string_field_concat_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-machine-owned-indexed-string-field-concat-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime machine-owned indexed string field concat canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
+        "runtime machine-owned indexed string field concat canary should compile from its authored root",
+    );
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -2097,20 +2080,15 @@ fn runtime_machine_owned_indexed_string_field_concat_exit_canary_runs() {
 #[test]
 fn runtime_machine_owned_indexed_bounded_carrier_literal_exit_canary_runs() {
     let canary = pass_canary("text/runtime_machine_owned_indexed_bounded_carrier_literal_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-machine-owned-indexed-bounded-carrier-literal-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime machine-owned indexed bounded-carrier literal canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
+        "runtime machine-owned indexed bounded-carrier literal canary should compile from its authored root",
+    );
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -2131,20 +2109,15 @@ fn runtime_machine_owned_indexed_bounded_carrier_literal_exit_canary_runs() {
 fn runtime_machine_owned_double_indexed_bounded_carrier_literal_exit_canary_runs() {
     let canary =
         pass_canary("text/runtime_machine_owned_double_indexed_bounded_carrier_literal_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-machine-owned-double-indexed-bounded-carrier-literal-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime machine-owned double-indexed bounded-carrier literal canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
+        "runtime machine-owned double-indexed bounded-carrier literal canary should compile from its authored root",
+    );
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -2164,20 +2137,15 @@ fn runtime_machine_owned_double_indexed_bounded_carrier_literal_exit_canary_runs
 #[test]
 fn runtime_machine_owned_double_indexed_string_field_concat_exit_canary_runs() {
     let canary = pass_canary("text/runtime_machine_owned_double_indexed_string_field_concat_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-machine-owned-double-indexed-string-field-concat-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime machine-owned double-indexed string field concat canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
+        "runtime machine-owned double-indexed string field concat canary should compile from its authored root",
+    );
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()

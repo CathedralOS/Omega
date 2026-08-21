@@ -298,6 +298,7 @@ pub struct ProgramStorageEntryNativeBridgePlan {
     entry_function_identity: omega_control_flow::MachineFunctionIdentity,
     continuation_key: omega_control_flow::StateKey,
     continuation_symbol: String,
+    continuation_link_symbol: String,
     continuation_text_offset: usize,
     continuation_text_size: usize,
     continuation_machine: String,
@@ -342,8 +343,14 @@ impl ProgramStorageEntryNativeBridgePlan {
         self.continuation_key
     }
 
+    /// Diagnostic symbol retained by the encoded source function.
     pub fn continuation_symbol(&self) -> &str {
         &self.continuation_symbol
+    }
+
+    /// Canonical object-local symbol that a direct-call relocation must name.
+    pub fn continuation_link_symbol(&self) -> &str {
+        &self.continuation_link_symbol
     }
 
     pub const fn continuation_text_offset(&self) -> usize {
@@ -462,6 +469,10 @@ impl ProgramStorageEntrySourceContinuationHandoff<'_> {
         self.bridge.continuation_symbol()
     }
 
+    pub fn continuation_link_symbol(&self) -> &str {
+        self.bridge.continuation_link_symbol()
+    }
+
     pub const fn continuation_text_offset(&self) -> usize {
         self.bridge.continuation_text_offset()
     }
@@ -542,6 +553,25 @@ pub fn bind_emitted_program_storage_entry_native_bridge(
     }
     let encoded_entry =
         validate_encoded_program_storage_entry(entry, encoded_machine, continuation_key)?;
+    let continuation_identity =
+        omega_control_flow::MachineFunctionIdentity::source(continuation_key);
+    let (_, continuation_link) = omega_object_file::object_function_symbol(
+        object,
+        continuation_identity,
+    )
+    .ok_or_else(|| {
+        ProgramStorageEntryDiagnostic(
+            "program-storage native bridge source continuation has no exact object linkage".into(),
+        )
+    })?;
+    if continuation_link.offset != encoded_entry.continuation.byte_offset
+        || continuation_link.size != encoded_entry.continuation.byte_count
+    {
+        return Err(ProgramStorageEntryDiagnostic(
+            "program-storage native bridge source-continuation object linkage does not cover its exact encoded function"
+                .into(),
+        ));
+    }
     if boundary_contract_fingerprint != Some(binding.boundary_contract_fingerprint) {
         return Err(ProgramStorageEntryDiagnostic(
             "emitted entry footprint does not retain the program-storage boundary fingerprint"
@@ -566,6 +596,7 @@ pub fn bind_emitted_program_storage_entry_native_bridge(
         entry_function_identity: encoded_entry.entry.identity,
         continuation_key,
         continuation_symbol: encoded_entry.continuation.symbol.to_string(),
+        continuation_link_symbol: continuation_link.name.clone(),
         continuation_text_offset: encoded_entry.continuation.byte_offset,
         continuation_text_size: encoded_entry.continuation.byte_count,
         continuation_machine,

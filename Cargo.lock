@@ -821,6 +821,7 @@ dependencies = [
 name = "omega-object-file"
 version = "0.1.0"
 dependencies = [
+ "omega-control-flow",
  "omega-core",
  "omega-target",
  "psi-arena",
@@ -869,6 +870,7 @@ version = "0.1.0"
 dependencies = [
  "omega-assigned-target-operations",
  "omega-calling-conventions",
+ "omega-control-flow",
  "omega-executable-installation",
  "omega-instruction-selection",
  "omega-isa-x86_64",
@@ -880,6 +882,7 @@ dependencies = [
  "psi-diagnostics",
  "psi-language-semantics",
  "psi-layout-plans",
+ "psi-symbols",
 ]
 
 [[package]]

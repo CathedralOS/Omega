@@ -1,7 +1,7 @@
 use crate::RelocationPlanningInput;
 use crate::instruction_records::collect_instruction_relocations;
 use crate::lookups::SelectedInstructionTextLayouts;
-use omega_object_file::{RelocationPlan, object_symbol_handle_by_name};
+use omega_object_file::{RelocationPlan, object_function_symbol};
 use omega_target_operations::FunctionInstructionPlan;
 use psi_diagnostics::Diagnostic;
 
@@ -40,8 +40,7 @@ fn collect_function_relocations(
     else {
         return Ok(());
     };
-    let function_symbol_handle =
-        object_symbol_handle_by_name(&input.object, function.symbol.as_ref());
+    let function_symbol_handle = exact_function_symbol(input.object, function)?;
 
     for (offset, instruction) in instructions.iter().enumerate() {
         let selected_instruction_index = function
@@ -68,4 +67,86 @@ fn collect_function_relocations(
     }
 
     Ok(())
+}
+
+fn exact_function_symbol(
+    object: &omega_object_file::ObjectPlan,
+    function: &FunctionInstructionPlan,
+) -> Result<omega_object_file::ObjectSymbolHandle, Diagnostic> {
+    object_function_symbol(object, function.identity)
+        .map(|(handle, _)| handle)
+        .ok_or_else(|| {
+            Diagnostic::error(format!(
+                "cannot plan relocations for `{}`: function identity {:?} has no exact object text symbol",
+                function.symbol, function.identity
+            ))
+        })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::exact_function_symbol;
+    use omega_control_flow::{MachineFunctionIdentity, StateKey};
+    use omega_object_file::{
+        FunctionSymbolPlan, ObjectPlan, SectionKind, SymbolKind, SymbolPlan, SymbolSection,
+    };
+    use omega_target::NativeTarget;
+    use omega_target_operations::FunctionInstructionPlan;
+    use psi_symbols::SymbolHandle;
+    use std::sync::Arc;
+
+    fn source_key(state: u32) -> StateKey {
+        StateKey {
+            machine: SymbolHandle::from_arena_index(1),
+            state: SymbolHandle::from_arena_index(state),
+            segment_index: 0,
+        }
+    }
+
+    #[test]
+    fn relocation_origin_resolves_only_the_exact_function_identity() {
+        let source_identity = MachineFunctionIdentity::source(source_key(2));
+        let wrong_identity = MachineFunctionIdentity::source(source_key(3));
+        let mut object = ObjectPlan::with_capacities(NativeTarget::host(), 0, 1, 1);
+        let symbol = object.layout.symbols.insert(SymbolPlan {
+            name: "__omega_function_source_m1_s2_g0".into(),
+            section: SymbolSection::Section(SectionKind::Text),
+            offset: 8,
+            size: 4,
+            kind: SymbolKind::Function,
+            import_library: String::new(),
+        });
+        object.layout.function_symbols.insert(FunctionSymbolPlan {
+            identity: source_identity,
+            symbol,
+        });
+        let function = FunctionInstructionPlan {
+            // Deliberately equal to an unrelated external spelling: relocation
+            // origin must not recover linkage by this name.
+            symbol: Arc::from("_write"),
+            identity: source_identity,
+            instructions: Default::default(),
+        };
+
+        assert_eq!(
+            exact_function_symbol(&object, &function).expect("exact identity linkage"),
+            symbol
+        );
+
+        let redirected = FunctionInstructionPlan {
+            identity: wrong_identity,
+            ..function.clone()
+        };
+        let error = exact_function_symbol(&object, &redirected)
+            .expect_err("matching source spelling cannot redirect function identity");
+        assert!(error.message.contains("has no exact object text symbol"));
+
+        object.layout.function_symbols.insert(FunctionSymbolPlan {
+            identity: source_identity,
+            symbol,
+        });
+        let error = exact_function_symbol(&object, &function)
+            .expect_err("duplicate identity linkage must fail closed");
+        assert!(error.message.contains("has no exact object text symbol"));
+    }
 }

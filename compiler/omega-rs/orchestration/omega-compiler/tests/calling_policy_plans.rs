@@ -1231,6 +1231,10 @@ fn program_storage_entry_publishes_both_core_owned_root_positions() {
                 assert_eq!(handoff.continuation_key(), expected_continuation);
                 assert_eq!(handoff.continuation_symbol(), "program_storage_test_entry");
                 assert_eq!(
+                    handoff.continuation_link_symbol(),
+                    "program_storage_test_entry"
+                );
+                assert_eq!(
                     (
                         handoff.continuation_text_offset(),
                         handoff.continuation_text_size()
@@ -1421,6 +1425,13 @@ fn emitted_program_storage_bridge(
         import_library: String::new(),
     });
     object.layout.entry_symbol = entry;
+    object
+        .layout
+        .function_symbols
+        .insert(omega_object_file::FunctionSymbolPlan {
+            identity: omega_control_flow::MachineFunctionIdentity::source(continuation_key),
+            symbol: entry,
+        });
     let mut encoded = omega_machine_bytes::EncodedMachinePlan::default();
     encoded
         .code

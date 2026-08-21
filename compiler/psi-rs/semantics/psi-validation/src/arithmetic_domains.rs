@@ -1796,11 +1796,30 @@ pub(crate) fn validate_total_specification_arithmetic(
         )
         .domain
     };
+    let expression_interval = |candidate| {
+        let mut ignored_diagnostics = Vec::new();
+        Some(
+            analyze(
+                program,
+                machine,
+                state,
+                candidate,
+                env,
+                None,
+                ArithmeticDomain::Exact,
+                owner,
+                &mut ignored_diagnostics,
+            )
+            .interval,
+        )
+    };
     validate_total_specification_arithmetic_with_domain_lookup(
         program,
         expression,
         owner,
         &expression_domain,
+        &expression_interval,
+        true,
         diagnostics,
     );
 }
@@ -1810,6 +1829,8 @@ fn validate_total_specification_arithmetic_with_domain_lookup(
     expression: ExpressionHandle,
     owner: &str,
     expression_domain: &impl Fn(ExpressionHandle) -> Option<ArithmeticDomain>,
+    expression_interval: &impl Fn(ExpressionHandle) -> Option<Interval>,
+    provably_zero_is_prevalidated: bool,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     fn selected_domain(
@@ -1862,11 +1883,14 @@ fn validate_total_specification_arithmetic_with_domain_lookup(
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn walk(
         program: &TypedTrees,
         expression: ExpressionHandle,
         owner: &str,
         expression_domain: &impl Fn(ExpressionHandle) -> Option<ArithmeticDomain>,
+        expression_interval: &impl Fn(ExpressionHandle) -> Option<Interval>,
+        provably_zero_is_prevalidated: bool,
         diagnostics: &mut Vec<Diagnostic>,
         visited: &mut Vec<ExpressionHandle>,
     ) {
@@ -1881,6 +1905,8 @@ fn validate_total_specification_arithmetic_with_domain_lookup(
                 child,
                 owner,
                 expression_domain,
+                expression_interval,
+                provably_zero_is_prevalidated,
                 diagnostics,
                 visited,
             );
@@ -1922,6 +1948,28 @@ fn validate_total_specification_arithmetic_with_domain_lookup(
                         "direct Trapping arithmetic `{}` is illegal in {owner}: specification terms are total and cannot transfer runtime control. Use `embed(..)` for unbounded proof `Int` mathematics, or explicitly cast the operands to the same unqualified carrier and discharge the resulting Exact formation obligations",
                         arithmetic_operator_spelling(binary.operator),
                     )));
+                }
+                if matches!(
+                    selected,
+                    Some(ArithmeticDomain::Wrapping | ArithmeticDomain::Saturating)
+                ) && matches!(
+                    binary.operator,
+                    BinaryOperator::Divide | BinaryOperator::Modulo
+                ) {
+                    let divisor = expression_interval(binary.right);
+                    let proven_nonzero = divisor.is_some_and(Interval::excludes_zero);
+                    let provably_zero = divisor.is_some_and(Interval::is_exactly_zero);
+                    if !(proven_nonzero || provably_zero_is_prevalidated && provably_zero) {
+                        let operation = if binary.operator == BinaryOperator::Divide {
+                            "division"
+                        } else {
+                            "remainder"
+                        };
+                        diagnostics.push(Diagnostic::error(format!(
+                            "partial {operation} in {owner}: `{}` defines carrier overflow but not a zero divisor; the divisor must be proven nonzero by an independently accepted prior fact",
+                            selected.expect("selected total arithmetic policy").name(),
+                        )));
+                    }
                 }
             }
             ExpressionNode::Cast(cast) => {
@@ -1978,6 +2026,8 @@ fn validate_total_specification_arithmetic_with_domain_lookup(
         expression,
         owner,
         expression_domain,
+        expression_interval,
+        provably_zero_is_prevalidated,
         diagnostics,
         &mut Vec::new(),
     );
@@ -2192,6 +2242,27 @@ fn abstract_specification_place_type(
         type_reference = data_field_type(program, named_data(program, type_reference)?, field)?;
     }
     Some(type_reference)
+}
+
+/// A direct abstract specification operand's current integer interval. Abstract
+/// signatures do not have an executable machine/state analyzer, so this stays
+/// deliberately limited to literals and resolved places. Missing structure is
+/// not evidence of definedness: callers fail closed when this returns `None`.
+fn abstract_specification_interval(
+    program: &TypedTrees,
+    bindings: AbstractSpecificationBindings<'_>,
+    env: &ValueEnv,
+    expression: ExpressionHandle,
+) -> Option<Interval> {
+    if let Some(literal) = literal_i64(program, expression) {
+        return Some(Interval::constant(literal));
+    }
+    let type_reference = abstract_specification_place_type(program, bindings, expression)?;
+    let primitive = program.primitive_type_reference(type_reference)?;
+    place_path(program, expression)
+        .and_then(|path| env.get(&path))
+        .or_else(|| range_constraint_interval(program, type_reference))
+        .or_else(|| primitive_range(primitive))
 }
 
 /// The settled abstract slice is deliberately narrower than executable
@@ -2459,11 +2530,15 @@ pub(crate) fn validate_abstract_total_specification_arithmetic(
                     |type_reference| program.arithmetic_domain_for_type_reference(type_reference),
                 )
             };
+            let expression_interval =
+                |candidate| abstract_specification_interval(program, bindings, env, candidate);
             validate_total_specification_arithmetic_with_domain_lookup(
                 program,
                 *expression,
                 owner,
                 &expression_domain,
+                &expression_interval,
+                false,
                 diagnostics,
             );
             if admit_to_env && diagnostics.len() == diagnostics_before {
@@ -2904,6 +2979,17 @@ impl Interval {
             low: Some(value),
             high: Some(value),
         }
+    }
+
+    /// Whether every value in this interval is nonzero. A one-sided bound is
+    /// sufficient even when the other end exceeds this i64-backed engine (for
+    /// example a `u64` known to be at least one).
+    fn excludes_zero(self) -> bool {
+        self.low.is_some_and(|low| low >= 1) || self.high.is_some_and(|high| high <= -1)
+    }
+
+    fn is_exactly_zero(self) -> bool {
+        self.low == Some(0) && self.high == Some(0)
     }
 
     fn add(self, other: Self) -> Self {

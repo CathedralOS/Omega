@@ -1628,26 +1628,14 @@ fn compiler_body_text_stored_append_footprints_reach_artifacts() {
             std::process::id()
         ));
         let _ = fs::remove_dir_all(&scratch);
-        let source = scratch.join("src");
         let output = scratch.join("out");
-        fs::create_dir_all(&source)
-            .expect("create compiler-body stored-text append source directory");
-        fs::copy(canary.join("main.omg"), source.join("main.omg"))
-            .expect("copy compiler-body stored-text append canary");
-        fs::write(
-            source.join("build.omg"),
-            hosted_main_program_entry_build(target),
-        )
-        .expect("write compiler-body stored-text append target");
-        compile(CompileOptions {
-            root_path: source.join("main.omg"),
-            build_dir: Some(output.clone()),
-            target_name: Some(target.into()),
-            write_output: true,
-        })
-        .unwrap_or_else(|diagnostics| {
-            panic!("compiler-body stored-text appends should compile for {target}: {diagnostics:?}")
-        });
+        compile_rooted_canary_for_target(&canary, output.clone(), target).unwrap_or_else(
+            |diagnostics| {
+                panic!(
+                    "compiler-body stored-text appends should compile for {target}: {diagnostics:?}"
+                )
+            },
+        );
         let footprints = fs::read_to_string(output.join("08_boundary_footprints.json"))
             .expect("compiler-body stored-text append evidence should be written");
         assert!(
@@ -1789,28 +1777,14 @@ fn compiler_body_bounded_buffer_literal_append_footprints_reach_artifacts() {
             std::process::id()
         ));
         let _ = fs::remove_dir_all(&scratch);
-        let source = scratch.join("src");
         let output = scratch.join("out");
-        fs::create_dir_all(&source)
-            .expect("create compiler-body bounded-buffer literal-append source directory");
-        fs::copy(canary.join("main.omg"), source.join("main.omg"))
-            .expect("copy compiler-body bounded-buffer literal-append canary");
-        fs::write(
-            source.join("build.omg"),
-            hosted_main_program_entry_build(target),
-        )
-        .expect("write compiler-body bounded-buffer literal-append target");
-        compile(CompileOptions {
-            root_path: source.join("main.omg"),
-            build_dir: Some(output.clone()),
-            target_name: Some(target.into()),
-            write_output: true,
-        })
-        .unwrap_or_else(|diagnostics| {
-            panic!(
-                "compiler-body bounded-buffer literal appends should compile for {target}: {diagnostics:?}"
-            )
-        });
+        compile_rooted_canary_for_target(&canary, output.clone(), target).unwrap_or_else(
+            |diagnostics| {
+                panic!(
+                    "compiler-body bounded-buffer literal appends should compile for {target}: {diagnostics:?}"
+                )
+            },
+        );
         let footprints = fs::read_to_string(output.join("08_boundary_footprints.json"))
             .expect("compiler-body bounded-buffer literal-append evidence should be written");
         assert!(
@@ -1835,25 +1809,12 @@ fn compiler_body_string_write_footprints_reach_x86_and_aarch64_artifacts() {
             std::process::id()
         ));
         let _ = fs::remove_dir_all(&scratch);
-        let source = scratch.join("src");
         let output = scratch.join("out");
-        fs::create_dir_all(&source).expect("create compiler-body string-write source directory");
-        fs::copy(canary.join("main.omg"), source.join("main.omg"))
-            .expect("copy compiler-body string-write canary");
-        fs::write(
-            source.join("build.omg"),
-            hosted_main_program_entry_build(target),
-        )
-        .expect("write compiler-body string-write target");
-        compile(CompileOptions {
-            root_path: source.join("main.omg"),
-            build_dir: Some(output.clone()),
-            target_name: Some(target.into()),
-            write_output: true,
-        })
-        .unwrap_or_else(|diagnostics| {
-            panic!("compiler-body string writes should compile for {target}: {diagnostics:?}")
-        });
+        compile_rooted_canary_for_target(&canary, output.clone(), target).unwrap_or_else(
+            |diagnostics| {
+                panic!("compiler-body string writes should compile for {target}: {diagnostics:?}")
+            },
+        );
         let footprints = fs::read_to_string(output.join("08_boundary_footprints.json"))
             .expect("compiler-body string-write footprint evidence should be written");
         assert!(
@@ -2613,28 +2574,14 @@ fn compiler_body_bounded_buffer_write_footprints_reach_x86_and_aarch64_artifacts
             std::process::id()
         ));
         let _ = fs::remove_dir_all(&scratch);
-        let source = scratch.join("src");
         let output = scratch.join("out");
-        fs::create_dir_all(&source)
-            .expect("create compiler-body bounded-buffer-write source directory");
-        fs::copy(canary.join("main.omg"), source.join("main.omg"))
-            .expect("copy compiler-body bounded-buffer-write canary");
-        fs::write(
-            source.join("build.omg"),
-            hosted_main_program_entry_build(target),
-        )
-        .expect("write compiler-body bounded-buffer-write target");
-        compile(CompileOptions {
-            root_path: source.join("main.omg"),
-            build_dir: Some(output.clone()),
-            target_name: Some(target.into()),
-            write_output: true,
-        })
-        .unwrap_or_else(|diagnostics| {
-            panic!(
-                "compiler-body bounded-buffer writes should compile for {target}: {diagnostics:?}"
-            )
-        });
+        compile_rooted_canary_for_target(&canary, output.clone(), target).unwrap_or_else(
+            |diagnostics| {
+                panic!(
+                    "compiler-body bounded-buffer writes should compile for {target}: {diagnostics:?}"
+                )
+            },
+        );
         let footprints = fs::read_to_string(output.join("08_boundary_footprints.json"))
             .expect("compiler-body bounded-buffer-write footprint evidence should be written");
         assert!(

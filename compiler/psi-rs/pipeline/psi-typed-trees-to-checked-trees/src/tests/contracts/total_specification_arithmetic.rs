@@ -91,6 +91,108 @@ fn wrapping_and_saturating_arithmetic_remain_total_contract_terms() {
 }
 
 #[test]
+fn wrapping_and_saturating_division_require_an_independent_nonzero_fact() {
+    let accepted = r#"
+        machine divide(left: i32 in Wrapping, divisor: i32 in Wrapping) -> bool
+        requires divisor >= 1
+        requires
+            left / divisor == left
+        {
+            true
+        }
+
+        machine remainder(left: i32 in Saturating, divisor: i32 in Saturating) -> bool
+        requires divisor <= -1
+        requires
+            left % divisor == left
+        {
+            true
+        }
+    "#;
+    checked(accepted).expect("a prior nonzero interval makes division and remainder total");
+
+    let rejected = r#"
+        machine divide(left: i32 in Wrapping, divisor: i32 in Wrapping) -> bool
+        requires
+            left / divisor == left
+        {
+            true
+        }
+
+        machine remainder(left: i32 in Saturating, divisor: i32 in Saturating) -> bool
+        requires
+            left % divisor == left
+        {
+            true
+        }
+    "#;
+    let diagnostics = checked(rejected)
+        .expect_err("overflow policy does not define a zero divisor in a proposition");
+    for operation in ["division", "remainder"] {
+        assert!(
+            diagnostics.iter().any(|diagnostic| {
+                diagnostic.message.contains(operation)
+                    && diagnostic.message.contains("must be proven nonzero")
+            }),
+            "missing {operation} definedness diagnostic: {diagnostics:?}",
+        );
+    }
+}
+
+#[test]
+fn wrapping_division_cannot_use_its_containing_fact_as_nonzero_evidence() {
+    let source = r#"
+        machine divide(left: i32 in Wrapping, divisor: i32 in Wrapping) -> bool
+        requires
+            divisor >= 1 && left / divisor == left
+        {
+            true
+        }
+    "#;
+
+    let diagnostics = checked(source).expect_err("a partial term cannot prove its own formation");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic.message.contains("division")
+            && diagnostic.message.contains("must be proven nonzero")
+    }));
+}
+
+#[test]
+fn abstract_division_definedness_uses_only_prior_contract_facts() {
+    let accepted = r#"
+        trait ArithmeticRule {
+            machine divide(left: i32 in Wrapping, divisor: i32 in Wrapping) -> bool
+            requires divisor >= 1
+            requires
+                left / divisor == left;
+
+            machine remainder(left: i32 in Saturating, divisor: i32 in Saturating) -> bool
+            requires divisor <= -1
+            requires
+                left % divisor == left;
+        }
+    "#;
+    checked(accepted).expect("abstract prior facts make the direct terms total");
+
+    let rejected = r#"
+        trait ArithmeticRule {
+            machine divide(left: i32 in Wrapping, divisor: i32 in Wrapping) -> bool
+            requires
+                divisor >= 1 && left / divisor == left;
+        }
+    "#;
+    let diagnostics =
+        checked(rejected).expect_err("an abstract fact cannot justify its own partial term");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("trait `ArithmeticRule` state `divide` requires contract")
+            && diagnostic.message.contains("division")
+            && diagnostic.message.contains("must be proven nonzero")
+    }));
+}
+
+#[test]
 fn direct_trapping_arithmetic_is_illegal_in_state_arrival_contracts() {
     let source = r#"
         machine staged(value: i32 in Trapping) -> bool {
