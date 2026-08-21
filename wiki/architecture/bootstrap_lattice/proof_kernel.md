@@ -356,7 +356,12 @@ citation through `IntegerLessOrEqualTransitivity`. Reversed, mistyped, weaker,
 or wrong-dividend facts reject. Exact prior safe-divisor propositions are now
 canonical too: unsigned or signed `1 <= divisor`, and signed-width-at-least-two
 `divisor <= -2`. Unsigned certificates cite their whole goal; signed
-certificates cite and introduce the selected disjunct. A signed `i1` divisor
+certificates cite and introduce the selected disjunct. The complete signed
+joint-bound family selects the ordered third disjunct when both
+`divisor <= -1` and `MIN + 1 <= dividend` are independently proved through the
+supported exact citation or checked transitivity paths. It constructs those
+two premises with conjunction introduction before disjunction introduction;
+missing or redirected operands reject. A signed `i1` divisor
 fact alone cannot prove its two-premise conjunction. When exact prior
 `divisor <= -1` and `0 <= dividend` propositions are both independently
 retained, the complete `i1` family cites them and constructs that conjunction;
