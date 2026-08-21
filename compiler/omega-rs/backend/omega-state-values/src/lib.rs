@@ -1,5 +1,6 @@
 mod classify;
 mod collection;
+mod dependencies;
 mod model;
 mod planning;
 mod simplify;

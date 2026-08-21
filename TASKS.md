@@ -953,22 +953,25 @@ Remaining:
   merge. Checked lowering now builds one call-frame/incoming-guard index for
   all range, contract, crash, and multiplicity consumers, reducing the
   helper-rich Mandelbrot canary's checked phase from about 15.6s to 9.5s.
-  Backend state-value planning remains the dominant native cost: its
-  `required` bit is an emission fact, not a complete simplification-dependency
-  closure. In particular, a state outside runtime control flow can still
-  supply a nested value-machine expansion; the
-  `runtime_nested_named_conversion_alias_exit` regression makes that boundary
-  executable. Do not omit non-required state values until planning has a
-  separate exact value-call dependency index. Memoize or dependency-slice the
-  recursive simplifier against that index instead. The corrected full profile
-  is still about 53.1s in native compilation and 69.4s end to end. The backend
-  report now times state storage and state values independently while retaining
-  each planner's internal worker fan-out. On the Mandelbrot stress canary,
-  storage took about 2.1ms while state-value planning took about 27.9s; repeated
-  native wall times varied from 38.1s to 47.0s, so no speedup is claimed from
-  scheduling noise. This isolates the next profiling/optimization work to
-  helper expansion and recursive expression simplification rather than arena
-  storage or state-slot planning. A 10-second sampled profile lands in the
+  Backend state-value planning now builds the separate exact value-call
+  dependency closure required before pruning. Runtime-flow and required-call
+  states seed canonical `(machine symbol, state symbol)` identities; the index
+  transitively visits local initializers, transition guards and values,
+  terminal expressions, and nested call receivers and arguments through the
+  simplifier's shared symbol-based resolver. Known-state resolution ambiguity
+  conservatively retains the full program. Collection omits only states outside
+  that closure: `StateValueUse.required` remains an independent emission fact,
+  and the `runtime_nested_named_conversion_alias_exit` regression still exits
+  70 with its off-flow nested value-machine expansion retained.
+  On the exact warmed Mandelbrot stress canary, state-value planning fell from
+  the documented 27.9s to 2.062ms while state storage took 1.360ms and the
+  complete backend plan took 30.451ms. A full artifact-producing compile took
+  7.470s, of which checked lowering was 7.207s; the exact one-canary
+  interpreter/native differential run took 21.29s end to end, down from the
+  documented 69.4s profile, with identical output and exit status. The
+  dependency slice preserves worker-local `Arena`s and deterministic ordered
+  merge; neither `PagedArena` nor cross-worker mutation is involved. The old
+  hotspot remains useful history: a 10-second sampled profile landed in the
   `simplify_call_expression` / `helper_state_model` recursion; its two hottest
   leaf stacks are source-provenance `Arc` clone and drop (2,639 and 2,629
   samples), reflecting repeated reconstruction of expression trees and their

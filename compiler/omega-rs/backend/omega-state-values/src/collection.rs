@@ -1,4 +1,5 @@
 use super::classify::value_kind;
+use super::dependencies::StateValueDependencyIndex;
 use super::simplify::simplify_state_expression_for_role;
 use super::{StateValuePlan, StateValueRole, StateValueUse};
 use crate::planning::StateValuePlanningContext;
@@ -11,9 +12,10 @@ use psi_checked_trees::statement::{StatementNode, TransitionTargetHandle, Transi
 pub(super) fn build_machine_state_value_plan(
     program: &CheckedTrees,
     context: &StateValuePlanningContext,
+    dependencies: &StateValueDependencyIndex,
     machine: &Machine,
 ) -> StateValuePlan {
-    let value_capacity = estimated_machine_value_capacity(program, machine);
+    let value_capacity = estimated_machine_value_capacity(program, dependencies, machine);
     let mut plan = StateValuePlan::with_capacities(
         value_capacity,
         ExpressionTableCapacity {
@@ -23,6 +25,9 @@ pub(super) fn build_machine_state_value_plan(
     );
 
     for state in program.machine_states(machine) {
+        if !dependencies.retains(machine.symbol, state.symbol) {
+            continue;
+        }
         let source_key = StateKey {
             machine: machine.symbol,
             state: state.symbol,
@@ -119,10 +124,15 @@ pub(super) fn build_machine_state_value_plan(
     plan
 }
 
-fn estimated_machine_value_capacity(program: &CheckedTrees, machine: &Machine) -> usize {
+fn estimated_machine_value_capacity(
+    program: &CheckedTrees,
+    dependencies: &StateValueDependencyIndex,
+    machine: &Machine,
+) -> usize {
     program
         .machine_states(machine)
         .iter()
+        .filter(|state| dependencies.retains(machine.symbol, state.symbol))
         .map(|state| {
             program
                 .statement_table
