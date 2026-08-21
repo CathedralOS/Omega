@@ -117,3 +117,23 @@ authority and to an admitted grant/receipt, while keeping private ranking
 witnesses outside public contract identity. Generic routed/domain requirements
 must not become progress premises merely because they are predicate-free,
 provider-backed, or mentioned by a terminating machine.
+
+## Q7 — Quotient-operation respect selection surface
+
+Quotient lifting requires one exact named `Respects` conformance, and its
+argument relation is derived from the operation's positional call telescope
+rather than authored by the user. The settled guides do not say where that
+conformance is selected for an ordinary non-generic representative operation.
+The current pilot discovers any structurally matching free proof machine, which
+is explicitly retired, while ordinary nested static applications require a
+declared evidence-binder position that these operations do not have.
+
+Choose the source form that binds a representative operation and quotient use
+to one package-scoped `Respects` conformance. In particular, decide whether the
+selection appears at the lifted call, on the representative operation, or in a
+quotient-owned operation map; how attached and free operations share that form;
+and how the compiler-derived argument relation and requested result relation
+enter the expected conformance application without becoming inferable authored
+non-lifetime arguments. The selection must remain explicit, argument-sensitive,
+and retained in checked and terminal identity, with no visibility search,
+priority, or structural proof-machine discovery.
