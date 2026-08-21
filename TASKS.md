@@ -94,7 +94,12 @@ Remaining:
   four-host roots without weakening their bounds, mutation, or conversion
   regression shapes. Nine further indexed-access, mutable-slice, subslice, and
   two-pointer native probes retain their exact regression programs while using
-  the same authored production roots. The tracked corpus audit leaves 205
+  the same authored production roots. Ten direct/dispatched slice reads,
+  element copies, frame aliases, and bounded or dynamic subslice probes now
+  likewise compile and run only through authored production roots. The tracked
+  nested-window, parameter-subslice, runtime-end, and descriptor-pointer probes
+  add ten more unchanged Unit-entry programs to that rooted native cohort. The
+  tracked corpus audit leaves 185
   legacy fixtures without an authored `build.omg` root.
   Continue migrating those fixtures through production entry
   selection; replace result-as-process-exit probes with ordinary Unit entries
@@ -726,12 +731,17 @@ Remaining:
   erased payload equality, and runtime sum layout remain fenced. Semantic codec
   v18, proof-bundle v12, and installation-record v24 retain the structural
   shapes, case-payload paths, and proposition. Continue with the fenced mixed,
-  nested, recursive, and erased aggregate cases. Add the settled total-
-  specification arithmetic slice: reject direct `Trapping` policy operations
-  in `Prop`, retain explicit fixed-integer/address embeddings into proof `Int`
-  with their derived carrier-range facts, and retain explicit same-carrier
-  Exact coercions with their ordinary formation obligations. Add the per-
-  primitive Exact, Wrapping, Saturating, and Trapping denotation bridges;
+  nested, recursive, and erased aggregate cases. Concrete machine and state
+  expression contracts now reject direct binary and named-float `Trapping`
+  arithmetic plus direct Trapping conversions. Comparisons, bitwise inspection,
+  float classification, Wrapping/Saturating operations, and non-reserved custom
+  float calls remain total; proof expressions do not create crash sites. Finish
+  the settled total-specification arithmetic slice: retain explicit fixed-
+  integer/address embeddings into proof `Int` with their derived carrier-range
+  facts, and retain explicit same-carrier Exact coercions with their ordinary
+  formation obligations. Extend the same totality boundary to abstract
+  predicate/signature facts. Add the per-primitive Exact, Wrapping, Saturating,
+  and Trapping denotation bridges;
   compiler-derived Trapping guards remain executable crash-site facts rather
   than predicate effects. Imported crash capsules remain blocked on artifact
   identity and certificate binding.
@@ -935,7 +945,11 @@ Remaining:
   isolated 767-line Unit-cleanup, 179-line scalar-graph, 506-line content-ledger,
   957-line structural-control, 457-line attached-Unit, and 852-line
   structural-return families instead of a second responsibility embedded in
-  production. Proposition vocabulary, evidence-term identity, contract lanes,
+  production. The 9,597-line `nominal_affine_source` regression file is now a
+  31-line root over five focused responsibilities with all 33 tests retained;
+  its remaining 6,238-line integer-comparison case is one atomic cross-layer
+  mutation matrix, not a completed decomposition target. Proposition
+  vocabulary, evidence-term identity, contract lanes,
   proof-output invocations, and producer provenance now form one 906-line evidence
   module behind a single lower-and-install API. Scalar and structural crash
   routes, checked crash-site/frontier custody, argument-root substitution, and
@@ -1060,7 +1074,13 @@ Remaining:
   executable, not pipeline viewers or diagnostic reports; the same cached
   eight-canary probe fell again from 4.00s to 2.86s with all pairs matching.
   Semantic validation, trust policy, and final-footprint certification remain
-  enabled. The native leg
+  enabled. The disposable `omega-run` probe now follows that same policy while
+  preserving full reports under explicit `--keep`. On the exact warmed
+  Mandelbrot compile, suppressing reports that were immediately deleted reduced
+  median wall/CPU from 4.36s/4.43s to 4.05s/4.12s and retired instructions from
+  73.4B to 67.6B; a small unary-entry probe fell from 0.05s/654M instructions to
+  0.02s/292M. `--keep` still produced the complete 35-file, 1.8 MiB inspection
+  directory, and native/interpreter results remained identical. The native leg
   uses each original source's authored target-owned `ProgramEntry` when present
   and the bounded legacy `Main::main` seam only for the remaining unrooted
   corpus; the former generated target wrapper discarded value-returning entry
@@ -1752,7 +1772,10 @@ Remaining N6/N8 work:
   relators; add no global carrier role or default relator.
 - Gate runtime deciders whose lifted relation depends on erased `Type` content;
   require determination by the runtime projection or report the component.
-- Land total specification arithmetic. Fixed-width integer and address
+- Continue total specification arithmetic. The concrete machine/state contract
+  boundary rejects direct Trapping arithmetic and conversion while preserving
+  total comparison, bitwise, classification, Wrapping, and Saturating terms.
+  Fixed-width integer and address
   `embed` returns proof `Int` and contributes exact source-carrier range facts;
   proof `Int as Nat` requires nonnegativity. Make ordinary `Nat - Nat` Exact
   with `right <= left` discharged at formation, rename the bootstrap monus
