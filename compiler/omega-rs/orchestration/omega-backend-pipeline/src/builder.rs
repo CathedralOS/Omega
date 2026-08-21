@@ -3,7 +3,7 @@ use super::skeleton::{BackendPlanSkeletonInput, build_backend_plan_skeleton};
 use super::timing::record_backend_phase;
 use omega_abstract_operations_to_target_operations::build_target_operation_plan;
 use omega_assigned_target_operations_to_machine_instructions::build_machine_instructions;
-use omega_backend_plan::BackendPlan;
+use omega_backend_plan::{BackendPlan, BoundNominalCallbackPlacement};
 use omega_calling_conventions::build_host_abi_plan;
 use omega_control_flow::ControlFlowPlan;
 use omega_control_flow_to_abstract_operations::{
@@ -56,6 +56,7 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
     selected_provider_plans: Arc<omega_effects::SelectedProviderPlanFacts>,
     entry_machine_name: Option<&str>,
     entry_boundary_plan: Option<omega_calling_conventions::BoundaryEntryPlan>,
+    callback_placements: Arc<[BoundNominalCallbackPlacement]>,
     target: NativeTarget,
     freestanding: bool,
     external_binding_rows: &[omega_calling_conventions::ExternalBindingRow],
@@ -211,6 +212,7 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
         layouts,
         entry_key,
         entry_boundary_plan,
+        callback_placements,
         phase_timings,
     });
     let mut phase_timings = std::mem::take(&mut backend_plan.phase_timings);

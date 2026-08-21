@@ -17,6 +17,7 @@ pub struct CheckedCompilation {
     selected_program_entry_machine: Option<String>,
     selected_provider_plans: omega_effects::SelectedProviderPlanFacts,
     task_activations: omega_task_plans::TaskActivationPlanSet,
+    callback_placements: Vec<omega_backend_plan::BoundNominalCallbackPlacement>,
     build_evaluation_usage: Option<super::build_config::BuildEvaluationUsage>,
 }
 
@@ -34,6 +35,13 @@ impl CheckedCompilation {
 
     pub const fn task_activations(&self) -> &omega_task_plans::TaskActivationPlanSet {
         &self.task_activations
+    }
+
+    /// Exact target-owned callback recipes joined to their checked nominal
+    /// use sites. An execution engine must consume these plans rather than
+    /// derive placement from the semantic tree.
+    pub fn callback_placements(&self) -> &[omega_backend_plan::BoundNominalCallbackPlacement] {
+        &self.callback_placements
     }
 
     pub const fn build_evaluation_usage(
@@ -171,10 +179,11 @@ fn compile_to_checked_inner(
     )
     .map_err(|reason| vec![Diagnostic::error(reason)])?;
     let mut checked = typed_trees_to_checked_trees(typed, &mut timings)?;
-    crate::pipeline::calling_policy_plans::validate_nominal_callback_placement_bindings(
-        &checked.program,
-        &boundary_calling_plan_realizations,
-    )?;
+    let callback_placements =
+        crate::pipeline::calling_policy_plans::validate_nominal_callback_placement_bindings(
+            &checked.program,
+            &boundary_calling_plan_realizations,
+        )?;
     let checked_program = Arc::get_mut(&mut checked.program)
         .expect("checked program must be uniquely owned before engine handoff");
     let selected_provider_plan_facts =
@@ -211,6 +220,7 @@ fn compile_to_checked_inner(
         selected_program_entry_machine,
         selected_provider_plans: selected_provider_plan_facts,
         task_activations,
+        callback_placements,
         build_evaluation_usage,
     })
 }

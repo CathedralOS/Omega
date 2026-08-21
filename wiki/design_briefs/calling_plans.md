@@ -822,6 +822,14 @@ parameter; neither it nor cleanup adds a physical ABI word or cleanup
 instruction. Wider structural returns remain rejected until their complete
 vertical slice exists.
 
+Registered nominal callback admission likewise joins its checked call-site and
+selected-machine identity to the one validated target `BoundaryEntryPlan`.
+That target-owned row survives both checked-only compilation and the native
+`BackendPlan`; callback thunk lowering must consume it directly and may not
+re-evaluate a calling convention. Thunk instruction emission, its private
+relocation, and registration lifetime accounting remain the next vertical
+slice.
+
 Compiler-body memory operations likewise retain their exact plan-selected place
 and relocation recipes through emission and replay validation. Current
 coverage includes scalar/aggregate parameters and results, AAPCS64 HFAs,
