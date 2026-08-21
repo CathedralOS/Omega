@@ -23,6 +23,7 @@ mod isolation;
 mod place_paths;
 mod state_paths;
 mod transparent_effects;
+mod type_capabilities;
 
 use boundary_calls::known_boundary_call_written_paths_for_parts;
 pub(crate) use boundary_calls::{boundary_trait_signature, known_boundary_call_written_paths};
@@ -45,6 +46,9 @@ use state_paths::{
 use transparent_effects::{
     call_is_transparent_mutable_slice_view, expression_is_effectful_for_transparent_result,
     frame_place_root_symbol,
+};
+use type_capabilities::{
+    parameter_may_carry_write, type_may_carry_write, type_reference_is_reference,
 };
 
 /// The FREE top-level machine named `target` and its entry state (`machine
@@ -2926,16 +2930,6 @@ fn expression_may_rebind_mutable_alias(
     }
 }
 
-fn type_reference_is_reference(program: &TypedTrees, handle: TypeReferenceHandle) -> bool {
-    match program.type_reference_table.type_reference(handle) {
-        TypeReferenceNode::Reference { .. } => true,
-        TypeReferenceNode::Constrained { base_type, .. } => {
-            type_reference_is_reference(program, *base_type)
-        }
-        _ => false,
-    }
-}
-
 fn named_transition_subgraph_is_acyclic(
     program: &TypedTrees,
     machine: &Machine,
@@ -3619,34 +3613,6 @@ fn named_transition_preserves_state_namespace(
                     || parameter_may_carry_write(program, target))
                     || expression_forwards_exact_symbol(program, argument, source.symbol)
             })
-}
-
-fn parameter_may_carry_write(program: &TypedTrees, parameter: &StateParameter) -> bool {
-    type_may_carry_write(program, parameter.type_reference)
-}
-
-fn type_may_carry_write(program: &TypedTrees, handle: TypeReferenceHandle) -> bool {
-    if program.primitive_type_reference(handle).is_some() {
-        return false;
-    }
-
-    match program.type_reference_table.type_reference(handle) {
-        TypeReferenceNode::Reference {
-            is_mutable: false, ..
-        } => false,
-        TypeReferenceNode::Constrained { base_type, .. } => {
-            type_may_carry_write(program, *base_type)
-        }
-        TypeReferenceNode::Unit | TypeReferenceNode::ConstExpression(_) => false,
-        TypeReferenceNode::Reference {
-            is_mutable: true, ..
-        }
-        | TypeReferenceNode::Named { .. }
-        | TypeReferenceNode::Generic { .. }
-        | TypeReferenceNode::FixedArray { .. }
-        | TypeReferenceNode::Slice { .. }
-        | TypeReferenceNode::DynamicTrait { .. } => true,
-    }
 }
 
 fn instantiate_written_path(
