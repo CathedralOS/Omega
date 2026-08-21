@@ -1270,6 +1270,30 @@ pub(super) fn resolve_runtime_storage_is_signed_in_table(
     expressions: &ExpressionTable,
     expression: ExpressionHandle,
 ) -> Option<bool> {
+    // A value-returning CALL carries the signedness of the selected callable's
+    // declared result. This matters for named numeric conversions: unlike an
+    // inline `as` cast, `narrow_u64_to_u32_wrapping(x)` remains a Call node, so
+    // probing only storage places loses its u32 result and silently selects the
+    // signed modulo fallback for a surrounding `%`.
+    if let ExpressionNode::Call(call) = expressions.expression(expression) {
+        let return_type = input
+            .program
+            .machines()
+            .iter()
+            .flat_map(|machine| input.program.machine_states(machine).iter())
+            .find(|state| state.symbol == call.target_symbol)
+            .map(|state| state.return_type)
+            .or_else(|| {
+                input
+                    .program
+                    .machine_parameter_signature(call.target_symbol)
+                    .map(|(_, signature)| signature.return_type)
+            })?;
+        let primitive = input.program.primitive_type_reference(return_type)?;
+        return primitive
+            .accepts_integer_literal()
+            .then(|| primitive.is_signed_integer());
+    }
     // A numeric `as` cast operand has the signedness of the cast's TARGET type
     // (`(x as u32) % k` must pick the unsigned modulo regardless of `x`'s own
     // type) -- without this, the place resolution below fails on the Cast node

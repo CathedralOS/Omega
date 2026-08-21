@@ -2617,20 +2617,14 @@ fn runtime_unsigned_min_max_exit_canary_runs() {
 #[test]
 fn runtime_unsigned_modulo_call_argument_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_unsigned_modulo_call_argument_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-unsigned-modulo-call-argument-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("unsigned modulo call-argument canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("unsigned modulo call-argument canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -2688,20 +2682,14 @@ fn runtime_nested_named_conversion_alias_exit_canary_runs() {
 #[test]
 fn runtime_unsigned_modulo_cast_operand_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_unsigned_modulo_cast_operand_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-unsigned-modulo-cast-operand-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("unsigned modulo cast-operand canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("unsigned modulo cast-operand canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()

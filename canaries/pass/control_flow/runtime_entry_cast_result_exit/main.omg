@@ -1,11 +1,18 @@
-// A named runtime widening conversion used as the terminal expression returns
-// through entry-result scratch and the native result register.
+// A named runtime widening conversion used as the terminal expression of an
+// ordinary value machine returns through result scratch and the native result
+// register. The Unit entry consumes that result before exiting explicitly.
 use omega::language::core::numeric_conversion;
+use omega::language::std::console;
 
-data Main { value: u8; }
+data Main { console: Console; value: u8; }
 
-machine Main::main(&mut self) -> i32 {
+machine Main::converted(&mut self) -> i32 {
     self.value = 70;
     let result: i32 = widen_u8_to_i32(self.value);
     transition { _ -> (result) }
+}
+
+machine Main::main(&mut self) {
+    let result: i32 = self.converted();
+    self.console.exit_process(result);
 }

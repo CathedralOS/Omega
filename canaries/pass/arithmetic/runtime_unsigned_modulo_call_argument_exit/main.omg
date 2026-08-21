@@ -17,6 +17,7 @@
 // any other stream.
 
 use omega::language::core::numeric_conversion;
+use omega::language::std::console;
 
 data RandomState {
     seed: u64 in Wrapping;
@@ -37,6 +38,7 @@ machine Random::next_u32(
 }
 
 data Main {
+    console: Console;
     rng: Random;
 }
 
@@ -97,7 +99,7 @@ machine Main::apply_event(
     }
 }
 
-machine Main::main(&mut self) -> i32 {
+machine Main::main(&mut self) {
     let random: RandomState;
     random.seed = 7;
 
@@ -126,14 +128,14 @@ machine Main::main(&mut self) -> i32 {
     }
 
     state three_draws(&mut self) {
-        70
+        self.console.exit_process(70);
     }
 
     state four_draws(&mut self) {
-        71
+        self.console.exit_process(71);
     }
 
     state unexpected_stream(&mut self) {
-        1
+        self.console.exit_process(1);
     }
 }

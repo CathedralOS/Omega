@@ -1330,6 +1330,14 @@ fn compile_rooted_canary_for_target(
 // seam.
 const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "ownership/linear_live_across_call_continuation",
+    "arithmetic/runtime_unsigned_modulo_call_argument_exit",
+    "arithmetic/runtime_unsigned_modulo_cast_operand_exit",
+    "calls/free_standing_machine_helper_compile",
+    "calls/runtime_call_result_after_splice_mutation_exit",
+    "control_flow/runtime_entry_cast_result_exit",
+    "control_flow/runtime_entry_nested_binary_result_exit",
+    "control_flow/runtime_entry_return_field_exit",
+    "control_flow/runtime_entry_unary_result_exit",
     "calls/runtime_reference_returned_slice_element_through_param_exit",
     "calls/runtime_nested_guarded_reference_returned_slice_element_exit",
     "calls/runtime_mutable_local_indexed_parameter_write_exit",

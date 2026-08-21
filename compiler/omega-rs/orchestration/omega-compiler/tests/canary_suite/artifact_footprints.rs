@@ -2713,7 +2713,7 @@ fn compiler_body_storage_convert_write_footprints_reach_x86_and_aarch64_artifact
             .expect("copy compiler-body storage-convert-write canary");
         fs::write(
             source.join("build.omg"),
-            format!("target {target} {{\n}}\n"),
+            hosted_main_program_entry_build(target),
         )
         .expect("write compiler-body storage-convert-write target");
         compile(CompileOptions {

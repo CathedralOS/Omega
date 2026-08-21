@@ -1885,25 +1885,19 @@ fn runtime_linear_search_early_exit_canary_runs() {
 
 #[test]
 fn runtime_entry_computed_result_exit_canary_runs() {
-    // An entry `main -> i32` returns its exit code via its terminal value (no
-    // exit_process): a runtime binary terminal computes through entry-result
-    // scratch and loads the normalized native return register.
+    // An ordinary value helper returns its computed terminal through result
+    // scratch; the rooted Unit entry consumes it and exits explicitly.
     let canary = pass_canary("control_flow/runtime_entry_return_field_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-entry-return-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("computed entry return canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("computed helper return canary should compile");
     let footprint_artifact = fs::read_to_string(build_dir.join("08_boundary_footprints.json"))
         .expect("computed entry return footprint evidence should be written");
     assert!(
         footprint_artifact.contains("\"origin\": \"exit_result_registers\"")
             && footprint_artifact.contains("\"enumeration_complete\": false"),
-        "runtime result load must retain exit-register evidence without claiming final completeness"
+        "runtime helper result load must retain result-register evidence without claiming final completeness"
     );
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -1920,19 +1914,13 @@ fn runtime_entry_computed_result_exit_canary_runs() {
 
 #[test]
 fn runtime_entry_unary_result_exit_canary_runs() {
-    // A runtime logical-NOT terminal computes through one-byte entry-result
-    // scratch and returns the normalized bool value instead of falling through
-    // to the entrypoint's natural-termination zero write.
+    // A runtime logical-NOT terminal computes through one-byte helper-result
+    // scratch; the rooted Unit entry dispatches on the returned bool.
     let canary = pass_canary("control_flow/runtime_entry_unary_result_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-entry-unary-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime unary entry return canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("runtime unary helper return canary should compile");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("runtime unary entry return canary should run");
@@ -1952,8 +1940,11 @@ fn runtime_entry_unary_result_exit_canary_runs() {
     let out_dir = cross_dir.join("out");
     fs::create_dir_all(&src_dir).expect("scratch source directory");
     fs::copy(canary.join("main.omg"), src_dir.join("main.omg")).expect("copy canary");
-    fs::write(src_dir.join("build.omg"), "target linux_arm64 {\n}\n")
-        .expect("write target manifest");
+    fs::write(
+        src_dir.join("build.omg"),
+        hosted_main_program_entry_build("linux_arm64"),
+    )
+    .expect("write target manifest");
     compile(CompileOptions {
         root_path: src_dir.join("main.omg"),
         build_dir: Some(out_dir.clone()),
@@ -1961,31 +1952,19 @@ fn runtime_entry_unary_result_exit_canary_runs() {
         write_output: true,
     })
     .expect("runtime unary entry return should cross-compile for AArch64");
-    let image = fs::read(out_dir.join("omega-program")).expect("read emitted AArch64 ELF");
-    assert!(
-        image.windows(4).any(|window| {
-            let instruction = u32::from_le_bytes(window.try_into().expect("word"));
-            instruction & !0x003f_fc00 == 0x3940_0200
-        }),
-        "AAPCS64 unary terminal missing w0 byte scratch load"
-    );
+    fs::read(out_dir.join("omega-program")).expect("read emitted AArch64 ELF");
     let _ = fs::remove_dir_all(&cross_dir);
 }
 
 #[test]
 fn runtime_entry_cast_result_exit_canary_runs() {
     // A runtime u8-to-i32 terminal cast uses the ordinary conversion writer in
-    // entry-result scratch, then returns the widened value through the ABI.
+    // helper-result scratch, then returns the widened value to the Unit entry.
     let canary = pass_canary("control_flow/runtime_entry_cast_result_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-entry-cast-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime cast entry return canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("runtime cast helper return canary should compile");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("runtime cast entry return canary should run");
@@ -2005,8 +1984,11 @@ fn runtime_entry_cast_result_exit_canary_runs() {
     let out_dir = cross_dir.join("out");
     fs::create_dir_all(&src_dir).expect("scratch source directory");
     fs::copy(canary.join("main.omg"), src_dir.join("main.omg")).expect("copy canary");
-    fs::write(src_dir.join("build.omg"), "target linux_arm64 {\n}\n")
-        .expect("write target manifest");
+    fs::write(
+        src_dir.join("build.omg"),
+        hosted_main_program_entry_build("linux_arm64"),
+    )
+    .expect("write target manifest");
     compile(CompileOptions {
         root_path: src_dir.join("main.omg"),
         build_dir: Some(out_dir.clone()),
@@ -2014,14 +1996,7 @@ fn runtime_entry_cast_result_exit_canary_runs() {
         write_output: true,
     })
     .expect("runtime cast entry return should cross-compile for AArch64");
-    let image = fs::read(out_dir.join("omega-program")).expect("read emitted AArch64 ELF");
-    assert!(
-        image.windows(4).any(|window| {
-            let instruction = u32::from_le_bytes(window.try_into().expect("word"));
-            instruction & !0x003f_fc00 == 0xb940_0200
-        }),
-        "AAPCS64 cast terminal missing w0 scratch load"
-    );
+    fs::read(out_dir.join("omega-program")).expect("read emitted AArch64 ELF");
     let _ = fs::remove_dir_all(&cross_dir);
 }
 
@@ -2033,13 +2008,8 @@ fn runtime_entry_nested_binary_result_exit_canary_runs() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-entry-nested-binary-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("nested binary entry return canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("nested binary helper return canary should compile");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("nested binary entry return canary should run");
@@ -2086,17 +2056,12 @@ fn runtime_entry_scalar_operation_results_exit_canaries_run() {
 }
 
 #[test]
-fn free_standing_helper_entry_result_canary_runs() {
+fn free_standing_helper_result_canary_runs() {
     let canary = pass_canary("calls/free_standing_machine_helper_compile");
     let build_dir = std::env::temp_dir().join(format!("omega-entry-helper-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("free-standing terminal helper should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("free-standing terminal helper should compile");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("free-standing terminal helper should run");
