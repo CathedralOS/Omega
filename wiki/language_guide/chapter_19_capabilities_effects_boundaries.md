@@ -38,17 +38,15 @@ from parameter/result use and provider selection rather than from the
 Core operators keep their public contracts visible while primitive lowering
 stays behind the compiler/runtime boundary. Fixed surface tokens resolve to
 these named declarations without hiding their signatures or proof obligations.
-The literal fixed token appears immediately after `operator`; `boundary` and
-the selected provider remain independent implementation-supply facts:
+The literal fixed token appears immediately after `operator`. The declaration
+states no provider selection:
 
 ```omega
 boundary operator [] Slice::index<T>(items: &[T], index: u64) -> T
-provider omega::language::core::slice_indexing
 requires
     index < items.len;
 
 boundary operator [..] Slice::range<T>(items: &[T], start: u64, end: u64) -> &[T]
-provider omega::language::core::slice_indexing
 requires
     start <= end && end <= items.len;
 ```
@@ -56,13 +54,13 @@ requires
 Working interpretation:
 
 - `requires` remains a proof obligation for callers.
-- `boundary operator` says the declaration crosses an audited implementation
-  boundary; `provider` names the exact registered supplier selected for it.
+- `boundary operator` publishes the contract that every selected realization
+  must satisfy; it does not name or choose that realization.
 - The boundary report records boundary operators, library/authority boundary
   clauses, target policies, and accepted policies.
-- Every boundary implementation binding references a registered
-  `BoundaryProvider` (see "Boundary Primitive Registry"). Ordinary application
-  code cannot mint new host/compiler providers as a proof escape hatch.
+- Realizations use the same checked-body or `satisfies ... via <Binding>` supply
+  forms as every other boundary requirement. The target profile or an
+  authorized `build.omg` slot override selects one admitted candidate.
 
 Users can inspect `Slice::index` and its proof contract without depending on the
 private descriptor, pointer, or code-generation mechanism used after proof.
@@ -731,11 +729,12 @@ providers are hermetic or return replay receipts for every observation;
 volatile providers are explicit development policy and cannot produce a
 source-rebuildable release.
 
-Target metadata such as library artifact, symbol, syscall number, calling
-convention, and boundary provider belongs in toolchain host packages or explicitly
-whitelisted boundary providers. Pulling in `Filesystem`, `Console`, or
-`ProcessExit` service reach is visible to the build; provider receipts reveal
-which realization supplies it, and a restricted build can reject either axis.
+Target metadata such as library artifact, foreign symbol, syscall number,
+calling convention, and realization binding belongs in toolchain target
+packages or explicitly admitted provider packages. Pulling in `Filesystem`,
+`Console`, or `ProcessExit` service reach is visible to the build; provider
+receipts reveal which realization supplies it, and a restricted build can
+reject either axis.
 
 The compiler should understand boundary traits, provider packages, libraries,
 symbols, calling conventions, boundary providers, and target image imports
@@ -835,9 +834,9 @@ This is the same proof shape as a library import:
 - Omega proves caller-side type and state invariants.
 - The imported boundary is accepted to satisfy its declared guarantees.
 - The irreducible mapping is authored as a compile-time `Binding` value on a
-  `via` declaration and recorded as a `HostAbiCall` provider in the boundary
-  registry.
-- The build artifact records which registered boundary providers were used.
+  `via` declaration and retained on the exact realization row.
+- The build artifact records the exact selected realization, normalized
+  binding, admission receipt, and provider-plan identity.
 
 `via` bindings are the external-provider supply form of otherwise ordinary
 machines. Raw syscall numbers, imported DLL functions, firmware jumps,
@@ -1143,38 +1142,47 @@ domain declaration. Obligation-free domains may be qualified directly with
 See
 [`authority_values_and_boundary_evidence.md`](../design_briefs/authority_values_and_boundary_evidence.md).
 
-## Boundary Primitive Registry
+## Boundary Realization Catalog
 
-Compiler/runtime boundary providers are tracked, not free-floating names. The
-slice indexing, pointer offset, descriptor construction, allocation, and host
-ABI call surfaces are recorded in a registry of `BoundaryProvider` records.
+Omega has one provider model. A boundary declaration publishes a requirement;
+an ordinary checked machine or an irreducible `via` machine satisfies it; the
+toolchain derives a candidate `ProviderPlan`; and the selected target profile,
+`build.omg`, or installation binding chooses one admitted candidate for the
+owned slot. A requirement never embeds that choice.
 
-Each `BoundaryProvider` record carries:
+Compiler intrinsics use the same shape:
 
-- `name`: the provider name a boundary implementation binds to.
-- `category`: one of `SliceIndexing`, `PointerOffset`, `PointerAccess`,
-  `DescriptorConstruction`, `Allocation`, or `HostAbiCall`.
-- the public contract it implements (a reference, so the proof obligation and
-  signature stay visible).
-- its normalized service-reach row, suspension/blocking ceilings, and guarded
-  crash buckets.
-- its target applicability.
-- the origin package that declared it.
+```omega
+machine CoreSliceProvider::index<T>(items: &[T], index: u64) -> T
+    satisfies Slice::index
+    via Binding::CompilerIntrinsic;
+```
 
-Core primitives are authored as restricted core declarations whose `boundary
-operator` binds a named provider. Host providers are authored as
-target-package metadata.
+`CompilerIntrinsic` has no authored string identifier. The exact realization
+machine already has a resolved package-qualified symbol and normalized
+signature. Together with the selected target, that identity keys a sealed
+toolchain catalog entry containing the lowering and its checked operational
+contract. An absent entry, wrong signature, inapplicable target, unauthorized
+origin package, or non-refining implementation rejects.
 
-Decided rules:
+Other irreducible bindings likewise use nominal values. `DllImport` carries
+resolved `LibraryId`, `SymbolId`, and `CallingPlanId` values; syscall, firmware,
+and vtable bindings carry their own typed identifiers. A raw foreign linker
+name may exist in sealed target/link metadata because a foreign object format
+ultimately uses bytes, but that spelling is never an Omega symbol, dispatch
+key, requirement identity, or provider selection. The metadata is fingerprinted:
+changing the foreign bytes changes target/artifact identity and requires fresh
+admission without changing what the nominal Omega symbol means.
 
-- A package may declare providers only if it is whitelisted: core, host, or
-  toolchain packages.
-- Every boundary implementation binding must reference a registered provider.
-- Unregistered provider names outside whitelisted packages are rejected.
-- The emitted boundary build report lists the registered providers actually
-  used, as the audit artifact.
-
-A bound provider name resolves to a registered record or the build rejects.
+The retired top-level `provider Name : Category;` declaration and
+operator-local `provider Name` clause are bootstrap syntax. Their fixed
+category vocabulary duplicated information already available from the
+requirement, binding kind, and selected realization, while pinning
+implementation supply inside the requirement owner's source. They do not
+belong to the destination language. Audit reports instead enumerate selected
+provider-plan rows with exact requirement, realization symbol, binding kind,
+target applicability, normalized contract, admission receipt, and artifact
+identity.
 
 ## Blocking Boundaries
 
@@ -1368,16 +1376,17 @@ owns the remaining named `Build` API.
 
 The machine-readable manifest keeps separate rows for authority flow, service
 reach, trust receipts, imported libraries, direct and transitive boundary
-calls, registered providers, domain-evidence origins, resource transformations,
-target imports, and executable TCB scope. Each row retains stable provider,
-contract, origin, and receipt identities rather than a rendered source name
-alone. TCB entries remain separate from scope completeness and its independent
-isolation, termination, fault-containment, and resource guarantees.
+calls, selected provider-plan realizations, domain-evidence origins, resource
+transformations, target imports, and executable TCB scope. Each row retains
+stable requirement, realization-symbol, binding, target, artifact, and receipt
+identities rather than a rendered source name alone. TCB entries remain
+separate from scope completeness and its independent isolation, termination,
+fault-containment, and resource guarantees.
 
-The "registered boundary providers used" list is the audit artifact for the
-boundary registry: every entry resolves to a `BoundaryProvider` record, and a
-binding that names no registered provider is rejected before this report is
-emitted.
+The selected-realization list is the audit artifact. Every entry joins one
+exact requirement to one admitted candidate and its normalized binding; an
+unresolved, ambiguous, unknown, or unadmitted selection rejects before the
+report is emitted.
 
 Human package diffs collapse low-severity checked tokens and elevate transitive
 changes in authority, admitted providers, boundary-evidence permission, or

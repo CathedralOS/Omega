@@ -1,6 +1,6 @@
-// Frozen Wave 0 decision #4: every boundary binding must resolve to a registered
-// provider. This operator binds a provider name that was never declared, so the
-// binding is rejected.
+// Legacy registry rejection. The destination operator has no provider clause;
+// missing or ambiguous selected satisfiers reject during provider-plan
+// composition instead.
 
 boundary operator Slice::index<T>(items: &[T], index: u64) -> T
 spelling []

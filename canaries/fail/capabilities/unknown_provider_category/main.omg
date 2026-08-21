@@ -1,7 +1,5 @@
-// Chapter 18 "Boundary Primitive Registry": every provider carries a `category`
-// from a fixed vocabulary (SliceIndexing, PointerOffset, PointerAccess,
-// DescriptorConstruction, Allocation, HostAbiCall). `Teleportation` is not one of
-// them, so the provider declaration is rejected.
+// Legacy registry diagnostic. The destination language rejects every top-level
+// `provider` item rather than maintaining a fixed provider-category vocabulary.
 
 provider omega::language::core::canary_bad : Teleportation;
 

@@ -1,6 +1,6 @@
-// Frozen Wave 0 decision #4: only whitelisted packages (omega::language::core,
-// omega::host::**, toolchain) may declare boundary providers. An application
-// package declaring a provider is rejected.
+// Legacy registry rejection. The destination language rejects the `provider`
+// item itself; package authorization instead governs satisfier admission and
+// owned provider-slot selection.
 
 provider app::game::fast_indexing : SliceIndexing;
 

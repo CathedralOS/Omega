@@ -33,7 +33,7 @@ data Binding {
     case DllImport(library: LibraryId, symbol: SymbolId, plan: CallingPlanId);
     case Syscall(number: u64, plan: CallingPlanId);
     case Firmware(table: TableId, slot: u32, plan: CallingPlanId);
-    case CompilerIntrinsic(name: IntrinsicId);
+    case CompilerIntrinsic;
 }
 ```
 
@@ -60,6 +60,17 @@ value. It is the external-realization variant of the machine supply slot, not
 an executable body and not a self-authored trust assertion. Its identity feeds
 the derived plan. Structural validation checks the declaration; admission
 assigns the trust class and receipt.
+
+Binding identity is never reconstructed from text. For
+`Binding::CompilerIntrinsic`, the exact resolved realization-machine symbol,
+normalized signature, and selected target key the sealed compiler catalog, so
+the variant needs no duplicate name payload. `LibraryId`, `SymbolId`,
+`CallingPlanId`, `TableId`, and corresponding foreign identifiers are nominal
+resolved values. Raw library or linker spellings may appear only in sealed
+target/link metadata and never serve as Omega symbols, requirement keys, or
+provider selections. That metadata is fingerprinted, so changing its foreign
+bytes changes target/artifact identity and requires fresh admission while the
+nominal Omega symbol remains stable.
 
 Composite behavior is checked Omega code rather than plan-shaped call
 sequences. A Console adapter that gets a standard handle, appends a newline,
@@ -101,6 +112,13 @@ and a deterministic identity for the complete selected set. External-root
 construction resolves its boundary slot against this carrier and copies the
 resulting plan identity into the root candidate before validation; an absent or
 ambiguous retained selection rejects.
+
+There is no parallel source-level primitive-provider registry. The retired
+top-level `provider Name : Category;` declaration and operator-local
+`provider Name` clause are bootstrap artifacts; requirement declarations do not
+select their implementations. Checked satisfiers and `via` leaves declare
+candidates, while target defaults, `build.omg`, or installation choose admitted
+provider plans through owned slots.
 
 The normalized service schema also retains each linear routed parameter
 qualification as a structured entry claim. Its carrier-aware semantic-domain

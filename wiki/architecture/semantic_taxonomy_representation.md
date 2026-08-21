@@ -360,6 +360,13 @@ contract/ceiling; validation and admission check the binding/provider behavior
 as a refinement and produce any trust receipt. `ProviderPlan` is then derived
 from explicit conformance closure rather than authored rows.
 
+`NormalizedBindingId` interns a structured binding kind and nominal typed
+arguments, never a rendered string. The enclosing realization-machine symbol
+and normalized signature remain explicit identity inputs. A payload-free
+`CompilerIntrinsic` uses that realization symbol plus target to select a sealed
+catalog lowering. Foreign `LibraryId`, `SymbolId`, and calling-plan IDs resolve
+nominally; raw linker bytes live only in fingerprinted target/link metadata.
+
 Target profiles expose the same selection through typed slots:
 
 ```text

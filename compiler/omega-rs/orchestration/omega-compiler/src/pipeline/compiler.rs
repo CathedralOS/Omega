@@ -165,9 +165,10 @@ where
         .unwrap_or_else(|panic| std::panic::resume_unwind(panic))
 }
 
-/// Builds the boundary provider registry from `provider` declarations, enforces
-/// the package whitelist, and rejects boundary operator bindings that do not
-/// resolve to a registered provider (frozen Wave 0 decision #4).
+/// Runs the legacy boundary-provider registry checks while bootstrap source
+/// still contains `provider` items and operator clauses. The destination model
+/// derives candidates from exact satisfiers and selects `ProviderPlan` rows
+/// through target/build/installation-owned slots.
 fn validate_boundary_providers(
     syntax: &psi_syntax_trees::SyntaxTrees,
 ) -> Result<(), Vec<Diagnostic>> {

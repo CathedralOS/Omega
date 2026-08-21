@@ -14,7 +14,9 @@
 boundary data Ptr<T>;
 boundary data PtrRange<T>;
 
-// Token-only boundary primitives for pointer representation arithmetic.
+// Legacy boundary-primitive registry syntax retained until these exact
+// requirements gain ordinary target-selected satisfiers. The requirement
+// declarations will carry no provider selection.
 provider omega::language::core::ptr_offset : PointerOffset;
 
 boundary operator Ptr::offset<T>(ptr: Ptr<T>, count: u64) -> Ptr<T>

@@ -54,8 +54,9 @@ pub struct ConstDefinition {
     pub value: crate::expression::ExpressionHandle,
 }
 
-/// A boundary primitive provider declaration (frozen Wave 0 decision #4):
-/// `provider <QualifiedName> : <Category>;`
+/// Legacy bootstrap boundary-provider declaration. The destination grammar has
+/// no parallel provider item; exact satisfiers declare candidates and provider
+/// slots select them.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProviderDeclaration {
     pub name: HandleSpan<Identifier>,
@@ -72,9 +73,10 @@ impl Default for ProviderDeclaration {
 }
 
 impl ExternalBinding {
-    /// PRV4: the NORMALIZED rendering -- the compile-time-evaluable binding
-    /// expression's canonical text, the ExternalRealization identity the
-    /// interner keys on. Exactly one spelling per binding value.
+    /// Legacy bootstrap normalized rendering. This text currently crosses an
+    /// internal merge seam, but it is not destination semantic identity.
+    /// Nominal binding IDs and resolved realization symbols must replace both
+    /// rendering-based interning and reparsing.
     /// The exact inverse of `normalized_rendering` (round-trip pinned):
     /// the merge seam re-materializes a leaf's structured binding from the
     /// interned rendering. `None` = unrecognized (refuses at extraction).
@@ -130,12 +132,13 @@ impl ExternalBinding {
 pub enum ExternalBinding {
     /// Linux's stable ABI is the number table: `Binding::Syscall(1)`.
     Syscall { number: i64 },
-    /// Windows' stable ABI is named DLL exports:
-    /// `Binding::DllImport("kernel32", "ExitProcess")`.
+    /// Bootstrap string carrier for Windows DLL exports. The destination uses
+    /// nominal `LibraryId` and `SymbolId` values; raw linker bytes remain in
+    /// sealed target metadata.
     DllImport { module: String, symbol: String },
-    /// A compiler-known target operation already present in the selected
-    /// target package. This selects and validates that existing lowering; it
-    /// never installs or overrides a host binding.
+    /// Bootstrap string carrier for a compiler-known target operation. The
+    /// destination variant has no payload: resolved realization symbol,
+    /// normalized signature, and target key the sealed lowering catalog.
     CompilerIntrinsic { name: String },
     /// COM/UEFI per-object dispatch: `Binding::VtableSlot(1)` (deref `this`, read the
     /// vtable pointer, read slot N, call at the declared convention).
@@ -370,8 +373,8 @@ pub struct OperatorDefinition {
     pub contracts: HandleSpan<CapabilityContract>,
     /// Optional `spelling <symbol>` clause (frozen Wave 0 decision #3).
     pub spelling: Option<OperatorSpelling>,
-    /// Optional `provider <QualifiedName>` clause binding this boundary
-    /// operator to a registered provider (frozen Wave 0 decision #4).
+    /// Legacy bootstrap provider clause, retired once boundary operators use
+    /// ordinary exact satisfiers and selected provider-plan rows.
     pub provider: Option<HandleSpan<Identifier>>,
     pub token_count: usize,
 }
@@ -833,9 +836,10 @@ pub struct SatisfiesClause {
     pub alias: Option<Identifier>,
     /// PRV4 step 1: `satisfies Requirement via <Binding>` -- the irreducible
     /// EXTERNAL LEAF. The binding expression is the closed compile-time sum;
-    /// its normalized rendering becomes the
-    /// machine's ExternalRealization supply identity. Only legal on a
-    /// BODYLESS machine (a composite lowering is an ordinary checked body).
+    /// bootstrap lowering currently renders it as text, while the destination
+    /// retains a structured nominal binding beside the exact realization
+    /// symbol. Only legal on a BODYLESS machine (a composite lowering is an
+    /// ordinary checked body).
     pub via: Option<ExternalBinding>,
 }
 

@@ -2474,6 +2474,43 @@ token calls resolve to one declaration identity; adding an unrelated visible
 conformance cannot change token meaning; and no accepted source contains a
 `spelling` clause.
 
+### Boundary realization and nominal binding identity
+
+- Retire the parallel boundary-primitive registry: remove the top-level
+  `provider Name : Category;` item, operator-local `provider Name` clause,
+  `ProviderCategory` vocabulary, whitelist rules, registry collector, and
+  registry-specific canaries/reports. Migrate core slice, pointer, array, vector,
+  allocation, host-ABI, and related bootstrap declarations to ordinary exact
+  requirements with checked satisfiers or `satisfies ... via <Binding>` leaves.
+- Make every boundary declaration provider-agnostic. Derive candidate
+  `ProviderPlan` rows from exact satisfier identities and their complete
+  contracts; select only through target defaults, authorized `build.omg`
+  provider slots, or installation-owned bindings. Preserve exact requirement,
+  realization, target applicability, artifact, admission, and receipt identity
+  in checked trees, Terminal Psi, manifests, and diagnostics.
+- Replace string-backed intrinsic identity. `Binding::CompilerIntrinsic` has no
+  authored payload; its exact resolved realization-machine symbol, normalized
+  signature, and selected target key the sealed compiler lowering catalog.
+  Delete string-prefix classification, rendered-binding reparsing, and semantic
+  lookup by display name.
+- Replace string-backed foreign binding identity with nominal `LibraryId`,
+  `SymbolId`, `CallingPlanId`, firmware/table, vtable, and mechanism-specific
+  values. Raw object-format library/symbol bytes may exist only in sealed
+  target/link metadata and must never serve as an Omega symbol, requirement key,
+  provider selection, or checked-artifact identity.
+- Migrate the current console and target float `CompilerIntrinsic("...")`
+  corpus mechanically after the nominal carrier lands. Compatibility parsing,
+  if temporarily retained, must lower immediately to exact symbols and reject
+  unknown, ambiguous, or signature-mismatched text; no string survives semantic
+  lowering.
+
+Acceptance: the same boundary requirement can select a checked test provider or
+a target intrinsic without editing its declaration; final artifacts contain no
+primitive-provider registry or provider categories; an intrinsic lowering is
+selected only by exact realization symbol/signature/target; and changing raw
+foreign linker bytes preserves the nominal Omega symbol while changing pinned
+target/artifact identity and forcing fresh admission.
+
 ### Float providers
 
 Owner: `wiki/design_briefs/float_semantics.md`.

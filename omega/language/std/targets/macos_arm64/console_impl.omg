@@ -1,6 +1,9 @@
 // Complete macos_arm64 Console provider closure over compiler-known native
 // byte/runtime leaves. Friendly write adapters live in std/console.omg on the
 // same nominal provider type.
+// The string arguments below are bootstrap syntax. The destination
+// `Binding::CompilerIntrinsic` is payload-free and keys lowering by this exact
+// realization symbol, normalized signature, and target.
 macos_arm64 machine ConsoleNativeProvider::read_line(out_line: &mut [u8])
     satisfies Console::read_line
     via Binding::CompilerIntrinsic("Console::read_line");

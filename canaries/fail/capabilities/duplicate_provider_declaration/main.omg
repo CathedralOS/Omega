@@ -1,6 +1,6 @@
-// Chapter 18 "Boundary Primitive Registry": providers are tracked records, not
-// free-floating names. Declaring the same provider name twice is a duplicate
-// registration and is rejected.
+// Legacy registry diagnostic. This canary disappears with the top-level
+// `provider` item; duplicate satisfiers and provider-slot selections have their
+// own nominal identity and coherence checks.
 
 provider omega::language::core::canary_dup : Allocation;
 provider omega::language::core::canary_dup : Allocation;

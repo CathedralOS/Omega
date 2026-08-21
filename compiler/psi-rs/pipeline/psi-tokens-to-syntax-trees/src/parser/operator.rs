@@ -24,10 +24,10 @@ pub(super) fn parse_operator_definition<'tokens, 'source>(
     let (parameters, input) = parse_optional_state_parameters(syntax_trees, input)?;
     let (return_type, mut input) = parse_optional_return_type(syntax_trees, input)?;
 
-    // `spelling` and `provider` clauses may appear before or after the
-    // `requires`/`ensures` contracts (frozen Wave 0 decision #3 examples place
-    // `spelling` before `requires`). Contracts stay contiguous in the arena
-    // because the spelling/provider clauses are stored on the operator itself.
+    // Legacy `spelling` and `provider` clauses may appear before or after the
+    // `requires`/`ensures` contracts. Both are bootstrap compatibility syntax:
+    // fixed tokens migrate into the declaration head, while provider selection
+    // migrates to ordinary satisfiers and provider-plan slots.
     let mut spelling = None;
     let mut provider = None;
     let mut contract_start = Handle::invalid();

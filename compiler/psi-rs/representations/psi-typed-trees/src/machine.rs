@@ -86,7 +86,8 @@ pub struct TraitConformance {
     /// (`as Name`) for plural algebras / signature collisions.
     pub requirement: Option<Identifier>,
     pub alias: Option<Identifier>,
-    /// PRV4: the external leaf's NORMALIZED binding rendering (`via`).
+    /// Legacy bootstrap rendering of the external leaf's `via` binding. The
+    /// nominal-binding migration replaces this string with a structured ID.
     pub via: Option<String>,
 }
 

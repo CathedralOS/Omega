@@ -265,6 +265,14 @@ public service/suspension/blocking and guarded-crash ceilings; the
 binding/provider behavior must refine each one. A `via` machine does not repeat
 those clauses.
 
+Every semantic binding input is nominal. The `library`, `symbol`, and `plan`
+expressions above resolve to typed IDs rather than strings. A compiler-intrinsic
+binding has no name payload: its exact realization-machine symbol, normalized
+signature, and target select the sealed lowering catalog entry. Raw foreign
+linker spellings exist only in target/link metadata and never identify an Omega
+machine or provider row. That metadata is fingerprinted, so changing the raw
+foreign spelling changes target/artifact identity and requires fresh admission.
+
 Composite adaptation is ordinary checked code. For example, an implementation
 of `Console::write_line` may call separately bound `get_stdout` and
 `write_file` machines, cache a handle, or merge writes. Those decisions belong
