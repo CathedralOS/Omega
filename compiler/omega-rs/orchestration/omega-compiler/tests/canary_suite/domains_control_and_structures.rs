@@ -296,8 +296,9 @@ fn runtime_direct_boolean_conjunction_exit_canary_runs() {
         "omega-runtime-direct-bool-conjunction-{}",
         std::process::id()
     ));
-    compile_hosted_main(&canary, &scratch, native_hosted_target())
-        .expect("runtime direct boolean conjunction canary should compile");
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+        .expect("runtime direct boolean conjunction canary should compile from its authored root");
 
     let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
@@ -1476,8 +1477,9 @@ fn runtime_enemy_clear_reentry_exit_canary_runs() {
         "omega-runtime-enemy-reentry-{}",
         std::process::id()
     ));
-    compile_hosted_main(&canary, &scratch, native_hosted_target())
-        .expect("runtime enemy clear reentry canary should compile");
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+        .expect("runtime enemy clear reentry canary should compile from its authored root");
 
     let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
@@ -1508,8 +1510,10 @@ fn runtime_clear_carve_render_string_fields_exit_canary_runs() {
         "omega-runtime-clear-carve-render-string-fields-{}",
         std::process::id()
     ));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
-        .expect("runtime clear/carve/render string fields canary should compile");
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.join("out")).expect(
+        "runtime clear/carve/render string fields canary should compile from its authored root",
+    );
 
     let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
@@ -1539,8 +1543,10 @@ fn runtime_full_level_wrapper_lookup_string_field_exit_canary_runs() {
         "omega-runtime-full-level-wrapper-lookup-string-field-{}",
         std::process::id()
     ));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
-        .expect("runtime full-level wrapper carrier lookup canary should compile");
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.join("out")).expect(
+        "runtime full-level wrapper carrier lookup canary should compile from its authored root",
+    );
 
     let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
@@ -1564,8 +1570,9 @@ fn runtime_multi_room_reentry_exit_canary_runs() {
         "omega-runtime-multi-room-reentry-{}",
         std::process::id()
     ));
-    compile_hosted_main(&canary, &scratch, native_hosted_target())
-        .expect("runtime multi-room reentry canary should compile");
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+        .expect("runtime multi-room reentry canary should compile from its authored root");
 
     let output = Command::new(scratch.join("out").join(executable_name()))
         .output()

@@ -71,6 +71,7 @@ pub struct ProgramStorageEntryPlanBinding {
     image: ProgramStorageEntryParameter,
     initial_storage: ProgramStorageEntryParameter,
     receiver: Option<ProgramEntryReceiverStoragePlan>,
+    source_signature: Option<super::SelectedProgramEntrySourceSignature>,
 }
 
 impl ProgramStorageEntryPlanBinding {
@@ -96,6 +97,12 @@ impl ProgramStorageEntryPlanBinding {
 
     pub const fn receiver(&self) -> Option<&ProgramEntryReceiverStoragePlan> {
         self.receiver.as_ref()
+    }
+
+    /// Exact declaration signature captured from the selected typed source
+    /// entry before backend lowering. This is not a value or authority carrier.
+    pub const fn source_signature(&self) -> Option<&super::SelectedProgramEntrySourceSignature> {
+        self.source_signature.as_ref()
     }
 
     /// Attach the concrete layout of a receiver whose exclusive source shape
@@ -170,6 +177,7 @@ impl ProgramEntryReceiverStoragePlan {
 /// environment root and does not model an outbound service conformance.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedProgramStorageEntryPlan {
+    target_slot: omega_target::ProgramEntrySlotDeclaration,
     root_slot: omega_external_roots::RootSlotId,
     requirement_identity: String,
     schema: omega_effects::provider_plan::ServiceSchema,
@@ -246,6 +254,7 @@ impl SelectedProgramStorageEntryPlan {
         let root_slot = omega_external_roots::RootSlotId::from_normalized_identity(identity)
             .map_err(|diagnostic| ProgramStorageEntryDiagnostic(diagnostic.to_string()))?;
         Ok(Self {
+            target_slot: slot,
             root_slot,
             requirement_identity,
             schema,
@@ -254,6 +263,10 @@ impl SelectedProgramStorageEntryPlan {
 
     pub const fn root_slot(&self) -> omega_external_roots::RootSlotId {
         self.root_slot
+    }
+
+    pub const fn target_slot(&self) -> omega_target::ProgramEntrySlotDeclaration {
+        self.target_slot
     }
 
     pub const fn schema(&self) -> &omega_effects::provider_plan::ServiceSchema {
@@ -320,6 +333,12 @@ pub struct ProgramStorageEntryNativeBridgePlan {
 impl ProgramStorageEntryNativeBridgePlan {
     pub const fn binding(&self) -> &ProgramStorageEntryPlanBinding {
         &self.binding
+    }
+
+    /// Present for compiler-generated bindings. Lower-level physical-plan
+    /// tests may bind only the arrival contract and therefore retain `None`.
+    pub const fn source_signature(&self) -> Option<&super::SelectedProgramEntrySourceSignature> {
+        self.binding.source_signature()
     }
 
     /// Address-free semantic root/receiver handoff retained for the future
@@ -513,6 +532,12 @@ impl ProgramStorageEntrySourceContinuationHandoff<'_> {
         self.bridge.wrapper_transfer()
     }
 
+    /// Exact checked typed declaration selected before backend lowering. It
+    /// carries no runtime roots, authority, ABI placement, or call readiness.
+    pub const fn source_signature(&self) -> Option<&super::SelectedProgramEntrySourceSignature> {
+        self.bridge.source_signature()
+    }
+
     pub const fn continuation_staging(
         &self,
     ) -> &super::program_storage_source_call::ProgramStorageEntryContinuationStagingPlan {
@@ -652,6 +677,27 @@ pub fn bind_emitted_program_storage_entry_native_bridge(
         return Err(ProgramStorageEntryDiagnostic(
             "program-storage native bridge lost its selected source continuation".into(),
         ));
+    }
+    if let Some(source_signature) = binding.source_signature() {
+        source_signature
+            .validate_program_storage_binding(
+                source_signature.target_slot(),
+                continuation_key,
+                binding
+                    .receiver()
+                    .map(ProgramEntryReceiverStoragePlan::type_identity),
+                binding.image().parameter_type_identity(),
+                binding.initial_storage().parameter_type_identity(),
+            )
+            .map_err(ProgramStorageEntryDiagnostic)?;
+        if source_signature.machine_name() != continuation_machine
+            || source_signature.state_name() != continuation_state
+        {
+            return Err(ProgramStorageEntryDiagnostic(
+                "program-storage native bridge source declaration names drifted from the exact lowered continuation"
+                    .into(),
+            ));
+        }
     }
     let wrapper_transfer =
         super::program_storage_wrapper::plan_program_storage_entry_wrapper_transfer(
@@ -1580,6 +1626,7 @@ pub fn bind_program_storage_entry_plan(
         image,
         initial_storage,
         receiver: None,
+        source_signature: None,
     })
 }
 
@@ -1592,7 +1639,7 @@ pub fn bind_generated_program_storage_entry_plan(
     runtime_storage: &omega_runtime_storage::RuntimeStoragePlan,
     layouts: &omega_layout::LayoutPlan,
     entry_key: omega_control_flow::StateKey,
-    receiver_type_identity: Option<&str>,
+    source_signature: &super::SelectedProgramEntrySourceSignature,
 ) -> Result<ProgramStorageEntryPlanBinding, ProgramStorageEntryDiagnostic> {
     let signature = omega_calling_conventions::CallSignature {
         parameters: plan
@@ -1657,6 +1704,16 @@ pub fn bind_generated_program_storage_entry_plan(
         ))
     })?;
     let mut binding = bind_program_storage_entry_plan(selected, &boundary, &storage)?;
+    let receiver_type_identity = source_signature.receiver().normalized_type_identity();
+    source_signature
+        .validate_program_storage_binding(
+            selected.target_slot(),
+            entry_key,
+            receiver_type_identity,
+            binding.image().parameter_type_identity(),
+            binding.initial_storage().parameter_type_identity(),
+        )
+        .map_err(ProgramStorageEntryDiagnostic)?;
     if let Some(type_identity) = receiver_type_identity {
         let layout = layouts
             .machine_layouts
@@ -1669,6 +1726,7 @@ pub fn bind_generated_program_storage_entry_plan(
             })?;
         binding = binding.with_checked_receiver_layout(type_identity.to_owned(), layout)?;
     }
+    binding.source_signature = Some(source_signature.clone());
     Ok(binding)
 }
 

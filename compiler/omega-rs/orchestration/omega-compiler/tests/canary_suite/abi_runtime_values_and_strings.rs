@@ -2938,20 +2938,14 @@ fn runtime_machine_owned_indexed_nested_exit_write_exit_canary_runs() {
 #[test]
 fn runtime_ordered_room_dispatch_exit_canary_runs() {
     let canary = pass_canary("dungeon/runtime_ordered_room_dispatch_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-ordered-room-dispatch-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime ordered room dispatch canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("runtime ordered room dispatch canary should compile from its authored root");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -2971,20 +2965,15 @@ fn runtime_ordered_room_dispatch_exit_canary_runs() {
 #[test]
 fn runtime_ordered_room_dispatch_after_call_exit_canary_runs() {
     let canary = pass_canary("dungeon/runtime_ordered_room_dispatch_after_call_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-ordered-room-dispatch-after-call-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime ordered room dispatch after call canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
+        "runtime ordered room dispatch after call canary should compile from its authored root",
+    );
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -3004,20 +2993,15 @@ fn runtime_ordered_room_dispatch_after_call_exit_canary_runs() {
 #[test]
 fn runtime_ordered_room_dispatch_game_shape_exit_canary_runs() {
     let canary = pass_canary("dungeon/runtime_ordered_room_dispatch_game_shape_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-ordered-room-dispatch-game-shape-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime ordered room dispatch game-shape canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
+        "runtime ordered room dispatch game-shape canary should compile from its authored root",
+    );
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -3037,20 +3021,15 @@ fn runtime_ordered_room_dispatch_game_shape_exit_canary_runs() {
 #[test]
 fn runtime_ordered_room_dispatch_large_machine_exit_canary_runs() {
     let canary = pass_canary("dungeon/runtime_ordered_room_dispatch_large_machine_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-ordered-room-dispatch-large-machine-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime ordered room dispatch large-machine canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
+        "runtime ordered room dispatch large-machine canary should compile from its authored root",
+    );
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -3114,20 +3093,15 @@ fn runtime_ordered_room_dispatch_loop_exit_canary_runs() {
 #[test]
 fn runtime_guarded_inline_leaf_arm_skip_exit_canary_runs() {
     let canary = pass_canary("dungeon/runtime_guarded_inline_leaf_arm_skip_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-guarded-inline-leaf-arm-skip-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime guarded inline leaf arm skip canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
+        "runtime guarded inline leaf arm skip canary should compile from its authored root",
+    );
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()

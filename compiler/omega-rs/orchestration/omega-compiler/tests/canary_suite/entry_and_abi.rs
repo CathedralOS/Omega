@@ -202,6 +202,52 @@ fn uefi_program_entry_retains_exact_storage_root_binding() {
     assert!(bridge.continuation_key().is_valid());
     assert_eq!(bridge.continuation_machine(), "Boot::launch");
     assert!(!bridge.continuation_state().is_empty());
+    let source_signature = bridge
+        .source_signature()
+        .expect("production bridge must retain its checked typed source signature");
+    assert_eq!(
+        source_signature.machine_symbol(),
+        bridge.continuation_key().machine
+    );
+    assert_eq!(
+        source_signature.state_symbol(),
+        bridge.continuation_key().state
+    );
+    assert_eq!(
+        source_signature.machine_name(),
+        bridge.continuation_machine()
+    );
+    assert_eq!(source_signature.state_name(), bridge.continuation_state());
+    assert_eq!(
+        source_signature.result(),
+        omega_compiler::ProgramEntrySourceResultSignature::Unit
+    );
+    assert!(!source_signature.normalized_callable_identity().is_empty());
+    assert_eq!(
+        source_signature.receiver().normalized_type_identity(),
+        Some(receiver.type_identity())
+    );
+    let [image, initial_storage] = source_signature.visible_parameters() else {
+        panic!("UEFI source signature must retain two visible declaration rows")
+    };
+    assert_eq!(image.visible_parameter_index(), 0);
+    assert_eq!(
+        image.role(),
+        omega_compiler::ProgramStorageEntryRootRole::Image
+    );
+    assert_eq!(
+        image.normalized_type_identity(),
+        binding.image().parameter_type_identity()
+    );
+    assert_eq!(initial_storage.visible_parameter_index(), 1);
+    assert_eq!(
+        initial_storage.role(),
+        omega_compiler::ProgramStorageEntryRootRole::InitialStorage
+    );
+    assert_eq!(
+        initial_storage.normalized_type_identity(),
+        binding.initial_storage().parameter_type_identity()
+    );
     assert!(
         bridge.selected_provider().is_none(),
         "the current UEFI profile has no physical provider selection to claim as installed"
@@ -1383,12 +1429,16 @@ fn pass_canaries_compile() {
             .flatten(),
         );
     }
-    let active = ACTIVE_PASS_CANARIES
+    let selected_active = ACTIVE_PASS_CANARIES
         .iter()
         .copied()
         .filter(selected)
         .collect::<Vec<_>>();
-    selected_count += active.len();
+    selected_count += selected_active.len();
+    let active = selected_active
+        .into_iter()
+        .filter(|canary_name| !has_dedicated_exact_native_coverage(canary_name))
+        .collect::<Vec<_>>();
     failures.extend(
         run_bounded_canary_jobs(&active, |canary_name| {
             let canary = pass_canary(canary_name);
@@ -1423,6 +1473,87 @@ fn pass_canaries_compile() {
         failures.len(),
         failures.join("\n\n")
     );
+}
+
+#[test]
+fn dedicated_exact_native_rooted_canary_registry_is_consistent() {
+    assert_eq!(
+        DEDICATED_EXACT_NATIVE_ROOTED_CANARIES.len(),
+        10,
+        "the bounded duplicate-elision cohort must change deliberately"
+    );
+
+    for (index, coverage) in DEDICATED_EXACT_NATIVE_ROOTED_CANARIES.iter().enumerate() {
+        assert!(
+            !DEDICATED_EXACT_NATIVE_ROOTED_CANARIES[..index]
+                .iter()
+                .any(|earlier| earlier.canary == coverage.canary),
+            "duplicate dedicated exact-native coverage row for {}",
+            coverage.canary
+        );
+        assert!(
+            ROOTED_BACKEND_PASS_CANARIES.contains(&coverage.canary),
+            "{} lost its authored-root backend classification",
+            coverage.canary
+        );
+        assert!(
+            ACTIVE_PASS_CANARIES.contains(&coverage.canary),
+            "{} is no longer an active pass canary",
+            coverage.canary
+        );
+
+        let fixture = pass_canary(coverage.canary);
+        assert!(
+            fixture.join("main.omg").is_file() && fixture.join("build.omg").is_file(),
+            "{} must retain both its source and authored root",
+            coverage.canary
+        );
+
+        let test_source = fs::read_to_string(
+            Path::new(env!("CARGO_MANIFEST_DIR")).join(coverage.test_source_path),
+        )
+        .unwrap_or_else(|error| {
+            panic!(
+                "cannot read dedicated test source {} for {}: {error}",
+                coverage.test_source_path, coverage.canary
+            )
+        });
+        let test_declaration = format!("fn {}()", coverage.test_name);
+        let declarations = test_source
+            .match_indices(&test_declaration)
+            .collect::<Vec<_>>();
+        let [(test_start, _)] = declarations.as_slice() else {
+            panic!(
+                "{} must name one exact dedicated test declaration `{test_declaration}`",
+                coverage.canary
+            );
+        };
+        let declaration_prefix = &test_source[..*test_start];
+        let test_attributes_start = declaration_prefix.rfind("#[test]").unwrap_or_else(|| {
+            panic!(
+                "{} dedicated native owner `{}` lost its test attribute",
+                coverage.canary, coverage.test_name
+            )
+        });
+        let test_attributes = &declaration_prefix[test_attributes_start..];
+        assert!(
+            !test_attributes.contains("#[ignore") && !test_attributes.contains("\nfn "),
+            "{} dedicated native owner `{}` must remain an enabled test",
+            coverage.canary,
+            coverage.test_name
+        );
+        let test_tail = &test_source[*test_start..];
+        let test_end = test_tail.find("\n#[test]").unwrap_or(test_tail.len());
+        let test_body = &test_tail[..test_end];
+        assert!(
+            test_body.contains(&format!("pass_canary(\"{}\")", coverage.canary))
+                && test_body.contains("compile_rooted_canary_for_native_host")
+                && test_body.contains("Command::new")
+                && test_body.contains("output.status.code()"),
+            "{} dedicated test must retain authored-root native compile, execution, and exact status coverage",
+            coverage.canary
+        );
+    }
 }
 
 #[test]

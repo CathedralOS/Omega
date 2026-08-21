@@ -1251,6 +1251,7 @@ fn program_storage_entry_publishes_both_core_owned_root_positions() {
                     transfer.receiver(),
                     omega_compiler::ProgramStorageEntryWrapperReceiverTransfer::BorrowedActivationLoan(_)
                 ));
+                assert!(handoff.source_signature().is_none());
                 let staging = handoff.continuation_staging();
                 assert_eq!(staging.continuation_identity(), transfer.continuation_identity());
                 assert!(matches!(

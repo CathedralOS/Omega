@@ -12,6 +12,7 @@ mod float_intrinsic_dispatch;
 pub mod frontend;
 mod operator_adapter_dispatch;
 mod output;
+mod program_entry_source_signature;
 mod program_storage_entry;
 mod program_storage_source_call;
 mod program_storage_wrapper;
@@ -42,6 +43,10 @@ pub use compiler::{
     compile_with_test_entry_and_artifact_policy, compile_with_test_entry_and_worker_count,
     compile_with_test_entry_worker_count_and_artifact_policy,
     compile_with_worker_count_and_artifact_policy,
+};
+pub use program_entry_source_signature::{
+    ProgramEntrySourceReceiverSignature, ProgramEntrySourceResultSignature,
+    ProgramEntrySourceVisibleParameterSignature, SelectedProgramEntrySourceSignature,
 };
 pub use program_storage_entry::{
     InstalledImageSubextent, InstalledProgramStorageRoots, PartitionedProgramStorageRoots,
