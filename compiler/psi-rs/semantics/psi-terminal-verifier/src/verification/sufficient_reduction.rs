@@ -19,8 +19,7 @@ use super::integer_add_subtract::{
 use super::integer_conversion::exact_integer_cast_obligation;
 use super::integer_divide_remainder::{
     exact_integer_divide_obligation_with_definitions,
-    exact_integer_remainder_obligation_with_definitions, saturating_integer_divide_obligation,
-    saturating_integer_remainder_obligation,
+    exact_integer_remainder_obligation_with_definitions, saturating_integer_remainder_obligation,
 };
 use super::integer_multiply::exact_integer_multiply_obligation_with_definitions;
 use super::integer_shift::{exact_integer_shift_left_obligation, exact_integer_shift_obligation};
@@ -166,22 +165,11 @@ pub(super) fn reduce_proof_bearing_scalar_goal(
         | (
             ScalarLeafDenotation::WrappingIntegerRemainder,
             CanonicalScalarGoal::NonzeroDivisor { .. },
-        ) => unreachable!("wrapping divide/remainder bypass legacy sufficient reduction"),
-        (
+        )
+        | (
             ScalarLeafDenotation::SaturatingIntegerDivide,
-            CanonicalScalarGoal::NonzeroDivisor { integer_type, .. },
-        ) => {
-            let ScalarTerm::SaturatingIntegerDivide { left, right, .. } = semantics.denotation()
-            else {
-                unreachable!("canonical saturating-divide denotation retains exact operands")
-            };
-            saturating_integer_divide_obligation(
-                *integer_type,
-                (**left).clone(),
-                (**right).clone(),
-                semantic_axioms,
-            )
-        }
+            CanonicalScalarGoal::NonzeroDivisor { .. },
+        ) => unreachable!("canonical nonzero rows bypass legacy sufficient reduction"),
         (
             ScalarLeafDenotation::SaturatingIntegerRemainder,
             CanonicalScalarGoal::NonzeroDivisor { integer_type, .. },
