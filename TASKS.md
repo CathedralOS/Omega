@@ -1244,11 +1244,17 @@ Owners:
   another trait, and keeps nominal and structural specializations distinct in
   template identity. Checked-only filesystem pass/fail canaries now pin unique
   and overloaded signature-free paths for both nominal callback binders and
-  authored domain routes. Remaining work is the durable checked per-use row
-  (including the selected satisfaction row, separate published/actual
-  envelopes and refinement evidence), target thunk-placement realization,
-  registration lease/unregister lowering, declaration-side ambiguity
-  reporting, and cross-target registered-callback canaries.
+  authored domain routes. The checked identity spine is also implemented:
+  every admitted nominal use retains its exact statement/expression site,
+  static-machine ordinal, registration operation, selected machine and entry,
+  unique satisfaction trait/requirement, and canonical requirement-overload
+  identity. Validation captures that authority before specialization consumes
+  the authored arguments and again after each fixed-point cloning round, while
+  structural machine parameters publish no nominal row. Remaining work is to
+  enrich that row with separate published/actual envelopes and explicit
+  refinement evidence, realize target thunk placement, lower registration
+  leases/unregister, report declaration-side ambiguity, and add cross-target
+  registered-callback canaries.
 - Implement the narrow Windows `user32` canary without exposing a raw code
   address. Derive `Atomic::interruption_fence` same-context evidence from the
   installed external-root route and reject it elsewhere.

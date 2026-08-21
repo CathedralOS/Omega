@@ -88,8 +88,9 @@ struct SpecializationKey {
     evidence_arguments: Vec<u64>,
 }
 
-pub(crate) fn monomorphize_generic_machine_value_calls(
+pub(crate) fn monomorphize_generic_machine_value_calls_with_nominal_uses(
     program: &mut TypedTrees,
+    nominal_uses: &mut Vec<psi_validation::ValidatedNominalMachineUse>,
 ) -> Result<(), Vec<Diagnostic>> {
     materialize_static_const_argument_types(program);
     let mut candidates = Vec::new();
@@ -456,7 +457,9 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
     }
     if diagnostics.is_empty() && applied_any {
         refresh_closed_domain_instance_identities(program).map_err(|error| vec![error])?;
-        monomorphize_generic_machine_value_calls(program)
+        nominal_uses
+            .extend(psi_validation::validate_static_machine_selections_with_facts(program)?);
+        monomorphize_generic_machine_value_calls_with_nominal_uses(program, nominal_uses)
     } else if diagnostics.is_empty() {
         Ok(())
     } else {

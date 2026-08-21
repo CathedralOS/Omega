@@ -55,6 +55,7 @@ pub(crate) fn build_check_facts(
     proof_plan: &ProofPlan<'_>,
     operational: OperationalPlan,
     validation_facts: &psi_validation::ProgramValidationFacts,
+    nominal_machine_uses: Vec<psi_validation::ValidatedNominalMachineUse>,
 ) -> Result<CheckFacts, Vec<psi_diagnostics::Diagnostic>> {
     let borrow = build_borrow_facts(program);
     let mut values = build_value_facts(program, proof_plan);
@@ -67,6 +68,28 @@ pub(crate) fn build_check_facts(
     let mut semantic = build_semantic_facts(program, &proof);
     let domains = build_domain_facts(program, &semantic);
     let dynamic_conformances = build_dynamic_conformance_facts(program)?;
+    let nominal_machine_uses = psi_checked_trees::NominalMachineUseFacts::try_with_uses(
+        nominal_machine_uses.into_iter().map(|nominal_use| {
+            psi_checked_trees::CheckedNominalMachineUse {
+                site: match nominal_use.site {
+                    psi_validation::ValidatedNominalMachineUseSite::Statement(handle) => {
+                        psi_checked_trees::NominalMachineUseSite::Statement(handle)
+                    }
+                    psi_validation::ValidatedNominalMachineUseSite::Expression(handle) => {
+                        psi_checked_trees::NominalMachineUseSite::Expression(handle)
+                    }
+                },
+                registration_operation: nominal_use.registration_operation,
+                static_machine_ordinal: nominal_use.static_machine_ordinal,
+                selected_machine: nominal_use.selected_machine,
+                selected_entry: nominal_use.selected_entry,
+                satisfaction_trait: nominal_use.satisfaction_trait,
+                satisfaction_requirement: nominal_use.satisfaction_requirement,
+                canonical_requirement_overload: nominal_use.canonical_requirement_overload,
+            }
+        }),
+    )
+    .map_err(|message| vec![psi_diagnostics::Diagnostic::error(message)])?;
     let service_reach_inference = psi_effects::infer_service_reaches(program, &operational);
     let mut flow = build_flow_facts_with_service_reaches(
         program,
@@ -138,6 +161,7 @@ pub(crate) fn build_check_facts(
         invariants,
         domains,
         dynamic_conformances,
+        nominal_machine_uses,
         operators,
         capabilities,
         flow,

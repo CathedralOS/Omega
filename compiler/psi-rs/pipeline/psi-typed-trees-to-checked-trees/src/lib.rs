@@ -43,11 +43,21 @@ pub fn normalize_open_index_identities(
 pub fn specialize_static_machine_calls(
     program: &mut psi_typed_trees::TypedTrees,
 ) -> Result<(), Vec<psi_diagnostics::Diagnostic>> {
+    specialize_static_machine_calls_with_nominal_uses(program).map(|_| ())
+}
+
+pub(crate) fn specialize_static_machine_calls_with_nominal_uses(
+    program: &mut psi_typed_trees::TypedTrees,
+) -> Result<Vec<psi_validation::ValidatedNominalMachineUse>, Vec<psi_diagnostics::Diagnostic>> {
     conformance_application_lifetimes::resolve_elided_conformance_lifetimes(program)?;
     conformance_applications::validate_conformance_applications(program)?;
-    psi_validation::validate_static_machine_selections(program)?;
+    let mut nominal_uses = psi_validation::validate_static_machine_selections_with_facts(program)?;
     psi_validation::validate_generic_machine_contract_entailment(program)?;
-    monomorphization::monomorphize_generic_machine_value_calls(program)
+    monomorphization::monomorphize_generic_machine_value_calls_with_nominal_uses(
+        program,
+        &mut nominal_uses,
+    )?;
+    Ok(nominal_uses)
 }
 
 /// Derive the checked body-local termination summary for one typed machine.

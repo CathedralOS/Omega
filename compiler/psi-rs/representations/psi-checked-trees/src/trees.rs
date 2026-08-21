@@ -1,8 +1,8 @@
 use crate::{
     BlockingFacts, BorrowFacts, CarryFacts, CheckedOperatorFacts, CheckedValueFacts, DomainFacts,
     DynamicConformanceFacts, FlowFacts, IndexCompatibilityFacts, InvariantFacts,
-    MachineContractPlans, MutationFacts, ProofFacts, QualificationFacts, ServiceReachFacts,
-    SuspensionFacts, SynchronousInvocationFacts, TerminationFacts,
+    MachineContractPlans, MutationFacts, NominalMachineUseFacts, ProofFacts, QualificationFacts,
+    ServiceReachFacts, SuspensionFacts, SynchronousInvocationFacts, TerminationFacts,
 };
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -16,6 +16,9 @@ pub struct CheckFacts {
     /// Exact complete nominal conformance selected by each admitted local
     /// dynamic coercion.
     pub dynamic_conformances: DynamicConformanceFacts,
+    /// ENT4: exact nominal machine satisfaction selected for each admitted
+    /// static machine argument, before specialization consumes its syntax.
+    pub nominal_machine_uses: NominalMachineUseFacts,
     pub operators: CheckedOperatorFacts,
     pub capabilities: psi_effects::CapabilityFlowPlan,
     pub flow: FlowFacts,
@@ -61,6 +64,7 @@ impl CheckFacts {
         invariants: InvariantFacts,
         domains: DomainFacts,
         dynamic_conformances: DynamicConformanceFacts,
+        nominal_machine_uses: NominalMachineUseFacts,
         operators: CheckedOperatorFacts,
         capabilities: psi_effects::CapabilityFlowPlan,
         flow: FlowFacts,
@@ -83,6 +87,7 @@ impl CheckFacts {
             invariants,
             domains,
             dynamic_conformances,
+            nominal_machine_uses,
             operators,
             capabilities,
             flow,

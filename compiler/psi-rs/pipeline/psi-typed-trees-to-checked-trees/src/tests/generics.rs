@@ -114,6 +114,28 @@ fn nominal_machine_parameter_accepts_one_explicit_exact_satisfaction_row() {
             && requirement.name.as_str() == "call"
     ));
     let register_symbol = register.symbol;
+    let register_entry = typed.machine_states(register)[0].symbol;
+    let chosen = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "chosen")
+        .expect("chosen machine");
+    let chosen_symbol = chosen.symbol;
+    let chosen_entry = typed.machine_states(chosen)[0].symbol;
+    let (satisfaction_trait, satisfaction_requirement, canonical_requirement_overload) =
+        match typed.machine_parameter_contract_view(contract) {
+            Some(psi_typed_trees::data::MachineParameterContractView::Nominal {
+                trait_definition,
+                requirement,
+            }) => (
+                trait_definition.symbol,
+                requirement.symbol,
+                typed
+                    .normalized_trait_requirement_overload_identity(trait_definition, requirement)
+                    .identity(),
+            ),
+            _ => unreachable!("Selected has a nominal contract"),
+        };
 
     let checked = lower_typed_trees(typed)
         .expect("an explicitly satisfied exact nominal requirement should specialize");
@@ -124,6 +146,151 @@ fn nominal_machine_parameter_accepts_one_explicit_exact_satisfaction_row() {
             .any(|specialization| specialization.template == register_symbol
                 && specialization.machine_arguments.len() == 1)
     );
+    assert_eq!(checked.facts.nominal_machine_uses.uses.len(), 1);
+    let nominal_use = &checked.facts.nominal_machine_uses.uses[0];
+    assert_eq!(nominal_use.registration_operation, register_entry);
+    assert_eq!(nominal_use.static_machine_ordinal, 0);
+    assert_eq!(nominal_use.selected_machine, chosen_symbol);
+    assert_eq!(nominal_use.selected_entry, chosen_entry);
+    assert_eq!(nominal_use.satisfaction_trait, satisfaction_trait);
+    assert_eq!(
+        nominal_use.satisfaction_requirement,
+        satisfaction_requirement
+    );
+    assert_eq!(
+        nominal_use.canonical_requirement_overload,
+        canonical_requirement_overload
+    );
+}
+
+#[test]
+fn nominal_machine_use_identity_survives_forwarded_specialization_rounds() {
+    let source = r#"
+        trait Handler {
+            machine call(value: i32) -> i32;
+        }
+
+        machine chosen(value: i32) -> i32
+        satisfies Handler::call
+        {
+            value
+        }
+
+        machine inner<machine Selected>(value: i32) -> i32
+        where machine Selected satisfies Handler::call;
+        {
+            Selected(value)
+        }
+
+        machine outer<machine Forwarded>(value: i32) -> i32
+        where machine Forwarded satisfies Handler::call;
+        {
+            inner<Forwarded>(value)
+        }
+
+        machine caller(value: i32) -> i32 {
+            outer<chosen>(value)
+        }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let chosen_symbol = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "chosen")
+        .expect("chosen machine")
+        .symbol;
+
+    let checked = lower_typed_trees(typed)
+        .expect("a forwarded exact nominal requirement should specialize transitively");
+    let selected_uses = checked
+        .facts
+        .nominal_machine_uses
+        .uses
+        .iter()
+        .filter(|nominal_use| nominal_use.selected_machine == chosen_symbol)
+        .collect::<Vec<_>>();
+
+    assert_eq!(selected_uses.len(), 2);
+    assert_ne!(
+        selected_uses[0].registration_operation,
+        selected_uses[1].registration_operation
+    );
+}
+
+#[test]
+fn nominal_machine_uses_keep_distinct_authored_call_sites() {
+    let source = r#"
+        trait Handler {
+            machine call(value: i32) -> i32;
+        }
+
+        machine chosen(value: i32) -> i32
+        satisfies Handler::call
+        {
+            value
+        }
+
+        machine register<machine Selected>(value: i32) -> i32
+        where machine Selected satisfies Handler::call;
+        {
+            Selected(value)
+        }
+
+        machine caller(value: i32) -> i32 {
+            let first: i32 = register<chosen>(value);
+            register<chosen>(first)
+        }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+
+    let checked = lower_typed_trees(typed).expect("both nominal uses should specialize");
+    let uses = &checked.facts.nominal_machine_uses.uses;
+
+    assert_eq!(uses.len(), 2);
+    assert_ne!(uses[0].site, uses[1].site);
+    assert_eq!(
+        uses[0].registration_operation,
+        uses[1].registration_operation
+    );
+}
+
+#[test]
+fn structural_machine_selection_publishes_no_nominal_use_row() {
+    let source = r#"
+        machine chosen(value: i32) -> i32 {
+            value
+        }
+
+        machine register<machine Selected>(value: i32) -> i32
+        where machine Selected(value: i32) -> i32;
+        {
+            Selected(value)
+        }
+
+        machine caller(value: i32) -> i32 {
+            register<chosen>(value)
+        }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+
+    let checked = lower_typed_trees(typed).expect("the structural use should specialize");
+
+    assert!(checked.facts.nominal_machine_uses.uses.is_empty());
 }
 
 #[test]

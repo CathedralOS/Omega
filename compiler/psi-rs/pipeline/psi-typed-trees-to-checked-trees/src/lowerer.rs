@@ -20,7 +20,8 @@ pub(crate) fn lower_typed_trees(
     // template fingerprint. Normalize again afterward to cover cloned
     // expression handles and concrete substitutions.
     crate::normalize_open_index_identities(&mut program)?;
-    crate::specialize_static_machine_calls(&mut program)?;
+    let nominal_machine_uses =
+        crate::specialize_static_machine_calls_with_nominal_uses(&mut program)?;
     crate::normalize_open_index_identities(&mut program)?;
     // F2b: unsuffixed float literals at declared f32/f64 destinations land
     // their format on the text carrier HERE, while the tree is still mutable
@@ -44,6 +45,7 @@ pub(crate) fn lower_typed_trees(
         &validated.proof_plan,
         validated.operational,
         &validated.validation_facts,
+        nominal_machine_uses,
     )?;
 
     // MP5: specialization selection happens before checked contract plans

@@ -439,6 +439,16 @@ Current ownership is:
   compiled imports still require the corresponding artifact-capsule input;
   that input is design blocked until the semantic import/export carrier,
   symbol identity, and certificate binding are specified.
+  Nominal static-machine selections additionally publish an independent
+  checked per-use identity table before monomorphization consumes their syntax.
+  Its key is the statement/expression call site plus static-machine ordinal;
+  its payload pins the registration operation, selected machine and entry,
+  unique satisfaction trait/requirement, and canonical requirement overload.
+  The monomorphization fixed point captures newly concrete forwarded uses after
+  each cloning round. Exact duplicate observations collapse, a conflicting row
+  at one key rejects, and structural selections do not enter this nominal
+  table. Callback envelope/refinement and thunk-placement plans are not yet
+  fields of this identity slice.
   Published routes are removed
   only when the call evaluator proves them false; proved-true routes become
   unconditional, unknown routes are re-encoded in the caller's positional

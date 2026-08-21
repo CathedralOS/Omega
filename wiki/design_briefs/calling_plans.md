@@ -565,6 +565,16 @@ from actual to published. The foreign protocol relies on the published
 envelope; installation, resource, reach, and crash reasoning may use the
 narrower actual envelope.
 
+The checked identity spine is live. Admission records the exact statement or
+expression handle, argument ordinal, registration operation, selected machine
+and entry, unique satisfaction trait/requirement pair, and canonical overload
+identity before specialization erases the static argument. The specialization
+fixed point repeats admission after cloning so a forwarded generic selection
+receives its own durable call-site row. Exact repeated observations collapse;
+conflicting identities for one site and ordinal reject. Structural machine
+parameters deliberately produce no nominal-use row. Published/actual envelope
+projection, refinement evidence, and target placement remain later slices.
+
 Lowering alone materializes the thunk relocation at the plan's exact native
 argument or nested field. Neither the static machine argument nor its address
 becomes an Omega runtime value. A retained `Registration` keeps the exact
