@@ -38,7 +38,9 @@ pub(super) struct DirectTerminalRelationPlan {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum RelationPlanError {
     UnresolvedArgumentType(usize),
+    UnresolvedInputRelationApplication(usize),
     ResultIsNotQuotient,
+    UnresolvedResultRelationApplication,
 }
 
 impl fmt::Display for RelationPlanError {
@@ -48,8 +50,15 @@ impl fmt::Display for RelationPlanError {
                 formatter,
                 "argument {position} has no exact declared type; adapted lift arguments require later expression typing"
             ),
+            Self::UnresolvedInputRelationApplication(position) => write!(
+                formatter,
+                "argument {position}'s quotient relation has an open binder application that requires the representative-operation telescope"
+            ),
             Self::ResultIsNotQuotient => formatter
                 .write_str("the enclosing state's exact result type is not a formed quotient"),
+            Self::UnresolvedResultRelationApplication => formatter.write_str(
+                "the result quotient relation has an open binder application that requires the representative-operation result telescope",
+            ),
         }
     }
 }
@@ -70,27 +79,61 @@ pub(super) fn derive_direct_terminal_plan(
         let argument_type =
             crate::places::declared_place_type_raw(program, machine, Some(state), *argument)
                 .ok_or(RelationPlanError::UnresolvedArgumentType(position))?;
-        input_relations.push(
-            exact_quotient_relation(program, argument_type)
-                .map(InputRelation::Quotient)
-                .unwrap_or(InputRelation::ExactEquality(argument_type)),
-        );
+        input_relations.push(match exact_quotient_relation(program, argument_type) {
+            ExactRelationLookup::NotQuotient => InputRelation::ExactEquality(argument_type),
+            ExactRelationLookup::Exact(relation) => InputRelation::Quotient(relation),
+            ExactRelationLookup::OpenApplication => {
+                return Err(RelationPlanError::UnresolvedInputRelationApplication(
+                    position,
+                ));
+            }
+        });
     }
-    let result_relation = exact_quotient_relation(program, state.return_type)
-        .ok_or(RelationPlanError::ResultIsNotQuotient)?;
+    let result_relation = match exact_quotient_relation(program, state.return_type) {
+        ExactRelationLookup::NotQuotient => return Err(RelationPlanError::ResultIsNotQuotient),
+        ExactRelationLookup::Exact(relation) => relation,
+        ExactRelationLookup::OpenApplication => {
+            return Err(RelationPlanError::UnresolvedResultRelationApplication);
+        }
+    };
     Ok(DirectTerminalRelationPlan {
         input_relations,
         result_relation,
     })
 }
 
+enum ExactRelationLookup {
+    NotQuotient,
+    Exact(ExactQuotientRelation),
+    OpenApplication,
+}
+
 fn exact_quotient_relation(
     program: &TypedTrees,
     quotient_type: TypeReferenceHandle,
-) -> Option<ExactQuotientRelation> {
-    let quotient = super::quotient_for_type(program, quotient_type)?;
-    let metadata = quotient.quotient.as_ref()?;
-    Some(ExactQuotientRelation {
+) -> ExactRelationLookup {
+    let Some(quotient) = super::quotient_for_type(program, quotient_type) else {
+        return ExactRelationLookup::NotQuotient;
+    };
+    let Some(metadata) = quotient.quotient.as_ref() else {
+        return ExactRelationLookup::NotQuotient;
+    };
+    let Some(relation) = program
+        .propositions()
+        .iter()
+        .find(|relation| relation.symbol == metadata.relation_symbol)
+    else {
+        return ExactRelationLookup::OpenApplication;
+    };
+    if !program.proposition_binders(relation).is_empty() {
+        // The quotient declaration retains the relation declaration identity,
+        // but not the closed application needed for heterogeneous families.
+        // That application must come from the fully instantiated
+        // representative operation telescope; guessing it from the quotient
+        // type would collapse independently quantified I/J/K binders.
+        return ExactRelationLookup::OpenApplication;
+    }
+    ExactRelationLookup::Exact(ExactQuotientRelation {
         quotient_type,
         quotient_symbol: quotient.symbol,
         relation_symbol: metadata.relation_symbol,
@@ -149,6 +192,9 @@ mod tests {
     };
     use psi_typed_trees::machine::Machine;
     use psi_typed_trees::name::Identifier;
+    use psi_typed_trees::proposition::{
+        PropositionBinder, PropositionBinderKind, PropositionDefinition,
+    };
     use psi_typed_trees::signature::StateParameter;
     use psi_typed_trees::state::State;
     use psi_typed_trees::statement::StatementNode;
@@ -166,6 +212,17 @@ mod tests {
         relation_name: &'static str,
     ) -> TypeReferenceHandle {
         let carrier = program.type_reference_table.insert(TypeReferenceNode::Unit);
+        if !program
+            .propositions()
+            .iter()
+            .any(|proposition| proposition.symbol == relation_symbol)
+        {
+            program.push_proposition(PropositionDefinition {
+                symbol: relation_symbol,
+                name: Identifier::generated_static(relation_name),
+                ..Default::default()
+            });
+        }
         program.push_data_definition(DataDefinition {
             symbol: quotient_symbol,
             name: Identifier::generated_static(quotient_name),
@@ -324,6 +381,50 @@ mod tests {
         assert_eq!(
             derive_direct_terminal_plan(&program, &Machine::default(), &state, &call),
             Err(RelationPlanError::ResultIsNotQuotient)
+        );
+    }
+
+    #[test]
+    fn direct_plan_rejects_open_relation_application_without_operation_telescope() {
+        let mut program = TypedTrees::default();
+        let mut relation = PropositionDefinition {
+            symbol: symbol(2),
+            name: Identifier::generated_static("IndexedR"),
+            ..Default::default()
+        };
+        program.push_proposition_binder(
+            &mut relation,
+            PropositionBinder {
+                symbol: symbol(3),
+                name: Identifier::generated_static("I"),
+                kind: PropositionBinderKind::Machine,
+                ..Default::default()
+            },
+        );
+        program.push_proposition(relation);
+        let quotient_type =
+            quotient_type(&mut program, symbol(1), "IndexedQ", symbol(2), "IndexedR");
+        let value_symbol = symbol(4);
+        let value = named_argument(&mut program, "value", value_symbol);
+        let arguments = program.expression_table.insert_expression_handles([value]);
+        let call = call_with_arguments(arguments);
+        let mut state = State {
+            return_type: quotient_type,
+            ..Default::default()
+        };
+        program.push_state_parameter(
+            &mut state,
+            StateParameter {
+                symbol: value_symbol,
+                name: Identifier::generated_static("value"),
+                type_reference: quotient_type,
+                ..Default::default()
+            },
+        );
+
+        assert_eq!(
+            derive_direct_terminal_plan(&program, &Machine::default(), &state, &call),
+            Err(RelationPlanError::UnresolvedInputRelationApplication(0))
         );
     }
 
