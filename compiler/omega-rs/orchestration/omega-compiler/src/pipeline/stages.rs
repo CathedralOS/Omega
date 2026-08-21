@@ -515,7 +515,7 @@ pub(super) fn control_flow_to_backend_plan(
 }
 
 fn plan_emission(plan: &omega_backend_plan::BackendPlan) -> omega_artifacts::EmissionPlan {
-    build_emission_plan(&EmissionPlanningInput {
+    let mut emission = build_emission_plan(&EmissionPlanningInput {
         receiver_bases: &plan.receiver_bases,
         state_contexts: &plan.state_contexts,
         target: plan.target,
@@ -540,7 +540,80 @@ fn plan_emission(plan: &omega_backend_plan::BackendPlan) -> omega_artifacts::Emi
         encoded_machine: &plan.encoded_machine,
         object: &plan.object,
         relocations: &plan.relocations,
-    })
+    });
+    retain_callback_thunk_emission_blockers(
+        &mut emission,
+        &plan.callback_thunks,
+        &plan.encoded_machine,
+        &plan.object,
+    );
+    emission
+}
+
+/// Callback planning is authority, not evidence that native code exists. Keep
+/// image emission fail-closed until every private identity owns one exact
+/// encoded function and one matching private text symbol.
+fn retain_callback_thunk_emission_blockers(
+    emission: &mut omega_artifacts::EmissionPlan,
+    callback_thunks: &[omega_backend_plan::CallbackThunkPlan],
+    encoded_machine: &omega_machine_bytes::EncodedMachinePlan,
+    object: &omega_object_file::ObjectPlan,
+) {
+    for thunk in callback_thunks {
+        let encoded = encoded_machine
+            .code
+            .functions
+            .iter()
+            .find_map(|(_, function)| {
+                (function.symbol.as_ref() == thunk.private_symbol.as_ref()
+                    && function.source_key == thunk.entry_key)
+                    .then_some(function)
+            });
+        let Some(encoded) = encoded else {
+            emission.blockers.insert(omega_artifacts::emission_blocker(
+                "callback thunk emission",
+                &format!(
+                    "planned private callback `{}` has no exact encoded function for {:?}",
+                    thunk.private_symbol, thunk.entry_key
+                ),
+            ));
+            continue;
+        };
+
+        let symbols = object
+            .layout
+            .symbols
+            .iter()
+            .filter(|(_, symbol)| symbol.name == thunk.private_symbol.as_ref())
+            .map(|(_, symbol)| symbol)
+            .collect::<Vec<_>>();
+        if symbols.len() != 1 {
+            emission.blockers.insert(omega_artifacts::emission_blocker(
+                "callback thunk emission",
+                &format!(
+                    "planned private callback `{}` resolves to {} object symbols; exactly one is required",
+                    thunk.private_symbol,
+                    symbols.len()
+                ),
+            ));
+            continue;
+        }
+        let symbol = symbols[0];
+        if symbol.kind != omega_object_file::SymbolKind::Function
+            || symbol.section
+                != omega_object_file::SymbolSection::Section(omega_object_file::SectionKind::Text)
+            || symbol.offset != encoded.byte_offset
+            || symbol.size != encoded.byte_count
+        {
+            emission.blockers.insert(omega_artifacts::emission_blocker(
+                "callback thunk emission",
+                &format!(
+                    "planned private callback `{}` object symbol does not match its encoded function interval",
+                    thunk.private_symbol
+                ),
+            ));
+        }
+    }
 }
 
 pub(super) fn ensure_emission_ready(
@@ -615,4 +688,84 @@ fn record_backend_phase_as_stage(
         phase_timing.allocations.clone(),
     );
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use omega_control_flow::StateKey;
+    use std::sync::Arc;
+
+    fn empty_emission(target: NativeTarget) -> omega_artifacts::EmissionPlan {
+        omega_artifacts::EmissionPlan {
+            image_format: target.object_format,
+            entry_symbol: String::new(),
+            sections: 0,
+            symbols: 0,
+            host_bindings: 0,
+            host_calls: 0,
+            data_bytes: 0,
+            selected_instructions: 0,
+            instruction_operands: 0,
+            machine_code_bytes: 0,
+            encoded_machine_bytes: 0,
+            relocations: 0,
+            blockers: psi_arena::Arena::new(),
+        }
+    }
+
+    #[test]
+    fn callback_thunk_emission_requires_exact_function_and_private_symbol() {
+        let target = NativeTarget::host();
+        let entry_key = StateKey::default();
+        let thunk = omega_backend_plan::CallbackThunkPlan {
+            placement_index: 0,
+            entry_key,
+            private_symbol: Arc::from("__omega_callback_test"),
+        };
+        let mut encoded = omega_machine_bytes::EncodedMachinePlan::with_capacity(target, 1, 0, 0);
+        encoded
+            .code
+            .functions
+            .insert(omega_machine_bytes::EncodedMachineFunction {
+                symbol: Arc::clone(&thunk.private_symbol),
+                source_key: entry_key,
+                byte_offset: 7,
+                byte_count: 11,
+                instructions: Default::default(),
+            });
+        let mut object = omega_object_file::ObjectPlan::with_capacity(target, 0, 1);
+        object.layout.symbols.insert(omega_object_file::SymbolPlan {
+            name: thunk.private_symbol.to_string(),
+            section: omega_object_file::SymbolSection::Section(
+                omega_object_file::SectionKind::Text,
+            ),
+            offset: 7,
+            size: 11,
+            kind: omega_object_file::SymbolKind::Function,
+            import_library: String::new(),
+        });
+        let mut emission = empty_emission(target);
+
+        retain_callback_thunk_emission_blockers(
+            &mut emission,
+            std::slice::from_ref(&thunk),
+            &encoded,
+            &object,
+        );
+        assert!(emission.blockers.is_empty());
+
+        encoded.code.functions = psi_arena::Arena::new();
+        retain_callback_thunk_emission_blockers(
+            &mut emission,
+            std::slice::from_ref(&thunk),
+            &encoded,
+            &object,
+        );
+        let [blocker] = emission.blockers.storage_slice() else {
+            panic!("one missing callback function should retain one blocker")
+        };
+        assert_eq!(blocker.stage, "callback thunk emission");
+        assert!(blocker.reason.contains("no exact encoded function"));
+    }
 }

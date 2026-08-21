@@ -469,6 +469,7 @@ fn compiler_functions_retain_a_complete_final_instruction_partition() {
         ..EncodedMachineInstruction::default()
     });
     let function = plan.code.functions.insert(EncodedMachineFunction {
+        symbol: std::sync::Arc::from("entry"),
         source_key: Default::default(),
         byte_offset: 0,
         byte_count: final_bytes.len(),

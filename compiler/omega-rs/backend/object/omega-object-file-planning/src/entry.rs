@@ -1,6 +1,7 @@
 use crate::input::ObjectPlanningInput;
 use omega_layout::MachineLayout;
 use omega_machine_bytes::EncodedMachineFunction;
+use omega_object_file::entry_symbol_name;
 use psi_diagnostics::Diagnostic;
 
 pub(crate) fn entry_machine_layout<'plan>(
@@ -28,12 +29,16 @@ pub(crate) fn entry_function<'plan>(
         .code
         .functions
         .iter()
-        .find(|(_, function)| function.source_key == input.entry_state_key)
+        .find(|(_, function)| {
+            function.source_key == input.entry_state_key
+                && function.symbol.as_ref() == entry_symbol_name(input.target)
+        })
         .map(|(_, function)| function)
         .ok_or_else(|| {
             Diagnostic::error(format!(
-                "missing encoded entry function for state key {:?}",
-                input.entry_state_key
+                "missing encoded entry function `{}` for state key {:?}",
+                entry_symbol_name(input.target),
+                input.entry_state_key,
             ))
         })
 }

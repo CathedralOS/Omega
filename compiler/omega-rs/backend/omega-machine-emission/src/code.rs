@@ -45,6 +45,7 @@ pub(crate) fn build_encoded_machine_code(
         )?;
         let byte_count = code.bytes.len() - byte_offset;
         code.functions.insert(EncodedMachineFunction {
+            symbol: std::sync::Arc::clone(&function.symbol),
             source_key: function.source_key,
             byte_offset,
             byte_count,
