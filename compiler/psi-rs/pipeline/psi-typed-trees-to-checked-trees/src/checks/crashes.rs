@@ -11,11 +11,14 @@ use psi_checked_trees::{CheckFacts, CrashRouteGuard};
 use psi_diagnostics::Diagnostic;
 use psi_typed_trees::TypedTrees;
 
-pub(crate) fn infer_path_conditioned_guard_coverage(program: &TypedTrees, facts: &mut CheckFacts) {
+pub(crate) fn infer_path_conditioned_guard_coverage(
+    program: &TypedTrees,
+    facts: &mut CheckFacts,
+    incoming_guards: &super::ranges::incoming_guards::IncomingGuardIndex,
+) {
     let content_conservation = psi_validation::build_content_conservation_plans(program);
     for machine in program.machines() {
-        let incoming =
-            super::ranges::incoming_guards::collect_incoming_guard_facts(program, machine);
+        let incoming = incoming_guards.for_machine(machine.symbol);
         let parameter_names = program
             .machine_states(machine)
             .first()

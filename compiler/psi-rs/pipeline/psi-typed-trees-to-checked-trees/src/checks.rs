@@ -32,6 +32,9 @@ pub(crate) fn check_checked_facts_recording(
     facts: &mut psi_checked_trees::CheckFacts,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
+    let call_frames = psi_validation::CallFrameResolver::new(program);
+    let incoming_guards =
+        ranges::incoming_guards::IncomingGuardIndex::build(program, call_frames.as_ref());
 
     if let Err(mut evidence_diagnostics) = contracts::bind_call_evidence_arguments(program, facts) {
         diagnostics.append(&mut evidence_diagnostics);
@@ -41,17 +44,19 @@ pub(crate) fn check_checked_facts_recording(
         diagnostics.append(&mut borrow_diagnostics);
     }
 
-    if let Err(mut contract_diagnostics) = contracts::check_flow_call_contracts(program, facts) {
+    if let Err(mut contract_diagnostics) =
+        contracts::check_flow_call_contracts(program, facts, &incoming_guards)
+    {
         diagnostics.append(&mut contract_diagnostics);
     }
 
     if let Err(mut multiplicity_diagnostics) =
-        multiplicity::check_linear_obligations(program, facts)
+        multiplicity::check_linear_obligations(program, facts, &incoming_guards)
     {
         diagnostics.append(&mut multiplicity_diagnostics);
     }
 
-    crashes::infer_path_conditioned_guard_coverage(program, facts);
+    crashes::infer_path_conditioned_guard_coverage(program, facts, &incoming_guards);
     if let Err(mut crash_diagnostics) = crashes::check_call_ceiling_coverage(program, facts) {
         diagnostics.append(&mut crash_diagnostics);
     }
@@ -71,7 +76,7 @@ pub(crate) fn check_checked_facts_recording(
         diagnostics.append(&mut operator_diagnostics);
     }
 
-    if let Err(mut range_diagnostics) = ranges::check_indexed_accesses(program) {
+    if let Err(mut range_diagnostics) = ranges::check_indexed_accesses(program, &incoming_guards) {
         diagnostics.append(&mut range_diagnostics);
     }
 

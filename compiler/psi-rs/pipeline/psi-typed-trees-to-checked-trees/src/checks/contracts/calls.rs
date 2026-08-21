@@ -19,6 +19,7 @@ pub(super) fn check_call_requires(
     facts: &CheckFacts,
     state_flow: &FlowStateFact,
     call_flow: &FlowCallFact,
+    incoming_guards: &[crate::checks::ranges::incoming_guards::IncomingGuard],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     // The state-parameter domain facts (origin StateParameterDomain, surfaced at
@@ -73,6 +74,7 @@ pub(super) fn check_call_requires(
                             state_flow,
                             call_flow,
                             expression,
+                            incoming_guards,
                         )
                     }
                 }
@@ -448,6 +450,7 @@ fn incoming_guard_proves_requires(
     state_flow: &FlowStateFact,
     call_flow: &FlowCallFact,
     expression: psi_typed_trees::expression::ExpressionHandle,
+    incoming: &[crate::checks::ranges::incoming_guards::IncomingGuard],
 ) -> bool {
     let Some(machine) = program
         .machines()
@@ -484,8 +487,6 @@ fn incoming_guard_proves_requires(
         target_parameters,
         expression,
     );
-    let incoming =
-        crate::checks::ranges::incoming_guards::collect_incoming_guard_facts(program, machine);
     let guard_matches = incoming
         .iter()
         .filter(|guard| guard.holds_at(state_flow.state_symbol))

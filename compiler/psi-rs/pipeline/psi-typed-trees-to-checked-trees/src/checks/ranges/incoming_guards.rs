@@ -29,6 +29,47 @@ pub(in crate::checks) struct IncomingGuard {
     parameter_argument_places: Option<Vec<(SymbolHandle, Option<crate::flow::CanonicalPlace>)>>,
 }
 
+/// Program-wide incoming-guard analysis shared by checker consumers.
+///
+/// Guard discovery and conservative call-write resolution depend only on the
+/// typed program. Keeping the machine results here prevents ranges, contracts,
+/// crash coverage, and multiplicity from independently repeating the same
+/// whole-program work.
+pub(in crate::checks) struct IncomingGuardIndex {
+    machines: Vec<(SymbolHandle, Vec<IncomingGuard>)>,
+}
+
+impl IncomingGuardIndex {
+    pub(in crate::checks) fn build(
+        program: &psi_typed_trees::TypedTrees,
+        call_frames: Option<&psi_validation::CallFrameResolver<'_>>,
+    ) -> Self {
+        Self {
+            machines: program
+                .machines()
+                .iter()
+                .map(|machine| {
+                    (
+                        machine.symbol,
+                        collect_incoming_guard_facts_with_call_frames(
+                            program,
+                            machine,
+                            call_frames,
+                        ),
+                    )
+                })
+                .collect(),
+        }
+    }
+
+    pub(in crate::checks) fn for_machine(&self, machine: SymbolHandle) -> &[IncomingGuard] {
+        self.machines
+            .iter()
+            .find_map(|(symbol, guards)| (*symbol == machine).then_some(guards.as_slice()))
+            .unwrap_or_default()
+    }
+}
+
 impl IncomingGuard {
     pub(in crate::checks) fn applies_at(&self, state: SymbolHandle) -> bool {
         self.state == state
@@ -108,9 +149,13 @@ enum StateWrites {
 /// the rewrite check. Source-state locals do not become raw range facts in a
 /// target scope. Named-edge parameter rebinding is retained separately as a
 /// complete composed label map for consumers that explicitly understand it.
-pub(in crate::checks) fn collect_incoming_guard_facts(
+/// Building the shared call-frame resolver reconstructs the top-level symbol
+/// index, so batch consumers pass one in instead of paying that whole-program
+/// cost once per machine (or, in contract checking, once per call).
+pub(in crate::checks) fn collect_incoming_guard_facts_with_call_frames(
     program: &psi_typed_trees::TypedTrees,
     machine: &Machine,
+    call_frames: Option<&psi_validation::CallFrameResolver<'_>>,
 ) -> Vec<IncomingGuard> {
     let mut edges: Vec<Edge> = Vec::new();
     for state in program.machine_states(machine) {
@@ -171,14 +216,13 @@ pub(in crate::checks) fn collect_incoming_guard_facts(
         }
     }
 
-    let call_frames = psi_validation::CallFrameResolver::new(program);
     let writes: Vec<(SymbolHandle, StateWrites)> = program
         .machine_states(machine)
         .iter()
         .map(|state| {
             (
                 state.symbol,
-                state_writes(program, machine, state, call_frames.as_ref()),
+                state_writes(program, machine, state, call_frames),
             )
         })
         .collect();

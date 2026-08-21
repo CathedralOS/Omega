@@ -22,6 +22,7 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::Instant;
 
 static NEXT_NATIVE_STAGE: AtomicU64 = AtomicU64::new(1);
 const NATIVE_DIFFERENTIAL_ENTRY: &str = "omega_native_differential_entry";
@@ -1332,7 +1333,7 @@ const EXCLUDED_RUN_CANARIES: &[(&str, &str)] = &[
     ),
 ];
 
-/// Drift guard: re-parse `canary_suite.rs` at test time and assert every
+/// Drift guard: re-parse the modular `canary_suite` source tree at test time and assert every
 /// `*_canary_runs` test that calls `pass_canary(..)` and asserts `Some(code)` is
 /// mirrored in `RUN_CANARIES` (or explicitly listed in `EXCLUDED_RUN_CANARIES`).
 /// Fails with copy-paste-ready entries when the lists drift.
@@ -1342,12 +1343,33 @@ fn run_canary_list_matches_canary_suite() {
 
     let suite_path =
         repo_root().join("compiler/omega-rs/orchestration/omega-compiler/tests/canary_suite.rs");
-    let source = fs::read_to_string(&suite_path).unwrap_or_else(|error| {
+    let mut source = fs::read_to_string(&suite_path).unwrap_or_else(|error| {
         panic!(
             "failed to read canary suite source at {}: {error}",
             suite_path.display()
         )
     });
+    let suite_modules = suite_path.with_file_name("canary_suite");
+    let mut module_paths: Vec<_> = fs::read_dir(&suite_modules)
+        .unwrap_or_else(|error| {
+            panic!(
+                "failed to read canary suite modules at {}: {error}",
+                suite_modules.display()
+            )
+        })
+        .map(|entry| entry.expect("read canary suite module entry").path())
+        .filter(|path| path.extension().is_some_and(|extension| extension == "rs"))
+        .collect();
+    module_paths.sort();
+    for module_path in module_paths {
+        source.push('\n');
+        source.push_str(&fs::read_to_string(&module_path).unwrap_or_else(|error| {
+            panic!(
+                "failed to read canary suite module at {}: {error}",
+                module_path.display()
+            )
+        }));
+    }
 
     let parsed = parse_suite_run_canaries(&source);
     assert!(
@@ -1436,8 +1458,8 @@ fn run_canary_list_matches_canary_suite() {
     );
 }
 
-/// Extract every `(pass_canary path, asserted exit code)` pair from the canary
-/// suite source: function boundaries via `fn <name>_canary_runs(`, then the first
+/// Extract every `(pass_canary path, asserted exit code)` pair from the joined
+/// canary-suite sources: function boundaries via `fn <name>_canary_runs(`, then the first
 /// `pass_canary("..")` and the first `Some(<digits>)` within that function's text
 /// (up to the next top-level `fn `). Functions without a `pass_canary` call (e.g.
 /// sample-based run tests) or without a numeric `Some(..)` assertion are skipped.
@@ -1559,6 +1581,20 @@ fn interpreter_executes_runtime_cast_into_indexed_carrier() {
 
 #[test]
 fn interpreter_matches_native_on_supported_canaries() {
+    let selected_canary = std::env::var("DIFF_CANARY").ok();
+    let selected_count = RUN_CANARIES
+        .iter()
+        .filter(|(name, _)| {
+            selected_canary
+                .as_deref()
+                .is_none_or(|selected| selected == *name)
+        })
+        .count();
+    assert!(
+        selected_count > 0,
+        "DIFF_CANARY did not name a registered RUN canary: {:?}",
+        selected_canary
+    );
     let mut matched: Vec<String> = Vec::new();
     let mut skipped: Vec<(String, String)> = Vec::new();
     let mut frontend_blocked: Vec<(String, String)> = Vec::new();
@@ -1566,11 +1602,18 @@ fn interpreter_matches_native_on_supported_canaries() {
     let mut mismatches: Vec<String> = Vec::new();
 
     for (name, expected_code) in RUN_CANARIES {
+        if selected_canary
+            .as_deref()
+            .is_some_and(|selected| selected != *name)
+        {
+            continue;
+        }
         if std::env::var("DIFF_TRACE").is_ok() {
             eprintln!("[trace] {name}");
         }
         let main_path = pass_canary(name).join("main.omg");
 
+        let frontend_started = Instant::now();
         let checked = match compile_to_checked(&main_path, None) {
             Ok(checked) => checked,
             Err(diagnostics) => {
@@ -1578,8 +1621,11 @@ fn interpreter_matches_native_on_supported_canaries() {
                 continue;
             }
         };
+        let frontend_elapsed = frontend_started.elapsed();
 
+        let interpreter_started = Instant::now();
         let outcome = interpret(&checked, b"");
+        let interpreter_elapsed = interpreter_started.elapsed();
         if outcome.is_error() {
             skipped.push((name.to_string(), outcome.error.clone().unwrap_or_default()));
             continue;
@@ -1600,6 +1646,11 @@ fn interpreter_matches_native_on_supported_canaries() {
                     continue;
                 }
             };
+        if std::env::var("DIFF_PROFILE").is_ok() {
+            eprintln!(
+                "[profile] {name}: checked={frontend_elapsed:?} interpreter={interpreter_elapsed:?}"
+            );
+        }
 
         // Native is the source of truth, but sanity-check the suite's documented code too:
         // if native disagrees with the recorded expected code the corpus drifted --
@@ -1643,7 +1694,7 @@ fn interpreter_matches_native_on_supported_canaries() {
 
     eprintln!(
         "\ndifferential oracle over {} RUN canaries:\n  {} matched (interp==native)\n  {} skipped (interpreter unsupported)\n  {} frontend-blocked\n  {} native-blocked (host compile failure; the canary suite owns these)\n  {} MISMATCH",
-        RUN_CANARIES.len(),
+        selected_count,
         matched.len(),
         skipped.len(),
         frontend_blocked.len(),
@@ -2607,6 +2658,7 @@ fn try_compile_and_run_native_with_stdin(
     main_path: &Path,
     stdin: &[u8],
 ) -> Result<(i32, Vec<u8>, Vec<u8>), String> {
+    let total_started = Instant::now();
     let build_dir = std::env::temp_dir().join(format!(
         "omega-interp-diff-{}-{}-{}",
         canary_name.replace(['/', '\\'], "_"),
@@ -2615,11 +2667,14 @@ fn try_compile_and_run_native_with_stdin(
     ));
     let _ = fs::remove_dir_all(&build_dir);
     let source_dir = build_dir.join("source");
+    let staging_started = Instant::now();
     if let Err(error) = stage_exact_host_entry_project(main_path, &source_dir) {
         let _ = fs::remove_dir_all(&build_dir);
         return Err(format!("failed to stage exact host entry: {error}"));
     }
+    let staging_elapsed = staging_started.elapsed();
 
+    let compile_started = Instant::now();
     if let Err(diagnostics) = compile(CompileOptions {
         root_path: source_dir.join(
             main_path
@@ -2633,7 +2688,9 @@ fn try_compile_and_run_native_with_stdin(
         let _ = fs::remove_dir_all(&build_dir);
         return Err(join_diagnostics(&diagnostics));
     }
+    let compile_elapsed = compile_started.elapsed();
 
+    let run_started = Instant::now();
     let mut child = Command::new(build_dir.join(executable_name()))
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -2653,7 +2710,20 @@ fn try_compile_and_run_native_with_stdin(
     let code = output.status.code().unwrap_or(-1);
     let stdout = output.stdout.clone();
     let stderr = output.stderr.clone();
-    let _ = fs::remove_dir_all(&build_dir);
+    let run_elapsed = run_started.elapsed();
+    let cleanup_started = Instant::now();
+    if std::env::var("DIFF_KEEP_NATIVE_STAGE").is_ok() {
+        eprintln!("[profile] kept native stage at {}", build_dir.display());
+    } else {
+        let _ = fs::remove_dir_all(&build_dir);
+    }
+    let cleanup_elapsed = cleanup_started.elapsed();
+    if std::env::var("DIFF_PROFILE").is_ok() {
+        eprintln!(
+            "[profile] {canary_name}: stage={staging_elapsed:?} native_compile={compile_elapsed:?} native_run={run_elapsed:?} cleanup={cleanup_elapsed:?} total={:?}",
+            total_started.elapsed()
+        );
+    }
     Ok((code, stdout, stderr))
 }
 

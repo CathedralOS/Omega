@@ -18,7 +18,7 @@ use arrays::fixed_array_field_lengths;
 pub(in crate::checks) use arrays::fixed_array_type_length;
 use dependent_params::seed_dependent_param_orderings;
 use facts::RangeFacts;
-use incoming_guards::{collect_incoming_guard_facts, seed_incoming_guard_facts};
+use incoming_guards::{IncomingGuardIndex, seed_incoming_guard_facts};
 use initializers::seed_field_integer_facts;
 use loop_invariants::{collect_loop_invariant_facts, seed_loop_invariant_facts};
 use psi_diagnostics::Diagnostic;
@@ -29,13 +29,14 @@ pub(in crate::checks) use types::expression_enforced_declared_range;
 
 pub(crate) fn check_indexed_accesses(
     program: &psi_typed_trees::TypedTrees,
+    incoming_guards: &IncomingGuardIndex,
 ) -> Result<(), Vec<Diagnostic>> {
     let field_lengths = fixed_array_field_lengths(program);
     let mut diagnostics = Vec::new();
 
     for machine in program.machines() {
         let state_argument_facts = collect_state_argument_facts(program, &field_lengths, machine);
-        let incoming_guard_facts = collect_incoming_guard_facts(program, machine);
+        let incoming_guard_facts = incoming_guards.for_machine(machine.symbol);
         let loop_invariant_facts = collect_loop_invariant_facts(program, machine);
         for state in program.machine_states(machine) {
             let mut facts = RangeFacts::new(&field_lengths);
@@ -43,7 +44,7 @@ pub(crate) fn check_indexed_accesses(
             seed_machine_requires(program, &mut facts, machine);
             seed_state_argument_facts(&mut facts, state, &state_argument_facts);
             seed_dependent_param_orderings(program, &mut facts, machine, state);
-            seed_incoming_guard_facts(program, machine, &mut facts, state, &incoming_guard_facts);
+            seed_incoming_guard_facts(program, machine, &mut facts, state, incoming_guard_facts);
             seed_loop_invariant_facts(program, &mut facts, state, &loop_invariant_facts);
             for statement in program.statement_table.statements(state.statement_nodes) {
                 check_statement(

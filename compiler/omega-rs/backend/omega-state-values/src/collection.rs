@@ -29,6 +29,18 @@ pub(super) fn build_machine_state_value_plan(
             segment_index: 0,
         };
         let required = context.state_is_required_by_key(source_key);
+        // Backend value simplification is executable lowering, not a whole-
+        // program visualization pass. Imported libraries can contribute large
+        // proof/helper surfaces that are absent from the selected runtime
+        // closure; recursively simplifying those unreachable states was both
+        // semantically unnecessary and catastrophically expensive on helper-
+        // rich programs. The runtime-flow/state-call closure is the exact
+        // admission fact consumed by every downstream value user, so omit
+        // non-required states here instead of constructing values that all
+        // semantic consumers immediately discard through `required == false`.
+        if !required {
+            continue;
+        }
         let statements = program.statement_table.statements(state.statement_nodes);
 
         for (statement_index, statement) in statements.iter().enumerate() {
