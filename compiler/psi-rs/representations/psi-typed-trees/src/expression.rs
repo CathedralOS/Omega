@@ -369,6 +369,7 @@ impl ExpressionTable {
                     target_symbol: call.target_symbol,
                     target: call.target.clone(),
                     machine_arguments: call.machine_arguments.clone(),
+                    quotient_operation: call.quotient_operation.clone(),
                     arguments,
                     evidence_arguments: call.evidence_arguments.clone(),
                     operational_acknowledgement: call.operational_acknowledgement,
@@ -1341,6 +1342,7 @@ impl ExpressionTable {
                     target_symbol: call.target_symbol,
                     target: call.target,
                     machine_arguments: call.machine_arguments,
+                    quotient_operation: call.quotient_operation,
                     arguments,
                     evidence_arguments: call.evidence_arguments,
                     operational_acknowledgement: call.operational_acknowledgement,
@@ -1547,6 +1549,7 @@ impl ExpressionTable {
                     target_symbol: call.target_symbol,
                     target: call.target.clone(),
                     machine_arguments: Box::default(),
+                    quotient_operation: None,
                     arguments,
                     evidence_arguments: call.evidence_arguments.to_vec().into_boxed_slice(),
                     operational_acknowledgement: call.operational_acknowledgement,
@@ -2014,9 +2017,30 @@ pub struct TableCallExpression {
     pub target_symbol: SymbolHandle,
     pub target: Identifier,
     pub machine_arguments: Box<[StaticMachineArgument]>,
+    /// An explicitly authored sealed quotient operation request. Retention is
+    /// not admission: semantic validation must independently check quotient
+    /// formation, operation correspondence, and the named conformance before
+    /// this request can become executable.
+    pub quotient_operation: Option<QuotientOperationRequest>,
     pub arguments: HandleSpan<ExpressionHandle>,
     pub evidence_arguments: Box<[Identifier]>,
     pub operational_acknowledgement: psi_language_semantics::CallOperationalAcknowledgement,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum QuotientOperationKind {
+    Lift,
+    Define,
+}
+
+/// Exact source-selected identities for `Quotient::lift<F, Respect>` and
+/// `Quotient::define<F, Respect>`. This checked-tree boundary deliberately
+/// carries no derived quotient admission or executable lowering authority.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct QuotientOperationRequest {
+    pub kind: QuotientOperationKind,
+    pub representative_operation: StaticMachineArgument,
+    pub respect_conformance: StaticMachineArgument,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

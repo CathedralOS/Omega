@@ -932,13 +932,11 @@ fn validate_call_arguments_handles_with_policy_retention(
             .iter()
             .map(|argument| declared_place_type(program, current_machine, current_state, *argument))
             .collect::<Vec<_>>();
-        crate::quotients::quotient_lift_candidate(program, None, &argument_types, state)
+        crate::quotients::legacy_quotient_call_candidate(program, None, &argument_types, state)
     });
-    if let Some(lift) = &quotient_lift
-        && !lift.certified
-    {
+    if let Some(lift) = &quotient_lift {
         diagnostics.push(Diagnostic::error(format!(
-            "cannot lift representative operation `{}` onto quotient `{}`: missing a structurally matching respect proof machine",
+            "cannot implicitly lift representative operation `{}` onto quotient `{}`; use `Quotient::lift<F, Respect>` or `Quotient::define<F, Respect>` with one exact named conformance",
             lift.operation.name, lift.quotient.name,
         )));
     }
@@ -1244,17 +1242,15 @@ fn validate_value_call_argument_classes_with_receiver(
             declared_place_type(program, current_machine, Some(current_state), *argument)
         })
         .collect::<Vec<_>>();
-    let quotient_lift = crate::quotients::quotient_lift_candidate(
+    let quotient_lift = crate::quotients::legacy_quotient_call_candidate(
         program,
         receiver_type,
         &argument_types,
         callee_state,
     );
-    if let Some(lift) = &quotient_lift
-        && !lift.certified
-    {
+    if let Some(lift) = &quotient_lift {
         diagnostics.push(Diagnostic::error(format!(
-            "cannot lift representative operation `{}` onto quotient `{}`: missing a structurally matching respect proof machine",
+            "cannot implicitly lift representative operation `{}` onto quotient `{}`; use `Quotient::lift<F, Respect>` or `Quotient::define<F, Respect>` with one exact named conformance",
             lift.operation.name, lift.quotient.name,
         )));
     }

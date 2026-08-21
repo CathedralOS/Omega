@@ -36,41 +36,15 @@ machine advance(value: Representative) -> Representative {
     Representative::Next { previous: value }
 }
 
+// This structural theorem no longer grants implicit lift authority.
 machine advance_respects(a: Representative, b: Representative)
 requires equivalent(a, b)
 ensures equivalent(advance(a), advance(b))
 {
 }
 
-machine lifted_advance(value: EquivalenceClass) -> EquivalenceClass {
+machine rejected_implicit_lift(value: EquivalenceClass) -> EquivalenceClass {
     advance(value)
-}
-
-machine combine(left: Representative, right: Representative) -> Representative {
-    left
-}
-
-machine combine_respects(
-    left_a: Representative,
-    left_b: Representative,
-    right_a: Representative,
-    right_b: Representative
-)
-requires
-    equivalent(left_a, left_b)
-    equivalent(right_a, right_b)
-ensures equivalent(
-    combine(left_a, right_a),
-    combine(left_b, right_b)
-)
-{
-}
-
-machine lifted_combine(
-    left: EquivalenceClass,
-    right: EquivalenceClass
-) -> EquivalenceClass {
-    combine(left, right)
 }
 
 data Main {

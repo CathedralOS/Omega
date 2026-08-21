@@ -194,6 +194,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                 if let Some(lowered) = self.try_lower_synthesized_equatable_call(call)? {
                     return Ok(lowered);
                 }
+                let quotient_operation = self.lower_quotient_operation_request(call)?;
                 let receiver = self.lower_optional(call.receiver)?;
                 let arguments = self.lower_expression_handle_span(call.arguments)?;
                 Ok(self
@@ -209,6 +210,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                                 .map(crate::expression::lower_static_machine_argument)
                                 .collect::<Vec<_>>()
                                 .into_boxed_slice(),
+                            quotient_operation,
                             arguments,
                             evidence_arguments: call
                                 .evidence_arguments
@@ -344,6 +346,88 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                     .insert(typed::expression::ExpressionNode::ZeroValue(type_reference)))
             }
         }
+    }
+
+    /// Recognize only the sealed source wrapper selected by the N6/N8
+    /// quotient ruling. This retains the two exact resolved identities; it
+    /// deliberately performs no quotient discovery and grants no executable
+    /// lifting authority.
+    fn lower_quotient_operation_request(
+        &self,
+        call: &resolved::expression::TableCallExpression,
+    ) -> Result<Option<typed::expression::QuotientOperationRequest>, Diagnostic> {
+        let kind = match call.target.as_str() {
+            "lift" => typed::expression::QuotientOperationKind::Lift,
+            "define" => typed::expression::QuotientOperationKind::Define,
+            _ => return Ok(None),
+        };
+        if !call.receiver.is_valid() {
+            return Ok(None);
+        }
+        let resolved::expression::ExpressionNode::Name(receiver) =
+            self.source.expression(call.receiver)
+        else {
+            return Ok(None);
+        };
+        let [namespace] = self.source.name_path_members(receiver.members) else {
+            return Ok(None);
+        };
+        if namespace.as_str() != "Quotient" {
+            return Ok(None);
+        }
+
+        let Some(program) = self.program else {
+            return Err(Diagnostic::error(
+                "a sealed Quotient operation requires a complete resolved program",
+            ));
+        };
+        if receiver.head_symbol.is_valid()
+            || receiver.symbol.is_valid()
+            || call.target_symbol.is_valid()
+        {
+            return Err(Diagnostic::error(
+                "the sealed `Quotient` operation namespace cannot be shadowed by an authored declaration",
+            ));
+        }
+        let [representative_operation, respect_conformance] = call.machine_arguments.as_ref()
+        else {
+            return Err(Diagnostic::error(format!(
+                "`Quotient::{}` requires exactly two static arguments: one representative operation and one exact named conformance",
+                call.target,
+            )));
+        };
+        if representative_operation.const_literal.is_some()
+            || representative_operation.evidence_projection.is_some()
+            || !representative_operation.symbol.is_valid()
+            || program.symbols.get(representative_operation.symbol).kind
+                != psi_symbols::SymbolKind::State
+        {
+            return Err(Diagnostic::error(format!(
+                "the first static argument to `Quotient::{}` must resolve exactly to a representative machine entry",
+                call.target,
+            )));
+        }
+        if respect_conformance.const_literal.is_some()
+            || respect_conformance.evidence_projection.is_some()
+            || !respect_conformance.symbol.is_valid()
+            || program.symbols.get(respect_conformance.symbol).kind
+                != psi_symbols::SymbolKind::Conformance
+        {
+            return Err(Diagnostic::error(format!(
+                "the second static argument to `Quotient::{}` must resolve exactly to one named conformance; structural proof-machine discovery is not permitted",
+                call.target,
+            )));
+        }
+
+        Ok(Some(typed::expression::QuotientOperationRequest {
+            kind,
+            representative_operation: crate::expression::lower_static_machine_argument(
+                representative_operation,
+            ),
+            respect_conformance: crate::expression::lower_static_machine_argument(
+                respect_conformance,
+            ),
+        }))
     }
 
     fn lower_optional(

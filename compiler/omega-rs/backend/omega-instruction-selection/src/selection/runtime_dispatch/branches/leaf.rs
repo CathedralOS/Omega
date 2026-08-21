@@ -1148,6 +1148,7 @@ fn resolve_leaf_caller_local_initializer_names(
                     target_symbol: call.target_symbol,
                     target: call.target.clone(),
                     machine_arguments: call.machine_arguments.clone(),
+                    quotient_operation: call.quotient_operation.clone(),
                     arguments: copied_arguments,
                     evidence_arguments: call.evidence_arguments.clone(),
                     operational_acknowledgement: call.operational_acknowledgement,
