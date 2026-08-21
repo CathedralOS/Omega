@@ -17,6 +17,7 @@ omega-image-elf = { path = "../omega-image-elf" }
 omega-image-macho = { path = "../omega-image-macho" }
 omega-image-pe = { path = "../omega-image-pe" }
 omega-calling-conventions = { path = "../../../foundation/omega-calling-conventions" }
+omega-control-flow = { path = "../../../representations/omega-control-flow" }
 omega-isa-aarch64 = { path = "../../instruction_set_architectures/omega-isa-aarch64" }
 omega-isa-x86_64 = { path = "../../instruction_set_architectures/omega-isa-x86_64" }
 omega-machine-bytes = { path = "../../../representations/omega-machine-bytes" }
@@ -27,3 +28,4 @@ omega-target-operations = { path = "../../../representations/omega-target-operat
 
 [dev-dependencies]
 psi-numerics = { path = "../../../../psi-rs/foundation/psi-numerics" }
+psi-symbols = { path = "../../../../psi-rs/foundation/psi-symbols" }

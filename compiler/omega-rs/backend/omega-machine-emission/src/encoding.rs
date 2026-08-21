@@ -723,6 +723,21 @@ pub(super) fn encode_machine_instruction_bytes(
             *port,
             *dest_byte_offset,
         ),
+        SelectedInstructionKind::CallInternalFunction { target } => {
+            if !target.is_valid() {
+                return Err(Diagnostic::error(
+                    "internal direct call has no exact target function identity",
+                ));
+            }
+            Ok(match input.target.architecture {
+                omega_target::Architecture::X86_64 => {
+                    omega_isa_x86_64::encode_internal_function_call_bytes().to_vec()
+                }
+                omega_target::Architecture::Aarch64 => {
+                    omega_isa_aarch64::encode_internal_function_call_bytes().to_vec()
+                }
+            })
+        }
         SelectedInstructionKind::EnterFunction
         | SelectedInstructionKind::EnterDispatchLoop { .. }
         | SelectedInstructionKind::EnterDispatchCase { .. }

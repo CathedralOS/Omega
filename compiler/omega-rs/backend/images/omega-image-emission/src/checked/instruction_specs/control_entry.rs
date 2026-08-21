@@ -9,6 +9,15 @@ pub(super) fn expected_control_entry_spec(
     kind: omega_machine_bytes::CompilerInstructionValidationKind,
 ) -> Result<Option<CompilerInstructionSpec>, Diagnostic> {
     let spec = match kind {
+                    omega_machine_bytes::CompilerInstructionValidationKind::InternalFunctionCall { target } => (
+                        None,
+                        match architecture {
+                            Architecture::X86_64 => omega_isa_x86_64::encode_internal_function_call_bytes().to_vec(),
+                            Architecture::Aarch64 => omega_isa_aarch64::encode_internal_function_call_bytes().to_vec(),
+                        },
+                        77u8,
+                        CompilerInstructionRelocationRecipe::InternalFunctionCall { target },
+                    ),
                     omega_machine_bytes::CompilerInstructionValidationKind::FunctionEnter => (
                         Some(0),
                         match architecture {

@@ -800,6 +800,9 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
             omega_abstract_operations::AbstractOperationKind::TerminateDispatch => Self::TerminateDispatch,
             omega_abstract_operations::AbstractOperationKind::LeaveDispatchCase => Self::LeaveDispatchCase,
             omega_abstract_operations::AbstractOperationKind::LeaveDispatchLoop => Self::LeaveDispatchLoop,
+            omega_abstract_operations::AbstractOperationKind::CallInternalFunction { target } => {
+                Self::CallInternalFunction { target: *target }
+            }
             omega_abstract_operations::AbstractOperationKind::BeginPlatformCall => Self::BeginPlatformCall,
             omega_abstract_operations::AbstractOperationKind::HostOperation { .. } => {
                 panic!("abstract host operation ordinals must be lowered in omega-abstract-operations-to-target-operations")

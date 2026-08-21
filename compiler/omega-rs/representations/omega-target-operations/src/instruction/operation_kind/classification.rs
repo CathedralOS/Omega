@@ -7,7 +7,9 @@ pub type TargetOperationDomain = OperationDomain;
 impl OperationSemanticQuery for TargetOperationKind {
     fn semantic_domain(&self) -> TargetOperationDomain {
         match self {
-            Self::EnterFunction | Self::LeaveFunction => TargetOperationDomain::FunctionBoundary,
+            Self::EnterFunction | Self::LeaveFunction | Self::CallInternalFunction { .. } => {
+                TargetOperationDomain::FunctionBoundary
+            }
 
             Self::EnterDispatchLoop { .. }
             | Self::EnterDispatchCase { .. }

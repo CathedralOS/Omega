@@ -521,6 +521,10 @@ pub enum TargetOperationKind {
     TerminateDispatch,
     LeaveDispatchCase,
     LeaveDispatchLoop,
+    /// Compiler-private direct control transfer to an exact function identity.
+    CallInternalFunction {
+        target: omega_control_flow::MachineFunctionIdentity,
+    },
     BeginPlatformCall,
     HostOperation {
         operation_key: HostOperationKey,

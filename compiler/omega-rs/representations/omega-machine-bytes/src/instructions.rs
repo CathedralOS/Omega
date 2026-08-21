@@ -107,6 +107,9 @@ pub enum CompilerInstructionAtomicOperation {
 pub enum CompilerInstructionValidationKind {
     FunctionEnter,
     FunctionReturn,
+    InternalFunctionCall {
+        target: omega_control_flow::MachineFunctionIdentity,
+    },
     DispatchLoopEnter {
         entry_dispatch_index: u32,
     },

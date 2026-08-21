@@ -953,6 +953,45 @@ pub(super) fn validate_compiler_immediate_import_relocation(
     Ok(())
 }
 
+pub(super) fn validate_compiler_internal_call_relocation(
+    architecture: Architecture,
+    object: &omega_object_file::ObjectPlan,
+    relocations: &RelocationPlan,
+    selected_instruction_index: u32,
+    instruction_byte_offset: usize,
+    call_site: usize,
+    expected_target: omega_control_flow::MachineFunctionIdentity,
+) -> Result<(), Diagnostic> {
+    let actual = relocations
+        .records()
+        .filter_map(|(_, relocation)| {
+            (relocation.section == SectionKind::Text
+                && relocation.origin.selected_instruction_index()
+                    == Some(selected_instruction_index))
+            .then_some(relocation)
+        })
+        .collect::<Vec<_>>();
+    let (kind, width) = match architecture {
+        Architecture::X86_64 => (RelocationKind::X86_64Relative32, 4usize),
+        Architecture::Aarch64 => (RelocationKind::Aarch64Branch26, 4usize),
+    };
+    let expected_symbol = omega_object_file::object_function_symbol(object, expected_target)
+        .map(|(handle, _)| handle);
+    let matches = actual.len() == 1
+        && expected_symbol.is_some()
+        && actual[0].offset == instruction_byte_offset + call_site
+        && actual[0].kind == kind
+        && actual[0].byte_width == width
+        && actual[0].addend == 0
+        && Some(actual[0].symbol_handle) == expected_symbol;
+    if !matches {
+        return Err(Diagnostic::error(format!(
+            "compiler internal-call instruction #{selected_instruction_index} does not retain its exact target-identity relocation",
+        )));
+    }
+    Ok(())
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(super) fn validate_compiler_storage_import_relocations(
     architecture: Architecture,
@@ -1595,4 +1634,155 @@ pub(super) fn compiler_instruction_composite_non_relocation_bits_match(
             });
             (expected ^ final_byte) & !(call_mask | address_mask) == 0
         })
+}
+
+#[cfg(test)]
+mod internal_call_tests {
+    use super::*;
+    use omega_control_flow::{MachineFunctionIdentity, StateKey};
+    use omega_object_file::{
+        FunctionSymbolPlan, ObjectPlan, RelocationOrigin, RelocationRecord, SymbolKind, SymbolPlan,
+        SymbolSection,
+    };
+    use omega_target::NativeTarget;
+    use psi_symbols::SymbolHandle;
+
+    fn identity(state: u32) -> MachineFunctionIdentity {
+        MachineFunctionIdentity::source(StateKey {
+            machine: SymbolHandle::from_arena_index(1),
+            state: SymbolHandle::from_arena_index(state),
+            segment_index: 0,
+        })
+    }
+
+    fn exact_call_fixture(
+        target: NativeTarget,
+        callee: MachineFunctionIdentity,
+        instruction_offset: usize,
+    ) -> (ObjectPlan, RelocationPlan) {
+        let mut object = ObjectPlan::with_capacities(target, 0, 1, 1);
+        let symbol = object.layout.symbols.insert(SymbolPlan {
+            name: "__omega_exact_callee".into(),
+            section: SymbolSection::Section(SectionKind::Text),
+            offset: 32,
+            size: 4,
+            kind: SymbolKind::Function,
+            import_library: String::new(),
+        });
+        object.layout.function_symbols.insert(FunctionSymbolPlan {
+            identity: callee,
+            symbol,
+        });
+        let (call_site, kind) = match target.architecture {
+            Architecture::X86_64 => (1, RelocationKind::X86_64Relative32),
+            Architecture::Aarch64 => (0, RelocationKind::Aarch64Branch26),
+        };
+        let mut relocations = RelocationPlan::with_target(target);
+        relocations.push_record(RelocationRecord {
+            origin: RelocationOrigin::Instruction {
+                function_symbol_handle: symbol,
+                selected_instruction_index: 9,
+            },
+            section: SectionKind::Text,
+            offset: instruction_offset + call_site,
+            byte_width: 4,
+            symbol_handle: symbol,
+            addend: 0,
+            kind,
+        });
+        (object, relocations)
+    }
+
+    #[test]
+    fn final_internal_calls_require_one_exact_identity_relocation_on_each_architecture() {
+        let callee = identity(2);
+        for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+            let (mut object, mut relocations) = exact_call_fixture(target, callee, 12);
+            let call_site = usize::from(target.architecture == Architecture::X86_64);
+            validate_compiler_internal_call_relocation(
+                target.architecture,
+                &object,
+                &relocations,
+                9,
+                12,
+                call_site,
+                callee,
+            )
+            .expect("exact target-identity relocation");
+
+            let wrong_target = validate_compiler_internal_call_relocation(
+                target.architecture,
+                &object,
+                &relocations,
+                9,
+                12,
+                call_site,
+                identity(3),
+            )
+            .expect_err("a nearby identity must not satisfy final validation");
+            assert!(wrong_target.message.contains("exact target-identity"));
+
+            let (_, duplicate) = relocations.records().next().expect("call relocation");
+            relocations.push_record(duplicate.clone());
+            let duplicate = validate_compiler_internal_call_relocation(
+                target.architecture,
+                &object,
+                &relocations,
+                9,
+                12,
+                call_site,
+                callee,
+            )
+            .expect_err("duplicate call relocations must reject");
+            assert!(duplicate.message.contains("exact target-identity"));
+
+            object.layout.function_symbols.insert(FunctionSymbolPlan {
+                identity: callee,
+                symbol: object.layout.entry_symbol,
+            });
+            let duplicate_binding = validate_compiler_internal_call_relocation(
+                target.architecture,
+                &object,
+                &RelocationPlan::with_target(target),
+                9,
+                12,
+                call_site,
+                callee,
+            )
+            .expect_err("duplicate identity bindings must reject");
+            assert!(duplicate_binding.message.contains("exact target-identity"));
+        }
+    }
+
+    #[test]
+    fn final_internal_call_replay_rejects_non_relocation_opcode_tampering() {
+        assert!(compiler_instruction_import_non_relocation_bits_match(
+            Architecture::X86_64,
+            &[0xe8, 0, 0, 0, 0],
+            &[0xe8, 1, 2, 3, 4],
+            1,
+            &[],
+        ));
+        assert!(!compiler_instruction_import_non_relocation_bits_match(
+            Architecture::X86_64,
+            &[0xe8, 0, 0, 0, 0],
+            &[0xe9, 1, 2, 3, 4],
+            1,
+            &[],
+        ));
+        assert!(compiler_instruction_import_non_relocation_bits_match(
+            Architecture::Aarch64,
+            &[0, 0, 0, 0x94],
+            &[1, 2, 3, 0x97],
+            0,
+            &[],
+        ));
+        assert!(!compiler_instruction_import_non_relocation_bits_match(
+            Architecture::Aarch64,
+            &[0, 0, 0, 0x94],
+            &[1, 2, 3, 0x93],
+            0,
+            &[],
+        ));
+    }
 }

@@ -847,6 +847,9 @@ fn selected_instruction_name(
         SelectedInstructionKind::TerminateDispatch => "terminate dispatch".to_owned(),
         SelectedInstructionKind::LeaveDispatchCase => "leave dispatch case".to_owned(),
         SelectedInstructionKind::LeaveDispatchLoop => "leave dispatch loop".to_owned(),
+        SelectedInstructionKind::CallInternalFunction { target } => {
+            format!("call internal function {target:?}")
+        }
         SelectedInstructionKind::BeginPlatformCall => {
             let platform_call = backend_plan
                 .host_calls

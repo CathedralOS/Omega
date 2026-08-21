@@ -9,6 +9,9 @@ use super::*;
 pub(super) enum CompilerInstructionRelocationRecipe {
     None,
     NoRelocations,
+    InternalFunctionCall {
+        target: omega_control_flow::MachineFunctionIdentity,
+    },
     ImmediateImport {
         call_site: usize,
         library: std::sync::Arc<str>,
@@ -222,6 +225,29 @@ pub(super) fn validate_compiler_instruction_relocation_recipe(
             !has_relocation
                 && encoded_instruction_bytes == expected_bytes
                 && final_instruction_bytes == expected_bytes
+        }
+        CompilerInstructionRelocationRecipe::InternalFunctionCall { target } => {
+            let call_site = match architecture {
+                Architecture::X86_64 => 1,
+                Architecture::Aarch64 => 0,
+            };
+            validate_compiler_internal_call_relocation(
+                architecture,
+                object,
+                relocations,
+                selected_instruction_index,
+                instruction_byte_offset,
+                call_site,
+                target,
+            )?;
+            encoded_instruction_bytes == expected_bytes
+                && compiler_instruction_import_non_relocation_bits_match(
+                    architecture,
+                    expected_bytes,
+                    final_instruction_bytes,
+                    call_site,
+                    &[],
+                )
         }
         CompilerInstructionRelocationRecipe::ImmediateImport {
             call_site,

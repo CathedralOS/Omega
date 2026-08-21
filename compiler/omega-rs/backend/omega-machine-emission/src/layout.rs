@@ -1049,6 +1049,12 @@ fn machine_instruction_width(
             }
             port_read_width(input.assigned_target_operations, *port)
         }
+        SelectedInstructionKind::CallInternalFunction { .. } => match input.target.architecture {
+            omega_target::Architecture::X86_64 => omega_isa_x86_64::internal_function_call_width(),
+            omega_target::Architecture::Aarch64 => {
+                omega_isa_aarch64::internal_function_call_width()
+            }
+        },
         SelectedInstructionKind::LeaveFunction => return_width(input.target.architecture),
         SelectedInstructionKind::EvaluateDispatchGuard { .. }
         | SelectedInstructionKind::LeaveDispatchLoop

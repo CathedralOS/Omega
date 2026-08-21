@@ -683,6 +683,12 @@ pub enum AbstractOperationKind {
     TerminateDispatch,
     LeaveDispatchCase,
     LeaveDispatchLoop,
+    /// Compiler-private direct call to one exact lowered function identity.
+    /// Argument/receiver placement is owned by a separate validated call plan;
+    /// this operation only owns the control-transfer edge.
+    CallInternalFunction {
+        target: omega_control_flow::MachineFunctionIdentity,
+    },
     BeginPlatformCall,
     HostOperation {
         operation_ordinal: u16,

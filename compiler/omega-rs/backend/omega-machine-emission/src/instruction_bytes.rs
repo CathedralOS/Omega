@@ -373,6 +373,9 @@ fn compiler_instruction_validation_kind(
         SelectedInstructionKind::LeaveFunction => {
             Some(CompilerInstructionValidationKind::FunctionReturn)
         }
+        SelectedInstructionKind::CallInternalFunction { target } => {
+            Some(CompilerInstructionValidationKind::InternalFunctionCall { target: *target })
+        }
         SelectedInstructionKind::EnterDispatchLoop {
             entry_dispatch_index,
             ..

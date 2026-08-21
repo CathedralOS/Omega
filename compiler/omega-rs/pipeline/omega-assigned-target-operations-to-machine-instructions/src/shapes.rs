@@ -118,6 +118,9 @@ pub(super) fn lower_machine_instruction_kind(
         }
         SelectedInstructionKind::TerminateDispatch => dispatch::dispatch_terminate_kind(),
         SelectedInstructionKind::LeaveDispatchCase => dispatch::dispatch_case_leave_kind(),
+        SelectedInstructionKind::CallInternalFunction { .. } => {
+            MachineInstructionKind::InternalFunctionCall
+        }
         SelectedInstructionKind::MachineHalt => MachineInstructionKind::MachineHalt,
         SelectedInstructionKind::MemoryFence(kind) => MachineInstructionKind::MemoryFence(*kind),
         SelectedInstructionKind::InterruptControl(kind) => {

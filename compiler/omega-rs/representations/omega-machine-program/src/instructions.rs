@@ -118,6 +118,9 @@ pub enum MachineInstructionKind {
     EntryArgumentsSliceDescriptorWrite,
     DispatchTerminate,
     DispatchCaseLeave,
+    /// Direct call whose target is retained by the selected operation and
+    /// resolved through compiler-private function identity at relocation.
+    InternalFunctionCall,
     HostCallSequence,
     /// The x86 `hlt` privileged instruction (`asm { hlt }`). Zero operands,
     /// no relocation. See the privileged_effects_and_binary_trust brief.
