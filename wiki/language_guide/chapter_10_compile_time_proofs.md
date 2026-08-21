@@ -446,6 +446,60 @@ overflow behavior.
 The same operator spelling can exist in both worlds. The operand types decide
 which proof rules apply.
 
+## Total Specification Arithmetic
+
+Every term in `requires`, `ensures`, a domain predicate, or a guarded `crashes`
+route is total. Exact arithmetic is admitted after its ordinary formation
+obligations are proved. Wrapping and Saturating arithmetic remain admissible
+after any primitive obligations outside their overflow policy are proved; for
+example, neither policy makes division by zero a result. Direct Trapping
+arithmetic is not a proposition term: its failure transfers runtime control,
+and contracts do not execute.
+
+Use an explicit proof view when a contract needs unbounded mathematics:
+
+```omega
+requires
+    embed(left) + embed(right) <= embed(i32::Maximum)
+```
+
+For every fixed-width integer and address carrier, `embed` produces proof
+`Int`. Unsigned and address embeddings additionally establish nonnegativity and
+their exact carrier upper bound. The projection has no runtime representation,
+does not alter the source qualification, and cannot determine runtime data or
+control. Floats instead use `Float::meaning32` or `Float::meaning64`, whose
+`FloatMeaning` result preserves finite rational value, signed zero, infinity,
+and NaN explicitly.
+
+Removing a policy with `as` is a different statement:
+
+```omega
+requires
+    embed(right) >= 0
+    embed(left) <= embed(i32::Maximum) - embed(right)
+ensures
+    result == (left as i32) + (right as i32)
+```
+
+The result expression uses Exact fixed-width arithmetic after the earlier facts
+prove its intermediate result representable. An Exact operation cannot use the
+proposition containing that same operation to justify its own formation, and
+this is not shorthand for the unbounded expression above.
+
+Proof `Nat` remains the natural carrier for induction, counts, and nonnegative
+resource coordinates. Its ordinary subtraction is Exact and forms only when
+the right operand is proved no greater than the left. Clamping is spelled
+`Nat::saturating_sub(left, right)`; bare `Nat - Nat` never silently truncates.
+An exact `Int as Nat` conversion similarly requires a nonnegative source.
+
+Executable Trapping arithmetic independently creates a compiler-derived crash
+site. A specification occurrence creates no crash edge. Authored `crashes`
+routes are total may-ceilings, and coverage checks each derived guard `D`
+against the authored alternatives `C_i` by requiring
+`D implies (C_1 or ... or C_n)`. See
+[Total Specification Arithmetic](../design_briefs/total_specification_arithmetic.md)
+for the complete policy bridges and Terminal-Psi rules.
+
 ## Proof-Only Data
 
 `Nat` and its kin are currently classified as proof-only: unbounded, with no
@@ -491,15 +545,15 @@ inference for unannotated declarations until their surfaces are migrated.
 Constructor choices count as representation as well as fields, so an
 all-fieldless sum such as `bool` does not become erased by vacuity.
 
-Core ships the roster: `Nat`, `Seq<T>`, `Bag<T>`, and `Rat`. Every finite
+Core ships the roster: `Nat`, `Int`, `Seq<T>`, `Bag<T>`, and `Rat`. Every finite
 nonzero float embeds into signed `Rat` exactly (binary values are dyadic
 rationals), while signed zero, infinity, and NaN inhabit the separate
 proof-level `FloatMeaning` cases. Float verification invokes executable
 `FloatSemantics` functions whose finite branches are exact Rat arithmetic plus
 one format rounding step. Its `FiniteNonZero` payload is `Rat::NonZero`, so
-the proof carrier has no overlapping zero representation. `Int` follows when
-subtraction-closed reasoning wants it, with one rule stated at introduction:
-`Int`'s order has no floor, so ranking views over it must produce a
+the proof carrier has no overlapping zero representation. `Int` is the uniform
+proof embedding target for fixed-width integers and addresses. Its order has no
+floor, so ranking views over it must produce a
 well-founded `Nat` rank or carry a proven floor.
 
 Core's `Rat` stores a signed `IntPair` numerator and a positive `Nat`
@@ -509,15 +563,18 @@ avoids division. `rat_gap(p, q)` is the nonnegative absolute cross-product
 numerator gap, and
 `rat_close(p, q, precision) == Nat::Zero` states
 `|p-q| <= 1/precision` by comparing `precision * gap` with the common
-denominator in Nat's monus order. Its reflexive and symmetric laws are ordinary
+denominator in Nat's explicit saturating-subtraction order. Its reflexive and
+symmetric laws are ordinary
 checked machines; they are the metric substrate for the constructed `Real`
 corpus, not compiler-known arithmetic.
 
 The supporting natural metric is ordinary core code as well. `nat_gap(a, b)`
-computes symmetric absolute difference from the two monus directions, and
+computes symmetric absolute difference from the two saturating-subtraction
+directions, and
 `nat_gap_triangle(a, b, c)` proves
 `nat_gap(a, c) <= nat_gap(a, b) + nat_gap(b, c)` in the settled
-`sub(left, right) == Nat::Zero` order spelling. Its proof uses nested structural
+`Nat::saturating_sub(left, right) == Nat::Zero` order spelling. Its proof uses
+nested structural
 case states; every value leaf is checked, and recursion remains admissible only
 when strict-subterm provenance survives every state-parameter forwarding edge.
 Proof citations are statement-ordered: an earlier checked citation can

@@ -1,0 +1,201 @@
+# Total Specification Arithmetic
+
+This brief settles arithmetic inside `requires`, `ensures`, domain predicates,
+and guarded `crashes` routes. Those positions inhabit the proof logic. They are
+not executable expressions, and every term admitted there is total.
+
+## The boundary
+
+Arithmetic policy remains operand-driven in executable code:
+
+- Exact arithmetic forms only after its representability obligations are
+  discharged;
+- Wrapping arithmetic reduces representable-range overflow at the selected
+  machine width;
+- Saturating arithmetic clamps representable-range overflow to the selected
+  carrier bounds; and
+- Trapping arithmetic transfers control to a `Trap` crash edge when its
+  primitive-specific failure condition holds.
+
+The same written operator is admitted in `Prop` only when its selected meaning
+is total. Exact is legal because partiality is discharged when the term is
+formed. Wrapping and Saturating are legal after any primitive definedness
+conditions not decided by the overflow policy are discharged; their selected
+overflow behavior is total. Division by zero remains an obligation, for
+example. A direct Trapping arithmetic operation is illegal: its partiality is
+resolved by runtime control, and `Prop` has no runtime control.
+
+This restriction is per operation, not per binding. Comparisons, equality,
+classification, and fixed-width bitwise operations remain legal on a
+Trapping-qualified value when those operations are total. The qualification
+does not poison the value; it selects the behavior of operations that consume
+the arithmetic-policy role.
+
+The compiler never silently reinterprets a Trapping operation as Exact or
+unbounded mathematics. An author chooses one of two explicit total readings:
+
+```omega
+requires
+    embed(left) + embed(right) <= embed(i32::Maximum)
+
+requires
+    embed(right) >= 0
+    embed(left) <= embed(i32::Maximum) - embed(right)
+ensures
+    result == (left as i32) + (right as i32)
+```
+
+The first is unbounded mathematical addition. The second explicitly removes
+the Trapping qualification and forms an Exact `i32` addition after the earlier
+facts discharge its ordinary representability obligation. They are not
+synonyms, and an Exact operation cannot use the proposition containing that
+same operation to justify its own formation.
+
+## Integer embedding
+
+`embed(value)` is a proof-only, total projection of a fixed-width integer or
+address payload into proof `Int`. It performs no runtime conversion, allocates
+no bytes, does not mutate or requalify the source binding, and cannot influence
+runtime data or control.
+
+Embedding retains the source carrier identity and contributes its exact range:
+
+- an embedded unsigned integer or address is nonnegative and no greater than
+  its carrier maximum;
+- an embedded signed integer lies between its carrier minimum and maximum; and
+- embeddings of equal source values are equal and remain injective within the
+  source carrier.
+
+Uniform `Int` is deliberate. Proof subtraction is therefore ordinary signed
+subtraction even when the source carrier is unsigned:
+
+```omega
+let distance: Int = embed(end) - embed(start);
+```
+
+Proof `Nat` remains the carrier for natural induction, counts, quantities, and
+nonnegative interval coordinates. Converting an `Int` into `Nat` is an Exact
+proof-only coercion and requires nonnegativity:
+
+```omega
+let length: Nat = distance as Nat;
+// obligation: distance >= 0
+```
+
+The checker normally discharges conversions of embedded unsigned values from
+their derived range facts. A half-open address interval therefore remains an
+`IntervalSet<Nat>`; its construction explicitly converts the embedded start and
+one-past end rather than changing the published content algebra to signed
+coordinates.
+
+## Natural subtraction
+
+Ordinary `Nat - Nat` is Exact. Forming the term requires the right operand to
+be no greater than the left:
+
+```omega
+machine remaining(total: Nat, used: Nat) -> Nat
+requires
+    used <= total
+{
+    transition { _ -> total - used }
+}
+```
+
+The entry fact discharges the formation obligation, just as a carrier bound
+discharges an Exact machine-integer subtraction. Without that fact the term
+rejects.
+
+Clamping at zero remains useful but is explicit:
+
+```omega
+Nat::saturating_sub(left, right)
+```
+
+It denotes `max(left - right, 0)` and is total. Bare `-` never silently selects
+this operation. The bootstrap proof library's current `Nat::sub`/"monus"
+spelling is transitional; migrate it and its order lemmas to the explicit
+`Nat::saturating_sub` name as the Exact operator surface lands.
+
+## Denotation bridges
+
+Let `M` be the unbounded mathematical result of one primitive over the embedded
+operands, and let `[MIN, MAX]` be the selected result carrier. The compiler-owned
+operation catalog first checks any primitive definedness conditions not decided
+by the arithmetic policy, then publishes the following bridges:
+
+| Policy | Formation or result law |
+|---|---|
+| Exact | formation requires `MIN <= M <= MAX`; `embed(result) == M` |
+| Wrapping | `embed(result) == wrap(M, MIN, MAX)` |
+| Saturating | `embed(result) == clamp(M, MIN, MAX)` |
+| Trapping | on normal return, `embed(result) == M`; the executable operation traps exactly when its catalogued trap predicate holds |
+
+The Trapping predicate is per primitive. For fixed-integer addition,
+subtraction, and multiplication, trapping is equivalent to `M` lying outside
+the result carrier. Division additionally names division by zero and the signed
+`MIN / -1` case. Shifts name their invalid-count and overflow conditions.
+Float adapters use their separately defined finite/special-value and policy
+rules. The verifier must not replace this catalog with one convenient generic
+"outside the range" approximation.
+
+`Float::meaning32` and `Float::meaning64` are the corresponding explicit total
+projections for floats. They produce `FloatMeaning`, retaining signed zero,
+infinity, and NaN as distinct cases and representing each finite nonzero value
+exactly with `Rat::NonZero`. A float is not embedded into `Int` or bare `Rat`.
+
+## Crash routes
+
+A specification term never creates a crash edge. Only an executable Trapping
+operation in the machine body creates a compiler-derived crash site. The author
+states a public may-ceiling with total route predicates:
+
+```omega
+machine add(left: i32 in Trapping, right: i32 in Trapping) -> i32
+crashes Trap
+    embed(left) + embed(right) < embed(i32::Minimum)
+    embed(left) + embed(right) > embed(i32::Maximum)
+{
+    // executable Trapping addition
+}
+```
+
+For each derived, path-conditioned crash guard `D` and the authored guards
+`C_1 .. C_n` for the same cause, checking requires:
+
+```text
+D implies (C_1 or ... or C_n)
+```
+
+An under-approximation rejects. A conservative over-approximation is sound but
+publishes a less precise crash ceiling. Proving every authored route false at a
+call removes that cause for the invocation. An `ensures` clause constrains only
+normal returns and is vacuous on a crash path.
+
+## Terminal representation
+
+Terminal Psi retains only the total proposition expression actually written:
+embedded `Int` terms and their source-carrier identities, Exact operations with
+their discharged formation evidence, or total Wrapping/Saturating terms. It has
+no proof-side Trapping arithmetic node and no predicate-generated effect.
+
+Executable Trapping operations independently retain their primitive identity,
+catalogued guard, path condition, and crash edge. Independent verification
+reconstructs both the denotation bridge and crash-route coverage; neither the
+producer's chosen predicate nor the authored crash ceiling declares the
+primitive's semantics.
+
+## Rejected alternatives
+
+- **Treat a trapping predicate as false on trapping inputs.** This silently
+  strengthens the written proposition with a definedness condition.
+- **Silently read Trapping arithmetic as mathematical.** This makes identical
+  syntax select incompatible runtime and proof meanings.
+- **Let a contract expression contribute a crash route.** Contracts erase and
+  are never evaluated.
+- **Admit partial propositions.** This would spread definedness or three-valued
+  logic through the proof kernel for no additional expressive power.
+- **Use proof `Nat` as the embedding target for unsigned carriers.** Ordinary
+  subtraction would either be unavailable or silently clamp at zero. Explicit
+  conversion into `Nat` preserves natural-number invariants without changing
+  the meaning of mathematical subtraction.

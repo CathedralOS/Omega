@@ -1129,8 +1129,10 @@ For example, an admitted platform provider may return an
 `Extent { base: addr, length: u64 }`.
 Reconstructing those fields produces an unqualified Extent. `Granted` projects
 the qualified subject into the compiler-owned interval-set algebra after its
-`no_wrap(base, length)` predicate proves the embedded proof-level natural end
-fits the target address space. The projection produces a singleton canonical
+`no_wrap(base, length)` predicate proves the unbounded proof-`Int` end fits the
+target address space. Derived nonnegativity then licenses exact conversion of
+both endpoints into the proof-`Nat` content algebra. The projection produces a
+singleton canonical
 `IntervalSet<PhysicalMemory>`; split consumes the qualified parent and proves
 its set equals the separated composition of all children while preserving
 compatible common root lineage. Merge proves the same theorem in reverse.

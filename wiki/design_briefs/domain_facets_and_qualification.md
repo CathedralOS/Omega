@@ -192,8 +192,9 @@ domain Extent::Granted
 
 Every authorized route proves the predicate at its exact established subject.
 Here that subject is the result. The content projection then embeds `base` and
-`length` into proof-level natural arithmetic; it never relies on wrapping
-runtime address addition.
+`length` into proof `Int`, proves their nonnegative unbounded sum, and converts
+the coordinates exactly into the proof-`Nat` interval algebra; it never relies
+on wrapping runtime address addition.
 
 Carry is independent. Mobility demands attach to the established value or
 resource provenance and survive qualification forgetting until the underlying
@@ -280,6 +281,18 @@ invalid operation such as `0.0 / 0.0`. Float `Trapping` rejects a non-finite
 semantic result through the checked adapter; it never mutates the hardware
 exception mask. `Finite & Saturating` therefore removes magnitude-overflow
 proofs while retaining obligations such as a nonzero divisor.
+
+Specification arithmetic uses the same selected operation only when it is
+total. Exact partiality is discharged at term formation; Wrapping and
+Saturating make representable-range overflow total while retaining independent
+primitive obligations such as a nonzero divisor. Direct Trapping arithmetic
+rejects in `Prop` because its partiality is resolved by runtime control.
+`embed(value)` explicitly projects a
+fixed-width integer or address payload into proof `Int`; a same-carrier `as`
+instead removes the policy and selects Exact carrier arithmetic with its normal
+obligations. Float denotation uses `FloatMeaning`. The complete bridge and crash
+coverage rules live in
+[Total Specification Arithmetic](total_specification_arithmetic.md).
 
 Mixed arithmetic policies reject. Arithmetic-policy removal or replacement
 changes only future operator selection; it does not reinterpret an already

@@ -58,6 +58,15 @@ Proof-only status is structural, not a `[proof]` or `[unbounded]` property.
 Anonymous binder syntax remains optional sugar to consider only if named
 predicates prove too verbose.
 
+Runtime fixed-width integers and addresses enter unbounded proof arithmetic
+through the total `embed(value) -> Int` projection, which also establishes the
+source carrier's exact range. This is distinct from erasing an arithmetic
+policy with `as`, which selects Exact carrier arithmetic and retains its
+representability obligations. Floats use `FloatMeaning` so signed zero,
+infinity, and NaN are not lost. Direct Trapping arithmetic never forms a proof
+term; see
+[Total Specification Arithmetic](total_specification_arithmetic.md).
+
 ## Ranked recursion
 
 Every terminating recursive call cycle requires a `terminates by` ranking.

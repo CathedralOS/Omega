@@ -482,6 +482,18 @@ Current ownership is:
   user-defined, and float operands remain opaque. The site
   separately retains its exact incoming-predicate conjunction for downstream
   refinement and reporting.
+- Predicate checking admits only total terms. Exact arithmetic owns and
+  discharges its representability obligation at formation; Wrapping and
+  Saturating own total overflow denotations after independent primitive
+  obligations are discharged; direct Trapping arithmetic rejects.
+  Explicit fixed-integer/address `embed` expressions produce proof `Int` plus
+  exact source-carrier range facts, while a same-carrier `as` removes the
+  policy and forms an ordinary Exact operation. Float denotation uses the
+  format-specific `FloatMeaning` projection. These specification terms emit no
+  crash site. Executable Trapping operations independently select a
+  compiler-owned primitive guard, and crash coverage proves each
+  path-conditioned derived guard implies the authored same-cause route
+  disjunction.
 - `psi-checked-trees/src/proof/` owns proof-facing checked facts:
   `obligations.rs` owns explicit proof obligations, `contracts.rs` owns
   contract proof facts/call/exit indexes, and `roots.rs` owns the grouped

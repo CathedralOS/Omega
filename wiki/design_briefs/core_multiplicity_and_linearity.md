@@ -165,6 +165,10 @@ qualification may additionally publish one owner-unique conformance to the
 core `Content<A>` requirement and project into a compiler-owned partial
 composition algebra. The initial closed algebras are canonical disjoint
 interval sets and counted quantities over proof-level natural arithmetic.
+Fixed-width integer and address inputs reach those algebras by first embedding
+uniformly into proof `Int`, then converting exactly under their derived
+nonnegativity facts; `Nat` is the content coordinate, not the universal machine
+integer denotation.
 Ordinary linearity never
 implies a content projection.
 

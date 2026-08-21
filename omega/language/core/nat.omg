@@ -398,11 +398,14 @@ machine pred(a: Nat) -> Nat
     }
 }
 
-// TRUNCATED SUBTRACTION (monus): sub(a, Zero) = a; sub(a, Succ b') =
+// TRANSITIONAL TRUNCATED SUBTRACTION: sub(a, Zero) = a; sub(a, Succ b') =
 // pred(sub(a, b')) -- Lean's Nat.sub spelling, recursion on `b` composing
 // `pred` cross-machine (the mul-over-add pattern; every machine here stays
 // single-transition so lemma facts unfold). `sub(a, b) == Zero` is the
-// roster's `a <= b` spelling until an order surface lands.
+// roster's `a <= b` spelling until an order surface lands. The settled public
+// name is `Nat::saturating_sub`; ordinary `Nat - Nat` is Exact and requires
+// `b <= a` at formation. Rename this machine and its proof corpus together when
+// that operator surface lands rather than silently routing bare `-` to monus.
 machine sub(a: Nat, b: Nat) -> Nat
 terminates by b;
 {

@@ -717,9 +717,14 @@ Remaining:
   while payload-bearing sums remain fenced. Semantic codec v17, proof-bundle
   v11, and installation-record v23 retain the structural shapes and
   proposition. Continue with case-payload paths and aggregate equality over
-  payload-bearing sums and erased fields. Trapping predicate
-  arithmetic is design-blocked on owner Q4; imported crash capsules remain
-  blocked on artifact identity and certificate binding.
+  payload-bearing sums and erased fields. Add the settled total-specification
+  arithmetic slice: reject direct `Trapping` policy operations in `Prop`, retain
+  explicit fixed-integer/address embeddings into proof `Int` with their derived
+  carrier-range facts, and retain explicit same-carrier Exact coercions with
+  their ordinary formation obligations. Add the per-primitive Exact, Wrapping,
+  Saturating, and Trapping denotation bridges; compiler-derived Trapping guards
+  remain executable crash-site facts rather than predicate effects. Imported
+  crash capsules remain blocked on artifact identity and certificate binding.
 - **PROOF-CERTIFICATION-BRIDGE.** Emit kernel-checkable certificates from source
   automation. One recursive certificate owns one SCC, cites its ranking and
   well-foundedness evidence once, and proves every internal edge decreases;
@@ -1418,7 +1423,7 @@ Owners:
   evidence. The remaining slices are resource-ceiling aggregation,
   multi-entry/re-entrant target instruction lowering, and the
   private registration relocation (whose binding placement is design-blocked
-  on `OWNER_QUESTIONS.md` Q8),
+  on `OWNER_QUESTIONS.md` Q7),
   registration leases/unregister,
   and cross-target registered-callback canaries.
 - Implement the narrow Windows `user32` canary without exposing a raw code
@@ -1562,7 +1567,7 @@ compiler concept is introduced.
   published checked operational root is retired; its plan remains only as a
   transient validation and independent-fact construction input.
   Continue removing umbrella carriers after their remaining consumers migrate.
-- **TPR4/TPR6 — design blocked on owner Q6.** Choose how an ordinary domain or
+- **TPR4/TPR6 — design blocked on owner Q5.** Choose how an ordinary domain or
   routed requirement is classified and attached as a progress premise before
   connecting progress-profile grants and receipts. Generic routed/domain
   requirements must not be treated as progress merely because they are
@@ -1612,7 +1617,7 @@ reach or trust, and private proof improvements do not change public identity.
   and general affine cleanup rather than claiming convergence from duplicated
   leaves.
   Provider-sized external adapter/arrival state is design-blocked on
-  `OWNER_QUESTIONS.md` Q5: stack-domain ownership across interrupted and
+  `OWNER_QUESTIONS.md` Q4: stack-domain ownership across interrupted and
   switched entry must be settled before this can become a complete root
   `StackPlan`. Zero-byte internal closures remain inadmissible until that
   adapter demand exists.
@@ -1719,13 +1724,24 @@ Remaining N6/N8 work:
   dependent domain, pointwise input relations, and lifted result relation.
   The proof obligations and positional telescope are settled; the explicit
   source location that selects one named conformance for an ordinary lifted
-  operation is design-blocked on `OWNER_QUESTIONS.md` Q7.
+  operation is design-blocked on `OWNER_QUESTIONS.md` Q6.
 - Add exact-pair-selected heterogeneous constructor lifts. Dependent records
   lift in order and generate checked transport obligations for coarser earlier
   fields. Extend R6 carrier-family binders for reusable proposition-valued
   relators; add no global carrier role or default relator.
 - Gate runtime deciders whose lifted relation depends on erased `Type` content;
   require determination by the runtime projection or report the component.
+- Land total specification arithmetic. Fixed-width integer and address
+  `embed` returns proof `Int` and contributes exact source-carrier range facts;
+  proof `Int as Nat` requires nonnegativity. Make ordinary `Nat - Nat` Exact
+  with `right <= left` discharged at formation, rename the bootstrap monus
+  operation and its dependent order/metric corpus to
+  `Nat::saturating_sub`, and keep clamping unavailable through bare `-`.
+  Migrate `Granted::content` and the content-projection examples to explicit
+  `as Nat` conversions while retaining `IntervalSet<Nat>` as their public
+  nonnegative algebra. Add the integer-policy bridge catalog and the separate
+  `FloatMeaning` projection rules described by
+  [`total_specification_arithmetic.md`](wiki/design_briefs/total_specification_arithmetic.md).
 - Then migrate `%` and suffix law discovery to propositions plus explicit
   conformances, and expand the checked `Nat`/`Int`/`Rat`/Cauchy/approximation
   corpus. `Real` remains proof-only and core-level.
@@ -1830,7 +1846,7 @@ can produce installed code; validation binds exact final bytes and placement.
 These are pointers to the owning question or open design item, not duplicate
 specifications:
 
-- **EXTERNAL-ENTRY-STACK-DOMAIN:** owner Q5.
+- **EXTERNAL-ENTRY-STACK-DOMAIN:** owner Q4.
 - **FIXED-OPERATOR-SURFACE-BINDING:** owner Q1.
 - **UEFI-PHYSICAL-SEMANTIC-ENTRY-COMPOSITION:** owner Q2.
 - **SUM-MATERIALIZATION:** tagged-case placement vocabulary in
@@ -1839,11 +1855,10 @@ specifications:
   in `wiki/language_guide/appendix_open_questions.md`.
 - **CHECKED-RESULT-ARITHMETIC:** public carrier ruling for failure-returning
   checked arithmetic.
-- **TRAPPING-CONTRACT-ARITHMETIC:** owner Q4.
 - **IMPORTED-CRASH-CAPSULES:** realization/import/certificate identity in
   `wiki/language_guide/appendix_open_questions.md`.
 - **NATIVE-LOGICAL-FUEL-METERING:** owner Q3.
-- **PROGRESS-PROFILE-CLASSIFICATION:** owner Q6.
+- **PROGRESS-PROFILE-CLASSIFICATION:** owner Q5.
 
 ## Platform-gated verification
 

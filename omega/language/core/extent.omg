@@ -16,10 +16,11 @@ data Extent [linear] {
     length: u64;
 }
 
-// Contract-only target predicate. Its proof interpretation embeds both
-// scalars into natural arithmetic and requires `base + length` to be at most
-// the selected target address-space bound; it is never wrapping `addr`
-// arithmetic and has no executable call surface.
+// Contract-only target predicate. Its settled proof interpretation embeds both
+// scalars into unbounded Int, imports their derived nonnegative/range facts, and
+// requires `base + length` to be at most the selected target address-space
+// bound; it is never wrapping `addr` arithmetic and has no executable call
+// surface.
 boundary machine no_wrap(base: addr, length: u64) -> bool;
 
 // `Granted` is authority evidence, not a structural invariant. Constructing
@@ -47,8 +48,12 @@ pub boundary trait ProgramStorageEntry {
 }
 
 // `Granted` owns one canonical half-open address interval. Runtime address
-// arithmetic must not define the one-past end: proof-level naturals retain an
-// end equal to the address-space bound even when `addr` cannot represent it.
+// arithmetic must not define the one-past end: fixed-width values first embed
+// into proof Int, and their derived nonnegativity permits exact conversion to
+// these proof-Nat coordinates. Nat retains an end equal to the address-space
+// bound even when `addr` cannot represent it. The direct destination-driven
+// embedding below is the current bootstrap spelling; the settled surface makes
+// both `as Nat` conversions explicit when uniform-Int embedding lands.
 machine Granted::content(extent: &Extent) -> IntervalSet<Nat>
 satisfies Content<IntervalSet<Nat>>::project
 {

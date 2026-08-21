@@ -225,7 +225,10 @@ Schematically, the `Granted` projection has this shape:
 machine Granted::content(e: &Extent) -> IntervalSet<PhysicalMemory>
     satisfies Content<IntervalSet<PhysicalMemory>>::project
 {
-    IntervalSet::singleton(embed(e.base), embed(e.base) + embed(e.length))
+    IntervalSet::singleton(
+        embed(e.base) as Nat,
+        (embed(e.base) + embed(e.length)) as Nat
+    )
 }
 ```
 
@@ -260,8 +263,10 @@ roots, stable domain and projection identities, entry/current paths, fields,
 fixed indices, sum cases, and flat separation. Canonical encoding and
 independent verification retain no source-arena identity.
 
-An address interval-set member uses embedded arithmetic rather than wrapping
-runtime `addr` arithmetic. Its half-open end may equal the address-space bound
+An address interval-set member uses embedded proof `Int` arithmetic rather than
+wrapping runtime `addr` arithmetic, then converts the proven-nonnegative bounds
+into the algebra's proof `Nat` coordinates. The source-carrier range facts
+discharge those conversions. Its half-open end may equal the address-space bound
 even when that one-past value is not representable as `addr`.
 `no_wrap(base, length)` therefore means that the embedded sum does not exceed
 the target address-space bound, and every route establishing `Granted` proves
