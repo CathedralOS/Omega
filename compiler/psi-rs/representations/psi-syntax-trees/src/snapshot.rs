@@ -242,6 +242,8 @@ pub struct TypeParameterSnapshot {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub machine_contract: Option<StateSignatureSnapshot>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub machine_requirement: Option<Vec<IdentifierSnapshot>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub proposition_contract: Option<PropositionParameterSignatureSnapshot>,
     pub bounds: DataPropertiesSnapshot,
 }
@@ -1163,52 +1165,67 @@ fn snapshot_type_parameter(
     syntax_trees: &SyntaxTrees,
     parameter: &crate::item::TypeParameter,
 ) -> TypeParameterSnapshot {
-    let (kind, const_type, machine_contract, proposition_contract) = match &parameter.kind {
-        crate::item::TypeParameterKind::Type => ("type", None, None, None),
-        crate::item::TypeParameterKind::Const { type_reference } => (
-            "const",
-            Some(snapshot_type_reference_handle(
-                syntax_trees,
-                *type_reference,
-            )),
-            None,
-            None,
-        ),
-        crate::item::TypeParameterKind::Machine { contract } => (
-            "machine",
-            None,
-            contract
-                .as_ref()
-                .map(|contract| snapshot_state_signature(syntax_trees, contract)),
-            None,
-        ),
-        crate::item::TypeParameterKind::Proposition { contract } => (
-            "proposition",
-            None,
-            None,
-            contract
-                .as_ref()
-                .map(|contract| PropositionParameterSignatureSnapshot {
-                    name: snapshot_identifier(&contract.name),
-                    parameters: syntax_trees
-                        .items
-                        .state_parameters(contract.parameters)
-                        .iter()
-                        .map(|handle| {
-                            snapshot_state_parameter(
-                                syntax_trees,
-                                syntax_trees.items.state_parameter(*handle),
-                            )
-                        })
-                        .collect(),
-                }),
-        ),
-    };
+    let (kind, const_type, machine_contract, machine_requirement, proposition_contract) =
+        match &parameter.kind {
+            crate::item::TypeParameterKind::Type => ("type", None, None, None, None),
+            crate::item::TypeParameterKind::Const { type_reference } => (
+                "const",
+                Some(snapshot_type_reference_handle(
+                    syntax_trees,
+                    *type_reference,
+                )),
+                None,
+                None,
+                None,
+            ),
+            crate::item::TypeParameterKind::Machine { contract } => match contract {
+                Some(crate::item::MachineParameterContract::Structural(signature)) => (
+                    "machine",
+                    None,
+                    Some(snapshot_state_signature(syntax_trees, signature)),
+                    None,
+                    None,
+                ),
+                Some(crate::item::MachineParameterContract::Nominal { requirement }) => (
+                    "machine",
+                    None,
+                    None,
+                    Some(snapshot_identifier_slice(
+                        syntax_trees.items.identifier_path_members(*requirement),
+                    )),
+                    None,
+                ),
+                None => ("machine", None, None, None, None),
+            },
+            crate::item::TypeParameterKind::Proposition { contract } => (
+                "proposition",
+                None,
+                None,
+                None,
+                contract
+                    .as_ref()
+                    .map(|contract| PropositionParameterSignatureSnapshot {
+                        name: snapshot_identifier(&contract.name),
+                        parameters: syntax_trees
+                            .items
+                            .state_parameters(contract.parameters)
+                            .iter()
+                            .map(|handle| {
+                                snapshot_state_parameter(
+                                    syntax_trees,
+                                    syntax_trees.items.state_parameter(*handle),
+                                )
+                            })
+                            .collect(),
+                    }),
+            ),
+        };
     TypeParameterSnapshot {
         name: snapshot_identifier(&parameter.name),
         kind,
         const_type,
         machine_contract,
+        machine_requirement,
         proposition_contract,
         bounds: snapshot_data_properties(parameter.bounds),
     }

@@ -134,13 +134,65 @@ pub enum TypeParameterKind {
     /// Static machine-symbol parameter and the declaration-site contract
     /// against which generic bodies and later instantiations are checked.
     Machine {
-        contract: crate::signature::StateSignature,
+        contract: MachineParameterContract,
     },
     /// Generic proof-formula family with an authored value-parameter
     /// signature. It carries no executable state or runtime result.
     Proposition {
         contract: PropositionParameterSignature,
     },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum MachineParameterContract {
+    Structural(crate::signature::StateSignature),
+    Nominal {
+        trait_definition: SymbolHandle,
+        requirement: SymbolHandle,
+    },
+}
+
+impl Default for MachineParameterContract {
+    fn default() -> Self {
+        Self::Structural(crate::signature::StateSignature::default())
+    }
+}
+
+impl MachineParameterContract {
+    pub fn structural(&self) -> Option<&crate::signature::StateSignature> {
+        match self {
+            Self::Structural(signature) => Some(signature),
+            Self::Nominal { .. } => None,
+        }
+    }
+
+    pub fn structural_mut(&mut self) -> Option<&mut crate::signature::StateSignature> {
+        match self {
+            Self::Structural(signature) => Some(signature),
+            Self::Nominal { .. } => None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum MachineParameterContractView<'program> {
+    Structural(&'program crate::signature::StateSignature),
+    Nominal {
+        trait_definition: &'program crate::trait_definition::TraitDefinition,
+        requirement: &'program crate::signature::StateSignature,
+    },
+}
+
+impl<'program> MachineParameterContractView<'program> {
+    pub fn signature(self) -> &'program crate::signature::StateSignature {
+        match self {
+            Self::Structural(signature)
+            | Self::Nominal {
+                requirement: signature,
+                ..
+            } => signature,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

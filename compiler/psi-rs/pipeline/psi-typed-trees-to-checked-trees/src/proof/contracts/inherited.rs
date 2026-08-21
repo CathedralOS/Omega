@@ -36,9 +36,9 @@ pub(crate) fn estimated_contract_fact_capacity(program: &psi_typed_trees::TypedT
                 .machine_type_parameters(machine)
                 .iter()
                 .filter_map(|parameter| match &parameter.kind {
-                    psi_typed_trees::data::TypeParameterKind::Machine { contract } => {
-                        Some(contract)
-                    }
+                    psi_typed_trees::data::TypeParameterKind::Machine { contract } => program
+                        .machine_parameter_contract_view(contract)
+                        .map(psi_typed_trees::data::MachineParameterContractView::signature),
                     _ => None,
                 })
                 .map(|signature| {

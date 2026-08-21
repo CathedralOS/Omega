@@ -321,31 +321,33 @@ fn count_type_parameter(
             count_type_reference_handle(&typed_trees.type_reference_table, *type_reference, counts);
         }
         crate::data::TypeParameterKind::Machine { contract } => {
-            count_declaration_name(&contract.name, counts);
-            for nested in typed_trees.state_signature_type_parameters(contract) {
-                count_type_parameter(typed_trees, nested, counts);
-            }
-            for contract_parameter in typed_trees.state_signature_parameters(contract) {
-                count_declaration_name(&contract_parameter.name, counts);
-                count_type_reference_handle(
-                    &typed_trees.type_reference_table,
-                    contract_parameter.type_reference,
-                    counts,
-                );
-            }
-            if contract.return_type.is_valid() {
-                count_type_reference_handle(
-                    &typed_trees.type_reference_table,
-                    contract.return_type,
-                    counts,
-                );
-            }
-            for binding in typed_trees.state_signature_invokes(contract) {
-                count_declaration_name(binding, counts);
-            }
-            for contract in typed_trees.state_signature_contracts(contract) {
-                for fact in typed_trees.tables.proof_facts.span_or_empty(contract.facts) {
-                    count_proof_fact(typed_trees, fact, counts);
+            if let crate::data::MachineParameterContract::Structural(contract) = contract {
+                count_declaration_name(&contract.name, counts);
+                for nested in typed_trees.state_signature_type_parameters(contract) {
+                    count_type_parameter(typed_trees, nested, counts);
+                }
+                for contract_parameter in typed_trees.state_signature_parameters(contract) {
+                    count_declaration_name(&contract_parameter.name, counts);
+                    count_type_reference_handle(
+                        &typed_trees.type_reference_table,
+                        contract_parameter.type_reference,
+                        counts,
+                    );
+                }
+                if contract.return_type.is_valid() {
+                    count_type_reference_handle(
+                        &typed_trees.type_reference_table,
+                        contract.return_type,
+                        counts,
+                    );
+                }
+                for binding in typed_trees.state_signature_invokes(contract) {
+                    count_declaration_name(binding, counts);
+                }
+                for contract in typed_trees.state_signature_contracts(contract) {
+                    for fact in typed_trees.tables.proof_facts.span_or_empty(contract.facts) {
+                        count_proof_fact(typed_trees, fact, counts);
+                    }
                 }
             }
         }

@@ -321,6 +321,54 @@ fn parse_machine_parameter_contracts_in<'tokens, 'source>(
             }
         }
 
+        if after_name.at_contextual("satisfies") {
+            let after_satisfies = after_name.take_contextual("satisfies")?;
+            let (requirement, after_requirement) =
+                parse_path_handle_span(after_satisfies, |member| {
+                    syntax_trees.items.append_identifier_path_member(member)
+                })?;
+            if after_requirement.at_punctuation(PunctuationKind::Less) {
+                return Err(after_requirement.error_here(
+                    "generic trait arguments are not supported in nominal machine parameter requirements; name one exact `Trait::requirement`",
+                ));
+            }
+            if requirement.len() < 2 {
+                return Err(after_requirement.error_here(format!(
+                    "nominal machine parameter `{}` must name an exact `Trait::requirement`; bare `satisfies Trait` is not a callable contract",
+                    name.as_str()
+                )));
+            }
+            if after_requirement.at_contextual("as") {
+                return Err(after_requirement.error_here(
+                    "nominal machine parameter requirements do not accept `as Name`; `Trait::requirement` must resolve uniquely",
+                ));
+            }
+            if after_requirement.at_contextual("via") {
+                return Err(after_requirement.error_here(
+                    "a `where machine` nominal requirement cannot use `via`; bindings belong on the satisfying bodyless machine",
+                ));
+            }
+            let after_semicolon =
+                after_requirement.take_punctuation(PunctuationKind::Semicolon, ";")?;
+            let rest = if continues_after_machine_parameter_contract(after_semicolon) {
+                after_semicolon
+            } else {
+                // A bodyless declaration's final semicolon terminates both the
+                // nominal binder and the declaration. Leave it for the outer
+                // machine parser, just like operational clauses do.
+                after_requirement
+            };
+            let parameter =
+                &mut syntax_trees.items.type_parameters_mut(type_parameters)[parameter_index];
+            parameter.kind = psi_syntax_trees::item::TypeParameterKind::Machine {
+                contract: Some(psi_syntax_trees::item::MachineParameterContract::Nominal {
+                    requirement,
+                }),
+            };
+            input = rest;
+            continue;
+        }
+
         let (nested_generic_parameters, after_type_parameters) =
             parse_machine_type_parameters(syntax_trees, after_name)?;
         let nested_type_parameters = nested_generic_parameters.type_parameters;
@@ -366,7 +414,7 @@ fn parse_machine_parameter_contracts_in<'tokens, 'source>(
         let parameter =
             &mut syntax_trees.items.type_parameters_mut(type_parameters)[parameter_index];
         parameter.kind = psi_syntax_trees::item::TypeParameterKind::Machine {
-            contract: Some(contract),
+            contract: Some(psi_syntax_trees::item::MachineParameterContract::Structural(contract)),
         };
         input = rest;
     }
@@ -383,13 +431,32 @@ fn parse_machine_parameter_contracts_in<'tokens, 'source>(
         })
     {
         return Err(input.error_here(format!(
-            "machine parameter `{}` requires an authored declaration-site contract: write `where machine {}(...) -> Result`",
+            "machine parameter `{}` requires an authored declaration-site contract: write `where machine {}(...) -> Result` or `where machine {} satisfies Trait::requirement;`",
             missing.name.as_str(),
-            missing.name.as_str()
+            missing.name.as_str(),
+            missing.name.as_str(),
         )));
     }
 
     Ok(((), input))
+}
+
+fn continues_after_machine_parameter_contract(input: Input<'_, '_>) -> bool {
+    input.at_punctuation(PunctuationKind::LeftBrace)
+        || input.at_punctuation(PunctuationKind::Arrow)
+        || input.at_contextual("terminates")
+        || input.at_contextual("decreases")
+        || input.at_contextual("reaches")
+        || input.at_contextual("effects")
+        || input.at_contextual("invokes")
+        || input.at_contextual("suspends")
+        || input.at_contextual("blocks")
+        || input.at_contextual("crashes")
+        || input.at_contextual("boundary")
+        || input.at_contextual("requires")
+        || input.at_contextual("ensures")
+        || input.at_contextual("where")
+        || input.at_contextual("satisfies")
 }
 
 fn starts_implicit_entry_body(input: Input<'_, '_>) -> bool {

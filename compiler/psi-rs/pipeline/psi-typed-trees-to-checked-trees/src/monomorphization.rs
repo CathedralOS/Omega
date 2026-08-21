@@ -118,11 +118,19 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
                         &parameter.bounds,
                     ));
                 }
-                TypeParameterKind::Machine { contract } => machine_parameters.push((
-                    parameter.symbol,
-                    parameter.name.as_str().to_owned(),
-                    contract.clone(),
-                )),
+                TypeParameterKind::Machine { contract } => {
+                    let signature = program
+                        .machine_parameter_contract_view(contract)
+                        .expect(
+                            "typed machine-parameter contract must retain a valid requirement identity",
+                        )
+                        .signature();
+                    machine_parameters.push((
+                        parameter.symbol,
+                        parameter.name.as_str().to_owned(),
+                        signature.clone(),
+                    ));
+                }
                 TypeParameterKind::Const { type_reference } => const_parameters.push((
                     parameter.symbol,
                     parameter.name.as_str().to_owned(),
@@ -3513,9 +3521,36 @@ fn template_contract_fingerprint(program: &TypedTrees, machine_index: usize) -> 
                 &binders,
                 &mut bytes,
             ),
-            TypeParameterKind::Machine { contract } => {
-                encode_state_signature(program, contract, &binders, &type_binders, &mut bytes)
-            }
+            TypeParameterKind::Machine { contract } => match program
+                .machine_parameter_contract_view(contract)
+                .expect("typed machine-parameter contract must retain a valid requirement identity")
+            {
+                psi_typed_trees::data::MachineParameterContractView::Structural(signature) => {
+                    bytes.push(1);
+                    encode_state_signature(program, signature, &binders, &type_binders, &mut bytes);
+                }
+                psi_typed_trees::data::MachineParameterContractView::Nominal {
+                    trait_definition,
+                    requirement,
+                } => {
+                    bytes.push(2);
+                    let identity = program
+                        .normalized_trait_requirement_overload_identity(
+                            trait_definition,
+                            requirement,
+                        )
+                        .identity();
+                    bytes.extend((identity.len() as u64).to_le_bytes());
+                    bytes.extend(identity.as_bytes());
+                    encode_state_signature(
+                        program,
+                        requirement,
+                        &binders,
+                        &type_binders,
+                        &mut bytes,
+                    );
+                }
+            },
             TypeParameterKind::Proposition { contract } => {
                 bytes.extend((contract.parameters.len() as u32).to_le_bytes());
                 for parameter in program.state_parameters.span_or_empty(contract.parameters) {

@@ -92,9 +92,26 @@ pub(crate) fn lower_type_parameter_kind(
             })
         }
         resolved::data::TypeParameterKind::Machine { contract } => {
-            Ok(typed::data::TypeParameterKind::Machine {
-                contract: crate::state::lower_state_signature(lowerer, contract)?,
-            })
+            let contract = match contract {
+                resolved::data::MachineParameterContract::Structural(signature) => {
+                    typed::data::MachineParameterContract::Structural(
+                        crate::state::lower_state_signature(lowerer, signature)?,
+                    )
+                }
+                resolved::data::MachineParameterContract::AuthoredNominal { .. } => {
+                    return Err(Diagnostic::error(
+                        "an unresolved nominal machine-parameter requirement reached typed lowering",
+                    ));
+                }
+                resolved::data::MachineParameterContract::Nominal {
+                    trait_definition,
+                    requirement,
+                } => typed::data::MachineParameterContract::Nominal {
+                    trait_definition: *trait_definition,
+                    requirement: *requirement,
+                },
+            };
+            Ok(typed::data::TypeParameterKind::Machine { contract })
         }
         resolved::data::TypeParameterKind::Proposition { contract } => {
             let mut parameters = psi_arena::HandleSpan::empty();

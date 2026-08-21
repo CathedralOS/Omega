@@ -582,9 +582,19 @@ impl SyntaxTrees {
                     }
                     crate::item::TypeParameterKind::Machine { contract } => {
                         crate::item::TypeParameterKind::Machine {
-                            contract: contract
-                                .as_ref()
-                                .map(|contract| this.copy_state_signature_value(other, contract)),
+                            contract: contract.as_ref().map(|contract| match contract {
+                                crate::item::MachineParameterContract::Structural(signature) => {
+                                    crate::item::MachineParameterContract::Structural(
+                                        this.copy_state_signature_value(other, signature),
+                                    )
+                                }
+                                crate::item::MachineParameterContract::Nominal { requirement } => {
+                                    crate::item::MachineParameterContract::Nominal {
+                                        requirement: this
+                                            .copy_item_identifier_span(other, *requirement),
+                                    }
+                                }
+                            }),
                         }
                     }
                     crate::item::TypeParameterKind::Proposition { contract } => {

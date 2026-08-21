@@ -52,17 +52,19 @@ pub(super) fn assign_data_symbols(
                 else {
                     continue;
                 };
-                assign_machine_parameter_signature_symbols(
-                    symbols,
-                    data_type_parameters,
-                    state_parameters,
-                    child_type_references,
-                    type_constraints,
-                    &mut contract,
-                    parameter_symbol,
-                    &local_type_parameters,
-                    data_symbol,
-                );
+                if let Some(signature) = contract.structural_mut() {
+                    assign_machine_parameter_signature_symbols(
+                        symbols,
+                        data_type_parameters,
+                        state_parameters,
+                        child_type_references,
+                        type_constraints,
+                        signature,
+                        parameter_symbol,
+                        &local_type_parameters,
+                        data_symbol,
+                    );
+                }
                 data_type_parameters.span_mut_or_empty(data_definition.type_parameters)[index]
                     .kind =
                     psi_symbol_resolved_trees::data::TypeParameterKind::Machine { contract };

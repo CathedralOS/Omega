@@ -92,9 +92,12 @@ pub(super) fn infer_hoist_temp_type(
                                     .iter()
                                     .find_map(|parameter| match &parameter.kind {
                                         resolved::data::TypeParameterKind::Machine { contract }
-                                            if parameter.symbol == target_symbol
-                                                || contract.symbol == target_symbol =>
+                                            if parameter.symbol == target_symbol =>
                                         {
+                                            let contract = lowerer
+                                                .source_trees
+                                                .machine_parameter_contract_view(contract)?
+                                                .signature();
                                             machine_substitutions.extend(
                                                 lowerer
                                                     .source_trees

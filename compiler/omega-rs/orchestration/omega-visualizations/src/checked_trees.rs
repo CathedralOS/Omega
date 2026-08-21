@@ -547,7 +547,7 @@ fn validate_qualification_source(
             matches!(
                 &parameter.kind,
                 TypeParameterKind::Machine { contract }
-                    if parameter.symbol == source || contract.symbol == source
+                    if parameter.symbol == source
             )
         })
         .count();
@@ -3533,19 +3533,24 @@ fn exact_manifest_crash_target(
                 else {
                     continue;
                 };
-                if parameter.symbol != target_state && contract.symbol != target_state {
+                if parameter.symbol != target_state {
                     continue;
                 }
-                let label = if parameter.symbol == target_state {
-                    parameter.name.as_str()
-                } else {
-                    contract.name.as_str()
-                };
+                let signature = program
+                    .machine_parameter_contract_view(contract)
+                    .expect(
+                        "checked machine-parameter contract must retain a valid requirement identity",
+                    )
+                    .signature();
+                let label = parameter.name.as_str();
                 generic_targets.push(ValidatedManifestCrashTarget {
                     owner_label: label.to_owned(),
                     state_label: label.to_owned(),
                     overload_identity: program
-                        .normalized_machine_parameter_overload_identity(declaring_machine, contract)
+                        .normalized_machine_parameter_overload_identity(
+                            declaring_machine,
+                            signature,
+                        )
                         .identity(),
                     is_requirement: true,
                 });

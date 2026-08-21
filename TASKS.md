@@ -1230,6 +1230,18 @@ Owners:
   API contract forwards them. Add declaration-side compatibility reporting
   when a new overload makes signature-free references ambiguous, with pass/fail
   canaries covering both callback binders and domain routes.
+
+  The declaration and admission slice is implemented. Syntax, resolved, and
+  typed trees retain a discriminated structural-or-nominal contract; nominal
+  binders normalize to one exact trait/requirement symbol pair through the
+  shared signature-free resolver. Selection requires one explicit satisfaction
+  row for that exact requirement, rejects structural coincidence and a row for
+  another trait, and keeps nominal and structural specializations distinct in
+  template identity. Remaining work is the durable checked per-use row
+  (including the selected satisfaction row, separate published/actual
+  envelopes and refinement evidence), target thunk-placement realization,
+  registration lease/unregister lowering, declaration-side ambiguity
+  reporting, and cross-target callback/domain-route canaries.
 - Implement the narrow Windows `user32` canary without exposing a raw code
   address. Derive `Atomic::interruption_fence` same-context evidence from the
   installed external-root route and reject it elsewhere.

@@ -158,6 +158,10 @@ fn validate_machine_parameter_signatures<'program>(
         let psi_typed_trees::data::TypeParameterKind::Machine { contract } = &parameter.kind else {
             continue;
         };
+        let contract = program
+            .machine_parameter_contract_view(contract)
+            .expect("typed machine-parameter contract must retain a valid requirement identity")
+            .signature();
         let nested = program.state_signature_type_parameters(contract);
         for (index, nested_parameter) in nested.iter().enumerate() {
             if nested[..index]

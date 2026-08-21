@@ -121,16 +121,73 @@ pub enum TypeParameterKind {
         type_reference: TypeReference,
     },
     /// Static machine-symbol parameter with its mandatory authored
-    /// requirement. The signature is carried inline so no use-site or
-    /// instantiation-dependent inference can redefine the abstraction.
+    /// requirement. Structural contracts carry their signature inline;
+    /// nominal contracts retain the exact canonical trait-requirement row.
     Machine {
-        contract: crate::signature::StateSignature,
+        contract: MachineParameterContract,
     },
     /// Generic proof-formula family with an authored value-parameter
     /// signature. This is not an executable machine contract.
     Proposition {
         contract: PropositionParameterSignature,
     },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum MachineParameterContract {
+    Structural(crate::signature::StateSignature),
+    /// Temporary authored spelling retained until all declarations have
+    /// symbols. The syntax-to-resolved finisher must eliminate this variant.
+    AuthoredNominal {
+        requirement: Vec<DiagnosticName>,
+    },
+    Nominal {
+        trait_definition: SymbolHandle,
+        requirement: SymbolHandle,
+    },
+}
+
+impl Default for MachineParameterContract {
+    fn default() -> Self {
+        Self::Structural(crate::signature::StateSignature::default())
+    }
+}
+
+impl MachineParameterContract {
+    pub fn structural(&self) -> Option<&crate::signature::StateSignature> {
+        match self {
+            Self::Structural(signature) => Some(signature),
+            Self::AuthoredNominal { .. } | Self::Nominal { .. } => None,
+        }
+    }
+
+    pub fn structural_mut(&mut self) -> Option<&mut crate::signature::StateSignature> {
+        match self {
+            Self::Structural(signature) => Some(signature),
+            Self::AuthoredNominal { .. } | Self::Nominal { .. } => None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum MachineParameterContractView<'program> {
+    Structural(&'program crate::signature::StateSignature),
+    Nominal {
+        trait_definition: &'program crate::trait_definition::TraitDefinition,
+        requirement: &'program crate::signature::StateSignature,
+    },
+}
+
+impl<'program> MachineParameterContractView<'program> {
+    pub fn signature(self) -> &'program crate::signature::StateSignature {
+        match self {
+            Self::Structural(signature)
+            | Self::Nominal {
+                requirement: signature,
+                ..
+            } => signature,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

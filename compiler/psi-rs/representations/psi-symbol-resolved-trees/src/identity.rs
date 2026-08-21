@@ -350,41 +350,49 @@ fn count_type_parameter(
                 counts,
             );
         }
-        crate::data::TypeParameterKind::Machine { contract } => {
-            count_declaration_name(&contract.name, counts);
-            for nested in program.data_type_parameters(contract.type_parameters) {
-                count_type_parameter(
-                    program,
-                    nested,
+        crate::data::TypeParameterKind::Machine { contract } => match contract {
+            crate::data::MachineParameterContract::Structural(contract) => {
+                count_declaration_name(&contract.name, counts);
+                for nested in program.data_type_parameters(contract.type_parameters) {
+                    count_type_parameter(
+                        program,
+                        nested,
+                        child_type_references,
+                        expression_table,
+                        counts,
+                    );
+                }
+                for contract_parameter in program.state_parameters(contract.parameters) {
+                    count_declaration_name(&contract_parameter.name, counts);
+                    count_type_reference(
+                        &contract_parameter.type_reference,
+                        child_type_references,
+                        expression_table,
+                        counts,
+                    );
+                }
+                count_optional_type_reference(
+                    contract.return_type.as_ref(),
                     child_type_references,
                     expression_table,
                     counts,
                 );
-            }
-            for contract_parameter in program.state_parameters(contract.parameters) {
-                count_declaration_name(&contract_parameter.name, counts);
-                count_type_reference(
-                    &contract_parameter.type_reference,
-                    child_type_references,
-                    expression_table,
-                    counts,
-                );
-            }
-            count_optional_type_reference(
-                contract.return_type.as_ref(),
-                child_type_references,
-                expression_table,
-                counts,
-            );
-            for binding in program.signature_invokes(contract.invokes) {
-                count_declaration_name(binding, counts);
-            }
-            for contract in program.signature_contracts(contract.contracts) {
-                for fact in program.proof_facts(contract.facts) {
-                    count_proof_fact(program, fact, expression_table, counts);
+                for binding in program.signature_invokes(contract.invokes) {
+                    count_declaration_name(binding, counts);
+                }
+                for contract in program.signature_contracts(contract.contracts) {
+                    for fact in program.proof_facts(contract.facts) {
+                        count_proof_fact(program, fact, expression_table, counts);
+                    }
                 }
             }
-        }
+            crate::data::MachineParameterContract::AuthoredNominal { requirement } => {
+                for member in requirement {
+                    count_declaration_name(member, counts);
+                }
+            }
+            crate::data::MachineParameterContract::Nominal { .. } => {}
+        },
         crate::data::TypeParameterKind::Proposition { contract } => {
             count_declaration_name(&contract.name, counts);
             for contract_parameter in program.state_parameters(contract.parameters) {

@@ -9,7 +9,7 @@
 use psi_diagnostics::Diagnostic;
 use psi_symbols::{SymbolHandle, SymbolKind};
 use psi_typed_trees::TypedTrees;
-use psi_typed_trees::data::{TypeParameter, TypeParameterKind};
+use psi_typed_trees::data::{MachineParameterContract, TypeParameter, TypeParameterKind};
 use psi_typed_trees::domain::ProofFact;
 use psi_typed_trees::expression::{ExpressionNode, StaticMachineArgument};
 use psi_typed_trees::machine::Machine;
@@ -200,6 +200,18 @@ fn validate_call_selection(
             )));
             continue;
         }
+        if !validate_nominal_machine_selection(
+            program,
+            target_name,
+            parameter,
+            requirement,
+            selected.symbol,
+            &rendered,
+            diagnostics,
+        ) {
+            continue;
+        }
+        let requirement = machine_parameter_signature(program, requirement);
         validate_selected_callable_shape(
             program,
             operational,
@@ -555,6 +567,8 @@ pub(crate) fn validate_trait_callable_parameter_refinement(
         else {
             continue;
         };
+        let required_contract = machine_parameter_signature(program, required_contract);
+        let actual_contract = machine_parameter_signature(program, actual_contract);
         let nested_label = format!("machine parameter `{}` of {label}", actual.name);
         validate_callable_parts(
             program,
@@ -698,6 +712,8 @@ fn validate_callable_type_parameters(
                     contract: actual_contract,
                 },
             ) => {
+                let required_contract = machine_parameter_signature(program, required_contract);
+                let actual_contract = machine_parameter_signature(program, actual_contract);
                 let nested_label = format!("nested machine parameter `{}` of {label}", actual.name);
                 validate_callable_parts(
                     program,
@@ -737,12 +753,24 @@ pub(crate) fn validate_data_machine_selection(
     program: &TypedTrees,
     family_name: &str,
     parameter: &TypeParameter,
-    requirement: &psi_typed_trees::signature::StateSignature,
+    requirement: &MachineParameterContract,
     selected_symbol: SymbolHandle,
     selected_name: &str,
     generic_types: &[&TypeParameter],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    if !validate_nominal_machine_selection(
+        program,
+        family_name,
+        parameter,
+        requirement,
+        selected_symbol,
+        selected_name,
+        diagnostics,
+    ) {
+        return;
+    }
+    let requirement = machine_parameter_signature(program, requirement);
     let operational = psi_effects::infer_operational_may(program);
     let service_reaches = psi_effects::infer_service_reaches(program, &operational);
     let invocations = psi_effects::infer_synchronous_invocations(program);
@@ -760,6 +788,104 @@ pub(crate) fn validate_data_machine_selection(
         &mut Vec::new(),
         diagnostics,
     );
+}
+
+fn validate_nominal_machine_selection(
+    program: &TypedTrees,
+    generic_owner: &str,
+    parameter: &TypeParameter,
+    required_contract: &MachineParameterContract,
+    selected_symbol: SymbolHandle,
+    selected_name: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> bool {
+    let MachineParameterContract::Nominal {
+        trait_definition: required_trait,
+        requirement: required_requirement,
+    } = required_contract
+    else {
+        return true;
+    };
+
+    // Forwarding another static binder is sound only when that binder carries
+    // the same exact nominal authority. Structural coincidence does not
+    // establish a named satisfaction row.
+    if let Some((selected_parameter, selected_contract)) =
+        machine_parameter_contract_definition(program, selected_symbol)
+    {
+        if matches!(
+            selected_contract,
+            MachineParameterContract::Nominal {
+                trait_definition,
+                requirement,
+            } if trait_definition == required_trait && requirement == required_requirement
+        ) {
+            return true;
+        }
+        diagnostics.push(Diagnostic::error(format!(
+            "machine parameter `{}` forwarded into `{generic_owner}` does not carry the exact nominal requirement of `{}`; matching callable structure establishes no satisfaction row",
+            selected_parameter.name, parameter.name
+        )));
+        return false;
+    }
+
+    let Some((selected_machine, selected_state)) = machine_and_state(program, selected_symbol)
+    else {
+        diagnostics.push(Diagnostic::error(format!(
+            "static machine argument `{selected_name}` for nominal parameter `{}` does not resolve to a concrete machine entry",
+            parameter.name
+        )));
+        return false;
+    };
+    let Some(entry_state) = program.machine_states(selected_machine).first() else {
+        diagnostics.push(Diagnostic::error(format!(
+            "static machine argument `{selected_name}` for nominal parameter `{}` has no callable entry",
+            parameter.name
+        )));
+        return false;
+    };
+    if entry_state.symbol != selected_state.symbol {
+        diagnostics.push(Diagnostic::error(format!(
+            "static machine argument `{selected_name}` selects a non-entry state; nominal parameter `{}` requires the machine entry that owns its satisfaction row",
+            parameter.name
+        )));
+        return false;
+    }
+
+    let view = program
+        .machine_parameter_contract_view(required_contract)
+        .expect("typed nominal contract must retain a valid exact requirement identity");
+    let psi_typed_trees::data::MachineParameterContractView::Nominal {
+        trait_definition,
+        requirement,
+    } = view
+    else {
+        unreachable!("nominal contract projected as structural")
+    };
+    let matching_rows = program
+        .machine_trait_conformances(selected_machine)
+        .iter()
+        .filter(|conformance| {
+            conformance.symbol == *required_trait
+                && conformance
+                    .requirement
+                    .as_ref()
+                    .is_some_and(|name| name.as_str() == requirement.name.as_str())
+                && program
+                    .type_reference_table
+                    .type_reference_handles(conformance.arguments)
+                    .is_empty()
+        })
+        .count();
+    if matching_rows != 1 {
+        diagnostics.push(Diagnostic::error(format!(
+            "static machine argument `{selected_name}` for nominal parameter `{}` retains {matching_rows} authored satisfaction row(s) for exact requirement `{}::{}`; exactly one is required and structural coincidence establishes none",
+            parameter.name, trait_definition.name, requirement.name
+        )));
+        return false;
+    }
+
+    true
 }
 
 #[derive(Clone, Copy)]
@@ -1239,47 +1365,67 @@ fn machine_parameter_contract(
     program: &TypedTrees,
     symbol: SymbolHandle,
 ) -> Option<(&TypeParameter, &psi_typed_trees::signature::StateSignature)> {
+    let (parameter, contract) = machine_parameter_contract_definition(program, symbol)?;
+    Some((parameter, machine_parameter_signature(program, contract)))
+}
+
+fn machine_parameter_contract_definition(
+    program: &TypedTrees,
+    symbol: SymbolHandle,
+) -> Option<(&TypeParameter, &MachineParameterContract)> {
     for machine in program.machines() {
-        if let Some(found) =
-            machine_parameter_contract_in(program, program.machine_type_parameters(machine), symbol)
-        {
+        if let Some(found) = machine_parameter_contract_definition_in(
+            program,
+            program.machine_type_parameters(machine),
+            symbol,
+        ) {
             return Some(found);
         }
     }
     for data in program.data_definitions() {
-        if let Some(found) =
-            machine_parameter_contract_in(program, program.data_type_parameters(data), symbol)
-        {
-            return Some(found);
-        }
-    }
-    None
-}
-
-fn machine_parameter_contract_in<'program>(
-    program: &'program TypedTrees,
-    parameters: &'program [TypeParameter],
-    symbol: SymbolHandle,
-) -> Option<(
-    &'program TypeParameter,
-    &'program psi_typed_trees::signature::StateSignature,
-)> {
-    for parameter in parameters {
-        let TypeParameterKind::Machine { contract } = &parameter.kind else {
-            continue;
-        };
-        if parameter.symbol == symbol || contract.symbol == symbol {
-            return Some((parameter, contract));
-        }
-        if let Some(found) = machine_parameter_contract_in(
+        if let Some(found) = machine_parameter_contract_definition_in(
             program,
-            program.state_signature_type_parameters(contract),
+            program.data_type_parameters(data),
             symbol,
         ) {
             return Some(found);
         }
     }
     None
+}
+
+fn machine_parameter_contract_definition_in<'program>(
+    program: &'program TypedTrees,
+    parameters: &'program [TypeParameter],
+    symbol: SymbolHandle,
+) -> Option<(&'program TypeParameter, &'program MachineParameterContract)> {
+    for parameter in parameters {
+        let TypeParameterKind::Machine { contract } = &parameter.kind else {
+            continue;
+        };
+        if parameter.symbol == symbol {
+            return Some((parameter, contract));
+        }
+        let signature = machine_parameter_signature(program, contract);
+        if let Some(found) = machine_parameter_contract_definition_in(
+            program,
+            program.state_signature_type_parameters(signature),
+            symbol,
+        ) {
+            return Some(found);
+        }
+    }
+    None
+}
+
+fn machine_parameter_signature<'program>(
+    program: &'program TypedTrees,
+    contract: &'program MachineParameterContract,
+) -> &'program psi_typed_trees::signature::StateSignature {
+    program
+        .machine_parameter_contract_view(contract)
+        .expect("typed machine-parameter contract must retain a valid requirement identity")
+        .signature()
 }
 
 fn machine_and_state(

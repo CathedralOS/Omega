@@ -593,10 +593,14 @@ fn build_crash_contract_capsules(
             else {
                 continue;
             };
-            signatures.push((parameter.symbol, parameter.symbol, contract));
-            if contract.symbol != parameter.symbol {
-                signatures.push((contract.symbol, contract.symbol, contract));
-            }
+            let signature = program
+                .machine_parameter_contract_view(contract)
+                .expect("typed machine-parameter contract must retain a valid requirement identity")
+                .signature();
+            // The binder symbol is the callable target inside the generic
+            // body. A nominal requirement symbol remains authority metadata;
+            // it is never a second alias for the parameter call target.
+            signatures.push((parameter.symbol, parameter.symbol, signature));
         }
     }
     for definition in program.traits() {

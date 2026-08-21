@@ -56,6 +56,10 @@ pub(crate) fn build_proof_facts_with_operators(
             else {
                 continue;
             };
+            let contract = program
+                .machine_parameter_contract_view(contract)
+                .expect("typed machine-parameter contract must retain a valid requirement identity")
+                .signature();
             append_state_signature_contract_facts(
                 program,
                 parameter.symbol,

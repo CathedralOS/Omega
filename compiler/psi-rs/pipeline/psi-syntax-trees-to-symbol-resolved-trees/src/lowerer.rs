@@ -199,6 +199,9 @@ impl Lowerer {
             &mut self.symbol_resolved_trees,
         )?;
         crate::symbols::assign_symbols(&mut self.symbol_resolved_trees, self.sources);
+        crate::machine_parameter_requirements::normalize_nominal_machine_parameter_requirements(
+            &mut self.symbol_resolved_trees,
+        )?;
         bind_evidence_forwarding_owners(&mut self.symbol_resolved_trees);
         assert_eq!(
             self.symbol_resolved_trees.machines.len(),
