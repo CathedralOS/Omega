@@ -31,6 +31,25 @@ pub fn compile(options: CompileOptions) -> Result<CompileReport, Vec<Diagnostic>
     compile_with_policy(options, ExecutableTcbBuildPolicy::default())
 }
 
+/// Test-harness seam for outer schedulers that run independent compilations
+/// concurrently. Production compilation keeps using host parallelism; a
+/// bounded corpus runner can select one worker here and avoid multiplying its
+/// own job count by every compile's internal worker count.
+#[doc(hidden)]
+pub fn compile_with_test_entry_and_worker_count(
+    options: CompileOptions,
+    entry_machine_name: impl Into<String>,
+    worker_count: usize,
+) -> Result<CompileReport, Vec<Diagnostic>> {
+    let entry_machine_name = entry_machine_name.into();
+    run_on_compile_thread(move || {
+        Compiler::with_executable_tcb_policy(options, ExecutableTcbBuildPolicy::default())
+            .with_test_entry(entry_machine_name)
+            .with_worker_count(worker_count)
+            .compile()
+    })
+}
+
 /// Legacy native-test seam while semantic fixtures migrate to target-owned
 /// `ProgramEntry` roots. Production callers must use [`compile`].
 #[doc(hidden)]
@@ -408,6 +427,7 @@ pub struct Compiler {
     options: CompileOptions,
     executable_tcb_policy: ExecutableTcbBuildPolicy,
     test_entry_machine_name: Option<String>,
+    worker_count: Option<usize>,
 }
 
 impl Compiler {
@@ -419,6 +439,7 @@ impl Compiler {
             options,
             executable_tcb_policy,
             test_entry_machine_name: None,
+            worker_count: None,
         }
     }
 
@@ -427,8 +448,15 @@ impl Compiler {
         self
     }
 
+    fn with_worker_count(mut self, worker_count: usize) -> Self {
+        self.worker_count = Some(worker_count.max(1));
+        self
+    }
+
     pub fn compile(self) -> Result<CompileReport, Vec<Diagnostic>> {
-        let workers = WorkerPool::with_available_parallelism();
+        let workers = self
+            .worker_count
+            .map_or_else(WorkerPool::with_available_parallelism, WorkerPool::new);
         let mut timings = CompileTimings::default();
 
         let (source_file_count, mut syntax) = source_files_to_syntax_trees(

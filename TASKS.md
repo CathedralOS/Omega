@@ -911,16 +911,28 @@ Remaining:
   `PagedArena` migration as a concurrency fix: `PagedArena` provides stable
   paged storage, not concurrent mutation, and the existing sound parallel
   pattern remains worker-local `Arena`s followed by deterministic ordered
-  merge. The measured stalls were duplicated semantic work instead. Backend
-  state-value planning now omits states outside the exact required runtime
-  closure, and checked lowering builds one call-frame/incoming-guard index for
-  all range, contract, crash, and multiplicity consumers. On the helper-rich
-  Mandelbrot differential canary this reduced checked lowering from about
-  15.6s to 9.5s, native compilation from about 53.8s to 10.1s, and the complete
-  interpreter/native comparison from about 75.6s to 26.2s without weakening
-  whole-program validation. Corpus-level bounded parallelism remains the next
-  harness/compiler execution-policy optimization; each independent compile
-  should stay single-worker to avoid nested oversubscription.
+  merge. Checked lowering now builds one call-frame/incoming-guard index for
+  all range, contract, crash, and multiplicity consumers, reducing the
+  helper-rich Mandelbrot canary's checked phase from about 15.6s to 9.5s.
+  Backend state-value planning remains the dominant native cost: its
+  `required` bit is an emission fact, not a complete simplification-dependency
+  closure. In particular, a state outside runtime control flow can still
+  supply a nested value-machine expansion; the
+  `runtime_nested_named_conversion_alias_exit` regression makes that boundary
+  executable. Do not omit non-required state values until planning has a
+  separate exact value-call dependency index. Memoize or dependency-slice the
+  recursive simplifier against that index instead. The corrected full profile
+  is still about 53.1s in native compilation and 69.4s end to end.
+  Corpus-level bounded parallelism is viable at the harness boundary: the
+  differential runner now defaults to four independent jobs with one native
+  backend worker each, retains deterministic corpus-order reporting, and
+  exposes `DIFF_JOBS`, `DIFF_LIMIT`, and exact `DIFF_CANARY` controls. On this
+  14-core host the first eight canaries fell from 8.30s to 4.00s; a 32-canary
+  concurrency probe passed completely, while eight outer jobs improved only
+  101s to 97s over four and therefore is not the default. The native leg now
+  uses the same original source and explicit `Main::main` entry seam as the
+  canonical canary suite; the former generated target wrapper discarded
+  value-returning entry codes and produced false mismatches.
   The compiler canary integration suite is no longer a 48,301-line permutation
   file. Its shared compile helpers, exact corpus registries, and umbrella
   orchestration now form a 3,277-line root over twenty-one responsibility
