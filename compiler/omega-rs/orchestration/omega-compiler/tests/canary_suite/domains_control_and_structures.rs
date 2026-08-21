@@ -1733,8 +1733,9 @@ fn runtime_particle_system_exit_canary_runs() {
     let canary = pass_canary("structs/runtime_particle_system_exit");
     let scratch =
         std::env::temp_dir().join(format!("omega-particle-system-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
-        .expect("particle system canary should compile");
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+        .expect("particle system canary should compile from its authored root");
     let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("particle system canary should run");
@@ -1759,8 +1760,9 @@ fn runtime_nested_struct_construction_exit_canary_runs() {
         "omega-nested-struct-construct-{}",
         std::process::id()
     ));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
-        .expect("nested struct construction canary should compile");
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+        .expect("nested struct construction canary should compile from its authored root");
 
     let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
@@ -1973,8 +1975,9 @@ fn runtime_entity_component_exit_canary_runs() {
     let canary = pass_canary("structs/runtime_entity_component_exit");
     let scratch =
         std::env::temp_dir().join(format!("omega-entity-component-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
-        .expect("entity component canary should compile");
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+        .expect("entity component canary should compile from its authored root");
     let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("entity component canary should run");
@@ -1997,8 +2000,9 @@ fn runtime_nested_struct_state_machine_exit_canary_runs() {
     let canary = pass_canary("structs/runtime_nested_struct_state_machine_exit");
     let scratch =
         std::env::temp_dir().join(format!("omega-nested-struct-sm-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
-        .expect("nested struct state machine canary should compile");
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+        .expect("nested struct state machine canary should compile from its authored root");
     let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("nested struct state machine canary should run");
@@ -2019,8 +2023,9 @@ fn runtime_array_element_struct_copy_exit_canary_runs() {
     // keeps (5,6), f holds the mutated (50,60) -> exit 70.
     let canary = pass_canary("structs/runtime_array_element_struct_copy_exit");
     let scratch = std::env::temp_dir().join(format!("omega-arr-elem-copy-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
-        .expect("array-element struct copy canary should compile");
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+        .expect("array-element struct copy canary should compile from its authored root");
     let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("array-element struct copy canary should run");
@@ -2042,8 +2047,9 @@ fn runtime_nested_struct_value_semantics_exit_canary_runs() {
     let canary = pass_canary("structs/runtime_nested_struct_value_semantics_exit");
     let scratch =
         std::env::temp_dir().join(format!("omega-nested-struct-value-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
-        .expect("nested struct value-semantics canary should compile");
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+        .expect("nested struct value-semantics canary should compile from its authored root");
 
     let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
@@ -2068,8 +2074,9 @@ fn runtime_struct_array_literal_exit_canary_runs() {
     let canary = pass_canary("structs/runtime_struct_array_literal_exit");
     let scratch =
         std::env::temp_dir().join(format!("omega-struct-array-literal-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
-        .expect("struct-array literal canary should compile");
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+        .expect("struct-array literal canary should compile from its authored root");
 
     let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
@@ -2095,8 +2102,9 @@ fn runtime_enum_struct_payload_exit_canary_runs() {
     let canary = pass_canary("structs/runtime_enum_struct_payload_exit");
     let scratch =
         std::env::temp_dir().join(format!("omega-enum-struct-payload-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
-        .expect("enum struct-payload canary should compile");
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+        .expect("enum struct-payload canary should compile from its authored root");
 
     let output = Command::new(scratch.join("out").join(executable_name()))
         .output()

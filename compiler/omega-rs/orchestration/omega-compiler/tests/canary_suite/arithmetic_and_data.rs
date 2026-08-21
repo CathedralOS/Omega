@@ -2330,8 +2330,9 @@ fn runtime_deep_nested_field_exit_canary_runs() {
     let canary = pass_canary("data/runtime_deep_nested_field_exit");
     let scratch =
         std::env::temp_dir().join(format!("omega-deep-nested-field-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
-        .expect("deep nested field canary should compile");
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+        .expect("deep nested field canary should compile from its authored root");
     let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("deep nested field canary should run");
@@ -2352,8 +2353,9 @@ fn runtime_struct_value_copy_exit_canary_runs() {
     let canary = pass_canary("data/runtime_struct_value_copy_exit");
     let scratch =
         std::env::temp_dir().join(format!("omega-struct-value-copy-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
-        .expect("struct value copy canary should compile");
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+        .expect("struct value copy canary should compile from its authored root");
     let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("struct value copy canary should run");
