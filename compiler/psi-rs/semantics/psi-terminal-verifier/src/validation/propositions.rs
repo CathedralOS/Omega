@@ -18,7 +18,7 @@ pub(super) fn proposition_contains_content(proposition: &Proposition) -> bool {
         | Proposition::Equal(_, _)
         | Proposition::LessThan(_, _)
         | Proposition::LessOrEqual(_, _)
-        | Proposition::IeeeFloatEqual { .. } => false,
+        | Proposition::IeeeFloatComparison { .. } => false,
     }
 }
 
@@ -76,7 +76,7 @@ pub(super) fn proposition_boolean_field_roots(proposition: &Proposition) -> BTre
                 collect_term(left, roots);
                 collect_term(right, roots);
             }
-            Proposition::IeeeFloatEqual { left, right, .. } => {
+            Proposition::IeeeFloatComparison { left, right, .. } => {
                 roots.insert(left.root());
                 roots.insert(right.root());
             }
@@ -142,7 +142,7 @@ pub(super) fn proposition_content_roots(proposition: &Proposition) -> BTreeSet<P
             | Proposition::Equal(_, _)
             | Proposition::LessThan(_, _)
             | Proposition::LessOrEqual(_, _)
-            | Proposition::IeeeFloatEqual { .. } => {}
+            | Proposition::IeeeFloatComparison { .. } => {}
         }
     }
 

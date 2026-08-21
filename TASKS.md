@@ -682,13 +682,14 @@ Remaining:
   than encoding address equality as fixed-integer evidence. Built-in IEEE
   `f32`/`f64` equality now retains one atomic, format-annotated proposition per
   relevant structural leaf, including whole-record expansion and projected-call
-  rebasing. The verifier resolves both exact paths and formats independently;
-  the atomic carrier preserves IEEE NaN non-reflexivity and signed-zero equality
-  rather than laundering the operation through mathematical `Equal`. Semantic
-  codec v14, proof-bundle v8, and installation-record v21 retain the new term.
+  rebasing. Direct structural-field `!=` uses the same atomic carrier with an
+  explicit comparison kind. The verifier resolves both exact paths and formats
+  independently; the carrier preserves IEEE NaN and signed-zero behavior rather
+  than laundering either operator through mathematical `Equal`. Semantic codec
+  v15, proof-bundle v9, and installation-record v21 retain the term.
   Continue with case-payload paths and aggregate equality over text, sums, and
-  erased fields; float inequality remains fenced until its normalization is
-  represented explicitly. Trapping predicate
+  erased fields; whole-record float inequality remains fenced until aggregate
+  negation has one canonical proposition normalization. Trapping predicate
   arithmetic is design-blocked on owner Q4; imported crash capsules remain
   blocked on artifact identity and certificate binding.
 - **PROOF-CERTIFICATION-BRIDGE.** Emit kernel-checkable certificates from source
@@ -774,7 +775,7 @@ Remaining:
   trust graph binds the table to exactly those twelve denotation nodes and the
   dispatcher to every affected reducer.
   The bounded Gamma spike is complete. It canonical-decodes four exact current
-  `PSITERM\0` v14 fixtures and audits a 54-row scalar ledger covering constants,
+  `PSITERM\0` v15 fixtures and audits a 54-row scalar ledger covering constants,
   Boolean not/equality, integer equality/order, bitwise operations, strict
   i8-to-i16 widening, partial i16-to-i8 exact cast, exact/wrapping shifts with
   independently typed counts, and the complete

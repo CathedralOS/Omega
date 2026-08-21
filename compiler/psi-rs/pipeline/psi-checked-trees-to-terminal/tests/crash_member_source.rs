@@ -581,6 +581,12 @@ const IEEE_FLOAT_AGGREGATE_EQUALITY_SOURCE: &str = r#"
     crashes Abort
         right == left
     {}
+
+    data Different {}
+    machine Different::enter(left: Samples, right: Samples)
+    crashes Abort
+        left.narrow != right.narrow
+    {}
 "#;
 
 const EMPTY_RECORD_EQUALITY_SOURCE: &str = r#"
@@ -3977,10 +3983,11 @@ fn ieee_float_aggregate_equality_is_atomic_and_canonical_end_to_end() {
             assert_eq!(conjuncts.len(), 2);
             let mut formats = Vec::new();
             for conjunct in conjuncts {
-                let Proposition::IeeeFloatEqual {
+                let Proposition::IeeeFloatComparison {
                     format,
                     left,
                     right,
+                    ..
                 } = conjunct
                 else {
                     panic!("float leaves remain atomic IEEE propositions")
@@ -4051,9 +4058,38 @@ fn ieee_float_aggregate_equality_is_atomic_and_canonical_end_to_end() {
     };
     assert!(reversed_conjuncts.iter().all(|item| matches!(
         item,
-        Proposition::IeeeFloatEqual { left, right, .. } if left <= right
+        Proposition::IeeeFloatComparison { left, right, .. } if left <= right
     )));
     encode_module(&reversed.semantic_module).expect("canonical reversed semantic encode");
+
+    let different = psi_checked_trees_to_terminal::lower_machine(&checked, "Different::enter")
+        .expect("direct IEEE inequality lowers atomically");
+    let [CrashRouteGuard::Predicate(different_route)] =
+        different.semantic_module.machines[0].contract.crash_routes[0]
+            .alternatives
+            .as_slice()
+    else {
+        unreachable!()
+    };
+    assert!(matches!(
+        different_route.proposition(),
+        Proposition::IeeeFloatComparison {
+            kind: psi_core::IeeeFloatComparisonKind::NotEqual,
+            format: IeeeFloatFormat::Binary32,
+            ..
+        }
+    ));
+    psi_terminal_verifier::verify_module(
+        &different.semantic_module,
+        &different.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("verifier retains direct IEEE inequality");
+    let different_bytes = encode_module(&different.semantic_module).expect("inequality encode");
+    assert_eq!(
+        decode_module(&different_bytes),
+        Ok(different.semantic_module)
+    );
 
     let mut wrong_format = reversed.semantic_module.clone();
     let [CrashRouteGuard::Predicate(predicate)] = wrong_format.machines[0].contract.crash_routes[0]
@@ -4066,10 +4102,10 @@ fn ieee_float_aggregate_equality_is_atomic_and_canonical_end_to_end() {
     let Proposition::Conjunction(conjuncts) = &mut proposition else {
         unreachable!()
     };
-    let Some(Proposition::IeeeFloatEqual { format, .. }) = conjuncts.iter_mut().find(|item| {
+    let Some(Proposition::IeeeFloatComparison { format, .. }) = conjuncts.iter_mut().find(|item| {
         matches!(
             item,
-            Proposition::IeeeFloatEqual {
+            Proposition::IeeeFloatComparison {
                 format: IeeeFloatFormat::Binary32,
                 ..
             }

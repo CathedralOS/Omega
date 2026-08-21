@@ -1282,15 +1282,17 @@ language-defined inline field expansion. A finite nonempty tree containing only
 relevant Boolean, fixed-integer, and IEEE `f32`/`f64` leaves becomes one flat
 canonical conjunction. Float leaves use an atomic format-annotated IEEE `==`
 proposition rather than mathematical `Equal`, preserving NaN non-reflexivity and
-signed-zero equality. Each leaf keeps its left and right parameter root;
+signed-zero equality. Direct float-field `!=` uses the same atomic proposition
+with an explicit comparison kind, preserving the complementary IEEE result
+without a second verifier family. Each leaf keeps its left and right parameter root;
 call verification independently substitutes both roots and rejects redirecting
 either operand even when the replacement path is otherwise valid and
 same-typed; float leaves additionally require the exact declared format. A
 genuinely zero-member record instead normalizes equality to the
 existing Boolean `true` term; inequality uses the existing negation, and calls,
 codecs, verification, fixed fuel, and interpretation reuse that carrier. An
-all-erased record is not empty and remains fenced. Direct and aggregate float
-inequality, text, sum/case, erased-field, and written `equals` bodies remain
+all-erased record is not empty and remains fenced. Aggregate float inequality,
+text, sum/case, erased-field, and written `equals` bodies remain
 outside this bounded terminal slice. Arithmetic over
 same-typed relevant fixed-integer members accepts Exact addition, subtraction,
 and multiplication: each member or fixed-integer-literal operand retains its
@@ -1884,7 +1886,7 @@ and each call trust node binds both the shared policy table and that focused
 consumer.
 
 The bounded Gamma feasibility spike now starts from four exact current
-`PSITERM\0` v14 byte fixtures and reconstructs a typed 54-row scalar ledger plus
+`PSITERM\0` v15 byte fixtures and reconstructs a typed 54-row scalar ledger plus
 a separate 3-row structural/effect ledger. It covers constants, Boolean
 not/equality, integer equality/order, bitwise operations, strict widening,
 partial exact cast, exact/wrapping shifts with independently typed counts, and
