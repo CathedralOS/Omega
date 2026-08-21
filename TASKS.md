@@ -79,7 +79,11 @@ Remaining:
   that is engineering work, not a language-design blocker. Proof-only and
   deliberately trapping fixtures remain targetless. Final firmware composition
   of `ImageHandle`/`SystemTable` inputs with semantic roots is design-blocked on
-  owner Q2; the remaining physical bridge and corpus work is not.
+  owner Q2; the remaining physical bridge and corpus work is not. The native
+  differential RUN corpus still has 287 legacy fixtures without an authored
+  `build.omg` root. Continue migrating those fixtures through production entry
+  selection; replace result-as-process-exit probes with ordinary Unit entries
+  and explicit exit providers rather than preserving the legacy entry seam.
 - **CONSERVATION-CONTRACT / TERMINAL-CONTENT-CLAIMS.** Take one real
   content-bearing source program through terminal Psi. Add sealed introduction
   and custody-exit frontiers, derive residual geometry at partial bodyless
