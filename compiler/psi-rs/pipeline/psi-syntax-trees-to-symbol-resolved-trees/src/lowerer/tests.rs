@@ -1671,6 +1671,33 @@ fn rejects_unresolved_authored_domain_requirement_route() {
 }
 
 #[test]
+fn rejects_overloaded_signature_free_domain_requirement_route() {
+    let source = r#"
+    data Token { value: u64; }
+    domain Token::Issued {
+        Issuer::issue;
+    }
+    trait Issuer {
+        machine issue(value: u64) -> Token in Issued;
+        machine issue(value: i64) -> Token in Issued;
+    }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let diagnostic = lower_syntax_trees(&syntax_trees)
+        .expect_err("a signature-free requirement path must not choose among overloads");
+    assert!(
+        diagnostic
+            .message
+            .contains("does not resolve to one exact trait requirement"),
+        "unexpected diagnostic: {diagnostic}"
+    );
+}
+
+#[test]
 fn expands_alias_establishment_routes_to_atomic_domains() {
     use psi_language_semantics::DomainEstablishmentRoute;
 
