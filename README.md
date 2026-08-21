@@ -38,6 +38,13 @@ Run the full Rust workspace verification:
 cargo test
 ```
 
+If many small Rust crates each pause for seconds before parsing, inspect the
+derived Cargo cache before changing compiler or test architecture. A long-lived
+`target/debug/deps` with hundreds of thousands of stale hashed artifacts makes
+rustc rescan that directory for every crate. `cargo clean` removes only
+rebuildable `target/` output and restores a compact cache; the next build is
+cold.
+
 Check the smallest CLI sample:
 
 ```bash
