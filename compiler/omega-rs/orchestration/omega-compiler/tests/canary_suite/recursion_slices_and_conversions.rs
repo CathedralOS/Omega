@@ -1162,17 +1162,11 @@ fn runtime_subslice_len_exit_canary_runs() {
     // length must FOLD to the window width `b - a` (2), not fall through to a
     // place read with no descriptor slot. Exits 70 when `s.len == 2`.
     let canary = pass_canary("slices/runtime_subslice_len_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-subslice-len-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("subslice len canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("subslice len canary should compile from its authored root");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -1420,13 +1414,8 @@ fn runtime_subslice_runtime_start_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime subslice runtime start canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("runtime subslice runtime start canary should compile from its authored root");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -1506,13 +1495,9 @@ fn runtime_subslice_runtime_start_over_local_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime subslice runtime start over local canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
+        "runtime subslice runtime start over local canary should compile from its authored root",
+    );
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()

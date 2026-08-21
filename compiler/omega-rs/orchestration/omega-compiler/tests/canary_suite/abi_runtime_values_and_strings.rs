@@ -2839,20 +2839,15 @@ fn runtime_machine_owned_indexed_integer_write_exit_canary_runs() {
 #[test]
 fn runtime_machine_owned_fixed_indexed_struct_copy_exit_canary_runs() {
     let canary = pass_canary("storage/runtime_machine_owned_fixed_indexed_struct_copy_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-machine-owned-fixed-indexed-struct-copy-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime machine-owned fixed indexed struct copy canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
+        "runtime machine-owned fixed indexed struct copy canary should compile from its authored root",
+    );
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -2872,20 +2867,15 @@ fn runtime_machine_owned_fixed_indexed_struct_copy_exit_canary_runs() {
 #[test]
 fn runtime_machine_owned_indexed_struct_copy_exit_canary_runs() {
     let canary = pass_canary("storage/runtime_machine_owned_indexed_struct_copy_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-machine-owned-indexed-struct-copy-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime machine-owned indexed struct copy canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
+        "runtime machine-owned indexed struct copy canary should compile from its authored root",
+    );
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -2905,20 +2895,15 @@ fn runtime_machine_owned_indexed_struct_copy_exit_canary_runs() {
 #[test]
 fn runtime_machine_owned_indexed_nested_exit_write_exit_canary_runs() {
     let canary = pass_canary("storage/runtime_machine_owned_indexed_nested_exit_write_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-machine-owned-indexed-nested-exit-write-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime machine-owned indexed nested exit write canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
+        "runtime machine-owned indexed nested exit write canary should compile from its authored root",
+    );
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()

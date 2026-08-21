@@ -543,20 +543,14 @@ fn runtime_trailing_local_return_exit_canary_runs() {
     // not the post-mutation re-read), computed-from-param, and a free machine
     // returning a literal-folded local.
     let canary = pass_canary("calls/runtime_trailing_local_return_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-trailing-local-return-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime trailing local return canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("runtime trailing local return canary should compile from its authored root");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
