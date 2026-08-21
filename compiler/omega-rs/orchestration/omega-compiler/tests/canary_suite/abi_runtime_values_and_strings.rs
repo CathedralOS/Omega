@@ -619,13 +619,8 @@ fn windows_fs_wrapper_breadth_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("windows wrapper breadth canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("windows wrapper breadth canary should compile from its authored root");
 
     let output = Command::new(build_dir.join(executable_name()))
         .current_dir(&build_dir)
@@ -3197,30 +3192,12 @@ fn named_integer_conversion_filesystem_decode_cohort_reaches_checked_trees() {
 fn named_integer_conversion_filesystem_cross_targets_reach_checked_trees() {
     let canary = pass_canary("filesystem/windows_positioned_io_exit");
     for target in ["linux_x64", "linux_arm64", "windows_x64"] {
-        let scratch = std::env::temp_dir().join(format!(
-            "omega-fs-named-conversion-{target}-{}",
-            std::process::id()
-        ));
-        let _ = fs::remove_dir_all(&scratch);
-        let source_dir = scratch.join("src");
-        fs::create_dir_all(&source_dir).expect("filesystem count conversion source directory");
-        fs::copy(canary.join("main.omg"), source_dir.join("main.omg"))
-            .expect("copy positioned-I/O canary");
-        fs::write(
-            source_dir.join("build.omg"),
-            format!("target {target} {{\n}}\n"),
-        )
-        .expect("write cross-target build manifest");
-
-        compile_to_checked(&source_dir.join("main.omg"), Some(target)).unwrap_or_else(
-            |diagnostics| {
-                panic!(
-                    "named integer-conversion filesystem cohort should reach checked trees for \
+        compile_to_checked(&canary.join("main.omg"), Some(target)).unwrap_or_else(|diagnostics| {
+            panic!(
+                "named integer-conversion filesystem cohort should reach checked trees for \
                      {target}: {diagnostics:#?}"
-                )
-            },
-        );
-        let _ = fs::remove_dir_all(&scratch);
+            )
+        });
     }
 }
 

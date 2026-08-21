@@ -261,7 +261,8 @@ Remaining:
   indexed-write, target-selection, stdin, host-result, room-dispatch, and
   accepted-proof probes now likewise consume authored roots. Ten trapping-
   conversion, trapping-float, and portable filesystem probes now also consume
-  authored roots. The tracked corpus audit leaves 38
+  authored roots. Ten portable filesystem wrapper probes now likewise consume
+  authored roots. The tracked corpus audit leaves 28
   legacy fixtures without an authored `build.omg` root.
   Continue migrating those fixtures through production entry
   selection; replace result-as-process-exit probes with ordinary Unit entries
