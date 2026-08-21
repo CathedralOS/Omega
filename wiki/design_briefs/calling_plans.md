@@ -839,7 +839,7 @@ thunk symbol; a missing selected entry rejects before instruction selection.
 Multi-entry/re-entrant instruction emission, the private registration
 relocation, and registration lifetime accounting remain the next vertical
 slice. The source binding location for that private pointer is tracked in
-`OWNER_QUESTIONS.md` Q7; it cannot be inferred from the callback's inbound
+`OWNER_QUESTIONS.md` Q6; it cannot be inferred from the callback's inbound
 entry plan.
 
 Compiler-body memory operations likewise retain their exact plan-selected place

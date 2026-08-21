@@ -683,9 +683,10 @@ through those conformances rather than discovered from proof-machine names.
 passed `Equivalence` conformance. It never searches visible conformances or
 selects an individual law satisfier. Quotient formation remains
 carrier-only (`seq as Real`; `42 as Real` does not compile — that road runs
-through `Rat` and a constant stream). Proven `ConvergesTogether(a, b)` makes
-`(a as Real) == (b as Real)` a fact. Equality on the quotient means "same
-bucket," never "same representative".
+through `Rat` and a constant stream). Proven `ConvergesTogether(a, b)`
+establishes logical equality between `a as Real` and `b as Real`. Equality on
+the quotient means "same bucket," never "same representative". This logical
+fact does not synthesize an executable structural `==` operation.
 
 The quotient declaration names that evidence in its static `where` surface:
 
@@ -724,6 +725,63 @@ Comparison uses equality as its result relation. The normalized telescope
 avoids separate respect traits for every arity and creates no public synthetic
 record type.
 
+The quotient owner selects both the representative machine and the exact named
+`Respects` conformance in an ordinary body through one of two sealed core
+operations:
+
+```omega
+machine Rational::divide(
+    numerator: Rational,
+    denominator: Rational
+) -> Rational
+requires
+    denominator != Rational::zero
+{
+    Quotient::define<
+        Fraction::divide,
+        FractionDivideRespects
+    >(numerator, denominator)
+}
+```
+
+`Quotient::lift<F, Respect>` is the wrapper form: the public precondition must
+imply the representative precondition, but may be stronger, and arguments may
+be adapted explicitly. `Quotient::define<F, Respect>` is the
+faithful-definition form: the two preconditions must be equivalent, runtime
+arguments correspond position-for-position with no constants, permutation,
+duplication, or omission, and the intrinsic result reaches every normal return
+unchanged. The compiler checks these facts over normalized IR, so aliases and
+state forwarding do not change the classification. A rejected `define` points
+to `lift` when the body is an honest wrapper.
+
+`RA` and `RR` are derived compiler typing operands, not authored generic
+arguments. Every type, `const`, and static-machine argument owned by the named
+`Respects` conformance remains explicit; only ordinary lifetime elision applies.
+The chosen operation, correspondence, relations, conformance application,
+lift/define kind, and contract proof survive checked and terminal identity.
+There is no ambient proof search and no per-call proof selection.
+
+A quotient may retain an arbitrary representative unchanged at runtime and may
+therefore share its ABI without performing normalization. The representative
+is nevertheless opaque. Quotient formation suppresses synthesized structural
+equality, ordering, hashing, serialization, reflection, pattern matching, and
+every other representation-derived observer. Logical quotient equality is the
+declared relation. Executable equality is an ordinary lifted quotient operation
+and must prove `equals(x, y) == true <-> R(x, y)` through
+`DecidesEquivalence`; that conformance also derives the required `Respects`
+bridge. Binding the named operation to fixed `==` syntax is the general
+operator-surface decision in
+[Owner Q1](../../OWNER_QUESTIONS.md#q1--fixed-operator-surface-binding-syntax).
+Other observer roles state their role-specific correctness as ordinary
+contracts until a named interface exists.
+
+Initial lifting is deliberately pure and terminating. Observable effects,
+crash routes, suspension, blocking, and progress behavior need a richer
+behavioral respect relation and cannot be justified by result congruence alone.
+Likewise, initial quotient carriers contain no affine/linear `Type` content or
+owned/routed custody: quotient equality may not make distinct authority or
+provenance occurrences substitutable.
+
 Carrier declarations do not assign global relational roles to their static
 parameters. A proposition may quantify independent left and right index packs,
 or use one shared pack, according to the relation it declares. A selected
@@ -741,11 +799,12 @@ propositions. A relation depending on erased `Type` content remains proof-only
 unless checked evidence shows that content is determined by the runtime
 projection, in which case a runtime decider may be derived.
 
-An attached carrier operation used this way has a by-value receiver and is
-proof-side only: it does not install a method or reify a representative on the
-quotient. A borrowed or mutable receiver is still a forbidden runtime use of
-proof-only data. Operations attached to runtime data remain runtime operations
-and cannot accept proof-only values.
+An attached proof-carrier operation used this way has a by-value receiver and
+does not install a representative-facing method or reify a representative on
+the quotient. A borrowed or mutable receiver remains a forbidden runtime use
+of proof-only data. Copyable runtime carriers may receive pure executable
+quotient operations through the same sealed lifting gate; the representative
+still never becomes source-visible.
 
 A boundary axiom may be cited as an environmental assumption elsewhere, but
 cannot admit either an equivalence or respect conformance for a checked
