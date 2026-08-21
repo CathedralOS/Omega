@@ -555,6 +555,27 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
                             });
                         }
                         Some(_) => return None,
+                        None if crate::flow::byte_sequence_carrier(
+                            program,
+                            field.type_reference,
+                            &[],
+                        )
+                        .is_some() =>
+                        {
+                            let mut left = CheckedStructuralParameterField {
+                                parameter_position: left_parameter,
+                                path: left_path.clone(),
+                            };
+                            let mut right = CheckedStructuralParameterField {
+                                parameter_position: right_parameter,
+                                path: right_path.clone(),
+                            };
+                            if left > right {
+                                std::mem::swap(&mut left, &mut right);
+                            }
+                            output
+                                .push(CheckedBooleanExpression::ByteSequenceEqual { left, right });
+                        }
                         None => collect_comparisons(
                             program,
                             left_parameter,
@@ -1875,7 +1896,8 @@ fn contains_short_circuit(expression: &CheckedBooleanExpression) -> bool {
         | CheckedBooleanExpression::Local { .. }
         | CheckedBooleanExpression::StructuralParameterField { .. }
         | CheckedBooleanExpression::IntegerComparison { .. }
-        | CheckedBooleanExpression::IeeeFloatComparison { .. } => false,
+        | CheckedBooleanExpression::IeeeFloatComparison { .. }
+        | CheckedBooleanExpression::ByteSequenceEqual { .. } => false,
         CheckedBooleanExpression::Not(operand) => contains_short_circuit(operand),
         CheckedBooleanExpression::Equal { left, right } => {
             contains_short_circuit(left) || contains_short_circuit(right)

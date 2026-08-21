@@ -533,6 +533,7 @@ pub struct CheckedUnitStructuralFieldPlan {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CheckedUnitStructuralFieldType {
     Scalar(PrimitiveType),
+    ByteSequence(CheckedByteSequenceCarrier),
     Structural {
         type_identity: String,
     },
@@ -542,6 +543,12 @@ pub enum CheckedUnitStructuralFieldType {
     Erased {
         type_identity: String,
     },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CheckedByteSequenceCarrier {
+    BorrowedView,
+    BoundedOwned { capacity: u64 },
 }
 
 /// One normalized structural qualification required by a retained parameter.

@@ -1,10 +1,10 @@
 use psi_core::{
-    CanonicalStructuralPathSegment, ContentAlgebra, ContentAlgebraKind, ContentConservation,
-    ContentDomainId, ContentPlaceSegment, ContentPlaceVersion, ContentProjectionIdentity,
-    ContentStructuralPlace, ContentTerm, EvidenceIdentity, IeeeFloatComparisonKind,
-    IeeeFloatFormat, IeeeFloatStructuralField, IntegerCarrier, IntegerSign, IntegerType,
-    IntegerValue, Proposition, PropositionError, PropositionId, PsiSemanticId, ScalarTerm,
-    ScalarType,
+    ByteSequenceStructuralField, CanonicalStructuralPathSegment, ContentAlgebra,
+    ContentAlgebraKind, ContentConservation, ContentDomainId, ContentPlaceSegment,
+    ContentPlaceVersion, ContentProjectionIdentity, ContentStructuralPlace, ContentTerm,
+    EvidenceIdentity, IeeeFloatComparisonKind, IeeeFloatFormat, IeeeFloatStructuralField,
+    IntegerCarrier, IntegerSign, IntegerType, IntegerValue, Proposition, PropositionError,
+    PropositionId, PsiSemanticId, ScalarTerm, ScalarType,
 };
 use psi_proof_kernel::{
     AcceptedFactRoute, AdmissionEvidence, AdmissionKind, CertificateEnvelope, EvidenceRoute,
@@ -18,7 +18,7 @@ use sha2::{Digest, Sha256};
 
 const MAGIC: &[u8; 8] = b"PSIPRF\0\0";
 /// Single current pre-release proof vocabulary marker.
-const FORMAT_MARKER: u16 = 9;
+const FORMAT_MARKER: u16 = 10;
 const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-proof-bundle-fingerprint\0";
 const MAX_PROPOSITION_DEPTH: usize = 256;
 const MAX_SCALAR_TERM_DEPTH: usize = 256;
@@ -300,7 +300,7 @@ fn validate_proposition(proposition: &Proposition, depth: usize) -> Result<(), P
             validate_scalar_term_depth(left, 0)?;
             validate_scalar_term_depth(right, 0)?;
         }
-        Proposition::IeeeFloatComparison { .. } => {}
+        Proposition::IeeeFloatComparison { .. } | Proposition::ByteSequenceEqual { .. } => {}
         Proposition::Conjunction(propositions) | Proposition::Disjunction(propositions) => {
             for proposition in propositions {
                 validate_proposition(proposition, depth + 1)?;
@@ -613,9 +613,44 @@ fn encode_ieee_float_field(
     writer: &mut Writer,
     field: &IeeeFloatStructuralField,
 ) -> Result<(), ProofCodecError> {
-    writer.id(field.root());
-    writer.len("IEEE float field path", field.path().len())?;
-    for segment in field.path() {
+    encode_canonical_structural_field(writer, field.root(), field.path(), "IEEE float field path")
+}
+
+fn decode_ieee_float_field(
+    reader: &mut Reader<'_>,
+) -> Result<IeeeFloatStructuralField, ProofCodecError> {
+    let (root, path) = decode_canonical_structural_field(reader)?;
+    IeeeFloatStructuralField::new(root, path).map_err(ProofCodecError::MalformedProposition)
+}
+
+fn encode_byte_sequence_field(
+    writer: &mut Writer,
+    field: &ByteSequenceStructuralField,
+) -> Result<(), ProofCodecError> {
+    encode_canonical_structural_field(
+        writer,
+        field.root(),
+        field.path(),
+        "byte-sequence field path",
+    )
+}
+
+fn decode_byte_sequence_field(
+    reader: &mut Reader<'_>,
+) -> Result<ByteSequenceStructuralField, ProofCodecError> {
+    let (root, path) = decode_canonical_structural_field(reader)?;
+    ByteSequenceStructuralField::new(root, path).map_err(ProofCodecError::MalformedProposition)
+}
+
+fn encode_canonical_structural_field(
+    writer: &mut Writer,
+    root: psi_core::PlaceId,
+    path: &[CanonicalStructuralPathSegment],
+    length_label: &'static str,
+) -> Result<(), ProofCodecError> {
+    writer.id(root);
+    writer.len(length_label, path.len())?;
+    for segment in path {
         match segment {
             CanonicalStructuralPathSegment::Field(field) => {
                 writer.u8(1);
@@ -630,9 +665,9 @@ fn encode_ieee_float_field(
     Ok(())
 }
 
-fn decode_ieee_float_field(
+fn decode_canonical_structural_field(
     reader: &mut Reader<'_>,
-) -> Result<IeeeFloatStructuralField, ProofCodecError> {
+) -> Result<(psi_core::PlaceId, Vec<CanonicalStructuralPathSegment>), ProofCodecError> {
     let root = reader.id("PlaceId")?;
     let count = reader.count()?;
     let mut path = Vec::with_capacity(count as usize);
@@ -648,7 +683,7 @@ fn decode_ieee_float_field(
             }
         });
     }
-    IeeeFloatStructuralField::new(root, path).map_err(ProofCodecError::MalformedProposition)
+    Ok((root, path))
 }
 
 fn encode_proposition(
@@ -721,6 +756,11 @@ fn encode_proposition(
             encode_ieee_float_format(writer, *format);
             encode_ieee_float_field(writer, left)?;
             encode_ieee_float_field(writer, right)?;
+        }
+        Proposition::ByteSequenceEqual { left, right } => {
+            writer.u8(12);
+            encode_byte_sequence_field(writer, left)?;
+            encode_byte_sequence_field(writer, right)?;
         }
     }
     Ok(())
@@ -1323,6 +1363,10 @@ fn decode_proposition(
             format: decode_ieee_float_format(reader)?,
             left: decode_ieee_float_field(reader)?,
             right: decode_ieee_float_field(reader)?,
+        },
+        12 => Proposition::ByteSequenceEqual {
+            left: decode_byte_sequence_field(reader)?,
+            right: decode_byte_sequence_field(reader)?,
         },
         tag => return Err(ProofCodecError::InvalidTag("Proposition", tag)),
     })

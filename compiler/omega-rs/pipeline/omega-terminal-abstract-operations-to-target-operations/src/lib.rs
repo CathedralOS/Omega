@@ -2796,6 +2796,9 @@ fn structural_shape(
                         StructuralFieldType::IeeeFloat(IeeeFloatFormat::Binary64) => {
                             ValueShape::float(8)
                         }
+                        StructuralFieldType::ByteSequence(carrier) => {
+                            byte_sequence_shape(*carrier, structural_type)?
+                        }
                         StructuralFieldType::Structural(nested) => {
                             structural_shape(*nested, declarations, cache, active)?
                         }
@@ -2872,6 +2875,9 @@ fn direct_boolean_field_offset(
             }
             StructuralFieldType::IeeeFloat(IeeeFloatFormat::Binary32) => ValueShape::float(4),
             StructuralFieldType::IeeeFloat(IeeeFloatFormat::Binary64) => ValueShape::float(8),
+            StructuralFieldType::ByteSequence(carrier) => {
+                byte_sequence_shape(carrier, structural_type)?
+            }
             StructuralFieldType::Structural(nested) => {
                 structural_shape(nested, declarations, &mut cache, &mut active)?
             }
@@ -2927,6 +2933,9 @@ fn resolve_structural_field_path(
                 }
                 StructuralFieldType::IeeeFloat(IeeeFloatFormat::Binary32) => ValueShape::float(4),
                 StructuralFieldType::IeeeFloat(IeeeFloatFormat::Binary64) => ValueShape::float(8),
+                StructuralFieldType::ByteSequence(carrier) => {
+                    byte_sequence_shape(carrier, structural_type)?
+                }
                 StructuralFieldType::Structural(nested) => {
                     structural_shape(nested, declarations, cache, active)?
                 }
@@ -2960,6 +2969,25 @@ fn resolve_structural_field_path(
     selected_shape
         .map(|shape| (structural_type, shape, total_offset))
         .ok_or(LoweringError::UnknownStructuralType(root_type))
+}
+
+fn byte_sequence_shape(
+    carrier: psi_terminal::ByteSequenceCarrier,
+    structural_type: StructuralTypeId,
+) -> Result<ValueShape, LoweringError> {
+    let byte_size = match carrier {
+        // Current terminal-native targets are 64-bit. The semantic carrier
+        // deliberately does not retain the physical descriptor fields.
+        psi_terminal::ByteSequenceCarrier::BorrowedView => 16_u64,
+        psi_terminal::ByteSequenceCarrier::BoundedOwned { capacity } => capacity
+            .checked_add(8)
+            .ok_or(LoweringError::StructuralTypeTooLarge(structural_type))?,
+    };
+    Ok(ValueShape::integer(
+        u16::try_from(byte_size)
+            .map_err(|_| LoweringError::StructuralTypeTooLarge(structural_type))?,
+        8,
+    ))
 }
 
 fn expected_maximal_residual_subtrees(

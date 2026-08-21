@@ -2420,6 +2420,15 @@ fn replay_structural_field_shape(
         psi_terminal::StructuralFieldType::IeeeFloat(psi_core::IeeeFloatFormat::Binary64) => {
             Some(ValueShape::float(8))
         }
+        psi_terminal::StructuralFieldType::ByteSequence(carrier) => {
+            let byte_size = match carrier {
+                psi_terminal::ByteSequenceCarrier::BorrowedView => 16,
+                psi_terminal::ByteSequenceCarrier::BoundedOwned { capacity } => {
+                    capacity.checked_add(8)?.try_into().ok()?
+                }
+            };
+            Some(ValueShape::integer(byte_size, 8))
+        }
         psi_terminal::StructuralFieldType::Structural(nested) => {
             replay_structural_shape(*nested, declarations, cache, active)
         }

@@ -1198,6 +1198,7 @@ pub(super) fn structural_field_type_identity(
     match &field.field_type {
         CheckedUnitStructuralFieldType::Structural { type_identity } => Some(type_identity),
         CheckedUnitStructuralFieldType::Scalar(_)
+        | CheckedUnitStructuralFieldType::ByteSequence(_)
         | CheckedUnitStructuralFieldType::Erased { .. } => None,
     }
 }

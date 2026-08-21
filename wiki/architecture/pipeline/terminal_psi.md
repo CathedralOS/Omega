@@ -1279,8 +1279,9 @@ the semantic codec rejects nested, duplicate, or noncanonically ordered
 disjunction rows. Whole-record equality does not add an opaque aggregate term:
 for two same-typed `Equatable` parameters, checked production retains the
 language-defined inline field expansion. A finite nonempty tree containing only
-relevant Boolean, fixed-integer, and IEEE `f32`/`f64` leaves becomes one flat
-canonical conjunction. Float leaves use an atomic format-annotated IEEE `==`
+relevant Boolean, fixed-integer, IEEE `f32`/`f64`, and supported byte-sequence
+leaves becomes one flat canonical conjunction. Float leaves use an atomic
+format-annotated IEEE `==`
 proposition rather than mathematical `Equal`, preserving NaN non-reflexivity and
 signed-zero equality. Direct float-field `!=` uses the same atomic proposition
 with an explicit comparison kind, preserving the complementary IEEE result
@@ -1290,12 +1291,24 @@ negation adds neither a duplicate leaf family nor De Morgan permutations. Each
 leaf keeps its left and right parameter root;
 call verification independently substitutes both roots and rejects redirecting
 either operand even when the replacement path is otherwise valid and
-same-typed; float leaves additionally require the exact declared format. A
+same-typed; float leaves additionally require the exact declared format.
+Byte-sequence leaves use a separate atomic content-equality proposition over
+two nonempty structural paths. Terminal structural identity distinguishes a
+borrowed view from bounded owned storage and retains the bounded carrier's exact
+capacity, but does not expose a native pointer/length descriptor. Equality is
+defined only by equal live lengths and equal live byte prefixes: pointer
+identity, capacity, and bytes beyond the live length are irrelevant. The
+verifier independently requires both resolved leaves to have byte-sequence
+carrier types, and call substitution rebases both roots. The bounded slice
+admits field-to-field whole-record equality for `&[u8] in Domain` and
+`[u8; N] in Domain`; text literals and direct text `!=` remain fenced. Semantic
+codec v16, proof-bundle v10, and installation-record v22 encode this vocabulary.
+A
 genuinely zero-member record instead normalizes equality to the
 existing Boolean `true` term; inequality uses the existing negation, and calls,
 codecs, verification, fixed fuel, and interpretation reuse that carrier. An
-all-erased record is not empty and remains fenced. Text, sum/case, erased-field,
-and written `equals` bodies remain
+all-erased record is not empty and remains fenced. Sum/case, erased-field, and
+written `equals` bodies remain
 outside this bounded terminal slice. Arithmetic over
 same-typed relevant fixed-integer members accepts Exact addition, subtraction,
 and multiplication: each member or fixed-integer-literal operand retains its
@@ -1889,7 +1902,7 @@ and each call trust node binds both the shared policy table and that focused
 consumer.
 
 The bounded Gamma feasibility spike now starts from four exact current
-`PSITERM\0` v15 byte fixtures and reconstructs a typed 54-row scalar ledger plus
+`PSITERM\0` v16 byte fixtures and reconstructs a typed 54-row scalar ledger plus
 a separate 3-row structural/effect ledger. It covers constants, Boolean
 not/equality, integer equality/order, bitwise operations, strict widening,
 partial exact cast, exact/wrapping shifts with independently typed counts, and

@@ -4,7 +4,7 @@ This directory layers exact terminal-codec grammar over the semantics-neutral
 `../canonical-bytes/` cursor. It owns the current envelope prefix:
 
 - exact `PSITERM\0` magic;
-- exact format marker 15; and
+- exact format marker 16; and
 - exact current vocabulary marker 20, retained in the typed result.
 
 It also owns the codec's length-prefixed UTF-8 string rule:
@@ -32,7 +32,7 @@ width in `1..=128`. The bounded spike now retains this exact type in every
 declaration; only its operation-row policy remains intentionally limited to
 Boolean, signed i8, and signed i16.
 
-The v15 envelope also admits format-annotated IEEE structural leaves and their
+The v16 envelope also admits format-annotated IEEE structural leaves and their
 atomic equality/inequality comparison proposition. They are outside this scalar-type primitive layer
 and the bounded Gamma ledger fixtures; those decoders continue to reject the new
 tags if they appear instead of silently assigning them scalar meaning.

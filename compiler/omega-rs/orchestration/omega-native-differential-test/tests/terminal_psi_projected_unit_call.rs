@@ -717,7 +717,7 @@ fn literal_element_calls_retain_native_and_installed_custody_on_all_targets() {
         let offset = bytes
             .windows(projection.len())
             .position(|window| window == projection)
-            .expect("format-9 bytes retain the second resolved projection");
+            .expect("format-10 bytes retain the second resolved projection");
         let mut changed_installation = bytes.clone();
         let source_offset = offset + 48;
         changed_installation[source_offset..source_offset + 4]

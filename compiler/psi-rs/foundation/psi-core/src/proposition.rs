@@ -886,6 +886,42 @@ impl IeeeFloatStructuralField {
     }
 }
 
+/// One nonempty canonical path to a byte-sequence field below a Terminal
+/// structural root. Equality observes only the live length and byte prefix;
+/// native descriptor identity and unused bounded capacity are not semantic.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ByteSequenceStructuralField {
+    root: PlaceId,
+    path: Vec<CanonicalStructuralPathSegment>,
+}
+
+impl ByteSequenceStructuralField {
+    pub fn new(
+        root: PlaceId,
+        path: Vec<CanonicalStructuralPathSegment>,
+    ) -> Result<Self, PropositionError> {
+        if path.is_empty() {
+            return Err(PropositionError::EmptyByteSequenceStructuralFieldPath);
+        }
+        Ok(Self { root, path })
+    }
+
+    pub const fn root(&self) -> PlaceId {
+        self.root
+    }
+
+    pub fn path(&self) -> &[CanonicalStructuralPathSegment] {
+        &self.path
+    }
+
+    pub fn rebase(&self, root: PlaceId, prefix: &[CanonicalStructuralPathSegment]) -> Self {
+        let mut path = Vec::with_capacity(prefix.len() + self.path.len());
+        path.extend_from_slice(prefix);
+        path.extend_from_slice(&self.path);
+        Self { root, path }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ScalarTerm {
     Value {
@@ -2328,6 +2364,11 @@ pub enum Proposition {
         left: IeeeFloatStructuralField,
         right: IeeeFloatStructuralField,
     },
+    /// Content equality over two exact byte-sequence structural leaves.
+    ByteSequenceEqual {
+        left: ByteSequenceStructuralField,
+        right: ByteSequenceStructuralField,
+    },
     Conjunction(Vec<Proposition>),
     Disjunction(Vec<Proposition>),
     Implication {
@@ -2355,6 +2396,15 @@ impl Proposition {
                 }
                 if left > right {
                     return Err(PropositionError::NonCanonicalIeeeFloatComparisonOperands);
+                }
+                Ok(())
+            }
+            Self::ByteSequenceEqual { left, right } => {
+                if left.path.is_empty() || right.path.is_empty() {
+                    return Err(PropositionError::EmptyByteSequenceStructuralFieldPath);
+                }
+                if left > right {
+                    return Err(PropositionError::NonCanonicalByteSequenceEqualOperands);
                 }
                 Ok(())
             }
@@ -2456,6 +2506,14 @@ impl PropositionContext {
                 self.validate_term(right)
             }
             Proposition::IeeeFloatComparison { left, right, .. } => {
+                for field in [left, right] {
+                    if !self.structural_places.contains_key(&field.root) {
+                        return Err(PropositionError::UnknownStructuralPlace(field.root));
+                    }
+                }
+                Ok(())
+            }
+            Proposition::ByteSequenceEqual { left, right } => {
                 for field in [left, right] {
                     if !self.structural_places.contains_key(&field.root) {
                         return Err(PropositionError::UnknownStructuralPlace(field.root));
@@ -2712,6 +2770,8 @@ pub enum PropositionError {
     NonCanonicalDisjunctionArity(usize),
     EmptyIeeeFloatStructuralFieldPath,
     NonCanonicalIeeeFloatComparisonOperands,
+    EmptyByteSequenceStructuralFieldPath,
+    NonCanonicalByteSequenceEqualOperands,
     EmptyContentAlgebraParameter,
     EmptyContentCaseName,
     EmptyContentFieldName,

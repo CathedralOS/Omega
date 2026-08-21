@@ -348,7 +348,8 @@ fn substitute_checked_boolean_expression(
         // outer call and therefore deliberately loses portable structure.
         CheckedBooleanExpression::Local { .. } => return None,
         CheckedBooleanExpression::StructuralParameterField { .. }
-        | CheckedBooleanExpression::IeeeFloatComparison { .. } => return None,
+        | CheckedBooleanExpression::IeeeFloatComparison { .. }
+        | CheckedBooleanExpression::ByteSequenceEqual { .. } => return None,
         CheckedBooleanExpression::Not(operand) => CheckedBooleanExpression::Not(Box::new(
             substitute_checked_boolean_expression(operand, arguments)?,
         )),

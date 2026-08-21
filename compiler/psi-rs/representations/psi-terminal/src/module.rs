@@ -234,12 +234,19 @@ pub enum StructuralFieldType {
     /// Relevant IEEE leaf retained for structural identity and predicates,
     /// without claiming general Terminal scalar execution support.
     IeeeFloat(IeeeFloatFormat),
+    ByteSequence(ByteSequenceCarrier),
     Structural(StructuralTypeId),
     /// Exact semantic type identity for an erased field whose carrier need not
     /// belong to the executable structural/layout vocabulary.
     Erased {
         type_identity: String,
     },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum ByteSequenceCarrier {
+    BorrowedView,
+    BoundedOwned { capacity: u64 },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]

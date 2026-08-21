@@ -790,6 +790,10 @@ impl<'program> ShapeCollector<'program> {
                         )
                         .into_string(),
                 }
+            } else if let Some(carrier) =
+                byte_sequence_carrier(self.program, field.type_reference, &substitutions)
+            {
+                CheckedUnitStructuralFieldType::ByteSequence(carrier)
             } else {
                 match scalar_type(self.program, field.type_reference, &substitutions) {
                     Some(primitive) => CheckedUnitStructuralFieldType::Scalar(primitive),
@@ -890,6 +894,68 @@ pub(super) fn scalar_type(
             }
             _ => return None,
         }
+    }
+}
+
+pub(crate) fn byte_sequence_carrier(
+    program: &TypedTrees,
+    mut type_reference: TypeReferenceHandle,
+    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+) -> Option<psi_checked_trees::CheckedByteSequenceCarrier> {
+    let mut borrowed = false;
+    let mut has_domain = false;
+    loop {
+        match program.type_reference_table.type_reference(type_reference) {
+            TypeReferenceNode::Named { symbol, .. } => {
+                let Some((_, replacement)) = substitutions
+                    .iter()
+                    .rev()
+                    .find(|(parameter, _)| parameter == symbol)
+                else {
+                    break;
+                };
+                type_reference = *replacement;
+            }
+            TypeReferenceNode::Constrained {
+                base_type,
+                constraints,
+            } => {
+                has_domain |= program
+                    .type_reference_table
+                    .constraints(*constraints)
+                    .iter()
+                    .any(|constraint| matches!(constraint, TypeConstraintNode::Domain(_)));
+                type_reference = *base_type;
+            }
+            TypeReferenceNode::Reference { referee, .. } if !borrowed => {
+                borrowed = true;
+                type_reference = *referee;
+            }
+            _ => break,
+        }
+    }
+
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Slice { element_type }
+            if borrowed
+                && program.primitive_type_reference(*element_type) == Some(PrimitiveType::U8) =>
+        {
+            Some(psi_checked_trees::CheckedByteSequenceCarrier::BorrowedView)
+        }
+        TypeReferenceNode::FixedArray {
+            element_type,
+            length: psi_typed_trees::types::FixedArrayLength::Literal(capacity),
+        } if !borrowed
+            && has_domain
+            && program.primitive_type_reference(*element_type) == Some(PrimitiveType::U8) =>
+        {
+            Some(
+                psi_checked_trees::CheckedByteSequenceCarrier::BoundedOwned {
+                    capacity: u64::try_from(*capacity).ok()?,
+                },
+            )
+        }
+        _ => None,
     }
 }
 

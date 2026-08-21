@@ -29,10 +29,10 @@ use psi_checked_trees::{
     ContentIdentityReshuffleFact, ContentPartitionCompositionFact, types::PrimitiveType,
 };
 use psi_core::{
-    BlockId, BoundaryMachineId, CanonicalStructuralPathSegment, ClaimId, ContentAlgebra,
-    ContentAlgebraKind, ContentConservation, ContentDomainId, ContentPlaceSegment,
-    ContentPlaceVersion, ContentProjectionIdentity, ContentStructuralPlace, ContentTerm,
-    ContractId, EdgeId, EvidenceIdentity, EvidenceTermId, IeeeFloatFormat,
+    BlockId, BoundaryMachineId, ByteSequenceStructuralField, CanonicalStructuralPathSegment,
+    ClaimId, ContentAlgebra, ContentAlgebraKind, ContentConservation, ContentDomainId,
+    ContentPlaceSegment, ContentPlaceVersion, ContentProjectionIdentity, ContentStructuralPlace,
+    ContentTerm, ContractId, EdgeId, EvidenceIdentity, EvidenceTermId, IeeeFloatFormat,
     IeeeFloatStructuralField, IntegerSign, IntegerType, IntegerValue, MachineId, ObligationId,
     OperationId, PlaceId, Proposition, PropositionContext, PropositionError, PropositionId,
     ScalarTerm, ScalarType, ServiceId, StructuralDomainId, StructuralFieldId, StructuralPlaceKind,
@@ -54,8 +54,8 @@ use psi_proof_kernel::{
     CertificateEnvelope, EvidenceRoute, PrimitiveJudgment, ProofNode, ProofRule, ProofSystemMarker,
 };
 use psi_terminal::{
-    Block, BoundaryMachineDeclaration, ClaimContentProjection, ClaimTransfer, CompletionReceipt,
-    ContentEntryClaim, ContentIdentityReshuffle, ContentPartitionComposition,
+    Block, BoundaryMachineDeclaration, ByteSequenceCarrier, ClaimContentProjection, ClaimTransfer,
+    CompletionReceipt, ContentEntryClaim, ContentIdentityReshuffle, ContentPartitionComposition,
     ContentPlaceSubstitution, ContractClause, CrashCause as TerminalCrashCause, EntryClaim,
     EvidenceContractLane, EvidenceContractLaneKind, EvidenceInterfaceIdentity,
     EvidencePackageInvocation, EvidencePackageOutputBinding, EvidencePackageRuntimeCall,
@@ -151,7 +151,8 @@ use shared_runtime_parameters::{
 use structural_return::lower_structural_return_machine;
 use structural_scalar_return::lower_structural_scalar_return_machine;
 use structural_types::{
-    lower_structural_type_plans, retain_additional_structural_types, terminal_structural_field_type,
+    lower_structural_type_plans, retain_additional_structural_types,
+    terminal_byte_sequence_carrier, terminal_structural_field_type,
 };
 use structural_unit_control::lower_structural_unit_control_machine;
 use unit_cleanup::{

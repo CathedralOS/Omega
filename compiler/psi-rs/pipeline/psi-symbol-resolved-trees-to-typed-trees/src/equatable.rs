@@ -143,7 +143,7 @@ pub(crate) fn field_equality<'program>(
     // collapse (which would discard the slice shape and reject it). Scoped to a
     // BYTE slice on purpose: TextEquals compares `len` bytes, so a wider-element
     // slice would compare too few bytes.
-    if byte_slice_text_view(program, &field.type_reference) {
+    if byte_sequence_text_carrier(program, &field.type_reference) {
         return Ok(FieldEquality::Text);
     }
 
@@ -259,6 +259,46 @@ pub(crate) fn byte_slice_text_view(
     };
     matches!(
         program.child_type_reference(slice.storage.element_type),
+        resolved::types::TypeReference::Named { name, .. }
+            if PrimitiveType::from_name(name.as_str()) == Some(PrimitiveType::U8)
+    )
+}
+
+/// Whether a declaration-storage type is one of the byte-sequence carriers
+/// whose equality is live-length plus live-byte-prefix equality. In addition
+/// to borrowed byte slices, this admits a named-domain-qualified fixed byte
+/// array (`[u8; N] in Domain`), whose runtime storage is the bounded
+/// `{len, bytes}` carrier rather than an always-full array.
+pub(crate) fn byte_sequence_text_carrier(
+    program: &SymbolResolvedTrees,
+    type_reference: &resolved::types::TypeReference,
+) -> bool {
+    if byte_slice_text_view(program, type_reference) {
+        return true;
+    }
+    let resolved::types::TypeReference::Constrained(constrained) = type_reference else {
+        return false;
+    };
+    if !program
+        .tables
+        .types
+        .constraints
+        .span_or_empty(constrained.storage.constraints)
+        .iter()
+        .any(|constraint| matches!(constraint, resolved::types::TypeConstraint::Domain(_)))
+    {
+        return false;
+    }
+    let resolved::types::TypeReference::FixedArray(array) =
+        program.child_type_reference(constrained.storage.base_type)
+    else {
+        return false;
+    };
+    matches!(
+        array.storage.length,
+        resolved::types::FixedArrayLength::Literal(_)
+    ) && matches!(
+        program.child_type_reference(array.storage.element_type),
         resolved::types::TypeReference::Named { name, .. }
             if PrimitiveType::from_name(name.as_str()) == Some(PrimitiveType::U8)
     )

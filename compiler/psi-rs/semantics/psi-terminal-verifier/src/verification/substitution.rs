@@ -38,6 +38,10 @@ pub(crate) fn substitute_proposition_values(
             left: left.clone(),
             right: right.clone(),
         },
+        Proposition::ByteSequenceEqual { left, right } => Proposition::ByteSequenceEqual {
+            left: left.clone(),
+            right: right.clone(),
+        },
         Proposition::Conjunction(conjuncts) => Proposition::Conjunction(
             conjuncts
                 .iter()
@@ -109,6 +113,18 @@ pub(crate) fn substitute_proposition_structural_places(
             Proposition::IeeeFloatComparison {
                 kind: *kind,
                 format: *format,
+                left: rebase(left),
+                right: rebase(right),
+            }
+        }
+        Proposition::ByteSequenceEqual { left, right } => {
+            let rebase = |field: &psi_core::ByteSequenceStructuralField| {
+                substitutions
+                    .get(&field.root())
+                    .map(|(root, prefix)| field.rebase(*root, prefix))
+                    .unwrap_or_else(|| field.clone())
+            };
+            Proposition::ByteSequenceEqual {
                 left: rebase(left),
                 right: rebase(right),
             }

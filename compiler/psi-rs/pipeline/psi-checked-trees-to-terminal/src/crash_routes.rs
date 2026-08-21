@@ -258,6 +258,23 @@ fn lower_ieee_float_field(
     IeeeFloatStructuralField::new(root, path).map_err(LoweringError::InvalidCrashPredicate)
 }
 
+fn lower_byte_sequence_field(
+    field: &psi_checked_trees::CheckedStructuralParameterField,
+    parameters: &[StructuralParameterDeclaration],
+    structural_types: &[StructuralTypeDeclaration],
+) -> Result<ByteSequenceStructuralField, LoweringError> {
+    let (root, path, actual) = lower_structural_member_path(
+        field.parameter_position,
+        &field.path,
+        parameters,
+        structural_types,
+    )?;
+    if !matches!(actual, StructuralFieldType::ByteSequence(_)) {
+        return unsupported("structural byte-sequence predicate leaf has the wrong retained type");
+    }
+    ByteSequenceStructuralField::new(root, path).map_err(LoweringError::InvalidCrashPredicate)
+}
+
 pub(super) fn lower_structural_runtime_requirement(
     expression: &CheckedBooleanExpression,
     parameters: &[StructuralParameterDeclaration],
@@ -950,6 +967,9 @@ pub(super) fn lower_structural_crash_route_buckets(
             CheckedBooleanExpression::IeeeFloatComparison { .. } => {
                 unsupported("IEEE equality lowers as an atomic proposition")
             }
+            CheckedBooleanExpression::ByteSequenceEqual { .. } => {
+                unsupported("byte-sequence equality lowers as an atomic proposition")
+            }
             CheckedBooleanExpression::Parameter { .. }
             | CheckedBooleanExpression::Local { .. }
             | CheckedBooleanExpression::And { .. }
@@ -978,7 +998,8 @@ pub(super) fn lower_structural_crash_route_buckets(
                 | CheckedBooleanExpression::Parameter { .. }
                 | CheckedBooleanExpression::Local { .. }
                 | CheckedBooleanExpression::StructuralParameterField { .. }
-                | CheckedBooleanExpression::IntegerComparison { .. } => false,
+                | CheckedBooleanExpression::IntegerComparison { .. }
+                | CheckedBooleanExpression::ByteSequenceEqual { .. } => false,
             }
         }
 
@@ -1025,6 +1046,14 @@ pub(super) fn lower_structural_crash_route_buckets(
                 left,
                 right,
             });
+        }
+        if let CheckedBooleanExpression::ByteSequenceEqual { left, right } = expression {
+            let mut left = lower_byte_sequence_field(left, parameters, structural_types)?;
+            let mut right = lower_byte_sequence_field(right, parameters, structural_types)?;
+            if left > right {
+                std::mem::swap(&mut left, &mut right);
+            }
+            return Ok(Proposition::ByteSequenceEqual { left, right });
         }
         if let CheckedBooleanExpression::And { left, right }
         | CheckedBooleanExpression::Or { left, right } = expression
@@ -1226,6 +1255,13 @@ pub(super) fn substitute_structural_crash_route_roots(
                     }
                 }
             }
+            Proposition::ByteSequenceEqual { left, right } => {
+                for field in [left, right] {
+                    if let Some((root, prefix)) = substitutions.get(&field.root()) {
+                        *field = field.rebase(*root, prefix);
+                    }
+                }
+            }
             _ => {}
         }
         Ok(())
@@ -1316,6 +1352,13 @@ pub(super) fn substitute_structural_requirement_roots(
             substitute_term(right, substitutions);
         }
         Proposition::IeeeFloatComparison { left, right, .. } => {
+            for field in [left, right] {
+                if let Some((root, prefix)) = substitutions.get(&field.root()) {
+                    *field = field.rebase(*root, prefix);
+                }
+            }
+        }
+        Proposition::ByteSequenceEqual { left, right } => {
             for field in [left, right] {
                 if let Some((root, prefix)) = substitutions.get(&field.root()) {
                     *field = field.rebase(*root, prefix);
@@ -1543,8 +1586,9 @@ fn checked_boolean_scalar_term(
             }
             .map_err(LoweringError::InvalidCrashPredicate)?
         }
-        CheckedBooleanExpression::IeeeFloatComparison { .. } => {
-            return unsupported("IEEE structural equality requires structural signature lowering");
+        CheckedBooleanExpression::IeeeFloatComparison { .. }
+        | CheckedBooleanExpression::ByteSequenceEqual { .. } => {
+            return unsupported("structural equality requires structural signature lowering");
         }
         CheckedBooleanExpression::And { .. } | CheckedBooleanExpression::Or { .. } => {
             return unsupported(

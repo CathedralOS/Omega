@@ -598,6 +598,20 @@ fn validate_boolean_field_terms(
                 }
             }
         }
+        Proposition::ByteSequenceEqual { left, right } => {
+            for field in [left, right] {
+                if !matches!(
+                    structural_leaf_type(module, machine, field.root(), field.path()),
+                    Some(StructuralFieldType::ByteSequence(_))
+                ) {
+                    return Err(ModuleError::InvalidByteSequenceFieldTerm {
+                        machine: machine.id,
+                        root: field.root(),
+                        path: field.path().to_vec(),
+                    });
+                }
+            }
+        }
         Proposition::Conjunction(propositions) | Proposition::Disjunction(propositions) => {
             for proposition in propositions {
                 validate_boolean_field_terms(module, machine, proposition, runtime_requirements)?;
