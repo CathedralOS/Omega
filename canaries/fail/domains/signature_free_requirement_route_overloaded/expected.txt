@@ -1,1 +1,2 @@
-does not resolve to one exact trait requirement
+declaring trait `Issuer` overloads requirement `issue`; this is a source-compatibility break for signature-free requirement references
+error: domain `Token::Issued` establishment route `Issuer::issue` does not resolve to one exact trait requirement

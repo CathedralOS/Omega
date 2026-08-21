@@ -5,35 +5,29 @@ use psi_symbol_resolved_trees::SymbolResolvedTrees;
 use psi_syntax_trees::SyntaxTrees;
 use std::sync::Arc;
 
-pub fn lower_syntax_trees(syntax_trees: &SyntaxTrees) -> Result<SymbolResolvedTrees, Diagnostic> {
+pub fn lower_syntax_trees(
+    syntax_trees: &SyntaxTrees,
+) -> Result<SymbolResolvedTrees, Vec<Diagnostic>> {
     lower_syntax_trees_with_optional_sources(syntax_trees, None)
 }
 
 pub fn lower_syntax_trees_with_sources(
     syntax_trees: &SyntaxTrees,
     sources: Arc<SourceMap>,
-) -> Result<SymbolResolvedTrees, Diagnostic> {
+) -> Result<SymbolResolvedTrees, Vec<Diagnostic>> {
     lower_syntax_trees_with_optional_sources(syntax_trees, Some(sources))
 }
 
 fn lower_syntax_trees_with_optional_sources(
     syntax_trees: &SyntaxTrees,
     sources: Option<Arc<SourceMap>>,
-) -> Result<SymbolResolvedTrees, Diagnostic> {
+) -> Result<SymbolResolvedTrees, Vec<Diagnostic>> {
     let mut syntax_trees = syntax_trees.clone();
-    crate::trait_defaults::synthesize_trait_defaults(&mut syntax_trees).map_err(|diagnostics| {
-        Diagnostic::error(
-            diagnostics
-                .into_iter()
-                .map(|diagnostic| diagnostic.message)
-                .collect::<Vec<_>>()
-                .join("\n"),
-        )
-    })?;
+    crate::trait_defaults::synthesize_trait_defaults(&mut syntax_trees)?;
     let mut lowerer = Lowerer::new(sources);
 
     for item in syntax_trees.root_items() {
-        lower_item(&mut lowerer, &syntax_trees, item)?;
+        lower_item(&mut lowerer, &syntax_trees, item).map_err(|diagnostic| vec![diagnostic])?;
     }
 
     lowerer.finish()
@@ -194,14 +188,23 @@ impl Lowerer {
         name
     }
 
-    pub(crate) fn finish(mut self) -> Result<SymbolResolvedTrees, Diagnostic> {
+    pub(crate) fn finish(mut self) -> Result<SymbolResolvedTrees, Vec<Diagnostic>> {
         crate::domain_operator_homes::normalize_domain_operator_homes(
             &mut self.symbol_resolved_trees,
-        )?;
+        )
+        .map_err(|diagnostic| vec![diagnostic])?;
         crate::symbols::assign_symbols(&mut self.symbol_resolved_trees, self.sources);
+        let compatibility =
+            crate::signature_free_requirements::validate_signature_free_requirement_compatibility(
+                &self.symbol_resolved_trees,
+            );
+        if !compatibility.is_empty() {
+            return Err(compatibility);
+        }
         crate::machine_parameter_requirements::normalize_nominal_machine_parameter_requirements(
             &mut self.symbol_resolved_trees,
-        )?;
+        )
+        .map_err(|diagnostic| vec![diagnostic])?;
         bind_evidence_forwarding_owners(&mut self.symbol_resolved_trees);
         assert_eq!(
             self.symbol_resolved_trees.machines.len(),
@@ -246,15 +249,18 @@ impl Lowerer {
             .collect::<Vec<_>>();
         crate::conformance_blocks::normalize_closed_conformance_blocks(
             &mut self.symbol_resolved_trees,
-        )?;
+        )
+        .map_err(|diagnostic| vec![diagnostic])?;
         crate::domain_establishment::normalize_domain_establishment_routes(
             &mut self.symbol_resolved_trees,
-        )?;
+        )
+        .map_err(|diagnostic| vec![diagnostic])?;
         crate::service_reaches::normalize_service_reaches(
             &mut self.symbol_resolved_trees,
             &pending_machine_service_reaches,
             &pending_signature_service_reaches,
-        )?;
+        )
+        .map_err(|diagnostic| vec![diagnostic])?;
         self.symbol_resolved_trees.rebuild_tables();
         crate::conformance_blocks::route_inline_member_calls(&mut self.symbol_resolved_trees);
         let SymbolResolvedTrees {

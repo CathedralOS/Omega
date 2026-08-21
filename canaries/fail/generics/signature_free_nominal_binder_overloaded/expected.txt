@@ -1,1 +1,2 @@
-does not resolve to one exact trait requirement
+declaring trait `Handler` overloads requirement `call`; this is a source-compatibility break for signature-free requirement references
+error: nominal machine parameter `Selected` requirement `Handler::call` does not resolve to one exact trait requirement

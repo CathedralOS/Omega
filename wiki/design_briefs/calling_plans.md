@@ -556,6 +556,13 @@ selector. Adding an overload to an existing requirement name is therefore a
 breaking change for all such references and must be reported at the declaring
 trait as well as the affected uses.
 
+That compatibility report is live in the shared pre-normalization resolver.
+After symbol assignment, it groups ambiguity by exact declaring-trait symbol
+and requirement name, emits one declaration-anchored diagnostic per overloaded
+family, then emits source-ordered diagnostics for every affected nominal binder
+and authored domain route. Running before either consumer rewrites its authored
+path prevents the first ambiguous use from masking the rest of the breakage.
+
 Each checked callback use retains the call site, registration-operation
 identity, static-machine argument ordinal, selected machine, selected
 satisfaction row, exact canonical requirement overload, and evaluated target

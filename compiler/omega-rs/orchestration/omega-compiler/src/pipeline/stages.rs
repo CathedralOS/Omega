@@ -404,7 +404,6 @@ pub(super) fn syntax_trees_to_symbol_resolved_trees(
             &syntax.syntax_trees,
             syntax.sources,
         )
-        .map_err(|diagnostic| vec![diagnostic])
     })
 }
 

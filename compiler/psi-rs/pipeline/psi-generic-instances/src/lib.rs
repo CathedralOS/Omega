@@ -4118,8 +4118,7 @@ mod tests {
         let tokens = Lexer::new(source).tokenize().expect("tokenize");
         let mut syntax = parse_syntax_trees(&tokens).expect("parse");
         desugar_generic_data_instances(&mut syntax)?;
-        let resolved = psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax)
-            .map_err(|diagnostic| vec![diagnostic])?;
+        let resolved = psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax)?;
         let typed =
             psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
                 .map_err(|diagnostic| vec![diagnostic])?;

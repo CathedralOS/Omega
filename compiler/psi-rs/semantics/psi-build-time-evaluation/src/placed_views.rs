@@ -86,8 +86,7 @@ pub fn desugar_placed_views(
     synthesize_probe_records(&mut probe, &applications, &rewrites, &schemas);
     let mut probe = psi_generic_instances::normalize_pre_resolution(probe)?;
     let probe_plan_laid = crate::desugar_plan_laid_value_types(&mut probe)?;
-    let resolved = psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&probe)
-        .map_err(|diagnostic| vec![diagnostic])?;
+    let resolved = psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&probe)?;
     let mut typed =
         psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
             .map_err(|diagnostic| vec![diagnostic])?;
