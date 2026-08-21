@@ -37,6 +37,7 @@ use assignment_targets::{
 };
 use boundary_calls::known_boundary_call_written_paths_for_parts;
 pub(crate) use boundary_calls::{boundary_trait_signature, known_boundary_call_written_paths};
+use call_targets::discarded_primitive_internal_call_is_relationally_neutral;
 pub(crate) use call_targets::free_machine_entry_state;
 pub(super) use call_targets::machine_state_by_symbol;
 pub use demand::{CallFrameResolver, frame_paths_overlap};
@@ -1369,36 +1370,6 @@ fn statement_call_preserves_transparent_result(
         .flatten()
     })
     .is_some()
-}
-
-/// An explicitly discarded result cannot redirect a returned-place relation
-/// only when the resolved internal callee is an ordinary nongeneric body and
-/// its declared result is a concrete primitive. The ordinary complete-frame
-/// check below remains responsible for proving every side write. Boundary,
-/// generic, reference-bearing, aggregate, and unresolved calls fail closed.
-fn discarded_primitive_internal_call_is_relationally_neutral(
-    program: &TypedTrees,
-    call: &TableCall,
-    symbols: &TopLevelSymbols<'_>,
-) -> bool {
-    let Some((callee_machine, callee_state)) = machine_state_by_symbol(program, call.target_symbol)
-        .or_else(|| {
-            call.receiver
-                .is_empty()
-                .then(|| free_machine_entry_state(program, symbols, call.target.as_str()))
-                .flatten()
-        })
-    else {
-        return false;
-    };
-    call.receiver.is_empty() != callee_machine.attached_data.is_some()
-        && callee_machine.supply_mode == psi_language_semantics::MachineSupplyMode::CheckedBody
-        && callee_machine.lifetime_parameters.is_empty()
-        && program.machine_type_parameters(callee_machine).is_empty()
-        && call.machine_arguments.is_empty()
-        && program
-            .primitive_type_reference(callee_state.return_type)
-            .is_some()
 }
 
 /// A complete bounded call tree may supply an assignment value without

@@ -1,13 +1,17 @@
-//! Read-only internal call-target lookup for write-frame analysis.
+//! Read-only internal call-target and result-shape queries for write-frame
+//! analysis.
 //!
 //! This leaf selects a free machine's source entry state and resolves exact
-//! state symbols. It does not validate calls or infer their write frames.
+//! state symbols. It also classifies the one concrete discarded-result shape
+//! that cannot redirect a returned-place relation. It does not infer write
+//! frames.
 
 use crate::symbols::TopLevelSymbols;
 use psi_symbols::SymbolHandle;
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::machine::Machine;
 use psi_typed_trees::state::State;
+use psi_typed_trees::statement::TableCall;
 
 /// The FREE top-level machine named `target` and its entry state (`machine
 /// compute(item: &Item) -> i32 { ... }`), or None. The parser names a free
@@ -43,4 +47,34 @@ pub(in crate::calls) fn machine_state_by_symbol(
             .find(|state| state.symbol == symbol)
             .map(|state| (machine, state))
     })
+}
+
+/// An explicitly discarded result cannot redirect a returned-place relation
+/// only when the resolved internal callee is an ordinary nongeneric body and
+/// its declared result is a concrete primitive. The parent complete-frame
+/// check remains responsible for proving every side write. Boundary, generic,
+/// reference-bearing, aggregate, and unresolved calls fail closed.
+pub(super) fn discarded_primitive_internal_call_is_relationally_neutral(
+    program: &TypedTrees,
+    call: &TableCall,
+    symbols: &TopLevelSymbols<'_>,
+) -> bool {
+    let Some((callee_machine, callee_state)) = machine_state_by_symbol(program, call.target_symbol)
+        .or_else(|| {
+            call.receiver
+                .is_empty()
+                .then(|| free_machine_entry_state(program, symbols, call.target.as_str()))
+                .flatten()
+        })
+    else {
+        return false;
+    };
+    call.receiver.is_empty() != callee_machine.attached_data.is_some()
+        && callee_machine.supply_mode == psi_language_semantics::MachineSupplyMode::CheckedBody
+        && callee_machine.lifetime_parameters.is_empty()
+        && program.machine_type_parameters(callee_machine).is_empty()
+        && call.machine_arguments.is_empty()
+        && program
+            .primitive_type_reference(callee_state.return_type)
+            .is_some()
 }
