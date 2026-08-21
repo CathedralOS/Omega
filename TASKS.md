@@ -767,7 +767,7 @@ Remaining:
   trust graph binds the table to exactly those twelve denotation nodes and the
   dispatcher to every affected reducer.
   The bounded Gamma spike is complete. It canonical-decodes four exact current
-  `PSITERM\0` v12 fixtures and audits a 54-row scalar ledger covering constants,
+  `PSITERM\0` v13 fixtures and audits a 54-row scalar ledger covering constants,
   Boolean not/equality, integer equality/order, bitwise operations, strict
   i8-to-i16 widening, partial i16-to-i8 exact cast, exact/wrapping shifts with
   independently typed counts, and the complete

@@ -75,19 +75,19 @@ fixture_expr "$FIXTURES/terminal_ledger_call_composition.hex" --set-byte 96 11 \
   > "$T/call-domain-carrier-drift.expr"
 fixture_expr "$FIXTURES/terminal_ledger_call_composition.hex" --set-byte 203 11 \
   > "$T/call-boundary-requirement-drift.expr"
-fixture_expr "$FIXTURES/terminal_ledger_call_composition.hex" --set-byte 391 21 \
+fixture_expr "$FIXTURES/terminal_ledger_call_composition.hex" --set-byte 395 21 \
   > "$T/call-unit-target-drift.expr"
-fixture_expr "$FIXTURES/terminal_ledger_call_composition.hex" --set-byte 403 20 \
+fixture_expr "$FIXTURES/terminal_ledger_call_composition.hex" --set-byte 407 20 \
   > "$T/call-unit-argument-drift.expr"
-fixture_expr "$FIXTURES/terminal_ledger_call_composition.hex" --set-byte 419 2 \
+fixture_expr "$FIXTURES/terminal_ledger_call_composition.hex" --set-byte 423 2 \
   > "$T/call-unit-transfer-drift.expr"
-fixture_expr "$FIXTURES/terminal_ledger_call_composition.hex" --set-byte 616 11 \
+fixture_expr "$FIXTURES/terminal_ledger_call_composition.hex" --set-byte 620 11 \
   > "$T/call-boundary-target-drift.expr"
-fixture_expr "$FIXTURES/terminal_ledger_call_composition.hex" --set-byte 628 10 \
+fixture_expr "$FIXTURES/terminal_ledger_call_composition.hex" --set-byte 632 10 \
   > "$T/call-boundary-argument-drift.expr"
-fixture_expr "$FIXTURES/terminal_ledger_call_composition.hex" --set-byte 644 2 \
+fixture_expr "$FIXTURES/terminal_ledger_call_composition.hex" --set-byte 648 2 \
   > "$T/call-boundary-receipt-drift.expr"
-fixture_expr "$FIXTURES/terminal_ledger_call_composition.hex" --set-byte 652 1 \
+fixture_expr "$FIXTURES/terminal_ledger_call_composition.hex" --set-byte 656 1 \
   > "$T/call-boundary-receipt-index-drift.expr"
 fixture_expr "$FIXTURES/terminal_ledger_call_composition.hex" --drop-last \
   > "$T/call-truncated.expr"
@@ -97,17 +97,17 @@ fixture_expr "$FIXTURES/terminal_ledger_structural_effect.hex" --set-byte 74 0 \
   > "$T/structural-erased-field.expr"
 fixture_expr "$FIXTURES/terminal_ledger_structural_effect.hex" --set-byte 36 128 \
   > "$T/structural-invalid-utf8.expr"
-fixture_expr "$FIXTURES/terminal_ledger_structural_effect.hex" --set-byte 334 2 \
+fixture_expr "$FIXTURES/terminal_ledger_structural_effect.hex" --set-byte 338 2 \
   > "$T/structural-field-drift.expr"
-fixture_expr "$FIXTURES/terminal_ledger_structural_effect.hex" --set-byte 352 2 \
+fixture_expr "$FIXTURES/terminal_ledger_structural_effect.hex" --set-byte 356 2 \
   > "$T/structural-service-drift.expr"
-fixture_expr "$FIXTURES/terminal_ledger_structural_effect.hex" --set-byte 360 249 \
+fixture_expr "$FIXTURES/terminal_ledger_structural_effect.hex" --set-byte 364 249 \
   > "$T/structural-port-drift.expr"
-fixture_expr "$FIXTURES/terminal_ledger_structural_effect.hex" --set-byte 401 2 \
+fixture_expr "$FIXTURES/terminal_ledger_structural_effect.hex" --set-byte 405 2 \
   > "$T/structural-cleanup-drift.expr"
-fixture_expr "$FIXTURES/terminal_ledger_structural_effect.hex" --set-byte 535 1 \
+fixture_expr "$FIXTURES/terminal_ledger_structural_effect.hex" --set-byte 539 1 \
   > "$T/structural-establish-target-drift.expr"
-fixture_expr "$FIXTURES/terminal_ledger_structural_effect.hex" --set-byte 552 0 \
+fixture_expr "$FIXTURES/terminal_ledger_structural_effect.hex" --set-byte 556 0 \
   > "$T/structural-missing-discard.expr"
 fixture_expr "$FIXTURES/terminal_ledger_spike.hex" --set-byte 0 0 > "$T/bad-magic.expr"
 fixture_expr "$FIXTURES/terminal_ledger_spike.hex" --set-byte 8 10 > "$T/bad-format.expr"
@@ -115,16 +115,16 @@ fixture_expr "$FIXTURES/terminal_ledger_spike.hex" --set-byte 10 15 \
   > "$T/bad-vocabulary.expr"
 fixture_expr "$FIXTURES/terminal_ledger_spike.hex" --drop-last > "$T/truncated.expr"
 fixture_expr "$FIXTURES/terminal_ledger_spike.hex" --append-byte 0 > "$T/trailing.expr"
-fixture_expr "$FIXTURES/terminal_ledger_spike.hex" --set-byte 191 10 > "$T/duplicate-result.expr"
-fixture_expr "$FIXTURES/terminal_ledger_spike.hex" --set-byte 1212 2 > "$T/invalid-boolean.expr"
-fixture_expr "$FIXTURES/terminal_ledger_spike.hex" --set-byte 1949 2 \
+fixture_expr "$FIXTURES/terminal_ledger_spike.hex" --set-byte 195 10 > "$T/duplicate-result.expr"
+fixture_expr "$FIXTURES/terminal_ledger_spike.hex" --set-byte 1216 2 > "$T/invalid-boolean.expr"
+fixture_expr "$FIXTURES/terminal_ledger_spike.hex" --set-byte 1953 2 \
   > "$T/unsigned-i8-payload.expr"
-fixture_expr "$FIXTURES/terminal_ledger_spike.hex" --set-byte 1952 0 \
+fixture_expr "$FIXTURES/terminal_ledger_spike.hex" --set-byte 1956 0 \
   > "$T/invalid-i8-sign-extension.expr"
-fixture_expr "$FIXTURES/terminal_ledger_spike.hex" --set-byte 1232 41 > "$T/boolean-type-drift.expr"
-fixture_expr "$FIXTURES/terminal_ledger_spike.hex" --set-byte 1364 8 > "$T/widen-result-drift.expr"
-fixture_expr "$FIXTURES/terminal_ledger_spike.hex" --set-byte 1397 10 > "$T/cast-operand-drift.expr"
-fixture_expr "$FIXTURES/terminal_ledger_spike.hex" --set-byte 1405 0 > "$T/missing-cast-obligation.expr"
+fixture_expr "$FIXTURES/terminal_ledger_spike.hex" --set-byte 1236 41 > "$T/boolean-type-drift.expr"
+fixture_expr "$FIXTURES/terminal_ledger_spike.hex" --set-byte 1368 8 > "$T/widen-result-drift.expr"
+fixture_expr "$FIXTURES/terminal_ledger_spike.hex" --set-byte 1401 10 > "$T/cast-operand-drift.expr"
+fixture_expr "$FIXTURES/terminal_ledger_spike.hex" --set-byte 1409 0 > "$T/missing-cast-obligation.expr"
 
 make_program() {
   function=$1
