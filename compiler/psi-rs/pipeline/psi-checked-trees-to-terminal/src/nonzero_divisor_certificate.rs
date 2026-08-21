@@ -667,14 +667,37 @@ mod tests {
             )
             .is_none()
         );
+        let retained_bound_proof = prove_canonical_integer_proposition(
+            &two_value_context(integer_type),
+            &goal,
+            &[divisor_negative.clone(), dividend_nonnegative.clone()],
+            &[],
+        )
+        .expect("both exact i1 bounds prove the joint goal");
+        let ProofRule::ConjunctionIntroduction(conjuncts) = retained_bound_proof.rule else {
+            panic!("exact i1 bounds compose through conjunction introduction")
+        };
+        assert_eq!(conjuncts.len(), 2);
+        assert!(matches!(
+            conjuncts[0].rule,
+            ProofRule::Assumption { index: 0 }
+        ));
+        assert!(matches!(
+            conjuncts[1].rule,
+            ProofRule::Assumption { index: 1 }
+        ));
         assert!(
             prove_canonical_integer_proposition(
                 &two_value_context(integer_type),
                 &goal,
-                &[divisor_negative, dividend_nonnegative],
+                &[
+                    divisor_negative,
+                    Proposition::LessOrEqual(integer(integer_type, 0), value(3, integer_type),),
+                ],
                 &[],
             )
-            .is_some()
+            .is_none(),
+            "wrong-dividend bound cannot prove the joint goal",
         );
 
         let landed = [
