@@ -934,7 +934,13 @@ Remaining:
   leaf stacks are source-provenance `Arc` clone and drop (2,639 and 2,629
   samples), reflecting repeated reconstruction of expression trees and their
   identifiers. Prefer memoized normalized helper models or an indexed
-  expression recipe over changing the backing arena.
+  expression recipe over changing the backing arena. A linear structural
+  helper-model cache was prototyped and rejected: on the exact warmed
+  `text/runtime_mandelbrot_render_exit` differential canary, disabling it took
+  60.21s wall/385.84s aggregate CPU while enabling it took 75.44s wall/76.77s
+  CPU. It removed duplicated parallel work but moved the critical path onto one
+  worker doing linear cache scans, increasing latency by 25%. No cache code was
+  retained; the next attempt needs an indexed canonical key/recipe.
   Corpus-level bounded parallelism is viable at the harness boundary: the
   differential runner now defaults to four independent jobs with one native
   backend worker each, retains deterministic corpus-order reporting, and
