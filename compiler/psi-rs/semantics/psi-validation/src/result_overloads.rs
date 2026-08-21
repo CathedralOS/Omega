@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use psi_diagnostics::Diagnostic;
 use psi_symbols::{SymbolHandle, SymbolKind};
 use psi_typed_trees::TypedTrees;
@@ -5,7 +7,71 @@ use psi_typed_trees::expression::{
     ExpressionHandle, ExpressionNode, TableCallExpression, TableNamePath,
 };
 use psi_typed_trees::statement::{StatementNode, TableLocalData};
+use psi_typed_trees::type_identity::NormalizedNamedCallableIdentity;
 use psi_typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+
+struct MachineOverloadGroup {
+    provisional_identity: NormalizedNamedCallableIdentity,
+    overloads: Vec<(SymbolHandle, NormalizedNamedCallableIdentity)>,
+}
+
+/// Invocation-local index for top-level named machine overloads. Stage 05 can
+/// visit thousands of calls; rebuilding every normalized machine identity for
+/// every visit made this pass quadratic in the authored machine corpus.
+/// Source order is retained inside each family, and no index survives this
+/// validation invocation.
+struct MachineOverloadIndex {
+    entry_to_group: HashMap<u32, usize>,
+    groups: Vec<MachineOverloadGroup>,
+}
+
+impl MachineOverloadIndex {
+    fn new(program: &TypedTrees) -> Self {
+        let mut entry_to_group = HashMap::new();
+        let mut family_to_group: HashMap<(String, String), usize> = HashMap::new();
+        let mut groups: Vec<MachineOverloadGroup> = Vec::new();
+
+        for machine in program.machines() {
+            let Some(entry) = program.machine_states(machine).first() else {
+                continue;
+            };
+            let Some(identity) = program.normalized_machine_overload_identity(machine) else {
+                continue;
+            };
+            let family = (identity.path().to_owned(), identity.parameters().to_owned());
+            let group_index = if let Some(index) = family_to_group.get(&family).copied() {
+                index
+            } else {
+                let index = groups.len();
+                family_to_group.insert(family, index);
+                groups.push(MachineOverloadGroup {
+                    provisional_identity: identity.clone(),
+                    overloads: Vec::new(),
+                });
+                index
+            };
+            groups[group_index].overloads.push((entry.symbol, identity));
+            entry_to_group
+                .entry(entry.symbol.arena_index())
+                .or_insert(group_index);
+        }
+
+        Self {
+            entry_to_group,
+            groups,
+        }
+    }
+
+    fn group(&self, entry: SymbolHandle) -> Option<&MachineOverloadGroup> {
+        self.entry_to_group
+            .get(&entry.arena_index())
+            .and_then(|index| self.groups.get(*index))
+    }
+
+    fn contains_entry(&self, entry: SymbolHandle) -> bool {
+        self.entry_to_group.contains_key(&entry.arena_index())
+    }
+}
 
 /// Bind concrete named callable calls after type/domain normalization, when
 /// the expected result qualification is available. Early symbol resolution
@@ -14,6 +80,7 @@ use psi_typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 /// or unspelled boundary-operator result overload before downstream consumers.
 pub fn resolve_named_result_overloads(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
     let expected_calls = collect_expected_expression_calls(program);
+    let machine_overloads = MachineOverloadIndex::new(program);
     let mut diagnostics = Vec::new();
 
     let expression_updates = program
@@ -26,8 +93,14 @@ pub fn resolve_named_result_overloads(program: &mut TypedTrees) -> Result<(), Ve
             let expected = expected_calls
                 .iter()
                 .find_map(|(candidate, expected)| (*candidate == handle).then_some(*expected));
-            selected_named_expression_callable_symbol(program, call, expected, &mut diagnostics)
-                .map(|selected| (handle, selected))
+            selected_named_expression_callable_symbol(
+                program,
+                &machine_overloads,
+                call,
+                expected,
+                &mut diagnostics,
+            )
+            .map(|selected| (handle, selected))
         })
         .collect::<Vec<_>>();
 
@@ -44,9 +117,13 @@ pub fn resolve_named_result_overloads(program: &mut TypedTrees) -> Result<(), Ve
                 let StatementNode::Call(call) = statement else {
                     continue;
                 };
-                if let Some(selected) =
-                    selected_named_statement_callable_symbol(program, call, None, &mut diagnostics)
-                {
+                if let Some(selected) = selected_named_statement_callable_symbol(
+                    program,
+                    &machine_overloads,
+                    call,
+                    None,
+                    &mut diagnostics,
+                ) {
                     if let Some(operator) = program
                         .operators()
                         .iter()
@@ -175,13 +252,19 @@ pub fn resolve_named_result_overloads(program: &mut TypedTrees) -> Result<(), Ve
 
 fn selected_named_statement_callable_symbol(
     program: &TypedTrees,
+    machine_overloads: &MachineOverloadIndex,
     call: &psi_typed_trees::statement::TableCall,
     expected_result: Option<TypeReferenceHandle>,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Option<SymbolHandle> {
-    if provisional_target_is_named_non_operator_callable(program, call.target_symbol) {
+    if provisional_target_is_named_non_operator_callable(
+        program,
+        machine_overloads,
+        call.target_symbol,
+    ) {
         return selected_named_callable_symbol(
             program,
+            machine_overloads,
             call.target_symbol,
             expected_result,
             diagnostics,
@@ -243,18 +326,30 @@ fn selected_named_statement_callable_symbol(
         }
     }
 
-    selected_named_callable_symbol(program, call.target_symbol, expected_result, diagnostics)
+    selected_named_callable_symbol(
+        program,
+        machine_overloads,
+        call.target_symbol,
+        expected_result,
+        diagnostics,
+    )
 }
 
 fn selected_named_expression_callable_symbol(
     program: &TypedTrees,
+    machine_overloads: &MachineOverloadIndex,
     call: &TableCallExpression,
     expected_result: Option<TypeReferenceHandle>,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Option<SymbolHandle> {
-    if provisional_target_is_named_non_operator_callable(program, call.target_symbol) {
+    if provisional_target_is_named_non_operator_callable(
+        program,
+        machine_overloads,
+        call.target_symbol,
+    ) {
         return selected_named_callable_symbol(
             program,
+            machine_overloads,
             call.target_symbol,
             expected_result,
             diagnostics,
@@ -265,6 +360,7 @@ fn selected_named_expression_callable_symbol(
     }) {
         return selected_named_callable_symbol(
             program,
+            machine_overloads,
             call.target_symbol,
             expected_result,
             diagnostics,
@@ -275,6 +371,7 @@ fn selected_named_expression_callable_symbol(
     let Some(provisional) = candidates.first() else {
         return selected_named_callable_symbol(
             program,
+            machine_overloads,
             call.target_symbol,
             expected_result,
             diagnostics,
@@ -296,6 +393,7 @@ fn selected_named_expression_callable_symbol(
         // Leave those calls to ordinary operand-directed resolution.
         return selected_named_callable_symbol(
             program,
+            machine_overloads,
             call.target_symbol,
             expected_result,
             diagnostics,
@@ -313,55 +411,30 @@ fn selected_named_expression_callable_symbol(
 
 fn provisional_target_is_named_non_operator_callable(
     program: &TypedTrees,
+    machine_overloads: &MachineOverloadIndex,
     target: SymbolHandle,
 ) -> bool {
-    program.machines().iter().any(|machine| {
-        program
-            .machine_states(machine)
-            .first()
-            .is_some_and(|entry| entry.symbol == target)
-    }) || program.traits().iter().any(|trait_definition| {
-        program
-            .trait_machine_signatures(trait_definition)
-            .iter()
-            .any(|requirement| requirement.symbol == target)
-    })
+    machine_overloads.contains_entry(target)
+        || program.traits().iter().any(|trait_definition| {
+            program
+                .trait_machine_signatures(trait_definition)
+                .iter()
+                .any(|requirement| requirement.symbol == target)
+        })
 }
 
 fn selected_named_callable_symbol(
     program: &TypedTrees,
+    machine_overloads: &MachineOverloadIndex,
     provisional_target: SymbolHandle,
     expected_result: Option<TypeReferenceHandle>,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Option<SymbolHandle> {
-    if let Some(provisional_machine) = program.machines().iter().find(|machine| {
-        program
-            .machine_states(machine)
-            .first()
-            .is_some_and(|entry| entry.symbol == provisional_target)
-    }) {
-        let provisional_identity =
-            program.normalized_machine_overload_identity(provisional_machine)?;
-        let overloads = program
-            .machines()
-            .iter()
-            .filter_map(|machine| {
-                let identity = program.normalized_machine_overload_identity(machine)?;
-                if identity.path() != provisional_identity.path()
-                    || identity.parameters() != provisional_identity.parameters()
-                {
-                    return None;
-                }
-                program
-                    .machine_states(machine)
-                    .first()
-                    .map(|entry| (entry.symbol, identity))
-            })
-            .collect::<Vec<_>>();
+    if let Some(group) = machine_overloads.group(provisional_target) {
         return select_overload_symbol(
             program,
-            &provisional_identity,
-            &overloads,
+            &group.provisional_identity,
+            &group.overloads,
             expected_result,
             diagnostics,
             "machine",
