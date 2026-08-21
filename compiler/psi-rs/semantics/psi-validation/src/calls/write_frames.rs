@@ -21,6 +21,7 @@ mod boundary_calls;
 mod demand;
 mod isolation;
 mod local_aliases;
+mod parameter_aliases;
 mod place_paths;
 mod state_paths;
 mod transition_topology;
@@ -44,6 +45,10 @@ use isolation::{
 use local_aliases::{
     expression_may_rebind_mutable_alias, expression_reborrows_local_alias_binding,
     expression_reborrows_stable_alias_binding, rebase_local_alias_path,
+};
+use parameter_aliases::{
+    ParameterRelativeFrameOrigin, expression_reborrows_transparent_alias_binding,
+    parameter_relative_alias_position,
 };
 use place_paths::{
     FramePathPrecision, FramePlaceOrigin, append_place_suffix, coarse_place_path, frame_place_path,
@@ -2330,107 +2335,6 @@ fn statement_call_argument_preserves_transparent_result(
         )
     })
     .is_some()
-}
-
-fn expression_reborrows_transparent_alias_binding(
-    program: &TypedTrees,
-    expression: ExpressionHandle,
-    parameters: &[StateParameter],
-    aliases: &[(String, SymbolHandle, ParameterRelativeFrameOrigin)],
-) -> bool {
-    if !expression.is_valid() {
-        return false;
-    }
-    let visit =
-        |child| expression_reborrows_transparent_alias_binding(program, child, parameters, aliases);
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Mutable(inner) => {
-            let reborrows_binding = matches!(
-                program.expression_table.expression(*inner),
-                ExpressionNode::Name(_)
-            ) && frame_place_path(program, *inner).is_some_and(|place| {
-                let (root, suffix) = split_place_root(&place.path);
-                if !suffix.is_empty() {
-                    return false;
-                }
-                let root_symbol = frame_place_root_symbol(program, *inner);
-                parameters.iter().any(|parameter| {
-                    matches!(
-                        program
-                            .type_reference_table
-                            .type_reference(parameter.type_reference),
-                        TypeReferenceNode::Reference {
-                            is_mutable: true,
-                            ..
-                        }
-                    ) && (root_symbol == Some(parameter.symbol)
-                        || parameter.is_self && root == "self"
-                        || root == parameter.name.as_str())
-                }) || aliases.iter().any(|(name, symbol, _)| {
-                    root_symbol
-                        .is_some_and(|root| root.is_valid() && symbol.is_valid() && root == *symbol)
-                        || root == name
-                })
-            });
-            reborrows_binding || visit(*inner)
-        }
-        ExpressionNode::Atomic(atomic) => visit(atomic.value) || visit(atomic.result),
-        ExpressionNode::Call(call) => {
-            (call.receiver.is_valid() && visit(call.receiver))
-                || program
-                    .expression_table
-                    .expression_handles(call.arguments)
-                    .iter()
-                    .any(|argument| visit(*argument))
-        }
-        ExpressionNode::Binary(binary) => visit(binary.left) || visit(binary.right),
-        ExpressionNode::Unary(unary) => visit(unary.operand),
-        ExpressionNode::Cast(cast) => visit(cast.value),
-        ExpressionNode::Indexed(indexed) => visit(indexed.collection) || visit(indexed.index),
-        ExpressionNode::Member(member) => visit(member.receiver),
-        ExpressionNode::ArrayLiteral(elements) => program
-            .expression_table
-            .expression_handles(*elements)
-            .iter()
-            .any(|element| visit(*element)),
-        ExpressionNode::StructLiteral(literal) => program
-            .expression_table
-            .struct_fields(literal.fields)
-            .iter()
-            .any(|field| visit(field.value)),
-        ExpressionNode::Range(range) => visit(range.start) || visit(range.end),
-        ExpressionNode::Boolean(_)
-        | ExpressionNode::Float(_)
-        | ExpressionNode::Integer(_)
-        | ExpressionNode::Name(_)
-        | ExpressionNode::String(_)
-        | ExpressionNode::ZeroValue(_) => false,
-    }
-}
-
-fn parameter_relative_alias_position(
-    program: &TypedTrees,
-    expression: ExpressionHandle,
-    aliases: &[(String, SymbolHandle, ParameterRelativeFrameOrigin)],
-) -> Option<usize> {
-    let place = frame_place_path(program, expression)?;
-    let (root, suffix) = split_place_root(&place.path);
-    if !suffix.is_empty() {
-        return None;
-    }
-    let root_symbol = frame_place_root_symbol(program, expression);
-    aliases.iter().position(|(name, symbol, _)| {
-        let exact_symbol =
-            root_symbol.is_some_and(|root| root.is_valid() && symbol.is_valid() && root == *symbol);
-        let unresolved_name = root_symbol.is_none_or(|root| !root.is_valid()) && name == root;
-        exact_symbol || unresolved_name
-    })
-}
-
-#[derive(Debug, Clone)]
-struct ParameterRelativeFrameOrigin {
-    place: FramePlaceOrigin,
-    parameter_symbol: SymbolHandle,
 }
 
 fn parameter_relative_place_origin(
