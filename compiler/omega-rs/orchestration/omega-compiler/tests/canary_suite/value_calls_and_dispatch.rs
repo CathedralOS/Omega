@@ -346,13 +346,8 @@ fn runtime_value_call_struct_result_to_target_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("value-call struct-result-to-target canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("value-call struct-result-to-target canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -414,13 +409,8 @@ fn runtime_value_call_struct_literal_arms_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("value-call struct-literal-arms canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("value-call struct-literal-arms canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -1797,13 +1787,8 @@ fn runtime_dispatch_sibling_value_calls_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("sibling dispatched value calls should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("sibling dispatched value calls should compile");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("sibling dispatched value calls should run");
@@ -1825,13 +1810,8 @@ fn runtime_inline_repeated_receiver_value_calls_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("repeated inline value calls on one receiver should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("repeated inline value calls on one receiver should compile");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("repeated inline value calls on one receiver should run");
