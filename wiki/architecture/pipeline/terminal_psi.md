@@ -1804,8 +1804,27 @@ normalization witness. No cast result, carrier interval, or selected axiom is a
 certificate premise until a future intentionally versioned proof integration
 binds it explicitly.
 
-Producers for cast/shift chains and correlated forbidden-root analysis still
-need their own normalized witnesses. Affine certificate production still needs
+The common exact-shift spine now also has a producer-visible, non-serialized
+`IntegerShiftChainWitness`. It binds a nonempty ordered word of exact left and
+right shifts over one fixed-native SSA value carrier. Every step names its
+canonical operation equality and, for a nonclosed count, an earlier canonical
+equality landing that exact count. The checked form retains shift direction,
+heterogeneous fixed-native count carrier, mathematical count, operation index,
+and optional count index. Operation indices must strictly increase; each count
+must be nonnegative and less than the value width, and each cited count fact
+must precede its operation. This one ordered representation covers homogeneous
+left/right and mixed shift cores shared by direct, cast-adjacent,
+affine-adjacent, and divide/remainder-adjacent families. It deliberately has no
+cumulative-count summary because mixed left/right composition is order
+sensitive. Unsupported carriers, nonexact operations, unlanded, late,
+reversed, mistyped, negative, or out-of-range counts, stale or reordered
+definitions, discontinuity, cycles, and target drift reject.
+
+The shift checker accepts no proof authority, does not establish machine-root
+custody, and proves neither left-shift overflow safety nor any surrounding
+preimage or interval claim. Affine and cast witnesses likewise remain
+non-certificate custody. Correlated forbidden-root analysis still needs its own
+normalized witness. Affine certificate production still needs
 an intentionally versioned proof-rule integration that recursively checks the
 root-bound citation and binds every normalization equality into the accepted
 premise closure. Until that integration and the correlated conversions cover
