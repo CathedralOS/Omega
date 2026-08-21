@@ -351,15 +351,19 @@ Remaining:
   and leaf expansion now fire as one inner-first bundle after every local,
   host-call, or mutation effect in the contiguous callee splice, matching the
   interpreter instead of letting the parent entry mutation overwrite a nested
-  leaf mutation. The
-  local-named dynamic devirtualization fixture remains rootless because
-  production entry selection currently rejects its state-graph source
-  declaration as missing or ambiguous. The bounded-product index fixture has a
-  production-root proof gap; raw
-  Windows and GUI fixtures remain platform-bound. A registry-derived inventory
-  now pins 890 `RUN_CANARIES`, 881 with authored roots, and 9 rootless. The
-  tracked backlog is 5 after separately excluding the exact four GUI fixtures
-  that still lack a general Linux `Gui`/`Input` provider. The earlier reported
+  leaf mutation. The bounded-product index probe now retains its exact runtime
+  coupling under an authored root: the contract widens each u32 factor to u64
+  so the proposition is total without citing itself as overflow evidence, and
+  both typed validation and resolved hoist synthesis project only independently
+  checked value-preserving unsigned widenings back to the original field
+  identities. The i64-backed interval lattice's missing u64 endpoint is closed
+  by a structural width proof limited to two unsigned widening operands whose
+  source-width sum fits their common target. The local-named dynamic probe also
+  now has an authored root. Raw Windows and GUI fixtures remain platform-bound.
+  A registry-derived inventory now pins 890 `RUN_CANARIES`, 883 with authored
+  roots, and 7 rootless. The tracked backlog is 3 after separately excluding
+  the exact four GUI fixtures that still lack a general Linux `Gui`/`Input`
+  provider. The earlier reported
   backlog of 18 was incorrect: its baseline parser omitted 39 multiline-form
   RUN rows, then
   the migration ledger subtracted 34 authored roots outside `RUN_CANARIES` as
@@ -1223,8 +1227,23 @@ Remaining:
   reversed, mistyped, negative, or out-of-range counts, stale or reordered
   definitions, discontinuity, cycles, and target drift reject. This checker
   accepts no proof authority, establishes no root custody, and proves neither
-  left-shift overflow safety nor a surrounding interval/preimage claim. Proof
-  integration plus a correlated forbidden-root witness remain; no trusted
+  left-shift overflow safety nor a surrounding interval/preimage claim.
+  A fourth non-serialized checker now binds the complete correlated
+  forbidden-root family shared by exact divide and remainder. It independently
+  replays both nonempty landed-literal affine branches, requires disjoint
+  source-ordered definitions ending at the same direct signed fixed-native
+  signature parameter with nonzero coefficients, and binds exact prior landing
+  facts for nonclosed siblings. It reselects the tightest strict unary signature
+  bounds after the definition boundary, requires their exact axiom identities,
+  and solves the divisor's zero and `-1` lattice roots. The latter is forbidden
+  only when the dividend evaluates to the carrier minimum at that same root.
+  No forbidden root yields the canonical ordered two-bound conjunction; roots
+  covering the complete interval yield falsehood; partial safety rejects.
+  Stale definition, literal, or bound identity; correlation/order/type/root
+  drift; constant collapse; one-sided bounds; and checked arithmetic failure
+  reject. The result remains custody only: it accepts no proof authority and
+  neither its bounds nor conclusion are certificate premises. Proof integration
+  and a certificate conversion for this checked result remain; no trusted
   reducer proposition is imported as proof
   authority and no partial exact row migrated. No schema, reducer,
   semantic-operation, or other trust status is promoted; terminal `PSITERM\0`
@@ -1411,14 +1430,17 @@ Remaining:
   split; exact host-service grant custody remains a separate authority task
   rather than being hidden inside the refactor.
   Target-neutral call validation has begun the same responsibility split. Its
-  former 9,103-line `calls.rs` parent is now 5,935 lines. Runtime recursive-call
+  former 9,103-line `calls.rs` parent is now 1,338 lines. Runtime recursive-call
   position checking and proof-machine structural/cited decrease validation live
   in one 1,149-line `calls/recursion.rs` child; value-position expression-call
   traversal, target/bound resolution, receiver/type discovery, and exact scan
   diagnostics form a separate 2,069-line `calls/expression_scanning.rs` child.
-  The parent re-exports only the six existing crate-private validators/helpers;
-  one receiver-member-chain helper is shared privately back to parent frame
-  analysis, and every other decrease, citation, provenance, expression-walk,
+  Complete-or-opaque caller write-frame inference, expression/statement demand
+  collection, alias-origin propagation, and transition-cycle frame equations
+  now form a 4,621-line `calls/write_frames.rs` child. The parent preserves the
+  existing public and crate-private query surface; only receiver-member-chain
+  and resolved-state lookup are shared privately between sibling owners, while
+  every other decrease, citation, provenance, expression-walk, frame-equation,
   and diagnostic helper remains private to its owner. Validation order, the
   141-function inventory, and public API are unchanged.
   Profiling the differential corpus also ruled out a wholesale Arena-to-
