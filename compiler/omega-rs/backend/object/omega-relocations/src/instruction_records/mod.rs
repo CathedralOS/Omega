@@ -1,6 +1,7 @@
 mod byte_io;
 mod context;
 mod host_operation;
+mod internal_calls;
 mod queries;
 mod runtime_storage;
 mod runtime_storage_addresses;
@@ -65,7 +66,8 @@ pub(super) fn collect_instruction_relocations(
         relocation_plan,
     };
 
-    if host_operation::collect_host_operation_relocations(&mut context, &instruction.kind)? {
+    if internal_calls::collect_internal_call_relocation(&mut context, &instruction.kind)? {
+    } else if host_operation::collect_host_operation_relocations(&mut context, &instruction.kind)? {
     } else if runtime_storage::collect_runtime_storage_relocations(&mut context, &instruction.kind)
     {
     } else if wire_encode::collect_wire_encode_relocations(&mut context, &instruction.kind) {

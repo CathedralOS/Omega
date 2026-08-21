@@ -1871,13 +1871,8 @@ fn runtime_array_max_and_sum_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_array_max_and_sum_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-max-sum-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("array max-and-sum canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("array max-and-sum canary should compile from its authored root");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("array max-and-sum canary should run");
@@ -1955,13 +1950,8 @@ fn runtime_computed_indexed_write_exit_canary_runs() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-computed-indexed-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("computed indexed-write canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("computed indexed-write canary should compile from its authored root");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("computed indexed-write canary should run");
@@ -2015,13 +2005,8 @@ fn runtime_hoisted_index_write_exit_canary_runs() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-hoisted-write-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("hoisted-index write canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("hoisted-index write canary should compile from its authored root");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("hoisted-index write canary should run");

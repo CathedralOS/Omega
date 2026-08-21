@@ -6,6 +6,23 @@ use omega_calling_conventions::{
 };
 use psi_diagnostics::Diagnostic;
 
+pub const fn internal_function_call_width() -> usize {
+    4
+}
+
+/// `bl imm26` with a zero displacement owned by the object relocation.
+pub fn encode_internal_function_call_bytes() -> [u8; 4] {
+    encode_branch_link_placeholder()
+}
+
+pub fn internal_function_call_register_writes() -> RegisterSet {
+    RegisterSet::new([MachineRegister::Aarch64X(30)])
+}
+
+pub fn internal_function_call_additional_machine_state() -> MachineStateSet {
+    MachineStateSet::new([MachineState::InstructionPointer, MachineState::ControlState])
+}
+
 mod dispatch;
 mod generated_writer;
 mod place_bounded_buffer;

@@ -2260,8 +2260,9 @@ fn runtime_dual_indexed_comparison_guard_exit_canary_runs() {
     // flip the arm and diverge from the interpreter.
     let canary = pass_canary("collections/runtime_dual_indexed_comparison_guard_exit");
     let scratch = std::env::temp_dir().join(format!("omega-dual-idx-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
-        .expect("dual-indexed comparison guard canary should compile");
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+        .expect("dual-indexed comparison guard canary should compile from its authored root");
     let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("dual-indexed comparison guard canary should run");
@@ -2282,8 +2283,9 @@ fn runtime_array_min_max_builtin_exit_canary_runs() {
     // [30,50,70,20,60,10] -> mx 70, mn 10, both self-checked -> exit 70.
     let canary = pass_canary("collections/runtime_array_min_max_builtin_exit");
     let scratch = std::env::temp_dir().join(format!("omega-minmax-red-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
-        .expect("min/max reduction canary should compile");
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+        .expect("min/max reduction canary should compile from its authored root");
     let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("min/max reduction canary should run");
@@ -2304,8 +2306,9 @@ fn runtime_indexed_guard_subject_exit_canary_runs() {
     // operand-hoist now covering comparison guards. arr = [3,8,1,9,4,6]; 3 exceed 5 -> exit 70.
     let canary = pass_canary("collections/runtime_indexed_guard_subject_exit");
     let scratch = std::env::temp_dir().join(format!("omega-guard-subj-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
-        .expect("runtime-indexed guard-subject canary should compile");
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+        .expect("runtime-indexed guard-subject canary should compile from its authored root");
     let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
         .expect("runtime-indexed guard-subject canary should run");

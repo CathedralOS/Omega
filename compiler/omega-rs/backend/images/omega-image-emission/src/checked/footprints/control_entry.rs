@@ -12,6 +12,18 @@ pub(super) fn control_entry_footprint_parts(
     use omega_machine_instructions::BoundaryFootprintFragmentOrigin;
 
     let parts = match kind {
+        CompilerInstructionValidationKind::InternalFunctionCall { .. } => match architecture {
+            Architecture::X86_64 => (
+                BoundaryFootprintFragmentOrigin::CallReturnMechanics,
+                omega_isa_x86_64::internal_function_call_register_writes(),
+                omega_isa_x86_64::internal_function_call_additional_machine_state(),
+            ),
+            Architecture::Aarch64 => (
+                BoundaryFootprintFragmentOrigin::CallReturnMechanics,
+                omega_isa_aarch64::internal_function_call_register_writes(),
+                omega_isa_aarch64::internal_function_call_additional_machine_state(),
+            ),
+        },
         CompilerInstructionValidationKind::FunctionEnter => match architecture {
             Architecture::X86_64 => (
                 BoundaryFootprintFragmentOrigin::CallReturnMechanics,

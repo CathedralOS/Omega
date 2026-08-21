@@ -585,6 +585,7 @@ name = "omega-image-emission"
 version = "0.1.0"
 dependencies = [
  "omega-calling-conventions",
+ "omega-control-flow",
  "omega-image",
  "omega-image-elf",
  "omega-image-macho",
@@ -600,6 +601,7 @@ dependencies = [
  "psi-diagnostics",
  "psi-language-core",
  "psi-numerics",
+ "psi-symbols",
 ]
 
 [[package]]
@@ -733,6 +735,7 @@ dependencies = [
  "omega-calling-conventions",
  "omega-control-flow",
  "omega-instruction-selection",
+ "omega-isa-aarch64",
  "omega-isa-x86_64",
  "omega-machine-bytes",
  "omega-machine-instructions",
@@ -873,6 +876,7 @@ dependencies = [
  "omega-control-flow",
  "omega-executable-installation",
  "omega-instruction-selection",
+ "omega-isa-aarch64",
  "omega-isa-x86_64",
  "omega-machine-bytes",
  "omega-object-file",

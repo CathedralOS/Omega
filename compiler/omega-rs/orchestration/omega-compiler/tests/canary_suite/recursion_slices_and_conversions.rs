@@ -229,13 +229,8 @@ fn runtime_computed_index_match_subject_exit_canary_runs() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-match-subject-index-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("computed-index match subject canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("computed-index match subject canary should compile from its authored root");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("computed-index match subject canary should run");
@@ -400,13 +395,8 @@ fn runtime_computed_array_fill_via_temp_exit_canary_runs() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-computed-fill-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("computed array-fill canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("computed array-fill canary should compile from its authored root");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("computed array-fill canary should run");

@@ -90,12 +90,20 @@ Remaining:
   installation and mapped, zeroed receiver activation can construct its
   borrowed continuation handoff, and the executor runs before that activation
   is finished. This gate intentionally does not claim that native bytes
-  executed. Production builds still emit and select `Source(entry StateKey)`
-  because no generated wrapper body or call exists yet; emitting that body,
+  executed. The main backend now also owns a generic compiler-private direct-
+  call operation from abstract operations through target/assigned operations,
+  machine instructions, real x86-64 `call rel32` / AArch64 `bl imm26`
+  placeholders, exact-identity object relocations, and final-image byte,
+  relocation, and footprint replay. Missing, duplicate, redirected, wrong-
+  width, and opcode-tampered call claims fail closed. No production builder
+  emits that operation yet, and it deliberately carries no invented argument
+  or receiver placement. Production builds still emit and select
+  `Source(entry StateKey)` because no generated wrapper body or source-call ABI
+  exists yet; emitting that body,
   retaining a distinct outbound source-call ABI and mapped receiver address,
   defining the installation-carrier linkage, adding the
-  exact native call edge, and retaining resulting native bridge evidence remain
-  before this slice is complete.
+  exact native call edge to the retained operation, and retaining resulting
+  native bridge evidence remain before this slice is complete.
 
   The CLI corpus is rooted on all hosted targets except the four GUI samples,
   which currently select Windows x64 and macOS arm64. Linux needs an ordinary
@@ -130,8 +138,11 @@ Remaining:
   probes now consume the same checked-in four-host roots in their native and
   cross-target artifact tests. Ten further fixed-index, pointee, mutable-
   parameter, copied-struct, and lookup-driven text probes now use authored
-  roots in their native and cross-target artifact coverage. The tracked corpus
-  audit leaves 147 legacy fixtures without an authored `build.omg` root.
+  roots in their native and cross-target artifact coverage. Ten array
+  reduction, indexed-write, indexed-guard, and stack-algorithm probes now also
+  run their unchanged Unit entries through authored four-host roots. The
+  tracked corpus audit leaves 137 legacy fixtures without an authored
+  `build.omg` root.
   Continue migrating those fixtures through production entry
   selection; replace result-as-process-exit probes with ordinary Unit entries
   and explicit exit providers rather than preserving the legacy entry seam.
@@ -779,6 +790,12 @@ Remaining:
   not an invalid count, while `Wrapping` continues to define every count by
   modulo reduction. A count bound inside the proposition containing the shift
   cannot authorize that shift's formation.
+  Exact division and remainder in concrete machine/state and direct abstract
+  Prop now retain the catalog's complete primitive-definedness judgment: an
+  independently accepted prior fact must exclude a zero divisor and, for
+  signed carriers, the `MIN / -1` primitive pair (including remainder's shared
+  hardware-definedness edge). A guard in the proposition containing the
+  operation supplies no authority for that operation's own formation.
   Finish the settled total-specification arithmetic slice: retain explicit
   fixed-integer/address embeddings into proof `Int` with their derived carrier-
   range facts. This remains blocked on a real vocabulary dependency: the

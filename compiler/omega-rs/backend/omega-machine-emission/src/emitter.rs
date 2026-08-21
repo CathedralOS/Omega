@@ -45,6 +45,74 @@ mod tests {
     use psi_symbols::SymbolHandle;
 
     #[test]
+    fn emits_exact_identity_internal_call_placeholders_for_both_architectures() {
+        let caller_key = StateKey {
+            machine: SymbolHandle::from_arena_index(1),
+            state: SymbolHandle::from_arena_index(2),
+            segment_index: 0,
+        };
+        let target_identity = MachineFunctionIdentity::source(StateKey {
+            state: SymbolHandle::from_arena_index(3),
+            ..caller_key
+        });
+        for (target, expected_bytes) in [
+            (NativeTarget::linux_x64(), vec![0xe8, 0, 0, 0, 0]),
+            (NativeTarget::linux_arm64(), vec![0, 0, 0, 0x94]),
+        ] {
+            let assigned_target_operations = AssignedTargetOperationPlan::default();
+            let host_abi = build_host_abi_plan(target);
+            let data = omega_target_operations::TargetDataPlan::default();
+            let mut machine_instructions = MachineInstructionPlan::with_capacity(target, 1, 1);
+            let instructions =
+                machine_instructions
+                    .code
+                    .instructions
+                    .insert_many([MachineInstruction {
+                        selected_instruction_index: 0,
+                        source_kind: SelectedInstructionKind::CallInternalFunction {
+                            target: target_identity,
+                        },
+                        kind: MachineInstructionKind::InternalFunctionCall,
+                    }]);
+            machine_instructions
+                .code
+                .functions
+                .insert(MachineInstructionFunction {
+                    symbol: "caller".into(),
+                    identity: MachineFunctionIdentity::source(caller_key),
+                    instructions,
+                });
+
+            let encoded = emit_machine_bytes(MachineEmissionInput {
+                target,
+                assigned_target_operations: &assigned_target_operations,
+                machine_instructions: &machine_instructions,
+                host_abi: &host_abi,
+                data: &data,
+                terminal_dispatch_index: 0,
+            })
+            .expect("internal call placeholder emission");
+
+            assert_eq!(encoded.code.bytes.storage_slice(), expected_bytes);
+            let instruction = encoded
+                .code
+                .instructions
+                .iter()
+                .next()
+                .map(|(_, instruction)| instruction)
+                .expect("encoded internal call");
+            assert_eq!(
+                instruction.compiler_validation_kind,
+                Some(
+                    omega_machine_bytes::CompilerInstructionValidationKind::InternalFunctionCall {
+                        target: target_identity,
+                    }
+                )
+            );
+        }
+    }
+
+    #[test]
     fn copies_machine_semantic_summaries_to_encoded_plan() {
         let target = NativeTarget::host();
         let continuation = StateKey {

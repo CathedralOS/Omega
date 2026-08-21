@@ -768,13 +768,8 @@ fn runtime_argmax_index_exit_canary_runs() {
     let build_dir = std::env::temp_dir().join(format!("omega-argmax-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("argmax canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("argmax canary should compile from its authored root");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -800,13 +795,8 @@ fn runtime_bracket_matcher_stack_exit_canary_runs() {
     let build_dir = std::env::temp_dir().join(format!("omega-bracket-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("bracket matcher canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("bracket matcher canary should compile from its authored root");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()

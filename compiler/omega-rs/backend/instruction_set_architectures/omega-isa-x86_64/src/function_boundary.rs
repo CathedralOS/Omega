@@ -2,6 +2,28 @@ use super::{FUNCTION_FRAME_BYTES, append_mov_r15_imm64, disp32, x86_gpr_number};
 use omega_calling_conventions::{IndirectPointerLocation, MachineRegister, RegisterSet};
 use psi_diagnostics::Diagnostic;
 
+pub const fn internal_function_call_width() -> usize {
+    5
+}
+
+/// `call rel32` with a zero displacement owned by the object relocation.
+pub fn encode_internal_function_call_bytes() -> [u8; 5] {
+    [0xe8, 0, 0, 0, 0]
+}
+
+pub fn internal_function_call_register_writes() -> RegisterSet {
+    RegisterSet::new([MachineRegister::X86Rsp])
+}
+
+pub fn internal_function_call_additional_machine_state()
+-> omega_calling_conventions::MachineStateSet {
+    omega_calling_conventions::MachineStateSet::new([
+        omega_calling_conventions::MachineState::InstructionPointer,
+        omega_calling_conventions::MachineState::StackPointer,
+        omega_calling_conventions::MachineState::ControlState,
+    ])
+}
+
 pub fn return_register_integer_write_width(
     register: omega_calling_conventions::MachineRegister,
     byte_size: usize,

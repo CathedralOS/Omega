@@ -68,10 +68,8 @@ pub fn derive_boundary_entry_slice_descriptor_footprint(
     Ok(evidence)
 }
 
-/// Derive the exact fixed prologue/epilogue register and machine-state writes
-/// for an ordinary call-return boundary. Stack/control effects are prescribed
-/// by `EntryControl::CallReturn`, so their validator is deliberately distinct
-/// from handler-body transitive state validation.
+/// Derive the exact prologue, epilogue, and compiler-private call instruction
+/// register/machine-state writes for an ordinary call-return boundary.
 pub fn derive_boundary_call_return_mechanics_footprint<'instruction>(
     boundary: &ValidatedBoundaryEntryPlan,
     instructions: impl IntoIterator<Item = &'instruction SelectedInstructionKind>,
@@ -114,6 +112,16 @@ pub fn derive_boundary_call_return_mechanics_footprint<'instruction>(
                     ),
                 }
             }
+            SelectedInstructionKind::CallInternalFunction { .. } => match architecture {
+                omega_target::Architecture::X86_64 => (
+                    omega_isa_x86_64::internal_function_call_register_writes(),
+                    omega_isa_x86_64::internal_function_call_additional_machine_state(),
+                ),
+                omega_target::Architecture::Aarch64 => (
+                    omega_isa_aarch64::internal_function_call_register_writes(),
+                    omega_isa_aarch64::internal_function_call_additional_machine_state(),
+                ),
+            },
             _ => continue,
         };
         registers.extend_from_slice(writes.as_slice());

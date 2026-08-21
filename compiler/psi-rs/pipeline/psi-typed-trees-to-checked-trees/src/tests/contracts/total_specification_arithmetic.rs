@@ -261,6 +261,160 @@ fn abstract_shift_cannot_use_its_containing_fact_as_count_evidence() {
 }
 
 #[test]
+fn concrete_exact_division_requires_prior_definedness_facts() {
+    let accepted = r#"
+        machine positive(left: i32, divisor: i32) -> bool
+        requires divisor >= 1
+        requires
+            left / divisor == left
+        {
+            true
+        }
+
+        machine negative(left: i32, divisor: i32) -> bool
+        requires divisor <= -2
+        requires
+            left % divisor == left
+        {
+            true
+        }
+
+        machine minus_one(left: i32, divisor: i32) -> bool
+        requires left >= -2147483647
+        requires divisor == -1
+        requires
+            left / divisor == left
+        {
+            true
+        }
+    "#;
+    checked(accepted).expect("prior facts exclude zero and signed MIN/-1");
+
+    let rejected = r#"
+        machine divide(left: i32, divisor: i32) -> bool
+        requires
+            left / divisor == left
+        {
+            true
+        }
+
+        machine remainder(left: i32, divisor: i32) -> bool
+        requires
+            left % divisor == left
+        {
+            true
+        }
+    "#;
+    let diagnostics = checked(rejected).expect_err("Exact division is a partial primitive");
+    for operation in ["division", "remainder"] {
+        assert!(
+            diagnostics.iter().any(|diagnostic| {
+                diagnostic
+                    .message
+                    .contains(&format!("partial exact {operation}"))
+                    && diagnostic.message.contains("must be proven nonzero")
+                    && diagnostic.message.contains("MIN")
+            }),
+            "missing Exact {operation} definedness diagnostic: {diagnostics:?}",
+        );
+    }
+}
+
+#[test]
+fn concrete_exact_zero_divisor_keeps_the_existing_single_diagnostic() {
+    let source = r#"
+        machine divide(left: i32) -> bool
+        requires
+            left / 0 == left
+        {
+            true
+        }
+    "#;
+
+    let diagnostics = checked(source).expect_err("a provably zero divisor is always invalid");
+    assert_eq!(
+        diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.message.contains("division by zero"))
+            .count(),
+        1,
+        "the existing arithmetic analyzer owns the concrete exact-zero diagnostic: {diagnostics:?}",
+    );
+    assert!(
+        !diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("partial exact division")),
+        "the specification-definedness pass must not duplicate exact zero: {diagnostics:?}",
+    );
+}
+
+#[test]
+fn exact_division_cannot_use_its_containing_fact_as_definedness_evidence() {
+    let source = r#"
+        machine divide(left: i32, divisor: i32) -> bool
+        requires
+            divisor >= 1 && left / divisor == left
+        {
+            true
+        }
+    "#;
+
+    let diagnostics = checked(source).expect_err("a partial term cannot prove its own formation");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic.message.contains("partial exact division")
+            && diagnostic
+                .message
+                .contains("independently accepted prior facts")
+    }));
+}
+
+#[test]
+fn abstract_exact_division_definedness_uses_only_prior_facts() {
+    let accepted = r#"
+        trait DivisionRule {
+            machine positive(left: i32, divisor: i32) -> bool
+            requires divisor >= 1
+            requires
+                left / divisor == left;
+
+            machine minus_one(left: i32, divisor: i32) -> bool
+            requires left >= -2147483647
+            requires divisor == -1
+            requires
+                left % divisor == left;
+        }
+    "#;
+    checked(accepted).expect("abstract prior facts discharge exact definedness");
+
+    let rejected = r#"
+        trait DivisionRule {
+            machine divide(left: i32, divisor: i32) -> bool
+            requires
+                divisor >= 1 && left / divisor == left;
+
+            machine remainder(left: i32, divisor: i32) -> bool
+            requires divisor == -1
+            requires
+                left % divisor == left;
+        }
+    "#;
+    let diagnostics = checked(rejected)
+        .expect_err("abstract exact operations retain both definedness conditions");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("trait `DivisionRule` state `divide` requires contract")
+            && diagnostic.message.contains("must be proven nonzero")
+    }));
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("trait `DivisionRule` state `remainder` requires contract")
+            && diagnostic.message.contains("MIN")
+    }));
+}
+
+#[test]
 fn direct_trapping_arithmetic_is_illegal_in_state_arrival_contracts() {
     let source = r#"
         machine staged(value: i32 in Trapping) -> bool {

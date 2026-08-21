@@ -34,6 +34,7 @@ use psi_typed_trees::types::{
 use crate::places::declared_place_type_raw;
 
 mod abstract_shift_count;
+mod exact_division_definedness;
 
 /// Resolve only the reserved named-float arithmetic surface. Contract
 /// expressions can reach validation before their static namespace receiver has
@@ -1761,6 +1762,15 @@ pub(crate) fn validate_total_specification_arithmetic(
     owner: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    exact_division_definedness::validate_concrete(
+        program,
+        machine,
+        state,
+        expression,
+        env,
+        owner,
+        diagnostics,
+    );
     // Proposition terms retain the ordinary Exact formation judgment. Run it
     // before admitting this fact into `env`: a bound written around the very
     // operation being formed cannot prove that operation total.
@@ -2520,6 +2530,14 @@ pub(crate) fn validate_abstract_total_specification_arithmetic(
             seen.push(*expression);
             let diagnostics_before = diagnostics.len();
             abstract_shift_count::validate(program, *expression, owner, bindings, env, diagnostics);
+            exact_division_definedness::validate_abstract(
+                program,
+                *expression,
+                owner,
+                bindings,
+                env,
+                diagnostics,
+            );
             validate_abstract_exact_policy_erasure_formation(
                 program,
                 *expression,
