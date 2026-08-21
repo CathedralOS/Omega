@@ -341,9 +341,17 @@ projection, not a reducer result: address carriers and mismatched operand types
 reject. The complete carrier-total landed-literal family shared by exact
 divide and remainder now reconstructs this canonical goal directly: unsigned
 nonzero literals and signed literals other than zero and `-1` use only their
-prior semantic equality and a closed integer-order judgment. Missing or
-excluded landing evidence rejects, and no result equation participates. The
-existing proof rules and proof-bundle v15 codec need no vocabulary change.
+prior semantic equality and a closed integer-order judgment. The complete
+signed `-1` exceptional family uses the same path when the dividend is also
+landed as any literal above the carrier minimum; its recursive certificate
+proves both terms of the third disjunct, or both terms of the `i1` conjunction,
+from those exact equalities and closed order. An exact independently retained
+`MIN + 1 <= dividend` proposition (`0 <= dividend` for `i1`) may replace the
+dividend landing: it is cited directly as the second recursive premise from a
+machine requirement or pre-site semantic axiom. No reducer result or wider
+interval is imported; missing, stale, or weaker bounds reject. Missing or
+excluded evidence rejects, and no result equation participates. The existing
+proof rules and proof-bundle v15 codec need no vocabulary change.
 All other exact divide/remainder reconstruction remains on its trusted reducer
 until an untrusted producer can materialize kernel-checkable certificates for
 the accepted affine/correlated families without importing operation evidence.

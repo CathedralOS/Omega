@@ -201,9 +201,10 @@ pub(super) fn reconstruct_machine_semantics(
                         | OperationSemanticTag::WrappingIntegerRemainder
                         | OperationSemanticTag::SaturatingIntegerDivide
                         | OperationSemanticTag::SaturatingIntegerRemainder
-                ) || exact_division_has_closed_landed_certificate(
+                ) || exact_division_has_closed_prior_certificate(
                     semantics.canonical_goal(),
                     &axioms,
+                    &machine.contract.requires,
                 );
                 let proposition = if canonical_certificate {
                     semantics
@@ -470,12 +471,14 @@ pub(super) fn reconstruct_machine_semantics(
 /// directly landed unsigned nonzero divisor or signed divisor other than zero
 /// and -1 makes definedness independent of the dividend. A signed -1 divisor
 /// is also complete when the dividend is independently landed above the
-/// carrier minimum. Their canonical proofs need only prior literal equalities
-/// plus closed integer order; no value-root custody or operation-definition
+/// carrier minimum or its exact canonical minimum-plus-one bound is retained
+/// as a prior proposition. Their canonical proofs need only prior citations
+/// and closed integer order; no value-root custody or operation-definition
 /// authority participates.
-fn exact_division_has_closed_landed_certificate(
+fn exact_division_has_closed_prior_certificate(
     goal: &CanonicalScalarGoal,
     semantic_axioms: &[Proposition],
+    requirements: &[Proposition],
 ) -> bool {
     let CanonicalScalarGoal::ExactDivisionDefined {
         integer_type,
@@ -493,10 +496,43 @@ fn exact_division_has_closed_landed_certificate(
         (psi_core::IntegerSign::Signed, psi_core::IntegerValue::Signed(value)) if value == -1 => {
             super::known_integer_term_value(*integer_type, left, semantic_axioms)
                 .is_some_and(|left| left != integer_type.minimum_value())
+                || retained_exact_division_exception_bound(goal, semantic_axioms, requirements)
         }
         (psi_core::IntegerSign::Signed, psi_core::IntegerValue::Signed(value)) => value != 0,
         _ => false,
     }
+}
+
+fn retained_exact_division_exception_bound(
+    goal: &CanonicalScalarGoal,
+    semantic_axioms: &[Proposition],
+    requirements: &[Proposition],
+) -> bool {
+    let Ok(Some(proposition)) = goal.kernel_proposition() else {
+        return false;
+    };
+    let bound = match &proposition {
+        Proposition::Disjunction(disjuncts) => {
+            let Some(Proposition::Conjunction(exception)) = disjuncts.get(2) else {
+                return false;
+            };
+            let Some(bound) = exception.get(1) else {
+                return false;
+            };
+            bound
+        }
+        Proposition::Conjunction(conjuncts) => {
+            let Some(bound) = conjuncts.get(1) else {
+                return false;
+            };
+            bound
+        }
+        _ => return false,
+    };
+    requirements
+        .iter()
+        .chain(semantic_axioms)
+        .any(|fact| fact == bound)
 }
 
 fn true_condition_fact(
@@ -611,7 +647,7 @@ mod tests {
     }
 
     #[test]
-    fn exact_division_selects_canonical_certificate_only_for_complete_landed_literals() {
+    fn exact_division_selects_canonical_certificate_only_for_complete_prior_facts() {
         let unsigned = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
         let unsigned_right = value(2, unsigned);
         let unsigned_goal = CanonicalScalarGoal::ExactDivisionDefined {
@@ -619,25 +655,27 @@ mod tests {
             left: value(1, unsigned),
             right: unsigned_right.clone(),
         };
-        assert!(exact_division_has_closed_landed_certificate(
+        assert!(exact_division_has_closed_prior_certificate(
             &unsigned_goal,
             &[Proposition::Equal(
                 unsigned_right.clone(),
                 ScalarTerm::integer(unsigned, IntegerValue::Unsigned(5)).expect("u8 literal"),
             )],
+            &[],
         ));
-        assert!(!exact_division_has_closed_landed_certificate(
+        assert!(!exact_division_has_closed_prior_certificate(
             &unsigned_goal,
             &[Proposition::Equal(
                 unsigned_right,
                 ScalarTerm::integer(unsigned, IntegerValue::Unsigned(0)).expect("u8 literal"),
             )],
+            &[],
         ));
 
         let signed = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
         for (literal, expected) in [(-3, true), (1, true), (0, false), (-1, false)] {
             assert_eq!(
-                exact_division_has_closed_landed_certificate(
+                exact_division_has_closed_prior_certificate(
                     &CanonicalScalarGoal::ExactDivisionDefined {
                         integer_type: signed,
                         left: value(3, signed),
@@ -648,17 +686,19 @@ mod tests {
                         ScalarTerm::integer(signed, IntegerValue::Signed(literal))
                             .expect("i8 literal"),
                     )],
+                    &[],
                 ),
                 expected,
                 "signed literal {literal}",
             );
         }
-        assert!(!exact_division_has_closed_landed_certificate(
+        assert!(!exact_division_has_closed_prior_certificate(
             &CanonicalScalarGoal::ExactDivisionDefined {
                 integer_type: signed,
                 left: value(3, signed),
                 right: value(4, signed),
             },
+            &[],
             &[],
         ));
 
@@ -671,7 +711,7 @@ mod tests {
             value(6, signed),
             ScalarTerm::integer(signed, IntegerValue::Signed(-1)).expect("i8 literal"),
         );
-        assert!(exact_division_has_closed_landed_certificate(
+        assert!(exact_division_has_closed_prior_certificate(
             &negative_one_goal,
             &[
                 negative_one.clone(),
@@ -680,12 +720,14 @@ mod tests {
                     ScalarTerm::integer(signed, IntegerValue::Signed(-7)).expect("i8 literal"),
                 ),
             ],
+            &[],
         ));
-        assert!(!exact_division_has_closed_landed_certificate(
+        assert!(!exact_division_has_closed_prior_certificate(
             &negative_one_goal,
             std::slice::from_ref(&negative_one),
+            &[],
         ));
-        assert!(!exact_division_has_closed_landed_certificate(
+        assert!(!exact_division_has_closed_prior_certificate(
             &negative_one_goal,
             &[
                 negative_one,
@@ -694,6 +736,53 @@ mod tests {
                     ScalarTerm::integer(signed, signed.minimum_value()).expect("i8 minimum"),
                 ),
             ],
+            &[],
+        ));
+
+        let exact_bound = Proposition::LessOrEqual(
+            ScalarTerm::integer(signed, IntegerValue::Signed(-127)).expect("i8 minimum + 1"),
+            value(5, signed),
+        );
+        assert!(exact_division_has_closed_prior_certificate(
+            &negative_one_goal,
+            std::slice::from_ref(&Proposition::Equal(
+                value(6, signed),
+                ScalarTerm::integer(signed, IntegerValue::Signed(-1)).expect("i8 -1"),
+            )),
+            std::slice::from_ref(&exact_bound),
+        ));
+        assert!(exact_division_has_closed_prior_certificate(
+            &negative_one_goal,
+            &[
+                Proposition::Equal(
+                    value(6, signed),
+                    ScalarTerm::integer(signed, IntegerValue::Signed(-1)).expect("i8 -1"),
+                ),
+                exact_bound,
+            ],
+            &[],
+        ));
+        assert!(!exact_division_has_closed_prior_certificate(
+            &negative_one_goal,
+            std::slice::from_ref(&Proposition::Equal(
+                value(6, signed),
+                ScalarTerm::integer(signed, IntegerValue::Signed(-1)).expect("i8 -1"),
+            )),
+            &[Proposition::LessOrEqual(
+                ScalarTerm::integer(signed, signed.minimum_value()).expect("i8 minimum"),
+                value(5, signed),
+            )],
+        ));
+        assert!(!exact_division_has_closed_prior_certificate(
+            &negative_one_goal,
+            std::slice::from_ref(&Proposition::Equal(
+                value(6, signed),
+                ScalarTerm::integer(signed, IntegerValue::Signed(-1)).expect("i8 -1"),
+            )),
+            &[Proposition::LessOrEqual(
+                ScalarTerm::integer(signed, IntegerValue::Signed(-127)).expect("i8 minimum + 1"),
+                value(9, signed),
+            )],
         ));
 
         let i1 = IntegerType::new(IntegerSign::Signed, 1).expect("i1");
@@ -702,7 +791,7 @@ mod tests {
             left: value(7, i1),
             right: value(8, i1),
         };
-        assert!(exact_division_has_closed_landed_certificate(
+        assert!(exact_division_has_closed_prior_certificate(
             &i1_goal,
             &[
                 Proposition::Equal(
@@ -714,6 +803,7 @@ mod tests {
                     ScalarTerm::integer(i1, IntegerValue::Signed(0)).expect("i1 zero"),
                 ),
             ],
+            &[],
         ));
     }
 }
