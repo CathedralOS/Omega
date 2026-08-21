@@ -22,6 +22,7 @@ mod isolation;
 mod local_aliases;
 mod place_paths;
 mod state_paths;
+mod transition_topology;
 mod transparent_effects;
 mod type_capabilities;
 
@@ -44,6 +45,7 @@ use state_paths::{
     expression_forwards_exact_symbol, normalize_state_relative_path, push_visible_frame_path,
     relative_state_path_is_visible,
 };
+use transition_topology::{named_transition_subgraph_is_acyclic, named_transition_target_state};
 use transparent_effects::{
     call_is_transparent_mutable_slice_view, expression_is_effectful_for_transparent_result,
     frame_place_root_symbol,
@@ -2864,80 +2866,6 @@ fn expression_may_rebind_mutable_alias(
         | ExpressionNode::Unary(_)
         | ExpressionNode::ZeroValue(_) => false,
     }
-}
-
-fn named_transition_subgraph_is_acyclic(
-    program: &TypedTrees,
-    machine: &Machine,
-    source: &State,
-    target: psi_typed_trees::statement::TransitionTargetHandle,
-) -> bool {
-    fn visit(
-        program: &TypedTrees,
-        machine: &Machine,
-        state: &State,
-        visiting: &mut Vec<SymbolHandle>,
-        complete: &mut Vec<SymbolHandle>,
-    ) -> bool {
-        if complete.contains(&state.symbol) {
-            return true;
-        }
-        if visiting.contains(&state.symbol) {
-            return false;
-        }
-        visiting.push(state.symbol);
-        for statement in program.statement_table.statements(state.statement_nodes) {
-            let StatementNode::Transition(transition) = statement else {
-                continue;
-            };
-            for edge in [transition.target, transition.continuation] {
-                if !edge.is_valid()
-                    || !matches!(
-                        program.statement_table.transition_target(edge),
-                        TransitionTargetNode::Named { .. }
-                    )
-                {
-                    continue;
-                }
-                let Some(next) = named_transition_target_state(program, machine, state, edge)
-                else {
-                    return false;
-                };
-                if !visit(program, machine, next, visiting, complete) {
-                    return false;
-                }
-            }
-        }
-        visiting.pop();
-        complete.push(state.symbol);
-        true
-    }
-
-    let Some(target) = named_transition_target_state(program, machine, source, target) else {
-        return false;
-    };
-    visit(program, machine, target, &mut Vec::new(), &mut Vec::new())
-}
-
-fn named_transition_target_state<'program>(
-    program: &'program TypedTrees,
-    machine: &'program Machine,
-    source: &'program State,
-    target: psi_typed_trees::statement::TransitionTargetHandle,
-) -> Option<&'program State> {
-    let TransitionTargetNode::Named { path, .. } =
-        program.statement_table.transition_target(target)
-    else {
-        return None;
-    };
-    program
-        .machine_states(machine)
-        .iter()
-        .find(|candidate| candidate.symbol == path.symbol)
-        .or_else(|| {
-            let members = program.statement_table.name_path_members(path.members);
-            matches!(members, [member] if member.as_str() == "self").then_some(source)
-        })
 }
 
 #[derive(Debug, Clone)]
