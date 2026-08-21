@@ -9,7 +9,7 @@ fn explicit_program_entry_binding_owns_capability_manifest_identity() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
+    compile_with_auxiliary_artifacts(CompileOptions {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: Some("windows_x64".into()),
@@ -165,7 +165,7 @@ fn uefi_program_entry_retains_exact_storage_root_binding() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    let report = compile(CompileOptions {
+    let report = compile_with_auxiliary_artifacts(CompileOptions {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: Some("uefi_x64".into()),
@@ -233,7 +233,7 @@ fn uefi_program_entry_retains_exact_storage_root_binding() {
     .expect("seed stale completed-installation artifact");
 
     let hosted = pass_canary("build/explicit_program_entry_binding");
-    compile(CompileOptions {
+    compile_with_auxiliary_artifacts(CompileOptions {
         root_path: hosted.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: Some("windows_x64".into()),
@@ -260,7 +260,7 @@ fn catalog_checked_assembly_is_validated_against_final_image_bytes() {
         std::env::temp_dir().join(format!("omega-final-asm-evidence-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
+    compile_with_auxiliary_artifacts(CompileOptions {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: Some("linux_x64".into()),
@@ -290,7 +290,7 @@ fn immediate_port_io_is_bound_in_final_image_validation() {
         std::env::temp_dir().join(format!("omega-final-port-evidence-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
+    compile_with_auxiliary_artifacts(CompileOptions {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: Some("linux_x64".into()),
@@ -326,7 +326,7 @@ fn structured_machine_control_envelopes_are_bound_in_final_image_validation() {
         ));
         let _ = fs::remove_dir_all(&build_dir);
 
-        compile(CompileOptions {
+        compile_with_auxiliary_artifacts(CompileOptions {
             root_path: canary.join("main.omg"),
             build_dir: Some(build_dir.clone()),
             target_name: Some("linux_x64".into()),
@@ -775,7 +775,7 @@ fn aarch64_large_result_entry_saves_x8_and_copies_through_it() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
+    compile_with_auxiliary_artifacts(CompileOptions {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: Some("linux_arm64".into()),
@@ -1068,7 +1068,7 @@ fn sysv_large_result_entry_saves_and_uses_the_hidden_pointer() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
+    compile_with_auxiliary_artifacts(CompileOptions {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: Some("linux_x64".into()),
@@ -1995,7 +1995,7 @@ fn entry_run_args_bytes_canary_runs() {
     let canary = pass_canary("targets/entry_run_args_bytes");
     let build_dir = std::env::temp_dir().join(format!("omega-run-args-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
+    compile_with_auxiliary_artifacts(CompileOptions {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
@@ -2234,7 +2234,7 @@ fn efi_vtable_call_emits_indirect_dispatch() {
     let canary = pass_canary("targets/efi_vtable_call");
     let build_dir = std::env::temp_dir().join(format!("omega-vtable-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
+    compile_with_auxiliary_artifacts(CompileOptions {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
@@ -2271,7 +2271,7 @@ fn efi_ref_param_direct_faces_deref_not_flat() {
     let canary = pass_canary("targets/efi_ref_param_direct_faces");
     let build_dir = std::env::temp_dir().join(format!("omega-refparam-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
+    compile_with_auxiliary_artifacts(CompileOptions {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
@@ -2308,7 +2308,7 @@ fn efi_ref_param_call_arg_derefs_and_dispatches() {
     let canary = pass_canary("targets/efi_ref_param_call_arg");
     let build_dir = std::env::temp_dir().join(format!("omega-refarg-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
+    compile_with_auxiliary_artifacts(CompileOptions {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: Some("uefi_x64".into()),

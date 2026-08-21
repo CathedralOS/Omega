@@ -773,7 +773,7 @@ fn runtime_exit_code_exit_canary_runs() {
             hosted_main_program_entry_build(target),
         )
         .expect("write runtime exit-code cross-target manifest");
-        compile(CompileOptions {
+        compile_with_auxiliary_artifacts(CompileOptions {
             root_path: source_dir.join("main.omg"),
             build_dir: Some(output_dir.clone()),
             target_name: Some(target.to_owned()),

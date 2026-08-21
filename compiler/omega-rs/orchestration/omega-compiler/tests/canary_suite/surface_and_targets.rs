@@ -747,7 +747,7 @@ fn atomics_cross_platform_emits_real_atomics() {
     // --- windows_x64: compile + run ---
     let win_dir = std::env::temp_dir().join(format!("omega-atomics-win-{}", std::process::id()));
     let _ = fs::remove_dir_all(&win_dir);
-    compile(CompileOptions {
+    compile_with_auxiliary_artifacts(CompileOptions {
         root_path: main_path.clone(),
         build_dir: Some(win_dir.clone()),
         target_name: Some("windows_x64".to_owned()),
@@ -794,7 +794,7 @@ fn atomics_cross_platform_emits_real_atomics() {
     // --- linux_arm64: cross-emit + disassemble-by-bytes ---
     let arm_dir = std::env::temp_dir().join(format!("omega-atomics-arm-{}", std::process::id()));
     let _ = fs::remove_dir_all(&arm_dir);
-    compile(CompileOptions {
+    compile_with_auxiliary_artifacts(CompileOptions {
         root_path: main_path,
         build_dir: Some(arm_dir.clone()),
         target_name: Some("linux_arm64".to_owned()),

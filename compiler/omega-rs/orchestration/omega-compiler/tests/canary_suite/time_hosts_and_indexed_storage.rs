@@ -126,7 +126,7 @@ fn integer_result_imports_compile_on_windows_and_darwin() {
             hosted_main_program_entry_build(target),
         )
         .expect("write integer-result import target manifest");
-        compile(CompileOptions {
+        compile_with_auxiliary_artifacts(CompileOptions {
             root_path: source_dir.join("main.omg"),
             build_dir: Some(build_dir.clone()),
             target_name: Some(target.into()),
@@ -169,7 +169,7 @@ fn storage_result_imports_compile_on_windows_and_darwin() {
             hosted_main_program_entry_build(target),
         )
         .expect("write storage-result import target manifest");
-        compile(CompileOptions {
+        compile_with_auxiliary_artifacts(CompileOptions {
             root_path: source_dir.join("main.omg"),
             build_dir: Some(build_dir.clone()),
             target_name: Some(target.into()),
@@ -247,7 +247,7 @@ fn dereferenced_result_imports_compile_on_windows_and_darwin() {
             hosted_main_program_entry_build(target),
         )
         .expect("write dereferenced-result import target manifest");
-        compile(CompileOptions {
+        compile_with_auxiliary_artifacts(CompileOptions {
             root_path: source_dir.join("main.omg"),
             build_dir: Some(build_dir.clone()),
             target_name: Some(target.into()),
@@ -296,7 +296,7 @@ fn authored_scalar_imports_compile_on_windows_and_darwin() {
             hosted_main_program_entry_build(target),
         )
         .expect("write authored scalar import target manifest");
-        compile(CompileOptions {
+        compile_with_auxiliary_artifacts(CompileOptions {
             root_path: source_dir.join("main.omg"),
             build_dir: Some(build_dir.clone()),
             target_name: Some(target.into()),

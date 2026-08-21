@@ -588,7 +588,7 @@ fn efi_two_table_function_leaves_cross_compile() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-two-table-leaves-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
+    compile_with_auxiliary_artifacts(CompileOptions {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: Some("uefi_x64".to_owned()),
@@ -617,7 +617,7 @@ fn efi_out_param_call_marshals_addresses_and_stack_args() {
     let canary = pass_canary("targets/efi_out_param_call");
     let build_dir = std::env::temp_dir().join(format!("omega-out-param-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
+    compile_with_auxiliary_artifacts(CompileOptions {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: Some("uefi_x64".to_owned()),

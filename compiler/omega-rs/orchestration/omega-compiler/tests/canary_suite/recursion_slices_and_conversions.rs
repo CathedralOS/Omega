@@ -65,7 +65,7 @@ fn accepted_axiom_cited_exit_canary_runs() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-accepted-axiom-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
+    compile_with_auxiliary_artifacts(CompileOptions {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
@@ -420,13 +420,8 @@ fn runtime_nested_loop_fill_exit_canary_runs() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-nested-loop-fill-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("nested-loop fill canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("nested-loop fill canary should compile from its authored root");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("nested-loop fill canary should run");
@@ -449,13 +444,8 @@ fn runtime_loop_counter_init_hoisted_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_loop_counter_init_hoisted_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-init-hoisted-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("init-hoisted loop canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("init-hoisted loop canary should compile from its authored root");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("init-hoisted loop canary should run");

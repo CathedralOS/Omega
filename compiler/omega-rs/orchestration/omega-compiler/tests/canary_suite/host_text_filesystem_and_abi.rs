@@ -1507,7 +1507,7 @@ fn native_fixed_arrays_classify_by_value_without_pointer_decay() {
             hosted_main_program_entry_build(target),
         )
         .expect("write fixed-array target manifest");
-        let compile_result = compile(CompileOptions {
+        let compile_result = compile_with_auxiliary_artifacts(CompileOptions {
             root_path: src_dir.join("main.omg"),
             build_dir: Some(build_dir.clone()),
             target_name: Some(target.to_owned()),
@@ -1555,7 +1555,7 @@ fn cross_win64_distinguishes_separate_pointer_length_from_descriptor_record() {
     fs::write(src_dir.join("build.omg"), "target windows_x64 {\n}\n")
         .expect("write windows_x64 target manifest");
 
-    compile(CompileOptions {
+    compile_with_auxiliary_artifacts(CompileOptions {
         root_path: src_dir.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: Some("windows_x64".to_owned()),

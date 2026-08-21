@@ -13,6 +13,7 @@ pub mod frontend;
 mod operator_adapter_dispatch;
 mod output;
 mod program_storage_entry;
+mod program_storage_source_call;
 mod program_storage_wrapper;
 mod project;
 mod provider_approval;
@@ -46,18 +47,22 @@ pub use program_storage_entry::{
     InstalledImageSubextent, InstalledProgramStorageRoots, PartitionedProgramStorageRoots,
     ProgramEntryReceiverActivation, ProgramEntryReceiverActivationError,
     ProgramEntryReceiverPlacementRecord, ProgramEntryReceiverStoragePlan,
-    ProgramStorageEntryBridgeError, ProgramStorageEntryDiagnostic,
-    ProgramStorageEntryExecutorDispatch, ProgramStorageEntryNativeBridgePlan,
-    ProgramStorageEntryParameter, ProgramStorageEntryPlanBinding,
-    ProgramStorageEntryProviderInvocation, ProgramStorageEntrySourceContinuationHandoff,
-    ProgramStorageInstallationHandoffError, ProgramStorageInstallationRecord,
-    ProgramStorageInstalledExtentRecord, ProgramStoragePartitionError,
-    ProgramStorageRecordEmissionError, ProgramStorageRootInput,
+    ProgramStorageEntryBridgeError, ProgramStorageEntryContinuationReceiverStagingError,
+    ProgramStorageEntryDiagnostic, ProgramStorageEntryExecutorDispatch,
+    ProgramStorageEntryNativeBridgePlan, ProgramStorageEntryParameter,
+    ProgramStorageEntryPlanBinding, ProgramStorageEntryProviderInvocation,
+    ProgramStorageEntrySourceContinuationHandoff, ProgramStorageInstallationHandoffError,
+    ProgramStorageInstallationRecord, ProgramStorageInstalledExtentRecord,
+    ProgramStoragePartitionError, ProgramStorageRecordEmissionError, ProgramStorageRootInput,
     ProgramStorageRootInstallationError, RecordedProgramStorageInstallation,
     ReservedProgramEntryReceiverStorage, SelectedProgramStorageEntryPlan,
     bind_emitted_program_storage_entry_native_bridge, bind_generated_program_storage_entry_plan,
     bind_program_storage_entry_plan, install_and_activate_program_storage_entry_receiver,
     install_program_storage_entry_provider_invocation, install_program_storage_entry_roots,
+};
+pub use program_storage_source_call::{
+    ProgramStorageEntryContinuationReceiverBinding,
+    ProgramStorageEntryContinuationReceiverStagingPlan, ProgramStorageEntryContinuationStagingPlan,
 };
 pub use program_storage_wrapper::{
     ProgramStorageEntryRootRole, ProgramStorageEntryWrapperReceiverTransfer,

@@ -1976,13 +1976,8 @@ fn runtime_nested_const_product_index_exit_canary_runs() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-nested-product-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("nested const-product index canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("nested const-product index canary should compile from its authored root");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("nested const-product index canary should run");
@@ -2127,13 +2122,8 @@ fn runtime_dependent_param_range_exit_canary_runs() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-dependent-param-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("dependent param-range canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("dependent param-range canary should compile from its authored root");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("dependent param-range canary should run");
@@ -2156,13 +2146,8 @@ fn runtime_dependent_product_index_exit_canary_runs() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-dependent-product-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("dependent product-index canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("dependent product-index canary should compile from its authored root");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("dependent product-index canary should run");
@@ -2184,13 +2169,8 @@ fn runtime_dependent_subtract_exit_canary_runs() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-dependent-subtract-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("dependent subtract canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("dependent subtract canary should compile from its authored root");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("dependent subtract canary should run");
@@ -2213,13 +2193,8 @@ fn runtime_dependent_ordering_chain_exit_canary_runs() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-dependent-ordering-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("dependent ordering-chain canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("dependent ordering-chain canary should compile from its authored root");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("dependent ordering-chain canary should run");
@@ -2241,13 +2216,8 @@ fn runtime_requires_subtract_exit_canary_runs() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-requires-subtract-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("requires-subtract canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("requires-subtract canary should compile from its authored root");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("requires-subtract canary should run");
@@ -2296,13 +2266,8 @@ fn runtime_sibling_len_index_exit_canary_runs() {
     let canary = pass_canary("dependent/runtime_sibling_len_index_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-sibling-len-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("sibling-length canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("sibling-length canary should compile from its authored root");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("sibling-length canary should run");
