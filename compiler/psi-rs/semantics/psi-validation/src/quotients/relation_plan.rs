@@ -8,13 +8,14 @@ use psi_arena::HandleSpan;
 use psi_symbols::SymbolHandle;
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::data::{TypeParameter, TypeParameterKind};
+use psi_typed_trees::domain::ProofFact;
 use psi_typed_trees::expression::{
     ExpressionHandle, ExpressionNode, QuotientOperationKind, QuotientOperationRequest,
     StaticMachineArgument, TableCallExpression,
 };
 use psi_typed_trees::machine::Machine;
 use psi_typed_trees::name::Identifier;
-use psi_typed_trees::signature::SignatureContract;
+use psi_typed_trees::signature::{SignatureContract, SignatureContractKind};
 use psi_typed_trees::state::State;
 use psi_typed_trees::types::{
     FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode,
@@ -44,6 +45,7 @@ pub(super) struct DirectTerminalRelationPlan {
     pub(super) result_relation: ExactQuotientRelation,
     pub(super) representative: RepresentativeTelescope,
     pub(super) define_correspondence: Option<DefineRuntimeCorrespondence>,
+    pub(super) representative_precondition: Option<RepresentativePreconditionPartition>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -74,6 +76,29 @@ pub(super) struct DefineRuntimePosition {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct DefineRuntimeCorrespondence {
     pub(super) positions: Vec<DefineRuntimePosition>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum RepresentativeContractOwner {
+    Machine,
+    State,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) struct RepresentativeContractFactLocation {
+    pub(super) owner: RepresentativeContractOwner,
+    pub(super) contract_position: usize,
+    pub(super) fact_position: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct RepresentativePreconditionPartition {
+    /// Exact `requires` facts whose expression depends on at least one
+    /// quotient-bearing representative position. This is the future `P`
+    /// surface; retaining it proves no implication or invariance law.
+    pub(super) dependent: Vec<RepresentativeContractFactLocation>,
+    /// Exact `requires` facts independent of quotient-bearing positions.
+    pub(super) fixed: Vec<RepresentativeContractFactLocation>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -117,6 +142,7 @@ pub(super) enum RelationPlanError {
     DefineParameterModeMismatch(usize),
     DefineParameterTypeMismatch(usize),
     DefineResultTypeMismatch,
+    RepresentativePreconditionDependencyUnresolved,
 }
 
 impl fmt::Display for RelationPlanError {
@@ -187,6 +213,9 @@ impl fmt::Display for RelationPlanError {
             Self::DefineResultTypeMismatch => formatter.write_str(
                 "the exact quotient result carrier does not match the representative result",
             ),
+            Self::RepresentativePreconditionDependencyUnresolved => formatter.write_str(
+                "a representative precondition contains an unresolved value identity and cannot be partitioned by quotient-bearing position",
+            ),
         }
     }
 }
@@ -239,12 +268,187 @@ pub(super) fn derive_direct_terminal_plan(
             )
         })
         .transpose()?;
+    let representative_precondition = define_correspondence
+        .as_ref()
+        .map(|_| {
+            derive_representative_precondition_partition(program, &input_relations, &representative)
+        })
+        .transpose()?;
     Ok(DirectTerminalRelationPlan {
         input_relations,
         result_relation,
         representative,
         define_correspondence,
+        representative_precondition,
     })
+}
+
+fn derive_representative_precondition_partition(
+    program: &TypedTrees,
+    input_relations: &[InputRelation],
+    representative: &RepresentativeTelescope,
+) -> Result<RepresentativePreconditionPartition, RelationPlanError> {
+    let varying_parameters = input_relations
+        .iter()
+        .zip(&representative.parameters)
+        .filter_map(|(relation, parameter)| {
+            matches!(relation, InputRelation::Quotient(_)).then_some(parameter.symbol)
+        })
+        .collect::<Vec<_>>();
+    let mut partition = RepresentativePreconditionPartition {
+        dependent: Vec::new(),
+        fixed: Vec::new(),
+    };
+    for (owner, contracts) in [
+        (
+            RepresentativeContractOwner::Machine,
+            program
+                .signature_contracts
+                .span_or_empty(representative.machine_contracts),
+        ),
+        (
+            RepresentativeContractOwner::State,
+            program
+                .signature_contracts
+                .span_or_empty(representative.state_contracts),
+        ),
+    ] {
+        for (contract_position, contract) in contracts.iter().enumerate() {
+            if contract.kind != SignatureContractKind::Requires {
+                continue;
+            }
+            for (fact_position, fact) in program
+                .proof_facts
+                .span_or_empty(contract.facts)
+                .iter()
+                .enumerate()
+            {
+                let location = RepresentativeContractFactLocation {
+                    owner,
+                    contract_position,
+                    fact_position,
+                };
+                if proof_fact_depends_on_any(program, fact, &varying_parameters)? {
+                    partition.dependent.push(location);
+                } else {
+                    partition.fixed.push(location);
+                }
+            }
+        }
+    }
+    Ok(partition)
+}
+
+fn proof_fact_depends_on_any(
+    program: &TypedTrees,
+    fact: &ProofFact,
+    parameters: &[SymbolHandle],
+) -> Result<bool, RelationPlanError> {
+    match fact {
+        ProofFact::Expression(expression) => {
+            expression_depends_on_any(program, *expression, parameters)
+        }
+        ProofFact::Membership(membership) => {
+            expression_depends_on_any(program, membership.value, parameters)
+        }
+        ProofFact::Proposition(application) => program
+            .expression_table
+            .expression_handles(application.arguments)
+            .iter()
+            .try_fold(false, |depends, expression| {
+                let expression_depends =
+                    expression_depends_on_any(program, *expression, parameters)?;
+                Ok(depends || expression_depends)
+            }),
+    }
+}
+
+fn expression_depends_on_any(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    parameters: &[SymbolHandle],
+) -> Result<bool, RelationPlanError> {
+    let depends = |expression| expression_depends_on_any(program, expression, parameters);
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Atomic(atomic) => {
+            let value = depends(atomic.value)?;
+            let result = if atomic.result.is_valid() {
+                depends(atomic.result)?
+            } else {
+                false
+            };
+            Ok(value || result)
+        }
+        ExpressionNode::ArrayLiteral(values) => program
+            .expression_table
+            .expression_handles(*values)
+            .iter()
+            .try_fold(false, |found, expression| {
+                let expression_depends = depends(*expression)?;
+                Ok(found || expression_depends)
+            }),
+        ExpressionNode::Binary(binary) => {
+            let left = depends(binary.left)?;
+            let right = depends(binary.right)?;
+            Ok(left || right)
+        }
+        ExpressionNode::Boolean(_)
+        | ExpressionNode::Float(_)
+        | ExpressionNode::Integer(_)
+        | ExpressionNode::String(_)
+        | ExpressionNode::ZeroValue(_) => Ok(false),
+        ExpressionNode::Cast(cast) => depends(cast.value),
+        ExpressionNode::Call(call) => {
+            let receiver_depends = if call.receiver.is_valid() {
+                depends(call.receiver)?
+            } else {
+                false
+            };
+            program
+                .expression_table
+                .expression_handles(call.arguments)
+                .iter()
+                .try_fold(receiver_depends, |found, expression| {
+                    let expression_depends = depends(*expression)?;
+                    Ok(found || expression_depends)
+                })
+        }
+        ExpressionNode::Indexed(indexed) => {
+            let collection = depends(indexed.collection)?;
+            let index = depends(indexed.index)?;
+            Ok(collection || index)
+        }
+        ExpressionNode::Member(member) => depends(member.receiver),
+        ExpressionNode::Mutable(inner) => depends(*inner),
+        ExpressionNode::Unary(unary) => depends(unary.operand),
+        ExpressionNode::Name(path) => {
+            if !path.symbol.is_valid() && !path.head_symbol.is_valid() {
+                return Err(RelationPlanError::RepresentativePreconditionDependencyUnresolved);
+            }
+            Ok(parameters.contains(&path.symbol) || parameters.contains(&path.head_symbol))
+        }
+        ExpressionNode::Range(range) => {
+            let start = if range.start.is_valid() {
+                depends(range.start)?
+            } else {
+                false
+            };
+            let end = if range.end.is_valid() {
+                depends(range.end)?
+            } else {
+                false
+            };
+            Ok(start || end)
+        }
+        ExpressionNode::StructLiteral(literal) => program
+            .expression_table
+            .struct_fields(literal.fields)
+            .iter()
+            .try_fold(false, |found, field| {
+                let field_depends = depends(field.value)?;
+                Ok(found || field_depends)
+            }),
+    }
 }
 
 fn derive_define_runtime_correspondence(
@@ -922,6 +1126,16 @@ impl DirectTerminalRelationPlan {
             )
         })
     }
+
+    pub(super) fn render_representative_precondition(&self) -> Option<String> {
+        self.representative_precondition.as_ref().map(|partition| {
+            format!(
+                "P=[dependent:{}, fixed:{}]",
+                partition.dependent.len(),
+                partition.fixed.len()
+            )
+        })
+    }
 }
 
 fn relation_name(program: &TypedTrees, symbol: SymbolHandle) -> String {
@@ -936,9 +1150,13 @@ fn relation_name(program: &TypedTrees, symbol: SymbolHandle) -> String {
 #[cfg(test)]
 mod tests {
     use super::{
-        InputRelation, RelationPlanError, RepresentativeStaticBindingKind,
-        derive_direct_terminal_plan, derive_exact_representative_static_application,
-        derive_representative_telescope, substituted_type_matches,
+        ExactQuotientRelation, InputRelation, RelationPlanError,
+        RepresentativeContractFactLocation, RepresentativeContractOwner,
+        RepresentativeRuntimeParameter, RepresentativeStaticApplication,
+        RepresentativeStaticBindingKind, RepresentativeTelescope, derive_direct_terminal_plan,
+        derive_exact_representative_static_application,
+        derive_representative_precondition_partition, derive_representative_telescope,
+        substituted_type_matches,
     };
     use psi_arena::HandleSpan;
     use psi_symbols::SymbolHandle;
@@ -947,16 +1165,18 @@ mod tests {
         DataDefinition, MachineParameterContract, QuotientDefinition, TypeParameter,
         TypeParameterKind,
     };
+    use psi_typed_trees::domain::ProofFact;
     use psi_typed_trees::expression::{
-        ExpressionHandle, ExpressionNode, QuotientOperationKind, QuotientOperationRequest,
-        StaticMachineArgument, StaticSymbolApplication, TableCallExpression, TableNamePath,
+        BinaryOperator, ExpressionHandle, ExpressionNode, QuotientOperationKind,
+        QuotientOperationRequest, StaticMachineArgument, StaticSymbolApplication,
+        TableBinaryExpression, TableCallExpression, TableNamePath,
     };
     use psi_typed_trees::machine::Machine;
     use psi_typed_trees::name::Identifier;
     use psi_typed_trees::proposition::{
         PropositionBinder, PropositionBinderKind, PropositionDefinition,
     };
-    use psi_typed_trees::signature::StateParameter;
+    use psi_typed_trees::signature::{SignatureContract, SignatureContractKind, StateParameter};
     use psi_typed_trees::state::State;
     use psi_typed_trees::statement::StatementNode;
     use psi_typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
@@ -1595,6 +1815,163 @@ mod tests {
     }
 
     #[test]
+    fn representative_precondition_partition_tracks_exact_dependent_fact_locations() {
+        let mut program = TypedTrees::default();
+        let unit = program.type_reference_table.insert(TypeReferenceNode::Unit);
+        let quotient_parameter = symbol(700);
+        let fixed_parameter = symbol(701);
+        let quotient_name = named_argument(&mut program, "quotient", quotient_parameter);
+        let fixed_name = named_argument(&mut program, "fixed", fixed_parameter);
+        let mixed =
+            program
+                .expression_table
+                .insert(ExpressionNode::Binary(TableBinaryExpression {
+                    left: quotient_name,
+                    operator: BinaryOperator::Equal,
+                    right: fixed_name,
+                }));
+        let machine_facts = program.proof_facts.insert_many([
+            ProofFact::Expression(quotient_name),
+            ProofFact::Expression(mixed),
+        ]);
+        let state_facts = program
+            .proof_facts
+            .insert_many([ProofFact::Expression(fixed_name)]);
+        let machine_contracts = program.signature_contracts.insert_many([
+            SignatureContract {
+                kind: SignatureContractKind::Requires,
+                facts: machine_facts,
+                ..Default::default()
+            },
+            SignatureContract {
+                kind: SignatureContractKind::Ensures,
+                facts: state_facts,
+                ..Default::default()
+            },
+        ]);
+        let state_contracts = program.signature_contracts.insert_many([SignatureContract {
+            kind: SignatureContractKind::Requires,
+            facts: state_facts,
+            ..Default::default()
+        }]);
+        let telescope = RepresentativeTelescope {
+            machine_symbol: symbol(710),
+            state_symbol: symbol(711),
+            parameters: vec![
+                RepresentativeRuntimeParameter {
+                    symbol: quotient_parameter,
+                    type_reference: unit,
+                    is_mutable: false,
+                    is_self: false,
+                },
+                RepresentativeRuntimeParameter {
+                    symbol: fixed_parameter,
+                    type_reference: unit,
+                    is_mutable: false,
+                    is_self: false,
+                },
+            ],
+            return_type: unit,
+            machine_contracts,
+            state_contracts,
+            static_application: RepresentativeStaticApplication {
+                lifetime_arguments: Vec::new(),
+                bindings: Vec::new(),
+            },
+        };
+        let relations = [
+            InputRelation::Quotient(ExactQuotientRelation {
+                quotient_type: unit,
+                quotient_symbol: symbol(720),
+                relation_symbol: symbol(721),
+            }),
+            InputRelation::ExactEquality(unit),
+        ];
+
+        let partition =
+            derive_representative_precondition_partition(&program, &relations, &telescope)
+                .expect("all value identities are exact");
+        assert_eq!(
+            partition.dependent,
+            vec![
+                RepresentativeContractFactLocation {
+                    owner: RepresentativeContractOwner::Machine,
+                    contract_position: 0,
+                    fact_position: 0,
+                },
+                RepresentativeContractFactLocation {
+                    owner: RepresentativeContractOwner::Machine,
+                    contract_position: 0,
+                    fact_position: 1,
+                },
+            ]
+        );
+        assert_eq!(
+            partition.fixed,
+            vec![RepresentativeContractFactLocation {
+                owner: RepresentativeContractOwner::State,
+                contract_position: 0,
+                fact_position: 0,
+            }]
+        );
+    }
+
+    #[test]
+    fn representative_precondition_partition_rejects_unresolved_value_identity() {
+        let mut program = TypedTrees::default();
+        let unit = program.type_reference_table.insert(TypeReferenceNode::Unit);
+        let quotient_parameter = symbol(700);
+        let quotient_name = named_argument(&mut program, "quotient", quotient_parameter);
+        let unresolved = named_argument(&mut program, "unknown", SymbolHandle::invalid());
+        let mixed =
+            program
+                .expression_table
+                .insert(ExpressionNode::Binary(TableBinaryExpression {
+                    left: quotient_name,
+                    operator: BinaryOperator::Equal,
+                    right: unresolved,
+                }));
+        let facts = program
+            .proof_facts
+            .insert_many([ProofFact::Expression(mixed)]);
+        let machine_contracts = program.signature_contracts.insert_many([SignatureContract {
+            kind: SignatureContractKind::Requires,
+            facts,
+            ..Default::default()
+        }]);
+        let telescope = RepresentativeTelescope {
+            machine_symbol: symbol(710),
+            state_symbol: symbol(711),
+            parameters: vec![RepresentativeRuntimeParameter {
+                symbol: quotient_parameter,
+                type_reference: unit,
+                is_mutable: false,
+                is_self: false,
+            }],
+            return_type: unit,
+            machine_contracts,
+            state_contracts: HandleSpan::empty(),
+            static_application: RepresentativeStaticApplication {
+                lifetime_arguments: Vec::new(),
+                bindings: Vec::new(),
+            },
+        };
+
+        assert_eq!(
+            derive_representative_precondition_partition(
+                &program,
+                &[InputRelation::Quotient(ExactQuotientRelation {
+                    quotient_type: unit,
+                    quotient_symbol: symbol(720),
+                    relation_symbol: symbol(721),
+                })],
+                &telescope,
+            ),
+            Err(RelationPlanError::RepresentativePreconditionDependencyUnresolved)
+        );
+    }
+
+    #[test]
     fn define_correspondence_applies_closed_representative_type_substitution() {
         let mut program = TypedTrees::default();
         let mut request = push_generic_representative_application(&mut program);
@@ -1650,6 +2027,13 @@ mod tests {
         let plan =
             derive_direct_terminal_plan(&program, &Machine::default(), &state, &call, &request)
                 .expect("closed T := StaticType must instantiate the runtime telescope");
+        assert_eq!(
+            plan.representative_precondition,
+            Some(super::RepresentativePreconditionPartition {
+                dependent: Vec::new(),
+                fixed: Vec::new(),
+            })
+        );
         assert_eq!(
             plan.define_correspondence
                 .expect("define correspondence")
@@ -1767,6 +2151,7 @@ mod tests {
         );
         assert!(diagnostics[0].message.contains("RR="));
         assert!(diagnostics[0].message.contains("define-runtime=[0]"));
+        assert!(diagnostics[0].message.contains("P=[dependent:0, fixed:0]"));
         assert!(
             diagnostics[0]
                 .message

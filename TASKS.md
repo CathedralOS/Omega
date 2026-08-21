@@ -1250,7 +1250,16 @@ Remaining:
   under `IntegerLessOrEqualSubstitution`, replacing only that endpoint. Dividend
   transport remains inside the signed joint arm and therefore also requires its
   independent `divisor <= -1` premise. A missing companion bound, unrelated
-  equality, weak bound, or changed untouched endpoint rejects. A signed `i1`
+  equality, weak bound, or changed untouched endpoint rejects. The complete
+  signed `i1` transport family may independently transport both conjuncts:
+  `Kd <= -1` through `Kd == divisor`, and `0 <= Kn` through `Kn == dividend`.
+  Both substitutions and both canonical conjuncts remain mandatory; missing or
+  crossed equalities reject. The next complete nested family transports a
+  one-hop stronger bound: closed same-carrier order first derives the canonical
+  bound on `K` (for example `2 <= K` or signed `K <= -3`), then endpoint
+  substitution carries it to the divisor. The producer nests one checked
+  transitivity node beneath substitution; weak bounds, missing equalities, or
+  wrong endpoints reject. A signed `i1`
   divisor fact alone remains
   insufficient because its canonical conjunction also requires the dividend
   premise. The complete retained-bound `i1` family now selects that conjunction
@@ -1559,7 +1568,7 @@ Remaining:
   unchanged; only type-shell normalization and unresolved-call reporting are
   shared privately back to per-call validation.
   Complete-or-opaque caller write-frame inference, alias-origin propagation,
-  and transition-cycle frame equations now form a 3,097-line
+  and transition-cycle frame equations now form a 3,053-line
   `calls/write_frames.rs` child. Its 459-line `write_frames/demand.rs` child
   owns the public resolver facade plus expression/statement demand collection
   and conservative fallback; a separate 123-line
@@ -1581,12 +1590,13 @@ Remaining:
   frame-resolution callback. A 50-line `write_frames/type_capabilities.rs` leaf
   owns constrained-reference recognition and the type/parameter classification
   for carrying caller-visible writes, with no expression traversal or
-  resolution callback. A 194-line `write_frames/local_aliases.rs` leaf owns
-  canonical local-alias path rebasing, syntactic mutable-reborrow detection for
-  stable parameter/local bindings, and read-only reference-shaped replacement
-  classification; it neither infers origins nor mutates bindings or resolves
-  frames. A 114-line `write_frames/parameter_aliases.rs` leaf owns the narrow
-  parameter-relative origin carrier, exact symbol/name alias lookup, and
+  resolution callback. A 243-line `write_frames/local_aliases.rs` leaf owns
+  canonical local-alias path rebasing, direct-place resolution through already
+  established stable origins, syntactic mutable-reborrow detection for stable
+  parameter/local bindings, and read-only reference-shaped replacement
+  classification; it neither recursively infers origins, mutates bindings, nor
+  resolves frames. A 114-line `write_frames/parameter_aliases.rs` leaf owns the
+  narrow parameter-relative origin carrier, exact symbol/name alias lookup, and
   syntax-only transparent mutable-reborrow detection; recursive origin and call
   analysis remain in the parent. A 125-line
   `write_frames/transition_topology.rs` leaf owns named-edge target resolution
@@ -2440,7 +2450,13 @@ Remaining N6/N8 work:
   representative `self` participates positionally without requiring a public
   parameter spelled `self`; reorder, duplication, locals/literals, arity,
   borrowed-shell, type, and result drift reject. Owner static/const and
-  contract-fact correspondence remain explicitly unresolved. Every request still rejects as non-executable until exact
+  contract-fact substitution remain explicitly unresolved. For exact direct
+  `define` correspondence, representative machine/state `requires` facts are
+  now partitioned into the future `P` surface versus fixed contract facts by
+  complete expression dependency on quotient-bearing representative positions;
+  exact owner/contract/fact coordinates are retained and unresolved value
+  identities reject. This partition proves no implication, equivalence, or
+  `Respects` clause. Every request still rejects as non-executable until exact
   correspondence, the selected `Respects` contract, and normalized result flow
   are checked and retained in checked/terminal identity.
 - Suppress every synthesized representation observer on quotient formation.
@@ -2532,17 +2548,24 @@ conformance cannot change token meaning; and no accepted source contains a
   declarations are provider-agnostic exact boundary requirements, while
   allocation and host-ABI realizations use the ordinary satisfier/external-leaf
   path. Authored provider fields on ordinary data remain unrelated payload.
-- Make every boundary declaration provider-agnostic. Derive candidate
-  `ProviderPlan` rows from exact satisfier identities and their complete
-  contracts; select only through target defaults, authorized `build.omg`
-  provider slots, or installation-owned bindings. Preserve exact requirement,
+- Boundary declarations are provider-agnostic. Candidate `ProviderPlan` rows
+  derive from exact satisfier identities and complete normalized contracts;
+  target defaults, authorized `build.omg` provider slots, or installation-owned
+  bindings select complete candidates without constructing rows. The selected
+  canonical fact set survives checked lowering and retains exact requirement,
   realization, target applicability, artifact, admission, and receipt identity
-  in checked trees, Terminal Psi, manifests, and diagnostics.
+  through provider execution, Terminal installation records, manifests, trust
+  reports, and diagnostics. Missing, duplicate, partial, name-only, or
+  identity-drifting selections reject.
 - Replace string-backed intrinsic identity. `Binding::CompilerIntrinsic` has no
   authored payload; its exact resolved realization-machine symbol, normalized
   signature, and selected target key the sealed compiler lowering catalog.
-  Delete string-prefix classification, rendered-binding reparsing, and semantic
-  lookup by display name.
+  Rendered-binding reparsing is deleted; the remaining transitional rendering
+  is write-only symbol-resolution interning, never semantic reconstruction.
+  External leaves now retain a closed mechanism tag in their supply mode;
+  validation, public snapshots, and contract fingerprints consume that tag
+  rather than classifying a `Binding::Case(...)` prefix. Delete the remaining
+  semantic lookup by display name.
 - Replace string-backed foreign binding identity with nominal `LibraryId`,
   `SymbolId`, `CallingPlanId`, firmware/table, vtable, and mechanism-specific
   values. Raw object-format library/symbol bytes may exist only in sealed

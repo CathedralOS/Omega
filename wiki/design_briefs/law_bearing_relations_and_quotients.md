@@ -756,8 +756,8 @@ quotient result carrier matches the representative result. Attached receivers
 participate by position and need not force the public parameter to be spelled
 `self`. Reordering,
 duplication, locals/constants, arity drift, borrowed quotient shells, and
-carrier/result drift fail closed. Static/`const` correspondence, aliases and
-contract-fact correspondence, aliases, and normalized multi-state result flow
+carrier/result drift fail closed. Owner static/`const` correspondence,
+contract-fact substitution, aliases, and normalized multi-state result flow
 remain later obligations, so this direct
 correspondence still grants no execution authority.
 
@@ -774,6 +774,18 @@ runtime and result type identities, including literal substitution for array
 length `const` binders; constrained, const-expression, and dynamic-trait shapes
 pass only when already canonically identical. Contract propositions and owner
 static correspondence remain unresolved, and no such plan can feed execution.
+
+For a direct `define` with exact runtime correspondence, the non-authoritative
+plan now also partitions the representative machine and entry-state `requires`
+facts by semantic value dependency. A fact enters the retained `P` surface when
+any expression position depends on a quotient-bearing representative parameter;
+facts depending only on ordinary equal-by-`RA` positions or ambient values stay
+in the fixed contract surface. Expression, proposition-argument, membership,
+receiver, aggregate, indexing, and nested-call positions are traversed without
+short-circuiting validation, and an unresolved value identity rejects the plan
+rather than being classified as ambient. Exact contract/fact coordinates are
+retained, but proposition substitution, implication/equivalence checking, and
+the selected `Respects` clauses remain later obligations.
 
 Acceptance requires:
 
