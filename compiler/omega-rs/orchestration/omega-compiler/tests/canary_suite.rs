@@ -27,6 +27,10 @@ use std::process::Command;
 use std::process::Stdio;
 #[cfg(windows)]
 use std::process::Stdio;
+use std::sync::Mutex;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::mpsc;
+use std::thread;
 
 fn interpret(checked: &CheckedCompilation, stdin: &[u8]) -> InterpretOutcome {
     // These checked-only semantic fixtures predate target-owned build roots.
@@ -1954,6 +1958,66 @@ const ROOTED_TARGET_BACKEND_PASS_CANARIES: &[(&str, &str)] = &[
 
 fn check_canary(canary_dir: &Path) -> Result<(), Vec<Diagnostic>> {
     compile_to_checked(&canary_dir.join("main.omg"), None).map(|_| ())
+}
+
+static CANARY_UMBRELLA_LOCK: Mutex<()> = Mutex::new(());
+
+/// Run independent corpus members with bounded outer parallelism while each
+/// checked-only compile remains internally single-threaded. Results return in
+/// source order so diagnostics are deterministic.
+fn run_bounded_canary_jobs<T, R>(items: &[T], worker: impl Fn(&T) -> R + Sync) -> Vec<R>
+where
+    T: Sync,
+    R: Send,
+{
+    if items.is_empty() {
+        return Vec::new();
+    }
+    let default_jobs = thread::available_parallelism()
+        .map(usize::from)
+        .unwrap_or(1)
+        .min(4);
+    let requested_jobs = std::env::var("OMEGA_CANARY_JOBS")
+        .ok()
+        .map(|value| {
+            value
+                .parse::<usize>()
+                .ok()
+                .filter(|count| *count > 0)
+                .unwrap_or_else(|| {
+                    panic!("OMEGA_CANARY_JOBS must be a positive integer, got {value:?}")
+                })
+        })
+        .unwrap_or(default_jobs);
+    let job_count = requested_jobs.min(items.len());
+    if job_count == 1 {
+        return items.iter().map(worker).collect();
+    }
+
+    let next = AtomicUsize::new(0);
+    thread::scope(|scope| {
+        let (sender, receiver) = mpsc::channel();
+        for _ in 0..job_count {
+            let sender = sender.clone();
+            let worker = &worker;
+            let next = &next;
+            scope.spawn(move || {
+                loop {
+                    let index = next.fetch_add(1, Ordering::Relaxed);
+                    let Some(item) = items.get(index) else {
+                        break;
+                    };
+                    sender
+                        .send((index, worker(item)))
+                        .expect("canary result receiver dropped");
+                }
+            });
+        }
+        drop(sender);
+        let mut results = receiver.into_iter().collect::<Vec<_>>();
+        results.sort_by_key(|(index, _)| *index);
+        results.into_iter().map(|(_, result)| result).collect()
+    })
 }
 
 /// A build dir no other concurrent compile can collide with: process id plus a

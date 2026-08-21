@@ -1259,6 +1259,9 @@ fn pass_canaries_compile() {
     // differential's tick_count stop). One host-blocked cluster (e.g. the
     // efi members on a non-EFI-lowering host) must not exempt the rest of
     // the corpus from its compile check.
+    let _umbrella = CANARY_UMBRELLA_LOCK
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     let mut failures: Vec<String> = Vec::new();
     let filter = std::env::var("OMEGA_PASS_CANARY_FILTER").ok();
     let selected = |canary_name: &&str| {
@@ -1271,21 +1274,30 @@ fn pass_canaries_compile() {
     };
     let mut selected_count = 0usize;
 
-    for canary_name in CHECKED_ONLY_PASS_CANARIES.iter().copied().filter(selected) {
-        selected_count += 1;
-        let canary = pass_canary(canary_name);
-        if let Err(diagnostics) = check_canary(&canary) {
-            failures.push(format!(
-                "checked-only {}:\n{}",
-                canary.display(),
-                diagnostics
-                    .iter()
-                    .map(ToString::to_string)
-                    .collect::<Vec<_>>()
-                    .join("\n")
-            ));
-        }
-    }
+    let checked_only = CHECKED_ONLY_PASS_CANARIES
+        .iter()
+        .copied()
+        .filter(selected)
+        .collect::<Vec<_>>();
+    selected_count += checked_only.len();
+    failures.extend(
+        run_bounded_canary_jobs(&checked_only, |canary_name| {
+            let canary = pass_canary(canary_name);
+            check_canary(&canary).err().map(|diagnostics| {
+                format!(
+                    "checked-only {}:\n{}",
+                    canary.display(),
+                    diagnostics
+                        .iter()
+                        .map(ToString::to_string)
+                        .collect::<Vec<_>>()
+                        .join("\n")
+                )
+            })
+        })
+        .into_iter()
+        .flatten(),
+    );
 
     for (canary_name, target) in CROSS_TARGET_PASS_CANARIES
         .iter()
