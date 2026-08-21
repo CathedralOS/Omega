@@ -24,13 +24,6 @@
   ((left TerminalSemanticId) (right TerminalSemanticId)) Int
   (match left
     ((TerminalSemanticId left-value)
-      (match left-value
-        ((U64 left-low left-high)
-          (match right
-            ((TerminalSemanticId right-value)
-              (match right-value
-                ((U64 right-low right-high)
-                  (if (lt left-high right-high) 1
-                    (if (eq left-high right-high)
-                      (lt left-low right-low)
-                      0)))))))))))
+      (match right
+        ((TerminalSemanticId right-value)
+          (u64_less left-value right-value))))))

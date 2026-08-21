@@ -34,6 +34,18 @@
         ((U64 right-low right-high)
           (if (eq left-low right-low) (eq left-high right-high) 0))))))
 
+; Both limbs are canonical nonnegative u32 values.  Comparing the high limb
+; first and the low limb only on a tie is therefore exact unsigned u64 order.
+(def u64_less ((left U64) (right U64)) Int
+  (match left
+    ((U64 left-low left-high)
+      (match right
+        ((U64 right-low right-high)
+          (if (lt left-high right-high) 1
+            (if (eq left-high right-high)
+              (lt left-low right-low)
+              0)))))))
+
 (def u64_is_zero ((value U64)) Int
   (match value ((U64 low high) (if (eq low 0) (eq high 0) 0))))
 

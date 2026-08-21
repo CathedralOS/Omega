@@ -104,8 +104,17 @@
         (if (ru64_bad
               (read_nonzero_u64 (B 0 (B 0 (B 0 (B 0
                 (B 0 (B 0 (B 0 (B 0 BNil))))))))))
-          (ru64_bad
-            (read_u64 (B 1 (B 2 (B 3 (B 4 (B 5 (B 6 (B 7 BNil)))))))))
+          (if (u64_less (U64 4294967295 0) (U64 0 1))
+            (if (u64_less (U64 1 1) (U64 2 1))
+              (if (u64_less (U64 2 1) (U64 1 1))
+                0
+                (if (u64_less (U64 0 1) (U64 4294967295 0))
+                  0
+                  (ru64_bad
+                    (read_u64
+                      (B 1 (B 2 (B 3 (B 4 (B 5 (B 6 (B 7 BNil)))))))))))
+              0)
+            0)
           0)
         0)
       0)

@@ -28,9 +28,12 @@ Gamma program begins with the reusable, PSITERM-neutral primitives in
    primitive rows.
 
 The current envelope additionally includes format-annotated IEEE structural
-leaves and atomic float equality/inequality. That vocabulary is deliberately outside this
-bounded fixture: encountering either new tag rejects instead of widening the
-spike's claimed ledger coverage.
+leaves and atomic float equality/inequality, plus byte-sequence structural
+carriers and atomic content equality. That vocabulary is deliberately outside
+this bounded fixture: encountering any of those field or proposition tags
+rejects instead of widening the spike's claimed ledger coverage. Their exact
+byte grammar is independently gated in `../terminal-codec-primitives/` but is
+not concatenated into this spike.
 
 The transport packs at most seven bytes into one positive Gamma `Int` solely to
 keep the source parser shallow. Typed `unpack_bytes` reconstructs every byte
@@ -158,9 +161,10 @@ these are feasibility observations, not performance promises:
 | Canonical scalar fixture bytes | 1,983 |
 | Canonical structural/effect fixture bytes | 695 |
 | Canonical Unit/boundary call fixture bytes | 697 |
-| Assembled typed Gamma core | 4,977 lines / 198,803 bytes |
-| Shared canonical-byte layer | 97 lines / 3,389 bytes / 13 functions |
-| Shared terminal-codec primitive layer | 309 lines / 12,759 bytes / 19 functions |
+| Assembled typed Gamma core | 4,982 lines / 198,971 bytes |
+| Shared canonical-byte layer | 109 lines / 3,831 bytes / 14 functions |
+| Imported terminal-codec primitive subset | 302 lines / 12,484 bytes / 19 functions |
+| Full shared terminal-codec primitive layer | 592 lines / 25,186 bytes / 35 functions |
 | Spike-specific typed core | 4,571 lines / 182,655 bytes / 393 functions |
 | Closed data declarations | 182 |
 | Typed functions, assembled | 423 |
@@ -210,6 +214,10 @@ type, and integer-constant operations retain the complete signed/unsigned
 payload, while the fixture's Boolean/i8/i16 operation subset and canonical
 signed-i8 sign-extension rule are separate adapters. Exact fixtures reject format,
 vocabulary, type-width, integer tag/sign-extension, and malformed-UTF-8 drift.
+The same shared responsibility now has an independently gated v16
+structural-leaf module for IEEE kind/format, byte-sequence carriers, canonical
+structural paths, and proposition tags `11`/`12`. It preserves full-width
+identity/index order but remains outside the assembled bounded spike.
 Both layers have independent typed/interpreter gates. The bounded spike
 explicitly narrows identities to a zero high half only after the byte layer has
 decoded the complete unsigned value. The largest measured audit tax is
@@ -217,8 +225,8 @@ mechanical repetition:
 Gamma currently has no parametric result type, so the bounded decoder declares a
 result ADT for each parsed semantic type. Completing the structural/effect slice
 adds 1,128 lines and 42,263 bytes to the assembled core, while canonical
-Unit/boundary decoding and evaluation bring the full bounded assembly to 4,977
-lines and 198,803 bytes. The code remains bounded, typechecked, separated into
+Unit/boundary decoding and evaluation bring the full bounded assembly to 4,982
+lines and 198,971 bytes. The code remains bounded, typechecked, separated into
 decoder versus schema/evaluator modules, and at nesting depth 25. All three call
 variants still traverse one axis checker rather than adding call-kind evaluator
 branches. That is an engineering and audit cost, not an actual
