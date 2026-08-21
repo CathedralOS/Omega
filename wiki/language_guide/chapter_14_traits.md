@@ -214,8 +214,8 @@ Ordinary package visibility and name-collision rules still apply.
 Dedicated syntax has no position in which to select conformance evidence.
 Operators, indexing, cleanup, and similar forms therefore never initiate
 ambient conformance lookup. They resolve from their operand types and declared
-domains, from evidence already encoded in those types, or from a sealed
-language route.
+domains, from one exact conformance already selected by a proof-static binder,
+from evidence already encoded in those types, or from a sealed language route.
 
 A trait may declare free-machine requirements:
 
@@ -352,11 +352,39 @@ This is useful when the requirement is local and obvious.
 
 ## Operator Requirements
 
-Operators can be modeled as named requirements too, similar to how Rust maps
-operator syntax to traits such as `Add` or `Index`.
+An operator may be a named trait requirement. The trait owns the fixed token
+binding; a conformance supplies the requirement implementation and cannot
+rebind that token:
 
-Omega should probably use that idea without making ordinary traits carry the
-whole proof story. For example, the source expression:
+```omega
+trait Ranked<T> {
+    operator < compare(left: T, right: T) -> bool;
+}
+```
+
+Token syntax has no conformance-selection position. A trait-backed token use
+therefore requires one exact conformance already selected by a proof-static
+binder in the surrounding machine. It never searches visible conformances or
+chooses a unique ambient candidate. No selected binder rejects even when only
+one matching conformance is visible; several applicable selected binders are
+ambiguous. The named requirement call with an explicit conformance application
+remains available whenever the token form cannot select the intended meaning.
+
+A concrete declaration may deliberately crown one selected conformance as the
+canonical token meaning for its operand signature:
+
+```omega
+operator < Card::less_by_power(left: Card, right: Card) -> bool {
+    Ranked::compare<Card, PowerOrder>(left, right)
+}
+```
+
+Only one direct declaration may participate for the same token and normalized
+operand/domain shape. A second wrapper for `SuitOrder` would be ambiguous, so
+alternative orderings remain named calls with explicit conformance selection.
+Direct concrete operators such as integer addition need no conformance.
+
+For example, the source expression:
 
 ```omega
 let item: Item = items[index];

@@ -307,7 +307,7 @@ Remaining:
   that is engineering work, not a language-design blocker. Proof-only and
   deliberately trapping fixtures remain targetless. Final firmware composition
   of `ImageHandle`/`SystemTable` inputs with semantic roots is design-blocked on
-  owner Q2; the remaining physical bridge and corpus work is not. The native
+  owner Q1; the remaining physical bridge and corpus work is not. The native
   differential RUN corpus now routes every host-authored fixture through
   production entry selection (including bounded outer-job/single-worker native
   compiles) instead of silently retaining the legacy test-entry seam. Eight
@@ -1854,7 +1854,7 @@ Remaining:
   outcomes only when terminal wait/foreign edges can derive them. Inserted native
   metering must consume the installed exact-site
   attribution rows, but is design-blocked on the sponsor counter, exhaustion
-  transfer, and resumable continuation ABI in owner Q3. Keep WCET and wall-clock
+  transfer, and resumable continuation ABI in owner Q2. Keep WCET and wall-clock
   conversion separate.
 - **PROOF-RELEVANCE-MIGRATION.** Finish binding-level `[erased]`, checked
   noninterference, erased-stripped layout, and obligation preservation across
@@ -2008,7 +2008,7 @@ Owners:
   evidence. The remaining slices are resource-ceiling aggregation,
   multi-entry/re-entrant target instruction lowering, and the
   private registration relocation (whose binding placement is design-blocked
-  on `OWNER_QUESTIONS.md` Q6),
+  on `OWNER_QUESTIONS.md` Q5),
   registration leases/unregister,
   and cross-target registered-callback canaries.
 - Implement the narrow Windows `user32` canary without exposing a raw code
@@ -2152,7 +2152,7 @@ compiler concept is introduced.
   published checked operational root is retired; its plan remains only as a
   transient validation and independent-fact construction input.
   Continue removing umbrella carriers after their remaining consumers migrate.
-- **TPR4/TPR6 — design blocked on owner Q5.** Choose how an ordinary domain or
+- **TPR4/TPR6 — design blocked on owner Q4.** Choose how an ordinary domain or
   routed requirement is classified and attached as a progress premise before
   connecting progress-profile grants and receipts. Generic routed/domain
   requirements must not be treated as progress merely because they are
@@ -2202,7 +2202,7 @@ reach or trust, and private proof improvements do not change public identity.
   and general affine cleanup rather than claiming convergence from duplicated
   leaves.
   Provider-sized external adapter/arrival state is design-blocked on
-  `OWNER_QUESTIONS.md` Q4: stack-domain ownership across interrupted and
+  `OWNER_QUESTIONS.md` Q3: stack-domain ownership across interrupted and
   switched entry must be settled before this can become a complete root
   `StackPlan`. Zero-byte internal closures remain inadmissible until that
   adapter demand exists.
@@ -2348,7 +2348,7 @@ Remaining N6/N8 work:
 - Suppress every synthesized representation observer on quotient formation.
   Add quotient-owned executable equality through an ordinary lifted operation
   with `DecidesEquivalence`; derive its `Respects` proof, and bind its optional
-  `==` spelling only through the fixed-operator surface settled by Owner Q1.
+  `==` token only through the settled fixed-operator declaration head.
   Keep ordering, canonicalization, hashing, and later observer roles on
   explicit role-correctness contracts until each earns a named interface.
 - Enforce the initial quotient integration fences: lifted representative
@@ -2388,6 +2388,33 @@ through its declared interface; quotient operations select their exact proof
 in the quotient owner's body; canonical definitions cannot hide wrappers; and
 no structural observer, effect, or custody occurrence crosses the quotient
 boundary without its corresponding checked law.
+
+### Fixed operator surface
+
+- Parse one optional compiler-owned literal token immediately after `operator`
+  and before the descriptive path. Retain the token binding through resolved,
+  typed, checked, and public compatibility identity while calls continue to
+  carry the exact resolved declaration rather than a bare token. Reject a token
+  list, unknown punctuation, and duplicate participating declarations for one
+  normalized operand/domain shape.
+- Remove the provisional `spelling` clause from the grammar and migrate its
+  bootstrap core, standard-library, and canary sites mechanically to the
+  declaration head. Keep tokenless named operators valid. Preserve the closed
+  compiler-owned precedence, associativity, fixity, arity, and argument-position
+  table; add no custom-operator or token-alias facility.
+- Normalize an attached receiver as operand position zero and an explicit first
+  parameter as position zero otherwise. Trait-owned operator requirements bind
+  their token once; conformances implement without rebinding. A trait-backed
+  token use consumes one exact conformance already selected by a proof-static
+  binder, rejects with none or several, and never searches visible conformances.
+  A concrete direct wrapper may crown only one token meaning per normalized
+  operand signature; alternative conformances remain named explicit calls.
+
+Acceptance: `operator + Vec2::add`, `boundary operator [] Slice::index`, and a
+trait-owned operator round trip through the semantic pipeline; named calls and
+token calls resolve to one declaration identity; adding an unrelated visible
+conformance cannot change token meaning; and no accepted source contains a
+`spelling` clause.
 
 ### Float providers
 
@@ -2484,9 +2511,8 @@ can produce installed code; validation binds exact final bytes and placement.
 These are pointers to the owning question or open design item, not duplicate
 specifications:
 
-- **EXTERNAL-ENTRY-STACK-DOMAIN:** owner Q4.
-- **FIXED-OPERATOR-SURFACE-BINDING:** owner Q1.
-- **UEFI-PHYSICAL-SEMANTIC-ENTRY-COMPOSITION:** owner Q2.
+- **EXTERNAL-ENTRY-STACK-DOMAIN:** owner Q3.
+- **UEFI-PHYSICAL-SEMANTIC-ENTRY-COMPOSITION:** owner Q1.
 - **SUM-MATERIALIZATION:** tagged-case placement vocabulary in
   `wiki/language_guide/appendix_open_questions.md`.
 - **ATOMIC-EVENT-MODEL:** portable atomic axioms and target refinement choices
@@ -2495,8 +2521,8 @@ specifications:
   checked arithmetic.
 - **IMPORTED-CRASH-CAPSULES:** realization/import/certificate identity in
   `wiki/language_guide/appendix_open_questions.md`.
-- **NATIVE-LOGICAL-FUEL-METERING:** owner Q3.
-- **PROGRESS-PROFILE-CLASSIFICATION:** owner Q5.
+- **NATIVE-LOGICAL-FUEL-METERING:** owner Q2.
+- **PROGRESS-PROFILE-CLASSIFICATION:** owner Q4.
 
 ## Platform-gated verification
 

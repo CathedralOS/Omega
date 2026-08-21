@@ -1,6 +1,6 @@
 // Bootstrap coverage for the parser's temporary fixed-token binding clause.
-// Owner Q1 will replace or approve the source form; only named identities,
-// operand-directed selection, and provider binding are settled.
+// The settled header-token form will replace this bootstrap syntax. Named
+// identities, operand-directed selection, and provider binding remain intact.
 
 provider omega::host::canary_indexing : SliceIndexing;
 

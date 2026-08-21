@@ -66,9 +66,10 @@ domain<T, const U: Unit> T::Quantity<U>;
 
 // Per-pair operator declarations state only the carrier operations this first
 // package actually serves. They do not impose arithmetic on every carrier that
-// may participate in Quantity<U>. Their `spelling` clauses are temporary
-// bootstrap bindings pending `FIXED-OPERATOR-SURFACE-BINDING`, not accepted
-// source syntax.
+// may participate in Quantity<U>. The settled source head writes the literal
+// token immediately after `operator`; these retained `spelling` clauses are
+// bootstrap compatibility syntax pending the mechanical parser/corpus
+// migration.
 operator Quantity::add_i64_meters(
     left: i64 in Quantity<Units::METER>,
     right: i64 in Quantity<Units::METER>

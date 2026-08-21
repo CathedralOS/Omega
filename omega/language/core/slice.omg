@@ -11,9 +11,9 @@
 // - mutable views carry the same overlap and borrow obligations as their
 //   source owner.
 //
-// The `spelling` clauses below are temporary bootstrap bindings. Owner Q1
-// remains authoritative for the eventual source form; `spelling` is not an
-// accepted language keyword.
+// The settled source head writes the literal token immediately after
+// `operator`. The `spelling` clauses below are bootstrap compatibility syntax
+// pending the mechanical parser/corpus migration, not accepted final syntax.
 
 // Boundary primitive provider for slice indexing/subslicing (Wave 0 #4).
 provider omega::language::core::slice_indexing : SliceIndexing;

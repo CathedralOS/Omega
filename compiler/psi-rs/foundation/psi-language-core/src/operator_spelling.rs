@@ -1,13 +1,12 @@
 //! Fixed operator-token identities and boundary provider categories.
 //!
-//! The token set and operand-directed semantics are settled. The source clause
-//! binding one of these tokens to a named declaration is not: the parser's
-//! current `spelling` clause is temporary bootstrap syntax pending
-//! `FIXED-OPERATOR-SURFACE-BINDING`.
+//! The token set and operand-directed semantics are settled. The source head
+//! writes the literal token immediately after `operator`; the parser's current
+//! `spelling` clause remains temporary bootstrap syntax pending migration.
 
 /// The legal fixed operator tokens. A named operator may be associated with
 /// one token; receiver/operand machinery then picks the unique candidate. The
-/// source form for that association is deliberately not defined here.
+/// canonical source form places that token in the operator declaration head.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum OperatorSpelling {
     Add,

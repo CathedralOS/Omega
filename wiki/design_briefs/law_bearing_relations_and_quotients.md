@@ -546,9 +546,9 @@ derived `Respects` bridge. There is no second witness-selection mechanism.
 
 Quotient formation never binds this operation to the fixed `==` token. The
 operation is an ordinary named declaration, and the token association uses the
-general fixed-operator surface chosen by
-[Owner Q1](../../OWNER_QUESTIONS.md#q1--fixed-operator-surface-binding-syntax).
-Until that binding exists, callers use the named operation.
+general [fixed-operator declaration
+surface](../language_guide/chapter_5_expressions_evaluation.md#operators):
+`operator == Rational::equals(...)`. Callers may always use the named operation.
 
 Other observer roles follow the same two-layer rule without sharing one false
 generic law: `Respects` proves representative independence, while a
@@ -754,8 +754,8 @@ Acceptance requires:
     and synthesizes no representation-derived equality, ordering, hashing,
     serialization, reflection, or pattern operation;
 14. executable equality requires a quotient-owned operation whose
-    `DecidesEquivalence` proof is sound and complete, while its fixed `==`
-    spelling remains the general operator-binding question;
+    `DecidesEquivalence` proof is sound and complete, with any fixed `==`
+    surface bound through the ordinary operator declaration head;
 15. initial lifts reject effectful/nonterminating representative machines and
     carriers containing non-copy or owned/routed custody;
 16. a generic conformance is selected through one nested application with all

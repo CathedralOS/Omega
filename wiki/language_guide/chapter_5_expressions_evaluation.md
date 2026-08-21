@@ -119,20 +119,35 @@ not as syntax with a completely separate meaning model. In that sense,
 operation for the operand meaning in scope.
 
 A fixed operator token such as `+`, `[]`, or the range slice `[..]` resolves to
-a named `operator` declaration. The named path stays the canonical identity;
-the exact source form that binds the token to it is open in
-[Owner Q1](../../OWNER_QUESTIONS.md#q1--fixed-operator-surface-binding-syntax).
-In particular, `spelling` is not an accepted keyword.
+a named `operator` declaration. A declaration that binds a fixed token writes
+that literal token immediately after `operator` and before its descriptive
+path:
 
 ```omega
-operator i32::add(left: i32, right: i32) -> i32;
-// Intended fixed surface token: + (binding syntax open in Owner Q1).
+operator + i32::add(left: i32, right: i32) -> i32;
 ```
+
+The token comes from a closed compiler-owned vocabulary with fixed lexical
+spelling, precedence, associativity, fixity, allowed arities, and source-position
+mapping. It is not a string, name, or user-defined punctuation sequence. The
+resolved declaration -- its path plus normalized signature/overload identity --
+remains canonical. Checked and terminal calls retain that declaration rather
+than a bare token, while the token binding remains public source-compatibility
+surface. Adding, removing, or changing it is a breaking source revision.
+
+One declaration binds at most one fixed token. Several declarations may bind
+the same token when their normalized operand/domain shapes distinguish them;
+unary and binary `-`, or `f32` and `f64` `+`, are ordinary separate
+declarations. Two participating declarations with the same token and operand
+shape are ambiguous and reject. A second surface spelling requires a second
+declaration, which may forward to the same implementation. A named `operator`
+with no fixed-token surface remains callable by its path.
 
 So `left + right` resolves to `i32::add` for `i32` operands. The public
 signature and any proof obligations stay visible on the declaration; only the
 primitive lowering hides behind `boundary` when the operator is a boundary
-operator.
+operator. The former `spelling` clause is retired bootstrap syntax, not an
+alternate accepted form.
 
 This model also applies to privileged syntax. `items[index]` should be
 understood as an indexing operator, not as raw pointer syntax. `items[1..]`
@@ -141,25 +156,61 @@ should be understood as a range-slice operator. Both resolve to a spelled core
 obligation:
 
 ```omega
-boundary operator Slice::index<T>(items: &[T], index: u64) -> T
+boundary operator [] Slice::index<T>(items: &[T], index: u64) -> T
 requires
     index < items.len;
 
-boundary operator Slice::range<T>(items: &[T], start: u64, end: u64) -> &[T]
+boundary operator [..] Slice::range<T>(items: &[T], start: u64, end: u64) -> &[T]
 requires
     start <= end && end <= items.len;
 ```
-
-These declarations are intended to back `[]` and `[..]`, respectively; their
-source-level binding syntax is deliberately omitted pending Owner Q1.
 
 Those operators have a semantic home that users and tools can inspect, while
 their boundary primitive implementation is bound through the compiler/runtime
 layer.
 
+An operator may use an attached receiver or explicit operands. `self` is a
+distinguished receiver with ordinary ownership meaning, not merely shorthand
+for the enclosing type:
+
+```omega
+operator + Vec2::add(self, right: Vec2) -> Vec2;
+operator == Vec2::equals(&self, other: &Vec2) -> bool;
+operator + Float::add(left: f32, right: f32) -> f32;
+```
+
+The receiver occupies normalized position zero; without one, the first
+ordinary parameter does. Fixed-token resolution uses the resulting complete
+operand telescope, so attached and static/free declarations share one model.
+`+` may consume or borrow its operands while producing a new value; mutation
+comes from an `&mut self` or other mutable operand on an operation whose fixed
+token admits that shape, not from being an operator.
+
+Trait requirements may themselves declare an operator binding:
+
+```omega
+trait Ranked<T> {
+    operator < compare(left: T, right: T) -> bool;
+}
+```
+
+Conformances supply that requirement's implementation and never rebind its
+token. A trait-backed token use requires one exact conformance already selected
+by an explicit proof-static binder in the surrounding machine. It never picks
+the only visible conformance. No selected binder rejects even when one matching
+conformance is visible; several applicable binders are ambiguous. The named
+requirement call with an explicit conformance application is the escape.
+
+A concrete type may publish one direct wrapper as its canonical token meaning,
+but a second wrapper over the same token and operand shape rejects. Other
+meaningful conformances remain available permanently through named explicit
+calls. Direct core and user operators such as integer addition require no
+conformance selection.
+
 This chapter only defines ordinary evaluation. Domain-sensitive operator
-resolution, if Omega adopts it, belongs to the domains chapter because it
-depends on proved semantic facts rather than raw expression syntax.
+resolution belongs to the domains chapter because it depends on statically
+selected semantic qualifications rather than raw expression syntax or
+flow-established facts.
 
 ## Core Collections And Views
 
@@ -266,30 +317,27 @@ The visible core declaration should therefore look like a normal contract on a
 `boundary operator`:
 
 ```omega
-boundary operator Array::index<T>(items: &Array<T>, index: u64) -> T
+boundary operator [] Array::index<T>(items: &Array<T>, index: u64) -> T
 requires
     index < items.len;
 
-boundary operator Vec::index<T>(items: &Vec<T>, index: u64) -> T
+boundary operator [] Vec::index<T>(items: &Vec<T>, index: u64) -> T
 requires
     index < items.len;
 
-boundary operator Slice::index_mut<T>(items: &mut [T], index: u64) -> &mut T
+boundary operator [] Slice::index_mut<T>(items: &mut [T], index: u64) -> &mut T
 requires
     index < items.len;
 
-boundary operator Slice::range_mut<T>(items: &mut [T], start: u64, end: u64) -> &mut [T]
+boundary operator [..] Slice::range_mut<T>(items: &mut [T], start: u64, end: u64) -> &mut [T]
 requires
     start <= end && end <= items.len;
 
-boundary operator Slice::from<T>(items: &[T], start: u64) -> &[T]
+boundary operator [..] Slice::from<T>(items: &[T], start: u64) -> &[T]
 requires
     start <= items.len;
 
 ```
-
-The first three declarations are intended to back `[]` and `range_mut` is
-intended to back `[..]`; the binding syntax remains Owner Q1.
 
 The proof checker owns `start <= items.len`. The boundary primitive owns the
 descriptor/pointer rewrite that actually constructs the narrower view.

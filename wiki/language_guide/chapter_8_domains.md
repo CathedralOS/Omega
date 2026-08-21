@@ -802,15 +802,15 @@ degrees:
 domain i32::Degrees
     requires self >= 0 && self < 360;
 
-operator add(
+operator + add(
     left: i32::Degrees,
     right: i32::Degrees
 ) -> sum: i32::Degrees
     ensures degree_sum(left, right, sum);
 ```
 
-This operator is intended to back `+`; the source binding syntax is open in
-[Owner Q1](../../OWNER_QUESTIONS.md#q1--fixed-operator-surface-binding-syntax).
+The literal `+` in the declaration head binds the fixed token. The descriptive
+path and normalized signature remain the operator's canonical identity.
 
 `45 as i32::Degrees` is accepted when the prover discharges the
 predicate. An arbitrary runtime integer uses an ordinary checked machine such
@@ -868,22 +868,17 @@ operators, but with one extra axis: the semantic domains selected on operand
 bindings determine which domain-owned meanings participate.
 
 A fixed operator token resolves to a named `operator`, which carries the full
-signature and proof contract. The exact declaration syntax for that association
-is open in
-[Owner Q1](../../OWNER_QUESTIONS.md#q1--fixed-operator-surface-binding-syntax);
-`spelling` is not an accepted keyword.
+signature and proof contract. The declaration writes one optional fixed token
+immediately after `operator`; `spelling` is retired bootstrap syntax.
 
 ```omega
 domain Quantity::Additive;
 
-operator Quantity::Additive::add(
+operator + Quantity::Additive::add(
     left: Quantity,
     right: Quantity,
 ) -> Quantity;
 ```
-
-The declaration is intended to back `+`; its token-binding syntax is omitted
-pending Owner Q1.
 
 Operators associated with a domain remain ordinary named declarations; the
 domain body is reserved for establishment routes. An exact qualified name such
@@ -898,8 +893,10 @@ same-carrier declarations may coexist.
 
 Decided model:
 
-- Fixed operator tokens resolve to named `operator` declarations; their exact
-  source binding syntax remains Owner Q1.
+- Fixed operator tokens resolve to named `operator` declarations. One literal
+  compiler-owned token may appear immediately after `operator`; each
+  declaration binds at most one token, while distinguishable declarations may
+  bind the same token.
 - Core types such as `Slice`, `Array`, and `Vec` can expose
   operator definitions whose implementations are bound to boundary primitive
   compiler/runtime operations below the public core surface.
@@ -910,7 +907,7 @@ Decided model:
   flow-established membership.
 - Resolution must be static and unambiguous, over the complete operand-domain
   tuple. Commutative flips are one-line delegations
-  (`operator add(left: Metres, right: Km) -> Km = add(right, left);`).
+  (`operator + add(left: Metres, right: Km) -> Km = add(right, left);`).
 - **Coherence.** Operator families are closed by default; an open family
   declares a designated dispatch-owner position (one owner per implementation
   key, killing independent sibling claims on the same cross-domain tuple).
@@ -1103,12 +1100,12 @@ always fine. The only operation that can break UTF-8 is re-slicing, so the proof
 obligation lives on `slice`, in the open:
 
 ```omega
-operator concat(left: Slice<u8>::Utf8, right: Slice<u8>::Utf8)
-    -> Slice<u8>::Utf8; // intended token: +; preserves UTF-8
+operator + concat(left: Slice<u8>::Utf8, right: Slice<u8>::Utf8)
+    -> Slice<u8>::Utf8; // preserves UTF-8
 
-operator slice(s: Slice<u8>::Utf8, range: Range) -> Slice<u8>::Utf8
+operator [] slice(s: Slice<u8>::Utf8, range: Range) -> Slice<u8>::Utf8
     requires char_boundary(s, range.start) && char_boundary(s, range.end);
-    // intended token: []; cannot cut mid-codepoint
+    // cannot cut mid-codepoint
 ```
 
 "The operation exists, its contract stops misuse" replaces "the operation is
@@ -1305,7 +1302,7 @@ Working interpretation:
 - `if x in Type::Domain` is a full executable domain check when the domain is
   runtime-checkable.
 - Fixed operator tokens resolve to named `operator` declarations, including
-  domain operators; their source binding syntax remains Owner Q1.
+  domain operators; the literal token occupies the declaration head.
 - Static semantic roles selected at a binding site (declaration, explicit
   qualification, or `requires`) participate in operator resolution;
   flow-established knowledge never changes operator meaning.
