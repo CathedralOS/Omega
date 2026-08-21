@@ -1656,6 +1656,49 @@ machine build(builder: &mut Build) {
         bridge.continuation_text_size()
     );
     assert_eq!(emitted.final_call_bytes()[0], 0xe8);
+    let arrival = emitted.arrival();
+    assert_eq!(arrival.target(), omega_target::NativeTarget::uefi_x64());
+    assert_eq!(arrival.wrapper_identity(), wrapper_identity);
+    assert_eq!(
+        arrival.boundary_contract_fingerprint(),
+        bridge.binding().boundary_contract_fingerprint()
+    );
+    let [image_arrival, storage_arrival] = arrival.roots();
+    assert_eq!(
+        image_arrival.role(),
+        omega_compiler::ProgramStorageEntryRootRole::Image
+    );
+    assert_eq!(image_arrival.arrival_parameter_index(), 0);
+    assert_eq!(
+        image_arrival.physical_arrival_placement(),
+        bridge.wrapper_transfer().roots()[0].physical_arrival_placement()
+    );
+    assert_eq!(image_arrival.copies()[0].source_byte_offset(), 0);
+    assert_eq!(
+        image_arrival.copies()[1].caller_copy_stack_byte_offset(),
+        40
+    );
+    assert_eq!(image_arrival.copies()[0].final_bytes().len(), 15);
+    assert_eq!(
+        storage_arrival.role(),
+        omega_compiler::ProgramStorageEntryRootRole::InitialStorage
+    );
+    assert_eq!(storage_arrival.arrival_parameter_index(), 1);
+    assert_eq!(storage_arrival.copies()[0].source_byte_offset(), 0);
+    assert_eq!(
+        storage_arrival.copies()[1].caller_copy_stack_byte_offset(),
+        56
+    );
+    for root in arrival.roots() {
+        assert!(
+            root.copies()[0].section_byte_range().end
+                <= root.copies()[1].section_byte_range().start
+        );
+        assert_ne!(
+            root.copies()[0].selected_instruction_index(),
+            root.copies()[1].selected_instruction_index()
+        );
+    }
     let expected_displacement = i32::try_from(emitted.continuation_section_offset()).unwrap()
         - i32::try_from(emitted.call_section_offset() + emitted.final_call_bytes().len()).unwrap();
     assert_eq!(
@@ -1677,6 +1720,9 @@ machine build(builder: &mut Build) {
         .expect("written bridge manifest");
     assert!(entry_manifest.contains("\"emitted_wrapper_evidence\": {"));
     assert!(entry_manifest.contains("\"final_call_bytes\": [232,"));
+    assert!(entry_manifest.contains("\"physical_arrival\": {"));
+    assert!(entry_manifest.contains("\"pointer_register\": \"X86Rcx\""));
+    assert!(entry_manifest.contains("\"pointer_register\": \"X86Rdx\""));
     assert!(entry_manifest.contains("\"status\": \"pending_runtime_installation\""));
     let installation = install_program_storage_entry_roots(
         &build_dir,

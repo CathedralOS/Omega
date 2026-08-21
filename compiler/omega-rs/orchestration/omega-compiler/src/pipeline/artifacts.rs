@@ -635,7 +635,9 @@ fn program_storage_entry_manifest_json(
             }
             output.push_str(&byte.to_string());
         }
-        output.push_str("], \"compiler_text_derivation_fingerprint\": \"");
+        output.push_str("], \"physical_arrival\": ");
+        push_program_storage_arrival_json(&mut output, evidence.arrival());
+        output.push_str(", \"compiler_text_derivation_fingerprint\": \"");
         push_normalized_identity(
             &mut output,
             evidence.compiler_text_validation().derivation_fingerprint,
@@ -658,6 +660,82 @@ fn program_storage_entry_manifest_json(
         ",\n  \"runtime_installation\": {\n    \"status\": \"required\",\n    \"geometry_source\": \"selected_entry_provider\",\n    \"predicate\": \"no_wrap\",\n    \"admission_order\": \"validate_geometry_and_receiver_reservation_before_consuming_either_grant\"\n  }\n}\n",
     );
     output
+}
+
+fn push_program_storage_arrival_json(
+    output: &mut String,
+    evidence: &super::ProgramStorageEntryEmittedArrivalEvidence,
+) {
+    use omega_calling_conventions::{IndirectPointerLocation, ValueLocation};
+
+    output.push_str("{\"calling_plan_fingerprint\": \"");
+    push_normalized_identity(output, evidence.boundary_contract_fingerprint());
+    output.push_str("\", \"roots\": [");
+    for (root_index, root) in evidence.roots().iter().enumerate() {
+        if root_index > 0 {
+            output.push_str(", ");
+        }
+        let role = match root.role() {
+            super::ProgramStorageEntryRootRole::Image => "image",
+            super::ProgramStorageEntryRootRole::InitialStorage => "initial_storage",
+        };
+        output.push_str("{\"role\": ");
+        push_json_string(output, role);
+        output.push_str(", \"parameter_index\": ");
+        output.push_str(&root.arrival_parameter_index().to_string());
+        let [
+            ValueLocation::Indirect {
+                pointer,
+                copy_stack_byte_offset,
+                byte_size,
+                alignment,
+            },
+        ] = root.physical_arrival_placement().locations.as_slice()
+        else {
+            unreachable!("sealed emitted arrival evidence has one indirect placement")
+        };
+        let IndirectPointerLocation::Register(register) = pointer else {
+            unreachable!("sealed emitted arrival evidence uses an indirect register")
+        };
+        output.push_str(", \"pointer_register\": ");
+        push_json_string(output, &format!("{register:?}"));
+        output.push_str(", \"caller_copy_stack_byte_offset\": ");
+        output.push_str(
+            &copy_stack_byte_offset
+                .expect("sealed emitted arrival evidence has a caller copy")
+                .to_string(),
+        );
+        output.push_str(", \"byte_size\": ");
+        output.push_str(&byte_size.to_string());
+        output.push_str(", \"alignment\": ");
+        output.push_str(&alignment.to_string());
+        output.push_str(", \"copies\": [");
+        for (copy_index, copy) in root.copies().iter().enumerate() {
+            if copy_index > 0 {
+                output.push_str(", ");
+            }
+            output.push_str("{\"source_byte_offset\": ");
+            output.push_str(&copy.source_byte_offset().to_string());
+            output.push_str(", \"stack_byte_offset\": ");
+            output.push_str(&copy.caller_copy_stack_byte_offset().to_string());
+            output.push_str(", \"selected_instruction_index\": ");
+            output.push_str(&copy.selected_instruction_index().to_string());
+            output.push_str(", \"section_byte_range\": [");
+            output.push_str(&copy.section_byte_range().start.to_string());
+            output.push_str(", ");
+            output.push_str(&copy.section_byte_range().end.to_string());
+            output.push_str("], \"final_bytes\": [");
+            for (byte_index, byte) in copy.final_bytes().iter().enumerate() {
+                if byte_index > 0 {
+                    output.push_str(", ");
+                }
+                output.push_str(&byte.to_string());
+            }
+            output.push_str("]}");
+        }
+        output.push_str("]}");
+    }
+    output.push_str("]}");
 }
 
 fn push_program_storage_parameter_json(

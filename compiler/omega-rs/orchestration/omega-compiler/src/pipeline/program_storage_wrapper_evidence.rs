@@ -28,6 +28,7 @@ pub struct ProgramStorageEntryEmittedWrapperEvidence {
     continuation_byte_fingerprint: u64,
     call_section_offset: usize,
     final_call_bytes: [u8; 5],
+    arrival: super::program_storage_wrapper_arrival::ProgramStorageEntryEmittedArrivalEvidence,
     compiler_text_validation: CompilerTextValidationEvidence,
     compiler_function_validation: CompilerFunctionValidationEvidence,
     executable_inventory_fingerprint: u64,
@@ -88,6 +89,14 @@ impl ProgramStorageEntryEmittedWrapperEvidence {
 
     pub const fn final_call_bytes(&self) -> &[u8; 5] {
         &self.final_call_bytes
+    }
+
+    /// Exact final wrapper rows that consume the retained physical arrival
+    /// placements. This remains compile-time image evidence only.
+    pub const fn arrival(
+        &self,
+    ) -> &super::program_storage_wrapper_arrival::ProgramStorageEntryEmittedArrivalEvidence {
+        &self.arrival
     }
 
     pub const fn compiler_text_validation(&self) -> CompilerTextValidationEvidence {
@@ -224,6 +233,11 @@ pub(super) fn bind_final_program_storage_entry_wrapper_evidence(
         continuation_symbol.offset,
         call_section_offset,
     )?;
+    let arrival = super::program_storage_wrapper_arrival::bind_final_program_storage_entry_wrapper_arrival_evidence(
+        bridge,
+        backend,
+        image,
+    )?;
 
     Ok(ProgramStorageEntryEmittedWrapperEvidence {
         wrapper_identity: template.wrapper_identity(),
@@ -240,6 +254,7 @@ pub(super) fn bind_final_program_storage_entry_wrapper_evidence(
         continuation_byte_fingerprint: continuation_region.byte_fingerprint,
         call_section_offset,
         final_call_bytes: expected_call,
+        arrival,
         compiler_text_validation,
         compiler_function_validation,
         executable_inventory_fingerprint: image.executable_regions.inventory_fingerprint,

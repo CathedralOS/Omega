@@ -22,6 +22,7 @@ mod program_storage_root_argument_binding;
 mod program_storage_root_authority;
 mod program_storage_source_call;
 mod program_storage_wrapper;
+mod program_storage_wrapper_arrival;
 mod program_storage_wrapper_body;
 mod program_storage_wrapper_evidence;
 mod program_storage_wrapper_frame;
@@ -113,6 +114,10 @@ pub use program_storage_source_call::{
 pub use program_storage_wrapper::{
     ProgramStorageEntryRootRole, ProgramStorageEntryWrapperReceiverTransfer,
     ProgramStorageEntryWrapperRootTransferPlan, ProgramStorageEntryWrapperTransferPlan,
+};
+pub use program_storage_wrapper_arrival::{
+    ProgramStorageEntryEmittedArrivalCopyEvidence, ProgramStorageEntryEmittedArrivalEvidence,
+    ProgramStorageEntryEmittedArrivalRootEvidence,
 };
 pub use program_storage_wrapper_body::{
     ProgramStorageEntryWrapperBodyTemplatePlan, ProgramStorageEntryWrapperBodyTemplateStep,
