@@ -132,12 +132,18 @@ fn reject_quotient_operation_requests(program: &TypedTrees, diagnostics: &mut Ve
                 match relation_plan::derive_direct_terminal_plan(
                     program, machine, state, call, request,
                 ) {
-                    Ok(plan) => diagnostics.push(Diagnostic::error(format!(
-                        "`Quotient::{operation}` has compiler-derived direct-terminal relations {} and {} plus exact representative telescope {}, but executable quotient operations are not admitted until positional correspondence, the selected `Respects` contract, and normalized result flow are independently checked",
-                        plan.render_ra(program),
-                        plan.render_rr(program),
-                        plan.render_representative_telescope(program),
-                    ))),
+                    Ok(plan) => {
+                        let correspondence = plan
+                            .render_define_correspondence()
+                            .map(|value| format!(" plus exact {value}"))
+                            .unwrap_or_default();
+                        diagnostics.push(Diagnostic::error(format!(
+                            "`Quotient::{operation}` has compiler-derived direct-terminal relations {} and {} plus exact representative telescope {}{correspondence}, but executable quotient operations are not admitted until complete operation/static correspondence, the selected `Respects` contract, and normalized result flow are independently checked",
+                            plan.render_ra(program),
+                            plan.render_rr(program),
+                            plan.render_representative_telescope(program),
+                        )))
+                    }
                     Err(reason) => diagnostics.push(Diagnostic::error(format!(
                         "`Quotient::{operation}` retains its exact representative operation and named conformance, but its direct-terminal relation plan is unresolved ({reason}); executable quotient operations are not admitted",
                     ))),
