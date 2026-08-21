@@ -1309,9 +1309,11 @@ Owners:
   private identities reject before instruction selection.
   The symbol is planned object identity only and never an Omega value. Function
   identity now survives assigned operations, machine instructions, encoded
-  bytes, and exact object-entry selection. Image emission fails closed until
-  every planned callback owns one exact encoded function and one matching
-  private text symbol; a plan row can no longer be mistaken for emitted thunk
+  bytes, and exact object-entry selection. Image emission requires a valid
+  selected-entry `StateKey`; the private symbol must globally name exactly one
+  encoded function with that key and exactly one matching private text symbol
+  with the same interval. Missing, duplicate, redirected, or interval-drifted
+  identities reject, so a plan row cannot be mistaken for emitted thunk
   evidence. The remaining slices are resource-ceiling aggregation,
   multi-entry/re-entrant target instruction lowering, and the
   private registration relocation (whose binding placement is design-blocked

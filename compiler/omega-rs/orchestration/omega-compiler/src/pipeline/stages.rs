@@ -560,25 +560,46 @@ fn retain_callback_thunk_emission_blockers(
     object: &omega_object_file::ObjectPlan,
 ) {
     for thunk in callback_thunks {
-        let encoded = encoded_machine
-            .code
-            .functions
-            .iter()
-            .find_map(|(_, function)| {
-                (function.symbol.as_ref() == thunk.private_symbol.as_ref()
-                    && function.source_key == thunk.entry_key)
-                    .then_some(function)
-            });
-        let Some(encoded) = encoded else {
+        if !thunk.entry_key.is_valid() {
             emission.blockers.insert(omega_artifacts::emission_blocker(
                 "callback thunk emission",
                 &format!(
-                    "planned private callback `{}` has no exact encoded function for {:?}",
-                    thunk.private_symbol, thunk.entry_key
+                    "planned private callback `{}` has an invalid selected-entry key",
+                    thunk.private_symbol
                 ),
             ));
             continue;
-        };
+        }
+
+        let encoded_functions = encoded_machine
+            .code
+            .functions
+            .iter()
+            .filter(|(_, function)| function.symbol.as_ref() == thunk.private_symbol.as_ref())
+            .map(|(_, function)| function)
+            .collect::<Vec<_>>();
+        if encoded_functions.len() != 1 {
+            emission.blockers.insert(omega_artifacts::emission_blocker(
+                "callback thunk emission",
+                &format!(
+                    "planned private callback `{}` resolves to {} encoded functions; exactly one is required",
+                    thunk.private_symbol,
+                    encoded_functions.len()
+                ),
+            ));
+            continue;
+        }
+        let encoded = encoded_functions[0];
+        if encoded.source_key != thunk.entry_key {
+            emission.blockers.insert(omega_artifacts::emission_blocker(
+                "callback thunk emission",
+                &format!(
+                    "planned private callback `{}` encoded function targets {:?}, not its selected entry {:?}",
+                    thunk.private_symbol, encoded.source_key, thunk.entry_key
+                ),
+            ));
+            continue;
+        }
 
         let symbols = object
             .layout
@@ -694,7 +715,10 @@ fn record_backend_phase_as_stage(
 mod tests {
     use super::*;
     use omega_control_flow::StateKey;
+    use psi_symbols::SymbolHandle;
     use std::sync::Arc;
+
+    const CALLBACK_SYMBOL: &str = "__omega_callback_test";
 
     fn empty_emission(target: NativeTarget) -> omega_artifacts::EmissionPlan {
         omega_artifacts::EmissionPlan {
@@ -714,58 +738,157 @@ mod tests {
         }
     }
 
-    #[test]
-    fn callback_thunk_emission_requires_exact_function_and_private_symbol() {
-        let target = NativeTarget::host();
-        let entry_key = StateKey::default();
-        let thunk = omega_backend_plan::CallbackThunkPlan {
+    fn state_key(state: u32) -> StateKey {
+        StateKey {
+            machine: SymbolHandle::from_arena_index(1),
+            state: SymbolHandle::from_arena_index(state),
+            segment_index: 0,
+        }
+    }
+
+    fn thunk(entry_key: StateKey) -> omega_backend_plan::CallbackThunkPlan {
+        omega_backend_plan::CallbackThunkPlan {
             placement_index: 0,
             entry_key,
-            private_symbol: Arc::from("__omega_callback_test"),
-        };
-        let mut encoded = omega_machine_bytes::EncodedMachinePlan::with_capacity(target, 1, 0, 0);
+            private_symbol: Arc::from(CALLBACK_SYMBOL),
+        }
+    }
+
+    fn encoded_machine(
+        target: NativeTarget,
+        keys: &[StateKey],
+    ) -> omega_machine_bytes::EncodedMachinePlan {
+        let mut encoded =
+            omega_machine_bytes::EncodedMachinePlan::with_capacity(target, keys.len(), 0, 0);
+        for key in keys {
+            encoded
+                .code
+                .functions
+                .insert(omega_machine_bytes::EncodedMachineFunction {
+                    symbol: Arc::from(CALLBACK_SYMBOL),
+                    source_key: *key,
+                    byte_offset: 7,
+                    byte_count: 11,
+                    instructions: Default::default(),
+                });
+        }
         encoded
-            .code
-            .functions
-            .insert(omega_machine_bytes::EncodedMachineFunction {
-                symbol: Arc::clone(&thunk.private_symbol),
-                source_key: entry_key,
-                byte_offset: 7,
-                byte_count: 11,
-                instructions: Default::default(),
+    }
+
+    fn object_with_symbols(
+        target: NativeTarget,
+        symbols: &[(usize, usize)],
+    ) -> omega_object_file::ObjectPlan {
+        let mut object = omega_object_file::ObjectPlan::with_capacity(target, 0, symbols.len());
+        for (offset, size) in symbols {
+            object.layout.symbols.insert(omega_object_file::SymbolPlan {
+                name: CALLBACK_SYMBOL.into(),
+                section: omega_object_file::SymbolSection::Section(
+                    omega_object_file::SectionKind::Text,
+                ),
+                offset: *offset,
+                size: *size,
+                kind: omega_object_file::SymbolKind::Function,
+                import_library: String::new(),
             });
-        let mut object = omega_object_file::ObjectPlan::with_capacity(target, 0, 1);
-        object.layout.symbols.insert(omega_object_file::SymbolPlan {
-            name: thunk.private_symbol.to_string(),
-            section: omega_object_file::SymbolSection::Section(
-                omega_object_file::SectionKind::Text,
-            ),
-            offset: 7,
-            size: 11,
-            kind: omega_object_file::SymbolKind::Function,
-            import_library: String::new(),
-        });
-        let mut emission = empty_emission(target);
+        }
+        object
+    }
 
+    fn callback_blockers(
+        thunk: &omega_backend_plan::CallbackThunkPlan,
+        encoded: &omega_machine_bytes::EncodedMachinePlan,
+        object: &omega_object_file::ObjectPlan,
+    ) -> Vec<String> {
+        let mut emission = empty_emission(encoded.target);
         retain_callback_thunk_emission_blockers(
             &mut emission,
-            std::slice::from_ref(&thunk),
-            &encoded,
-            &object,
+            std::slice::from_ref(thunk),
+            encoded,
+            object,
         );
-        assert!(emission.blockers.is_empty());
+        emission
+            .blockers
+            .iter()
+            .map(|(_, blocker)| blocker.reason.clone())
+            .collect()
+    }
 
-        encoded.code.functions = psi_arena::Arena::new();
-        retain_callback_thunk_emission_blockers(
-            &mut emission,
-            std::slice::from_ref(&thunk),
-            &encoded,
-            &object,
+    #[test]
+    fn callback_thunk_emission_accepts_one_exact_function_and_private_symbol() {
+        let target = NativeTarget::host();
+        let key = state_key(2);
+        let blockers = callback_blockers(
+            &thunk(key),
+            &encoded_machine(target, &[key]),
+            &object_with_symbols(target, &[(7, 11)]),
         );
-        let [blocker] = emission.blockers.storage_slice() else {
-            panic!("one missing callback function should retain one blocker")
-        };
-        assert_eq!(blocker.stage, "callback thunk emission");
-        assert!(blocker.reason.contains("no exact encoded function"));
+        assert!(blockers.is_empty(), "{blockers:?}");
+    }
+
+    #[test]
+    fn callback_thunk_emission_rejects_invalid_or_redirected_entry_keys() {
+        let target = NativeTarget::host();
+        let invalid = callback_blockers(
+            &thunk(StateKey::default()),
+            &encoded_machine(target, &[state_key(2)]),
+            &object_with_symbols(target, &[(7, 11)]),
+        );
+        assert_eq!(invalid.len(), 1);
+        assert!(invalid[0].contains("invalid selected-entry key"));
+
+        let redirected = callback_blockers(
+            &thunk(state_key(2)),
+            &encoded_machine(target, &[state_key(3)]),
+            &object_with_symbols(target, &[(7, 11)]),
+        );
+        assert_eq!(redirected.len(), 1);
+        assert!(redirected[0].contains("not its selected entry"));
+    }
+
+    #[test]
+    fn callback_thunk_emission_rejects_missing_or_duplicate_encoded_symbols() {
+        let target = NativeTarget::host();
+        let key = state_key(2);
+        let object = object_with_symbols(target, &[(7, 11)]);
+
+        let missing = callback_blockers(&thunk(key), &encoded_machine(target, &[]), &object);
+        assert_eq!(missing.len(), 1);
+        assert!(missing[0].contains("resolves to 0 encoded functions"));
+
+        for duplicate_keys in [[key, key], [key, state_key(3)]] {
+            let duplicate = callback_blockers(
+                &thunk(key),
+                &encoded_machine(target, &duplicate_keys),
+                &object,
+            );
+            assert_eq!(duplicate.len(), 1);
+            assert!(duplicate[0].contains("resolves to 2 encoded functions"));
+        }
+    }
+
+    #[test]
+    fn callback_thunk_emission_rejects_object_cardinality_or_interval_drift() {
+        let target = NativeTarget::host();
+        let key = state_key(2);
+        let encoded = encoded_machine(target, &[key]);
+
+        for symbols in [Vec::new(), vec![(7, 11), (7, 11)]] {
+            let blockers = callback_blockers(
+                &thunk(key),
+                &encoded,
+                &object_with_symbols(target, &symbols),
+            );
+            assert_eq!(blockers.len(), 1);
+            assert!(blockers[0].contains("object symbols; exactly one is required"));
+        }
+
+        let drifted = callback_blockers(
+            &thunk(key),
+            &encoded,
+            &object_with_symbols(target, &[(7, 10)]),
+        );
+        assert_eq!(drifted.len(), 1);
+        assert!(drifted[0].contains("does not match its encoded function interval"));
     }
 }
