@@ -466,7 +466,7 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
                 }
                 fields.push(field);
             }
-            (!fields.is_empty()).then_some(fields)
+            Some(fields)
         }
 
         fn lower_whole_record_equality(
@@ -571,7 +571,9 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
                 &mut Vec::new(),
             )?;
             let mut comparisons = comparisons.into_iter();
-            let first = comparisons.next()?;
+            let Some(first) = comparisons.next() else {
+                return Some(CheckedBooleanExpression::Constant(true));
+            };
             Some(
                 comparisons.fold(first, |left, right| CheckedBooleanExpression::And {
                     left: Box::new(left),

@@ -1280,8 +1280,12 @@ relevant Boolean and fixed-integer leaves becomes one flat canonical conjunction
 of typed member equalities. Each leaf keeps its left and right parameter root;
 call verification independently substitutes both roots and rejects redirecting
 either operand even when the replacement path is otherwise valid and
-same-typed. Text, float, sum/case, erased-field, empty-record, and written
-`equals` bodies remain outside this bounded terminal slice. Arithmetic over
+same-typed. A genuinely zero-member record instead normalizes equality to the
+existing Boolean `true` term; inequality uses the existing negation, and calls,
+codecs, verification, fixed fuel, and interpretation reuse that carrier. An
+all-erased record is not empty and remains fenced. Text, float, sum/case,
+erased-field, and written `equals` bodies remain outside this bounded terminal
+slice. Arithmetic over
 same-typed relevant fixed-integer members accepts Exact addition, subtraction,
 and multiplication: each member or fixed-integer-literal operand retains its
 exact checked carrier, nested operations remain typed `ExactIntegerAdd`,
