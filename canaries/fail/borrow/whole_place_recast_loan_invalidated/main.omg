@@ -1,0 +1,18 @@
+// FAIL canary (recast borrowing): a mutable whole-place recast retains the
+// source loan until the recast view's last use.
+
+data Cell {
+    value: u64;
+}
+
+machine Cell::exercise(&mut self) {
+    let view: &mut f64 = &mut self.value as &mut f64;
+    self.value = 1;
+    view = 2.0;
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

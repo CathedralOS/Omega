@@ -373,8 +373,12 @@ field/index path without merging sibling sources or weakening shared versus
 mutable polarity. A same-carrier value cast preserves the same carried loans:
 explicitly erasing a non-owning qualification cannot erase ownership, its
 source place, or its shared/mutable polarity. Borrow representation recasts
-remain subject to their separate footprint and overlap judgment. Last-use
-accounting compares the canonical field/index path, so a
+remain subject to their separate footprint and overlap judgment. A validated
+recast of a whole named value or member retains an ordinary shared or mutable
+loan on that exact source place. Indexed recasts remain conservative until the
+borrow facts can carry their complete byte footprint rather than only the
+selected source element. Last-use accounting compares the canonical
+field/index path, so a
 later use of `result.right` does not artificially keep `result.left`'s loan
 active.
 Program-static views stored in persistent aggregate fields carry their stable

@@ -1,0 +1,19 @@
+// PASS canary (recast borrowing): a whole-member recast retains the exact
+// source field loan without pinning a disjoint sibling.
+
+data Pair {
+    left: u64;
+    right: u64;
+}
+
+machine Pair::exercise(&mut self) {
+    let view: &mut f64 = &mut self.left as &mut f64;
+    self.right = 1;
+    view = 2.0;
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

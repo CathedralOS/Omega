@@ -1587,9 +1587,11 @@ checked-result arithmetic decision listed below.
   retain exact source loans, enclosing field/fixed-index paths, and polarity
   when nested inside another literal. Same-carrier denotation-preserving value
   casts also retain those loans at root and nested positions across moved,
-  helper-produced, and literal operands; representation recasts remain a
-  separate footprint judgment. Remaining computed aggregate expression forms
-  still need the same propagation law.
+  helper-produced, and literal operands. Validated shared/mutable recasts over
+  whole name/member places now publish the exact source loan too; indexed
+  byte-region recasts remain conservative until their complete target footprint
+  can enter overlap facts. Remaining computed aggregate expression forms still
+  need the same propagation law.
 - Materialize dynamic descriptors for pass-through, rebound, and escaping
   borrows from the retained exact conformance rows and declaring-trait symbol.
   Bodyless/bare requirements do not license `dyn`; ambiguous same-carrier
