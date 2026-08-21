@@ -922,7 +922,19 @@ Remaining:
   executable. Do not omit non-required state values until planning has a
   separate exact value-call dependency index. Memoize or dependency-slice the
   recursive simplifier against that index instead. The corrected full profile
-  is still about 53.1s in native compilation and 69.4s end to end.
+  is still about 53.1s in native compilation and 69.4s end to end. The backend
+  report now times state storage and state values independently while retaining
+  each planner's internal worker fan-out. On the Mandelbrot stress canary,
+  storage took about 2.1ms while state-value planning took about 27.9s; repeated
+  native wall times varied from 38.1s to 47.0s, so no speedup is claimed from
+  scheduling noise. This isolates the next profiling/optimization work to
+  helper expansion and recursive expression simplification rather than arena
+  storage or state-slot planning. A 10-second sampled profile lands in the
+  `simplify_call_expression` / `helper_state_model` recursion; its two hottest
+  leaf stacks are source-provenance `Arc` clone and drop (2,639 and 2,629
+  samples), reflecting repeated reconstruction of expression trees and their
+  identifiers. Prefer memoized normalized helper models or an indexed
+  expression recipe over changing the backing arena.
   Corpus-level bounded parallelism is viable at the harness boundary: the
   differential runner now defaults to four independent jobs with one native
   backend worker each, retains deterministic corpus-order reporting, and

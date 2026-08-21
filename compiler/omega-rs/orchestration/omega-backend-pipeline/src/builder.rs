@@ -229,27 +229,25 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
         runtime_flow: Arc::clone(&backend_plan.runtime_flow),
         state_calls: Arc::clone(&backend_plan.state_calls),
     });
-    let state_storage_workers = workers.clone();
-    let state_values_workers = workers.clone();
-    let (state_storage, state_values) =
-        record_backend_phase(&mut phase_timings, "state storage/values", || {
-            workers.join2(
-                move || {
-                    build_state_storage_plan_with_workers(
-                        state_storage_program,
-                        state_storage_context,
-                        state_storage_workers,
-                    )
-                },
-                move || {
-                    build_state_value_plan_with_workers(
-                        state_values_program,
-                        state_values_context,
-                        state_values_workers,
-                    )
-                },
-            )
-        });
+    // These planners both fan out over the shared worker pool. Running their
+    // outer calls concurrently makes the phase impossible to attribute and
+    // lets the small storage pass contend with the recursive value
+    // simplifier. Keep the planners individually parallel, but time their
+    // independent outer phases in order.
+    let state_storage = record_backend_phase(&mut phase_timings, "state storage", || {
+        build_state_storage_plan_with_workers(
+            state_storage_program,
+            state_storage_context,
+            workers.clone(),
+        )
+    });
+    let state_values = record_backend_phase(&mut phase_timings, "state values", || {
+        build_state_value_plan_with_workers(
+            state_values_program,
+            state_values_context,
+            workers.clone(),
+        )
+    });
     backend_plan.state_storage = Arc::new(state_storage);
     backend_plan.state_values = state_values;
     backend_plan.runtime_bodies = Arc::new(record_backend_phase(
