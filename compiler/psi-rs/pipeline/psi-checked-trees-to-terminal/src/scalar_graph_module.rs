@@ -1023,6 +1023,7 @@ pub(super) fn build_scalar_graph_module(
             evidence_terms: Vec::new(),
             evidence_contract_lanes: Vec::new(),
             evidence_package_invocations: Vec::new(),
+            closed_conformance_applications: Vec::new(),
             machines: vec![TerminalMachine {
                 id: terminal_machine,
                 attachment: None,

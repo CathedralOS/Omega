@@ -593,6 +593,7 @@ pub(super) fn lower_structural_unit_control_machine(
             evidence_terms: Vec::new(),
             evidence_contract_lanes: Vec::new(),
             evidence_package_invocations: Vec::new(),
+            closed_conformance_applications: Vec::new(),
             machines: vec![machine],
         },
         proof_bundle: ProofBundle::default(),

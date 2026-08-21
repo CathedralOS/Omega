@@ -84,6 +84,7 @@ use psi_terminal_verifier::{
 mod attached_unit;
 mod boolean_control;
 mod boundary_scalar_return;
+mod conformance_applications;
 mod content_conservation;
 mod crash_routes;
 mod debug_map;
@@ -112,6 +113,7 @@ use boolean_control::{
     lower_boolean_control_decision, lower_boolean_value_decision, scalar_source_block,
 };
 use boundary_scalar_return::lower_boundary_scalar_return_machine;
+use conformance_applications::lower_closed_conformance_applications;
 use content_conservation::{RESULT_STRUCTURAL_PLACE_ID, merge_content_place_declaration};
 pub use content_conservation::{
     lower_content_conservation_plan, lower_content_identity_reshuffles,
@@ -713,6 +715,12 @@ pub fn lower_machine(
         return Err(LoweringError::AmbiguousMachineName(machine_name.to_owned()));
     }
     let mut lowered = lower_selected_machine(checked, selection)?;
+    let source_machines = if selection.signature == CheckedTerminalSignatureEligibility::Eligible {
+        checked_scalar_call_closure(checked, selection.machine)?
+    } else {
+        vec![selection.machine]
+    };
+    lower_closed_conformance_applications(checked, &source_machines, &mut lowered.semantic_module)?;
     lower_and_install_evidence_artifacts(checked, selection.machine, &mut lowered)?;
     psi_terminal_verifier::validate_module(&lowered.semantic_module)
         .map_err(LoweringError::InvalidTerminalModule)?;

@@ -215,6 +215,7 @@ fn fixture() -> TerminalModule {
         evidence_terms: Vec::new(),
         evidence_contract_lanes: Vec::new(),
         evidence_package_invocations: Vec::new(),
+        closed_conformance_applications: Vec::new(),
         machines: vec![TerminalMachine {
             id: machine_id(1),
             attachment: None,

@@ -38,6 +38,93 @@ fn shared_boolean_comparison_normalization_rejects_two_runtime_sides() {
 }
 
 #[test]
+fn generic_conformance_application_crosses_terminal_scalar_closure() {
+    let source = r#"
+        trait Ranked {
+            machine Self::before(&self, other: &Self) -> bool;
+        }
+        data Card {}
+
+        FieldOrder<Element>: Element satisfies Ranked {
+            machine before(&self, other: &Element) -> bool { true }
+        }
+
+        machine choose<Element, Order: Element satisfies Ranked>(
+            left: &Element,
+            right: &Element
+        ) -> bool {
+            Order::before(left, right)
+        }
+
+        machine caller(left: &Card, right: &Card) -> bool {
+            choose<Card, FieldOrder<Card>>(left, right)
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("check");
+    let owner = checked
+        .machine_specializations
+        .iter()
+        .find(|specialization| !specialization.conformance_applications.is_empty())
+        .expect("conformance specialization")
+        .instance;
+
+    let terminal_source = r#"
+        machine terminal_root(value: bool) -> bool
+        requires true == true
+        ensures true == true
+        { value }
+    "#;
+    let tokens = Lexer::new(terminal_source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let terminal_checked = lower_typed_trees(typed).expect("check");
+    let mut lowered = lower_machine(&terminal_checked, "terminal_root").expect("lower terminal");
+    lower_closed_conformance_applications(&checked, &[owner], &mut lowered.semantic_module)
+        .expect("lower closed application");
+    psi_terminal_verifier::validate_module(&lowered.semantic_module)
+        .expect("verify closed application");
+    let [application] = lowered
+        .semantic_module
+        .closed_conformance_applications
+        .as_slice()
+    else {
+        panic!("one closed application should cross terminal lowering")
+    };
+    assert!(application.telescope.iter().any(|binding| {
+        binding.kind == psi_terminal::ClosedConformanceParameterKind::Type
+            && binding.parameter == "Element"
+            && binding.argument == "Card"
+    }));
+    assert_eq!(application.subject_identity.as_deref(), Some("Card"));
+    assert_eq!(application.rows.len(), 1);
+    assert!(
+        lowered
+            .semantic_module
+            .machines
+            .iter()
+            .any(|machine| machine.id == application.owner)
+    );
+    let bytes = psi_terminal_codec::encode_module(&lowered.semantic_module)
+        .expect("encode closed application");
+    let decoded = psi_terminal_codec::decode_module(&bytes).expect("decode closed application");
+    assert_eq!(decoded, lowered.semantic_module);
+
+    let mut redirected = decoded;
+    redirected.closed_conformance_applications[0].rows[0]
+        .realization_identity
+        .push_str("::redirected");
+    assert!(matches!(
+        psi_terminal_verifier::validate_module(&redirected),
+        Err(psi_terminal_verifier::ModuleError::ClosedConformanceFingerprintMismatch { .. })
+    ));
+}
+
+#[test]
 fn scalar_crash_disjunction_lowers_to_canonical_terminal_propositions() {
     let values = vec![
         ValueDeclaration {

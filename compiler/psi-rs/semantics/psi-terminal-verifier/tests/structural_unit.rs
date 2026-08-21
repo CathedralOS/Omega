@@ -3397,6 +3397,7 @@ fn hard_root_module() -> TerminalModule {
         evidence_terms: Vec::new(),
         evidence_contract_lanes: Vec::new(),
         evidence_package_invocations: Vec::new(),
+        closed_conformance_applications: Vec::new(),
         machines: vec![caller, callee],
     }
 }
@@ -3571,6 +3572,7 @@ fn partial_affine_field_module() -> TerminalModule {
         evidence_terms: Vec::new(),
         evidence_contract_lanes: Vec::new(),
         evidence_package_invocations: Vec::new(),
+        closed_conformance_applications: Vec::new(),
         machines: vec![caller, callee],
     }
 }
@@ -3818,6 +3820,7 @@ fn nominal_affine_module() -> TerminalModule {
         evidence_terms: Vec::new(),
         evidence_contract_lanes: Vec::new(),
         evidence_package_invocations: Vec::new(),
+        closed_conformance_applications: Vec::new(),
         machines: vec![caller, cleanup],
     }
 }

@@ -28,6 +28,20 @@ pub enum ModuleError {
         block: BlockId,
     },
     EmptyModule,
+    UnknownClosedConformanceOwner(MachineId),
+    InvalidClosedConformanceApplication {
+        owner: MachineId,
+        declaration: String,
+    },
+    DuplicateClosedConformanceApplication {
+        owner: MachineId,
+        fingerprint: u64,
+    },
+    ClosedConformanceFingerprintMismatch {
+        owner: MachineId,
+        expected: u64,
+        actual: u64,
+    },
     DuplicatePropositionDeclaration(PropositionId),
     DuplicatePropositionApplication(PropositionId),
     NonDensePropositionDeclaration {
