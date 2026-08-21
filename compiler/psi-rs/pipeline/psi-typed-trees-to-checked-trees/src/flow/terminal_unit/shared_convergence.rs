@@ -373,6 +373,7 @@ fn shared_boolean_runtime_inputs(
             )?);
             Some(inputs)
         }
+        psi_checked_trees::CheckedBooleanExpression::IeeeFloatEqual { .. } => None,
         psi_checked_trees::CheckedBooleanExpression::Parameter { .. }
         | psi_checked_trees::CheckedBooleanExpression::Local { .. }
         | psi_checked_trees::CheckedBooleanExpression::StructuralParameterField { .. } => None,

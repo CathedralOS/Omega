@@ -35,9 +35,10 @@ pub use trust_graph::{
 use psi_core::{
     CanonicalStructuralPathSegment, ClaimId, ContentAlgebra, ContentAlgebraKind,
     ContentConservation, ContentDomainId, ContentPlaceSegment, ContentPlaceVersion,
-    ContentProjectionIdentity, ContentStructuralPlace, ContentTerm, IntegerCarrier, IntegerSign,
-    IntegerType, IntegerValue, ObligationId, Proposition, PropositionError, PropositionId,
-    PsiSemanticId, ScalarTerm, ScalarType, ServiceId, StructuralPlaceKind, StructuralTypeId,
+    ContentProjectionIdentity, ContentStructuralPlace, ContentTerm, IeeeFloatFormat,
+    IeeeFloatStructuralField, IntegerCarrier, IntegerSign, IntegerType, IntegerValue, ObligationId,
+    Proposition, PropositionError, PropositionId, PsiSemanticId, ScalarTerm, ScalarType, ServiceId,
+    StructuralPlaceKind, StructuralTypeId,
 };
 use psi_terminal::{
     BindingRelevance, Block, BoundaryMachineDeclaration, ClaimContentProjection, ClaimTransfer,
@@ -65,7 +66,7 @@ use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
 
 const MAGIC: &[u8; 8] = b"PSITERM\0";
-const FORMAT_MARKER: u16 = 13;
+const FORMAT_MARKER: u16 = 14;
 const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 const MAX_PROPOSITION_DEPTH: usize = 256;
 const MAX_SCALAR_TERM_DEPTH: usize = 256;
@@ -559,7 +560,9 @@ fn validate_structural_foundation(module: &TerminalModule) -> Result<(), CodecEr
                                 "opaque structural field type must have erased relevance and a nonempty type identity",
                             );
                         }
-                        StructuralFieldType::Scalar(_) | StructuralFieldType::Structural(_)
+                        StructuralFieldType::Scalar(_)
+                        | StructuralFieldType::IeeeFloat(_)
+                        | StructuralFieldType::Structural(_)
                             if field.relevance.is_erased() =>
                         {
                             return malformed(
@@ -1234,6 +1237,12 @@ fn validate_canonical_proposition(
             validate_scalar_term_depth(left)?;
             validate_scalar_term_depth(right)
         }
+        Proposition::IeeeFloatEqual { left, right, .. } => {
+            if left > right {
+                return Err(CodecError::NonCanonicalOrder("IEEE equality operands"));
+            }
+            Ok(())
+        }
         Proposition::Conjunction(conjuncts) => {
             if conjuncts
                 .iter()
@@ -1547,6 +1556,63 @@ fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError> {
     Ok(writer.finish())
 }
 
+fn encode_ieee_float_format(writer: &mut Writer, format: IeeeFloatFormat) {
+    writer.u8(match format {
+        IeeeFloatFormat::Binary32 => 1,
+        IeeeFloatFormat::Binary64 => 2,
+    });
+}
+
+fn decode_ieee_float_format(reader: &mut Reader<'_>) -> Result<IeeeFloatFormat, CodecError> {
+    match reader.u8()? {
+        1 => Ok(IeeeFloatFormat::Binary32),
+        2 => Ok(IeeeFloatFormat::Binary64),
+        tag => Err(CodecError::InvalidTag("IeeeFloatFormat", tag)),
+    }
+}
+
+fn encode_ieee_float_field(
+    writer: &mut Writer,
+    field: &IeeeFloatStructuralField,
+) -> Result<(), CodecError> {
+    writer.id(field.root());
+    writer.len("IEEE float field path", field.path().len())?;
+    for segment in field.path() {
+        match segment {
+            CanonicalStructuralPathSegment::Field(field) => {
+                writer.u8(1);
+                writer.id(*field);
+            }
+            CanonicalStructuralPathSegment::FixedIndex(index) => {
+                writer.u8(2);
+                writer.u64(*index);
+            }
+        }
+    }
+    Ok(())
+}
+
+fn decode_ieee_float_field(
+    reader: &mut Reader<'_>,
+) -> Result<IeeeFloatStructuralField, CodecError> {
+    let root = reader.id("PlaceId")?;
+    let count = reader.count()?;
+    let mut path = Vec::with_capacity(count as usize);
+    for _ in 0..count {
+        path.push(match reader.u8()? {
+            1 => CanonicalStructuralPathSegment::Field(reader.id("StructuralFieldId")?),
+            2 => CanonicalStructuralPathSegment::FixedIndex(reader.u64()?),
+            tag => {
+                return Err(CodecError::InvalidTag(
+                    "CanonicalStructuralPathSegment",
+                    tag,
+                ));
+            }
+        });
+    }
+    IeeeFloatStructuralField::new(root, path).map_err(CodecError::MalformedProposition)
+}
+
 fn encode_structural_type(
     writer: &mut Writer,
     declaration: &StructuralTypeDeclaration,
@@ -1568,6 +1634,10 @@ fn encode_structural_type(
                     StructuralFieldType::Scalar(scalar_type) => {
                         writer.u8(1);
                         encode_scalar_type(writer, *scalar_type);
+                    }
+                    StructuralFieldType::IeeeFloat(format) => {
+                        writer.u8(4);
+                        encode_ieee_float_format(writer, *format);
                     }
                     StructuralFieldType::Structural(structural_type) => {
                         writer.u8(2);
@@ -2625,6 +2695,16 @@ fn encode_proposition(
                 encode_proposition(writer, disjunct, depth + 1)?;
             }
         }
+        Proposition::IeeeFloatEqual {
+            format,
+            left,
+            right,
+        } => {
+            writer.u8(11);
+            encode_ieee_float_format(writer, *format);
+            encode_ieee_float_field(writer, left)?;
+            encode_ieee_float_field(writer, right)?;
+        }
     }
     Ok(())
 }
@@ -3337,6 +3417,7 @@ fn decode_structural_type(
                     3 => StructuralFieldType::Erased {
                         type_identity: reader.string("erased structural field type identity")?,
                     },
+                    4 => StructuralFieldType::IeeeFloat(decode_ieee_float_format(reader)?),
                     tag => return Err(CodecError::InvalidTag("StructuralFieldType", tag)),
                 };
                 Ok(StructuralFieldDeclaration {
@@ -4209,6 +4290,11 @@ fn decode_proposition(reader: &mut Reader<'_>, depth: usize) -> Result<Propositi
             }
             Proposition::Disjunction(disjuncts)
         }
+        11 => Proposition::IeeeFloatEqual {
+            format: decode_ieee_float_format(reader)?,
+            left: decode_ieee_float_field(reader)?,
+            right: decode_ieee_float_field(reader)?,
+        },
         tag => return Err(CodecError::InvalidTag("Proposition", tag)),
     })
 }

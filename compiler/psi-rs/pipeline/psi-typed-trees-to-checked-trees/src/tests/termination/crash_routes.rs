@@ -256,6 +256,78 @@ fn address_field_equality_stays_outside_structural_crash_predicates() {
 }
 
 #[test]
+fn ieee_float_fields_retain_atomic_structural_equality() {
+    let source = r#"
+    trait Equatable {
+        machine equals(&self, rhs: &Self) -> bool;
+    }
+
+    data Samples { narrow: f32; wide: f64; }
+    SamplesEquatable: Samples satisfies Equatable;
+
+    machine whole(left: Samples, right: Samples)
+    crashes Abort
+        left == right
+    {}
+
+    machine narrow(left: Samples, right: Samples)
+    crashes Abort
+        left.narrow == right.narrow
+    {}
+
+    machine wide(left: Samples, right: Samples)
+    crashes Abort
+        left.wide == right.wide
+    {}
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let checked = lower_typed_trees(typed).expect("checked lowering should succeed");
+    let scalar = |name: &str| {
+        let contract = checked
+            .facts
+            .contract_plans
+            .for_machine(symbol_of_checked(&checked, name))
+            .expect("contract plan");
+        let [bucket] = contract.crash.published() else {
+            panic!("{name} should publish one crash bucket")
+        };
+        let [psi_checked_trees::CrashRouteGuard::Predicate(predicate)] =
+            bucket.alternative_guards()
+        else {
+            panic!("{name} should publish one predicate")
+        };
+        predicate.scalar_expression().cloned().expect("scalar term")
+    };
+    let format = |expression: &psi_checked_trees::CheckedBooleanExpression| match expression {
+        psi_checked_trees::CheckedBooleanExpression::IeeeFloatEqual { primitive_type, .. } => {
+            Some(*primitive_type)
+        }
+        _ => None,
+    };
+
+    assert_eq!(
+        format(&scalar("narrow")),
+        Some(psi_typed_trees::types::PrimitiveType::F32)
+    );
+    assert_eq!(
+        format(&scalar("wide")),
+        Some(psi_typed_trees::types::PrimitiveType::F64)
+    );
+    let psi_checked_trees::CheckedBooleanExpression::And { left, right } = scalar("whole") else {
+        panic!("two-field float record equality is one conjunction")
+    };
+    let formats = [format(&left), format(&right)];
+    assert!(formats.contains(&Some(psi_typed_trees::types::PrimitiveType::F32)));
+    assert!(formats.contains(&Some(psi_typed_trees::types::PrimitiveType::F64)));
+}
+
+#[test]
 fn checked_crash_sites_are_body_evidence_not_contract_identity() {
     let source = r#"
     machine clear_body() -> i32

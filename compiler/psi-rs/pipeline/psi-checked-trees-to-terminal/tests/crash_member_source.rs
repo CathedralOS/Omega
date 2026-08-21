@@ -1,6 +1,6 @@
 use psi_core::{
-    CanonicalStructuralPathSegment, IntegerSign, IntegerType, Proposition, ScalarTerm,
-    StructuralFieldId,
+    CanonicalStructuralPathSegment, IeeeFloatFormat, IntegerSign, IntegerType, Proposition,
+    ScalarTerm, StructuralFieldId,
 };
 use psi_proof_kernel::{AdmissionProfile, EvidenceRoute, ProofRule};
 use psi_source_files_to_tokens::Lexer;
@@ -552,6 +552,35 @@ const WHOLE_AGGREGATE_EQUALITY_SOURCE: &str = r#"
     {
         Helper::inspect(left, right);
     }
+"#;
+
+const IEEE_FLOAT_AGGREGATE_EQUALITY_SOURCE: &str = r#"
+    trait Equatable {
+        machine equals(&self, rhs: &Self) -> bool;
+    }
+
+    data Samples { narrow: f32; wide: f64; }
+    SamplesEquatable: Samples satisfies Equatable;
+
+    data Helper {}
+    machine Helper::inspect(left: Samples, right: Samples)
+    crashes Abort
+        left == right
+    {}
+
+    data Root {}
+    machine Root::enter(left: Samples, right: Samples)
+    crashes Abort
+        left == right
+    {
+        Helper::inspect(left, right);
+    }
+
+    data Reverse {}
+    machine Reverse::enter(left: Samples, right: Samples)
+    crashes Abort
+        right == left
+    {}
 "#;
 
 const EMPTY_RECORD_EQUALITY_SOURCE: &str = r#"
@@ -3914,6 +3943,146 @@ fn whole_aggregate_equality_expands_and_reconstructs_end_to_end() {
         ),
         "unexpected aggregate equality validation result: {invalid_result:?}"
     );
+}
+
+#[test]
+fn ieee_float_aggregate_equality_is_atomic_and_canonical_end_to_end() {
+    let tokens = Lexer::new(IEEE_FLOAT_AGGREGATE_EQUALITY_SOURCE)
+        .tokenize()
+        .expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("check");
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::enter")
+        .expect("IEEE aggregate equality lowers");
+
+    let root = &lowered.semantic_module.machines[0];
+    let helper = &lowered.semantic_module.machines[1];
+    let [CrashRouteGuard::Predicate(root_route)] =
+        root.contract.crash_routes[0].alternatives.as_slice()
+    else {
+        panic!("caller publishes one IEEE aggregate route")
+    };
+    let [CrashRouteGuard::Predicate(helper_route)] =
+        helper.contract.crash_routes[0].alternatives.as_slice()
+    else {
+        panic!("callee publishes one IEEE aggregate route")
+    };
+    let inspect =
+        |proposition: &Proposition, left_root: psi_core::PlaceId, right_root: psi_core::PlaceId| {
+            let Proposition::Conjunction(conjuncts) = proposition else {
+                panic!("two-float equality is one conjunction")
+            };
+            assert_eq!(conjuncts.len(), 2);
+            let mut formats = Vec::new();
+            for conjunct in conjuncts {
+                let Proposition::IeeeFloatEqual {
+                    format,
+                    left,
+                    right,
+                } = conjunct
+                else {
+                    panic!("float leaves remain atomic IEEE propositions")
+                };
+                assert_eq!((left.root(), right.root()), (left_root, right_root));
+                assert_eq!(left.path().len(), 1);
+                assert_eq!(right.path().len(), 1);
+                formats.push(*format);
+            }
+            formats.sort();
+            assert_eq!(
+                formats,
+                [IeeeFloatFormat::Binary32, IeeeFloatFormat::Binary64]
+            );
+        };
+    inspect(
+        root_route.proposition(),
+        root.structural_parameters[0].place,
+        root.structural_parameters[1].place,
+    );
+    inspect(
+        helper_route.proposition(),
+        helper.structural_parameters[0].place,
+        helper.structural_parameters[1].place,
+    );
+
+    let OperationKind::CallUnit {
+        crash_continuations,
+        ..
+    } = &root.blocks[0].operations[0].kind
+    else {
+        panic!("caller emits one structural Unit call")
+    };
+    let [CrashRouteGuard::Predicate(continuation)] = crash_continuations[0].alternatives.as_slice()
+    else {
+        panic!("call retains the IEEE continuation")
+    };
+    assert_eq!(continuation, root_route);
+
+    psi_terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("verifier checks IEEE leaf formats and substituted roots");
+    let semantics = encode_module(&lowered.semantic_module).expect("semantic encode");
+    assert_eq!(
+        decode_module(&semantics),
+        Ok(lowered.semantic_module.clone())
+    );
+    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("proof encode");
+    assert_eq!(
+        decode_proof_bundle(&proof),
+        Ok(lowered.proof_bundle.clone())
+    );
+
+    let reversed = psi_checked_trees_to_terminal::lower_machine(&checked, "Reverse::enter")
+        .expect("reversed IEEE operands lower canonically");
+    let [CrashRouteGuard::Predicate(reversed_route)] =
+        reversed.semantic_module.machines[0].contract.crash_routes[0]
+            .alternatives
+            .as_slice()
+    else {
+        unreachable!()
+    };
+    let Proposition::Conjunction(reversed_conjuncts) = reversed_route.proposition() else {
+        unreachable!()
+    };
+    assert!(reversed_conjuncts.iter().all(|item| matches!(
+        item,
+        Proposition::IeeeFloatEqual { left, right, .. } if left <= right
+    )));
+    encode_module(&reversed.semantic_module).expect("canonical reversed semantic encode");
+
+    let mut wrong_format = reversed.semantic_module.clone();
+    let [CrashRouteGuard::Predicate(predicate)] = wrong_format.machines[0].contract.crash_routes[0]
+        .alternatives
+        .as_mut_slice()
+    else {
+        unreachable!()
+    };
+    let mut proposition = predicate.proposition().clone();
+    let Proposition::Conjunction(conjuncts) = &mut proposition else {
+        unreachable!()
+    };
+    let Some(Proposition::IeeeFloatEqual { format, .. }) = conjuncts.iter_mut().find(|item| {
+        matches!(
+            item,
+            Proposition::IeeeFloatEqual {
+                format: IeeeFloatFormat::Binary32,
+                ..
+            }
+        )
+    }) else {
+        unreachable!()
+    };
+    *format = IeeeFloatFormat::Binary64;
+    *predicate = CrashPredicateTerm::new(proposition);
+    assert!(matches!(
+        psi_terminal_verifier::validate_module(&wrong_format),
+        Err(psi_terminal_verifier::ModuleError::InvalidIeeeFloatFieldTerm { .. })
+    ));
 }
 
 #[test]

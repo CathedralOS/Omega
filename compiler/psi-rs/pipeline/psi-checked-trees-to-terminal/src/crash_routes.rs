@@ -162,13 +162,19 @@ pub(super) fn lower_checked_crash_route_buckets(
         .collect()
 }
 
-fn lower_structural_member_term(
+fn lower_structural_member_path(
     parameter_position: u32,
     path: &[String],
-    expected: ScalarType,
     parameters: &[StructuralParameterDeclaration],
     structural_types: &[StructuralTypeDeclaration],
-) -> Result<ScalarTerm, LoweringError> {
+) -> Result<
+    (
+        PlaceId,
+        Vec<CanonicalStructuralPathSegment>,
+        StructuralFieldType,
+    ),
+    LoweringError,
+> {
     if path.is_empty() {
         return unsupported("structural scalar contract has an empty member path");
     }
@@ -201,20 +207,55 @@ fn lower_structural_member_term(
         let is_last = index + 1 == path.len();
         match (&field.field_type, is_last) {
             (StructuralFieldType::Structural(next), false) => structural_type = *next,
-            (StructuralFieldType::Scalar(actual), true) if *actual == expected => {}
+            (_, true) => return Ok((parameter.place, terminal_path, field.field_type.clone())),
             _ => {
                 return unsupported(
-                    "structural scalar contract path does not end at the retained scalar type",
+                    "structural scalar contract path does not end at a retained leaf",
                 );
             }
         }
     }
+    unreachable!("nonempty structural path returns at its final field")
+}
+
+fn lower_structural_member_term(
+    parameter_position: u32,
+    path: &[String],
+    expected: ScalarType,
+    parameters: &[StructuralParameterDeclaration],
+    structural_types: &[StructuralTypeDeclaration],
+) -> Result<ScalarTerm, LoweringError> {
+    let (root, terminal_path, actual) =
+        lower_structural_member_path(parameter_position, path, parameters, structural_types)?;
+    if actual != StructuralFieldType::Scalar(expected) {
+        return unsupported(
+            "structural scalar contract path does not end at the retained scalar type",
+        );
+    }
     Ok(match expected {
-        ScalarType::Boolean => ScalarTerm::boolean_field_path(parameter.place, terminal_path),
+        ScalarType::Boolean => ScalarTerm::boolean_field_path(root, terminal_path),
         ScalarType::Integer(integer_type) => {
-            ScalarTerm::integer_field_path(parameter.place, terminal_path, integer_type)
+            ScalarTerm::integer_field_path(root, terminal_path, integer_type)
         }
     })
+}
+
+fn lower_ieee_float_field(
+    field: &psi_checked_trees::CheckedStructuralParameterField,
+    format: IeeeFloatFormat,
+    parameters: &[StructuralParameterDeclaration],
+    structural_types: &[StructuralTypeDeclaration],
+) -> Result<IeeeFloatStructuralField, LoweringError> {
+    let (root, path, actual) = lower_structural_member_path(
+        field.parameter_position,
+        &field.path,
+        parameters,
+        structural_types,
+    )?;
+    if actual != StructuralFieldType::IeeeFloat(format) {
+        return unsupported("structural IEEE predicate leaf has the wrong retained format");
+    }
+    IeeeFloatStructuralField::new(root, path).map_err(LoweringError::InvalidCrashPredicate)
 }
 
 pub(super) fn lower_structural_runtime_requirement(
@@ -906,6 +947,9 @@ pub(super) fn lower_structural_crash_route_buckets(
                 }
                 .map_err(LoweringError::InvalidCrashPredicate)
             }
+            CheckedBooleanExpression::IeeeFloatEqual { .. } => {
+                unsupported("IEEE equality lowers as an atomic proposition")
+            }
             CheckedBooleanExpression::Parameter { .. }
             | CheckedBooleanExpression::Local { .. }
             | CheckedBooleanExpression::And { .. }
@@ -921,6 +965,28 @@ pub(super) fn lower_structural_crash_route_buckets(
         structural_types: &[StructuralTypeDeclaration],
         runtime_requirements: &[Proposition],
     ) -> Result<Proposition, LoweringError> {
+        if let CheckedBooleanExpression::IeeeFloatEqual {
+            primitive_type,
+            left,
+            right,
+        } = expression
+        {
+            let format = match primitive_type {
+                PrimitiveType::F32 => IeeeFloatFormat::Binary32,
+                PrimitiveType::F64 => IeeeFloatFormat::Binary64,
+                _ => return unsupported("structural IEEE equality has a non-float format"),
+            };
+            let mut left = lower_ieee_float_field(left, format, parameters, structural_types)?;
+            let mut right = lower_ieee_float_field(right, format, parameters, structural_types)?;
+            if left > right {
+                std::mem::swap(&mut left, &mut right);
+            }
+            return Ok(Proposition::IeeeFloatEqual {
+                format,
+                left,
+                right,
+            });
+        }
         if let CheckedBooleanExpression::And { left, right }
         | CheckedBooleanExpression::Or { left, right } = expression
         {
@@ -1107,6 +1173,13 @@ pub(super) fn substitute_structural_crash_route_roots(
                     substitute_proposition(proposition, substitutions)?;
                 }
             }
+            Proposition::IeeeFloatEqual { left, right, .. } => {
+                for field in [left, right] {
+                    if let Some((root, prefix)) = substitutions.get(&field.root()) {
+                        *field = field.rebase(*root, prefix);
+                    }
+                }
+            }
             _ => {}
         }
         Ok(())
@@ -1195,6 +1268,13 @@ pub(super) fn substitute_structural_requirement_roots(
         | Proposition::LessOrEqual(left, right) => {
             substitute_term(left, substitutions);
             substitute_term(right, substitutions);
+        }
+        Proposition::IeeeFloatEqual { left, right, .. } => {
+            for field in [left, right] {
+                if let Some((root, prefix)) = substitutions.get(&field.root()) {
+                    *field = field.rebase(*root, prefix);
+                }
+            }
         }
         Proposition::Conjunction(propositions) | Proposition::Disjunction(propositions) => {
             for proposition in propositions {
@@ -1416,6 +1496,9 @@ fn checked_boolean_scalar_term(
                 }
             }
             .map_err(LoweringError::InvalidCrashPredicate)?
+        }
+        CheckedBooleanExpression::IeeeFloatEqual { .. } => {
+            return unsupported("IEEE structural equality requires structural signature lowering");
         }
         CheckedBooleanExpression::And { .. } | CheckedBooleanExpression::Or { .. } => {
             return unsupported(

@@ -469,6 +469,12 @@ pub enum ModuleError {
         path: Vec<CanonicalStructuralPathSegment>,
         scalar_type: psi_core::IntegerType,
     },
+    InvalidIeeeFloatFieldTerm {
+        machine: MachineId,
+        root: PlaceId,
+        path: Vec<CanonicalStructuralPathSegment>,
+        format: psi_core::IeeeFloatFormat,
+    },
     UnsafeStructuralCrashExactDivisor {
         machine: MachineId,
         scalar_type: psi_core::IntegerType,

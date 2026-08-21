@@ -278,7 +278,7 @@
 (def cc_exact_module_shape ((module CCModule)) Int
   (match module
     ((CCModule vocabulary entry types domains services boundaries machines)
-      (if (if (eq vocabulary 18) (eq entry 10) 0)
+      (if (if (eq vocabulary 19) (eq entry 10) 0)
         (if (cc_exact_type_shape types)
           (if (cc_exact_domain_shape domains)
             (if (cc_empty_services services)

@@ -1,9 +1,9 @@
 use psi_core::{
     CanonicalStructuralPathSegment, ContentAlgebra, ContentAlgebraKind, ContentConservation,
     ContentDomainId, ContentPlaceSegment, ContentPlaceVersion, ContentProjectionIdentity,
-    ContentStructuralPlace, ContentTerm, EvidenceIdentity, IntegerCarrier, IntegerSign,
-    IntegerType, IntegerValue, Proposition, PropositionError, PropositionId, PsiSemanticId,
-    ScalarTerm, ScalarType,
+    ContentStructuralPlace, ContentTerm, EvidenceIdentity, IeeeFloatFormat,
+    IeeeFloatStructuralField, IntegerCarrier, IntegerSign, IntegerType, IntegerValue, Proposition,
+    PropositionError, PropositionId, PsiSemanticId, ScalarTerm, ScalarType,
 };
 use psi_proof_kernel::{
     AcceptedFactRoute, AdmissionEvidence, AdmissionKind, CertificateEnvelope, EvidenceRoute,
@@ -17,7 +17,7 @@ use sha2::{Digest, Sha256};
 
 const MAGIC: &[u8; 8] = b"PSIPRF\0\0";
 /// Single current pre-release proof vocabulary marker.
-const FORMAT_MARKER: u16 = 7;
+const FORMAT_MARKER: u16 = 8;
 const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-proof-bundle-fingerprint\0";
 const MAX_PROPOSITION_DEPTH: usize = 256;
 const MAX_SCALAR_TERM_DEPTH: usize = 256;
@@ -299,6 +299,7 @@ fn validate_proposition(proposition: &Proposition, depth: usize) -> Result<(), P
             validate_scalar_term_depth(left, 0)?;
             validate_scalar_term_depth(right, 0)?;
         }
+        Proposition::IeeeFloatEqual { .. } => {}
         Proposition::Conjunction(propositions) | Proposition::Disjunction(propositions) => {
             for proposition in propositions {
                 validate_proposition(proposition, depth + 1)?;
@@ -575,6 +576,63 @@ fn encode_proof_node(
     Ok(())
 }
 
+fn encode_ieee_float_format(writer: &mut Writer, format: IeeeFloatFormat) {
+    writer.u8(match format {
+        IeeeFloatFormat::Binary32 => 1,
+        IeeeFloatFormat::Binary64 => 2,
+    });
+}
+
+fn decode_ieee_float_format(reader: &mut Reader<'_>) -> Result<IeeeFloatFormat, ProofCodecError> {
+    match reader.u8()? {
+        1 => Ok(IeeeFloatFormat::Binary32),
+        2 => Ok(IeeeFloatFormat::Binary64),
+        tag => Err(ProofCodecError::InvalidTag("IeeeFloatFormat", tag)),
+    }
+}
+
+fn encode_ieee_float_field(
+    writer: &mut Writer,
+    field: &IeeeFloatStructuralField,
+) -> Result<(), ProofCodecError> {
+    writer.id(field.root());
+    writer.len("IEEE float field path", field.path().len())?;
+    for segment in field.path() {
+        match segment {
+            CanonicalStructuralPathSegment::Field(field) => {
+                writer.u8(1);
+                writer.id(*field);
+            }
+            CanonicalStructuralPathSegment::FixedIndex(index) => {
+                writer.u8(2);
+                writer.u64(*index);
+            }
+        }
+    }
+    Ok(())
+}
+
+fn decode_ieee_float_field(
+    reader: &mut Reader<'_>,
+) -> Result<IeeeFloatStructuralField, ProofCodecError> {
+    let root = reader.id("PlaceId")?;
+    let count = reader.count()?;
+    let mut path = Vec::with_capacity(count as usize);
+    for _ in 0..count {
+        path.push(match reader.u8()? {
+            1 => CanonicalStructuralPathSegment::Field(reader.id("StructuralFieldId")?),
+            2 => CanonicalStructuralPathSegment::FixedIndex(reader.u64()?),
+            tag => {
+                return Err(ProofCodecError::InvalidTag(
+                    "CanonicalStructuralPathSegment",
+                    tag,
+                ));
+            }
+        });
+    }
+    IeeeFloatStructuralField::new(root, path).map_err(ProofCodecError::MalformedProposition)
+}
+
 fn encode_proposition(
     writer: &mut Writer,
     proposition: &Proposition,
@@ -633,6 +691,16 @@ fn encode_proposition(
             for disjunct in disjuncts {
                 encode_proposition(writer, disjunct, depth + 1, format_marker)?;
             }
+        }
+        Proposition::IeeeFloatEqual {
+            format,
+            left,
+            right,
+        } => {
+            writer.u8(11);
+            encode_ieee_float_format(writer, *format);
+            encode_ieee_float_field(writer, left)?;
+            encode_ieee_float_field(writer, right)?;
         }
     }
     Ok(())
@@ -1230,6 +1298,11 @@ fn decode_proposition(
             }
             Proposition::Disjunction(disjuncts)
         }
+        11 => Proposition::IeeeFloatEqual {
+            format: decode_ieee_float_format(reader)?,
+            left: decode_ieee_float_field(reader)?,
+            right: decode_ieee_float_field(reader)?,
+        },
         tag => return Err(ProofCodecError::InvalidTag("Proposition", tag)),
     })
 }

@@ -32,7 +32,7 @@ use crate::{
     TerminalObjectPortEffect, can_emit_terminal_executable_image,
 };
 
-pub const TERMINAL_INSTALLATION_FORMAT_MARKER: u16 = 20;
+pub const TERMINAL_INSTALLATION_FORMAT_MARKER: u16 = 21;
 const MAGIC: &[u8; 8] = b"PSIINST\0";
 const IMAGE_DOMAIN: &[u8] = b"omega-terminal-installed-image\0";
 const RECORD_DOMAIN: &[u8] = b"omega-terminal-installation-record\0";
@@ -3539,6 +3539,14 @@ fn encode_structural_types(
                             )));
                             push_u16(bytes, integer.bits());
                         }
+                        psi_terminal::StructuralFieldType::IeeeFloat(format) => {
+                            bytes.push(5);
+                            bytes.push(match format {
+                                psi_core::IeeeFloatFormat::Binary32 => 1,
+                                psi_core::IeeeFloatFormat::Binary64 => 2,
+                            });
+                            bytes.push(0);
+                        }
                         psi_terminal::StructuralFieldType::Structural(structural_type) => {
                             bytes.push(3);
                             bytes.extend_from_slice(&[0; 2]);
@@ -3993,6 +4001,21 @@ fn decode_structural_types(
                             psi_terminal::StructuralFieldType::Erased {
                                 type_identity: decode_identity(reader)?,
                             }
+                        }
+                        5 => {
+                            let format = match reader.u8()? {
+                                1 => psi_core::IeeeFloatFormat::Binary32,
+                                2 => psi_core::IeeeFloatFormat::Binary64,
+                                _ => {
+                                    return Err(
+                                        TerminalInstallationError::InvalidStructuralTypeShape,
+                                    );
+                                }
+                            };
+                            if reader.u8()? != 0 {
+                                return Err(TerminalInstallationError::NonzeroReservedField);
+                            }
+                            psi_terminal::StructuralFieldType::IeeeFloat(format)
                         }
                         tag => {
                             return Err(TerminalInstallationError::InvalidStructuralFieldTypeTag(
@@ -4795,5 +4818,41 @@ mod resource_tests {
                 previous_marker
             ))
         );
+    }
+
+    #[test]
+    fn ieee_structural_field_formats_round_trip_in_installations() {
+        let declarations = vec![psi_terminal::StructuralTypeDeclaration {
+            id: StructuralTypeId::new(1).expect("structural type"),
+            identity: "Samples".into(),
+            shape: psi_terminal::StructuralTypeShape::Record {
+                fields: vec![
+                    psi_terminal::StructuralFieldDeclaration {
+                        id: StructuralFieldId::new(1).expect("f32 field"),
+                        identity: "single".into(),
+                        relevance: psi_terminal::BindingRelevance::Relevant,
+                        field_type: psi_terminal::StructuralFieldType::IeeeFloat(
+                            psi_core::IeeeFloatFormat::Binary32,
+                        ),
+                    },
+                    psi_terminal::StructuralFieldDeclaration {
+                        id: StructuralFieldId::new(2).expect("f64 field"),
+                        identity: "double".into(),
+                        relevance: psi_terminal::BindingRelevance::Relevant,
+                        field_type: psi_terminal::StructuralFieldType::IeeeFloat(
+                            psi_core::IeeeFloatFormat::Binary64,
+                        ),
+                    },
+                ],
+            },
+        }];
+        let mut bytes = Vec::new();
+        encode_structural_types(&mut bytes, &declarations).expect("encode structural types");
+        let mut reader = Reader::new(&bytes);
+        assert_eq!(
+            decode_structural_types(&mut reader),
+            Ok(declarations.clone())
+        );
+        assert_eq!(reader.remaining(), 0);
     }
 }

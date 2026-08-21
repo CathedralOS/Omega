@@ -9,7 +9,7 @@ small, typed, interpreter-defined program rather than another Rust verifier.
 ## Trust boundary and inputs
 
 `psi-terminal-codec/tests/ledger_spike.rs` constructs four ordinary current
-`TerminalModule` values and pins their exact `PSITERM\0` v13 encodings. The Rust
+`TerminalModule` values and pins their exact `PSITERM\0` v14 encodings. The Rust
 fixture builder and `bytes_to_gamma.py` are untrusted test transport. The typed
 Gamma program begins with the reusable, PSITERM-neutral primitives in
 `../canonical-bytes/`; the spike-specific decoder then:
@@ -26,6 +26,11 @@ Gamma program begins with the reusable, PSITERM-neutral primitives in
 6. emits and audits a ranked 54-row scalar ledger or 3-row structural/effect
    ledger, or validates exact Unit/boundary composition sites without inventing
    primitive rows.
+
+The current envelope additionally includes format-annotated IEEE structural
+leaves and atomic float equality. That vocabulary is deliberately outside this
+bounded fixture: encountering either new tag rejects instead of widening the
+spike's claimed ledger coverage.
 
 The transport packs at most seven bytes into one positive Gamma `Int` solely to
 keep the source parser shallow. Typed `unpack_bytes` reconstructs every byte

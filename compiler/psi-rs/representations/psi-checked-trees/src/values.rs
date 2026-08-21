@@ -244,6 +244,13 @@ pub enum CheckedBooleanExpression {
         left: Box<CheckedScalarExpression>,
         right: Box<CheckedScalarExpression>,
     },
+    /// Atomic IEEE equality between exact relevant structural leaves. It is
+    /// deliberately not represented as generic/reflexive scalar equality.
+    IeeeFloatEqual {
+        primitive_type: psi_typed_trees::types::PrimitiveType,
+        left: CheckedStructuralParameterField,
+        right: CheckedStructuralParameterField,
+    },
     And {
         left: Box<CheckedBooleanExpression>,
         right: Box<CheckedBooleanExpression>,
@@ -252,6 +259,12 @@ pub enum CheckedBooleanExpression {
         left: Box<CheckedBooleanExpression>,
         right: Box<CheckedBooleanExpression>,
     },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct CheckedStructuralParameterField {
+    pub parameter_position: u32,
+    pub path: Vec<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -32,10 +32,11 @@ use psi_core::{
     BlockId, BoundaryMachineId, CanonicalStructuralPathSegment, ClaimId, ContentAlgebra,
     ContentAlgebraKind, ContentConservation, ContentDomainId, ContentPlaceSegment,
     ContentPlaceVersion, ContentProjectionIdentity, ContentStructuralPlace, ContentTerm,
-    ContractId, EdgeId, EvidenceIdentity, EvidenceTermId, IntegerSign, IntegerType, IntegerValue,
-    MachineId, ObligationId, OperationId, PlaceId, Proposition, PropositionContext,
-    PropositionError, PropositionId, ScalarTerm, ScalarType, ServiceId, StructuralDomainId,
-    StructuralFieldId, StructuralPlaceKind, StructuralTypeId, ValueId,
+    ContractId, EdgeId, EvidenceIdentity, EvidenceTermId, IeeeFloatFormat,
+    IeeeFloatStructuralField, IntegerSign, IntegerType, IntegerValue, MachineId, ObligationId,
+    OperationId, PlaceId, Proposition, PropositionContext, PropositionError, PropositionId,
+    ScalarTerm, ScalarType, ServiceId, StructuralDomainId, StructuralFieldId, StructuralPlaceKind,
+    StructuralTypeId, ValueId,
 };
 use psi_language_semantics::content::{
     ContentAlgebraIdentity as CheckedContentAlgebraIdentity, ContentConservationEquation,
@@ -149,7 +150,9 @@ use shared_runtime_parameters::{
 };
 use structural_return::lower_structural_return_machine;
 use structural_scalar_return::lower_structural_scalar_return_machine;
-use structural_types::{lower_structural_type_plans, retain_additional_structural_types};
+use structural_types::{
+    lower_structural_type_plans, retain_additional_structural_types, terminal_structural_field_type,
+};
 use structural_unit_control::lower_structural_unit_control_machine;
 use unit_cleanup::{
     lower_nominal_affine_unit_cleanup_machine, lower_partial_affine_unit_cleanup_machine,

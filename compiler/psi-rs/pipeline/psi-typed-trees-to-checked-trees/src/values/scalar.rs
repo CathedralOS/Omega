@@ -2,7 +2,7 @@ use psi_checked_trees::{
     CheckedBooleanExpression, CheckedIntegerBinaryKind, CheckedIntegerComparisonKind,
     CheckedIntegerRange, CheckedLocatedScalarExpression, CheckedOperatorFacts,
     CheckedOperatorResolutionStatus, CheckedScalarExpression, CheckedScalarExpressionPlans,
-    CheckedScalarExpressionRole,
+    CheckedScalarExpressionRole, CheckedStructuralParameterField,
 };
 use psi_numerics::{
     arithmetic::ArithmeticDomain,
@@ -530,6 +530,29 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
                                 ),
                             });
                         }
+                        Some(primitive_type)
+                            if matches!(
+                                primitive_type,
+                                PrimitiveType::F32 | PrimitiveType::F64
+                            ) =>
+                        {
+                            let mut left = CheckedStructuralParameterField {
+                                parameter_position: left_parameter,
+                                path: left_path.clone(),
+                            };
+                            let mut right = CheckedStructuralParameterField {
+                                parameter_position: right_parameter,
+                                path: right_path.clone(),
+                            };
+                            if left > right {
+                                std::mem::swap(&mut left, &mut right);
+                            }
+                            output.push(CheckedBooleanExpression::IeeeFloatEqual {
+                                primitive_type,
+                                left,
+                                right,
+                            });
+                        }
                         Some(_) => return None,
                         None => collect_comparisons(
                             program,
@@ -787,6 +810,28 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
             }
         }
 
+        fn lower_structural_float_field(
+            program: &TypedTrees,
+            parameters: &[StateParameter],
+            expression: ExpressionHandle,
+        ) -> Option<(PrimitiveType, CheckedStructuralParameterField)> {
+            let mut path = Vec::new();
+            let parameter_position =
+                structural_parameter_field_path(program, parameters, expression, &mut path)?;
+            if path.is_empty() {
+                return None;
+            }
+            let primitive_type =
+                path_primitive_type(program, parameters, parameter_position, &path)?;
+            matches!(primitive_type, PrimitiveType::F32 | PrimitiveType::F64).then_some((
+                primitive_type,
+                CheckedStructuralParameterField {
+                    parameter_position,
+                    path,
+                },
+            ))
+        }
+
         let mut path = Vec::new();
         if let Some(parameter_position) =
             structural_parameter_field_path(program, parameters, expression, &mut path)
@@ -872,6 +917,24 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
                         | BinaryOperator::GreaterOrEqual
                 ) && operator_is_builtin(operators, expression) =>
             {
+                if binary.operator == BinaryOperator::Equal
+                    && let Some((primitive_type, left)) =
+                        lower_structural_float_field(program, parameters, binary.left)
+                    && let Some((right_type, right)) =
+                        lower_structural_float_field(program, parameters, binary.right)
+                    && primitive_type == right_type
+                {
+                    let (mut left, mut right) = (left, right);
+                    if left > right {
+                        std::mem::swap(&mut left, &mut right);
+                    }
+                    let equality = CheckedBooleanExpression::IeeeFloatEqual {
+                        primitive_type,
+                        left,
+                        right,
+                    };
+                    return Some(equality);
+                }
                 let integer_operands = (|| {
                     let left = lower_structural_integer_expression(
                         program,
@@ -1803,7 +1866,8 @@ fn contains_short_circuit(expression: &CheckedBooleanExpression) -> bool {
         | CheckedBooleanExpression::Parameter { .. }
         | CheckedBooleanExpression::Local { .. }
         | CheckedBooleanExpression::StructuralParameterField { .. }
-        | CheckedBooleanExpression::IntegerComparison { .. } => false,
+        | CheckedBooleanExpression::IntegerComparison { .. }
+        | CheckedBooleanExpression::IeeeFloatEqual { .. } => false,
         CheckedBooleanExpression::Not(operand) => contains_short_circuit(operand),
         CheckedBooleanExpression::Equal { left, right } => {
             contains_short_circuit(left) || contains_short_circuit(right)
