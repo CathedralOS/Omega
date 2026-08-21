@@ -430,13 +430,7 @@ fn count_statement_node(
         StatementNode::Call(call) => {
             count_call_name(&call.target, counts);
             for argument in &call.machine_arguments {
-                for member in &argument.path {
-                    count_call_name(member, counts);
-                }
-                if let Some(projection) = &argument.evidence_projection {
-                    count_call_name(&projection.term, counts);
-                    count_call_name(&projection.member, counts);
-                }
+                count_static_argument(argument, counts);
             }
             for receiver in statements.name_path_members(call.receiver) {
                 count_call_name(receiver, counts);
@@ -611,13 +605,7 @@ fn count_expression_node(
         ExpressionNode::Call(call) => {
             count_call_name(&call.target, counts);
             for argument in &call.machine_arguments {
-                for member in &argument.path {
-                    count_call_name(member, counts);
-                }
-                if let Some(projection) = &argument.evidence_projection {
-                    count_call_name(&projection.term, counts);
-                    count_call_name(&projection.member, counts);
-                }
+                count_static_argument(argument, counts);
             }
             if call.receiver.is_valid() {
                 count_expression_handle(table, call.receiver, counts);
@@ -664,6 +652,27 @@ fn count_expression_node(
         ExpressionNode::String(_) => counts.string_literals += 1,
         ExpressionNode::Unary(unary) => count_expression_handle(table, unary.operand, counts),
         ExpressionNode::ZeroValue(_) => {}
+    }
+}
+
+fn count_static_argument(
+    argument: &crate::expression::StaticMachineArgument,
+    counts: &mut IdentityStorageCounts,
+) {
+    for member in &argument.path {
+        count_call_name(member, counts);
+    }
+    if let Some(projection) = &argument.evidence_projection {
+        count_call_name(&projection.term, counts);
+        count_call_name(&projection.member, counts);
+    }
+    if let Some(application) = &argument.application {
+        for lifetime in &application.lifetime_arguments {
+            count_call_name(lifetime, counts);
+        }
+        for nested in &application.arguments {
+            count_static_argument(nested, counts);
+        }
     }
 }
 

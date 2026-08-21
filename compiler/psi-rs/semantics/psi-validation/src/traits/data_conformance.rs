@@ -77,7 +77,17 @@ pub(crate) fn validate_conformances(
                 .data_definitions()
                 .iter()
                 .any(|definition| definition.name.as_str() == type_name);
-            if !data_exists {
+            let name_owned_type_parameter = program
+                .conformance_type_parameters(conformance)
+                .iter()
+                .any(|parameter| {
+                    parameter.name.as_str() == type_name
+                        && matches!(
+                            parameter.kind,
+                            psi_typed_trees::data::TypeParameterKind::Type
+                        )
+                });
+            if !data_exists && !name_owned_type_parameter {
                 diagnostics.push(Diagnostic::error(format!(
                     "conformance `{type_name} satisfies {trait_name}` names unknown data `{type_name}`"
                 )));

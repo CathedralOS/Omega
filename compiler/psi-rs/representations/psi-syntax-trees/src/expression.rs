@@ -276,6 +276,10 @@ pub struct StaticMachineArgument {
     /// Historical storage name: proposition calls also use this record for
     /// type and const arguments, classified by the target's static telescope.
     pub path: Box<[Identifier]>,
+    /// Nested application owned by the selected static declaration. This is
+    /// what distinguishes `Family<A>` from an outer call argument `A` and
+    /// keeps a conformance telescope delimited from the callee telescope.
+    pub application: Option<Box<StaticSymbolApplication>>,
     /// Integer const argument. `Some` makes `path` empty; the target's binder
     /// kind determines whether the static argument is legal.
     pub const_literal: Option<psi_numerics::literals::IntegerLiteral>,
@@ -283,6 +287,15 @@ pub struct StaticMachineArgument {
     /// structurally distinct from a declaration path: `term.member` is not
     /// interchangeable with `term::member`.
     pub evidence_projection: Option<EvidenceProjection>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StaticSymbolApplication {
+    /// Explicit erased lifetime arguments. An empty lane may be filled only
+    /// by ordinary lifetime elision after the declaration is resolved.
+    pub lifetime_arguments: Box<[Identifier]>,
+    /// Complete explicit non-lifetime telescope of the selected declaration.
+    pub arguments: Box<[StaticMachineArgument]>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

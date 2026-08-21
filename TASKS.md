@@ -1495,6 +1495,19 @@ Remaining N6/N8 work:
   telescope including resolved elided lifetimes, optional subject, instantiated
   trait, and normalized rows. No visibility-, priority-, specificity-, or
   expected-shape-based selection.
+
+  The nested-application closure slice is implemented. Static applications
+  remain recursively delimited through syntax, resolved, and typed Psi; checked
+  specialization requires every non-lifetime argument, rejects a bare generic
+  conformance name, validates the instantiated subject/trait shape, and retains
+  an argument-sensitive identity containing the exact declaration, explicit
+  lifetime/type/const/static-machine lanes, subject, trait application, and
+  closed row map. Different members of one conformance family now produce
+  different specialization identities. Remaining work is to instantiate the
+  selected row realization machines before binder-member rewriting, substitute
+  applications forwarded from an enclosing generic telescope, resolve uniquely
+  elided lifetimes instead of requiring them explicitly, and carry the closed
+  application into Terminal Psi verification.
 - Add `Respects` over compiler-derived positional call telescopes, deriving its
   dependent domain, pointwise input relations, and lifted result relation.
 - Add exact-pair-selected heterogeneous constructor lifts. Dependent records

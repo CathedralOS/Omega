@@ -29,22 +29,7 @@ pub(super) fn lower_call_statement(
         machine_arguments: call
             .machine_arguments
             .iter()
-            .map(|argument| typed::expression::StaticMachineArgument {
-                path: argument
-                    .path
-                    .iter()
-                    .map(crate::name::lower_name)
-                    .collect::<Vec<_>>()
-                    .into_boxed_slice(),
-                const_literal: argument.const_literal.clone(),
-                evidence_projection: argument.evidence_projection.as_ref().map(|projection| {
-                    typed::expression::EvidenceProjection {
-                        term: crate::name::lower_name(&projection.term),
-                        member: crate::name::lower_name(&projection.member),
-                    }
-                }),
-                symbol: argument.symbol,
-            })
+            .map(crate::expression::lower_static_machine_argument)
             .collect::<Vec<_>>()
             .into_boxed_slice(),
         arguments,

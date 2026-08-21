@@ -182,6 +182,11 @@ pub struct MachineSpecialization {
     /// Exact package-scoped conformances selected for explicit proof-static
     /// evidence binders. Separate from callable machine arguments.
     pub conformance_arguments: Vec<psi_symbols::SymbolHandle>,
+    /// Closed, argument-sensitive identities for the selected conformance
+    /// family members. Two applications of the same declaration with
+    /// different telescopes are distinct even though `conformance_arguments`
+    /// contains the same package-scoped declaration symbol.
+    pub conformance_applications: Vec<ClosedConformanceApplication>,
     /// The normalized authored template identity captured before in-place
     /// substitution consumes its generic parameter declarations.
     pub template_contract_fingerprint: u64,
@@ -197,6 +202,28 @@ pub struct MachineSpecialization {
     /// commit to the exact requirement-to-realization rows, not arena handles.
     pub conformance_argument_fingerprints: Vec<u64>,
     pub fingerprint: u64,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ClosedConformanceApplication {
+    pub declaration: psi_symbols::SymbolHandle,
+    pub lifetime_arguments: Vec<String>,
+    pub type_arguments: Vec<String>,
+    pub const_arguments: Vec<String>,
+    pub machine_arguments: Vec<psi_symbols::SymbolHandle>,
+    pub subject_identity: Option<String>,
+    pub trait_definition: psi_symbols::SymbolHandle,
+    pub trait_arguments: Vec<String>,
+    pub rows: Vec<ClosedConformanceRowIdentity>,
+    pub fingerprint: u64,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ClosedConformanceRowIdentity {
+    pub declaring_trait: psi_symbols::SymbolHandle,
+    pub requirement: psi_symbols::SymbolHandle,
+    pub realization_machine: psi_symbols::SymbolHandle,
+    pub realization_state: psi_symbols::SymbolHandle,
 }
 
 /// One validated, FULLY-STATIC layout plan applied to a synthesized data

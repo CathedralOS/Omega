@@ -2024,12 +2024,19 @@ pub struct StaticMachineArgument {
     /// Historical storage name shared by type/const/machine proposition
     /// arguments; proposition proof facts retain their final category.
     pub path: Box<[Identifier]>,
+    pub application: Option<Box<StaticSymbolApplication>>,
     pub const_literal: Option<psi_numerics::literals::IntegerLiteral>,
     /// Proof-static projection from one named evidence term. The checked proof
     /// layer binds it to one stable opaque member of that retained term.
     pub evidence_projection: Option<EvidenceProjection>,
     /// Entry-state symbol of the selected concrete machine.
     pub symbol: SymbolHandle,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StaticSymbolApplication {
+    pub lifetime_arguments: Box<[Identifier]>,
+    pub arguments: Box<[StaticMachineArgument]>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

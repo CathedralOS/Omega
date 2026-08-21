@@ -66,3 +66,40 @@ pub(crate) fn lower_expression_handle_from_table_in_fact_position(
 ) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
     table::lower_expression_handle_from_table_in_fact_position(program, source, target, expression)
 }
+
+pub(crate) fn lower_static_machine_argument(
+    argument: &resolved::expression::StaticMachineArgument,
+) -> typed::expression::StaticMachineArgument {
+    typed::expression::StaticMachineArgument {
+        path: argument
+            .path
+            .iter()
+            .map(crate::name::lower_name)
+            .collect::<Vec<_>>()
+            .into_boxed_slice(),
+        application: argument.application.as_ref().map(|application| {
+            Box::new(typed::expression::StaticSymbolApplication {
+                lifetime_arguments: application
+                    .lifetime_arguments
+                    .iter()
+                    .map(crate::name::lower_name)
+                    .collect::<Vec<_>>()
+                    .into_boxed_slice(),
+                arguments: application
+                    .arguments
+                    .iter()
+                    .map(lower_static_machine_argument)
+                    .collect::<Vec<_>>()
+                    .into_boxed_slice(),
+            })
+        }),
+        const_literal: argument.const_literal.clone(),
+        evidence_projection: argument.evidence_projection.as_ref().map(|projection| {
+            typed::expression::EvidenceProjection {
+                term: crate::name::lower_name(&projection.term),
+                member: crate::name::lower_name(&projection.member),
+            }
+        }),
+        symbol: argument.symbol,
+    }
+}

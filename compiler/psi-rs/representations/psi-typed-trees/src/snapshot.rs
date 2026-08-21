@@ -20,8 +20,16 @@ use serde::Serialize;
 #[serde(untagged)]
 pub enum StaticArgumentSnapshot {
     Path(Vec<String>),
+    Application {
+        path: Vec<String>,
+        lifetime_arguments: Vec<String>,
+        arguments: Vec<StaticArgumentSnapshot>,
+    },
     Const(String),
-    EvidenceProjection { term: String, member: String },
+    EvidenceProjection {
+        term: String,
+        member: String,
+    },
 }
 
 #[cfg(test)]
@@ -1700,6 +1708,16 @@ fn snapshot_static_argument(
         StaticArgumentSnapshot::EvidenceProjection {
             term: projection.term.as_str().to_owned(),
             member: projection.member.as_str().to_owned(),
+        }
+    } else if let Some(application) = &argument.application {
+        StaticArgumentSnapshot::Application {
+            path: path_snapshot(&argument.path),
+            lifetime_arguments: path_snapshot(&application.lifetime_arguments),
+            arguments: application
+                .arguments
+                .iter()
+                .map(snapshot_static_argument)
+                .collect(),
         }
     } else {
         StaticArgumentSnapshot::Path(path_snapshot(&argument.path))

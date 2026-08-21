@@ -1219,6 +1219,140 @@ fn explicit_conformance_binders_keep_distinct_closed_maps_as_distinct_instances(
 }
 
 #[test]
+fn nested_generic_conformance_application_closes_its_own_telescope() {
+    let source = r#"
+        trait Encodes<Output> {}
+        data Bytes {}
+        data Message {}
+
+        SequenceEncoding<Element, Output>:
+            Element satisfies Encodes<Output>
+        {}
+
+        machine send<Element, Output, Encoding: Element satisfies Encodes<Output>>(
+            bytes: &Element,
+            message: &Output
+        ) {}
+
+        machine caller(bytes: &Bytes, message: &Message) {
+            send<Bytes, Message, SequenceEncoding<Bytes, Message>>(bytes, message);
+        }
+    "#;
+
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let selected = typed
+        .conformances()
+        .iter()
+        .find(|conformance| {
+            conformance
+                .alias
+                .as_ref()
+                .is_some_and(|name| name.as_str() == "SequenceEncoding")
+        })
+        .expect("generic conformance")
+        .symbol;
+    let checked = lower_typed_trees(typed).expect("closed generic conformance application");
+    let specialization = checked
+        .machine_specializations
+        .iter()
+        .find(|specialization| specialization.conformance_arguments == [selected])
+        .expect("selected application specialization");
+    let [application] = specialization.conformance_applications.as_slice() else {
+        panic!("one closed application")
+    };
+    assert_eq!(application.declaration, selected);
+    assert_eq!(application.type_arguments, ["Bytes", "Message"]);
+    assert_eq!(application.subject_identity.as_deref(), Some("Bytes"));
+    assert_eq!(application.trait_arguments.len(), 1);
+    assert_ne!(application.fingerprint, 0);
+    assert_eq!(
+        specialization.conformance_argument_fingerprints,
+        [application.fingerprint]
+    );
+}
+
+#[test]
+fn bare_generic_conformance_name_does_not_infer_its_owned_arguments() {
+    let source = r#"
+        trait Encodes<Output> {}
+        data Bytes {}
+        data Message {}
+
+        SequenceEncoding<Element, Output>:
+            Element satisfies Encodes<Output>
+        {}
+
+        machine send<Element, Output, Encoding: Element satisfies Encodes<Output>>(
+            bytes: &Element,
+            message: &Output
+        ) {}
+
+        machine caller(bytes: &Bytes, message: &Message) {
+            send<Bytes, Message, SequenceEncoding>(bytes, message);
+        }
+    "#;
+
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let diagnostics = lower_typed_trees(typed).expect_err("bare generic name must reject");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic.message.contains(
+            "generic conformance `SequenceEncoding` requires 2 explicit non-lifetime argument(s), got 0",
+        )
+    }));
+}
+
+#[test]
+fn members_of_one_generic_conformance_family_have_distinct_identity() {
+    let source = r#"
+        trait Encodes<Output> {}
+        data Bytes {}
+        data Text {}
+        data Message {}
+        data Notice {}
+
+        SequenceEncoding<Element, Output>:
+            Element satisfies Encodes<Output>
+        {}
+
+        machine send<Element, Output, Encoding: Element satisfies Encodes<Output>>(
+            value: &Element,
+            output: &Output
+        ) {}
+
+        machine first(value: &Bytes, output: &Message) {
+            send<Bytes, Message, SequenceEncoding<Bytes, Message>>(value, output);
+        }
+        machine second(value: &Text, output: &Notice) {
+            send<Text, Notice, SequenceEncoding<Text, Notice>>(value, output);
+        }
+    "#;
+
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("two closed family applications");
+    let applications = checked
+        .machine_specializations
+        .iter()
+        .filter_map(|specialization| specialization.conformance_applications.first())
+        .collect::<Vec<_>>();
+    assert_eq!(applications.len(), 2);
+    assert_eq!(applications[0].declaration, applications[1].declaration);
+    assert_ne!(applications[0].fingerprint, applications[1].fingerprint);
+    assert_ne!(
+        applications[0].type_arguments,
+        applications[1].type_arguments
+    );
+}
+
+#[test]
 fn explicit_conformance_binder_rejects_a_map_for_the_wrong_subject() {
     let source = r#"
         trait Ranked {

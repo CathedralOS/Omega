@@ -278,26 +278,7 @@ fn lower_expression_node_into_table(
                     machine_arguments: call
                         .machine_arguments
                         .iter()
-                        .map(|argument| {
-                            psi_symbol_resolved_trees::expression::StaticMachineArgument {
-                                path: argument
-                                    .path
-                                    .iter()
-                                    .map(lower_name)
-                                    .collect::<Vec<_>>()
-                                    .into_boxed_slice(),
-                                const_literal: argument.const_literal.clone(),
-                                evidence_projection: argument.evidence_projection.as_ref().map(
-                                    |projection| {
-                                        psi_symbol_resolved_trees::expression::EvidenceProjection {
-                                            term: lower_name(&projection.term),
-                                            member: lower_name(&projection.member),
-                                        }
-                                    },
-                                ),
-                                symbol: SymbolHandle::invalid(),
-                            }
-                        })
+                        .map(lower_static_machine_argument)
                         .collect::<Vec<_>>()
                         .into_boxed_slice(),
                     arguments,
@@ -488,6 +469,45 @@ fn lower_expression_node_into_table(
                 )),
             )
         }
+    }
+}
+
+pub(crate) fn lower_static_machine_argument(
+    argument: &syntax::expression::StaticMachineArgument,
+) -> psi_symbol_resolved_trees::expression::StaticMachineArgument {
+    psi_symbol_resolved_trees::expression::StaticMachineArgument {
+        path: argument
+            .path
+            .iter()
+            .map(lower_name)
+            .collect::<Vec<_>>()
+            .into_boxed_slice(),
+        application: argument.application.as_ref().map(|application| {
+            Box::new(
+                psi_symbol_resolved_trees::expression::StaticSymbolApplication {
+                    lifetime_arguments: application
+                        .lifetime_arguments
+                        .iter()
+                        .map(lower_name)
+                        .collect::<Vec<_>>()
+                        .into_boxed_slice(),
+                    arguments: application
+                        .arguments
+                        .iter()
+                        .map(lower_static_machine_argument)
+                        .collect::<Vec<_>>()
+                        .into_boxed_slice(),
+                },
+            )
+        }),
+        const_literal: argument.const_literal.clone(),
+        evidence_projection: argument.evidence_projection.as_ref().map(|projection| {
+            psi_symbol_resolved_trees::expression::EvidenceProjection {
+                term: lower_name(&projection.term),
+                member: lower_name(&projection.member),
+            }
+        }),
+        symbol: SymbolHandle::invalid(),
     }
 }
 

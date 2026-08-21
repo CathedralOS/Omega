@@ -799,49 +799,11 @@ fn try_parse_static_machine_arguments<'tokens, 'source>(
     let mut cursor = input.take_punctuation(PunctuationKind::Less, "<")?;
     let mut arguments = Vec::new();
     loop {
-        if cursor.at_integer() {
-            let (literal, rest) = cursor.take_integer_literal()?;
-            arguments.push(StaticMachineArgument {
-                path: Box::default(),
-                const_literal: Some(literal),
-                evidence_projection: None,
-            });
-            cursor = rest;
-        } else {
-            let Ok((first, rest)) = cursor.take_identifier() else {
-                return Ok(None);
-            };
-            cursor = rest;
-            if cursor.at_punctuation(PunctuationKind::Dot) {
-                cursor = cursor.take_punctuation(PunctuationKind::Dot, ".")?;
-                let (member, rest) = cursor.take_identifier()?;
-                arguments.push(StaticMachineArgument {
-                    path: Box::default(),
-                    const_literal: None,
-                    evidence_projection: Some(psi_syntax_trees::expression::EvidenceProjection {
-                        term: first,
-                        member,
-                    }),
-                });
-                cursor = rest;
-            } else {
-                let mut path = vec![first];
-                while cursor.at_punctuation(PunctuationKind::ColonColon) {
-                    let after_separator =
-                        cursor.take_punctuation(PunctuationKind::ColonColon, "::")?;
-                    let Ok((member, rest)) = after_separator.take_identifier() else {
-                        return Ok(None);
-                    };
-                    path.push(member);
-                    cursor = rest;
-                }
-                arguments.push(StaticMachineArgument {
-                    path: path.into_boxed_slice(),
-                    const_literal: None,
-                    evidence_projection: None,
-                });
-            }
-        }
+        let Some((argument, rest)) = try_parse_static_argument(cursor)? else {
+            return Ok(None);
+        };
+        arguments.push(argument);
+        cursor = rest;
 
         if cursor.at_punctuation(PunctuationKind::Comma) {
             cursor = cursor.take_punctuation(PunctuationKind::Comma, ",")?;
@@ -856,4 +818,108 @@ fn try_parse_static_machine_arguments<'tokens, 'source>(
         }
         return Ok(Some((arguments.into_boxed_slice(), cursor)));
     }
+}
+
+fn try_parse_static_argument<'tokens, 'source>(
+    mut input: Input<'tokens, 'source>,
+) -> Result<Option<(StaticMachineArgument, Input<'tokens, 'source>)>, ParseError> {
+    if input.at_integer() {
+        let (literal, rest) = input.take_integer_literal()?;
+        return Ok(Some((
+            StaticMachineArgument {
+                path: Box::default(),
+                application: None,
+                const_literal: Some(literal),
+                evidence_projection: None,
+            },
+            rest,
+        )));
+    }
+
+    let Ok((first, rest)) = input.take_identifier() else {
+        return Ok(None);
+    };
+    input = rest;
+    if input.at_punctuation(PunctuationKind::Dot) {
+        input = input.take_punctuation(PunctuationKind::Dot, ".")?;
+        let (member, rest) = input.take_identifier()?;
+        return Ok(Some((
+            StaticMachineArgument {
+                path: Box::default(),
+                application: None,
+                const_literal: None,
+                evidence_projection: Some(psi_syntax_trees::expression::EvidenceProjection {
+                    term: first,
+                    member,
+                }),
+            },
+            rest,
+        )));
+    }
+
+    let mut path = vec![first];
+    while input.at_punctuation(PunctuationKind::ColonColon) {
+        let after_separator = input.take_punctuation(PunctuationKind::ColonColon, "::")?;
+        let Ok((member, rest)) = after_separator.take_identifier() else {
+            return Ok(None);
+        };
+        path.push(member);
+        input = rest;
+    }
+
+    let application = if input.at_punctuation(PunctuationKind::Less) {
+        let mut cursor = input.take_punctuation(PunctuationKind::Less, "<")?;
+        let mut lifetime_arguments = Vec::new();
+        let mut arguments = Vec::new();
+        let mut saw_non_lifetime = false;
+        loop {
+            if cursor.at_punctuation(PunctuationKind::Apostrophe) {
+                if saw_non_lifetime {
+                    return Err(cursor.error_here(
+                        "lifetime arguments precede type, const, and static-machine arguments",
+                    ));
+                }
+                cursor = cursor.take_punctuation(PunctuationKind::Apostrophe, "'")?;
+                let (lifetime, rest) = cursor.take_identifier()?;
+                lifetime_arguments.push(lifetime);
+                cursor = rest;
+            } else {
+                saw_non_lifetime = true;
+                let Some((argument, rest)) = try_parse_static_argument(cursor)? else {
+                    return Ok(None);
+                };
+                arguments.push(argument);
+                cursor = rest;
+            }
+
+            if cursor.at_punctuation(PunctuationKind::Comma) {
+                cursor = cursor.take_punctuation(PunctuationKind::Comma, ",")?;
+                continue;
+            }
+            if !cursor.at_punctuation(PunctuationKind::Greater) {
+                return Ok(None);
+            }
+            cursor = cursor.take_punctuation(PunctuationKind::Greater, ">")?;
+            input = cursor;
+            break;
+        }
+        Some(Box::new(
+            psi_syntax_trees::expression::StaticSymbolApplication {
+                lifetime_arguments: lifetime_arguments.into_boxed_slice(),
+                arguments: arguments.into_boxed_slice(),
+            },
+        ))
+    } else {
+        None
+    };
+
+    Ok(Some((
+        StaticMachineArgument {
+            path: path.into_boxed_slice(),
+            application,
+            const_literal: None,
+            evidence_projection: None,
+        },
+        input,
+    )))
 }
