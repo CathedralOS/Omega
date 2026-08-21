@@ -370,7 +370,11 @@ Here `result.left` retains only `left`, while `result.right` retains only
 borrow-carrying local, initializes a field or fixed-array element of another
 aggregate: the checker prefixes the inner loan path with the enclosing
 field/index path without merging sibling sources or weakening shared versus
-mutable polarity. Last-use accounting compares the canonical field/index path, so a
+mutable polarity. A same-carrier value cast preserves the same carried loans:
+explicitly erasing a non-owning qualification cannot erase ownership, its
+source place, or its shared/mutable polarity. Borrow representation recasts
+remain subject to their separate footprint and overlap judgment. Last-use
+accounting compares the canonical field/index path, so a
 later use of `result.right` does not artificially keep `result.left`'s loan
 active.
 Program-static views stored in persistent aggregate fields carry their stable

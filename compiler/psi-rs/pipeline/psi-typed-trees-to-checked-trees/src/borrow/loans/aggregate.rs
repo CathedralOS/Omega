@@ -154,14 +154,16 @@ fn aggregate_value_initializer(
     expression: ExpressionHandle,
     owner_path: &[BorrowOwnerSegment],
 ) -> Option<BorrowedInitializer> {
+    let is_direct_aggregate_value = match program.expression_table.expression(expression) {
+        ExpressionNode::Call(_)
+        | ExpressionNode::Indexed(_)
+        | ExpressionNode::Member(_)
+        | ExpressionNode::Name(_) => true,
+        ExpressionNode::Cast(cast) => !cast.form.is_recast(),
+        _ => false,
+    };
     if !crate::borrow::view_link::returns_borrow(program, type_reference)
-        || !matches!(
-            program.expression_table.expression(expression),
-            ExpressionNode::Call(_)
-                | ExpressionNode::Indexed(_)
-                | ExpressionNode::Member(_)
-                | ExpressionNode::Name(_)
-        )
+        || !is_direct_aggregate_value
     {
         return None;
     }
