@@ -1,6 +1,6 @@
 # Design Brief: Calling And Machine-State Plans
 
-Current as of 2026-07-28. Boundary conventions are normalized policy artifacts;
+Current as of 2026-08-20. Boundary conventions are normalized policy artifacts;
 Omega's internal calling convention remains compiler-sovereign. This brief now
 includes inbound machine-state preservation, which ordinary calls do not expose.
 Engineering is incomplete. The normalized compiler model, initial built-in
@@ -531,14 +531,47 @@ and materializes the native code address only inside the binding lowering. The
 source program continues to name a machine and a requirement rather than
 constructing an address-shaped callback value.
 
-The concrete source form for that nominal machine-parameter-to-requirement
-binding is unresolved in owner Q3. Today's `where machine Selected(...)`
-contract proves only structural callable refinement; it does not mean
-`Selected satisfies WindowProcedure::call`. The compiler must not infer the
-relationship from a matching signature or a uniquely conformed boundary
-machine. No callback thunk is emitted until an approved form produces an exact
-checked call-use row, including the machine-argument position and callback
-requirement.
+The registration operation binds its static machine parameter to the exact
+callback requirement with the nominal `where machine` form:
+
+```omega
+boundary machine register_window_procedure<machine Selected>(
+    class_name: &[u8] in CString
+) -> Registration
+where machine Selected satisfies WindowProcedure::call;
+```
+
+The requirement supplies the complete callable signature, contracts,
+operational ceilings, and evaluated calling/entry plan; the binder does not
+repeat them. `register_window_procedure<ApplicationWindow::dispatch>(name)`
+selects the authored satisfaction row for that exact requirement. A matching
+signature or uniquely visible conformance establishes nothing.
+
+`WindowProcedure::call` is a signature-free requirement reference and must
+resolve to one exact overload at the binder declaration. Ambiguity rejects.
+This is the same rule used by domain route lists and other signature-free
+requirement paths. There is no callback-local expanded-signature workaround,
+and `as Name` remains the satisfying-conformance name rather than an overload
+selector. Adding an overload to an existing requirement name is therefore a
+breaking change for all such references and must be reported at the declaring
+trait as well as the affected uses.
+
+Each checked callback use retains the call site, registration-operation
+identity, static-machine argument ordinal, selected machine, selected
+satisfaction row, exact canonical requirement overload, and evaluated target
+placement recipe. The callback's published requirement envelope and selected
+machine's actual envelope remain separate, with an explicit refinement proof
+from actual to published. The foreign protocol relies on the published
+envelope; installation, resource, reach, and crash reasoning may use the
+narrower actual envelope.
+
+Lowering alone materializes the thunk relocation at the plan's exact native
+argument or nested field. Neither the static machine argument nor its address
+becomes an Omega runtime value. A retained `Registration` keeps the exact
+selected identity in occurrence provenance and owns the code/component lease,
+but ownership does not automatically import that narrower envelope into a
+caller's proof context. A public API that exposes those facts forwards them in
+its own contract.
 
 A durable registration returns an ordinary linear package value. That value
 owns the protocol registration and, when code unloading is possible, the

@@ -653,7 +653,7 @@ Remaining:
   codecs, verification, fuel, and interpretation reject missing or redirected
   premises. Continue with case-payload paths and aggregate equality over text,
   floats, sums, and erased fields. Trapping predicate arithmetic is
-  design-blocked on owner Q6; imported crash capsules remain blocked on
+  design-blocked on owner Q5; imported crash capsules remain blocked on
   artifact identity and certificate binding.
 - **PROOF-CERTIFICATION-BRIDGE.** Emit kernel-checkable certificates from source
   automation. One recursive certificate owns one SCC, cites its ranking and
@@ -1087,7 +1087,7 @@ Remaining:
   outcomes only when terminal wait/foreign edges can derive them. Inserted native
   metering must consume the installed exact-site
   attribution rows, but is design-blocked on the sponsor counter, exhaustion
-  transfer, and resumable continuation ABI in owner Q4. Keep WCET and wall-clock
+  transfer, and resumable continuation ABI in owner Q3. Keep WCET and wall-clock
   conversion separate.
 - **PROOF-RELEVANCE-MIGRATION.** Finish binding-level `[erased]`, checked
   noninterference, erased-stripped layout, and obligation preservation across
@@ -1166,13 +1166,22 @@ Owners:
 
 #### ENT4 — registered callbacks
 
-- **CALLBACK-PARAMETER-REQUIREMENT — design blocked on owner Q3.** The source
-  operation must nominally bind one static machine-parameter position to one
-  exact callback requirement; callable-shape coincidence and unique conformance
-  are insufficient. Once settled, retain a checked per-use row and exact
-  call/state plan, then emit its thunk only from selected binding lowering.
-  Registration is linear, explicitly unregisters, and retains required code/
-  component leases.
+- **CALLBACK-PARAMETER-REQUIREMENT — implement the settled nominal binder.**
+  Parse and resolve `where machine Selected satisfies Trait::requirement`,
+  deriving the complete callable contract from one uniquely resolved
+  requirement row. Centralize that exact resolver for domain route lists and
+  every other signature-free requirement site. Reject overloaded paths,
+  structural coincidence, and visible-unique selection. Retain a checked
+  per-use row with call site, static-machine ordinal, selected
+  machine/satisfaction row, exact requirement overload, separate published and
+  actual envelopes plus their refinement proof, and the target thunk-placement
+  recipe. Emit the private
+  relocation only from validated binding lowering. Registration is linear,
+  explicitly unregisters, retains required code/component leases, and keeps
+  selected identity in provenance without importing narrower facts unless an
+  API contract forwards them. Add declaration-side compatibility reporting
+  when a new overload makes signature-free references ambiguous, with pass/fail
+  canaries covering both callback binders and domain routes.
 - Implement the narrow Windows `user32` canary without exposing a raw code
   address. Derive `Atomic::interruption_fence` same-context evidence from the
   installed external-root route and reject it elsewhere.
@@ -1288,7 +1297,7 @@ compiler concept is introduced.
   umbrella. The published checked operational root is retired; its plan remains
   only as a transient validation and independent-fact construction input.
   Continue removing umbrella carriers after their remaining consumers migrate.
-- **TPR4/TPR6 — design blocked on owner Q9.** Choose how an ordinary domain or
+- **TPR4/TPR6 — design blocked on owner Q8.** Choose how an ordinary domain or
   routed requirement is classified and attached as a progress premise before
   connecting progress-profile grants and receipts. Generic routed/domain
   requirements must not be treated as progress merely because they are
@@ -1509,23 +1518,22 @@ can produce installed code; validation binds exact final bytes and placement.
 These are pointers to the owning question or open design item, not duplicate
 specifications:
 
-- **EXTERNAL-ENTRY-STACK-DOMAIN:** owner Q7.
+- **EXTERNAL-ENTRY-STACK-DOMAIN:** owner Q6.
 - **FIXED-OPERATOR-SURFACE-BINDING:** owner Q1.
 - **UEFI-PHYSICAL-SEMANTIC-ENTRY-COMPOSITION:** owner Q2.
-- **CALLBACK-PARAMETER-REQUIREMENT:** owner Q3.
 - **SUM-MATERIALIZATION:** tagged-case placement vocabulary in
   `wiki/language_guide/appendix_open_questions.md`.
 - **ATOMIC-EVENT-MODEL:** portable atomic axioms and target refinement choices
   in `wiki/language_guide/appendix_open_questions.md`.
 - **CHECKED-RESULT-ARITHMETIC:** public carrier ruling for failure-returning
   checked arithmetic.
-- **TRAPPING-CONTRACT-ARITHMETIC:** owner Q6.
+- **TRAPPING-CONTRACT-ARITHMETIC:** owner Q5.
 - **IMPORTED-CRASH-CAPSULES:** realization/import/certificate identity in
   `wiki/language_guide/appendix_open_questions.md`.
-- **NATIVE-LOGICAL-FUEL-METERING:** owner Q4.
-- **PROVIDER-NEUTRAL-INTERRUPT-ACKNOWLEDGEMENT:** owner Q5.
-- **GENERIC-CONFORMANCE-APPLICATION:** owner Q8.
-- **PROGRESS-PROFILE-CLASSIFICATION:** owner Q9.
+- **NATIVE-LOGICAL-FUEL-METERING:** owner Q3.
+- **PROVIDER-NEUTRAL-INTERRUPT-ACKNOWLEDGEMENT:** owner Q4.
+- **GENERIC-CONFORMANCE-APPLICATION:** owner Q7.
+- **PROGRESS-PROFILE-CLASSIFICATION:** owner Q8.
 
 ## Platform-gated verification
 

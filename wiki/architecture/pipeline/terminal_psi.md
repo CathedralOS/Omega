@@ -104,6 +104,17 @@ selection to interpret its meaning. It contains:
 - fingerprinted contracts, obligation schemas, authorized admission sites,
   trust attribution, and work identities.
 
+Nominal static-machine callback bindings survive as explicit call-use rows.
+Each row names the registration call and operation, static-machine argument
+ordinal, selected machine and satisfaction row, exact canonical callback
+requirement overload, and target thunk-placement recipe. It retains the
+requirement's published envelope separately from the selected machine's actual
+envelope and carries the checked actual-refines-published judgment. A native
+address is never semantic input; only validated lowering materializes the
+private relocation. Retained registration provenance keeps the selected
+identity and lease disposition without making the actual envelope an ambient
+caller fact.
+
 Reference identities retain loan compatibility and permitted operations
 separately. `&write T` carries an exclusive loan over an existing valid `T`
 with mutation but no observation authority. Terminal production preserves that

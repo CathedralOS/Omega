@@ -1,6 +1,6 @@
 # Design Brief: Authority Values And Boundary Evidence
 
-Status: semantic direction updated 2026-08-19. The core `Extent` declaration,
+Status: semantic direction updated 2026-08-20. The core `Extent` declaration,
 owner-authored root requirement, state-local constrained-parameter evidence
 boundary, canonical compiler-owned `IntervalSet` content algebra, Cathedral's
 first admitted `Granted` root, and ordinary interrupt
@@ -59,6 +59,15 @@ originate the domain at its exact qualified subjects. Here the subject is the
 result. A selected provider satisfies the requirement, and admission records
 its evidence. A third party cannot create a look-alike trait or machine to
 establish `Granted`.
+
+Route entries are signature-free requirement references, so each path must
+resolve to one exact overload. Ambiguity rejects without consulting visible or
+selected satisfiers. The same rule governs nominal static-machine callback
+binders and every other signature-free requirement reference. Adding an
+overload to an existing requirement name is consequently a breaking change for
+distant route lists and binders as well as local callers; compatibility
+reporting surfaces that at the requirement declaration. `as Name` continues to
+name a satisfying conformance and is not an overload selector.
 
 Predicate-only membership is established by proof, including proof guaranteed
 by a checked validator or accepted under an admitted receipt. Routed

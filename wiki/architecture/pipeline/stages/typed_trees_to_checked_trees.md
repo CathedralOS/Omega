@@ -52,6 +52,11 @@ Must own:
   projection and non-observing writes, composes the restriction through calls,
   and retains exact outcome write footprints for dependent-fact invalidation.
 - Reach summaries, invocation edges, and boundary contract facts that later stages must preserve.
+- Nominal static-machine callback-use facts keyed by call site and machine
+  argument ordinal, including the selected machine/satisfaction row, exact
+  requirement overload, separate published and actual envelopes, their
+  refinement judgment, and the target placement recipe. Signature matching or
+  visible uniqueness never manufactures such a fact.
 - Checked value origins for ranking witnesses, initializers, statement values,
   call arguments, transition guards/targets, and nested expression children.
 - A durable checked-flow representation of calls and transitions.
