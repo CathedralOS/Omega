@@ -125,6 +125,7 @@ pub enum MachineInstructionKind {
     OutgoingStackAddressLoad,
     OutgoingStackFrameReserve,
     OutgoingStackU64Write,
+    EntryIndirectU64ToOutgoingStackCopy,
     OutgoingStackFrameRelease,
     HostCallSequence,
     /// The x86 `hlt` privileged instruction (`asm { hlt }`). Zero operands,

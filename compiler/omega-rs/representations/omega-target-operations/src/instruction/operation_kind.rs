@@ -538,6 +538,13 @@ pub enum TargetOperationKind {
         stack_byte_offset: u32,
         value: u64,
     },
+    /// Compiler-private launch-value copy. It reads one u64 through an
+    /// incoming indirect parameter register and writes one reserved RSP slot.
+    CopyEntryIndirectU64ToOutgoingStack {
+        source_register: omega_calling_conventions::MachineRegister,
+        source_byte_offset: u32,
+        stack_byte_offset: u32,
+    },
     ReleaseOutgoingStackFrame {
         byte_count: u32,
     },

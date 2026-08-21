@@ -778,6 +778,25 @@ pub(super) fn encode_machine_instruction_bytes(
                 .to_vec(),
             )
         }
+        SelectedInstructionKind::CopyEntryIndirectU64ToOutgoingStack {
+            source_register,
+            source_byte_offset,
+            stack_byte_offset,
+        } => {
+            if input.target.architecture != omega_target::Architecture::X86_64 {
+                return Err(Diagnostic::error(
+                    "entry-indirect outgoing stack copies are supported only on x86-64",
+                ));
+            }
+            Ok(
+                omega_isa_x86_64::encode_entry_indirect_u64_to_outgoing_stack_copy_bytes(
+                    *source_register,
+                    *source_byte_offset,
+                    *stack_byte_offset,
+                )?
+                .to_vec(),
+            )
+        }
         SelectedInstructionKind::ReleaseOutgoingStackFrame { byte_count } => {
             if input.target.architecture != omega_target::Architecture::X86_64 {
                 return Err(Diagnostic::error(

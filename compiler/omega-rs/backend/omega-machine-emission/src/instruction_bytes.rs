@@ -395,6 +395,17 @@ fn compiler_instruction_validation_kind(
             stack_byte_offset: *stack_byte_offset,
             value: *value,
         }),
+        SelectedInstructionKind::CopyEntryIndirectU64ToOutgoingStack {
+            source_register,
+            source_byte_offset,
+            stack_byte_offset,
+        } => Some(
+            CompilerInstructionValidationKind::EntryIndirectU64ToOutgoingStackCopy {
+                source_register: *source_register,
+                source_byte_offset: *source_byte_offset,
+                stack_byte_offset: *stack_byte_offset,
+            },
+        ),
         SelectedInstructionKind::ReleaseOutgoingStackFrame { byte_count } => {
             Some(CompilerInstructionValidationKind::OutgoingStackFrameRelease {
                 byte_count: *byte_count,

@@ -35,6 +35,25 @@ pub(super) fn expected_control_entry_spec(
                         78u8,
                         CompilerInstructionRelocationRecipe::None,
                     ),
+                    omega_machine_bytes::CompilerInstructionValidationKind::EntryIndirectU64ToOutgoingStackCopy {
+                        source_register,
+                        source_byte_offset,
+                        stack_byte_offset,
+                    } => (
+                        None,
+                        match architecture {
+                            Architecture::X86_64 => omega_isa_x86_64::encode_entry_indirect_u64_to_outgoing_stack_copy_bytes(
+                                source_register,
+                                source_byte_offset,
+                                stack_byte_offset,
+                            )?.to_vec(),
+                            Architecture::Aarch64 => return Err(Diagnostic::error(
+                                "entry-indirect outgoing stack copies are supported only on x86-64",
+                            )),
+                        },
+                        82u8,
+                        CompilerInstructionRelocationRecipe::None,
+                    ),
                     omega_machine_bytes::CompilerInstructionValidationKind::OutgoingStackFrameReserve {
                         byte_count,
                     } => (

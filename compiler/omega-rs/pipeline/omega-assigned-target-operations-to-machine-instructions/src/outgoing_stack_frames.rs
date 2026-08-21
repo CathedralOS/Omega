@@ -8,6 +8,13 @@ struct ActiveFrame {
     byte_count: u32,
     next_write: usize,
     next_address: usize,
+    write_mode: Option<WriteMode>,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum WriteMode {
+    Immediate,
+    EntryIndirect,
 }
 
 pub(crate) fn validate_outgoing_stack_frames(
@@ -24,6 +31,7 @@ pub(crate) fn validate_outgoing_stack_frames(
                         byte_count,
                         next_write: 0,
                         next_address: 0,
+                        write_mode: None,
                     })
                     .is_some()
                 {
@@ -59,6 +67,9 @@ pub(crate) fn validate_outgoing_stack_frames(
                 let expected_offsets = [32, 40, 48, 56];
                 if frame.byte_count != 72
                     || frame.next_address != 0
+                    || frame
+                        .write_mode
+                        .is_some_and(|mode| mode != WriteMode::Immediate)
                     || expected_offsets.get(frame.next_write).copied() != Some(stack_byte_offset)
                     || stack_byte_offset < 32
                     || stack_byte_offset % 8 != 0
@@ -68,6 +79,38 @@ pub(crate) fn validate_outgoing_stack_frames(
                         "outgoing stack u64 write violates exact 72-byte frame order or writable ranges",
                     ));
                 }
+                frame.write_mode = Some(WriteMode::Immediate);
+                frame.next_write += 1;
+            }
+            AssignedOperationKind::CopyEntryIndirectU64ToOutgoingStack {
+                source_register,
+                source_byte_offset,
+                stack_byte_offset,
+            } => {
+                let Some(frame) = active.as_mut() else {
+                    return Err(Diagnostic::error(
+                        "entry-indirect outgoing stack copy occurs outside a live reserved frame",
+                    ));
+                };
+                let expected = [
+                    (omega_calling_conventions::MachineRegister::X86Rcx, 0, 32),
+                    (omega_calling_conventions::MachineRegister::X86Rcx, 8, 40),
+                    (omega_calling_conventions::MachineRegister::X86Rdx, 0, 48),
+                    (omega_calling_conventions::MachineRegister::X86Rdx, 8, 56),
+                ];
+                if frame.byte_count != 72
+                    || frame.next_address != 0
+                    || frame
+                        .write_mode
+                        .is_some_and(|mode| mode != WriteMode::EntryIndirect)
+                    || expected.get(frame.next_write).copied()
+                        != Some((source_register, source_byte_offset, stack_byte_offset))
+                {
+                    return Err(Diagnostic::error(
+                        "entry-indirect outgoing stack copy violates exact launch-value order or writable ranges",
+                    ));
+                }
+                frame.write_mode = Some(WriteMode::EntryIndirect);
                 frame.next_write += 1;
             }
             AssignedOperationKind::LoadOutgoingStackAddress {
@@ -147,12 +190,29 @@ mod tests {
             .collect()
     }
 
-    #[test]
-    fn exact_balanced_frame_and_addresses_are_admitted() {
+    fn exact_entry_copies() -> Vec<AssignedOperation> {
+        [
+            (MachineRegister::X86Rcx, 0, 32),
+            (MachineRegister::X86Rcx, 8, 40),
+            (MachineRegister::X86Rdx, 0, 48),
+            (MachineRegister::X86Rdx, 8, 56),
+        ]
+        .into_iter()
+        .map(|(source_register, source_byte_offset, stack_byte_offset)| {
+            operation(AssignedOperationKind::CopyEntryIndirectU64ToOutgoingStack {
+                source_register,
+                source_byte_offset,
+                stack_byte_offset,
+            })
+        })
+        .collect()
+    }
+
+    fn finish_exact_frame(mut writes: Vec<AssignedOperation>) -> Vec<AssignedOperation> {
         let mut instructions = vec![operation(
             AssignedOperationKind::ReserveOutgoingStackFrame { byte_count: 72 },
         )];
-        instructions.extend(exact_writes());
+        instructions.append(&mut writes);
         instructions.extend([
             operation(AssignedOperationKind::LoadOutgoingStackAddress {
                 register: MachineRegister::X86Rcx,
@@ -164,8 +224,51 @@ mod tests {
             }),
             operation(AssignedOperationKind::ReleaseOutgoingStackFrame { byte_count: 72 }),
         ]);
+        instructions
+    }
+
+    #[test]
+    fn exact_balanced_frame_and_addresses_are_admitted() {
+        let instructions = finish_exact_frame(exact_writes());
         validate_outgoing_stack_frames(omega_target::NativeTarget::uefi_x64(), &instructions)
             .expect("exact balanced caller frame");
+    }
+
+    #[test]
+    fn exact_launch_value_copy_frame_is_admitted() {
+        let instructions = finish_exact_frame(exact_entry_copies());
+        validate_outgoing_stack_frames(omega_target::NativeTarget::uefi_x64(), &instructions)
+            .expect("exact launch-value caller frame");
+    }
+
+    #[test]
+    fn launch_value_copy_drift_and_mixed_sources_reject() {
+        let target = omega_target::NativeTarget::uefi_x64();
+        for replacement in [
+            AssignedOperationKind::CopyEntryIndirectU64ToOutgoingStack {
+                source_register: MachineRegister::X86Rdx,
+                source_byte_offset: 0,
+                stack_byte_offset: 32,
+            },
+            AssignedOperationKind::CopyEntryIndirectU64ToOutgoingStack {
+                source_register: MachineRegister::X86Rcx,
+                source_byte_offset: 8,
+                stack_byte_offset: 32,
+            },
+            AssignedOperationKind::CopyEntryIndirectU64ToOutgoingStack {
+                source_register: MachineRegister::X86Rcx,
+                source_byte_offset: 0,
+                stack_byte_offset: 40,
+            },
+            AssignedOperationKind::WriteOutgoingStackU64 {
+                stack_byte_offset: 32,
+                value: 1,
+            },
+        ] {
+            let mut writes = exact_entry_copies();
+            writes[0] = operation(replacement);
+            assert!(validate_outgoing_stack_frames(target, &finish_exact_frame(writes)).is_err());
+        }
     }
 
     #[test]
