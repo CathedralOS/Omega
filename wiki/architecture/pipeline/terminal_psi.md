@@ -1771,11 +1771,23 @@ drift, ambiguity, and coefficient/offset overflow reject. This gives direct
 definition chains and the affine branches used by same-root and correlated
 analyses one common normalization-custody primitive. It is not a proof rule,
 does not serialize into a proof bundle, and proves no integer bound by itself.
+The same producer-visible boundary now checks the exact atomic target bound
+obtained from a checked affine form and one canonical root `<=` proposition.
+Positive coefficients preserve the root-bound orientation, negative
+coefficients reverse it, and a zero coefficient deterministically retains the
+cited orientation while mapping to the constant offset. The mapped endpoint is
+recomputed with checked arithmetic and must inhabit the same carrier; wrong
+root or literal shape, wrong target relation, arithmetic overflow, and
+out-of-carrier endpoints reject. This conversion accepts no proof authority:
+its caller must independently establish the supplied root-bound proposition.
+It remains a non-serialized prerequisite API, not a `ProofRule` or certificate
+leaf.
 
 Producers for cast/shift chains and correlated forbidden-root analysis still
-need their own normalized witnesses. The affine families additionally need an
-independently checked conversion from a checked affine form plus cited root
-bounds to each required atomic target bound. Until those conversions can cover
+need their own normalized witnesses. Affine certificate production still needs
+an intentionally versioned proof-rule integration that recursively checks the
+root-bound citation and binds every normalization equality into the accepted
+premise closure. Until that integration and the correlated conversions cover
 every accepted family, neither exact row switches reconstruction or gains an
 evidence-dependent fallback. No proof vocabulary, schema, or reducer node is
 promoted, and terminal closure remains `fully-derived false`.

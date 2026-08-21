@@ -212,6 +212,75 @@ impl std::fmt::Display for IntegerAffineWitnessError {
 
 impl std::error::Error for IntegerAffineWitnessError {}
 
+/// Check the monotone or antitone image of one canonical root bound.
+///
+/// The caller must supply a root-bound proposition whose proof or citation was
+/// checked independently. This function accepts no proof authority; it checks
+/// only that the already-normalized affine form maps that exact bound to the
+/// claimed target relation.
+pub fn check_integer_affine_bound_conversion(
+    form: &CheckedIntegerAffineForm,
+    root_bound: &Proposition,
+    conclusion: &Proposition,
+) -> Result<(), IntegerAffineBoundConversionError> {
+    let Proposition::LessOrEqual(bound_left, bound_right) = root_bound else {
+        return Err(IntegerAffineBoundConversionError::RootBoundNotLessOrEqual);
+    };
+    let (bound, root_is_lower_endpoint) = if bound_left == form.root() {
+        (bound_right, false)
+    } else if bound_right == form.root() {
+        (bound_left, true)
+    } else {
+        return Err(IntegerAffineBoundConversionError::RootBoundMismatch);
+    };
+    let Some(bound) = signed_literal(bound, form.integer_type()) else {
+        return Err(IntegerAffineBoundConversionError::RootBoundNotTypedLiteral);
+    };
+    let mapped = form
+        .coefficient()
+        .checked_mul(bound)
+        .and_then(|value| value.checked_add(form.offset()))
+        .ok_or(IntegerAffineBoundConversionError::MappedBoundOverflow)?;
+    let mapped = ScalarTerm::integer(form.integer_type(), IntegerValue::Signed(mapped))
+        .map_err(|_| IntegerAffineBoundConversionError::MappedBoundOutsideCarrier)?;
+
+    // Positive forms preserve order, negative forms reverse it. A constant
+    // form can soundly provide either orientation; retaining the root bound's
+    // orientation makes that choice deterministic.
+    let target_is_left = if form.coefficient() < 0 {
+        root_is_lower_endpoint
+    } else {
+        !root_is_lower_endpoint
+    };
+    let expected = if target_is_left {
+        Proposition::LessOrEqual(form.target().clone(), mapped)
+    } else {
+        Proposition::LessOrEqual(mapped, form.target().clone())
+    };
+    if conclusion != &expected {
+        return Err(IntegerAffineBoundConversionError::ConclusionMismatch);
+    }
+    Ok(())
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum IntegerAffineBoundConversionError {
+    RootBoundNotLessOrEqual,
+    RootBoundMismatch,
+    RootBoundNotTypedLiteral,
+    MappedBoundOverflow,
+    MappedBoundOutsideCarrier,
+    ConclusionMismatch,
+}
+
+impl std::fmt::Display for IntegerAffineBoundConversionError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(formatter, "{self:?}")
+    }
+}
+
+impl std::error::Error for IntegerAffineBoundConversionError {}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -404,6 +473,145 @@ mod tests {
                 },
             ),
             Err(IntegerAffineWitnessError::CoefficientOverflow),
+        );
+    }
+
+    #[test]
+    fn maps_upper_and_lower_bounds_across_every_coefficient_sign() {
+        let integer_type = IntegerType::new(IntegerSign::Signed, 16).expect("i16");
+        let root = value(1, integer_type);
+        let target = value(2, integer_type);
+        let literal = |value| literal(integer_type, value);
+        let form = |coefficient, offset| CheckedIntegerAffineForm {
+            root: root.clone(),
+            target: target.clone(),
+            integer_type,
+            coefficient,
+            offset,
+        };
+        let upper = Proposition::LessOrEqual(root.clone(), literal(4));
+        let lower = Proposition::LessOrEqual(literal(-3), root.clone());
+
+        assert_eq!(
+            check_integer_affine_bound_conversion(
+                &form(2, 1),
+                &upper,
+                &Proposition::LessOrEqual(target.clone(), literal(9)),
+            ),
+            Ok(()),
+        );
+        assert_eq!(
+            check_integer_affine_bound_conversion(
+                &form(2, 1),
+                &lower,
+                &Proposition::LessOrEqual(literal(-5), target.clone()),
+            ),
+            Ok(()),
+        );
+        assert_eq!(
+            check_integer_affine_bound_conversion(
+                &form(-2, 1),
+                &upper,
+                &Proposition::LessOrEqual(literal(-7), target.clone()),
+            ),
+            Ok(()),
+        );
+        assert_eq!(
+            check_integer_affine_bound_conversion(
+                &form(-2, 1),
+                &lower,
+                &Proposition::LessOrEqual(target.clone(), literal(7)),
+            ),
+            Ok(()),
+        );
+        assert_eq!(
+            check_integer_affine_bound_conversion(
+                &form(0, 5),
+                &upper,
+                &Proposition::LessOrEqual(target.clone(), literal(5)),
+            ),
+            Ok(()),
+        );
+        assert_eq!(
+            check_integer_affine_bound_conversion(
+                &form(0, 5),
+                &lower,
+                &Proposition::LessOrEqual(literal(5), target.clone()),
+            ),
+            Ok(()),
+        );
+    }
+
+    #[test]
+    fn affine_bound_mapping_rejects_shape_direction_and_arithmetic_drift() {
+        let integer_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+        let root = value(1, integer_type);
+        let target = value(2, integer_type);
+        let literal = |value| literal(integer_type, value);
+        let form = CheckedIntegerAffineForm {
+            root: root.clone(),
+            target: target.clone(),
+            integer_type,
+            coefficient: 2,
+            offset: 1,
+        };
+        assert_eq!(
+            check_integer_affine_bound_conversion(
+                &form,
+                &Proposition::Equal(root.clone(), literal(4)),
+                &Proposition::LessOrEqual(target.clone(), literal(9)),
+            ),
+            Err(IntegerAffineBoundConversionError::RootBoundNotLessOrEqual),
+        );
+        assert_eq!(
+            check_integer_affine_bound_conversion(
+                &form,
+                &Proposition::LessOrEqual(value(3, integer_type), literal(4)),
+                &Proposition::LessOrEqual(target.clone(), literal(9)),
+            ),
+            Err(IntegerAffineBoundConversionError::RootBoundMismatch),
+        );
+        assert_eq!(
+            check_integer_affine_bound_conversion(
+                &form,
+                &Proposition::LessOrEqual(root.clone(), value(3, integer_type)),
+                &Proposition::LessOrEqual(target.clone(), literal(9)),
+            ),
+            Err(IntegerAffineBoundConversionError::RootBoundNotTypedLiteral),
+        );
+        assert_eq!(
+            check_integer_affine_bound_conversion(
+                &form,
+                &Proposition::LessOrEqual(root.clone(), literal(4)),
+                &Proposition::LessOrEqual(literal(9), target.clone()),
+            ),
+            Err(IntegerAffineBoundConversionError::ConclusionMismatch),
+        );
+        assert_eq!(
+            check_integer_affine_bound_conversion(
+                &CheckedIntegerAffineForm {
+                    coefficient: i128::MAX,
+                    offset: i128::MAX,
+                    ..form
+                },
+                &Proposition::LessOrEqual(root, literal(2)),
+                &Proposition::LessOrEqual(target, literal(1)),
+            ),
+            Err(IntegerAffineBoundConversionError::MappedBoundOverflow),
+        );
+        assert_eq!(
+            check_integer_affine_bound_conversion(
+                &CheckedIntegerAffineForm {
+                    root: value(1, integer_type),
+                    target: value(2, integer_type),
+                    integer_type,
+                    coefficient: 2,
+                    offset: 1,
+                },
+                &Proposition::LessOrEqual(value(1, integer_type), literal(100)),
+                &Proposition::LessOrEqual(value(2, integer_type), literal(127)),
+            ),
+            Err(IntegerAffineBoundConversionError::MappedBoundOutsideCarrier),
         );
     }
 }

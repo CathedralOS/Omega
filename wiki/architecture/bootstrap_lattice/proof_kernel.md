@@ -359,11 +359,22 @@ orientation, unsupported roots, and checked-arithmetic overflow reject. This
 normalizes the definition-chain facts shared by direct affine analysis and the
 two branches of same-root/correlated analysis without trusting an analyzer's
 coefficients. It neither derives an atomic order proposition nor crosses a cast
-or shift. Checked affine-bound conversion, cast/shift witness forms, and the
-correlated forbidden-root conversion remain producer work before either exact
-divide/remainder row can leave `TrustedJudgment`. Because no serialized proof
-rule or deployed reconstruction path changed, proof-bundle v15, terminal codec
-v18, installation record v24, and the current trust statuses remain unchanged.
+or shift. A second producer-visible checker maps one independently established
+canonical root `<=` proposition through the checked form to one exact atomic
+target `<=` proposition. Positive coefficients preserve order, negative
+coefficients reverse it, and zero coefficients use the root-bound orientation
+to select one of the two sound constant-bound directions. The checker
+recomputes the mapped endpoint with checked arithmetic and rejects malformed
+root/literal/target shapes, overflow, or an endpoint outside the carrier. It
+accepts no proof or citation authority and is not a `ProofRule`.
+
+An intentionally versioned recursive proof-rule integration must still bind
+the root-bound proof and every normalization equality into the accepted premise
+closure. Cast/shift witness forms and the correlated forbidden-root conversion
+also remain producer work before either exact divide/remainder row can leave
+`TrustedJudgment`. Because no serialized proof rule or deployed reconstruction
+path changed, proof-bundle v15, terminal codec v18, installation record v24,
+and the current trust statuses remain unchanged.
 
 The consolidated divide/remainder cross-cast rule admits a nonempty landed-
 literal exact-divide/remainder chain on either side of one partial fixed-native
