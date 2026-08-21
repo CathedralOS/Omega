@@ -20,6 +20,7 @@ use psi_typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 mod boundary_calls;
 mod demand;
 mod isolation;
+mod transparent_effects;
 
 use boundary_calls::known_boundary_call_written_paths_for_parts;
 pub(crate) use boundary_calls::{boundary_trait_signature, known_boundary_call_written_paths};
@@ -30,6 +31,10 @@ use isolation::{
     struct_literal_field_is_primitive, struct_literal_field_type,
     struct_literal_matches_expected_type, struct_literal_type_is_caller_isolated,
     type_is_caller_isolated_local,
+};
+use transparent_effects::{
+    call_is_transparent_mutable_slice_view, expression_is_effectful_for_transparent_result,
+    frame_place_root_symbol,
 };
 
 /// The FREE top-level machine named `target` and its entry state (`machine
@@ -2743,95 +2748,6 @@ fn parameter_relative_call_result_origin(
         },
         FramePathPrecision::CollectionCoarse => actual_origin,
     })
-}
-
-fn expression_is_effectful_for_transparent_result(
-    program: &TypedTrees,
-    expression: ExpressionHandle,
-) -> bool {
-    if !expression.is_valid() {
-        return false;
-    }
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Atomic(_) => true,
-        ExpressionNode::Call(call) => {
-            !call_is_effect_free_slice_view(program, call)
-                || expression_is_effectful_for_transparent_result(program, call.receiver)
-        }
-        ExpressionNode::Binary(binary) => {
-            expression_is_effectful_for_transparent_result(program, binary.left)
-                || expression_is_effectful_for_transparent_result(program, binary.right)
-        }
-        ExpressionNode::Cast(cast) => {
-            expression_is_effectful_for_transparent_result(program, cast.value)
-        }
-        ExpressionNode::Indexed(indexed) => {
-            expression_is_effectful_for_transparent_result(program, indexed.collection)
-                || expression_is_effectful_for_transparent_result(program, indexed.index)
-        }
-        ExpressionNode::Member(member) => {
-            expression_is_effectful_for_transparent_result(program, member.receiver)
-        }
-        ExpressionNode::Mutable(inner) => {
-            expression_is_effectful_for_transparent_result(program, *inner)
-        }
-        ExpressionNode::Unary(unary) => {
-            expression_is_effectful_for_transparent_result(program, unary.operand)
-        }
-        ExpressionNode::ArrayLiteral(elements) => program
-            .expression_table
-            .expression_handles(*elements)
-            .iter()
-            .any(|element| expression_is_effectful_for_transparent_result(program, *element)),
-        ExpressionNode::Range(range) => {
-            expression_is_effectful_for_transparent_result(program, range.start)
-                || expression_is_effectful_for_transparent_result(program, range.end)
-        }
-        ExpressionNode::StructLiteral(literal) => program
-            .expression_table
-            .struct_fields(literal.fields)
-            .iter()
-            .any(|field| expression_is_effectful_for_transparent_result(program, field.value)),
-        ExpressionNode::Boolean(_)
-        | ExpressionNode::Float(_)
-        | ExpressionNode::Integer(_)
-        | ExpressionNode::Name(_)
-        | ExpressionNode::String(_)
-        | ExpressionNode::ZeroValue(_) => false,
-    }
-}
-
-fn call_is_transparent_mutable_slice_view(
-    program: &TypedTrees,
-    call: &TableCallExpression,
-) -> bool {
-    call.target.as_str() == "as_mut_slice" && call_is_effect_free_slice_view(program, call)
-}
-
-fn call_is_effect_free_slice_view(program: &TypedTrees, call: &TableCallExpression) -> bool {
-    matches!(call.target.as_str(), "as_slice" | "as_mut_slice")
-        && call.receiver.is_valid()
-        && program
-            .expression_table
-            .expression_handles(call.arguments)
-            .is_empty()
-}
-
-fn frame_place_root_symbol(
-    program: &TypedTrees,
-    expression: ExpressionHandle,
-) -> Option<SymbolHandle> {
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Mutable(inner) => frame_place_root_symbol(program, *inner),
-        ExpressionNode::Indexed(indexed) => frame_place_root_symbol(program, indexed.collection),
-        ExpressionNode::Member(member) => frame_place_root_symbol(program, member.receiver),
-        ExpressionNode::Name(path) => path
-            .head_symbol
-            .is_valid()
-            .then_some(path.head_symbol)
-            .or_else(|| path.symbol.is_valid().then_some(path.symbol)),
-        _ => None,
-    }
 }
 
 fn rebase_local_alias_path(relative: &str, aliases: &[(String, FramePlaceOrigin)]) -> String {
