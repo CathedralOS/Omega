@@ -1779,17 +1779,36 @@ fn conformance_application_arguments_match_candidate(
                 }),
         )
         .collect::<Vec<_>>();
+    let machine_lifetimes = program.machines()[candidate.machine_index]
+        .lifetime_parameters
+        .iter()
+        .map(|parameter| {
+            (
+                parameter.as_str().to_owned(),
+                "__ordinary_call_region".to_owned(),
+            )
+        })
+        .collect::<Vec<_>>();
     application.trait_arguments.len() == bound.arguments.len()
         && bound
             .arguments
             .iter()
             .zip(application.trait_arguments.iter())
             .all(|(required, actual)| {
-                crate::conformance_applications::substituted_type_identity(
-                    program,
-                    *required,
-                    &substitutions,
-                ) == *actual
+                let required =
+                    crate::conformance_applications::substituted_type_identity_with_lifetimes(
+                        program,
+                        *required,
+                        &substitutions,
+                        &machine_lifetimes,
+                    );
+                let actual = application.lifetime_arguments.iter().fold(
+                    actual.clone(),
+                    |identity, lifetime| {
+                        identity.replace(&format!("'{lifetime}"), "'__ordinary_call_region")
+                    },
+                );
+                required == actual
             })
 }
 

@@ -1275,6 +1275,147 @@ fn nested_generic_conformance_application_closes_its_own_telescope() {
 }
 
 #[test]
+fn explicit_generic_conformance_lifetime_closes_its_trait_identity() {
+    let source = r#"
+        trait Borrows<Source> {}
+        data Card {}
+        data Borrow<'scope, Element> { value: &'scope Element }
+
+        Scoped<'scope, Element>:
+            Element satisfies Borrows<Borrow<'scope, Element>>
+        {}
+
+        machine choose<'call, Element, Evidence: Element satisfies Borrows<Borrow<'call, Element>>>(
+            value: &'call Element
+        ) {}
+
+        machine caller<'view>(value: &'view Card) {
+            choose<Card, Scoped<'view, Card>>(value);
+        }
+    "#;
+
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("explicit conformance lifetime");
+    let application = checked
+        .machine_specializations
+        .iter()
+        .find_map(|specialization| specialization.conformance_applications.first())
+        .expect("closed conformance application");
+    assert_eq!(application.lifetime_arguments, ["view"]);
+    assert_eq!(application.trait_arguments, ["Borrow<'view,Card>"]);
+}
+
+#[test]
+fn generic_conformance_lifetime_elides_from_one_ordinary_borrow_constraint() {
+    let source = r#"
+        trait Borrows<Source> {}
+        data Card {}
+        data Borrow<'scope, Element> { value: &'scope Element }
+
+        Scoped<'scope, Element>:
+            Element satisfies Borrows<Borrow<'scope, Element>>
+        {}
+
+        machine choose<'call, Element, Evidence: Element satisfies Borrows<Borrow<'call, Element>>>(
+            value: &'call Element
+        ) {}
+
+        machine caller<'view>(value: &'view Card) {
+            choose<Card, Scoped<Card>>(value);
+        }
+    "#;
+
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("uniquely elided conformance lifetime");
+    let application = checked
+        .machine_specializations
+        .iter()
+        .find_map(|specialization| specialization.conformance_applications.first())
+        .expect("closed conformance application");
+    assert_eq!(application.lifetime_arguments, ["view"]);
+    assert_eq!(application.trait_arguments, ["Borrow<'view,Card>"]);
+}
+
+#[test]
+fn explicit_generic_conformance_lifetime_must_match_the_ordinary_borrow_constraint() {
+    let source = r#"
+        trait Borrows<Source> {}
+        data Card {}
+        data Borrow<'scope, Element> { value: &'scope Element }
+
+        Scoped<'scope, Element>:
+            Element satisfies Borrows<Borrow<'scope, Element>>
+        {}
+
+        machine choose<'call, Element, Evidence: Element satisfies Borrows<Borrow<'call, Element>>>(
+            value: &'call Element
+        ) {}
+
+        machine caller<'view, 'other>(value: &'view Card) {
+            choose<Card, Scoped<'other, Card>>(value);
+        }
+    "#;
+
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let diagnostics = lower_typed_trees(typed).expect_err("mismatched explicit lifetime");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("disagree with the call's ordinary borrow constraints")
+    }));
+}
+
+#[test]
+fn generic_conformance_lifetime_elision_rejects_conflicting_borrow_constraints() {
+    let source = r#"
+        trait Relates<Context> {}
+        data Card {}
+        data Pair<'left, 'right, Element> {
+            left: &'left Element;
+            right: &'right Element;
+        }
+
+        SameScope<'scope, Element>:
+            Element satisfies Relates<Pair<'scope, 'scope, Element>>
+        {}
+
+        machine choose<
+            'left,
+            'right,
+            Element,
+            Evidence: Element satisfies Relates<Pair<'left, 'right, Element>>
+        >(
+            left: &'left Element,
+            right: &'right Element
+        ) {}
+
+        machine caller<'a, 'b>(left: &'a Card, right: &'b Card) {
+            choose<Card, SameScope<Card>>(left, right);
+        }
+    "#;
+
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let diagnostics = lower_typed_trees(typed).expect_err("ambiguous elision must reject");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("no unique ordinary borrow constraint is available")
+    }));
+}
+
+#[test]
 fn bare_generic_conformance_name_does_not_infer_its_owned_arguments() {
     let source = r#"
         trait Encodes<Output> {}
