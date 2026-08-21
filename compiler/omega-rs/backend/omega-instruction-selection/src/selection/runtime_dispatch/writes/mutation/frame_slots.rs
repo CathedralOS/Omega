@@ -704,6 +704,20 @@ fn select_runtime_frame_slot_value_write_in_table_with_source_anchor_and_call_or
         return Some(kind);
     }
 
+    if let Some(kind) = super::select_runtime_logical_not_write_in_table(
+        input,
+        dispatch_index,
+        value_source_key,
+        expressions,
+        RuntimeStorageRegion::RuntimeFrame,
+        slot.byte_offset,
+        slot.byte_size,
+        value,
+        runtime_value_operands,
+    ) {
+        return Some(kind);
+    }
+
     // Integer domain and signedness come from the operands. Float domain and
     // provider identity come from checked evidence carried through control flow.
     super::select_runtime_storage_binary_write_in_table_with_call_ordinal(

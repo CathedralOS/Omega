@@ -1,10 +1,16 @@
-// An entry `main -> i32` returns its exit code via its terminal value (no
-// exit_process needed) -- the return->exit mechanism dungeon_crawler_cli relies
-// on. A raw COMPUTED terminal must pass through the entry's normalized result
-// placement rather than silently leaving the return register untouched.
+// A raw COMPUTED terminal in an ordinary value machine must pass through its
+// normalized result placement rather than silently leaving the return register
+// untouched. The Unit entry consumes that result and exits explicitly.
 // Exit = 200, native==interp.
-data Main { a: i32; }
-machine Main::main(&mut self) -> i32 {
+use omega::language::std::console;
+
+data Main { console: Console; a: i32; }
+machine Main::computed(&mut self) -> i32 {
     self.a = 100;
     transition { _ -> (self.a + 100) }
+}
+
+machine Main::main(&mut self) {
+    let result: i32 = self.computed();
+    self.console.exit_process(result);
 }

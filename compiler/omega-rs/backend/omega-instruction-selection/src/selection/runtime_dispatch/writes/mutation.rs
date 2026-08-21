@@ -3,6 +3,7 @@ mod frame_slots;
 mod normalization;
 mod operators;
 mod static_writes;
+mod unary_table_writes;
 mod value_operands;
 
 pub(in crate::selection::runtime_dispatch::writes) use binary_table_writes::select_runtime_atomic_load_or_store_in_table;
@@ -92,6 +93,7 @@ use operators::{
 };
 use psi_checked_trees::types::PrimitiveType;
 pub(super) use static_writes::select_runtime_static_mutation_write_in_table;
+pub(in crate::selection) use unary_table_writes::select_runtime_logical_not_write_in_table;
 pub(in crate::selection::runtime_dispatch) use value_operands::resolve_runtime_text_equals_operand_in_table;
 use value_operands::resolve_runtime_value_operand;
 

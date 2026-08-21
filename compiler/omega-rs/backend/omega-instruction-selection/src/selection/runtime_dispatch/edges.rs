@@ -588,6 +588,7 @@ fn select_runtime_dispatch_return_value(
             edge,
             source_key,
             source_dispatch_index,
+            RuntimeStorageRegion::RuntimeFrame,
             scratch_offset,
             scratch_size,
             value_expr,
@@ -1017,6 +1018,24 @@ fn select_runtime_dispatch_call_result_return(
     // place. Recursive slice folds commonly return a domain-removing cast of
     // their accumulator; without this path the caller slot stayed ZII.
     if select_dispatch_cast_terminal_return(
+        input,
+        edge,
+        source_key,
+        source_dispatch_index,
+        target_region,
+        target_offset,
+        byte_size,
+        value_expr,
+        runtime_value_operands,
+        selected_instructions,
+    ) {
+        return;
+    }
+
+    // Logical-NOT terminal (`-> !self.flag`): ordinary value calls need the
+    // same runtime unary materialization as process-entry returns. Before this
+    // arm the callee's result slot retained ZII and the caller observed false.
+    if select_dispatch_unary_terminal_return(
         input,
         edge,
         source_key,
@@ -1481,6 +1500,7 @@ fn select_dispatch_unary_terminal_return(
     edge: &RuntimeDispatchLoopEdge,
     source_key: StateKey,
     source_dispatch_index: u32,
+    target_region: RuntimeStorageRegion,
     target_offset: usize,
     byte_size: usize,
     value_expr: ExpressionHandle,
@@ -1488,42 +1508,21 @@ fn select_dispatch_unary_terminal_return(
     selected_instructions: &mut SelectedInstructionSink,
 ) -> bool {
     let expressions = &input.control_flow.expressions;
-    let ExpressionNode::Unary(unary) = expressions.expression(value_expr) else {
-        return false;
-    };
-    if byte_size != 1 {
-        return false;
-    }
-    let Some(place) = resolve_runtime_storage_place_in_table(
+    let Some(kind) = super::writes::mutation::select_runtime_logical_not_write_in_table(
         input,
         source_dispatch_index,
         source_key,
         expressions,
-        unary.operand,
+        target_region,
+        target_offset,
+        byte_size,
+        value_expr,
+        runtime_value_operands,
     ) else {
         return false;
     };
-    if place.byte_count != 1 {
-        return false;
-    }
-    let left = runtime_value_operands.insert(RuntimeValueOperand::Storage {
-        region: place.region,
-        byte_offset: place.byte_offset,
-        byte_size: place.byte_count,
-    });
-    let right = runtime_value_operands.insert(RuntimeValueOperand::Immediate(0));
     selected_instructions.push(SelectedInstruction {
-        kind: crate::selection::runtime_dispatch::write_place_binary_direct(
-            RuntimeStorageRegion::RuntimeFrame,
-            target_offset,
-            byte_size,
-            left,
-            StateGuardOperator::Equal,
-            right,
-            false,
-            psi_numerics::arithmetic::ArithmeticDomain::Exact,
-            false,
-        ),
+        kind,
         source_key,
         source_statement: edge.statement_index,
     });

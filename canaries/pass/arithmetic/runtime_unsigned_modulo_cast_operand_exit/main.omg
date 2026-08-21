@@ -18,6 +18,7 @@
 // 4294967209. Exit 1: any other value.
 
 use omega::language::core::numeric_conversion;
+use omega::language::std::console;
 
 data RandomState {
     seed: u64 in Wrapping;
@@ -34,10 +35,11 @@ machine Random::step(
 }
 
 data Main {
+    console: Console;
     rng: Random;
 }
 
-machine Main::main(&mut self) -> i32 {
+machine Main::result_code(&mut self) -> i32 {
     let random: RandomState;
     random.seed = 2;
 
@@ -71,4 +73,9 @@ machine Main::main(&mut self) -> i32 {
     state unexpected_value(&mut self) {
         1
     }
+}
+
+machine Main::main(&mut self) {
+    let result: i32 = self.result_code();
+    self.console.exit_process(result);
 }

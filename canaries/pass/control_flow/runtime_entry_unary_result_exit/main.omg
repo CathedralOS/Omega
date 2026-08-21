@@ -1,8 +1,26 @@
-// Runtime logical-not terminals compute through entry-result scratch instead
-// of falling through to the natural-termination zero write.
-data Main { flag: bool; }
+// Runtime logical-not terminals compute through ordinary value-result scratch.
+// The Unit entry consumes that Boolean result before exiting explicitly.
+use omega::language::std::console;
 
-machine Main::main(&mut self) -> bool {
+data Main { console: Console; flag: bool; }
+
+machine Main::negated(&mut self) -> bool {
     self.flag = false;
     transition { _ -> (!self.flag) }
+}
+
+machine Main::main(&mut self) {
+    let result: bool = self.negated();
+    transition result == true {
+        true -> passed()
+        false -> failed()
+    }
+
+    state passed(&mut self) {
+        self.console.exit_process(1);
+    }
+
+    state failed(&mut self) {
+        self.console.exit_process(0);
+    }
 }

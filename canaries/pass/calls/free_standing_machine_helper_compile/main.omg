@@ -1,11 +1,14 @@
-// Chapter 3: free-standing machines have no data receiver. `add_i32` is a math
-// helper; the entry machine returns its result as the terminal value.
-data Main {}
+// Chapter 3: free-standing machines have no data receiver. `add_i32` remains a
+// value-returning math helper; the Unit entry consumes its result explicitly.
+use omega::language::std::console;
+
+data Main { console: Console; }
 
 machine add_i32(left: i32 in Wrapping, right: i32 in Wrapping) -> i32 {
     left + right
 }
 
-machine Main::main(&mut self) -> i32 {
-    add_i32(3, 4)
+machine Main::main(&mut self) {
+    let result: i32 = add_i32(3, 4);
+    self.console.exit_process(result);
 }

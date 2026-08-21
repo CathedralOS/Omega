@@ -31,7 +31,7 @@ machine Main::next_seed(
     }
 }
 
-machine Main::main(&mut self) -> i32 {
+machine Main::main(&mut self) {
     self.rng.seed = 41;
     self.rng.pad = 0;
     let seed: u64 in Wrapping = self.next_seed(&mut self.rng);
