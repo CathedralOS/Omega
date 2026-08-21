@@ -1,15 +1,18 @@
 //! Pure local-alias queries for caller-visible write frames.
 //!
 //! This leaf rebases relative paths through already-canonical alias origins
-//! and detects syntactic mutable reborrows of known local aliases. It neither
-//! infers origins nor mutates alias bindings.
+//! and detects syntactic mutable reborrows or reference-shaped replacements of
+//! known local aliases. It neither infers origins nor mutates alias bindings.
 
 use super::place_paths::{
     FramePathPrecision, FramePlaceOrigin, append_place_suffix, split_place_root,
 };
+use super::type_capabilities::type_reference_is_reference;
 use crate::arithmetic_domains;
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use psi_typed_trees::machine::Machine;
+use psi_typed_trees::state::State;
 
 pub(super) fn rebase_local_alias_path(
     relative: &str,
@@ -75,6 +78,46 @@ pub(super) fn expression_reborrows_local_alias_binding(
         | ExpressionNode::Integer(_)
         | ExpressionNode::Name(_)
         | ExpressionNode::String(_)
+        | ExpressionNode::ZeroValue(_) => false,
+    }
+}
+
+/// A bare write through `alias` (`alias = 1`) targets the borrowed place, but
+/// Psi also permits a mutable-reference local declared with plain `let` to be
+/// rebound (`alias = &mut other`). Accept an exact origin only while the RHS is
+/// proven value-shaped; unknown/reference-shaped replacements fail closed.
+pub(super) fn expression_may_rebind_mutable_alias(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
+) -> bool {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Mutable(_) | ExpressionNode::Call(_) => true,
+        ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
+            let declared =
+                crate::places::declared_place_type_raw(program, machine, Some(state), expression)
+                    .or_else(|| {
+                        crate::places::declared_indexed_projection_type_raw(
+                            program,
+                            machine,
+                            Some(state),
+                            expression,
+                        )
+                    });
+            declared.is_none_or(|handle| type_reference_is_reference(program, handle))
+        }
+        ExpressionNode::Cast(cast) => type_reference_is_reference(program, cast.target_type),
+        ExpressionNode::ArrayLiteral(_)
+        | ExpressionNode::Atomic(_)
+        | ExpressionNode::Binary(_)
+        | ExpressionNode::Boolean(_)
+        | ExpressionNode::Float(_)
+        | ExpressionNode::Integer(_)
+        | ExpressionNode::Range(_)
+        | ExpressionNode::StructLiteral(_)
+        | ExpressionNode::String(_)
+        | ExpressionNode::Unary(_)
         | ExpressionNode::ZeroValue(_) => false,
     }
 }
