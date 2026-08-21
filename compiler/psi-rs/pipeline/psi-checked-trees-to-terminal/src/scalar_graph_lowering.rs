@@ -678,10 +678,23 @@ fn lower_checked_boolean_expression(
         CheckedBooleanExpression::StructuralParameterField {
             parameter_position,
             path,
-        } => LoweredBooleanReturnExpression::UnresolvedStructuralParameterField {
-            parameter_position: *parameter_position,
-            path: path.clone(),
-        },
+        } => {
+            let path = path
+                .iter()
+                .map(|segment| match segment {
+                    psi_checked_trees::CheckedStructuralPredicatePathSegment::Field(identity) => {
+                        Ok(identity.clone())
+                    }
+                    psi_checked_trees::CheckedStructuralPredicatePathSegment::Case(_) => {
+                        unsupported("case-payload predicates are contract-only")
+                    }
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            LoweredBooleanReturnExpression::UnresolvedStructuralParameterField {
+                parameter_position: *parameter_position,
+                path,
+            }
+        }
         CheckedBooleanExpression::Not(operand) => LoweredBooleanReturnExpression::Not {
             operand: Box::new(lower_checked_boolean_expression(operand)?),
         },
@@ -706,7 +719,8 @@ fn lower_checked_boolean_expression(
         }
         CheckedBooleanExpression::IeeeFloatComparison { .. }
         | CheckedBooleanExpression::ByteSequenceEqual { .. }
-        | CheckedBooleanExpression::PayloadlessSumEqual { .. } => {
+        | CheckedBooleanExpression::PayloadlessSumEqual { .. }
+        | CheckedBooleanExpression::StructuralCaseMembership { .. } => {
             return unsupported("structural equality is contract-only terminal vocabulary");
         }
         CheckedBooleanExpression::And { left, right } => LoweredBooleanReturnExpression::And {

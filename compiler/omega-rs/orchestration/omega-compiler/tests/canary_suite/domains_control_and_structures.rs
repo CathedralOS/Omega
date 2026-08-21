@@ -1585,14 +1585,15 @@ fn runtime_multi_room_reentry_exit_canary_runs() {
 #[test]
 fn runtime_mutable_slice_element_write_exit_canary_runs() {
     let canary = pass_canary("slices/runtime_mutable_slice_element_write_exit");
-    let scratch = std::env::temp_dir().join(format!(
+    let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-mutable-slice-write-{}",
         std::process::id()
     ));
-    compile_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&build_dir);
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("runtime mutable slice write canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("runtime mutable slice write canary should run");
 
@@ -1604,7 +1605,7 @@ fn runtime_mutable_slice_element_write_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&scratch);
+    let _ = fs::remove_dir_all(&build_dir);
 }
 
 // The promoted straight-line sibling: same mutable-slice-view write, but the
@@ -1640,14 +1641,15 @@ fn runtime_mutable_slice_element_write_straight_line_exit_canary_runs() {
 #[test]
 fn runtime_dispatch_mutable_slice_element_write_exit_canary_runs() {
     let canary = pass_canary("slices/runtime_dispatch_mutable_slice_element_write_exit");
-    let scratch = std::env::temp_dir().join(format!(
+    let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-dispatch-mutable-slice-write-{}",
         std::process::id()
     ));
-    compile_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&build_dir);
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("runtime dispatch mutable slice write canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("runtime dispatch mutable slice write canary should run");
 
@@ -1659,7 +1661,7 @@ fn runtime_dispatch_mutable_slice_element_write_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&scratch);
+    let _ = fs::remove_dir_all(&build_dir);
 }
 
 #[test]

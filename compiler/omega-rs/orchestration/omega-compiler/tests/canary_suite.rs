@@ -1,13 +1,17 @@
 use omega_compiler::{
     ArtifactEmissionPolicy, CheckedCompilation, CompileOptions, CompileReport,
     PROGRAM_STORAGE_INSTALLATION_ARTIFACT, compile as production_compile, compile_to_checked,
-    compile_with_artifact_policy, compile_with_test_entry,
-    compile_with_test_entry_worker_count_and_artifact_policy,
+    compile_with_artifact_policy, compile_with_test_entry_worker_count_and_artifact_policy,
     compile_with_worker_count_and_artifact_policy,
 };
 
 fn compile(options: CompileOptions) -> Result<CompileReport, Vec<Diagnostic>> {
-    compile_with_test_entry(options, "Main::main")
+    compile_with_test_entry_worker_count_and_artifact_policy(
+        options,
+        "Main::main",
+        canary_backend_worker_count(),
+        ArtifactEmissionPolicy::Full,
+    )
 }
 use psi_checked_interpreter::{InterpretOutcome, interpret_entry};
 use psi_diagnostics::Diagnostic;
@@ -1321,12 +1325,16 @@ fn compile_rooted_canary_for_target(
     build_dir: PathBuf,
     target: &str,
 ) -> Result<CompileReport, Vec<Diagnostic>> {
-    production_compile(CompileOptions {
-        root_path: canary_dir.join("main.omg"),
-        build_dir: Some(build_dir),
-        target_name: Some(target.into()),
-        write_output: true,
-    })
+    compile_with_worker_count_and_artifact_policy(
+        CompileOptions {
+            root_path: canary_dir.join("main.omg"),
+            build_dir: Some(build_dir),
+            target_name: Some(target.into()),
+            write_output: true,
+        },
+        canary_backend_worker_count(),
+        ArtifactEmissionPolicy::Full,
+    )
 }
 
 // These runtime/layout/recast fixtures are deployable on every hosted target.
@@ -1357,6 +1365,15 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "slices/runtime_nested_decreasing_index_exit",
     "slices/runtime_narrow_widen_cast_exit",
     "slices/runtime_signed_index_guarded_exit",
+    "slices/recursive_subslice_element_accumulator_exit",
+    "slices/runtime_branched_index_bound_exit",
+    "slices/runtime_dispatch_mutable_slice_element_write_exit",
+    "slices/runtime_indexed_array_write_exit",
+    "slices/runtime_indexed_read_operand_exit",
+    "slices/runtime_machine_field_subslice_arg_index_exit",
+    "slices/runtime_mutable_slice_element_write_exit",
+    "slices/runtime_two_pointer_reverse_exit",
+    "slices/runtime_two_pointer_sum_exit",
     "calls/runtime_reference_returned_slice_element_through_param_exit",
     "calls/runtime_nested_guarded_reference_returned_slice_element_exit",
     "calls/runtime_mutable_local_indexed_parameter_write_exit",
@@ -2009,9 +2026,10 @@ fn check_canary(canary_dir: &Path) -> Result<(), Vec<Diagnostic>> {
 
 static CANARY_UMBRELLA_LOCK: Mutex<()> = Mutex::new(());
 
-/// Keep independent corpus compiles narrowly parallel by default. The override
-/// is an explicit profiling seam, not a CI tuning requirement; combining large
-/// inner and outer counts can oversubscribe the host severely.
+/// Keep test-local backend compiles narrowly parallel by default. Rust already
+/// schedules independent test functions, while the umbrellas add their own
+/// bounded jobs; combining large inner and outer counts oversubscribes the host
+/// severely. The override is an explicit profiling seam, not a CI requirement.
 fn canary_backend_worker_count() -> usize {
     std::env::var("OMEGA_CANARY_INNER_WORKERS")
         .ok()

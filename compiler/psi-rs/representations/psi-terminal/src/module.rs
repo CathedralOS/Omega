@@ -216,8 +216,8 @@ pub enum StructuralTypeShape {
         element: StructuralTypeId,
         length: u64,
     },
-    /// A closed sum whose cases carry no payload. Case declaration order is
-    /// semantic and IDs are strictly increasing in the canonical encoding.
+    /// A closed pure sum. Case and payload-field declaration order is semantic;
+    /// their IDs are strictly increasing in the canonical encoding.
     Sum {
         cases: Vec<StructuralCaseDeclaration>,
     },
@@ -227,6 +227,7 @@ pub enum StructuralTypeShape {
 pub struct StructuralCaseDeclaration {
     pub id: StructuralCaseId,
     pub identity: String,
+    pub fields: Vec<StructuralFieldDeclaration>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]

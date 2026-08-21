@@ -1,5 +1,5 @@
-; Exact v17 grammar for structural IEEE/byte-sequence and payload-less sum
-; case-membership proposition leaves.
+; Exact v18 grammar for structural IEEE/byte-sequence and sum
+; case-membership proposition leaves, including exact case-payload paths.
 ; It preserves full-width identities and indices and checks only byte-level
 ; canonical form.  Declared structural types and semantic leaf meaning remain
 ; responsibilities of the eventual complete ledger generator.
@@ -73,7 +73,20 @@
                       (TerminalStructuralPathCons
                         (TerminalStructuralFixedIndex index) path)
                       end)))))
-            RTerminalCanonicalStructuralPathBad))))))
+            (if (eq tag 3)
+              (match (read_terminal_semantic_id rest)
+                (RTerminalSemanticIdBad RTerminalCanonicalStructuralPathBad)
+                ((RTerminalSemanticId case-id tail)
+                  (match
+                    (read_terminal_canonical_structural_path_n tail (- count 1))
+                    (RTerminalCanonicalStructuralPathBad
+                      RTerminalCanonicalStructuralPathBad)
+                    ((RTerminalCanonicalStructuralPath path end)
+                      (RTerminalCanonicalStructuralPath
+                        (TerminalStructuralPathCons
+                          (TerminalStructuralCase case-id) path)
+                        end)))))
+              RTerminalCanonicalStructuralPathBad)))))))
 
 (def read_terminal_canonical_structural_path
   ((bs Bytes)) RTerminalCanonicalStructuralPath
@@ -107,12 +120,20 @@
       (match right
         ((TerminalStructuralField right-id)
           (terminal_semantic_id_equal left-id right-id))
-        ((TerminalStructuralFixedIndex right-index) 0)))
+        ((TerminalStructuralFixedIndex right-index) 0)
+        ((TerminalStructuralCase right-id) 0)))
     ((TerminalStructuralFixedIndex left-index)
       (match right
         ((TerminalStructuralField right-id) 0)
         ((TerminalStructuralFixedIndex right-index)
-          (u64_equal left-index right-index))))))
+          (u64_equal left-index right-index))
+        ((TerminalStructuralCase right-id) 0)))
+    ((TerminalStructuralCase left-id)
+      (match right
+        ((TerminalStructuralField right-id) 0)
+        ((TerminalStructuralFixedIndex right-index) 0)
+        ((TerminalStructuralCase right-id)
+          (terminal_semantic_id_equal left-id right-id))))))
 
 (def terminal_canonical_structural_segment_less
   ((left TerminalCanonicalStructuralPathSegment)
@@ -122,12 +143,20 @@
       (match right
         ((TerminalStructuralField right-id)
           (terminal_semantic_id_less left-id right-id))
-        ((TerminalStructuralFixedIndex right-index) 1)))
+        ((TerminalStructuralFixedIndex right-index) 1)
+        ((TerminalStructuralCase right-id) 1)))
     ((TerminalStructuralFixedIndex left-index)
       (match right
         ((TerminalStructuralField right-id) 0)
         ((TerminalStructuralFixedIndex right-index)
-          (u64_less left-index right-index))))))
+          (u64_less left-index right-index))
+        ((TerminalStructuralCase right-id) 1)))
+    ((TerminalStructuralCase left-id)
+      (match right
+        ((TerminalStructuralField right-id) 0)
+        ((TerminalStructuralFixedIndex right-index) 0)
+        ((TerminalStructuralCase right-id)
+          (terminal_semantic_id_less left-id right-id))))))
 
 (def terminal_canonical_structural_path_equal
   ((left TerminalCanonicalStructuralPath)

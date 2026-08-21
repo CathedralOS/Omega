@@ -359,12 +359,23 @@ fn shared_boolean_runtime_inputs(
         psi_checked_trees::CheckedBooleanExpression::StructuralParameterField {
             parameter_position,
             path,
-        } if path.len() == 1 => Some(BTreeSet::from([
-            SharedBooleanRuntimeInput::StructuralField {
-                parameter_position: *parameter_position,
-                field: path[0].clone(),
-            },
-        ])),
+        } if matches!(
+            path.as_slice(),
+            [psi_checked_trees::CheckedStructuralPredicatePathSegment::Field(_)]
+        ) =>
+        {
+            let [psi_checked_trees::CheckedStructuralPredicatePathSegment::Field(field)] =
+                path.as_slice()
+            else {
+                unreachable!("guarded by one field segment")
+            };
+            Some(BTreeSet::from([
+                SharedBooleanRuntimeInput::StructuralField {
+                    parameter_position: *parameter_position,
+                    field: field.clone(),
+                },
+            ]))
+        }
         psi_checked_trees::CheckedBooleanExpression::IntegerComparison { left, right, .. } => {
             let mut inputs = shared_integer_runtime_inputs(left, scalar_parameter_count)?;
             inputs.extend(shared_integer_runtime_inputs(
@@ -375,7 +386,8 @@ fn shared_boolean_runtime_inputs(
         }
         psi_checked_trees::CheckedBooleanExpression::IeeeFloatComparison { .. }
         | psi_checked_trees::CheckedBooleanExpression::ByteSequenceEqual { .. }
-        | psi_checked_trees::CheckedBooleanExpression::PayloadlessSumEqual { .. } => None,
+        | psi_checked_trees::CheckedBooleanExpression::PayloadlessSumEqual { .. }
+        | psi_checked_trees::CheckedBooleanExpression::StructuralCaseMembership { .. } => None,
         psi_checked_trees::CheckedBooleanExpression::Parameter { .. }
         | psi_checked_trees::CheckedBooleanExpression::Local { .. }
         | psi_checked_trees::CheckedBooleanExpression::StructuralParameterField { .. } => None,

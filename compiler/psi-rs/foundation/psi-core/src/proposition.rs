@@ -827,11 +827,13 @@ pub enum ScalarType {
 
 /// One canonical step below a terminal structural root in a scalar
 /// proposition. Field steps use verifier-owned structural-field identities;
-/// fixed indices retain the exact literal array element.
+/// fixed indices retain the exact literal array element; case steps enter one
+/// exact sum payload namespace before a following field step.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum CanonicalStructuralPathSegment {
     Field(StructuralFieldId),
     FixedIndex(u64),
+    Case(StructuralCaseId),
 }
 
 /// Exact IEEE interchange format retained by target-neutral structural
@@ -895,7 +897,7 @@ pub struct ByteSequenceStructuralField {
     path: Vec<CanonicalStructuralPathSegment>,
 }
 
-/// One structural subject whose active payload-less sum case can be observed.
+/// One structural subject whose active sum case can be observed.
 /// The path may be empty when the subject is the structural root itself.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct StructuralCaseSubject {
@@ -2398,7 +2400,7 @@ pub enum Proposition {
         left: ByteSequenceStructuralField,
         right: ByteSequenceStructuralField,
     },
-    /// Exact membership in one declared case of a payload-less structural sum.
+    /// Exact membership in one declared case of a structural sum.
     StructuralCaseMembership {
         subject: StructuralCaseSubject,
         case: StructuralCaseId,

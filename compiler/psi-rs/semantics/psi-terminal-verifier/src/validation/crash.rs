@@ -176,6 +176,7 @@ fn validate_boolean_field_terms(
             .iter()
             .find(|parameter| parameter.place == root)?
             .structural_type;
+        let mut selected_case_fields = None;
         if path.is_empty() {
             return None;
         }
@@ -185,6 +186,38 @@ fn validate_boolean_field_terms(
                 .iter()
                 .find(|declaration| declaration.id == structural_type)?;
             let is_last = index + 1 == path.len();
+            if let CanonicalStructuralPathSegment::Case(case_id) = segment {
+                if selected_case_fields.is_some() || is_last {
+                    return None;
+                }
+                let StructuralTypeShape::Sum { cases } = &declaration.shape else {
+                    return None;
+                };
+                selected_case_fields = Some(
+                    &cases
+                        .iter()
+                        .find(|candidate| candidate.id == *case_id)?
+                        .fields,
+                );
+                continue;
+            }
+            if let Some(fields) = selected_case_fields.take() {
+                let CanonicalStructuralPathSegment::Field(field_id) = segment else {
+                    return None;
+                };
+                let field = fields
+                    .iter()
+                    .find(|candidate| candidate.id == *field_id)
+                    .filter(|field| !field.relevance.is_erased())?;
+                if is_last {
+                    return Some(&field.field_type);
+                }
+                let StructuralFieldType::Structural(next) = field.field_type else {
+                    return None;
+                };
+                structural_type = next;
+                continue;
+            }
             match (segment, &declaration.shape) {
                 (
                     CanonicalStructuralPathSegment::Field(field_id),

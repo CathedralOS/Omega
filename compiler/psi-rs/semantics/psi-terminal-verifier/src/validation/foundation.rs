@@ -59,6 +59,38 @@ pub(super) fn validate_structural_foundation(module: &TerminalModule) -> Result<
                         case: case.id,
                     });
                 }
+                let mut field_ids = BTreeSet::new();
+                let mut field_names = BTreeSet::new();
+                for field in &case.fields {
+                    if !field_ids.insert(field.id)
+                        || field.identity.is_empty()
+                        || !field_names.insert(field.identity.as_str())
+                    {
+                        return Err(ModuleError::InvalidStructuralFieldIdentity {
+                            structural_type: declaration.id,
+                            field: field.id,
+                        });
+                    }
+                    match &field.field_type {
+                        StructuralFieldType::Erased { type_identity }
+                            if !field.relevance.is_erased() || type_identity.is_empty() =>
+                        {
+                            return Err(ModuleError::InvalidErasedStructuralField {
+                                structural_type: declaration.id,
+                                field: field.id,
+                            });
+                        }
+                        StructuralFieldType::Scalar(_) | StructuralFieldType::Structural(_)
+                            if field.relevance.is_erased() =>
+                        {
+                            return Err(ModuleError::InvalidErasedStructuralField {
+                                structural_type: declaration.id,
+                                field: field.id,
+                            });
+                        }
+                        _ => {}
+                    }
+                }
             }
         } else if matches!(
             declaration.shape,
@@ -83,7 +115,15 @@ pub(super) fn validate_structural_foundation(module: &TerminalModule) -> Result<
                     return Err(ModuleError::UnknownStructuralType(*element));
                 }
             }
-            StructuralTypeShape::Sum { .. } => {}
+            StructuralTypeShape::Sum { cases } => {
+                for field in cases.iter().flat_map(|case| &case.fields) {
+                    if let StructuralFieldType::Structural(target) = &field.field_type
+                        && !types.contains_key(target)
+                    {
+                        return Err(ModuleError::UnknownStructuralType(*target));
+                    }
+                }
+            }
         }
     }
     validate_structural_type_graph(&types)?;
@@ -517,7 +557,13 @@ fn validate_structural_type_graph(
             StructuralTypeShape::FixedArray { element, .. } => {
                 visit(*element, types, active, complete)?;
             }
-            StructuralTypeShape::Sum { .. } => {}
+            StructuralTypeShape::Sum { cases } => {
+                for field in cases.iter().flat_map(|case| &case.fields) {
+                    if let StructuralFieldType::Structural(target) = &field.field_type {
+                        visit(*target, types, active, complete)?;
+                    }
+                }
+            }
         }
         active.remove(&id);
         complete.insert(id);

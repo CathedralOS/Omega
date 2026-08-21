@@ -31,7 +31,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     let bytes = encode_module(&module).expect("fixture should encode");
 
     assert_eq!(&bytes[..8], b"PSITERM\0");
-    assert_eq!(&bytes[8..10], 17_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 18_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 
@@ -39,7 +39,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     assert_eq!(identity.vocabulary_marker, VocabularyMarker::CURRENT);
     assert_eq!(
         identity.program_fingerprint.to_string(),
-        "f2ff485768e2dd8274f6fa5b34933fa76f7655dce6abcffe5f438750ff4f0250"
+        "6db8d70ee0854d22e5c3021280fa45f7d066d37520965c2cea9f0ecb885d2823"
     );
     assert_eq!(
         identity.program_fingerprint,
@@ -48,7 +48,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
 }
 
 #[test]
-fn payloadless_sum_shape_requires_canonical_nonempty_cases() {
+fn payload_sum_shape_round_trips_exact_fields_and_requires_canonical_order() {
     let mut valid = fixture();
     valid.structural_types.push(StructuralTypeDeclaration {
         id: structural_type_id(99),
@@ -58,10 +58,27 @@ fn payloadless_sum_shape_requires_canonical_nonempty_cases() {
                 StructuralCaseDeclaration {
                     id: structural_case_id(1),
                     identity: "Off".to_owned(),
+                    fields: Vec::new(),
                 },
                 StructuralCaseDeclaration {
                     id: structural_case_id(2),
                     identity: "On".to_owned(),
+                    fields: vec![
+                        StructuralFieldDeclaration {
+                            id: structural_field_id(1),
+                            identity: "enabled".to_owned(),
+                            relevance: BindingRelevance::Relevant,
+                            field_type: StructuralFieldType::Scalar(ScalarType::Boolean),
+                        },
+                        StructuralFieldDeclaration {
+                            id: structural_field_id(2),
+                            identity: "count".to_owned(),
+                            relevance: BindingRelevance::Relevant,
+                            field_type: StructuralFieldType::Scalar(ScalarType::Integer(
+                                IntegerType::new(IntegerSign::Signed, 32).expect("i32"),
+                            )),
+                        },
+                    ],
                 },
             ],
         },
@@ -69,7 +86,7 @@ fn payloadless_sum_shape_requires_canonical_nonempty_cases() {
     valid
         .structural_types
         .sort_by_key(|declaration| declaration.id);
-    let bytes = encode_module(&valid).expect("canonical payload-less sum encodes");
+    let bytes = encode_module(&valid).expect("canonical payload sum encodes");
     assert_eq!(decode_module(&bytes), Ok(valid.clone()));
 
     let mut reordered = valid.clone();
@@ -87,6 +104,24 @@ fn payloadless_sum_shape_requires_canonical_nonempty_cases() {
         encode_module(&reordered),
         Err(CodecError::NonCanonicalOrder(
             "structural cases by StructuralCaseId"
+        ))
+    );
+
+    let mut reordered_fields = valid.clone();
+    let StructuralTypeShape::Sum { cases } = &mut reordered_fields
+        .structural_types
+        .iter_mut()
+        .find(|declaration| declaration.identity == "Mode")
+        .expect("sum")
+        .shape
+    else {
+        unreachable!()
+    };
+    cases[1].fields.reverse();
+    assert_eq!(
+        encode_module(&reordered_fields),
+        Err(CodecError::NonCanonicalOrder(
+            "structural case fields by StructuralFieldId"
         ))
     );
 
@@ -108,7 +143,7 @@ fn payloadless_sum_shape_requires_canonical_nonempty_cases() {
 fn partial_affine_unit_return_round_trips_exact_path_and_leaf_type() {
     let module = partial_affine_fixture();
     let bytes = encode_module(&module).expect("partial affine return should encode");
-    assert_eq!(&bytes[8..10], 17_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 18_u16.to_le_bytes());
     assert_eq!(&bytes[10..12], 20_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
@@ -118,7 +153,7 @@ fn partial_affine_unit_return_round_trips_exact_path_and_leaf_type() {
 fn nominal_affine_unit_return_round_trips_exact_root_type_and_cleanup_machine() {
     let module = nominal_affine_fixture();
     let bytes = encode_module(&module).expect("nominal affine return should encode");
-    assert_eq!(&bytes[8..10], 17_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 18_u16.to_le_bytes());
     assert_eq!(&bytes[10..12], 20_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
@@ -150,7 +185,7 @@ fn scalar_return_round_trips_nominal_affine_cleanup_action() {
     };
 
     let bytes = encode_module(&module).expect("scalar nominal cleanup should encode");
-    assert_eq!(&bytes[8..10], 17_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 18_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 }
@@ -1580,10 +1615,10 @@ fn decoder_rejects_noncanonical_or_ambiguous_bytes() {
     assert_eq!(decode_module(&trailing), Err(CodecError::TrailingBytes(1)));
 
     let mut future_format = bytes.clone();
-    future_format[8..10].copy_from_slice(&18_u16.to_le_bytes());
+    future_format[8..10].copy_from_slice(&19_u16.to_le_bytes());
     assert_eq!(
         decode_module(&future_format),
-        Err(CodecError::UnsupportedFormatMarker(18))
+        Err(CodecError::UnsupportedFormatMarker(19))
     );
 
     let mut stale_format = bytes.clone();

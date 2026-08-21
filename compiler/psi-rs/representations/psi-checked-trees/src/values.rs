@@ -164,7 +164,7 @@ pub enum CheckedScalarExpression {
     /// ordinary scalar execution plans reject it.
     StructuralParameterField {
         parameter_position: u32,
-        path: Vec<String>,
+        path: Vec<CheckedStructuralPredicatePathSegment>,
         primitive_type: psi_typed_trees::types::PrimitiveType,
     },
     IntegerLiteral {
@@ -232,7 +232,7 @@ pub enum CheckedBooleanExpression {
     /// canonical structural field ID at that exact type level.
     StructuralParameterField {
         parameter_position: u32,
-        path: Vec<String>,
+        path: Vec<CheckedStructuralPredicatePathSegment>,
     },
     Not(Box<CheckedBooleanExpression>),
     Equal {
@@ -257,12 +257,18 @@ pub enum CheckedBooleanExpression {
         left: CheckedStructuralParameterField,
         right: CheckedStructuralParameterField,
     },
-    /// Equality of two payload-less structural sums. Terminal lowering expands
+    /// Equality of two structural sums. Terminal lowering expands
     /// this closed case roster into canonical per-case membership equivalence.
     PayloadlessSumEqual {
         left: CheckedStructuralParameterField,
         right: CheckedStructuralParameterField,
         cases: Vec<String>,
+    },
+    /// Exact active-case test over a structural sum subject. The path reaches
+    /// the sum itself; payload paths use an explicit following Case segment.
+    StructuralCaseMembership {
+        subject: CheckedStructuralParameterField,
+        case: String,
     },
     And {
         left: Box<CheckedBooleanExpression>,
@@ -283,7 +289,13 @@ pub enum CheckedIeeeFloatComparisonKind {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct CheckedStructuralParameterField {
     pub parameter_position: u32,
-    pub path: Vec<String>,
+    pub path: Vec<CheckedStructuralPredicatePathSegment>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum CheckedStructuralPredicatePathSegment {
+    Field(String),
+    Case(String),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

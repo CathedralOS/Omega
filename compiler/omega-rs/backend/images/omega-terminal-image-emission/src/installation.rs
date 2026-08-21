@@ -33,7 +33,7 @@ use crate::{
     TerminalObjectPortEffect, can_emit_terminal_executable_image,
 };
 
-pub const TERMINAL_INSTALLATION_FORMAT_MARKER: u16 = 23;
+pub const TERMINAL_INSTALLATION_FORMAT_MARKER: u16 = 24;
 const MAGIC: &[u8; 8] = b"PSIINST\0";
 const IMAGE_DOMAIN: &[u8] = b"omega-terminal-installed-image\0";
 const RECORD_DOMAIN: &[u8] = b"omega-terminal-installation-record\0";
@@ -3519,59 +3519,7 @@ fn encode_structural_types(
                         .map_err(|_| TerminalInstallationError::TooManyStructuralFields)?,
                 );
                 for field in fields {
-                    push_u64(bytes, field.id.get());
-                    encode_identity(bytes, &field.identity)?;
-                    bytes.push(u8::from(field.relevance.is_erased()));
-                    match &field.field_type {
-                        psi_terminal::StructuralFieldType::Scalar(
-                            psi_core::ScalarType::Boolean,
-                        ) => {
-                            bytes.push(1);
-                            bytes.extend_from_slice(&[0; 2]);
-                        }
-                        psi_terminal::StructuralFieldType::Scalar(
-                            psi_core::ScalarType::Integer(integer),
-                        ) => {
-                            bytes.push(2);
-                            bytes.push(u8::from(integer.is_address()));
-                            bytes.push(u8::from(matches!(
-                                integer.sign(),
-                                psi_core::IntegerSign::Signed
-                            )));
-                            push_u16(bytes, integer.bits());
-                        }
-                        psi_terminal::StructuralFieldType::IeeeFloat(format) => {
-                            bytes.push(5);
-                            bytes.push(match format {
-                                psi_core::IeeeFloatFormat::Binary32 => 1,
-                                psi_core::IeeeFloatFormat::Binary64 => 2,
-                            });
-                            bytes.push(0);
-                        }
-                        psi_terminal::StructuralFieldType::ByteSequence(carrier) => {
-                            bytes.push(6);
-                            bytes.push(match carrier {
-                                psi_terminal::ByteSequenceCarrier::BorrowedView => 1,
-                                psi_terminal::ByteSequenceCarrier::BoundedOwned { .. } => 2,
-                            });
-                            bytes.push(0);
-                            if let psi_terminal::ByteSequenceCarrier::BoundedOwned { capacity } =
-                                carrier
-                            {
-                                push_u64(bytes, *capacity);
-                            }
-                        }
-                        psi_terminal::StructuralFieldType::Structural(structural_type) => {
-                            bytes.push(3);
-                            bytes.extend_from_slice(&[0; 2]);
-                            push_u64(bytes, structural_type.get());
-                        }
-                        psi_terminal::StructuralFieldType::Erased { type_identity } => {
-                            bytes.push(4);
-                            bytes.extend_from_slice(&[0; 2]);
-                            encode_identity(bytes, type_identity)?;
-                        }
-                    }
+                    encode_structural_field(bytes, field)?;
                 }
             }
             psi_terminal::StructuralTypeShape::FixedArray { element, length } => {
@@ -3589,8 +3537,70 @@ fn encode_structural_types(
                 for case in cases {
                     push_u64(bytes, case.id.get());
                     encode_identity(bytes, &case.identity)?;
+                    push_u32(
+                        bytes,
+                        u32::try_from(case.fields.len())
+                            .map_err(|_| TerminalInstallationError::TooManyStructuralFields)?,
+                    );
+                    for field in &case.fields {
+                        encode_structural_field(bytes, field)?;
+                    }
                 }
             }
+        }
+    }
+    Ok(())
+}
+
+fn encode_structural_field(
+    bytes: &mut Vec<u8>,
+    field: &psi_terminal::StructuralFieldDeclaration,
+) -> Result<(), TerminalInstallationError> {
+    push_u64(bytes, field.id.get());
+    encode_identity(bytes, &field.identity)?;
+    bytes.push(u8::from(field.relevance.is_erased()));
+    match &field.field_type {
+        psi_terminal::StructuralFieldType::Scalar(psi_core::ScalarType::Boolean) => {
+            bytes.push(1);
+            bytes.extend_from_slice(&[0; 2]);
+        }
+        psi_terminal::StructuralFieldType::Scalar(psi_core::ScalarType::Integer(integer)) => {
+            bytes.push(2);
+            bytes.push(u8::from(integer.is_address()));
+            bytes.push(u8::from(matches!(
+                integer.sign(),
+                psi_core::IntegerSign::Signed
+            )));
+            push_u16(bytes, integer.bits());
+        }
+        psi_terminal::StructuralFieldType::IeeeFloat(format) => {
+            bytes.push(5);
+            bytes.push(match format {
+                psi_core::IeeeFloatFormat::Binary32 => 1,
+                psi_core::IeeeFloatFormat::Binary64 => 2,
+            });
+            bytes.push(0);
+        }
+        psi_terminal::StructuralFieldType::ByteSequence(carrier) => {
+            bytes.push(6);
+            bytes.push(match carrier {
+                psi_terminal::ByteSequenceCarrier::BorrowedView => 1,
+                psi_terminal::ByteSequenceCarrier::BoundedOwned { .. } => 2,
+            });
+            bytes.push(0);
+            if let psi_terminal::ByteSequenceCarrier::BoundedOwned { capacity } = carrier {
+                push_u64(bytes, *capacity);
+            }
+        }
+        psi_terminal::StructuralFieldType::Structural(structural_type) => {
+            bytes.push(3);
+            bytes.extend_from_slice(&[0; 2]);
+            push_u64(bytes, structural_type.get());
+        }
+        psi_terminal::StructuralFieldType::Erased { type_identity } => {
+            bytes.push(4);
+            bytes.extend_from_slice(&[0; 2]);
+            encode_identity(bytes, type_identity)?;
         }
     }
     Ok(())
@@ -4099,6 +4109,18 @@ fn decode_structural_types(
                             ),
                         )?,
                         identity: decode_identity(reader)?,
+                        fields: {
+                            let field_count = usize::try_from(reader.u32()?)
+                                .map_err(|_| TerminalInstallationError::TooManyStructuralFields)?;
+                            if field_count > reader.remaining() {
+                                return Err(TerminalInstallationError::UnexpectedEnd);
+                            }
+                            let mut fields = Vec::with_capacity(field_count);
+                            for _ in 0..field_count {
+                                fields.push(decode_structural_field(reader)?);
+                            }
+                            fields
+                        },
                     });
                 }
                 psi_terminal::StructuralTypeShape::Sum { cases }
@@ -4116,6 +4138,106 @@ fn decode_structural_types(
         });
     }
     Ok(declarations)
+}
+
+fn decode_structural_field(
+    reader: &mut Reader<'_>,
+) -> Result<psi_terminal::StructuralFieldDeclaration, TerminalInstallationError> {
+    let id = StructuralFieldId::new(reader.u64()?).ok_or(
+        TerminalInstallationError::ZeroStructuralReturnIdentity("structural field"),
+    )?;
+    let identity = decode_identity(reader)?;
+    let relevance = match reader.u8()? {
+        0 => psi_terminal::BindingRelevance::Relevant,
+        1 => psi_terminal::BindingRelevance::Erased,
+        value => return Err(TerminalInstallationError::InvalidBoolean(value)),
+    };
+    let field_type = match reader.u8()? {
+        1 => {
+            if reader.u16()? != 0 {
+                return Err(TerminalInstallationError::NonzeroReservedField);
+            }
+            psi_terminal::StructuralFieldType::Scalar(psi_core::ScalarType::Boolean)
+        }
+        2 => {
+            let is_address = decode_boolean(reader.u8()?)?;
+            let signed = decode_boolean(reader.u8()?)?;
+            let bits = reader.u16()?;
+            let integer = if is_address {
+                if signed {
+                    return Err(TerminalInstallationError::InvalidStructuralTypeShape);
+                }
+                psi_core::IntegerType::address(bits)
+            } else {
+                psi_core::IntegerType::new(
+                    if signed {
+                        psi_core::IntegerSign::Signed
+                    } else {
+                        psi_core::IntegerSign::Unsigned
+                    },
+                    bits,
+                )
+            }
+            .map_err(|_| TerminalInstallationError::InvalidStructuralTypeShape)?;
+            psi_terminal::StructuralFieldType::Scalar(psi_core::ScalarType::Integer(integer))
+        }
+        3 => {
+            if reader.u16()? != 0 {
+                return Err(TerminalInstallationError::NonzeroReservedField);
+            }
+            psi_terminal::StructuralFieldType::Structural(
+                StructuralTypeId::new(reader.u64()?).ok_or(
+                    TerminalInstallationError::ZeroStructuralReturnIdentity(
+                        "nested structural type",
+                    ),
+                )?,
+            )
+        }
+        4 => {
+            if reader.u16()? != 0 {
+                return Err(TerminalInstallationError::NonzeroReservedField);
+            }
+            psi_terminal::StructuralFieldType::Erased {
+                type_identity: decode_identity(reader)?,
+            }
+        }
+        5 => {
+            let format = match reader.u8()? {
+                1 => psi_core::IeeeFloatFormat::Binary32,
+                2 => psi_core::IeeeFloatFormat::Binary64,
+                _ => return Err(TerminalInstallationError::InvalidStructuralTypeShape),
+            };
+            if reader.u8()? != 0 {
+                return Err(TerminalInstallationError::NonzeroReservedField);
+            }
+            psi_terminal::StructuralFieldType::IeeeFloat(format)
+        }
+        6 => {
+            let carrier_tag = reader.u8()?;
+            if reader.u8()? != 0 {
+                return Err(TerminalInstallationError::NonzeroReservedField);
+            }
+            let carrier = match carrier_tag {
+                1 => psi_terminal::ByteSequenceCarrier::BorrowedView,
+                2 => psi_terminal::ByteSequenceCarrier::BoundedOwned {
+                    capacity: reader.u64()?,
+                },
+                _ => return Err(TerminalInstallationError::InvalidStructuralTypeShape),
+            };
+            psi_terminal::StructuralFieldType::ByteSequence(carrier)
+        }
+        tag => {
+            return Err(TerminalInstallationError::InvalidStructuralFieldTypeTag(
+                tag,
+            ));
+        }
+    };
+    Ok(psi_terminal::StructuralFieldDeclaration {
+        id,
+        identity,
+        relevance,
+        field_type,
+    })
 }
 
 fn decode_identity(reader: &mut Reader<'_>) -> Result<String, TerminalInstallationError> {
@@ -4954,7 +5076,7 @@ mod resource_tests {
     }
 
     #[test]
-    fn payloadless_sum_cases_round_trip_in_installations() {
+    fn payload_sum_case_fields_round_trip_in_installations() {
         let declarations = vec![psi_terminal::StructuralTypeDeclaration {
             id: StructuralTypeId::new(1).expect("structural type"),
             identity: "Mode".into(),
@@ -4963,10 +5085,22 @@ mod resource_tests {
                     psi_terminal::StructuralCaseDeclaration {
                         id: StructuralCaseId::new(1).expect("off case"),
                         identity: "Off".into(),
+                        fields: Vec::new(),
                     },
                     psi_terminal::StructuralCaseDeclaration {
                         id: StructuralCaseId::new(2).expect("on case"),
                         identity: "On".into(),
+                        fields: vec![psi_terminal::StructuralFieldDeclaration {
+                            id: StructuralFieldId::new(1).expect("payload field"),
+                            identity: "value".into(),
+                            relevance: psi_terminal::BindingRelevance::Relevant,
+                            field_type: psi_terminal::StructuralFieldType::Scalar(
+                                psi_core::ScalarType::Integer(
+                                    psi_core::IntegerType::new(psi_core::IntegerSign::Signed, 32)
+                                        .expect("i32"),
+                                ),
+                            ),
+                        }],
                     },
                 ],
             },

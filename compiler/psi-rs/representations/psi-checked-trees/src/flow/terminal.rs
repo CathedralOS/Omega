@@ -521,7 +521,8 @@ pub enum CheckedUnitStructuralTypeShape {
         element_type_identity: String,
         length: u64,
     },
-    /// A closed sum whose cases all carry no payload.
+    /// A closed pure sum. Each case owns its exact payload-field roster; an
+    /// empty roster is the payload-less case form.
     Sum {
         cases: Vec<CheckedUnitStructuralCasePlan>,
     },
@@ -530,6 +531,7 @@ pub enum CheckedUnitStructuralTypeShape {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedUnitStructuralCasePlan {
     pub identity: String,
+    pub fields: Vec<CheckedUnitStructuralFieldPlan>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -1302,7 +1302,7 @@ verifier independently requires both resolved leaves to have byte-sequence
 carrier types, and call substitution rebases both roots. The bounded slice
 admits field-to-field whole-record equality for `&[u8] in Domain` and
 `[u8; N] in Domain`; text literals and direct text `!=` remain fenced. Semantic
-codec v17, proof-bundle v11, and installation-record v23 encode this vocabulary.
+codec v18, proof-bundle v12, and installation-record v24 encode this vocabulary.
 A
 genuinely zero-member record instead normalizes equality to the
 existing Boolean `true` term; inequality uses the existing negation, and calls,
@@ -1311,9 +1311,16 @@ all-erased record is not empty and remains fenced. Payload-less sums retain
 their closed case roster as exact Terminal structural case identities. Equality
 is the canonical flat conjunction of both case-membership implications for
 each case; inequality is that complete equality proposition implying
-falsehood. The verifier resolves each subject and case independently. Case
-payload paths, payload-bearing-sum equality, erased-field equality, and written
-`equals` bodies remain
+falsehood. The verifier resolves each subject and case independently.
+Payload-bearing pure sums additionally retain each exact case-payload field.
+For direct relevant Boolean, fixed-integer, IEEE, and byte-sequence payload
+leaves, equality is a canonical disjunction whose arm for each case conjoins
+membership of both roots in that case with the exact payload-leaf equalities;
+inequality is that complete disjunction implying falsehood. A case path uses an
+exact case identity followed by its exact payload-field identity, and the
+verifier and codecs reject unknown or redirected identities. Mixed
+common-field/case shapes, nested or recursive payload expansion, address and
+erased payload equality, written `equals` bodies, and runtime sum layout remain
 outside this bounded terminal slice. Arithmetic over
 same-typed relevant fixed-integer members accepts Exact addition, subtraction,
 and multiplication: each member or fixed-integer-literal operand retains its
@@ -1917,7 +1924,7 @@ and each call trust node binds both the shared policy table and that focused
 consumer.
 
 The bounded Gamma feasibility spike now starts from four exact current
-`PSITERM\0` v17 byte fixtures and reconstructs a typed 54-row scalar ledger plus
+`PSITERM\0` v18 byte fixtures and reconstructs a typed 54-row scalar ledger plus
 a separate 3-row structural/effect ledger. It covers constants, Boolean
 not/equality, integer equality/order, bitwise operations, strict widening,
 partial exact cast, exact/wrapping shifts with independently typed counts, and
@@ -1940,10 +1947,11 @@ carriers with exact equality and canonical unsigned order,
 the complete Boolean/
 fixed-signed/fixed-unsigned/address type grammar with widths `1..=128`, exact
 signed/unsigned 128-bit integer-value payloads, and length-prefixed UTF-8
-decoding with malformed-encoding rejection. Its separate v17 structural-leaf
+decoding with malformed-encoding rejection. Its separate v18 structural-leaf
 module owns exact IEEE kind/format, byte-sequence carriers, full-width canonical
-structural fields, and atomic proposition tags `11`/`12`; nonempty paths and
-root-then-lexicographic operand order are checked at the atom boundary. All
+structural fields including tag-`3` case path segments, and atomic proposition
+tags `11`/`12`/`13`; nonempty paths and root-then-lexicographic operand order are
+checked at the atom boundary. All
 three bounded decoders consume only its 302-line header/scalar/type/value subset.
 The structural-leaf module is independently gated but deliberately excluded
 from the bounded spike, so it adds byte grammar without adding ledger authority.
