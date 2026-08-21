@@ -268,10 +268,38 @@ Remaining:
   bytes against the Source interval. The compile report and optional manifest
   retain that carrier; non-writing builds retain none. This proves final image
   content only, not firmware invocation, installed roots, or native execution.
+  That carrier now also retains independently replayed physical-arrival
+  evidence for the exact UEFI x64 receiver-free path: the checked
+  Image/InitialStorage `BoundaryEntryPlan` placements must be the same indirect
+  RCX/RDX placements consumed by the generated wrapper, and the four ordered
+  launch-value copy rows must occupy exact in-wrapper byte ranges, match their
+  canonical 15-byte encodings in both encoded and final text, and own no
+  relocation. Placement, role/index, wrapper identity/interval, row inventory,
+  byte, or relocation drift fails closed. This remains final-image evidence;
+  it does not connect installed authority to firmware launch or prove that the
+  platform invoked the wrapper.
+  The receiver-free whole-root argument carrier can now move into a sealed,
+  non-cloneable emitted-wrapper binding. This transition keeps both installed
+  `Extent` authorities intact while requiring final wrapper evidence from the
+  same bridge, then replays wrapper/Source identities and intervals, executable
+  fingerprints, the physical calling-plan fingerprint, Image/InitialStorage
+  roles and indices, exact indirect placements, and all four canonical
+  launch-value copy rows. An unwritten bridge or any identity, placement,
+  interval, byte, or row drift rejects while returning the intact authority
+  carrier. This proves that those installed ordinary values match one exact
+  final wrapper certificate; it does not prove firmware supplied them to that
+  wrapper, invocation, or native execution.
   Production builds still lack a source-compatible attached-root
   value/authority carrier (or separate hidden supply), final firmware
   composition, and native-execution evidence; those remain before this slice
-  is complete.
+  is complete. The next receiver-free production boundary is now exact: Q2
+  must define the target-owned adapter that turns UEFI `ImageHandle` and
+  `SystemTable` arrival into the two provider-issued semantic root values and
+  one invocation receipt. Until that producer exists, no compiler carrier may
+  claim that installed Image/InitialStorage authority occupied RCX/RDX at this
+  wrapper invocation. Native-invocation evidence belongs after that adapter;
+  another compiler-side authority row would duplicate facts without closing
+  the boundary.
 
   The CLI corpus is rooted on all hosted targets except the four GUI samples,
   which currently select Windows x64 and macOS arm64. Linux needs an ordinary
@@ -1180,10 +1208,39 @@ Remaining:
   unsigned nonzero literal divisor, or a signed literal divisor other than
   zero and `-1`, reconstruction selects canonical `ExactDivisionDefined` and
   the existing untrusted recursive producer proves its order arm solely from
-  that landing equality and a closed integer relation. Missing, zero, or
-  signed `-1` landing evidence rejects this path; the operation result is not
-  available as proof authority. The current proof rules and proof-bundle v15
-  codec carry the certificate without a vocabulary change. All remaining
+  that landing equality and a closed integer relation. The complete signed
+  `-1` exceptional family is canonical too when the dividend is independently
+  landed as any literal above the carrier minimum; the producer recursively
+  composes the exact third disjunct, or the two-conjunct `i1` goal, from both
+  landing equalities and closed order. The next complete existing-fact family
+  accepts the same landed `-1` divisor when the exact canonical
+  `MIN + 1 <= dividend` proposition (`0 <= dividend` for `i1`) is independently
+  retained in the machine requirements or pre-site semantic ledger. The
+  producer cites that proposition directly as the second recursive premise;
+  it does not import a reduced obligation or infer a wider interval. Missing,
+  stale, or weaker bounds reject. The next complete one-hop family accepts a
+  retained literal lower bound `K <= dividend` when closed same-carrier order
+  independently proves `MIN + 1 <= K`. The producer composes that primitive
+  relation with the exact prior citation through integer-order transitivity;
+  reversed, mistyped, weaker, or wrong-dividend facts reject. Missing or zero
+  divisor evidence, or a `-1` divisor without either a nonminimum dividend
+  landing or the exact retained bound, rejects these paths. The next complete
+  direct safe-divisor family now selects the canonical goal from an exact prior
+  `1 <= divisor` proposition for unsigned or signed fixed carriers, or
+  `divisor <= -2` for signed widths of at least two. Unsigned certificates cite
+  the goal directly; signed
+  certificates cite the selected first or second disjunct and wrap it with
+  disjunction introduction. A signed `i1` divisor fact alone remains
+  insufficient because its canonical conjunction also requires the dividend
+  premise. One-hop stronger retained safe-divisor facts are now complete too:
+  `K <= divisor` is accepted when closed same-carrier order proves `1 <= K`,
+  and signed `divisor <= K` is accepted when it proves `K <= -2`. The verifier
+  selects only the exact operand identity and the untrusted producer composes
+  the canonical arm by integer-order transitivity before disjunction
+  introduction. Missing, reversed, weakened, mistyped, or wrong-divisor facts
+  reject. The operation result is not available as proof authority. The current
+  proof rules and proof-bundle v15 codec carry the certificates without a
+  vocabulary change. All remaining
   exact divide/remainder families stay on trusted sufficient reduction, so
   neither complete row changes trust status. Their exact-defined
   prerequisite is nevertheless canonical and exact: unsigned requires
@@ -1440,27 +1497,47 @@ Remaining:
   split; exact host-service grant custody remains a separate authority task
   rather than being hidden inside the refactor.
   Target-neutral call validation has begun the same responsibility split. Its
-  former 9,103-line `calls.rs` parent is now 1,338 lines. Runtime recursive-call
+  former 9,103-line `calls.rs` parent is now 1,215 lines. Its 137-line
+  `calls/inline_assembly.rs` child owns shared-catalog lookup, source operand
+  constraints, and value-producing intrinsic destination checks; the existing
+  crate destination query and two parent-private validation seams are
+  unchanged. Runtime recursive-call
   position checking lives in a 222-line `calls/recursion.rs` child; its
   943-line `recursion/proof_machines.rs` child owns proof-machine
   structural/cited decrease validation, substitution matching, guard
   provenance, and sub-state descent closure. The proof validator is its only
   crate-visible export and reuses one parent-private self-call identity check.
-  Value-position expression-call
-  traversal, bound validation, and exact scan diagnostics form a separate
-  1,810-line `calls/expression_scanning.rs` child. Its 222-line
-  `expression_scanning/target_resolution.rs` child owns declared-receiver type
-  discovery, lowering-aligned target-channel replay, and the fail-closed
-  unresolved-call decision. The existing crate receiver-type query is
+  Value-position per-call bound validation and exact diagnostics form a
+  1,004-line `calls/expression_scanning.rs` child. Its 838-line
+  `expression_scanning/traversal.rs` child owns source-ordered recursive
+  statement/expression scanning, malformed-name checks, and nested-indexed-read
+  fences, delegating through one parent-private call-validation seam. A
+  separate 222-line `expression_scanning/target_resolution.rs` child owns
+  declared-receiver type discovery, lowering-aligned target-channel replay,
+  and the fail-closed unresolved-call decision. Existing crate queries are
   unchanged; only type-shell normalization and unresolved-call reporting are
-  shared privately back to traversal.
+  shared privately back to per-call validation.
   Complete-or-opaque caller write-frame inference, alias-origin propagation,
-  and transition-cycle frame equations now form a 4,079-line
+  and transition-cycle frame equations now form a 3,714-line
   `calls/write_frames.rs` child. Its 459-line `write_frames/demand.rs` child
   owns the public resolver facade plus expression/statement demand collection
   and conservative fallback; a separate 123-line
   `write_frames/boundary_calls.rs` child owns boundary-trait signature
-  resolution and receiver/exclusive-argument write frames. The parent
+  resolution and receiver/exclusive-argument write frames. A focused 176-line
+  `write_frames/isolation.rs` child owns caller-isolated local/aggregate
+  classification and exact struct-literal field/type lookup through five
+  parent-private predicates; it has no callback into frame inference. A
+  separate 99-line `write_frames/transparent_effects.rs` leaf owns recursive
+  syntactic effect classification, compiler-owned slice-view transparency, and
+  place-root symbol recovery through three parent-private queries, likewise
+  without resolving or summarizing a call frame. A 72-line
+  `write_frames/place_paths.rs` leaf owns exact-versus-collection-coarse frame
+  path provenance, root/suffix composition, and typed-expression path recovery;
+  collection coarsening remains absorbing and the leaf has no call-resolution
+  dependency. An 87-line `write_frames/state_paths.rs` leaf owns state-relative
+  visibility, positional parameter-root normalization, exact symbol forwarding,
+  and duplicate-free visible-path collection; it has no call- or
+  frame-resolution callback. The parent
   preserves the existing public and crate-private query surface;
   receiver-member-chain and resolved-state lookup remain the only top-level
   sibling seams. The frame engine privately reuses two demand collection
@@ -2253,12 +2330,21 @@ Remaining N6/N8 work:
   free/attached-call pilot and its implicit quotient return retagging are
   retired rather than treated as a compatibility path.
 
-  Quotient formation itself is not yet migrated: the current `%` validator
-  still structurally recognizes boolean relation-law machines. This legacy
-  corpus is not settled authority. Replace it with the declaration's one
-  explicitly named `Equivalence` conformance in the static `where` surface,
-  including exact selection and anti-axiom provenance checks, before admitting
-  any retained lift/define request.
+  Quotient formation is now migrated to the exact static selection. `%`
+  requires a proposition relation plus the declaration's one explicitly named,
+  subjectless, closed, nongeneric `Equivalence<C, R>` conformance. The selected
+  sealed toolchain interface and exact Reflexive/Symmetric/Transitive row
+  contracts are checked without Boolean or structural fallback; strengthened
+  or vacuous premises reject. Anti-axiom provenance follows checked row
+  dependencies transitively through contracts, values, statements, guards,
+  transitions, and continuations. Generic relation applications retain exact
+  binder symbols, categories, and order. Formation and congruence canaries cover
+  ordinary, independently indexed generic, and static-machine carrier families;
+  authored lookalikes, missing selections, Boolean relations, admitted nested
+  dependencies, strengthened laws, and swapped generic binders reject. The
+  retained lift/define request remains deliberately non-executable until
+  compiler-derived `RA`/`RR`, contract correspondence, positional arguments,
+  and normalized result flow are independently certified.
 - Suppress every synthesized representation observer on quotient formation.
   Add quotient-owned executable equality through an ordinary lifted operation
   with `DecidesEquivalence`; derive its `Respects` proof, and bind its optional
@@ -2291,9 +2377,9 @@ Remaining N6/N8 work:
   nonnegative algebra. Add the integer-policy bridge catalog and the separate
   `FloatMeaning` projection rules described by
   [`total_specification_arithmetic.md`](wiki/design_briefs/total_specification_arithmetic.md).
-- Then migrate `%` and suffix law discovery to propositions plus explicit
-  conformances, and expand the checked `Nat`/`Int`/`Rat`/Cauchy/approximation
-  corpus. `Real` remains proof-only and core-level.
+- Then migrate suffix law discovery to propositions plus explicit conformances,
+  and expand the checked `Nat`/`Int`/`Rat`/Cauchy/approximation corpus. `Real`
+  remains proof-only and core-level.
 
 Acceptance: an admitted axiom cannot license quotient formation; selected
 Reflexive/Symmetric/Transitive evidence and every `Respects` proof are explicit;
