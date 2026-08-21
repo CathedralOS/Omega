@@ -1059,6 +1059,12 @@ extent loan may request another placement and undergo admission again. Reading
 an external container into an owned integer and recasting those detached bits
 into a compatible snapshot record is ordinary value recast and remains legal.
 
+Borrow checking retains the source loan for validated whole-name and
+whole-member recasts, with the authored shared or mutable polarity. An indexed
+recast may cover a wider byte footprint than its syntactic source element, so
+that form remains conservatively outside precise loan publication until the
+complete validated footprint is carried into overlap facts.
+
 The source and target must cover the same bytes under their normalized layout
 plans. A shared recast may only weaken facts (source implies target). A mutable
 recast requires implication in both directions so writes through the view

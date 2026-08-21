@@ -195,11 +195,29 @@ fn reference_local_borrow_loans(
         psi_checked_trees::expression::ExpressionNode::Mutable(inner_expression)
             if local_is_mutable_reference =>
         {
-            borrow_access_place(
+            whole_place_recast_borrow_place(
                 program,
                 state.symbol,
                 statement_index,
                 *inner_expression,
+                machine_symbol,
+            )
+            .or_else(|| {
+                borrow_access_place(
+                    program,
+                    state.symbol,
+                    statement_index,
+                    *inner_expression,
+                    machine_symbol,
+                )
+            })
+        }
+        psi_checked_trees::expression::ExpressionNode::Cast(cast) if cast.form.is_recast() => {
+            whole_place_recast_borrow_place(
+                program,
+                state.symbol,
+                statement_index,
+                local_data.initial_value,
                 machine_symbol,
             )
         }
@@ -239,6 +257,41 @@ fn reference_local_borrow_loans(
             },
         })
         .collect()
+}
+
+fn whole_place_recast_borrow_place(
+    program: &psi_typed_trees::TypedTrees,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    expression: ExpressionHandle,
+    machine_symbol: SymbolHandle,
+) -> Option<accesses::BorrowAccessPlace> {
+    let psi_checked_trees::expression::ExpressionNode::Cast(cast) =
+        program.expression_table.expression(expression)
+    else {
+        return None;
+    };
+    if !cast.form.is_recast()
+        || !matches!(
+            program.expression_table.expression(cast.value),
+            psi_checked_trees::expression::ExpressionNode::Name(_)
+                | psi_checked_trees::expression::ExpressionNode::Member(_)
+        )
+    {
+        return None;
+    }
+
+    // Whole name/member recasts retain exactly the source place's provenance
+    // and lifetime. Indexed byte-region recasts are intentionally excluded:
+    // their validated target footprint may cover more than one source element,
+    // so an element-only loan would understate overlap.
+    borrow_access_place(
+        program,
+        state_symbol,
+        statement_index,
+        cast.value,
+        machine_symbol,
+    )
 }
 
 /// The loan created by constructing a borrow-carrying `data` value in a `let`:

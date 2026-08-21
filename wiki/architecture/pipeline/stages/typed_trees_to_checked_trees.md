@@ -154,6 +154,9 @@ Current ownership is:
   Denotation-preserving same-carrier value casts recursively reuse that source
   expansion at root and nested positions; the borrow-recast form does not enter
   this path and remains governed by its validated representation footprint.
+  Whole-name/member borrow recasts publish a loan on the exact source place;
+  indexed recasts stay fenced because an element path cannot represent a wider
+  validated target byte range.
   `checks/borrows/persistent.rs` admits borrow-carrying writes backed only by
   immutable artifact-lifetime storage (direct/nested literals, folded literal
   joins, and machine results whose every value exit resolves to such a source),
