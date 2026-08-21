@@ -942,6 +942,11 @@ Remaining:
   14-core host the first eight canaries fell from 8.30s to 4.00s; a 32-canary
   concurrency probe passed completely, while eight outer jobs improved only
   101s to 97s over four and therefore is not the default. The native leg now
+  selects output-only artifact emission because it consumes only the certified
+  executable, not pipeline viewers or diagnostic reports; the same cached
+  eight-canary probe fell again from 4.00s to 2.86s with all pairs matching.
+  Semantic validation, trust policy, and final-footprint certification remain
+  enabled. The native leg
   uses the same original source and explicit `Main::main` entry seam as the
   canonical canary suite; the former generated target wrapper discarded
   value-returning entry codes and produced false mismatches.
