@@ -2294,7 +2294,58 @@ mod tests {
         assert!(
             diagnostics[0]
                 .message
+                .contains("one unchanged state-fallthrough result root")
+        );
+        assert!(
+            diagnostics[0]
+                .message
                 .contains("executable quotient operations are not admitted")
+        );
+    }
+
+    #[test]
+    fn nonterminal_expression_request_cannot_claim_direct_result_flow() {
+        let mut program = TypedTrees::default();
+        let arguments = program
+            .expression_table
+            .insert_expression_handles(std::iter::empty());
+        let mut call = call_with_arguments(arguments);
+        call.quotient_operation = Some(request_with_representative(SymbolHandle::invalid()));
+        let request = program.expression_table.insert(ExpressionNode::Call(call));
+        let terminal = program
+            .expression_table
+            .insert(ExpressionNode::Boolean(true));
+        let mut state = State::default();
+        program.statement_table.push_statement(
+            &mut state.statement_nodes,
+            StatementNode::Expression(request),
+        );
+        program.statement_table.push_statement(
+            &mut state.statement_nodes,
+            StatementNode::Expression(terminal),
+        );
+        let mut machine = Machine::default();
+        program.push_machine_state(&mut machine, state);
+        program.push_machine(machine);
+        let mut diagnostics = Vec::new();
+
+        super::super::reject_quotient_operation_requests(&program, &mut diagnostics);
+
+        assert_eq!(diagnostics.len(), 1);
+        assert!(
+            diagnostics[0]
+                .message
+                .contains("retains its exact representative operation and named conformance")
+        );
+        assert!(
+            !diagnostics[0]
+                .message
+                .contains("compiler-derived direct-terminal relations")
+        );
+        assert!(
+            !diagnostics[0]
+                .message
+                .contains("unchanged state-fallthrough result root")
         );
     }
 }
