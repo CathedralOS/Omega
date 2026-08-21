@@ -91,6 +91,7 @@ struct SpecializationKey {
 pub(crate) fn monomorphize_generic_machine_value_calls(
     program: &mut TypedTrees,
 ) -> Result<(), Vec<Diagnostic>> {
+    materialize_static_const_argument_types(program);
     let mut candidates = Vec::new();
     let mut callee_states = Vec::new();
     let mut all_type_parameter_symbols = Vec::new();
@@ -463,6 +464,52 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
     }
 }
 
+fn materialize_static_const_argument_types(program: &mut TypedTrees) {
+    fn collect(arguments: &[StaticMachineArgument], literals: &mut Vec<String>) {
+        for argument in arguments {
+            if let Some(literal) = &argument.const_literal {
+                let literal = literal.text().to_owned();
+                if !literals.contains(&literal) {
+                    literals.push(literal);
+                }
+            }
+            if let Some(application) = &argument.application {
+                collect(&application.arguments, literals);
+            }
+        }
+    }
+
+    let mut literals = Vec::new();
+    for (_, expression) in program.expression_table.iter_expressions() {
+        if let ExpressionNode::Call(call) = expression {
+            collect(&call.machine_arguments, &mut literals);
+        }
+    }
+    for machine in program.machines() {
+        for state in program.machine_states(machine) {
+            for statement in program.statement_table.statements(state.statement_nodes) {
+                if let StatementNode::Call(call) = statement {
+                    collect(&call.machine_arguments, &mut literals);
+                }
+            }
+        }
+    }
+    for literal in literals {
+        let exists = program
+            .type_reference_table
+            .named_references()
+            .any(|(_, symbol, name)| !symbol.is_valid() && name == literal);
+        if !exists {
+            program
+                .type_reference_table
+                .insert(TypeReferenceNode::Named {
+                    symbol: SymbolHandle::invalid(),
+                    name: psi_typed_trees::name::Identifier::generated(literal),
+                });
+        }
+    }
+}
+
 fn machine_parameter_by_symbol(
     program: &TypedTrees,
     symbol: SymbolHandle,
@@ -587,9 +634,22 @@ fn collect_machine_proposals_for_callee(
 ) {
     let candidate = &candidates[callee.candidate_index];
     let mut type_index = 0usize;
+    let mut const_index = 0usize;
     let mut machine_index = 0usize;
     let mut evidence_index = 0usize;
     for selected in machine_arguments {
+        if let Some(literal) = &selected.const_literal {
+            if const_index < candidate.const_parameters.len()
+                && let Some((handle, _, _)) = program
+                    .type_reference_table
+                    .named_references()
+                    .find(|(_, symbol, name)| !symbol.is_valid() && *name == literal.text())
+            {
+                const_proposals.push((callee.candidate_index, const_index, handle));
+                const_index += 1;
+            }
+            continue;
+        }
         if !selected.symbol.is_valid() {
             continue;
         }

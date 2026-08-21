@@ -1507,11 +1507,12 @@ Remaining N6/N8 work:
   now close over the conformance telescope, and binder-member rewriting carries
   the selected application's type arguments into the ordinary fixed-point
   monomorphizer. Distinct family applications produce distinct executable row
-  instances. Remaining row work covers const/static-machine arguments and
-  generic attached carrier applications. Also substitute applications forwarded
-  from an enclosing generic telescope, resolve uniquely elided lifetimes instead
-  of requiring them explicitly, and carry the closed application into Terminal
-  Psi verification.
+  instances. Literal const and concrete static-machine arguments now enter the
+  same specialization tuple, including calls through a captured static-machine
+  parameter inside the row body. Remaining row work covers generic attached
+  carrier applications. Also substitute applications forwarded from an enclosing
+  generic telescope, resolve uniquely elided lifetimes instead of requiring them
+  explicitly, and carry the closed application into Terminal Psi verification.
 - Add `Respects` over compiler-derived positional call telescopes, deriving its
   dependent domain, pointwise input relations, and lifted result relation.
 - Add exact-pair-selected heterogeneous constructor lifts. Dependent records

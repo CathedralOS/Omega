@@ -1462,6 +1462,114 @@ fn distinct_generic_conformance_applications_specialize_distinct_selected_rows()
 }
 
 #[test]
+fn generic_conformance_const_argument_specializes_its_selected_row() {
+    let source = r#"
+        trait Ranked {
+            machine Self::before(&self, other: &Self) -> bool;
+        }
+        data Card {}
+
+        FieldOrder<Element, const Rank: u64>: Element satisfies Ranked {
+            machine before(&self, other: &Element) -> bool { true }
+        }
+
+        machine choose<Element, Order: Element satisfies Ranked>(
+            left: &Element,
+            right: &Element
+        ) -> bool {
+            Order::before(left, right)
+        }
+
+        machine caller(left: &Card, right: &Card) -> bool {
+            choose<Card, FieldOrder<Card, 7>>(left, right)
+        }
+    "#;
+
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("const-instantiated selected row");
+    let row = checked
+        .machine_specializations
+        .iter()
+        .find(|specialization| {
+            checked
+                .machines()
+                .iter()
+                .find(|machine| machine.symbol == specialization.template)
+                .is_some_and(|machine| machine.name.as_str().contains("FieldOrder::before"))
+        })
+        .expect("selected row specialization");
+    assert_eq!(row.type_arguments, ["Card"]);
+    assert_eq!(row.const_arguments, ["7"]);
+}
+
+#[test]
+fn generic_conformance_static_machine_argument_specializes_its_selected_row() {
+    let source = r#"
+        trait Ranked {
+            machine Self::before(&self, other: &Self) -> bool;
+        }
+        data Card {}
+
+        machine rank(value: &Card) -> bool { true }
+
+        FieldOrder<Element, machine TieBreak>: Element satisfies Ranked
+        where machine TieBreak(value: &Element) -> bool;
+        {
+            machine before(&self, other: &Element) -> bool {
+                transition { _ -> TieBreak(self) }
+            }
+        }
+
+        machine choose<Element, Order: Element satisfies Ranked>(
+            left: &Element,
+            right: &Element
+        ) -> bool {
+            Order::before(left, right)
+        }
+
+        machine caller(left: &Card, right: &Card) -> bool {
+            choose<Card, FieldOrder<Card, rank>>(left, right)
+        }
+    "#;
+
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let rank = typed
+        .machines()
+        .iter()
+        .find_map(|machine| {
+            (machine.name.as_str() == "rank")
+                .then(|| {
+                    typed
+                        .machine_states(machine)
+                        .first()
+                        .map(|state| state.symbol)
+                })
+                .flatten()
+        })
+        .expect("rank state");
+    let checked = lower_typed_trees(typed).expect("machine-instantiated selected row");
+    let row = checked
+        .machine_specializations
+        .iter()
+        .find(|specialization| {
+            checked
+                .machines()
+                .iter()
+                .find(|machine| machine.symbol == specialization.template)
+                .is_some_and(|machine| machine.name.as_str().contains("FieldOrder::before"))
+        })
+        .expect("selected row specialization");
+    assert_eq!(row.type_arguments, ["Card"]);
+    assert_eq!(row.machine_arguments, [rank]);
+}
+
+#[test]
 fn explicit_conformance_binder_rejects_a_map_for_the_wrong_subject() {
     let source = r#"
         trait Ranked {
