@@ -13,6 +13,7 @@ pub mod frontend;
 mod operator_adapter_dispatch;
 mod output;
 mod program_storage_entry;
+mod program_storage_wrapper;
 mod project;
 mod provider_approval;
 mod provider_plans;
@@ -57,6 +58,10 @@ pub use program_storage_entry::{
     bind_emitted_program_storage_entry_native_bridge, bind_generated_program_storage_entry_plan,
     bind_program_storage_entry_plan, install_and_activate_program_storage_entry_receiver,
     install_program_storage_entry_provider_invocation, install_program_storage_entry_roots,
+};
+pub use program_storage_wrapper::{
+    ProgramStorageEntryRootRole, ProgramStorageEntryWrapperReceiverTransfer,
+    ProgramStorageEntryWrapperRootTransferPlan, ProgramStorageEntryWrapperTransferPlan,
 };
 pub use provider_plans::{
     AdmittedExternalRootEntryFactHandoff, BoundExternalRootPostHandoffWriterInvocation,

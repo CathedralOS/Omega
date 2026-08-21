@@ -1228,6 +1228,29 @@ fn program_storage_entry_publishes_both_core_owned_root_positions() {
                     handoff.entry_function_identity().source_key(),
                     Some(expected_continuation)
                 );
+                let transfer = handoff.wrapper_transfer();
+                assert_eq!(
+                    transfer
+                        .wrapper_identity()
+                        .program_storage_entry_continuation(),
+                    Some(expected_continuation)
+                );
+                assert_eq!(
+                    transfer.continuation_identity(),
+                    omega_control_flow::MachineFunctionIdentity::source(expected_continuation)
+                );
+                assert_eq!(
+                    transfer.roots()[0].role(),
+                    omega_compiler::ProgramStorageEntryRootRole::Image
+                );
+                assert_eq!(
+                    transfer.roots()[1].role(),
+                    omega_compiler::ProgramStorageEntryRootRole::InitialStorage
+                );
+                assert!(matches!(
+                    transfer.receiver(),
+                    omega_compiler::ProgramStorageEntryWrapperReceiverTransfer::BorrowedActivationLoan(_)
+                ));
                 assert_eq!(handoff.continuation_key(), expected_continuation);
                 assert_eq!(handoff.continuation_symbol(), "program_storage_test_entry");
                 assert_eq!(
