@@ -121,6 +121,29 @@ fn prove_integer_bound(
         }
     }
 
+    for (left_citation, left_fact) in cited_facts(assumptions, semantic_axioms) {
+        let Proposition::LessOrEqual(left, middle) = left_fact else {
+            continue;
+        };
+        if left != goal_left {
+            continue;
+        }
+        for (right_citation, right_fact) in cited_facts(assumptions, semantic_axioms) {
+            let Proposition::LessOrEqual(right_middle, right) = right_fact else {
+                continue;
+            };
+            if right_middle == middle && right == goal_right {
+                return Some(ProofNode {
+                    conclusion: goal.clone(),
+                    rule: ProofRule::IntegerLessOrEqualTransitivity {
+                        left_less_or_equal_middle: Box::new(left_citation.proof(left_fact)),
+                        middle_less_or_equal_right: Box::new(right_citation.proof(right_fact)),
+                    },
+                });
+            }
+        }
+    }
+
     for (citation, fact) in cited_facts(assumptions, semantic_axioms) {
         let Proposition::Equal(equality_left, equality_right) = fact else {
             continue;
@@ -714,6 +737,92 @@ mod tests {
         assert!(matches!(
             proof.rule,
             ProofRule::ConjunctionIntroduction(ref conjuncts) if conjuncts.len() == 2
+        ));
+    }
+
+    #[test]
+    fn exact_division_goal_composes_two_exact_transitive_bound_citations() {
+        let unsigned = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        let context = PropositionContext::from_value_types([
+            (ValueId::new(1).unwrap(), ScalarType::Integer(unsigned)),
+            (ValueId::new(2).unwrap(), ScalarType::Integer(unsigned)),
+            (ValueId::new(3).unwrap(), ScalarType::Integer(unsigned)),
+        ])
+        .expect("three u8 values");
+        let unsigned_one =
+            ScalarTerm::integer(unsigned, IntegerValue::Unsigned(1)).expect("u8 one");
+        let unsigned_goal = Proposition::LessOrEqual(unsigned_one.clone(), value(2, unsigned));
+        let unsigned_proof = prove_canonical_integer_proposition(
+            &context,
+            &unsigned_goal,
+            &[
+                Proposition::LessOrEqual(unsigned_one, value(3, unsigned)),
+                Proposition::LessOrEqual(value(3, unsigned), value(2, unsigned)),
+            ],
+            &[],
+        )
+        .expect("two exact unsigned bounds compose transitively");
+        let ProofRule::IntegerLessOrEqualTransitivity {
+            left_less_or_equal_middle,
+            middle_less_or_equal_right,
+        } = unsigned_proof.rule
+        else {
+            panic!("two exact unsigned bounds use transitivity")
+        };
+        assert!(matches!(
+            left_less_or_equal_middle.rule,
+            ProofRule::Assumption { index: 0 }
+        ));
+        assert!(matches!(
+            middle_less_or_equal_right.rule,
+            ProofRule::Assumption { index: 1 }
+        ));
+
+        let signed = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+        let context = PropositionContext::from_value_types([
+            (ValueId::new(1).unwrap(), ScalarType::Integer(signed)),
+            (ValueId::new(2).unwrap(), ScalarType::Integer(signed)),
+            (ValueId::new(3).unwrap(), ScalarType::Integer(signed)),
+        ])
+        .expect("three i8 values");
+        let signed_dividend = value(1, signed);
+        let signed_divisor = value(2, signed);
+        let signed_goal = Proposition::Disjunction(vec![
+            Proposition::LessOrEqual(signed_divisor.clone(), integer(signed, -2)),
+            Proposition::LessOrEqual(integer(signed, 1), signed_divisor.clone()),
+            Proposition::Conjunction(vec![
+                Proposition::LessOrEqual(signed_divisor.clone(), integer(signed, -1)),
+                Proposition::LessOrEqual(integer(signed, -127), signed_dividend),
+            ]),
+        ]);
+        let negative_proof = prove_canonical_integer_proposition(
+            &context,
+            &signed_goal,
+            &[
+                Proposition::LessOrEqual(signed_divisor, value(3, signed)),
+                Proposition::LessOrEqual(value(3, signed), integer(signed, -2)),
+            ],
+            &[],
+        )
+        .expect("two exact signed negative bounds compose transitively");
+        let ProofRule::DisjunctionIntroduction { disjunct, index } = negative_proof.rule else {
+            panic!("signed negative transitivity selects its canonical arm")
+        };
+        assert_eq!(index, 0);
+        let ProofRule::IntegerLessOrEqualTransitivity {
+            left_less_or_equal_middle,
+            middle_less_or_equal_right,
+        } = disjunct.rule
+        else {
+            panic!("two exact signed negative bounds use transitivity")
+        };
+        assert!(matches!(
+            left_less_or_equal_middle.rule,
+            ProofRule::Assumption { index: 0 }
+        ));
+        assert!(matches!(
+            middle_less_or_equal_right.rule,
+            ProofRule::Assumption { index: 1 }
         ));
     }
 }

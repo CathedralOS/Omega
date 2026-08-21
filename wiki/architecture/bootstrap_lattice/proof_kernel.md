@@ -362,7 +362,12 @@ fact alone cannot prove its two-premise conjunction. When exact prior
 retained, the complete `i1` family cites them and constructs that conjunction;
 a missing premise or wrong operand identity rejects. Missing, reversed,
 weakened, mistyped, or wrong-divisor facts reject. Missing or excluded evidence
-rejects, and no result equation participates. The existing
+rejects. A complete two-citation transitive family also accepts exact prior
+`1 <= K` and `K <= divisor`, or signed `divisor <= K` and `K <= -2`, only when
+the middle term and operand identities match exactly. Its proof is one
+`IntegerLessOrEqualTransitivity` node over the two citations; missing,
+disconnected, reversed, or redirected pairs reject. No result equation
+participates. The existing
 proof rules and proof-bundle v15 codec need no vocabulary change.
 All other exact divide/remainder reconstruction remains on its trusted reducer
 until an untrusted producer can materialize kernel-checkable certificates for

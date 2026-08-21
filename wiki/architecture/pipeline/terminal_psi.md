@@ -1780,7 +1780,11 @@ prior `divisor <= -1` and `0 <= dividend` propositions are both present; the
 untrusted producer cites both through conjunction introduction. A missing
 premise or wrong operand identity rejects. Missing, reversed, weakened,
 mistyped, or wrong-divisor facts reject. Missing
-or excluded evidence rejects these paths; no
+or excluded evidence rejects these paths. A complete two-citation transitive
+family also accepts exact prior `1 <= K` and `K <= divisor`, or signed
+`divisor <= K` and `K <= -2`, only with the exact shared middle term and operand
+identity. The producer places both citations under one checked transitivity
+node; missing, disconnected, reversed, or redirected pairs reject. No
 operation-result equation is available as proof authority. The existing proof
 rules and proof-bundle v15 codec carry these certificates without a vocabulary
 change. All other exact divide/remainder families remain
