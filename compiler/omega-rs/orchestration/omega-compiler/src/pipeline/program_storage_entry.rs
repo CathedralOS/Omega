@@ -315,6 +315,9 @@ pub struct ProgramStorageEntryNativeBridgePlan {
     wrapper_transfer: super::program_storage_wrapper::ProgramStorageEntryWrapperTransferPlan,
     continuation_abi:
         Option<super::program_storage_source_call::ProgramStorageEntryContinuationAbiPlan>,
+    continuation_inbound: Option<
+        super::program_storage_continuation_inbound::ProgramStorageEntryContinuationInboundPlan,
+    >,
     selected_provider: Option<super::provider_plans::SelectedExternalRootProviderPlan>,
     target_profile: String,
     entry_symbol: String,
@@ -356,6 +359,17 @@ impl ProgramStorageEntryNativeBridgePlan {
         &self,
     ) -> Option<&super::program_storage_source_call::ProgramStorageEntryContinuationAbiPlan> {
         self.continuation_abi.as_ref()
+    }
+
+    /// Exact encoded source-function capture evidence for the receiver-free
+    /// continuation ABI. Attached continuations retain `None` until their
+    /// hidden receiver and residual-root inbound realization exists.
+    pub const fn continuation_inbound(
+        &self,
+    ) -> Option<
+        &super::program_storage_continuation_inbound::ProgramStorageEntryContinuationInboundPlan,
+    > {
+        self.continuation_inbound.as_ref()
     }
 
     pub const fn selected_provider(
@@ -718,10 +732,23 @@ pub fn bind_emitted_program_storage_entry_native_bridge(
             )
         })
         .transpose()?;
+    let continuation_inbound = continuation_abi
+        .as_ref()
+        .map(|abi| {
+            super::program_storage_continuation_inbound::plan_program_storage_entry_continuation_inbound(
+                &binding,
+                abi,
+                encoded_entry.continuation,
+                encoded_machine,
+            )
+        })
+        .transpose()?
+        .flatten();
     Ok(ProgramStorageEntryNativeBridgePlan {
         binding,
         wrapper_transfer,
         continuation_abi,
+        continuation_inbound,
         selected_provider,
         target_profile,
         entry_symbol: entry.name.clone(),

@@ -1551,6 +1551,49 @@ machine build(builder: &mut Build) {
         bridge.continuation_abi().expect("source ABI").receiver(),
         omega_compiler::ProgramStorageEntryContinuationReceiverAbiPlan::Free
     ));
+    let inbound = bridge
+        .continuation_inbound()
+        .expect("receiver-free source continuation must retain exact inbound realization");
+    assert_eq!(
+        inbound.continuation_identity(),
+        omega_control_flow::MachineFunctionIdentity::source(bridge.continuation_key())
+    );
+    assert_eq!(inbound.continuation_symbol(), bridge.continuation_symbol());
+    assert_eq!(
+        inbound.continuation_text_range(),
+        &(bridge.continuation_text_offset()
+            ..bridge.continuation_text_offset() + bridge.continuation_text_size())
+    );
+    assert_eq!(inbound.call().result, None);
+    let [image_inbound, storage_inbound] = inbound.arguments();
+    assert_eq!(
+        image_inbound.role(),
+        omega_compiler::ProgramStorageEntryRootRole::Image
+    );
+    assert_eq!(image_inbound.visible_parameter_index(), 0);
+    assert_eq!(image_inbound.call_parameter_index(), 0);
+    assert_eq!(
+        image_inbound.pointer(),
+        omega_calling_conventions::IndirectPointerLocation::Register(
+            omega_calling_conventions::MachineRegister::X86Rcx,
+        )
+    );
+    assert_eq!(image_inbound.shape().byte_size, 16);
+    assert_eq!(image_inbound.source_capture_write_range(), &(0..1));
+    assert_eq!(
+        storage_inbound.role(),
+        omega_compiler::ProgramStorageEntryRootRole::InitialStorage
+    );
+    assert_eq!(storage_inbound.visible_parameter_index(), 1);
+    assert_eq!(storage_inbound.call_parameter_index(), 1);
+    assert_eq!(
+        storage_inbound.pointer(),
+        omega_calling_conventions::IndirectPointerLocation::Register(
+            omega_calling_conventions::MachineRegister::X86Rdx,
+        )
+    );
+    assert_eq!(storage_inbound.shape().byte_size, 16);
+    assert_eq!(storage_inbound.source_capture_write_range(), &(1..2));
     let installation = install_program_storage_entry_roots(
         &build_dir,
         bridge.binding().clone(),

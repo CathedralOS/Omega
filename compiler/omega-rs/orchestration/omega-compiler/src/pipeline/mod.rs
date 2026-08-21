@@ -13,6 +13,7 @@ pub mod frontend;
 mod operator_adapter_dispatch;
 mod output;
 mod program_entry_source_signature;
+mod program_storage_continuation_inbound;
 mod program_storage_entry;
 mod program_storage_extent_operand;
 mod program_storage_extent_value;
@@ -55,6 +56,9 @@ pub use program_entry_source_signature::{
     ProgramEntrySourceExtentValueLayout, ProgramEntrySourceReceiverSignature,
     ProgramEntrySourceResultSignature, ProgramEntrySourceVisibleParameterSignature,
     SelectedProgramEntrySourceSignature,
+};
+pub use program_storage_continuation_inbound::{
+    ProgramStorageEntryContinuationInboundArgument, ProgramStorageEntryContinuationInboundPlan,
 };
 pub use program_storage_entry::{
     InstalledImageSubextent, InstalledProgramStorageRoots, PartitionedProgramStorageRoots,
