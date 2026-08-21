@@ -3,20 +3,14 @@ use super::*;
 #[test]
 fn runtime_stdin_command_branch_exit_canary_runs() {
     let canary = pass_canary("text/runtime_stdin_command_branch_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-stdin-command-branch-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime stdin command branch canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("runtime stdin command branch canary should compile from its authored root");
 
     let mut child = Command::new(build_dir.join(executable_name()))
         .stdin(Stdio::piped())
@@ -231,13 +225,8 @@ fn runtime_local_host_result_dispatch_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-local-host-result-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("local-host-result canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("local-host-result canary should compile from its authored root");
 
     let output = Command::new(build_dir.join(executable_name()))
         .current_dir(&build_dir)
@@ -582,13 +571,8 @@ fn runtime_arm_target_host_result_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-arm-target-result-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("arm-target host-result canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("arm-target host-result canary should compile from its authored root");
 
     let output = Command::new(build_dir.join(executable_name()))
         .current_dir(&build_dir)
@@ -676,13 +660,8 @@ fn single_target_internal_machine_skipped_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("single-target internal canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("single-target internal canary should compile from its authored root");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -722,13 +701,8 @@ fn target_machine_gating_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-target-machine-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("target-machine canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("target-machine canary should compile from its authored root");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()

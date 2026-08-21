@@ -1295,23 +1295,12 @@ fn compiler_body_machine_indexed_binary_write_footprints_reach_x86_and_aarch64_a
             std::process::id()
         ));
         let _ = fs::remove_dir_all(&scratch);
-        let source = scratch.join("src");
         let output = scratch.join("out");
-        fs::create_dir_all(&source)
-            .expect("create compiler-body machine-indexed binary-write source directory");
-        fs::copy(canary.join("main.omg"), source.join("main.omg"))
-            .expect("copy compiler-body machine-indexed binary-write canary");
-        fs::write(
-            source.join("build.omg"),
-            hosted_main_program_entry_build(target),
+        compile_rooted_canary_for_target_with_auxiliary_artifacts(
+            &canary,
+            output.clone(),
+            target,
         )
-        .expect("write compiler-body machine-indexed binary-write target");
-        compile_with_auxiliary_artifacts(CompileOptions {
-            root_path: source.join("main.omg"),
-            build_dir: Some(output.clone()),
-            target_name: Some(target.into()),
-            write_output: true,
-        })
         .unwrap_or_else(|diagnostics| {
             panic!(
                 "compiler-body machine-indexed binary writes should compile for {target}: {diagnostics:?}"
@@ -2931,23 +2920,12 @@ fn compiler_body_machine_indexed_integer_write_footprints_reach_artifacts() {
             std::process::id()
         ));
         let _ = fs::remove_dir_all(&scratch);
-        let source = scratch.join("src");
         let output = scratch.join("out");
-        fs::create_dir_all(&source)
-            .expect("create compiler-body machine-indexed integer-write source directory");
-        fs::copy(canary.join("main.omg"), source.join("main.omg"))
-            .expect("copy compiler-body machine-indexed integer-write canary");
-        fs::write(
-            source.join("build.omg"),
-            hosted_main_program_entry_build(target),
+        compile_rooted_canary_for_target_with_auxiliary_artifacts(
+            &canary,
+            output.clone(),
+            target,
         )
-        .expect("write compiler-body machine-indexed integer-write target");
-        compile_with_auxiliary_artifacts(CompileOptions {
-            root_path: source.join("main.omg"),
-            build_dir: Some(output.clone()),
-            target_name: Some(target.into()),
-            write_output: true,
-        })
         .unwrap_or_else(|diagnostics| {
             panic!(
                 "compiler-body machine-indexed integer writes should compile for {target}: {diagnostics:?}"

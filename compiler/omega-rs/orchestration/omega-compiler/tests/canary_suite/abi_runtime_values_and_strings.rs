@@ -1894,20 +1894,14 @@ fn contained_health_loop_command_branch_carrier_canary_runs() {
 #[test]
 fn runtime_stdin_line_buffering_carrier_canary_runs() {
     let canary = pass_canary("text/runtime_stdin_line_buffering_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-line-buffering-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("carrier line buffering canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("carrier line buffering canary should compile from its authored root");
 
     let mut child = Command::new(build_dir.join(executable_name()))
         .stdin(Stdio::piped())
@@ -2034,20 +2028,14 @@ fn runtime_stderr_write_exit_canary_runs() {
 #[test]
 fn runtime_stdin_line_buffering_exit_canary_runs() {
     let canary = pass_canary("text/runtime_stdin_line_buffering_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-stdin-line-buffering-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime stdin line buffering canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("runtime stdin line buffering canary should compile from its authored root");
 
     let mut child = Command::new(build_dir.join(executable_name()))
         .stdin(Stdio::piped())
@@ -2088,20 +2076,14 @@ fn runtime_stdin_crlf_line_read_canary_runs() {
     // read_line. Reuses the two-read echo sample; with the bug the second read
     // returns "" and the output is "hello\n\n".
     let canary = pass_canary("text/runtime_stdin_line_buffering_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-stdin-crlf-line-read-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime stdin crlf line read canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("runtime stdin crlf line read canary should compile from its authored root");
 
     let mut child = Command::new(build_dir.join(executable_name()))
         .stdin(Stdio::piped())
@@ -2787,20 +2769,15 @@ fn runtime_mutable_struct_string_field_copy_concat_write_line_canary_runs() {
 #[test]
 fn runtime_machine_owned_indexed_integer_write_exit_canary_runs() {
     let canary = pass_canary("storage/runtime_machine_owned_indexed_integer_write_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-machine-owned-indexed-integer-write-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime machine-owned indexed integer write canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
+        "runtime machine-owned indexed integer write canary should compile from its authored root",
+    );
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -3083,20 +3060,15 @@ fn runtime_guarded_inline_leaf_arm_skip_exit_canary_runs() {
 #[test]
 fn runtime_ordered_room_dispatch_real_show_states_exit_canary_runs() {
     let canary = pass_canary("dungeon/runtime_ordered_room_dispatch_real_show_states_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-ordered-room-dispatch-real-show-states-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime ordered room dispatch real-show-states canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
+        "runtime ordered room dispatch real-show-states canary should compile from its authored root",
+    );
 
     let mut child = Command::new(build_dir.join(executable_name()))
         .stdin(Stdio::piped())

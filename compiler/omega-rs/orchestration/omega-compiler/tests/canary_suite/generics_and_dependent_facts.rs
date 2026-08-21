@@ -1914,13 +1914,8 @@ fn runtime_indexed_rmw_loop_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_indexed_rmw_loop_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-indexed-rmw-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("indexed RMW loop canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("indexed RMW loop canary should compile from its authored root");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("indexed RMW loop canary should run");
