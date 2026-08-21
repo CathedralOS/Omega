@@ -1396,6 +1396,16 @@ fn compile_rooted_canary_for_target_with_artifact_policy(
 // exercise production entry selection and may not substitute the legacy entry
 // seam.
 const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
+    "filesystem/windows_hard_link_exit",
+    "filesystem/windows_positioned_io_exit",
+    "filesystem/windows_read_dir_nth_exit",
+    "filesystem/windows_wrapper_breadth_exit",
+    "filesystem/windows_wrapper_copy_exit",
+    "filesystem/windows_wrapper_create_new_exit",
+    "filesystem/windows_wrapper_dark_methods_exit",
+    "filesystem/windows_wrapper_metadata_exit",
+    "filesystem/windows_wrapper_results_exit",
+    "filesystem/windows_wrapper_set_len_exit",
     "core/numeric_cross_signed_negative_traps",
     "core/numeric_cross_signed_unsigned_overflow_traps",
     "core/numeric_trapping_conversion_overflow",

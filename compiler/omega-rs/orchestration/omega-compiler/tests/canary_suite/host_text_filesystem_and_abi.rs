@@ -131,13 +131,8 @@ fn windows_fs_wrapper_dark_methods_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-fs-dark-methods-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("dark-methods canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("dark-methods canary should compile from its authored root");
 
     let output = Command::new(build_dir.join(executable_name()))
         .current_dir(&build_dir)
@@ -176,13 +171,8 @@ fn windows_fs_wrapper_results_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-fs-win-wrapper-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("windows fs wrapper canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("windows fs wrapper canary should compile from its authored root");
 
     let output = Command::new(build_dir.join(executable_name()))
         .current_dir(&build_dir)
@@ -745,13 +735,8 @@ fn windows_wrapper_create_new_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-fs-create-new-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("create_new canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("create_new canary should compile from its authored root");
 
     let output = Command::new(build_dir.join(executable_name()))
         .current_dir(&build_dir)
@@ -885,13 +870,8 @@ fn windows_read_dir_nth_exit_canary_runs() {
     let build_dir = std::env::temp_dir().join(format!("omega-read-dir-nth-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("read_dir_nth canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("read_dir_nth canary should compile from its authored root");
 
     let output = Command::new(build_dir.join(executable_name()))
         .current_dir(&build_dir)
@@ -1144,13 +1124,8 @@ fn windows_hard_link_exit_canary_runs() {
     let build_dir = std::env::temp_dir().join(format!("omega-win-hardlink-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("windows hard-link canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("windows hard-link canary should compile from its authored root");
 
     let output = Command::new(build_dir.join(executable_name()))
         .current_dir(&build_dir)
@@ -1191,13 +1166,8 @@ fn windows_positioned_io_exit_canary_runs() {
     let build_dir = std::env::temp_dir().join(format!("omega-win-pio-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("windows positioned-io canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("windows positioned-io canary should compile from its authored root");
 
     let output = Command::new(build_dir.join(executable_name()))
         .current_dir(&build_dir)
@@ -1240,13 +1210,8 @@ fn windows_wrapper_metadata_exit_canary_runs() {
     let build_dir = std::env::temp_dir().join(format!("omega-fs-metadata-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("windows metadata canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("windows metadata canary should compile from its authored root");
 
     let output = Command::new(build_dir.join(executable_name()))
         .current_dir(&build_dir)
@@ -1313,7 +1278,8 @@ fn windows_wrapper_exists_exit_canary_runs() {
 #[cfg(windows)]
 #[test]
 fn windows_wrapper_set_len_exit_canary_runs() {
-    let main_path = pass_canary("filesystem/windows_wrapper_set_len_exit").join("main.omg");
+    let canary = pass_canary("filesystem/windows_wrapper_set_len_exit");
+    let main_path = canary.join("main.omg");
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("set_len canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
@@ -1325,13 +1291,8 @@ fn windows_wrapper_set_len_exit_canary_runs() {
 
     let build_dir = std::env::temp_dir().join(format!("omega-fs-set-len-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("set_len canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("set_len canary should compile from its authored root");
     let output = Command::new(build_dir.join(executable_name()))
         .current_dir(&build_dir)
         .output()
@@ -1351,7 +1312,8 @@ fn windows_wrapper_set_len_exit_canary_runs() {
 #[cfg(windows)]
 #[test]
 fn windows_wrapper_copy_exit_canary_runs() {
-    let main_path = pass_canary("filesystem/windows_wrapper_copy_exit").join("main.omg");
+    let canary = pass_canary("filesystem/windows_wrapper_copy_exit");
+    let main_path = canary.join("main.omg");
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("copy canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
@@ -1363,13 +1325,8 @@ fn windows_wrapper_copy_exit_canary_runs() {
 
     let build_dir = std::env::temp_dir().join(format!("omega-fs-copy-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("copy canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("copy canary should compile from its authored root");
     let output = Command::new(build_dir.join(executable_name()))
         .current_dir(&build_dir)
         .output()
