@@ -180,7 +180,7 @@ pub(crate) fn validate_external_leaf_native_shapes(
     for conformance in program
         .machine_trait_conformances(machine)
         .iter()
-        .filter(|conformance| conformance.via.is_some())
+        .filter(|conformance| conformance.external_binding.is_some())
     {
         // Compiler intrinsics are not
         // foreign ABI leaves: they select a
@@ -1131,7 +1131,7 @@ fn validate_machine_operator_conformance(
         return true;
     };
 
-    if operator.is_boundary && conformance.via.is_none() {
+    if operator.is_boundary && conformance.external_binding.is_none() {
         crate::contract_entailment::check_operator_contract_conformance(
             program,
             machine,

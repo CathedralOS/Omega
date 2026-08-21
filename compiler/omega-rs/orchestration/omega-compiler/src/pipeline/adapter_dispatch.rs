@@ -483,7 +483,7 @@ fn resolve_selected_adapter_row(
         .machine_trait_conformances(adapter)
         .iter()
         .filter(|conformance| {
-            conformance.via.is_none()
+            conformance.external_binding.is_none()
                 && conformance.symbol == requirement_owner.symbol
                 && conformance
                     .requirement

@@ -722,7 +722,7 @@ fn selected_operator_provider_identity(
                     .machine_trait_conformances(candidate)
                     .iter()
                     .any(|conformance| {
-                        conformance.via.is_none()
+                        conformance.external_binding.is_none()
                             && psi_typed_trees::operator::resolve_satisfied_checked_operator(
                                 &checked.typed,
                                 candidate,
@@ -1750,7 +1750,7 @@ fn checked_adapter_has_exact_conformance(
                 .machine_trait_conformances(adapter)
                 .iter()
                 .any(|conformance| {
-                    conformance.via.is_none()
+                    conformance.external_binding.is_none()
                         && conformance.name.as_str() == namespace.as_str()
                         && conformance.requirement.as_ref().map(|name| name.as_str())
                             == Some(requirement.as_str())
@@ -1767,7 +1767,7 @@ fn checked_adapter_has_exact_conformance(
     typed
         .machine_trait_conformances(adapter)
         .iter()
-        .filter(|conformance| conformance.via.is_none())
+        .filter(|conformance| conformance.external_binding.is_none())
         .filter_map(|conformance| {
             let requirement = conformance.requirement.as_ref()?;
             let definition = typed

@@ -102,9 +102,9 @@ pub struct TraitConformance {
     /// (`as Name`) for plural algebras / signature collisions.
     pub requirement: Option<DiagnosticName>,
     pub alias: Option<DiagnosticName>,
-    /// Legacy bootstrap rendering of the external leaf's `via` binding. The
-    /// nominal-binding migration replaces this string with a structured ID.
-    pub via: Option<String>,
+    /// Exact interned identity of the external leaf's structured `via`
+    /// binding. Absence means this is an ordinary checked satisfier.
+    pub external_binding: Option<psi_language_semantics::ExternalBindingId>,
 }
 
 impl Default for TraitConformance {
@@ -115,7 +115,7 @@ impl Default for TraitConformance {
             arguments: HandleSpan::empty(),
             requirement: None,
             alias: None,
-            via: None,
+            external_binding: None,
         }
     }
 }

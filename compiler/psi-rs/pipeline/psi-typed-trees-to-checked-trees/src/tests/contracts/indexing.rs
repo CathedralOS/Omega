@@ -433,7 +433,7 @@ fn indexes_inherited_trait_contracts_by_concrete_call_target() {
             name: Identifier::generated("Drawable"),
             requirement: None,
             alias: None,
-            via: None,
+            external_binding: None,
             ..Default::default()
         },
     );

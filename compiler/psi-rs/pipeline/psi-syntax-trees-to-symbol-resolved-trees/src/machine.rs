@@ -485,6 +485,12 @@ fn lower_machine_trait_conformances(
             syntax_trees,
             clause.arguments,
         )?;
+        let external_binding = clause.via.as_ref().map(|binding| {
+            lowerer
+                .symbol_resolved_trees
+                .external_bindings
+                .intern(&binding.normalized_rendering())
+        });
         lowerer
             .symbol_resolved_trees
             .tables
@@ -498,10 +504,7 @@ fn lower_machine_trait_conformances(
                     arguments,
                     requirement: clause.requirement.as_ref().map(crate::name::lower_name),
                     alias: clause.alias.as_ref().map(crate::name::lower_name),
-                    via: clause
-                        .via
-                        .as_ref()
-                        .map(|binding| binding.normalized_rendering()),
+                    external_binding,
                 },
             );
     }

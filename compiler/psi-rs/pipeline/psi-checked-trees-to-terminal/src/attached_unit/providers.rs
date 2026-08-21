@@ -77,7 +77,7 @@ pub(super) fn checked_unit_provider_candidates(
                     .machine_trait_conformances(machine)
                     .iter()
                     .any(|conformance| {
-                        conformance.via.is_none()
+                        conformance.external_binding.is_none()
                             && conformance.symbol == definition.symbol
                             && conformance
                                 .requirement
