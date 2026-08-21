@@ -23,6 +23,7 @@ mod demand;
 mod isolation;
 mod local_aliases;
 mod parameter_aliases;
+mod path_instantiation;
 mod place_paths;
 mod state_paths;
 mod transition_equations;
@@ -54,6 +55,7 @@ use parameter_aliases::{
     ParameterRelativeFrameOrigin, expression_reborrows_transparent_alias_binding,
     parameter_relative_alias_position,
 };
+use path_instantiation::{instantiate_written_path, instantiate_written_path_with_origins};
 use place_paths::{
     FramePathPrecision, FramePlaceOrigin, append_place_suffix, coarse_place_path, frame_place_path,
     split_place_root,
@@ -3092,68 +3094,4 @@ fn summarize_transition_target_written_paths(
             Some(instantiated)
         }
     }
-}
-
-fn instantiate_written_path(
-    program: &TypedTrees,
-    relative: &str,
-    receiver_base: Option<&str>,
-    parameters: &[StateParameter],
-    arguments: &[ExpressionHandle],
-    locals: &[String],
-    symbols: &TopLevelSymbols<'_>,
-    active_states: &mut Vec<SymbolHandle>,
-) -> Option<Option<String>> {
-    instantiate_written_path_with_origins(
-        program,
-        relative,
-        receiver_base,
-        parameters,
-        arguments,
-        locals,
-        symbols,
-        active_states,
-        None,
-    )
-}
-
-#[allow(clippy::too_many_arguments)]
-fn instantiate_written_path_with_origins(
-    program: &TypedTrees,
-    relative: &str,
-    receiver_base: Option<&str>,
-    parameters: &[StateParameter],
-    arguments: &[ExpressionHandle],
-    locals: &[String],
-    symbols: &TopLevelSymbols<'_>,
-    active_states: &mut Vec<SymbolHandle>,
-    argument_origins: Option<&[Option<FramePlaceOrigin>]>,
-) -> Option<Option<String>> {
-    let (root, suffix) = split_place_root(relative);
-    if root == "self" {
-        return Some(Some(append_place_suffix(receiver_base?, suffix)));
-    }
-    if let Some(argument_index) = parameters
-        .iter()
-        .filter(|parameter| !parameter.is_self)
-        .position(|parameter| parameter.name.as_str() == root)
-    {
-        let argument = *arguments.get(argument_index)?;
-        let base = argument_origins
-            .and_then(|origins| origins.get(argument_index))
-            .and_then(Clone::clone)
-            .or_else(|| {
-                transparent_place_expression_origin(program, argument, symbols, active_states)
-            })?;
-        return Some(Some(match base.precision {
-            FramePathPrecision::Exact => append_place_suffix(&base.path, suffix),
-            FramePathPrecision::CollectionCoarse => base.path,
-        }));
-    }
-    if locals.iter().any(|local| local == root) {
-        return Some(None);
-    }
-    // A write whose root is neither local nor a known parameter is externally
-    // visible in a way this rung cannot instantiate safely.
-    None
 }
