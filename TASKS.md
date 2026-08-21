@@ -957,6 +957,13 @@ Remaining:
   calls, ABI, proofs, layouts, and runtime families. All 1,241 tests and 1,272
   functions remain; the sole cross-family float differential helper is imported
   explicitly, and no family module exceeds 3,795 lines.
+  Development and test profiles now both omit full DWARF by default, with an
+  explicit `CARGO_PROFILE_{DEV,TEST}_DEBUG=2` escape hatch for debugger
+  sessions. On the same macOS host, rebuilding the development CLI after the
+  profile change reduced the executable from 140,687,560 to 118,904,896 bytes;
+  the semantic canaries remained 0.01-second work once compiled. This reduces
+  codegen/link and artifact-I/O pressure without weakening compiler diagnostics
+  or semantic validation.
   The real-source terminal-Psi differential suite now applies the same boundary:
   its former 10,520-line file is an 852-line artifact/native execution harness
   over ten contract, call/control, exact-arithmetic, scalar-operation, and

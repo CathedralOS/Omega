@@ -118,6 +118,13 @@ edition = "2024"
 license = "MIT"
 version = "0.1.0"
 
+# The compiler's ordinary development binaries are large enough that full
+# DWARF materially increases codegen, linking, and artifact I/O. Panic
+# backtraces retain symbol names; debugger sessions can opt back in with
+# `CARGO_PROFILE_DEV_DEBUG=2`.
+[profile.dev]
+debug = 0
+
 # The workspace's test binaries are enormous and short-lived. Full DWARF made
 # a three-test, zero-runtime frontend regression spend over a minute in codegen
 # on a 14-core development host. Compiler diagnostics remain unchanged; panic
