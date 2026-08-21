@@ -722,12 +722,15 @@ contracts are independently validated. The retired bare call pilot cannot
 recover authority through structural proof-machine discovery.
 
 For a request that is the direct terminal expression of a state, validation
-now derives a non-authoritative relation plan: `RA` records the exact quotient
-type and relation at each quotient-bearing argument position and exact typed
-equality at every ordinary position; `RR` records the exact quotient result
-type and relation. Exact quotient type identity is retained so two quotients
-over the same carrier cannot collapse. Untyped or adapted arguments and nested
-result flow remain unresolved and fail closed;
+now derives a non-authoritative relation plan when every selected quotient
+relation is monomorphic: `RA` records the exact quotient type and relation at
+each quotient-bearing argument position and exact typed equality at every
+ordinary position; `RR` records the exact quotient result type and relation.
+Exact quotient type identity is retained so two quotients over the same carrier
+cannot collapse. Indexed relation applications wait for the fully instantiated
+representative-operation telescope rather than guessing independently
+quantified binders from the quotient type. Untyped or adapted arguments and
+nested result flow likewise remain unresolved and fail closed;
 even a complete direct-terminal relation plan is rejected until operation
 correspondence, the selected `Respects` contract, and normalized result flow
 are independently checked and retained in checked/terminal identity.
