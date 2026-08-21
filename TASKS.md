@@ -1239,7 +1239,11 @@ Remaining:
   that family also accepts a retained `divisor <= -1` bound with an independently
   landed nonminimum dividend literal. The producer derives the dividend floor
   only by closed integer order plus substitution of that exact landing equality;
-  a minimum or wrong-identity landing rejects. A signed `i1`
+  a minimum or wrong-identity landing rejects. The same complete substitution
+  family now accepts exact literal equalities retained as machine requirements,
+  not only pre-site semantic landings. The selector checks every same-carrier
+  equality for the exact operand, and the producer cites it as an `Assumption`;
+  zero-only, minimum-dividend, mistyped, or redirected premises reject. A signed `i1`
   divisor fact alone remains
   insufficient because its canonical conjunction also requires the dividend
   premise. The complete retained-bound `i1` family now selects that conjunction
@@ -1548,7 +1552,7 @@ Remaining:
   unchanged; only type-shell normalization and unresolved-call reporting are
   shared privately back to per-call validation.
   Complete-or-opaque caller write-frame inference, alias-origin propagation,
-  and transition-cycle frame equations now form a 3,225-line
+  and transition-cycle frame equations now form a 3,192-line
   `calls/write_frames.rs` child. Its 459-line `write_frames/demand.rs` child
   owns the public resolver facade plus expression/statement demand collection
   and conservative fallback; a separate 123-line
@@ -1587,7 +1591,11 @@ Remaining:
   `write_frames/assignment_targets.rs` leaf owns
   declared target-type lookup and structural/effectful assignment-place shape
   classification; it depends only on typed-place and syntactic-effect queries,
-  not alias mutation or frame resolution. The parent
+  not alias mutation or frame resolution. A 46-line
+  `write_frames/call_targets.rs` leaf owns free-machine entry selection and
+  exact state-symbol lookup; the established crate/calls visibility surface is
+  re-exported unchanged, and the leaf performs no validation or inference. The
+  parent
   preserves the existing public and crate-private query surface;
   receiver-member-chain and resolved-state lookup remain the only top-level
   sibling seams. The frame engine privately reuses two demand collection
@@ -2476,10 +2484,15 @@ boundary without its corresponding checked law.
   clause, while checked and canary coverage pins exact selection and duplicate
   normalized operand rejection. The compiler-owned token/fixity table remains
   closed; no custom-token or alias facility was added.
-- Normalize an attached receiver as operand position zero and an explicit first
-  parameter as position zero otherwise. Trait-owned operator requirements bind
-  their token once; conformances implement without rebinding. A trait-backed
-  token use consumes one exact conformance already selected by a proof-static
+- Trait-owned operator requirements now parse the same optional fixed-token
+  head and retain it through syntax, symbol-resolved, typed, checked-container,
+  and serialized snapshot surfaces. The ordinary trait requirement record is
+  the sole carrier; conformances continue to implement the named requirement
+  without a second token-binding field. Parser, resolved, typed-snapshot, and
+  checked-pipeline tests pin this round trip. Normalize an attached receiver as
+  operand position zero and an explicit first parameter as position zero
+  otherwise. A trait-backed token use consumes one exact conformance already
+  selected by a proof-static
   binder, rejects with none or several, and never searches visible conformances.
   A concrete direct wrapper may crown only one token meaning per normalized
   operand signature; alternative conformances remain named explicit calls.

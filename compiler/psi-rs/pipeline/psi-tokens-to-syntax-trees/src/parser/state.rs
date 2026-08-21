@@ -27,6 +27,7 @@ pub(super) fn parse_state_signature<'tokens, 'source>(
     Ok((
         StateSignature {
             name,
+            spelling: None,
             lifetime_parameters: Vec::new(),
             type_parameters: HandleSpan::empty(),
             is_default: false,

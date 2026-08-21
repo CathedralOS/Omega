@@ -431,6 +431,29 @@ fn checked_program_from_source(source: &str) -> psi_checked_trees::CheckedTrees 
 }
 
 #[test]
+fn checked_program_retains_trait_owned_operator_token() {
+    let checked = checked_program_from_source(
+        r#"
+        trait Ranked<T> {
+            operator < compare(left: T, right: T) -> bool;
+        }
+        "#,
+    );
+    let trait_definition = checked
+        .typed
+        .traits
+        .iter()
+        .next()
+        .map(|(_, definition)| definition)
+        .expect("Ranked trait");
+    let [requirement] = checked.typed.trait_machine_signatures(trait_definition) else {
+        panic!("one trait operator requirement expected");
+    };
+
+    assert_eq!(requirement.spelling, Some(OperatorSpelling::Less));
+}
+
+#[test]
 fn aggregate_parameter_field_spelling_retains_float_operator_fact() {
     let source = r#"
         boundary operator + Float::add(left: f64, right: f64) -> f64;

@@ -206,6 +206,7 @@ pub(crate) fn lower_type_parameters(
                             lowerer,
                             syntax_trees,
                             &contract.name,
+                            contract.spelling,
                             &contract.lifetime_parameters,
                             contract.type_parameters,
                             contract.parameters,

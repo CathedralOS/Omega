@@ -272,6 +272,7 @@ pub fn build_type_surface_report(syntax_trees: &SyntaxTrees) -> TypeSurfaceRepor
                         syntax_trees,
                         &psi_syntax_trees::item::StateSignature {
                             name: signature.name.clone(),
+                            spelling: signature.spelling,
                             lifetime_parameters: signature.lifetime_parameters.clone(),
                             type_parameters: signature.type_parameters,
                             is_default: signature.is_default,

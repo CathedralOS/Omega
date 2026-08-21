@@ -1309,6 +1309,35 @@ fn parses_plain_and_boundary_traits() {
 }
 
 #[test]
+fn parses_trait_owned_fixed_operator_requirements() {
+    let source = r#"
+        trait Ranked<T> {
+            operator < compare(left: T, right: T) -> bool;
+            operator equivalent(left: T, right: T) -> bool;
+        }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let parsed = parse_syntax_trees(&tokens).expect("trait operators should parse");
+    let trait_definition = parsed
+        .root_items()
+        .find_map(|item| match item {
+            psi_syntax_trees::item::Item::Trait(definition) => Some(definition),
+            _ => None,
+        })
+        .expect("Ranked trait");
+    let requirements = parsed.items.state_signatures(trait_definition.machines);
+
+    assert_eq!(requirements.len(), 2);
+    assert_eq!(
+        parsed.items.state_signature(requirements[0]).spelling,
+        Some(psi_language_core::OperatorSpelling::Less)
+    );
+    assert_eq!(parsed.items.state_signature(requirements[1]).spelling, None);
+}
+
+#[test]
 fn parses_independent_operational_clauses_on_machines_and_requirements() {
     let source = r#"
         machine run() reaches Console suspends; blocks; {
