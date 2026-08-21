@@ -314,13 +314,8 @@ fn windows_fs_self_value_call_literal_path_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-fs-self-literal-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("self-value-call literal path canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("self-value-call literal path canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .current_dir(&build_dir)
@@ -365,13 +360,8 @@ fn windows_fs_discarded_self_call_literal_errno_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-fs-discard-literal-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("discarded self-call literal canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("discarded self-call literal canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .current_dir(&build_dir)
@@ -415,13 +405,8 @@ fn windows_fs_wrapper_param_shadow_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-fs-param-shadow-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("wrapper param-shadow canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("wrapper param-shadow canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .current_dir(&build_dir)
@@ -462,13 +447,8 @@ fn windows_fs_wrapper_open_with_exit_canary_runs() {
     let build_dir = std::env::temp_dir().join(format!("omega-fs-open-with-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("open_with matrix canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("open_with matrix canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .current_dir(&build_dir)
@@ -511,13 +491,8 @@ fn windows_fs_field_receiver_method_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-fs-field-recv-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("field-receiver method canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("field-receiver method canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .current_dir(&build_dir)

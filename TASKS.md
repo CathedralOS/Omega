@@ -216,13 +216,25 @@ Remaining:
   production builder consumes this authority; no physical stack mutation,
   wrapper insertion, call edge, object-entry switch, or native execution is
   claimed.
+  The receiver-free UEFI/Microsoft bridge now also retains sealed source-
+  continuation inbound-realization evidence. It joins the independently
+  derived free Unit `CallPlan` to the exact encoded `Source(StateKey)` function,
+  symbol/text interval, and two immediately-post-`FunctionEnter`
+  Image/InitialStorage captures: 16-byte indirect values through RCX/RDX into
+  their exact retained frame destinations. Role, declaration/call index,
+  normalized type, physical-versus-internal placement, capture order/count,
+  pointer, destination, instruction, byte-range, identity, and interval drift
+  fail closed; final-image validation independently replays the capture bytes
+  and static-storage relocations. Attached entries retain no receiver-free
+  realization. This emits no wrapper body or call, consumes no installation-
+  derived values, does not switch the object entry, and does not claim native
+  execution.
   Production builds therefore still lack a source-compatible attached-root
-  value/authority carrier (or separate hidden supply), generated wrapper body,
-  and source-function inbound realization; defining that disposition at the
-  source schema, emitting the body, physically realizing receiver-free root
-  values, adding the exact native call edge to the retained operation, and
-  retaining resulting native bridge evidence remain before this slice is
-  complete.
+  value/authority carrier (or separate hidden supply) and generated wrapper
+  body; defining that disposition at the source schema, emitting the body,
+  physically realizing receiver-free root values, adding the exact native call
+  edge to the retained operation, and retaining resulting native bridge
+  evidence remain before this slice is complete.
 
   The CLI corpus is rooted on all hosted targets except the four GUI samples,
   which currently select Windows x64 and macOS arm64. Linux needs an ordinary
@@ -280,8 +292,18 @@ Remaining:
   conversion, trapping-float, and portable filesystem probes now also consume
   authored roots. Ten portable filesystem wrapper probes now likewise consume
   authored roots. Ten value-call, indexed-collection, and result-domain probes
-  now likewise consume authored roots. The tracked corpus audit leaves 18
-  legacy fixtures without an authored `build.omg` root.
+  now likewise consume authored roots. Fifteen typed-dispatch, fixed-integer,
+  saturating-time, wire-policy, portable-filesystem, and console-byte probes now
+  likewise consume authored roots. The local-named dynamic devirtualization
+  fixture remains rootless because production entry selection currently rejects
+  its state-graph source declaration as missing or ambiguous. A registry-
+  derived inventory now pins 890
+  `RUN_CANARIES`, 810 with authored roots, and 80 rootless. The tracked backlog
+  is 76 after separately excluding the exact four GUI fixtures that still lack
+  a general Linux `Gui`/`Input` provider. The earlier reported backlog of 18
+  was incorrect: its baseline parser omitted 39 multiline-form RUN rows, then
+  the migration ledger subtracted 34 authored roots outside `RUN_CANARIES` as
+  if they belonged to the differential corpus.
   Continue migrating those fixtures through production entry
   selection; replace result-as-process-exit probes with ordinary Unit entries
   and explicit exit providers rather than preserving the legacy entry seam.
@@ -910,7 +932,7 @@ Remaining:
   Unknown or redirected case/field identities reject independently. Mixed
   common-field/case shapes, nested or recursive payload expansion, address and
   erased payload equality, and runtime sum layout remain fenced. Semantic codec
-  v18, proof-bundle v14, and installation-record v24 retain the structural
+  v18, proof-bundle v15, and installation-record v24 retain the structural
   shapes, case-payload paths, and proposition. Continue with the fenced mixed,
   nested, recursive, and erased aggregate cases. Concrete machine/state
   contracts plus domain/data predicates, trait invariants and signatures,
@@ -1059,6 +1081,17 @@ Remaining:
   reconstruction still uses the legacy sufficient proposition, no producer
   emits these certificates, all reducers and operation rows remain
   `TrustedJudgment`, and the closure remains `fully-derived false`.
+  The next bounded certificate capability adds
+  `IntegerLessOrEqualSubstitution`. Two independently checked children prove
+  one integer `<=` relation and one equality; endpoint 0 or 1 selects the left
+  or right relation endpoint to replace, the other endpoint must remain exact,
+  and either equality orientation is accepted. A non-order relation,
+  non-equality evidence, unknown endpoint, changed untouched endpoint, or
+  mismatched replacement rejects. Proof-bundle v15 assigns rule tag 11; the
+  registered calculus is v12 and the Rust kernel v4. This remains capability
+  only: no producer emits the certificate, no sufficient reducer or semantic
+  operation row is promoted, terminal `PSITERM\0` codec v18 and installation
+  record v24 remain unchanged, and the closure remains `fully-derived false`.
   The bounded Gamma spike is complete. It canonical-decodes four exact current
   `PSITERM\0` v18 fixtures and audits a 54-row scalar ledger covering constants,
   Boolean not/equality, integer equality/order, bitwise operations, strict
