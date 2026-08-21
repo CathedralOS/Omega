@@ -2,8 +2,8 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-pub(super) const EXPECTED_UNIQUE_ROOTED_ACTIVE_COVERAGE: usize = 690;
-pub(super) const EXPECTED_UNIQUE_LEGACY_ACTIVE_COVERAGE: usize = 6;
+pub(super) const EXPECTED_UNIQUE_ROOTED_ACTIVE_COVERAGE: usize = 695;
+pub(super) const EXPECTED_UNIQUE_LEGACY_ACTIVE_COVERAGE: usize = 5;
 pub(super) const EXPECTED_UNIQUE_CROSS_TARGET_COVERAGE: usize = 32;
 pub(super) const EXPECTED_UNIQUE_ROOTED_TARGET_COVERAGE: usize = 3;
 

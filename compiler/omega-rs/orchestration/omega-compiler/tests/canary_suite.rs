@@ -1396,6 +1396,16 @@ fn compile_rooted_canary_for_target_with_artifact_policy(
 // exercise production entry selection and may not substitute the legacy entry
 // seam.
 const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
+    "calls/runtime_arm_target_host_result_exit",
+    "collections/runtime_indexed_rmw_loop_exit",
+    "dungeon/runtime_ordered_room_dispatch_real_show_states_exit",
+    "filesystem/runtime_local_host_result_dispatch_exit",
+    "proofs/accepted_axiom_cited_exit",
+    "storage/runtime_machine_owned_indexed_integer_write_exit",
+    "targets/single_target_internal_machine_skipped",
+    "targets/target_machine_gating_exit",
+    "text/runtime_stdin_command_branch_exit",
+    "text/runtime_stdin_line_buffering_exit",
     "data/case_membership_union_guard_exit",
     "data/runtime_proof_only_data_declared_exit",
     "dependent/runtime_requires_guarded_call_exit",
