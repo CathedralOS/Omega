@@ -15,17 +15,21 @@
 //! visualization canaries, whose native exit code is undefined). The companion expected
 //! code documents the suite's own assertion and lets us sanity-check native against it.
 
-use omega_compiler::{CheckedCompilation, CompileOptions, compile, compile_to_checked};
+use omega_compiler::{
+    CheckedCompilation, CompileOptions, compile_to_checked, compile_with_test_entry,
+    compile_with_test_entry_and_worker_count,
+};
 use psi_checked_interpreter::{InterpretOutcome, interpret_entry};
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+use std::sync::mpsc;
+use std::thread;
 use std::time::Instant;
 
 static NEXT_NATIVE_STAGE: AtomicU64 = AtomicU64::new(1);
-const NATIVE_DIFFERENTIAL_ENTRY: &str = "omega_native_differential_entry";
 
 fn interpret(checked: &CheckedCompilation, stdin: &[u8]) -> InterpretOutcome {
     interpret_entry(checked, "Main::main", stdin)
@@ -1579,116 +1583,215 @@ fn interpreter_executes_runtime_cast_into_indexed_carrier() {
     assert_eq!(outcome.exit_code, 70);
 }
 
+enum DifferentialCanaryResult {
+    Matched(String),
+    Skipped(String, String),
+    FrontendBlocked(String, String),
+    NativeBlocked(String, String),
+    Mismatch(String),
+}
+
+fn run_differential_canary(
+    name: &str,
+    expected_code: i32,
+    native_worker_count: Option<usize>,
+) -> DifferentialCanaryResult {
+    if std::env::var("DIFF_TRACE").is_ok() {
+        eprintln!("[trace] {name}");
+    }
+    let main_path = pass_canary(name).join("main.omg");
+
+    let frontend_started = Instant::now();
+    let checked = match compile_to_checked(&main_path, None) {
+        Ok(checked) => checked,
+        Err(diagnostics) => {
+            return DifferentialCanaryResult::FrontendBlocked(
+                name.to_owned(),
+                join_diagnostics(&diagnostics),
+            );
+        }
+    };
+    let frontend_elapsed = frontend_started.elapsed();
+
+    let interpreter_started = Instant::now();
+    let outcome = interpret(&checked, b"");
+    let interpreter_elapsed = interpreter_started.elapsed();
+    if outcome.is_error() {
+        return DifferentialCanaryResult::Skipped(
+            name.to_owned(),
+            outcome.error.clone().unwrap_or_default(),
+        );
+    }
+
+    // A native COMPILE failure is a host-support gap the canary suite already
+    // reports; there is nothing for the oracle to compare, so record it and
+    // keep sweeping instead of letting one blocked member mask the corpus tail.
+    let (native_code, native_stdout, native_stderr) =
+        match try_compile_and_run_native(name, &main_path, native_worker_count) {
+            Ok(native) => native,
+            Err(failure) => {
+                return DifferentialCanaryResult::NativeBlocked(
+                    name.to_owned(),
+                    failure.lines().next().unwrap_or("").to_owned(),
+                );
+            }
+        };
+    if std::env::var("DIFF_PROFILE").is_ok() {
+        eprintln!(
+            "[profile] {name}: checked={frontend_elapsed:?} interpreter={interpreter_elapsed:?}"
+        );
+    }
+
+    // Native is the source of truth, but sanity-check the suite's documented
+    // code too so a stale corpus registry is reported explicitly.
+    if native_code != expected_code {
+        return DifferentialCanaryResult::Mismatch(format!(
+            "{name}: native exit {native_code} != suite-recorded expected {expected_code} \
+             (RUN_CANARIES is stale)"
+        ));
+    }
+
+    let mut local_failures = Vec::new();
+    if outcome.exit_code != native_code {
+        local_failures.push(format!(
+            "exit code: interp {} != native {native_code}",
+            outcome.exit_code
+        ));
+    }
+    if outcome.stdout != native_stdout {
+        local_failures.push(format!(
+            "stdout: interp {:?} != native {:?}",
+            String::from_utf8_lossy(&outcome.stdout),
+            String::from_utf8_lossy(&native_stdout)
+        ));
+    }
+    if outcome.stderr != native_stderr {
+        local_failures.push(format!(
+            "stderr: interp {:?} != native {:?}",
+            String::from_utf8_lossy(&outcome.stderr),
+            String::from_utf8_lossy(&native_stderr)
+        ));
+    }
+
+    if local_failures.is_empty() {
+        DifferentialCanaryResult::Matched(name.to_owned())
+    } else {
+        DifferentialCanaryResult::Mismatch(format!(
+            "{name}:\n    {}",
+            local_failures.join("\n    ")
+        ))
+    }
+}
+
 #[test]
 fn interpreter_matches_native_on_supported_canaries() {
     let selected_canary = std::env::var("DIFF_CANARY").ok();
-    let selected_count = RUN_CANARIES
+    let selected_limit = std::env::var("DIFF_LIMIT").ok().map(|value| {
+        value
+            .parse::<usize>()
+            .ok()
+            .filter(|count| *count > 0)
+            .unwrap_or_else(|| panic!("DIFF_LIMIT must be a positive integer, got {value:?}"))
+    });
+    let selected = RUN_CANARIES
         .iter()
+        .copied()
         .filter(|(name, _)| {
             selected_canary
                 .as_deref()
                 .is_none_or(|selected| selected == *name)
         })
-        .count();
+        .take(selected_limit.unwrap_or(usize::MAX))
+        .collect::<Vec<_>>();
+    let selected_count = selected.len();
     assert!(
         selected_count > 0,
         "DIFF_CANARY did not name a registered RUN canary: {:?}",
         selected_canary
     );
+
+    let default_jobs = thread::available_parallelism()
+        .map(usize::from)
+        .unwrap_or(1)
+        .min(4);
+    let requested_jobs = std::env::var("DIFF_JOBS")
+        .ok()
+        .map(|value| {
+            value
+                .parse::<usize>()
+                .ok()
+                .filter(|count| *count > 0)
+                .unwrap_or_else(|| panic!("DIFF_JOBS must be a positive integer, got {value:?}"))
+        })
+        .unwrap_or(default_jobs);
+    let job_count = requested_jobs.min(selected_count);
+    let native_worker_count = (job_count > 1).then_some(1);
+    eprintln!(
+        "differential scheduler: {job_count} outer job(s), {} native worker(s) per compile",
+        native_worker_count.unwrap_or_else(|| {
+            thread::available_parallelism()
+                .map(usize::from)
+                .unwrap_or(1)
+        })
+    );
+
+    let results = if job_count == 1 {
+        selected
+            .iter()
+            .enumerate()
+            .map(|(index, (name, expected_code))| {
+                (
+                    index,
+                    run_differential_canary(name, *expected_code, native_worker_count),
+                )
+            })
+            .collect::<Vec<_>>()
+    } else {
+        let next = AtomicUsize::new(0);
+        thread::scope(|scope| {
+            let (sender, receiver) = mpsc::channel();
+            for _ in 0..job_count {
+                let sender = sender.clone();
+                let selected = &selected;
+                let next = &next;
+                scope.spawn(move || {
+                    loop {
+                        let index = next.fetch_add(1, Ordering::Relaxed);
+                        let Some((name, expected_code)) = selected.get(index).copied() else {
+                            break;
+                        };
+                        let result =
+                            run_differential_canary(name, expected_code, native_worker_count);
+                        sender
+                            .send((index, result))
+                            .expect("differential result receiver dropped");
+                    }
+                });
+            }
+            drop(sender);
+            let mut results = receiver.into_iter().collect::<Vec<_>>();
+            results.sort_by_key(|(index, _)| *index);
+            results
+        })
+    };
+
     let mut matched: Vec<String> = Vec::new();
     let mut skipped: Vec<(String, String)> = Vec::new();
     let mut frontend_blocked: Vec<(String, String)> = Vec::new();
     let mut native_blocked: Vec<(String, String)> = Vec::new();
     let mut mismatches: Vec<String> = Vec::new();
 
-    for (name, expected_code) in RUN_CANARIES {
-        if selected_canary
-            .as_deref()
-            .is_some_and(|selected| selected != *name)
-        {
-            continue;
-        }
-        if std::env::var("DIFF_TRACE").is_ok() {
-            eprintln!("[trace] {name}");
-        }
-        let main_path = pass_canary(name).join("main.omg");
-
-        let frontend_started = Instant::now();
-        let checked = match compile_to_checked(&main_path, None) {
-            Ok(checked) => checked,
-            Err(diagnostics) => {
-                frontend_blocked.push((name.to_string(), join_diagnostics(&diagnostics)));
-                continue;
+    for (_, result) in results {
+        match result {
+            DifferentialCanaryResult::Matched(name) => matched.push(name),
+            DifferentialCanaryResult::Skipped(name, reason) => skipped.push((name, reason)),
+            DifferentialCanaryResult::FrontendBlocked(name, reason) => {
+                frontend_blocked.push((name, reason));
             }
-        };
-        let frontend_elapsed = frontend_started.elapsed();
-
-        let interpreter_started = Instant::now();
-        let outcome = interpret(&checked, b"");
-        let interpreter_elapsed = interpreter_started.elapsed();
-        if outcome.is_error() {
-            skipped.push((name.to_string(), outcome.error.clone().unwrap_or_default()));
-            continue;
-        }
-
-        // A native COMPILE failure is a host-support gap the canary suite
-        // already reports (this host's expected-red rows); there is nothing
-        // for the oracle to compare, so record it and keep sweeping -- the
-        // old panic here let the first blocked member MASK every member
-        // after it in list order (tick_count hid the whole gui/collections
-        // tail on this host).
-        let (native_code, native_stdout, native_stderr) =
-            match try_compile_and_run_native(name, &main_path) {
-                Ok(native) => native,
-                Err(failure) => {
-                    let first_line = failure.lines().next().unwrap_or("").to_owned();
-                    native_blocked.push((name.to_string(), first_line));
-                    continue;
-                }
-            };
-        if std::env::var("DIFF_PROFILE").is_ok() {
-            eprintln!(
-                "[profile] {name}: checked={frontend_elapsed:?} interpreter={interpreter_elapsed:?}"
-            );
-        }
-
-        // Native is the source of truth, but sanity-check the suite's documented code too:
-        // if native disagrees with the recorded expected code the corpus drifted --
-        // collected (not an instant panic) so one drifted member cannot mask the rest.
-        if native_code != *expected_code {
-            mismatches.push(format!(
-                "{name}: native exit {native_code} != suite-recorded expected {expected_code} \
-                 (RUN_CANARIES is stale)"
-            ));
-            continue;
-        }
-
-        let mut local_failures = Vec::new();
-        if outcome.exit_code != native_code {
-            local_failures.push(format!(
-                "exit code: interp {} != native {native_code}",
-                outcome.exit_code
-            ));
-        }
-        if outcome.stdout != native_stdout {
-            local_failures.push(format!(
-                "stdout: interp {:?} != native {:?}",
-                String::from_utf8_lossy(&outcome.stdout),
-                String::from_utf8_lossy(&native_stdout)
-            ));
-        }
-        if outcome.stderr != native_stderr {
-            local_failures.push(format!(
-                "stderr: interp {:?} != native {:?}",
-                String::from_utf8_lossy(&outcome.stderr),
-                String::from_utf8_lossy(&native_stderr)
-            ));
-        }
-
-        if local_failures.is_empty() {
-            matched.push(name.to_string());
-        } else {
-            mismatches.push(format!("{name}:\n    {}", local_failures.join("\n    ")));
+            DifferentialCanaryResult::NativeBlocked(name, reason) => {
+                native_blocked.push((name, reason));
+            }
+            DifferentialCanaryResult::Mismatch(reason) => mismatches.push(reason),
         }
     }
 
@@ -1723,11 +1826,6 @@ fn interpreter_matches_native_on_supported_canaries() {
     }
 
     assert!(
-        !matched.is_empty(),
-        "expected at least one canary where interpreter == native"
-    );
-
-    assert!(
         frontend_blocked.is_empty(),
         "{} RUN canaries failed frontend compilation:\n\n{}",
         frontend_blocked.len(),
@@ -1743,6 +1841,11 @@ fn interpreter_matches_native_on_supported_canaries() {
         "interpreter disagreed with native on {} passing RUN canaries (these are INTERPRETER bugs -- native is correct on a passing canary):\n\n{}",
         mismatches.len(),
         mismatches.join("\n\n")
+    );
+
+    assert!(
+        !matched.is_empty(),
+        "expected at least one canary where interpreter == native"
     );
 }
 
@@ -2635,8 +2738,9 @@ fn compile_and_run_native(canary_name: &str, main_path: &Path) -> (i32, Vec<u8>,
 fn try_compile_and_run_native(
     canary_name: &str,
     main_path: &Path,
+    native_worker_count: Option<usize>,
 ) -> Result<(i32, Vec<u8>, Vec<u8>), String> {
-    try_compile_and_run_native_with_stdin(canary_name, main_path, b"")
+    try_compile_and_run_native_with_stdin(canary_name, main_path, b"", native_worker_count)
 }
 
 /// Compile + run the native binary with the given stdin; returns
@@ -2646,7 +2750,7 @@ fn compile_and_run_native_with_stdin(
     main_path: &Path,
     stdin: &[u8],
 ) -> (i32, Vec<u8>, Vec<u8>) {
-    try_compile_and_run_native_with_stdin(canary_name, main_path, stdin)
+    try_compile_and_run_native_with_stdin(canary_name, main_path, stdin, None)
         .unwrap_or_else(|failure| panic!("{canary_name}: native compile failed:\n{failure}"))
 }
 
@@ -2657,6 +2761,7 @@ fn try_compile_and_run_native_with_stdin(
     canary_name: &str,
     main_path: &Path,
     stdin: &[u8],
+    native_worker_count: Option<usize>,
 ) -> Result<(i32, Vec<u8>, Vec<u8>), String> {
     let total_started = Instant::now();
     let build_dir = std::env::temp_dir().join(format!(
@@ -2666,25 +2771,21 @@ fn try_compile_and_run_native_with_stdin(
         NEXT_NATIVE_STAGE.fetch_add(1, Ordering::Relaxed),
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    let source_dir = build_dir.join("source");
-    let staging_started = Instant::now();
-    if let Err(error) = stage_exact_host_entry_project(main_path, &source_dir) {
-        let _ = fs::remove_dir_all(&build_dir);
-        return Err(format!("failed to stage exact host entry: {error}"));
-    }
-    let staging_elapsed = staging_started.elapsed();
 
     let compile_started = Instant::now();
-    if let Err(diagnostics) = compile(CompileOptions {
-        root_path: source_dir.join(
-            main_path
-                .file_name()
-                .expect("differential source has a file name"),
-        ),
+    let options = CompileOptions {
+        root_path: main_path.to_owned(),
         build_dir: Some(build_dir.clone()),
-        target_name: Some(host_target_name().to_owned()),
+        target_name: None,
         write_output: true,
-    }) {
+    };
+    let compile_result = match native_worker_count {
+        Some(worker_count) => {
+            compile_with_test_entry_and_worker_count(options, "Main::main", worker_count)
+        }
+        None => compile_with_test_entry(options, "Main::main"),
+    };
+    if let Err(diagnostics) = compile_result {
         let _ = fs::remove_dir_all(&build_dir);
         return Err(join_diagnostics(&diagnostics));
     }
@@ -2720,164 +2821,11 @@ fn try_compile_and_run_native_with_stdin(
     let cleanup_elapsed = cleanup_started.elapsed();
     if std::env::var("DIFF_PROFILE").is_ok() {
         eprintln!(
-            "[profile] {canary_name}: stage={staging_elapsed:?} native_compile={compile_elapsed:?} native_run={run_elapsed:?} cleanup={cleanup_elapsed:?} total={:?}",
+            "[profile] {canary_name}: native_compile={compile_elapsed:?} native_run={run_elapsed:?} cleanup={cleanup_elapsed:?} total={:?}",
             total_started.elapsed()
         );
     }
     Ok((code, stdout, stderr))
-}
-
-fn stage_exact_host_entry_project(main_path: &Path, destination: &Path) -> std::io::Result<()> {
-    copy_project_tree(
-        main_path
-            .parent()
-            .expect("differential source has a project directory"),
-        destination,
-    )?;
-    write_exact_host_entry_adapter(main_path, destination)?;
-    write_exact_host_build(destination)
-}
-
-fn write_exact_host_entry_adapter(main_path: &Path, destination: &Path) -> std::io::Result<()> {
-    let main_source = fs::read_to_string(main_path)?;
-    let signature_start = main_source.find("machine Main::main(").ok_or_else(|| {
-        std::io::Error::new(
-            std::io::ErrorKind::InvalidData,
-            "differential source has no Main::main machine",
-        )
-    })?;
-    let signature_end = main_source[signature_start..]
-        .find('{')
-        .map(|offset| signature_start + offset)
-        .ok_or_else(|| {
-            std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
-                "differential Main::main has no body",
-            )
-        })?;
-    let call = if main_source[signature_start..signature_end].contains("->") {
-        "_ = self.main();"
-    } else {
-        "self.main();"
-    };
-    let staged_main = destination.join(
-        main_path
-            .file_name()
-            .expect("differential source has a file name"),
-    );
-    fs::write(
-        staged_main,
-        format!(
-            "{main_source}\n\nmachine Main::{NATIVE_DIFFERENTIAL_ENTRY}(&mut self) {{\n    {call}\n}}\n"
-        ),
-    )
-}
-
-fn copy_project_tree(source: &Path, destination: &Path) -> std::io::Result<()> {
-    fs::create_dir_all(destination)?;
-    for entry in fs::read_dir(source)? {
-        let entry = entry?;
-        if matches!(entry.file_name().to_str(), Some("build" | "target")) {
-            continue;
-        }
-        let path = entry.path();
-        let target = destination.join(entry.file_name());
-        if entry.file_type()?.is_dir() {
-            copy_project_tree(&path, &target)?;
-        } else {
-            fs::copy(path, target)?;
-        }
-    }
-    Ok(())
-}
-
-fn write_exact_host_build(project: &Path) -> std::io::Result<()> {
-    let path = project.join("build.omg");
-    let mut source = fs::read_to_string(&path).unwrap_or_default();
-    let target = host_target_name();
-    if !source.contains(&format!("target {target}")) {
-        source.push_str(&format!("\n\ntarget {target} {{\n}}\n"));
-    }
-    let binding = format!(
-        "{}.roots.bind({}::ProgramEntry, Main::{NATIVE_DIFFERENTIAL_ENTRY});",
-        build_parameter_name(&source).unwrap_or("b"),
-        host_root_owner(),
-    );
-    source = replace_host_program_entry_binding(&source, &binding);
-    if !source.contains(&binding) {
-        if let Some(open_brace) = build_machine_open_brace(&source) {
-            source.insert_str(open_brace + 1, &format!("\n    {binding}"));
-        } else {
-            source.push_str(&format!(
-                "\n\nmachine build(b: &mut Build) {{\n    {binding}\n}}\n"
-            ));
-        }
-    }
-    fs::write(path, source)
-}
-
-fn replace_host_program_entry_binding(source: &str, binding: &str) -> String {
-    let marker = format!("{}::ProgramEntry", host_root_owner());
-    let mut replaced = false;
-    let mut lines = Vec::new();
-    for line in source.lines() {
-        if line.contains(".roots.bind(") && line.contains(&marker) {
-            if !replaced {
-                let indent = &line[..line.len() - line.trim_start().len()];
-                lines.push(format!("{indent}{binding}"));
-                replaced = true;
-            }
-        } else {
-            lines.push(line.to_owned());
-        }
-    }
-    let mut rewritten = lines.join("\n");
-    if source.ends_with('\n') {
-        rewritten.push('\n');
-    }
-    rewritten
-}
-
-fn build_machine_open_brace(source: &str) -> Option<usize> {
-    let start = source.find("machine build(")?;
-    source[start..].find('{').map(|offset| start + offset)
-}
-
-fn build_parameter_name(source: &str) -> Option<&str> {
-    let start = source.find("machine build(")?;
-    let signature_end = source[start..].find('{').map(|offset| start + offset)?;
-    let signature = &source[start..signature_end];
-    let type_marker = signature.rfind(": &mut Build")?;
-    let prefix = signature[..type_marker].trim_end();
-    let name_start = prefix
-        .rfind(|character: char| !(character.is_ascii_alphanumeric() || character == '_'))
-        .map_or(0, |index| index + 1);
-    let name = &prefix[name_start..];
-    (!name.is_empty()).then_some(name)
-}
-
-fn host_target_name() -> &'static str {
-    if cfg!(all(target_os = "macos", target_arch = "aarch64")) {
-        "macos_arm64"
-    } else if cfg!(all(target_os = "linux", target_arch = "aarch64")) {
-        "linux_arm64"
-    } else if cfg!(all(target_os = "linux", target_arch = "x86_64")) {
-        "linux_x64"
-    } else if cfg!(all(target_os = "windows", target_arch = "x86_64")) {
-        "windows_x64"
-    } else {
-        panic!("unsupported host profile for native differential execution")
-    }
-}
-
-fn host_root_owner() -> &'static str {
-    match host_target_name() {
-        "macos_arm64" => "macos_arm64",
-        "linux_arm64" => "linux_arm64",
-        "linux_x64" => "linux_x86_64",
-        "windows_x64" => "windows_x86_64",
-        _ => unreachable!("host_target_name returns one hosted target"),
-    }
 }
 
 fn join_diagnostics(diagnostics: &[psi_diagnostics::Diagnostic]) -> String {
@@ -2991,7 +2939,7 @@ fn pending_runtime_divergences_hold() {
             }
         }
 
-        match try_compile_and_run_native(name, &main_path) {
+        match try_compile_and_run_native(name, &main_path, None) {
             Ok((native_code, _, _)) => {
                 if native_code != *expected_native {
                     drifted.push(format!(
