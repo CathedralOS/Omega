@@ -58,6 +58,7 @@ pub(crate) fn lower_typed_trees(
     )?;
 
     checks::check_checked_facts_recording(&program, &mut facts)?;
+    crate::facts::refresh_realized_contract_envelopes(&mut facts);
 
     // This plan must be assembled only after multiplicity and carry checking:
     // their ownership events and claim policies are the authority for the

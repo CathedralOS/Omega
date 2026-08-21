@@ -123,6 +123,8 @@ pub(crate) fn build_check_facts(
         &suspensions,
         &blocking,
         &termination,
+        &mutation,
+        &capabilities,
         &flow,
         &operators,
         &validation_facts.exact_integer_casts,
@@ -158,6 +160,25 @@ pub(crate) fn build_check_facts(
     ))
 }
 
+/// Crash refinement gains path-conditioned and permission-frontier evidence
+/// during checked-fact validation. Refresh only that independently mutable
+/// axis so the realized envelope cannot retain the earlier pre-check snapshot.
+pub(crate) fn refresh_realized_contract_envelopes(facts: &mut CheckFacts) {
+    for envelope in &mut facts.contract_plans.realized_envelopes {
+        let contract = facts
+            .contract_plans
+            .machines
+            .iter()
+            .find(|contract| contract.machine == envelope.machine)
+            .expect("every realized envelope must retain its exact machine contract");
+        assert_eq!(
+            envelope.contract_fingerprint, contract.fingerprint,
+            "realized envelope contract identity drifted during checked validation"
+        );
+        envelope.checked_crash = contract.crash.clone();
+    }
+}
+
 fn build_nominal_machine_use_facts(
     program: &TypedTrees,
     nominal_machine_uses: Vec<psi_validation::ValidatedNominalMachineUse>,
@@ -178,9 +199,18 @@ fn build_nominal_machine_use_facts(
                 "admitted nominal machine use is missing its selected machine contract identity",
             )]);
         };
+        let Some(actual_envelope) = contract_plans.realized_envelope(nominal_use.selected_machine)
+        else {
+            return Err(vec![psi_diagnostics::Diagnostic::error(
+                "admitted nominal machine use is missing its realized contract envelope",
+            )]);
+        };
         let published_fingerprint = published.target_contract_fingerprint();
         let actual_fingerprint = actual.fingerprint;
-        if published_fingerprint == 0 || actual_fingerprint == 0 {
+        if published_fingerprint == 0
+            || actual_fingerprint == 0
+            || actual_envelope.contract_fingerprint != actual_fingerprint
+        {
             return Err(vec![psi_diagnostics::Diagnostic::error(
                 "admitted nominal machine use retained an empty contract-envelope identity",
             )]);
@@ -454,6 +484,8 @@ fn build_contract_plans(
     suspensions: &psi_checked_trees::SuspensionFacts,
     blocking: &psi_checked_trees::BlockingFacts,
     termination: &psi_checked_trees::TerminationFacts,
+    mutation: &psi_checked_trees::MutationFacts,
+    capabilities: &psi_effects::CapabilityFlowPlan,
     flow: &psi_checked_trees::FlowFacts,
     operators: &psi_checked_trees::CheckedOperatorFacts,
     exact_integer_casts: &[psi_validation::ExactIntegerCastFact],
@@ -599,9 +631,58 @@ fn build_contract_plans(
         &crash_capsules,
         &mut machines,
     );
+    let realized_envelopes = machines
+        .iter()
+        .map(|contract| {
+            let service_fact = service_reaches
+                .for_machine(contract.machine)
+                .expect("every checked machine must retain service-reach facts");
+            let effective_service_reach = service_reaches
+                .rows
+                .services(service_fact.effective)
+                .iter()
+                .filter_map(|service| service_reaches.services.definition(*service))
+                .map(|definition| definition.name.clone())
+                .collect::<Vec<_>>();
+            let invocation = synchronous_invocations
+                .for_machine(contract.machine)
+                .expect("every checked machine must retain invocation facts");
+            let suspension = suspensions
+                .for_machine(contract.machine)
+                .expect("every checked machine must retain suspension facts");
+            let blocking = blocking
+                .for_machine(contract.machine)
+                .expect("every checked machine must retain blocking facts");
+            let termination = termination
+                .for_machine(contract.machine)
+                .expect("every checked machine must retain termination facts");
+            let mutation = mutation
+                .for_machine(contract.machine)
+                .map(|fact| fact.state_write_frames.clone())
+                .unwrap_or_default();
+            let capability_rows = capabilities
+                .flows()
+                .filter(|flow| flow.machine_symbol == contract.machine)
+                .copied()
+                .collect();
+            psi_checked_trees::RealizedMachineContractEnvelope {
+                machine: contract.machine,
+                contract_fingerprint: contract.fingerprint,
+                effective_service_reach,
+                effective_synchronous_invocations: invocation.checked_inferred.clone(),
+                checked_may_suspend: suspension.checked_may_suspend,
+                checked_may_block: blocking.checked_may_block,
+                checked_termination: termination.checked_summary.clone(),
+                checked_crash: contract.crash.clone(),
+                mutation,
+                capabilities: capability_rows,
+            }
+        })
+        .collect();
     psi_checked_trees::MachineContractPlans {
         machines,
         crash_capsules,
+        realized_envelopes,
     }
 }
 
@@ -818,6 +899,19 @@ fn build_crash_contract_capsules(
                 target_state,
                 fingerprint,
                 published,
+            )
+            .with_operational_envelope(
+                published_service_names,
+                published_invocations,
+                signature.suspends,
+                signature.blocks,
+                if signature.terminates_guarantee {
+                    psi_language_semantics::TerminationGuarantee::Terminates {
+                        premises: Vec::new(),
+                    }
+                } else {
+                    psi_language_semantics::TerminationGuarantee::NoGuarantee
+                },
             )
         })
         .collect::<Vec<_>>();
