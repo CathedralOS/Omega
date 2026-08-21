@@ -3191,11 +3191,17 @@ fn named_integer_conversion_filesystem_decode_cohort_reaches_checked_trees() {
 #[test]
 fn named_integer_conversion_filesystem_cross_targets_reach_checked_trees() {
     let canary = pass_canary("filesystem/windows_positioned_io_exit");
-    for target in ["linux_x64", "linux_arm64", "windows_x64"] {
-        compile_to_checked(&canary.join("main.omg"), Some(target)).unwrap_or_else(|diagnostics| {
+    let targets = ["linux_x64", "linux_arm64", "windows_x64"];
+    let results = run_bounded_canary_jobs(&targets, |target| {
+        compile_to_checked(&canary.join("main.omg"), Some(target))
+            .map(|_| ())
+            .map_err(|diagnostics| format!("{diagnostics:#?}"))
+    });
+    for (target, result) in targets.into_iter().zip(results) {
+        result.unwrap_or_else(|diagnostic| {
             panic!(
                 "named integer-conversion filesystem cohort should reach checked trees for \
-                     {target}: {diagnostics:#?}"
+                 {target}: {diagnostic}"
             )
         });
     }
