@@ -366,7 +366,7 @@ mod tests {
     }
 
     #[test]
-    fn exact_division_goal_composes_complete_landed_literal_proofs() {
+    fn exact_division_goal_composes_complete_prior_fact_proofs() {
         let unsigned = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
         let unsigned_divisor = value(2, unsigned);
         let unsigned_goal = Proposition::LessOrEqual(
@@ -455,6 +455,54 @@ mod tests {
                 ProofRule::IntegerLessOrEqualSubstitution { .. }
             ))
         );
+
+        let dividend_bound = Proposition::LessOrEqual(integer(signed, -127), value(1, signed));
+        let retained_bound_proof = prove_canonical_integer_proposition(
+            &two_value_context(signed),
+            &signed_goal,
+            std::slice::from_ref(&dividend_bound),
+            &[Proposition::Equal(value(2, signed), integer(signed, -1))],
+        )
+        .expect("landed -1 and exact retained dividend bound prove the exceptional arm");
+        let ProofRule::DisjunctionIntroduction { disjunct, index } = retained_bound_proof.rule
+        else {
+            panic!("retained dividend bound selects the joint exceptional arm")
+        };
+        assert_eq!(index, 2);
+        let ProofRule::ConjunctionIntroduction(conjuncts) = disjunct.rule else {
+            panic!("retained dividend bound proves both canonical bounds")
+        };
+        assert!(matches!(
+            conjuncts[0].rule,
+            ProofRule::IntegerLessOrEqualSubstitution { .. }
+        ));
+        assert!(matches!(
+            conjuncts[1].rule,
+            ProofRule::Assumption { index: 0 }
+        ));
+
+        let retained_axiom_proof = prove_canonical_integer_proposition(
+            &two_value_context(signed),
+            &signed_goal,
+            &[],
+            &[
+                Proposition::Equal(value(2, signed), integer(signed, -1)),
+                dividend_bound,
+            ],
+        )
+        .expect("pre-site exact dividend axiom proves the exceptional arm");
+        let ProofRule::DisjunctionIntroduction { disjunct, index } = retained_axiom_proof.rule
+        else {
+            panic!("pre-site dividend axiom selects the joint exceptional arm")
+        };
+        assert_eq!(index, 2);
+        let ProofRule::ConjunctionIntroduction(conjuncts) = disjunct.rule else {
+            panic!("pre-site dividend axiom proves both canonical bounds")
+        };
+        assert!(matches!(
+            conjuncts[1].rule,
+            ProofRule::SemanticAxiom { index: 1 }
+        ));
     }
 
     #[test]

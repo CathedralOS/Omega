@@ -164,6 +164,8 @@ const MIXED_NOMINAL_SHARED_INTEGER_COMPARISON_CONVERGENCE_SOURCE: &str = r#"
             && ((signed_arithmetic * negative_divisor) <= 127i8)
             && ((signed_arithmetic / 2i8) < 4i8)
             && ((signed_arithmetic % -2i8) <= 1i8)
+            && ((signed_arithmetic / -1i8) <= 127i8)
+            && ((signed_arithmetic % -1i8) <= 0i8)
             && ((signed_arithmetic / signed_divisor) < 4i8)
             && ((signed_arithmetic % signed_divisor) <= signed_arithmetic)
             && ((signed_arithmetic / negative_divisor) < 4i8)
@@ -828,6 +830,68 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
                 ));
             }
         }
+    }
+    let retained_bound_negative_one_obligations = entry
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .filter_map(|operation| {
+            let (left, right, obligation, is_remainder) = match operation.kind {
+                OperationKind::ExactIntegerDivide {
+                    left, right, obligation, ..
+                } => (left, right, obligation, false),
+                OperationKind::ExactIntegerRemainder {
+                    left, right, obligation, ..
+                } => (left, right, obligation, true),
+                _ => return None,
+            };
+            if left != signed_arithmetic_parameter {
+                return None;
+            }
+            entry
+                .blocks
+                .iter()
+                .flat_map(|block| &block.operations)
+                .any(|candidate| {
+                    candidate.result.scalar_ref().map(|result| result.id) == Some(right)
+                        && matches!(
+                            candidate.kind,
+                            OperationKind::IntegerConstant {
+                                value: IntegerValue::Signed(-1),
+                            }
+                        )
+                })
+                .then_some((obligation, is_remainder))
+        })
+        .collect::<Vec<_>>();
+    assert!(retained_bound_negative_one_obligations.len() >= 2);
+    assert!(retained_bound_negative_one_obligations.iter().any(|(_, is_remainder)| !is_remainder));
+    assert!(retained_bound_negative_one_obligations.iter().any(|(_, is_remainder)| *is_remainder));
+    for (obligation, _) in retained_bound_negative_one_obligations {
+        let evidence = lowered
+            .proof_bundle
+            .evidence
+            .iter()
+            .find(|evidence| evidence.obligation == obligation)
+            .expect("retained-bound -1 exact operation has evidence");
+        let EvidenceRoute::CertificateDerived(certificate) = &evidence.route else {
+            panic!("retained-bound -1 exact operation has a recursive certificate")
+        };
+        let ProofRule::DisjunctionIntroduction { disjunct, index } = &certificate.proof.rule else {
+            panic!("retained-bound -1 operation selects the exact exceptional arm")
+        };
+        assert_eq!(*index, 2);
+        let ProofRule::ConjunctionIntroduction(conjuncts) = &disjunct.rule else {
+            panic!("retained-bound -1 operation proves both exceptional premises")
+        };
+        assert!(matches!(
+            conjuncts[0].rule,
+            ProofRule::IntegerLessOrEqualSubstitution { .. }
+        ));
+        assert!(matches!(
+            conjuncts[1].rule,
+            ProofRule::Assumption { .. }
+        ));
     }
     let exact_divide_obligation = entry
         .blocks

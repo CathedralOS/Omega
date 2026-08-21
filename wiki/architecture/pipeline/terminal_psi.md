@@ -1756,10 +1756,19 @@ exact remainder now reconstructs canonical `ExactDivisionDefined` directly.
 An unsigned nonzero divisor literal or signed divisor literal other than zero
 and `-1` selects this path solely from a prior semantic equality, and the
 untrusted recursive producer proves the selected order arm from that citation
-and a closed integer relation. Missing or excluded landing evidence rejects
-this path; no operation-result equation is available as proof authority. The
-existing proof rules and proof-bundle v15 codec carry these certificates
-without a vocabulary change. All other exact divide/remainder families remain
+and a closed integer relation. The complete signed `-1` exceptional family
+also selects the canonical goal when the dividend is independently landed as
+any literal above the carrier minimum. Its certificate recursively composes
+the third disjunct, or the two-conjunct `i1` goal, from both literal equalities
+and closed order. The same canonical family also accepts an independently
+retained exact `MIN + 1 <= dividend` proposition (`0 <= dividend` for `i1`)
+from a machine requirement or pre-site semantic axiom. The producer cites that
+exact proposition as the second recursive premise; it neither imports the
+trusted reducer result nor infers a wider interval. Missing, stale, or weaker
+bounds reject. Missing or excluded evidence rejects these paths; no
+operation-result equation is available as proof authority. The existing proof
+rules and proof-bundle v15 codec carry these certificates without a vocabulary
+change. All other exact divide/remainder families remain
 on their explicitly trusted sufficient reducer, and both complete rows retain
 their current trust status. Their canonical proposition is settled, and the
 existing kernel rules can check direct bound, disjunction, conjunction,
