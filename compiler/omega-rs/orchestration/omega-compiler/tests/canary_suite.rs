@@ -2198,29 +2198,48 @@ fn check_canary(canary_dir: &Path) -> Result<(), Vec<Diagnostic>> {
 
 static CANARY_UMBRELLA_LOCK: Mutex<()> = Mutex::new(());
 
-/// Keep test-local backend compiles narrowly parallel by default. Rust already
-/// schedules independent test functions, while the umbrellas add their own
-/// bounded jobs; combining large inner and outer counts oversubscribes the host
-/// severely. The override is an explicit profiling seam, not a CI requirement.
-fn canary_backend_worker_count() -> usize {
-    std::env::var("OMEGA_CANARY_INNER_WORKERS")
-        .ok()
+const DEFAULT_CANARY_INNER_WORKERS: usize = 1;
+const DEFAULT_CANARY_OUTER_JOB_CAP: usize = 8;
+
+fn configured_canary_worker_count(
+    variable: &str,
+    configured: Option<String>,
+    default: usize,
+) -> usize {
+    configured
         .map(|value| {
             value
                 .parse::<usize>()
                 .ok()
                 .filter(|count| *count > 0)
-                .unwrap_or_else(|| {
-                    panic!("OMEGA_CANARY_INNER_WORKERS must be a positive integer, got {value:?}")
-                })
+                .unwrap_or_else(|| panic!("{variable} must be a positive integer, got {value:?}"))
         })
-        .unwrap_or(2)
+        .unwrap_or(default)
+}
+
+fn default_canary_outer_job_count(available_parallelism: usize) -> usize {
+    available_parallelism
+        .max(1)
+        .min(DEFAULT_CANARY_OUTER_JOB_CAP)
+}
+
+/// Prefer independent canary compiles over inner backend fan-out. On the fixed
+/// 112-compile mixed corpus, outer 8 / inner 1 reduced wall time from 21.26s to
+/// 13.00s versus outer 4 / inner 2. The eight-job cap retains the measured
+/// throughput point; outer 12 / inner 1 was no faster and consumed more memory.
+/// The override remains an explicit profiling seam, not a CI requirement.
+fn canary_backend_worker_count() -> usize {
+    configured_canary_worker_count(
+        "OMEGA_CANARY_INNER_WORKERS",
+        std::env::var("OMEGA_CANARY_INNER_WORKERS").ok(),
+        DEFAULT_CANARY_INNER_WORKERS,
+    )
 }
 
 /// Run independent corpus members with bounded outer parallelism. Backend
-/// corpus helpers use two inner workers by default, preventing unbounded nested
-/// oversubscription; results return in source order so diagnostics remain
-/// deterministic.
+/// corpus helpers use one inner worker by default, preventing nested
+/// oversubscription while eight independent compiles use the host. Results
+/// return in source order so diagnostics remain deterministic.
 fn run_bounded_canary_jobs<T, R>(items: &[T], worker: impl Fn(&T) -> R + Sync) -> Vec<R>
 where
     T: Sync,
@@ -2229,22 +2248,16 @@ where
     if items.is_empty() {
         return Vec::new();
     }
-    let default_jobs = thread::available_parallelism()
-        .map(usize::from)
-        .unwrap_or(1)
-        .min(4);
-    let requested_jobs = std::env::var("OMEGA_CANARY_JOBS")
-        .ok()
-        .map(|value| {
-            value
-                .parse::<usize>()
-                .ok()
-                .filter(|count| *count > 0)
-                .unwrap_or_else(|| {
-                    panic!("OMEGA_CANARY_JOBS must be a positive integer, got {value:?}")
-                })
-        })
-        .unwrap_or(default_jobs);
+    let default_jobs = default_canary_outer_job_count(
+        thread::available_parallelism()
+            .map(usize::from)
+            .unwrap_or(1),
+    );
+    let requested_jobs = configured_canary_worker_count(
+        "OMEGA_CANARY_JOBS",
+        std::env::var("OMEGA_CANARY_JOBS").ok(),
+        default_jobs,
+    );
     let job_count = requested_jobs.min(items.len());
     if job_count == 1 {
         return items.iter().map(worker).collect();
@@ -2274,6 +2287,35 @@ where
         results.sort_by_key(|(index, _)| *index);
         results.into_iter().map(|(_, result)| result).collect()
     })
+}
+
+#[test]
+fn canary_parallelism_defaults_and_overrides_are_pinned() {
+    assert_eq!(DEFAULT_CANARY_INNER_WORKERS, 1);
+    assert_eq!(default_canary_outer_job_count(14), 8);
+    assert_eq!(default_canary_outer_job_count(4), 4);
+    assert_eq!(default_canary_outer_job_count(0), 1);
+    assert_eq!(configured_canary_worker_count("TEST_WORKERS", None, 8), 8);
+    assert_eq!(
+        configured_canary_worker_count("TEST_WORKERS", Some("3".to_owned()), 8),
+        3
+    );
+    assert!(
+        std::panic::catch_unwind(|| configured_canary_worker_count(
+            "TEST_WORKERS",
+            Some("0".to_owned()),
+            8,
+        ))
+        .is_err()
+    );
+    assert!(
+        std::panic::catch_unwind(|| configured_canary_worker_count(
+            "TEST_WORKERS",
+            Some("many".to_owned()),
+            8,
+        ))
+        .is_err()
+    );
 }
 
 /// A build dir no other concurrent compile can collide with: process id plus a

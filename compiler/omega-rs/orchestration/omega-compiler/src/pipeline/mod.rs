@@ -68,8 +68,11 @@ pub use program_storage_entry::{
     install_program_storage_entry_provider_invocation, install_program_storage_entry_roots,
 };
 pub use program_storage_root_argument_binding::{
+    ProgramStorageEntryRecordedWholeRootArgumentError,
+    ProgramStorageEntryRecordedWholeRootArgumentRecovery,
     ProgramStorageEntryWholeRootArgumentBinding, ProgramStorageEntryWholeRootArgumentCarrier,
     ProgramStorageEntryWholeRootArgumentError, bind_program_storage_entry_whole_root_arguments,
+    bind_recorded_program_storage_entry_whole_root_arguments,
 };
 pub use program_storage_root_authority::{
     ProgramStorageEntryInitialStorageAuthorityKind, ProgramStorageEntryRootAuthorityDisposition,

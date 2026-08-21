@@ -84,7 +84,7 @@ impl InstalledProgramStorageRoots {
     }
 }
 
-fn validate_root_authority_disposition(
+pub(super) fn validate_root_authority_disposition(
     roots: &InstalledProgramStorageRoots,
 ) -> Result<(), ProgramStorageEntryDiagnostic> {
     let record = roots.installation_record();

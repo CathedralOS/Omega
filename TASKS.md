@@ -136,13 +136,20 @@ Remaining:
   type/shape/placement, receiver, and Unit-result drift reject while returning
   the intact authority. It does not materialize operand bytes, populate
   registers or stack, emit the call edge, or claim native execution. Attached
-  and zero-sized-receiver forms remain deliberately excluded.
+  and zero-sized-receiver forms remain deliberately excluded. The
+  receiver-free path now has one sealed transition from the recorded
+  production installation through validated root disposition and whole-root
+  authority into that argument carrier. A borrowed preflight rejects binding,
+  source/ABI, receiver, role/order, type/shape, or placement drift without
+  consuming the recording; fail-closed errors after ownership starts moving
+  retain the highest successfully constructed authority carrier for recovery.
+  This linkage still creates no runtime operand bytes, wrapper body, call edge,
+  or native-execution evidence.
   Production builds therefore still lack a source-compatible attached-root
   value/authority carrier (or separate hidden supply), generated wrapper body,
   and source-function inbound realization; defining that disposition at the
-  source schema, emitting the body, realizing its runtime values, defining the
-  installation-carrier linkage, adding the
-  exact native call edge to the retained operation, and retaining resulting
+  source schema, emitting the body, realizing receiver-free root values, adding
+  the exact native call edge to the retained operation, and retaining resulting
   native bridge evidence remain before this slice is complete.
 
   The CLI corpus is rooted on all hosted targets except the four GUI samples,
