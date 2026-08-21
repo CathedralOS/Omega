@@ -81,10 +81,10 @@ fn proof_bearing_operation_obligation(kind: &OperationKind) -> Option<(Obligatio
         | OperationKind::ExactIntegerShiftLeft { obligation, .. }
         | OperationKind::ExactIntegerDivide { obligation, .. }
         | OperationKind::ExactIntegerRemainder { obligation, .. }
-        | OperationKind::SaturatingIntegerDivide { obligation, .. }
         | OperationKind::SaturatingIntegerRemainder { obligation, .. } => (*obligation, false),
         OperationKind::WrappingIntegerDivide { obligation, .. }
-        | OperationKind::WrappingIntegerRemainder { obligation, .. } => (*obligation, true),
+        | OperationKind::WrappingIntegerRemainder { obligation, .. }
+        | OperationKind::SaturatingIntegerDivide { obligation, .. } => (*obligation, true),
         _ => return None,
     };
     Some((obligation, is_canonical_nonzero_row))

@@ -241,6 +241,7 @@ pub(super) fn wrapping_integer_remainder_obligation(
     }
 }
 
+#[cfg(test)]
 pub(super) fn saturating_integer_divide_obligation(
     integer_type: psi_core::IntegerType,
     left: ScalarTerm,
