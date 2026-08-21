@@ -14,6 +14,7 @@ mod operator_adapter_dispatch;
 mod output;
 mod program_entry_source_signature;
 mod program_storage_entry;
+mod program_storage_extent_value;
 mod program_storage_root_argument_binding;
 mod program_storage_root_authority;
 mod program_storage_source_call;
@@ -47,8 +48,10 @@ pub use compiler::{
     compile_with_worker_count_and_artifact_policy,
 };
 pub use program_entry_source_signature::{
-    ProgramEntrySourceReceiverSignature, ProgramEntrySourceResultSignature,
-    ProgramEntrySourceVisibleParameterSignature, SelectedProgramEntrySourceSignature,
+    ProgramEntrySourceExtentFieldLayout, ProgramEntrySourceExtentFieldRole,
+    ProgramEntrySourceExtentValueLayout, ProgramEntrySourceReceiverSignature,
+    ProgramEntrySourceResultSignature, ProgramEntrySourceVisibleParameterSignature,
+    SelectedProgramEntrySourceSignature,
 };
 pub use program_storage_entry::{
     InstalledImageSubextent, InstalledProgramStorageRoots, PartitionedProgramStorageRoots,
@@ -66,6 +69,11 @@ pub use program_storage_entry::{
     bind_emitted_program_storage_entry_native_bridge, bind_generated_program_storage_entry_plan,
     bind_program_storage_entry_plan, install_and_activate_program_storage_entry_receiver,
     install_program_storage_entry_provider_invocation, install_program_storage_entry_roots,
+};
+pub use program_storage_extent_value::{
+    ProgramStorageEntryExtentLogicalValue, ProgramStorageEntryWholeRootLogicalValueCarrier,
+    ProgramStorageEntryWholeRootLogicalValueError,
+    bind_program_storage_entry_whole_root_logical_values,
 };
 pub use program_storage_root_argument_binding::{
     ProgramStorageEntryRecordedWholeRootArgumentError,

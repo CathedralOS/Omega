@@ -315,17 +315,18 @@ pub(crate) fn validate_selected_program_entry_shape(
                 1 => super::ProgramStorageEntryRootRole::InitialStorage,
                 _ => unreachable!("selected source shape validation fixed visible arity"),
             };
-            let value_shape =
-                super::calling_policy_plans::selected_program_storage_source_value_shape(
+            let extent_value_layout =
+                super::calling_policy_plans::selected_program_storage_source_extent_value_layout(
                     typed,
                     selected.slot,
                     parameter.type_reference,
                 )
             .map_err(|diagnostic| {
                 Diagnostic::error(format!(
-                    "selected entry machine `{machine_name}` visible parameter {index} has no exact ABI value shape: {diagnostic}"
+                    "selected entry machine `{machine_name}` visible parameter {index} has no exact Extent value layout: {diagnostic}"
                 ))
             })?;
+            let value_shape = extent_value_layout.shape();
             Ok(super::SelectedProgramEntrySourceSignature::visible_parameter(
                 role,
                 index,
@@ -333,6 +334,7 @@ pub(crate) fn validate_selected_program_entry_shape(
                     .normalized_type_identity(parameter.type_reference)
                     .into_string(),
                 value_shape,
+                extent_value_layout,
                 parameter.is_const,
                 parameter.is_mutable,
             ))

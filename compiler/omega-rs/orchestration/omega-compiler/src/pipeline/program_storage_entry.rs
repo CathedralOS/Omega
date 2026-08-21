@@ -1749,6 +1749,17 @@ pub fn bind_generated_program_storage_entry_plan(
             binding.initial_storage().parameter_type_identity(),
         )
         .map_err(ProgramStorageEntryDiagnostic)?;
+    for parameter in source_signature.visible_parameters() {
+        parameter
+            .extent_value_layout()
+            .validate_backend_layout(layouts)
+            .map_err(|diagnostic| {
+                ProgramStorageEntryDiagnostic(format!(
+                    "selected program-storage {:?} value layout failed backend replay: {diagnostic}",
+                    parameter.role()
+                ))
+            })?;
+    }
     if let Some(type_identity) = receiver_type_identity {
         let layout = layouts
             .machine_layouts

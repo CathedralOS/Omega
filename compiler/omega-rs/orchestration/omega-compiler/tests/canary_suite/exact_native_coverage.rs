@@ -3,6 +3,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 pub(super) const EXPECTED_UNIQUE_ROOTED_ACTIVE_COVERAGE: usize = 671;
+pub(super) const EXPECTED_UNIQUE_LEGACY_ACTIVE_COVERAGE: usize = 17;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct ExactNativeCanaryOwner {
@@ -13,7 +14,8 @@ pub(super) struct ExactNativeCanaryOwner {
 
 #[derive(Debug)]
 pub(super) struct ExactNativeCanaryCoverageIndex {
-    owners: BTreeMap<String, Vec<ExactNativeCanaryOwner>>,
+    rooted_owners: BTreeMap<String, Vec<ExactNativeCanaryOwner>>,
+    legacy_owners: BTreeMap<String, Vec<ExactNativeCanaryOwner>>,
     source_file_count: usize,
     source_byte_count: usize,
     test_body_count: usize,
@@ -57,7 +59,8 @@ impl ExactNativeCanaryCoverageIndex {
 
     fn empty() -> Self {
         Self {
-            owners: BTreeMap::new(),
+            rooted_owners: BTreeMap::new(),
+            legacy_owners: BTreeMap::new(),
             source_file_count: 0,
             source_byte_count: 0,
             test_body_count: 0,
@@ -80,11 +83,15 @@ impl ExactNativeCanaryCoverageIndex {
         let structure = mask_source(source, true);
         for test in enabled_test_functions(&structure, &code) {
             self.test_body_count += 1;
-            let Some((canary, expected_status)) = exact_native_coverage(&test.body) else {
+            let Some((kind, canary, expected_status)) = exact_native_coverage(&test.body) else {
                 continue;
             };
             self.qualifying_test_count += 1;
-            self.owners
+            let owners = match kind {
+                ExactNativeOwnerKind::Rooted => &mut self.rooted_owners,
+                ExactNativeOwnerKind::Legacy => &mut self.legacy_owners,
+            };
+            owners
                 .entry(canary)
                 .or_default()
                 .push(ExactNativeCanaryOwner {
@@ -95,16 +102,20 @@ impl ExactNativeCanaryCoverageIndex {
         }
     }
 
-    pub(super) fn unique_owner(&self, canary: &str) -> Option<&ExactNativeCanaryOwner> {
-        let owners = self.owners.get(canary)?;
-        let [owner] = owners.as_slice() else {
-            return None;
-        };
-        Some(owner)
+    pub(super) fn unique_rooted_owner(&self, canary: &str) -> Option<&ExactNativeCanaryOwner> {
+        unique_owner(&self.rooted_owners, canary)
     }
 
-    pub(super) fn owner_count(&self, canary: &str) -> usize {
-        self.owners.get(canary).map_or(0, Vec::len)
+    pub(super) fn unique_legacy_owner(&self, canary: &str) -> Option<&ExactNativeCanaryOwner> {
+        unique_owner(&self.legacy_owners, canary)
+    }
+
+    pub(super) fn rooted_owner_count(&self, canary: &str) -> usize {
+        owner_count(&self.rooted_owners, canary)
+    }
+
+    pub(super) fn legacy_owner_count(&self, canary: &str) -> usize {
+        owner_count(&self.legacy_owners, canary)
     }
 
     pub(super) const fn source_file_count(&self) -> usize {
@@ -122,6 +133,21 @@ impl ExactNativeCanaryCoverageIndex {
     pub(super) const fn qualifying_test_count(&self) -> usize {
         self.qualifying_test_count
     }
+}
+
+fn unique_owner<'index>(
+    owners: &'index BTreeMap<String, Vec<ExactNativeCanaryOwner>>,
+    canary: &str,
+) -> Option<&'index ExactNativeCanaryOwner> {
+    let owners = owners.get(canary)?;
+    let [owner] = owners.as_slice() else {
+        return None;
+    };
+    Some(owner)
+}
+
+fn owner_count(owners: &BTreeMap<String, Vec<ExactNativeCanaryOwner>>, canary: &str) -> usize {
+    owners.get(canary).map_or(0, Vec::len)
 }
 
 struct TestFunction {
@@ -256,11 +282,14 @@ fn character_end(bytes: &[u8], opening: usize) -> Option<usize> {
     (bytes.get(index) == Some(&b'\'')).then_some(index)
 }
 
-fn exact_native_coverage(body: &str) -> Option<(String, i32)> {
-    if !body.contains("compile_rooted_canary_for_native_host")
-        || !body.contains("Command::new(")
-        || !body.contains(".output()")
-    {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ExactNativeOwnerKind {
+    Rooted,
+    Legacy,
+}
+
+fn exact_native_coverage(body: &str) -> Option<(ExactNativeOwnerKind, String, i32)> {
+    if !body.contains("Command::new(") || !body.contains(".output()") {
         return None;
     }
     let canaries = exact_pass_canary_literals(body);
@@ -271,6 +300,17 @@ fn exact_native_coverage(body: &str) -> Option<(String, i32)> {
         .chars()
         .filter(|character| !character.is_whitespace())
         .collect::<String>();
+    let kind = if body.contains("compile_rooted_canary_for_native_host") {
+        ExactNativeOwnerKind::Rooted
+    } else if compact.matches("compile(CompileOptions{").count() == 1
+        && compact.contains("root_path:canary.join(\"main.omg\")")
+        && compact.contains("target_name:None")
+        && compact.contains("write_output:true")
+    {
+        ExactNativeOwnerKind::Legacy
+    } else {
+        return None;
+    };
     let assertion = compact.find("assert_eq!(output.status.code(),Some(")?
         + "assert_eq!(output.status.code(),Some(".len();
     let status_digits = compact[assertion..]
@@ -284,7 +324,7 @@ fn exact_native_coverage(body: &str) -> Option<(String, i32)> {
     if !compact[status_end..].starts_with(')') {
         return None;
     }
-    Some((canary.clone(), status_digits.parse().ok()?))
+    Some((kind, canary.clone(), status_digits.parse().ok()?))
 }
 
 fn exact_pass_canary_literals(body: &str) -> Vec<String> {
@@ -395,41 +435,79 @@ fn raw_string_end(bytes: &[u8], start: usize) -> Option<usize> {
 
 #[test]
 fn exact_native_source_index_is_strict_and_ambiguity_fails_closed() {
-    let qualifying = format!(
-        "#[test]\nfn exact() {{ let canary = pass_{}(\"demo/exact\"); \
+    let rooted = format!(
+        "#[test]\nfn rooted() {{ let canary = pass_{}(\"demo/rooted\"); \
          compile_rooted_canary_for_native_host(&canary, build).unwrap(); \
          let output = Command::new(path).output().unwrap(); \
          assert_eq!(output.status.code(), Some(70)); }}",
         "canary"
     );
-    let ignored = format!("#[test]\n#[ignore]\n{}", &qualifying[8..]);
-    let configured = format!("#[test]\n#[cfg(windows)]\n{}", &qualifying[8..]);
-    let configured_before = format!("#[cfg(windows)]\n{qualifying}");
-    let configured_before_blank = format!("#[cfg(windows)]\n\n{qualifying}");
-    let weak_status = qualifying.replace(
+    let legacy = format!(
+        "#[test]\nfn legacy() {{ let canary = pass_{}(\"demo/legacy\"); \
+         compile(CompileOptions {{ root_path: canary.join(\"main.omg\"), \
+         build_dir: Some(build), target_name: None, write_output: true }}).unwrap(); \
+         let output = Command::new(path).output().unwrap(); \
+         assert_eq!(output.status.code(), Some(71)); }}",
+        "canary"
+    );
+    let ignored = format!("#[test]\n#[ignore]\n{}", &rooted[8..]);
+    let configured = format!("#[test]\n#[cfg(windows)]\n{}", &rooted[8..]);
+    let configured_before = format!("#[cfg(windows)]\n{rooted}");
+    let configured_before_blank = format!("#[cfg(windows)]\n\n{rooted}");
+    let weak_status = rooted.replace(
         "assert_eq!(output.status.code(), Some(70));",
         "assert!(output.status.code().is_some());",
     );
-    let ambiguous = qualifying.replace("fn exact", "fn first")
-        + "\n"
-        + &qualifying.replace("fn exact", "fn second");
+    let wrong_target = legacy.replace("target_name: None", "target_name: Some(target)");
+    let no_output = legacy.replace("write_output: true", "write_output: false");
+    let wrong_root = legacy.replace(
+        "root_path: canary.join(\"main.omg\")",
+        "root_path: other.join(\"main.omg\")",
+    );
+    let auxiliary = legacy.replace(
+        "compile(CompileOptions",
+        "compile_with_auxiliary_artifacts(CompileOptions",
+    );
+    let multiple_canaries = legacy.replace(
+        "let canary =",
+        "let other = pass_canary(\"demo/other\"); let canary =",
+    );
+    let no_execution = legacy.replace(".output()", ".status()");
+    let ambiguous =
+        legacy.replace("fn legacy", "fn first") + "\n" + &legacy.replace("fn legacy", "fn second");
     let index = ExactNativeCanaryCoverageIndex::from_sources(&[
-        ("positive.rs", &qualifying),
+        ("rooted.rs", &rooted),
+        ("legacy.rs", &legacy),
         ("ignored.rs", &ignored),
         ("configured.rs", &configured),
         ("configured_before.rs", &configured_before),
         ("configured_before_blank.rs", &configured_before_blank),
         ("weak.rs", &weak_status),
+        ("wrong_target.rs", &wrong_target),
+        ("no_output.rs", &no_output),
+        ("wrong_root.rs", &wrong_root),
+        ("auxiliary.rs", &auxiliary),
+        ("multiple_canaries.rs", &multiple_canaries),
+        ("no_execution.rs", &no_execution),
     ]);
     let owner = index
-        .unique_owner("demo/exact")
-        .expect("one strict enabled exact-native owner should qualify");
+        .unique_rooted_owner("demo/rooted")
+        .expect("one strict enabled rooted exact-native owner should qualify");
     assert_eq!(
         (owner.test_name.as_str(), owner.expected_status),
-        ("exact", 70)
+        ("rooted", 70)
     );
+    let owner = index
+        .unique_legacy_owner("demo/legacy")
+        .expect("one strict enabled legacy exact-native owner should qualify");
+    assert_eq!(
+        (owner.test_name.as_str(), owner.expected_status),
+        ("legacy", 71)
+    );
+    assert_eq!(index.rooted_owner_count("demo/legacy"), 0);
+    assert_eq!(index.legacy_owner_count("demo/rooted"), 0);
 
     let ambiguous = ExactNativeCanaryCoverageIndex::from_sources(&[("ambiguous.rs", &ambiguous)]);
-    assert_eq!(ambiguous.owner_count("demo/exact"), 2);
-    assert!(ambiguous.unique_owner("demo/exact").is_none());
+    assert_eq!(ambiguous.legacy_owner_count("demo/legacy"), 2);
+    assert!(ambiguous.unique_legacy_owner("demo/legacy").is_none());
 }
