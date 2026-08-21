@@ -23,6 +23,7 @@ pub struct ProgramStorageEntryWholeRootArgumentBinding {
     normalized_type_identity: String,
     shape: ValueShape,
     placement: ValuePlacement,
+    extent_value_layout: super::ProgramEntrySourceExtentValueLayout,
 }
 
 impl ProgramStorageEntryWholeRootArgumentBinding {
@@ -43,6 +44,9 @@ impl ProgramStorageEntryWholeRootArgumentBinding {
     }
     pub const fn placement(&self) -> &ValuePlacement {
         &self.placement
+    }
+    pub const fn extent_value_layout(&self) -> &super::ProgramEntrySourceExtentValueLayout {
+        &self.extent_value_layout
     }
 }
 
@@ -321,6 +325,7 @@ fn validate_whole_root_binding(
             normalized_type_identity: binding_type.to_owned(),
             shape: abi_argument.shape(),
             placement: abi_argument.placement().clone(),
+            extent_value_layout: source.extent_value_layout().clone(),
         });
     }
     arguments.try_into().map_err(|_| {

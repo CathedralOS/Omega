@@ -854,15 +854,15 @@ fn value_shape_from_type(
     }
 }
 
-/// Derive the flat ABI value shape for the currently admitted UEFI/Microsoft
-/// program-storage source schema. The richer `BoundaryValueShape` graph is not
-/// retained here, so any future SysV/AAPCS source schema must add and consume
-/// structural classification rather than passing this fence.
-pub(crate) fn selected_program_storage_source_value_shape(
+/// Derive the exact address-free `Extent` graph for the currently admitted
+/// UEFI/Microsoft program-storage source schema. A future SysV/AAPCS source
+/// schema must retain and classify its own structural graph rather than
+/// passing this fence.
+pub(crate) fn selected_program_storage_source_extent_value_layout(
     typed: &TypedTrees,
     slot: omega_target::ProgramEntrySlotDeclaration,
     type_reference: TypeReferenceHandle,
-) -> Result<ValueShape, String> {
+) -> Result<super::ProgramEntrySourceExtentValueLayout, String> {
     if slot.owner != omega_target::TargetProfile::UefiX64
         || slot.schema != omega_target::ProgramEntrySchema::ProgramStorageApplication
         || slot.visible_parameters
@@ -871,19 +871,96 @@ pub(crate) fn selected_program_storage_source_value_shape(
             != Some(omega_target::ProgramEntryCallingConvention::MicrosoftX64)
     {
         return Err(
-            "flat selected-source shape derivation is restricted to the exact UEFI/Microsoft program-storage schema"
+            "selected-source Extent layout derivation is restricted to the exact UEFI/Microsoft program-storage schema"
                 .into(),
         );
     }
-    value_shape_from_type(
+    let mut shapes = Vec::new();
+    let mut fields = Vec::new();
+    let (shape, root) = value_shape_from_type(
         typed,
         type_reference,
         &[],
         &mut Vec::new(),
-        &mut Vec::new(),
-        &mut Vec::new(),
+        &mut shapes,
+        &mut fields,
+    )?;
+    let mut base_type = type_reference;
+    while let TypeReferenceNode::Constrained {
+        base_type: unconstrained,
+        ..
+    } = typed.type_reference_table.type_reference(base_type)
+    {
+        base_type = *unconstrained;
+    }
+    let TypeReferenceNode::Named {
+        symbol: data_symbol,
+        ..
+    } = typed.type_reference_table.type_reference(base_type)
+    else {
+        return Err("selected program-storage root is not a named Extent record".into());
+    };
+    let definition = typed
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.symbol == *data_symbol)
+        .ok_or_else(|| "selected program-storage Extent has no data definition".to_owned())?;
+    let [
+        psi_typed_trees::data::DataMember::Field(base),
+        psi_typed_trees::data::DataMember::Field(length),
+    ] = typed.data_members(definition)
+    else {
+        return Err("selected program-storage Extent must declare exactly two fields".into());
+    };
+    if base.relevance.is_erased()
+        || length.relevance.is_erased()
+        || base.name.as_str() != "base"
+        || length.name.as_str() != "length"
+        || typed.primitive_type_reference(base.type_reference) != Some(PrimitiveType::Addr)
+        || typed.primitive_type_reference(length.type_reference) != Some(PrimitiveType::U64)
+    {
+        return Err(
+            "selected program-storage Extent must declare exact `base: addr; length: u64` fields"
+                .into(),
+        );
+    }
+    let root = shapes
+        .get(usize::from(root))
+        .ok_or_else(|| "selected program-storage Extent lost its record shape root".to_owned())?;
+    let BoundaryValueClass::Record {
+        first_field,
+        field_count: 2,
+    } = root.class
+    else {
+        return Err(
+            "selected program-storage Extent is not an exact two-field record graph".into(),
+        );
+    };
+    let normalized_fields = fields
+        .get(usize::from(first_field)..usize::from(first_field) + 2)
+        .ok_or_else(|| "selected program-storage Extent field graph is out of bounds".to_owned())?;
+    let [base_field, length_field] = normalized_fields else {
+        unreachable!("exact Extent record graph retains two fields")
+    };
+    let scalar_shape = |field: &BoundaryValueField| -> Result<ValueShape, String> {
+        let child = shapes.get(usize::from(field.shape)).ok_or_else(|| {
+            "selected program-storage Extent child shape is out of bounds".to_owned()
+        })?;
+        if !matches!(child.class, BoundaryValueClass::Integer) {
+            return Err("selected program-storage Extent field is not an integer scalar".into());
+        }
+        Ok(ValueShape::integer(child.byte_size, child.alignment))
+    };
+    super::ProgramEntrySourceExtentValueLayout::from_checked_record(
+        *data_symbol,
+        base.symbol,
+        base_field.byte_offset,
+        scalar_shape(base_field)?,
+        length.symbol,
+        length_field.byte_offset,
+        scalar_shape(length_field)?,
+        shape,
     )
-    .map(|(shape, _)| shape)
 }
 
 fn push_boundary_shape(

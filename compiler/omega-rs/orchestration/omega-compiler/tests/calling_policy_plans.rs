@@ -9,6 +9,7 @@ use omega_compiler::{
     ProgramStorageRootInput, SelectedExternalRootProviderPlan, SelectedProgramStorageEntryPlan,
     bind_emitted_program_storage_entry_native_bridge, bind_program_storage_entry_plan,
     bind_program_storage_entry_whole_root_arguments,
+    bind_program_storage_entry_whole_root_logical_values,
     bind_recorded_program_storage_entry_whole_root_arguments, compile, compile_to_checked,
     evaluate_calling_policy_plan, install_program_storage_entry_provider_invocation,
     install_program_storage_entry_roots, program_storage_installation_record_json,
@@ -1623,6 +1624,25 @@ machine build(builder: &mut Build) {
         ),
         (0x1000, 0x2000)
     );
+    let values = bind_program_storage_entry_whole_root_logical_values(carrier)
+        .expect("exact whole-root authorities should bind their logical Extent values");
+    let [image_value, storage_value] = values.values();
+    assert_eq!((image_value.base(), image_value.length()), (0x1000, 0x800));
+    assert_eq!(
+        (storage_value.base(), storage_value.length()),
+        (0x8000, 0x2000)
+    );
+    for (index, value) in values.values().iter().enumerate() {
+        assert_eq!(value.visible_parameter_index(), index);
+        assert_eq!(value.call_parameter_index(), index);
+        assert_eq!(
+            value.layout().shape(),
+            omega_calling_conventions::ValueShape::integer(16, 8)
+        );
+        let [base, length] = value.layout().fields();
+        assert_eq!(base.byte_offset(), 0);
+        assert_eq!(length.byte_offset(), 8);
+    }
     let _ = fs::remove_dir_all(directory);
 }
 

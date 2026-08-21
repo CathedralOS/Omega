@@ -144,13 +144,24 @@ Remaining:
   consuming the recording; fail-closed errors after ownership starts moving
   retain the highest successfully constructed authority carrier for recovery.
   This linkage still creates no runtime operand bytes, wrapper body, call edge,
-  or native-execution evidence.
+  or native-execution evidence. The selected source signature now also retains
+  the exact checked `Extent` record graph—`base: addr` at byte 0 and
+  `length: u64` at byte 8—and replays its data/field symbols, names, primitive
+  types, offsets, aggregate size/alignment, and absence of alternate storage
+  encodings against the backend layout. The receiver-free argument carrier can
+  move into one sealed non-clone logical-value carrier that keeps Image and
+  InitialStorage authority intact while binding their exact base/length
+  observations to those declaration and call rows. Structural, role/index,
+  target-layout, or wrapping-geometry drift returns the intact prior carrier.
+  These are logical values only: no bytes, registers, stack locations, wrapper
+  body, call, or execution evidence is produced.
   Production builds therefore still lack a source-compatible attached-root
   value/authority carrier (or separate hidden supply), generated wrapper body,
   and source-function inbound realization; defining that disposition at the
-  source schema, emitting the body, realizing receiver-free root values, adding
-  the exact native call edge to the retained operation, and retaining resulting
-  native bridge evidence remain before this slice is complete.
+  source schema, emitting the body, physically realizing receiver-free root
+  values, adding the exact native call edge to the retained operation, and
+  retaining resulting native bridge evidence remain before this slice is
+  complete.
 
   The CLI corpus is rooted on all hosted targets except the four GUI samples,
   which currently select Windows x64 and macOS arm64. Linux needs an ordinary
