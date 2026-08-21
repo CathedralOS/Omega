@@ -13,22 +13,7 @@ decision's durable identity does not change when this queue is pruned.
 
 Last pruned: 2026-08-21.
 
-## Q1 — Fixed-operator surface-binding syntax
-
-Named `operator` declarations are the semantic identities behind fixed surface
-tokens such as `+`, `[]`, and `[..]`. The language guide previously wrote this
-association with a `spelling` clause, but that keyword and clause shape were
-never approved and are not part of the settled language.
-
-Choose the source form that binds a fixed operator token to a named declaration.
-The decision must settle where the binding appears relative to the signature and
-contract, how punctuation-shaped tokens such as `[]` and `[..]` are named, and
-whether one declaration may bind more than one fixed token. It must preserve the
-settled semantics: the named path remains canonical, resolution is static and
-operand-directed, the public signature and proof contract remain visible, and a
-`boundary operator` differs only in how its implementation is supplied.
-
-## Q2 — UEFI physical handoff versus semantic program-storage entry
+## Q1 — UEFI physical handoff versus semantic program-storage entry
 
 `ProgramStorageEntry::enter` canonically introduces image and initial-storage
 roots, and the UEFI target slot currently requires its selected source machine
@@ -48,7 +33,7 @@ keep `ProgramStorageEntry::enter` as the sole root-introduction requirement,
 avoid treating firmware handles as `Extent` values, and leave the generated
 bridge with one exact auditable physical ABI and source-visible shape.
 
-## Q3 — Native logical-fuel meter ABI and continuation
+## Q2 — Native logical-fuel meter ABI and continuation
 
 Terminal Psi settles sponsor-owned logical fuel: trusted native lowering charges
 before each semantic operation or taken edge, exhaustion is not program-visible,
@@ -67,7 +52,7 @@ x86-64 and AArch64 calling policies, preserve stack/alignment and machine-state
 contracts, and keep fixed-fuel meter elision a separately admitted installation
 decision.
 
-## Q4 — External-entry stack-domain accounting
+## Q3 — External-entry stack-domain accounting
 
 Terminal-Psi stack evidence derives the exact closure below a selected machine
 entry, but an external root also consumes provider-specific adapter and hardware
@@ -86,7 +71,7 @@ with `EntryStack::{Interrupted, Dedicated, ProviderSelected}` without placing
 OS-specific interrupt-frame vocabulary in the language or treating a numeric
 provider assertion as compiler-derived terminal evidence.
 
-## Q5 — Progress-profile classification and premise attachment
+## Q4 — Progress-profile classification and premise attachment
 
 Termination guarantees can retain sealed `ProgressProfileId` premises, but the
 ordinary domain and routed-requirement surface does not distinguish a progress
@@ -100,7 +85,7 @@ witnesses outside public contract identity. Generic routed/domain requirements
 must not become progress premises merely because they are predicate-free,
 provider-backed, or mentioned by a terminating machine.
 
-## Q6 — Registered-callback private placement contract
+## Q5 — Registered-callback private placement contract
 
 The settled callback surface selects a named static machine through
 `where machine Selected satisfies Trait::requirement`. The requirement's

@@ -38,28 +38,26 @@ from parameter/result use and provider selection rather than from the
 Core operators keep their public contracts visible while primitive lowering
 stays behind the compiler/runtime boundary. Fixed surface tokens resolve to
 these named declarations without hiding their signatures or proof obligations.
-The exact token-binding syntax is open in
-[Owner Q1](../../OWNER_QUESTIONS.md#q1--fixed-operator-surface-binding-syntax);
-`spelling` is not an accepted keyword, so these examples omit the association:
+The literal fixed token appears immediately after `operator`; `boundary` and
+the selected provider remain independent implementation-supply facts:
 
 ```omega
-boundary operator Slice::index<T>(items: &[T], index: u64) -> T
+boundary operator [] Slice::index<T>(items: &[T], index: u64) -> T
+provider omega::language::core::slice_indexing
 requires
     index < items.len;
 
-boundary operator Slice::range<T>(items: &[T], start: u64, end: u64) -> &[T]
+boundary operator [..] Slice::range<T>(items: &[T], start: u64, end: u64) -> &[T]
+provider omega::language::core::slice_indexing
 requires
     start <= end && end <= items.len;
 ```
 
-The declarations are intended to back `[]` and `[..]`, respectively. Owner Q1
-will settle how that association is written.
-
 Working interpretation:
 
 - `requires` remains a proof obligation for callers.
-- `boundary operator` says implementation lowering is accepted from the
-  compiler/runtime provider for that operator.
+- `boundary operator` says the declaration crosses an audited implementation
+  boundary; `provider` names the exact registered supplier selected for it.
 - The boundary report records boundary operators, library/authority boundary
   clauses, target policies, and accepted policies.
 - Every boundary implementation binding references a registered

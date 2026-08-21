@@ -784,9 +784,8 @@ every other representation-derived observer. Logical quotient equality is the
 declared relation. Executable equality is an ordinary lifted quotient operation
 and must prove `equals(x, y) == true <-> R(x, y)` through
 `DecidesEquivalence`; that conformance also derives the required `Respects`
-bridge. Binding the named operation to fixed `==` syntax is the general
-operator-surface decision in
-[Owner Q1](../../OWNER_QUESTIONS.md#q1--fixed-operator-surface-binding-syntax).
+bridge. The named operation may bind fixed `==` through the ordinary
+[`operator` declaration head](chapter_5_expressions_evaluation.md#operators).
 Other observer roles state their role-specific correctness as ordinary
 contracts until a named interface exists.
 
