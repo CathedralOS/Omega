@@ -375,7 +375,10 @@ Current ownership is:
   part of the temporal flow spine: `invariants.rs` owns invariant definition
   facts, and `domains.rs` owns domain dependency facts and dependency-path
   accessors. Both expose root constructors so invariant and domain production
-  joins arena roots explicitly.
+  joins arena roots explicitly. Suspension and blocking publication project
+  separate machine-keyed rows from the transient operational inference plan
+  after flow/service construction; each checked root consumes only its own
+  boolean axis and preserves its independent published interface.
 - `psi-checked-trees/src/facts/contract_plans.rs` owns each machine's normalized
   public contract. Its settled crash axis is a canonical set of cause buckets
   with source-handle-free predicate identities; route-less and explicit-`true`

@@ -1384,9 +1384,11 @@ compiler concept is introduced.
   umbrella. Static-machine selection validation now projects transient
   inference into separate machine-keyed suspension and blocking rows before
   threading callable-shape judgments; service reach is inferred separately and
-  neither operational axis can supply the other's fallback. The published
-  checked operational root is retired; its plan remains only as a transient
-  validation and independent-fact construction input.
+  neither operational axis can supply the other's fallback. Checked fact
+  construction likewise projects separate machine-keyed rows before publishing
+  the suspension and blocking roots, including mixed-axis checked bodies. The
+  published checked operational root is retired; its plan remains only as a
+  transient validation and independent-fact construction input.
   Continue removing umbrella carriers after their remaining consumers migrate.
 - **TPR4/TPR6 — design blocked on owner Q6.** Choose how an ordinary domain or
   routed requirement is classified and attached as a progress premise before
