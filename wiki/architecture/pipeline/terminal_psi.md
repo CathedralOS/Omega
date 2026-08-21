@@ -1798,7 +1798,12 @@ crossed equalities reject. A complete nested endpoint family may first derive
 the canonical bound on `K` from one stronger retained bound and closed
 same-carrier order, then transport it through equality. The producer nests
 integer-order transitivity beneath substitution; weak bounds, missing
-equalities, or wrong endpoints reject. A signed `i1` divisor
+equalities, or wrong endpoints reject. The next complete nested family replaces
+that closed side with a second exact citation: unsigned `1 <= M` and `M <= K`,
+or signed `K <= M` and `M <= -2`, followed by `K == divisor`. The producer
+nests two-citation transitivity beneath endpoint substitution in deterministic
+ledger order. Missing or disconnected middle relations, weak signed ceilings,
+redirected equalities, or wrong endpoints reject. A signed `i1` divisor
 fact alone remains
 insufficient because the canonical conjunction also needs its dividend premise.
 The complete retained-bound `i1` family selects that conjunction when exact
