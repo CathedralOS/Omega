@@ -512,7 +512,9 @@ mod tests {
                 symbol: symbol(GENERIC_TARGET),
                 name: Identifier::generated("Target"),
                 kind: TypeParameterKind::Machine {
-                    contract: generic_contract,
+                    contract: psi_checked_trees::data::MachineParameterContract::Structural(
+                        generic_contract,
+                    ),
                 },
                 ..Default::default()
             },
