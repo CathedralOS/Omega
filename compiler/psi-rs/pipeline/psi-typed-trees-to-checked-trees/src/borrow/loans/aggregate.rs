@@ -6,11 +6,22 @@ use super::super::tracker::BorrowOwnerSegment;
 pub(super) struct BorrowedInitializer {
     pub(super) owner_path: Vec<BorrowOwnerSegment>,
     pub(super) expression: ExpressionHandle,
-    pub(super) is_mutable: bool,
+    pub(super) kind: BorrowedInitializerKind,
 }
 
-/// Resolve every structurally carried reference initializer, its projection
-/// within the aggregate owner, and its polarity.
+#[derive(Clone, Copy)]
+pub(super) enum BorrowedInitializerKind {
+    Reference {
+        is_mutable: bool,
+    },
+    Aggregate {
+        type_reference: psi_typed_trees::types::TypeReferenceHandle,
+    },
+}
+
+/// Resolve every structurally carried reference leaf or direct aggregate-value
+/// source, together with its projection within the aggregate owner. Aggregate
+/// sources are expanded later from call-return or transferred-local loan facts.
 pub(super) fn borrowed_initializers(
     program: &psi_typed_trees::TypedTrees,
     type_reference: psi_typed_trees::types::TypeReferenceHandle,
@@ -24,12 +35,19 @@ pub(super) fn borrowed_initializers(
         TypeReferenceNode::Reference { is_mutable, .. } => vec![BorrowedInitializer {
             owner_path: owner_path.to_vec(),
             expression,
-            is_mutable: *is_mutable,
+            kind: BorrowedInitializerKind::Reference {
+                is_mutable: *is_mutable,
+            },
         }],
         TypeReferenceNode::Constrained { base_type, .. } => {
             borrowed_initializers(program, *base_type, expression, substitutions, owner_path)
         }
         TypeReferenceNode::FixedArray { element_type, .. } => {
+            if let Some(initializer) =
+                aggregate_value_initializer(program, type_reference, expression, owner_path)
+            {
+                return vec![initializer];
+            }
             let ExpressionNode::ArrayLiteral(values) =
                 program.expression_table.expression(expression)
             else {
@@ -58,6 +76,11 @@ pub(super) fn borrowed_initializers(
             arguments,
             ..
         } => {
+            if let Some(initializer) =
+                aggregate_value_initializer(program, type_reference, expression, owner_path)
+            {
+                return vec![initializer];
+            }
             let Some(definition) = program
                 .data_definitions()
                 .iter()
@@ -98,6 +121,11 @@ pub(super) fn borrowed_initializers(
                     owner_path,
                 );
             }
+            if let Some(initializer) =
+                aggregate_value_initializer(program, type_reference, expression, owner_path)
+            {
+                return vec![initializer];
+            }
             let Some(definition) = program
                 .data_definitions()
                 .iter()
@@ -118,6 +146,30 @@ pub(super) fn borrowed_initializers(
         | TypeReferenceNode::DynamicTrait { .. }
         | TypeReferenceNode::Unit => Vec::new(),
     }
+}
+
+fn aggregate_value_initializer(
+    program: &psi_typed_trees::TypedTrees,
+    type_reference: psi_typed_trees::types::TypeReferenceHandle,
+    expression: ExpressionHandle,
+    owner_path: &[BorrowOwnerSegment],
+) -> Option<BorrowedInitializer> {
+    if !crate::borrow::view_link::returns_borrow(program, type_reference)
+        || !matches!(
+            program.expression_table.expression(expression),
+            ExpressionNode::Call(_)
+                | ExpressionNode::Indexed(_)
+                | ExpressionNode::Member(_)
+                | ExpressionNode::Name(_)
+        )
+    {
+        return None;
+    }
+    Some(BorrowedInitializer {
+        owner_path: owner_path.to_vec(),
+        expression,
+        kind: BorrowedInitializerKind::Aggregate { type_reference },
+    })
 }
 
 fn borrowed_data_literal_initializers(

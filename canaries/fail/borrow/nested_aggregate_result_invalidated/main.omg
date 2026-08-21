@@ -1,0 +1,34 @@
+// FAIL canary (lifetimes stage 2): a helper-produced aggregate nested in a
+// second record retains the selected source loan beneath the outer field.
+
+data Pair<'left, 'right> {
+    left: &'left mut i32;
+    right: &'right mut i32;
+}
+
+data Outer<'left, 'right> {
+    pair: Pair<'left, 'right>;
+}
+
+machine pair<'left, 'right>(
+    left: &'left mut i32,
+    right: &'right mut i32
+) -> Pair<'left, 'right> {
+    let result: Pair<'left, 'right> = Pair { left: left, right: right };
+    transition { _ -> result }
+}
+
+machine exercise<'left, 'right>(
+    left: &'left mut i32,
+    right: &'right mut i32
+) {
+    let held: Outer<'left, 'right> = Outer { pair: pair(left, right) };
+    right = 1;
+    held.pair.right = 2;
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

@@ -366,7 +366,11 @@ machine pair<'left, 'right>(
 The mapping follows nested records, sum payloads, fixed arrays, and concrete
 generic arguments, preserving each carried field's projection and polarity.
 Here `result.left` retains only `left`, while `result.right` retains only
-`right`. Last-use accounting compares the canonical field/index path, so a
+`right`. The same mapping survives when that helper result, or a moved
+borrow-carrying local, initializes a field or fixed-array element of another
+aggregate: the checker prefixes the inner loan path with the enclosing
+field/index path without merging sibling sources or weakening shared versus
+mutable polarity. Last-use accounting compares the canonical field/index path, so a
 later use of `result.right` does not artificially keep `result.left`'s loan
 active.
 Program-static views stored in persistent aggregate fields carry their stable
