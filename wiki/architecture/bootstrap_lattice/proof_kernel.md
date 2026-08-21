@@ -79,6 +79,15 @@ low-rung `int-le-trans` theorem, but the Rust checker remains an explicit
 trusted implementation until a checked terminal-carrier bridge closes the
 independent checker diamond.
 
+Exact fixed-integer `<=` propositions may also transport one endpoint across
+an independently derived equality. The certificate names endpoint zero or one,
+retains the other endpoint exactly, and supplies separate checked relation and
+equality children; the equality must connect the old and new endpoint in either
+orientation. Non-`<=` relations, non-equality premises, another changed
+endpoint, an unrelated equality, or any endpoint other than zero or one reject.
+This is the bounded terminal-carrier instance of low-rung Leibniz `eqelim`; it
+adds proof capability without granting a producer authority to choose a goal.
+
 ### Canonical semantic ledger and untrusted reduction
 
 The deployment endpoint does not trust the current Rust verifier to choose a

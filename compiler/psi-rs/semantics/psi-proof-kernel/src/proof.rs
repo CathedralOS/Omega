@@ -42,6 +42,11 @@ pub enum ProofRule {
         left_less_or_equal_middle: Box<ProofNode>,
         middle_less_or_equal_right: Box<ProofNode>,
     },
+    IntegerLessOrEqualSubstitution {
+        relation: Box<ProofNode>,
+        equality: Box<ProofNode>,
+        endpoint: usize,
+    },
 }
 
 /// Proof-rule families exercised by one accepted certificate. The set is a
@@ -58,6 +63,7 @@ pub enum AcceptedProofRule {
     ImplicationElimination,
     EqualityTransitivity,
     IntegerLessOrEqualTransitivity,
+    IntegerLessOrEqualSubstitution,
 }
 
 /// One premise that materially participates in an accepted derivation.
@@ -432,6 +438,55 @@ fn check_node(
                 _ => Err(ProofError::RulePremiseMismatch("integer <= transitivity")),
             }
         }
+        ProofRule::IntegerLessOrEqualSubstitution {
+            relation,
+            equality,
+            endpoint,
+        } => {
+            acceptance
+                .rules
+                .insert(AcceptedProofRule::IntegerLessOrEqualSubstitution);
+            check_node(context, assumptions, semantic_axioms, relation, acceptance)?;
+            check_node(context, assumptions, semantic_axioms, equality, acceptance)?;
+            let Proposition::LessOrEqual(relation_left, relation_right) = &relation.conclusion
+            else {
+                return Err(ProofError::RulePremiseMismatch(
+                    "integer <= substitution relation",
+                ));
+            };
+            let Proposition::Equal(equality_left, equality_right) = &equality.conclusion else {
+                return Err(ProofError::RulePremiseMismatch(
+                    "integer <= substitution equality",
+                ));
+            };
+            let Proposition::LessOrEqual(conclusion_left, conclusion_right) = &proof.conclusion
+            else {
+                return Err(ProofError::RuleConclusionMismatch(
+                    "integer <= substitution",
+                ));
+            };
+            let (old_endpoint, new_endpoint) = match endpoint {
+                0 => {
+                    if relation_right != conclusion_right {
+                        return Err(ProofError::IntegerOrderUnchangedEndpointMismatch);
+                    }
+                    (relation_left, conclusion_left)
+                }
+                1 => {
+                    if relation_left != conclusion_left {
+                        return Err(ProofError::IntegerOrderUnchangedEndpointMismatch);
+                    }
+                    (relation_right, conclusion_right)
+                }
+                endpoint => return Err(ProofError::UnknownIntegerOrderEndpoint(*endpoint)),
+            };
+            if !((equality_left == old_endpoint && equality_right == new_endpoint)
+                || (equality_right == old_endpoint && equality_left == new_endpoint))
+            {
+                return Err(ProofError::IntegerOrderSubstitutionMismatch);
+            }
+            Ok(())
+        }
     }
 }
 
@@ -455,6 +510,9 @@ pub enum ProofError {
     EqualityConclusionMismatch,
     IntegerOrderMiddleMismatch,
     IntegerOrderConclusionMismatch,
+    UnknownIntegerOrderEndpoint(usize),
+    IntegerOrderUnchangedEndpointMismatch,
+    IntegerOrderSubstitutionMismatch,
     CertificateConclusionMismatch,
     RuleConclusionMismatch(&'static str),
     RulePremiseMismatch(&'static str),
@@ -718,6 +776,229 @@ mod tests {
                 ),
             ),
             Err(ProofError::RulePremiseMismatch("integer <= transitivity")),
+        );
+    }
+
+    #[test]
+    fn integer_order_substitution_transports_either_endpoint_in_either_equality_orientation() {
+        use psi_core::{IntegerSign, IntegerType, IntegerValue, ScalarTerm, ScalarType, ValueId};
+
+        let integer = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+        let divisor = ScalarTerm::value(
+            ValueId::new(1).expect("divisor"),
+            ScalarType::Integer(integer),
+        );
+        let literal =
+            |value| ScalarTerm::integer(integer, IntegerValue::Signed(value)).expect("i8 literal");
+        let context = PropositionContext::from_value_types([(
+            ValueId::new(1).expect("divisor"),
+            ScalarType::Integer(integer),
+        )])
+        .expect("context");
+
+        let positive_literal = Proposition::LessOrEqual(literal(1), literal(5));
+        let positive_equality = Proposition::Equal(divisor.clone(), literal(5));
+        let positive = Proposition::LessOrEqual(literal(1), divisor.clone());
+        let positive_proof = ProofNode {
+            conclusion: positive.clone(),
+            rule: ProofRule::IntegerLessOrEqualSubstitution {
+                relation: Box::new(ProofNode {
+                    conclusion: positive_literal,
+                    rule: ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation),
+                }),
+                equality: Box::new(ProofNode {
+                    conclusion: positive_equality.clone(),
+                    rule: ProofRule::SemanticAxiom { index: 0 },
+                }),
+                endpoint: 1,
+            },
+        };
+        let accepted = accept_certificate(
+            &context,
+            &positive,
+            &[],
+            std::slice::from_ref(&positive_equality),
+            &positive_proof,
+        )
+        .expect("a literal equality transports the right endpoint");
+        assert_eq!(
+            accepted.rules,
+            vec![
+                AcceptedProofRule::Primitive,
+                AcceptedProofRule::SemanticAxiom,
+                AcceptedProofRule::IntegerLessOrEqualSubstitution,
+            ]
+        );
+        assert_eq!(
+            accepted.semantic_axioms,
+            vec![AcceptedPremise {
+                index: 0,
+                proposition: positive_equality,
+            }]
+        );
+
+        let negative_literal = Proposition::LessOrEqual(literal(-2), literal(-1));
+        let reverse_negative_equality = Proposition::Equal(literal(-2), divisor.clone());
+        let negative = Proposition::LessOrEqual(divisor, literal(-1));
+        let negative_proof = ProofNode {
+            conclusion: negative.clone(),
+            rule: ProofRule::IntegerLessOrEqualSubstitution {
+                relation: Box::new(ProofNode {
+                    conclusion: negative_literal,
+                    rule: ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation),
+                }),
+                equality: Box::new(ProofNode {
+                    conclusion: reverse_negative_equality.clone(),
+                    rule: ProofRule::Assumption { index: 0 },
+                }),
+                endpoint: 0,
+            },
+        };
+        let accepted = accept_certificate(
+            &context,
+            &negative,
+            std::slice::from_ref(&reverse_negative_equality),
+            &[],
+            &negative_proof,
+        )
+        .expect("a reverse equality transports the left endpoint");
+        assert_eq!(
+            accepted.rules,
+            vec![
+                AcceptedProofRule::Primitive,
+                AcceptedProofRule::Assumption,
+                AcceptedProofRule::IntegerLessOrEqualSubstitution,
+            ]
+        );
+    }
+
+    #[test]
+    fn integer_order_substitution_rejects_every_shape_and_endpoint_mismatch() {
+        use psi_core::{IntegerSign, IntegerType, IntegerValue, ScalarTerm, ScalarType, ValueId};
+
+        let integer = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+        let divisor = ScalarTerm::value(
+            ValueId::new(1).expect("divisor"),
+            ScalarType::Integer(integer),
+        );
+        let literal =
+            |value| ScalarTerm::integer(integer, IntegerValue::Signed(value)).expect("i8 literal");
+        let context = PropositionContext::from_value_types([(
+            ValueId::new(1).expect("divisor"),
+            ScalarType::Integer(integer),
+        )])
+        .expect("context");
+        let relation = Proposition::LessOrEqual(literal(1), literal(5));
+        let equality = Proposition::Equal(literal(5), divisor.clone());
+        let conclusion = Proposition::LessOrEqual(literal(1), divisor.clone());
+        let child = |conclusion: Proposition, rule: ProofRule| ProofNode { conclusion, rule };
+        let proof = |relation: ProofNode,
+                     equality: ProofNode,
+                     endpoint: usize,
+                     conclusion: Proposition| ProofNode {
+            conclusion,
+            rule: ProofRule::IntegerLessOrEqualSubstitution {
+                relation: Box::new(relation),
+                equality: Box::new(equality),
+                endpoint,
+            },
+        };
+        let relation_child = || {
+            child(
+                relation.clone(),
+                ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation),
+            )
+        };
+        let equality_child = || child(equality.clone(), ProofRule::SemanticAxiom { index: 0 });
+        let check = |proof: &ProofNode, goal: &Proposition, axioms: &[Proposition]| {
+            check_certificate(&context, goal, &[], axioms, proof)
+        };
+
+        assert_eq!(
+            check(
+                &proof(relation_child(), equality_child(), 2, conclusion.clone()),
+                &conclusion,
+                std::slice::from_ref(&equality),
+            ),
+            Err(ProofError::UnknownIntegerOrderEndpoint(2)),
+        );
+
+        let changed_other_endpoint = Proposition::LessOrEqual(literal(0), divisor.clone());
+        assert_eq!(
+            check(
+                &proof(
+                    relation_child(),
+                    equality_child(),
+                    1,
+                    changed_other_endpoint.clone(),
+                ),
+                &changed_other_endpoint,
+                std::slice::from_ref(&equality),
+            ),
+            Err(ProofError::IntegerOrderUnchangedEndpointMismatch),
+        );
+
+        let unrelated = Proposition::Equal(literal(4), divisor);
+        assert_eq!(
+            check(
+                &proof(
+                    relation_child(),
+                    child(unrelated.clone(), ProofRule::SemanticAxiom { index: 0 },),
+                    1,
+                    conclusion.clone(),
+                ),
+                &conclusion,
+                std::slice::from_ref(&unrelated),
+            ),
+            Err(ProofError::IntegerOrderSubstitutionMismatch),
+        );
+
+        let truth = child(
+            Proposition::Truth,
+            ProofRule::Primitive(PrimitiveJudgment::Truth),
+        );
+        assert_eq!(
+            check(
+                &proof(truth.clone(), equality_child(), 1, conclusion.clone()),
+                &conclusion,
+                std::slice::from_ref(&equality),
+            ),
+            Err(ProofError::RulePremiseMismatch(
+                "integer <= substitution relation"
+            )),
+        );
+        assert_eq!(
+            check(
+                &proof(relation_child(), truth.clone(), 1, conclusion.clone()),
+                &conclusion,
+                &[],
+            ),
+            Err(ProofError::RulePremiseMismatch(
+                "integer <= substitution equality"
+            )),
+        );
+        assert_eq!(
+            check(
+                &proof(relation_child(), equality_child(), 1, Proposition::Truth),
+                &Proposition::Truth,
+                std::slice::from_ref(&equality),
+            ),
+            Err(ProofError::RuleConclusionMismatch(
+                "integer <= substitution"
+            )),
+        );
+        assert_eq!(
+            check(
+                &proof(
+                    child(relation, ProofRule::SemanticAxiom { index: 1 }),
+                    equality_child(),
+                    1,
+                    conclusion.clone(),
+                ),
+                &conclusion,
+                std::slice::from_ref(&equality),
+            ),
+            Err(ProofError::UnknownSemanticAxiom(1)),
         );
     }
 
