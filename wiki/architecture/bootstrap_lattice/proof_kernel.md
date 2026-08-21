@@ -333,6 +333,15 @@ or turn a contract term into an executable effect.
 | Exact divide/remainder | a known safe divisor; `1 <= divisor`; `divisor <= -2`; or `divisor <= -1` together with `MIN + 1 <= dividend`. In a retained finite mixed divide/remainder chain, every link reconstructs independently from its own safe divisor; an earlier result definition is an operand, not proof authority. One direct partial fixed-native cast may root the same finite chain: the cast retains independent representability evidence and every prefix remains independently true from only its own divisor proof. Either root form may contain direct same-carrier runtime divisors when at least one occurs: each runtime divisor independently supplies its positive or at-most-`-2` proposition, while the joint `-1`/dividend exception is available only to the first direct-root operation whose dividend bound is independently reconstructed. Computed and post-cast dividends import no such authority. Two disjoint nonempty affine branches on the same direct signed fixed-native signature root may instead use the complete unary root interval and exact forbidden-root lattice test described above; every branch prefix remains independently evidenced. |
 | Wrapping/Saturating divide/remainder | a known nonzero divisor, `1 <= divisor`, `divisor <= -2`, or `divisor <= -1`; policy defines the signed `MIN`/`-1` result |
 
+The canonical `ExactDivisionDefined` kernel proposition is `1 <= d` for an
+unsigned fixed carrier. For a signed carrier of at least two bits it is the
+ordered disjunction `(d <= -2) OR (1 <= d) OR ((d <= -1) AND (MIN + 1 <= n))`.
+For signed i1 it is only `(d <= -1) AND (0 <= n)`. This is a proposition
+projection, not a reducer result: address carriers and mismatched operand types
+reject. Exact divide/remainder reconstruction remains on its trusted reducer
+until an untrusted producer can materialize kernel-checkable certificates for
+the accepted affine/correlated families without importing operation evidence.
+
 The consolidated divide/remainder cross-cast rule admits a nonempty landed-
 literal exact-divide/remainder chain on either side of one partial fixed-native
 cast when the other side is a nonempty affine or shift chain. When

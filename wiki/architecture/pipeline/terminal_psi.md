@@ -1731,24 +1731,33 @@ wrapping/saturating divide/remainder rows instead select their canonical
 proposition directly from their exact operation tags. This does not certify the
 remaining reducers, and the current closure remains `fully-derived false`.
 
-Only the `NonzeroDivisor` carrier currently has an exact kernel-proposition
-projection. Unsigned fixed integers use `1 <= d`; signed fixed integers of at
-least two bits use the ordered disjunction `(d <= -1) OR (1 <= d)`; signed
-one-bit integers use only `d <= -1`, because `+1` is outside that carrier.
-Address carriers and mismatched divisor types reject. The other five canonical
-goal shapes remain deliberately unprojected. For the four whole-row wrapping
-and saturating divide/remainder pilots, reconstruction selects this canonical
-goal solely from the exact operation tag. An untrusted producer searches only
-the owning machine requirements and verifier-reconstructed facts preceding the
-site, deterministically prefers the signed negative arm, and materializes exact
-citation, integer-`<=` transitivity, or literal-equality substitution evidence.
+`NonzeroDivisor` and `ExactDivisionDefined` currently have exact
+kernel-proposition projections. Unsigned fixed integers use `1 <= d` for both.
+Signed nonzero uses the ordered disjunction `(d <= -1) OR (1 <= d)`. Signed
+exact division/remainder uses the ordered disjunction `(d <= -2) OR (1 <= d)
+OR ((d <= -1) AND (MIN + 1 <= n))`, where `n` is the dividend. Signed one-bit
+nonzero uses only `d <= -1`; its exact-definedness goal is `(d <= -1) AND (0 <=
+n)`, because neither `-2` nor `+1` inhabits that carrier. Address carriers and
+mismatched operand types reject. The other four canonical goal shapes remain
+deliberately unprojected.
+
+For the four whole-row wrapping and saturating divide/remainder pilots,
+reconstruction selects the nonzero goal solely from the exact operation tag.
+An untrusted producer searches only the owning machine requirements and
+verifier-reconstructed facts preceding the site, deterministically prefers the
+signed negative arm, and materializes exact citation, integer-`<=`
+transitivity, or literal-equality substitution evidence.
 It kernel-checks the candidate before emission. Missing projection or proof
 rejects; there is no evidence-dependent fallback to the legacy reducer, and
 the operation's own result equation is not available to justify itself.
 
 Exact divide/remainder remain on their explicitly trusted sufficient reducer.
-No schema or reducer node is promoted by these pilots, and terminal closure
-remains `fully-derived false`.
+Their canonical proposition is now settled, and the existing kernel rules can
+check direct bound, disjunction, conjunction, transitivity, and substitution
+proofs. The producer does not yet reconstruct certificates for the accepted
+affine/correlated sufficient families from prior facts, so neither exact row
+switches reconstruction or gains an evidence-dependent fallback. No schema or
+reducer node is promoted, and terminal closure remains `fully-derived false`.
 
 Proof-bundle v15 additionally carries exact fixed-integer `<=` endpoint
 substitution. One recursively checked relation child, one recursively checked
