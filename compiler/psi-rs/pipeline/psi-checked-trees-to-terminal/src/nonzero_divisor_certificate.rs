@@ -481,6 +481,40 @@ mod tests {
             ProofRule::Assumption { index: 0 }
         ));
 
+        let stronger_bound_proof = prove_canonical_integer_proposition(
+            &two_value_context(signed),
+            &signed_goal,
+            &[Proposition::LessOrEqual(
+                integer(signed, -120),
+                value(1, signed),
+            )],
+            &[Proposition::Equal(value(2, signed), integer(signed, -1))],
+        )
+        .expect("stronger retained dividend floor proves the exceptional arm");
+        let ProofRule::DisjunctionIntroduction { disjunct, index } = stronger_bound_proof.rule
+        else {
+            panic!("stronger retained bound selects the joint exceptional arm")
+        };
+        assert_eq!(index, 2);
+        let ProofRule::ConjunctionIntroduction(conjuncts) = disjunct.rule else {
+            panic!("stronger retained bound proves both canonical bounds")
+        };
+        let ProofRule::IntegerLessOrEqualTransitivity {
+            left_less_or_equal_middle,
+            middle_less_or_equal_right,
+        } = &conjuncts[1].rule
+        else {
+            panic!("canonical dividend floor follows by one checked transitivity step")
+        };
+        assert!(matches!(
+            left_less_or_equal_middle.rule,
+            ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation)
+        ));
+        assert!(matches!(
+            middle_less_or_equal_right.rule,
+            ProofRule::Assumption { index: 0 }
+        ));
+
         let retained_axiom_proof = prove_canonical_integer_proposition(
             &two_value_context(signed),
             &signed_goal,

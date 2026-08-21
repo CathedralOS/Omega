@@ -472,9 +472,10 @@ pub(super) fn reconstruct_machine_semantics(
 /// and -1 makes definedness independent of the dividend. A signed -1 divisor
 /// is also complete when the dividend is independently landed above the
 /// carrier minimum or its exact canonical minimum-plus-one bound is retained
-/// as a prior proposition. Their canonical proofs need only prior citations
-/// and closed integer order; no value-root custody or operation-definition
-/// authority participates.
+/// as a prior proposition. A retained stronger literal lower bound is complete
+/// through one closed transitivity step. Their canonical proofs need only
+/// prior citations and closed integer order; no value-root custody or
+/// operation-definition authority participates.
 fn exact_division_has_closed_prior_certificate(
     goal: &CanonicalScalarGoal,
     semantic_axioms: &[Proposition],
@@ -532,7 +533,29 @@ fn retained_exact_division_exception_bound(
     requirements
         .iter()
         .chain(semantic_axioms)
-        .any(|fact| fact == bound)
+        .any(|fact| fact == bound || closed_transitive_lower_bound(bound, fact))
+}
+
+fn closed_transitive_lower_bound(goal: &Proposition, retained: &Proposition) -> bool {
+    let Proposition::LessOrEqual(goal_left, goal_right) = goal else {
+        return false;
+    };
+    let Proposition::LessOrEqual(retained_left, retained_right) = retained else {
+        return false;
+    };
+    if retained_right != goal_right {
+        return false;
+    }
+    let Some((goal_type, goal_left)) = goal_left.integer_value() else {
+        return false;
+    };
+    let Some((retained_type, retained_left)) = retained_left.integer_value() else {
+        return false;
+    };
+    goal_type == retained_type
+        && goal_type
+            .compare(goal_left, retained_left)
+            .is_some_and(|order| !order.is_gt())
 }
 
 fn true_condition_fact(
@@ -721,6 +744,18 @@ mod tests {
                 ),
             ],
             &[],
+        ));
+        assert!(exact_division_has_closed_prior_certificate(
+            &negative_one_goal,
+            std::slice::from_ref(&Proposition::Equal(
+                value(6, signed),
+                ScalarTerm::integer(signed, IntegerValue::Signed(-1)).expect("i8 -1"),
+            )),
+            &[Proposition::LessOrEqual(
+                ScalarTerm::integer(signed, IntegerValue::Signed(-120))
+                    .expect("stronger i8 lower bound"),
+                value(5, signed),
+            )],
         ));
         assert!(!exact_division_has_closed_prior_certificate(
             &negative_one_goal,
