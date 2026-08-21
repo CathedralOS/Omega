@@ -38,20 +38,14 @@ fn runtime_referenced_local_outlives_sibling_guard_call_exit_canary_runs() {
 #[test]
 fn runtime_view_linked_input_unrelated_ref_write_exit_canary_runs() {
     let canary = pass_canary("borrow/runtime_view_linked_input_unrelated_ref_write_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-view-linked-input-unrelated-ref-write-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("view-linked-input-unrelated-ref-write canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("view-linked-input-unrelated-ref-write canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -74,19 +68,8 @@ fn runtime_view_linked_input_unrelated_ref_write_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&cross_dir);
-    let source_dir = cross_dir.join("src");
-    fs::create_dir_all(&source_dir).expect("create linked-input cross-target source");
-    fs::copy(canary.join("main.omg"), source_dir.join("main.omg"))
-        .expect("copy linked-input canary");
-    fs::write(source_dir.join("build.omg"), "target linux_x64 {\n}\n")
-        .expect("write linked-input cross-target manifest");
-    compile(CompileOptions {
-        root_path: source_dir.join("main.omg"),
-        build_dir: Some(cross_dir.join("out")),
-        target_name: Some("linux_x64".to_owned()),
-        write_output: true,
-    })
-    .expect("view-linked-input aggregate write should cross-compile for linux_x64");
+    compile_rooted_canary_for_target(&canary, cross_dir.join("out"), "linux_x64")
+        .expect("view-linked-input aggregate write should cross-compile for linux_x64");
     let _ = fs::remove_dir_all(&cross_dir);
 }
 
@@ -238,20 +221,14 @@ fn runtime_effectful_subject_single_evaluation_exit_canary_runs() {
 #[test]
 fn runtime_statement_call_single_execution_exit_canary_runs() {
     let canary = pass_canary("control_flow/runtime_statement_call_single_execution_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-statement-call-single-execution-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("statement-call single-execution canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("statement-call single-execution canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -676,13 +653,8 @@ fn runtime_write_no_newline_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-write-no-newline-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("write-no-newline canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("write-no-newline canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -787,13 +759,8 @@ fn borrow_carrying_data_field_exit_canary_runs() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-borrow-carrying-data-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("borrow-carrying data canary should compile to a PE");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("borrow-carrying data canary should compile to a PE");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -1239,20 +1206,14 @@ fn runtime_alias_write_through_guarded_transition_exit_canary_runs() {
     // leaf guard `key < 4` carried a `Mutable(Integer)` operand the value resolvers
     // didn't see through -- the arm (guard + its alias write) was dropped entirely.
     let canary = pass_canary("calls/runtime_alias_write_through_guarded_transition_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-alias-write-guarded-transition-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("alias-write-through-guarded-transition canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("alias-write-through-guarded-transition canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -1279,20 +1240,14 @@ fn runtime_reference_param_forwarded_through_loop_exit_canary_runs() {
     // pointer-sized referent it wrote room data into the pointer slot, so the next write
     // through it faulted. The deref branch now fires only for VALUE targets.
     let canary = pass_canary("calls/runtime_reference_param_forwarded_through_loop_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-reference-param-forwarded-loop-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("reference-param-forwarded-through-loop canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("reference-param-forwarded-through-loop canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -1319,20 +1274,14 @@ fn runtime_value_call_through_alias_in_dispatch_exit_canary_runs() {
     // RuntimeStorageCopyToRuntimePointee / RuntimePointee{Integer,Binary}Write, so a
     // skipped arm ran the pointee copy unconditionally and stranded the matched arm.
     let canary = pass_canary("calls/runtime_value_call_through_alias_in_dispatch_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-value-call-alias-dispatch-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("value-call-through-alias-in-dispatch canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("value-call-through-alias-in-dispatch canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -1426,20 +1375,14 @@ fn runtime_alias_indexed_read_through_transition_exit_canary_runs() {
     // resolvers rejected the `Mutable`-wrapped index, dropping the copy. The `mut`
     // is now stripped on a resolved leaf index. Mirrors the dungeon find_room shape.
     let canary = pass_canary("calls/runtime_alias_indexed_read_through_transition_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-alias-indexed-read-transition-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("alias-indexed-read-through-transition canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("alias-indexed-read-through-transition canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -1629,13 +1572,8 @@ fn runtime_value_machine_receiver_field_postentry_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("receiver-field postentry canary should compile natively");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("receiver-field postentry canary should compile natively");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("receiver-field postentry canary should run");
@@ -1861,19 +1799,13 @@ fn runtime_nonentry_inline_second_receiver_exit_canary_runs() {
 #[test]
 fn runtime_nested_local_terminal_second_instance_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_nested_local_terminal_second_instance_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-nested-local-terminal-second-instance-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("nested local-terminal canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("nested local-terminal canary should compile");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("nested local-terminal canary should run");
@@ -1893,19 +1825,13 @@ fn runtime_nested_local_terminal_second_instance_exit_canary_runs() {
 #[test]
 fn runtime_nested_field_terminal_second_instance_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_nested_field_terminal_second_instance_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-nested-field-terminal-second-instance-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("nested field-terminal canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("nested field-terminal canary should compile");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("nested field-terminal canary should run");
@@ -2108,19 +2034,13 @@ fn runtime_param_forward_chain_second_receiver_exit_canary_runs() {
 #[test]
 fn runtime_main_source_builder_is_ordinary_exit_canary_runs() {
     let canary = pass_canary("build/runtime_main_source_builder_is_ordinary_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-main-source-builder-ordinary-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("main-source builder canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("main-source builder canary should compile");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("main-source builder canary should run");
@@ -2592,20 +2512,14 @@ fn runtime_nested_called_machine_loop_exit_canary_runs() {
 #[test]
 fn runtime_state_loop_indexed_search_exit_canary_runs() {
     let canary = pass_canary("control_flow/runtime_state_loop_indexed_search_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-state-loop-indexed-search-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime state loop indexed search canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("runtime state loop indexed search canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -2627,20 +2541,14 @@ fn runtime_state_loop_indexed_search_exit_canary_runs() {
 #[test]
 fn runtime_call_result_through_reference_field_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_call_result_through_reference_field_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-call-result-through-reference-field-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime call result through reference field canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("runtime call result through reference field canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()

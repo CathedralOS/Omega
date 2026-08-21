@@ -322,14 +322,21 @@ Remaining:
   receiver call chains now likewise consume authored roots. Fifteen further
   nested/parameter receiver, text-guard forwarding, dispatched terminal,
   partition, and slice-result probes now likewise consume authored roots. The
+  next fifteen borrow/view, alias-transition, nested-terminal, builder/time,
+  host-output, state-loop, reference-field, and dungeon-guard probes now retain
+  the same direct Unit entries under authored four-host roots; their three
+  target-specific footprint consumers use those checked-in roots as well. The
   local-named dynamic devirtualization fixture remains rootless because
   production entry selection currently rejects its state-graph source
-  declaration as missing or ambiguous. A registry-derived inventory now pins
-  890
-  `RUN_CANARIES`, 840 with authored roots, and 50 rootless. The tracked backlog
-  is 46 after separately excluding the exact four GUI fixtures that still lack
-  a general Linux `Gui`/`Input` provider. The earlier reported backlog of 18
-  was incorrect: its baseline parser omitted 39 multiline-form RUN rows, then
+  declaration as missing or ambiguous. The bounded-product index fixture has a
+  production-root proof gap; the referenced-local sibling-guard and tuple-
+  transition fixtures still expose legacy result-returning entry seams; raw
+  Windows and GUI fixtures remain platform-bound. A registry-derived inventory
+  now pins 890 `RUN_CANARIES`, 855 with authored roots, and 35 rootless. The
+  tracked backlog is 31 after separately excluding the exact four GUI fixtures
+  that still lack a general Linux `Gui`/`Input` provider. The earlier reported
+  backlog of 18 was incorrect: its baseline parser omitted 39 multiline-form
+  RUN rows, then
   the migration ledger subtracted 34 authored roots outside `RUN_CANARIES` as
   if they belonged to the differential corpus.
   Continue migrating those fixtures through production entry
@@ -1134,8 +1141,20 @@ Remaining:
   reconstruction and the same untrusted, kernel-checked prior-fact certificate
   producer. Signed `MIN / -1` remains total through the saturating denotation,
   so nonzero is the complete precondition; reconstruction is exact-tag selected
-  and fails closed without a valid certificate. Exact divide/remainder and
-  saturating remainder remain on trusted sufficient reduction. No schema,
+  and fails closed without a valid certificate. The complete
+  `SaturatingIntegerRemainder` row now uses exact-tag canonical
+  `NonzeroDivisor` reconstruction and the same untrusted, kernel-checked
+  prior-fact producer. Signed `MIN % -1` remains total with result zero. All
+  four wrapping/saturating divide/remainder rows are now canonical; exact
+  divide/remainder remain on trusted sufficient reduction. Their exact-defined
+  prerequisite is nevertheless canonical and exact: unsigned requires
+  `1 <= d`; signed widths at least two require the disjunction of `d <= -2`,
+  `1 <= d`, and `(d <= -1) AND (MIN + 1 <= n)`; `i1` requires
+  `(d <= -1) AND (0 <= n)`.
+  Address or type mismatch rejects. Existing kernel rules suffice, but the
+  producer does not yet materialize canonical certificates for the accepted
+  affine and correlated families. Keeping the exact rows trusted is therefore
+  an implementation gap, not a language-design blocker. No schema,
   reducer, semantic-operation, or other trust status is promoted; terminal
   `PSITERM\0` codec v18, proof-bundle v15, installation record v24, and
   `fully-derived false` remain unchanged.

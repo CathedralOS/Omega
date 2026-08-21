@@ -1396,6 +1396,21 @@ fn compile_rooted_canary_for_target_with_artifact_policy(
 // exercise production entry selection and may not substitute the legacy entry
 // seam.
 const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
+    "borrow/runtime_view_linked_input_unrelated_ref_write_exit",
+    "build/runtime_main_source_builder_is_ordinary_exit",
+    "calls/runtime_alias_indexed_read_through_transition_exit",
+    "calls/runtime_alias_write_through_guarded_transition_exit",
+    "calls/runtime_call_result_through_reference_field_exit",
+    "calls/runtime_nested_field_terminal_second_instance_exit",
+    "calls/runtime_nested_local_terminal_second_instance_exit",
+    "calls/runtime_reference_param_forwarded_through_loop_exit",
+    "calls/runtime_value_call_through_alias_in_dispatch_exit",
+    "control_flow/runtime_state_loop_indexed_search_exit",
+    "control_flow/runtime_statement_call_single_execution_exit",
+    "dungeon/runtime_nested_value_call_caller_local_guard_exit",
+    "expressions/borrow_carrying_data_field_exit",
+    "host/runtime_write_no_newline_exit",
+    "time/runtime_value_machine_receiver_field_postentry_exit",
     "calls/runtime_dispatch_float_terminal_exit",
     "calls/runtime_dispatch_slice_element_terminal_exit",
     "calls/runtime_let_local_nested_state_arg_exit",
@@ -2669,6 +2684,19 @@ fn task_runtime_machine_selection_builds_omega_activation_sidecar() {
 }
 
 const ACTIVE_PASS_CANARIES: &[&str] = &[
+    "build/runtime_main_source_builder_is_ordinary_exit",
+    "calls/runtime_alias_indexed_read_through_transition_exit",
+    "calls/runtime_alias_write_through_guarded_transition_exit",
+    "calls/runtime_call_result_through_reference_field_exit",
+    "calls/runtime_nested_field_terminal_second_instance_exit",
+    "calls/runtime_nested_local_terminal_second_instance_exit",
+    "calls/runtime_reference_param_forwarded_through_loop_exit",
+    "calls/runtime_value_call_through_alias_in_dispatch_exit",
+    "control_flow/runtime_state_loop_indexed_search_exit",
+    "control_flow/runtime_statement_call_single_execution_exit",
+    "expressions/borrow_carrying_data_field_exit",
+    "host/runtime_write_no_newline_exit",
+    "time/runtime_value_machine_receiver_field_postentry_exit",
     "calls/runtime_dispatch_float_terminal_exit",
     "calls/runtime_dispatch_slice_element_terminal_exit",
     "calls/runtime_let_local_nested_state_arg_exit",
