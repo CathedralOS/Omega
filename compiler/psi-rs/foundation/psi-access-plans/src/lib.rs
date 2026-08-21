@@ -12,7 +12,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use psi_extents::{
     AddressSpaceId, Extent, ExtentContentCustodyReceiptId, ExtentContentValidityReceiptId,
     ExtentLineageId, ExtentLoan, ExtentProvenanceId, ExtentRights, ExtentRootOrigin, LoanPolarity,
-    MappingEraId, ProviderExistingContentGrant,
+    MappingEraId, ProviderExistingContentGrant, ResidentClaimId,
 };
 use psi_language_core::atomic::{AtomicOrderingPlan, MemoryOrdering};
 use psi_layout_plans::{
@@ -1942,6 +1942,24 @@ impl PlacementAdmissionId {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct PlacedOccurrenceId(u64);
+
+impl PlacedOccurrenceId {
+    pub fn from_normalized_identity(identity: u64) -> Result<Self, AccessPlanDiagnostic> {
+        if identity == 0 {
+            return Err(AccessPlanDiagnostic(
+                "placed-occurrence identity cannot be zero".into(),
+            ));
+        }
+        Ok(Self(identity))
+    }
+
+    pub const fn normalized_identity(self) -> u64 {
+        self.0
+    }
+}
+
 /// One accepted placement that owns the exact extent loan checked by the
 /// provider. It cannot be reused to admit another range or another loan.
 #[derive(Debug)]
@@ -2054,16 +2072,79 @@ impl OwnedPlacementRejection {
     }
 }
 
-/// Provider-validated existing Stable content whose exact Extent authority is
-/// retained by the accepted placement admission.
+/// Dormant provider-validated Stable content whose exact Extent authority and
+/// resident claim are retained by the accepted placement admission.
 ///
 /// This is the first content-establishing owned carrier. It deliberately has
-/// no route back to a bare Extent: checked destruction or move-out must land
-/// before retirement can establish `Vacant` and release the storage authority.
+/// neither field projection nor a route back to a bare Extent. An explicit
+/// view transition creates one fresh active placed occurrence; checked
+/// destruction or move-out must land before another retirement route can
+/// establish `Vacant` and release storage authority.
 #[derive(Debug)]
-#[must_use = "established owned placed content retains linear Extent and content custody"]
+#[must_use = "dormant resident content retains linear Extent and content custody"]
+pub struct DormantOwnedResident {
+    admission: OwnedPlacementAdmission,
+    resident_claim: ResidentClaimId,
+    validity_receipt: ExtentContentValidityReceiptId,
+    custody_receipt: ExtentContentCustodyReceiptId,
+}
+
+impl DormantOwnedResident {
+    pub const fn admission(&self) -> PlacementAdmissionId {
+        self.admission.identity
+    }
+
+    pub const fn placement_plan(&self) -> &ValidatedPlacementPlan {
+        &self.admission.placement_plan
+    }
+
+    pub const fn profile_receipt(&self) -> ResourceProfileReceiptId {
+        self.admission.profile_receipt
+    }
+
+    pub const fn resources(&self) -> &PlacementResourceCompatibility {
+        &self.admission.resources
+    }
+
+    pub const fn extent(&self) -> &Extent {
+        &self.admission.extent
+    }
+
+    pub const fn validity_receipt(&self) -> ExtentContentValidityReceiptId {
+        self.validity_receipt
+    }
+
+    pub const fn custody_receipt(&self) -> ExtentContentCustodyReceiptId {
+        self.custody_receipt
+    }
+
+    pub const fn resident_claim(&self) -> ResidentClaimId {
+        self.resident_claim
+    }
+
+    /// Transfer dormant resident custody into one fresh active placed
+    /// occurrence. The resident claim and provider receipts are forwarded
+    /// unchanged; the occurrence identifies only this active view lifetime.
+    pub fn view(self, occurrence: PlacedOccurrenceId) -> EstablishedOwnedPlacement {
+        EstablishedOwnedPlacement {
+            admission: self.admission,
+            resident_claim: self.resident_claim,
+            occurrence,
+            validity_receipt: self.validity_receipt,
+            custody_receipt: self.custody_receipt,
+        }
+    }
+}
+
+/// One active owned view of provider-established Stable resident content.
+/// The occurrence is fresh for this view while `resident_claim` remains the
+/// identity of the same dormant content across view/retirement cycles.
+#[derive(Debug)]
+#[must_use = "active owned placed content retains linear resident custody"]
 pub struct EstablishedOwnedPlacement {
     admission: OwnedPlacementAdmission,
+    resident_claim: ResidentClaimId,
+    occurrence: PlacedOccurrenceId,
     validity_receipt: ExtentContentValidityReceiptId,
     custody_receipt: ExtentContentCustodyReceiptId,
 }
@@ -2095,6 +2176,26 @@ impl EstablishedOwnedPlacement {
 
     pub const fn custody_receipt(&self) -> ExtentContentCustodyReceiptId {
         self.custody_receipt
+    }
+
+    pub const fn resident_claim(&self) -> ResidentClaimId {
+        self.resident_claim
+    }
+
+    pub const fn occurrence(&self) -> PlacedOccurrenceId {
+        self.occurrence
+    }
+
+    /// End this active owned view without destroying or moving out its
+    /// content. The exact resident claim and provider receipts return to the
+    /// dormant carrier; the active occurrence ends here.
+    pub fn retire_resident(self) -> DormantOwnedResident {
+        DormantOwnedResident {
+            admission: self.admission,
+            resident_claim: self.resident_claim,
+            validity_receipt: self.validity_receipt,
+            custody_receipt: self.custody_receipt,
+        }
     }
 
     /// Purely project one accepted Stable field through a shared borrow of
@@ -2241,6 +2342,22 @@ enum PlacementAuthorityRef<'view, 'extent> {
     EstablishedOwned(&'view EstablishedOwnedPlacement),
 }
 
+impl PlacementAuthorityRef<'_, '_> {
+    const fn resident_claim(self) -> Option<ResidentClaimId> {
+        match self {
+            Self::Borrowed(_) => None,
+            Self::EstablishedOwned(established) => Some(established.resident_claim),
+        }
+    }
+
+    const fn placed_occurrence(self) -> Option<PlacedOccurrenceId> {
+        match self {
+            Self::Borrowed(_) => None,
+            Self::EstablishedOwned(established) => Some(established.occurrence),
+        }
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 fn project_placed_field<'view, 'extent>(
     plan: &ValidatedPlacementPlan,
@@ -2290,6 +2407,8 @@ fn project_placed_field<'view, 'extent>(
         supply: supply.clone(),
         reach: plan.reach.clone(),
         admission,
+        resident_claim: authority.resident_claim(),
+        placed_occurrence: authority.placed_occurrence(),
         _authority: authority,
     })
 }
@@ -2310,6 +2429,8 @@ pub struct PlacedFieldProjection<'view, 'extent> {
     supply: EffectiveFieldSupply,
     reach: BoundaryReach,
     admission: PlacementAdmissionId,
+    resident_claim: Option<ResidentClaimId>,
+    placed_occurrence: Option<PlacedOccurrenceId>,
     _authority: PlacementAuthorityRef<'view, 'extent>,
 }
 
@@ -2328,6 +2449,14 @@ impl<'view, 'extent> PlacedFieldProjection<'view, 'extent> {
 
     pub const fn observation(&self) -> ObservationModel {
         self.descriptor.observation()
+    }
+
+    pub const fn resident_claim(&self) -> Option<ResidentClaimId> {
+        self.resident_claim
+    }
+
+    pub const fn placed_occurrence(&self) -> Option<PlacedOccurrenceId> {
+        self.placed_occurrence
     }
 
     pub fn read<'access>(
@@ -2459,6 +2588,8 @@ impl<'view, 'extent> PlacedFieldProjection<'view, 'extent> {
             supply: self.supply.clone(),
             reach: self.reach.clone(),
             admission: self.admission,
+            resident_claim: self.resident_claim,
+            placed_occurrence: self.placed_occurrence,
             _authority: self._authority,
         })
     }
@@ -2476,6 +2607,8 @@ pub struct PlacedFieldAccess<'view, 'extent> {
     supply: EffectiveFieldSupply,
     reach: BoundaryReach,
     admission: PlacementAdmissionId,
+    resident_claim: Option<ResidentClaimId>,
+    placed_occurrence: Option<PlacedOccurrenceId>,
     _authority: PlacementAuthorityRef<'view, 'extent>,
 }
 
@@ -2486,6 +2619,14 @@ impl<'view, 'extent> PlacedFieldAccess<'view, 'extent> {
 
     pub const fn primitive_address(&self) -> u64 {
         self.primitive_address
+    }
+
+    pub const fn resident_claim(&self) -> Option<ResidentClaimId> {
+        self.resident_claim
+    }
+
+    pub const fn placed_occurrence(&self) -> Option<PlacedOccurrenceId> {
+        self.placed_occurrence
     }
 
     /// Consume one authorized access event into the only request primitive
@@ -2521,6 +2662,8 @@ impl<'view, 'extent> PlacedFieldAccess<'view, 'extent> {
             source_loan,
             operation,
             reach: self.reach,
+            resident_claim: self.resident_claim,
+            placed_occurrence: self.placed_occurrence,
             _authority: self._authority,
         }
     }
@@ -2548,6 +2691,8 @@ pub struct PrimitiveAccessRequest<'view, 'extent> {
     source_loan: BorrowPolarity,
     operation: AccessOperation,
     reach: BoundaryReach,
+    resident_claim: Option<ResidentClaimId>,
+    placed_occurrence: Option<PlacedOccurrenceId>,
     _authority: PlacementAuthorityRef<'view, 'extent>,
 }
 
@@ -2622,6 +2767,14 @@ impl PrimitiveAccessRequest<'_, '_> {
 
     pub const fn reach(&self) -> &BoundaryReach {
         &self.reach
+    }
+
+    pub const fn resident_claim(&self) -> Option<ResidentClaimId> {
+        self.resident_claim
+    }
+
+    pub const fn placed_occurrence(&self) -> Option<PlacedOccurrenceId> {
+        self.placed_occurrence
     }
 }
 
@@ -3170,7 +3323,7 @@ pub fn admit_owned_placement(
 pub fn adopt_owned_stable(
     admission: OwnedPlacementAdmission,
     content: ProviderExistingContentGrant,
-) -> Result<EstablishedOwnedPlacement, OwnedStableAdoptionError> {
+) -> Result<DormantOwnedResident, OwnedStableAdoptionError> {
     let diagnostic = validate_owned_stable_adoption(&admission, &content);
     if let Err(diagnostic) = diagnostic {
         return Err(OwnedStableAdoptionError {
@@ -3179,8 +3332,9 @@ pub fn adopt_owned_stable(
             diagnostic,
         });
     }
-    Ok(EstablishedOwnedPlacement {
+    Ok(DormantOwnedResident {
         admission,
+        resident_claim: content.resident_claim(),
         validity_receipt: content.validity_receipt(),
         custody_receipt: content.custody_receipt(),
     })
@@ -4939,6 +5093,8 @@ mod tests {
         source_loan: BorrowPolarity,
         operation: AccessOperation,
         reach: BoundaryReach,
+        resident_claim: Option<ResidentClaimId>,
+        placed_occurrence: Option<PlacedOccurrenceId>,
         authority_kind: &'static str,
         authority_identity: *const (),
     }
@@ -4971,6 +5127,8 @@ mod tests {
             source_loan: request.source_loan,
             operation: request.operation,
             reach: request.reach.clone(),
+            resident_claim: request.resident_claim,
+            placed_occurrence: request.placed_occurrence,
             authority_kind,
             authority_identity,
         }
@@ -5063,6 +5221,7 @@ mod tests {
                     plan.identity().normalized_identity(),
                     psi_extents::ExtentContentInterpretationId::from_normalized_identity,
                 ),
+                extent_id(receipt_seed + 2, ResidentClaimId::from_normalized_identity),
                 extent_id(
                     receipt_seed,
                     ExtentContentValidityReceiptId::from_normalized_identity,
@@ -5091,8 +5250,12 @@ mod tests {
             &profile,
         )
         .expect("owned Stable admission");
-        let established =
+        let dormant =
             adopt_owned_stable(admission, content).expect("provider-evidenced Stable adoption");
+        let established = dormant.view(
+            PlacedOccurrenceId::from_normalized_identity(admission_identity + 10_000)
+                .expect("placed occurrence"),
+        );
         (plan, established)
     }
 
@@ -5248,6 +5411,11 @@ mod tests {
     fn provider_existing_content_establishes_owned_stable_placement() {
         let plan = stable_word_placement();
         let (extent, content) = provider_existing_content(&plan, 0xa000, 4, 92, 93);
+        let origin = extent.origin();
+        let lineage = extent.lineage_root();
+        let address_space = extent.address_space();
+        let provenance = extent.provenance();
+        let era = extent.era();
         let profile = stable_word_profile(&extent);
         let admission = admit_owned_placement(
             PlacementAdmissionId::from_normalized_identity(95).expect("admission"),
@@ -5257,14 +5425,84 @@ mod tests {
         )
         .expect("owned Stable admission");
 
-        let established =
+        let dormant =
             adopt_owned_stable(admission, content).expect("provider-evidenced Stable adoption");
+        assert_eq!(dormant.admission().normalized_identity(), 95);
+        assert_eq!(dormant.placement_plan().identity(), plan.identity());
+        assert_eq!(dormant.extent().base(), 0xa000);
+        assert_eq!(dormant.extent().length(), 4);
+        assert_eq!(dormant.extent().origin(), origin);
+        assert_eq!(dormant.extent().lineage_root(), lineage);
+        assert_eq!(dormant.extent().address_space(), address_space);
+        assert_eq!(dormant.extent().provenance(), provenance);
+        assert_eq!(dormant.extent().era(), era);
+        assert_eq!(dormant.profile_receipt().normalized_identity(), 91);
+        assert_eq!(dormant.resident_claim().normalized_identity(), 95);
+        assert_eq!(dormant.validity_receipt().normalized_identity(), 93);
+        assert_eq!(dormant.custody_receipt().normalized_identity(), 94);
+
+        let established = dormant
+            .view(PlacedOccurrenceId::from_normalized_identity(96).expect("placed occurrence"));
         assert_eq!(established.admission().normalized_identity(), 95);
         assert_eq!(established.placement_plan().identity(), plan.identity());
         assert_eq!(established.extent().base(), 0xa000);
         assert_eq!(established.extent().length(), 4);
+        assert_eq!(established.resident_claim().normalized_identity(), 95);
+        assert_eq!(established.occurrence().normalized_identity(), 96);
         assert_eq!(established.validity_receipt().normalized_identity(), 93);
         assert_eq!(established.custody_receipt().normalized_identity(), 94);
+    }
+
+    #[test]
+    fn owned_resident_view_and_retirement_preserve_claim_and_rotate_occurrence() {
+        let plan = stable_word_placement();
+        let (extent, content) = provider_existing_content(&plan, 0xa080, 4, 97, 98);
+        let profile = stable_word_profile(&extent);
+        let admission = admit_owned_placement(
+            PlacementAdmissionId::from_normalized_identity(101).expect("admission"),
+            extent,
+            &plan,
+            &profile,
+        )
+        .expect("owned Stable admission");
+        let dormant = adopt_owned_stable(admission, content).expect("provider resident adoption");
+        let claim = dormant.resident_claim();
+        let validity = dormant.validity_receipt();
+        let custody = dormant.custody_receipt();
+        assert_eq!(claim.normalized_identity(), 100);
+
+        let first_occurrence =
+            PlacedOccurrenceId::from_normalized_identity(102).expect("first occurrence");
+        let first = dormant.view(first_occurrence);
+        assert_eq!(first.resident_claim(), claim);
+        assert_eq!(first.occurrence(), first_occurrence);
+        {
+            let projection = first
+                .project(field_key(plan.access(), "word"))
+                .expect("resident field projection");
+            assert_eq!(projection.resident_claim(), Some(claim));
+            assert_eq!(projection.placed_occurrence(), Some(first_occurrence));
+            let access = projection.read().expect("resident Stable read");
+            assert_eq!(access.resident_claim(), Some(claim));
+            assert_eq!(access.placed_occurrence(), Some(first_occurrence));
+            let request = access.into_primitive_request();
+            assert_eq!(request.resident_claim(), Some(claim));
+            assert_eq!(request.placed_occurrence(), Some(first_occurrence));
+        }
+
+        let dormant = first.retire_resident();
+        assert_eq!(dormant.resident_claim(), claim);
+        assert_eq!(dormant.validity_receipt(), validity);
+        assert_eq!(dormant.custody_receipt(), custody);
+        assert_eq!(dormant.extent().base(), 0xa080);
+        assert_eq!(dormant.placement_plan().identity(), plan.identity());
+
+        let second_occurrence =
+            PlacedOccurrenceId::from_normalized_identity(103).expect("second occurrence");
+        let second = dormant.view(second_occurrence);
+        assert_eq!(second.resident_claim(), claim);
+        assert_eq!(second.occurrence(), second_occurrence);
+        assert_ne!(second.occurrence(), first_occurrence);
     }
 
     #[test]
@@ -5839,6 +6077,7 @@ mod tests {
         let (admission, content, diagnostic) = rejection.into_parts();
         assert!(diagnostic.0.contains("lineage"));
         assert_eq!(content.lineage_root().normalized_identity(), 96);
+        assert_eq!(content.resident_claim().normalized_identity(), 99);
         let returned = admission.withdraw();
         assert_eq!(returned.origin(), returned_origin);
         assert_eq!(returned.lineage_root(), returned_lineage);
@@ -5888,6 +6127,7 @@ mod tests {
                     plan.identity().normalized_identity() + 1,
                     psi_extents::ExtentContentInterpretationId::from_normalized_identity,
                 ),
+                extent_id(104, ResidentClaimId::from_normalized_identity),
                 extent_id(
                     101,
                     ExtentContentValidityReceiptId::from_normalized_identity,
@@ -5977,6 +6217,8 @@ mod tests {
             assert_eq!(request.current_borrow(), BorrowPolarity::Shared);
             assert_eq!(request.source_loan(), BorrowPolarity::Shared);
             assert_eq!(request.operation(), AccessOperation::Read);
+            assert_eq!(request.resident_claim(), None);
+            assert_eq!(request.placed_occurrence(), None);
             assert!(request.reach().contains(reach()));
         }
         {
