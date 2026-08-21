@@ -520,6 +520,7 @@ fn retained_exact_division_safe_divisor_bound(
             .iter()
             .chain(semantic_axioms)
             .any(|fact| fact == candidate || closed_transitive_integer_bound(candidate, fact))
+            || landed_literal_integer_bound(candidate, semantic_axioms)
             || retained_two_fact_transitive_integer_bound(candidate, requirements, semantic_axioms)
     };
     match &proposition {
@@ -544,6 +545,23 @@ fn retained_exact_division_safe_divisor_bound(
         }
         _ => false,
     }
+}
+
+fn landed_literal_integer_bound(goal: &Proposition, semantic_axioms: &[Proposition]) -> bool {
+    let Proposition::LessOrEqual(left, right) = goal else {
+        return false;
+    };
+    if let Some((integer_type, left)) = left.integer_value() {
+        return super::known_integer_term_value(integer_type, right, semantic_axioms)
+            .and_then(|right| integer_type.compare(left, right))
+            .is_some_and(|order| !order.is_gt());
+    }
+    if let Some((integer_type, right)) = right.integer_value() {
+        return super::known_integer_term_value(integer_type, left, semantic_axioms)
+            .and_then(|left| integer_type.compare(left, right))
+            .is_some_and(|order| !order.is_gt());
+    }
+    false
 }
 
 fn retained_two_fact_transitive_integer_bound(
@@ -1144,6 +1162,32 @@ mod tests {
             &goal,
             &[],
             &[divisor_bound.clone(), dividend_bound.clone()],
+        ));
+        assert!(exact_division_has_closed_prior_certificate(
+            &goal,
+            &[Proposition::Equal(
+                value(1, signed),
+                ScalarTerm::integer(signed, IntegerValue::Signed(-7))
+                    .expect("nonminimum i8 dividend"),
+            )],
+            std::slice::from_ref(&divisor_bound),
+        ));
+        assert!(!exact_division_has_closed_prior_certificate(
+            &goal,
+            &[Proposition::Equal(
+                value(1, signed),
+                ScalarTerm::integer(signed, signed.minimum_value()).expect("minimum i8 dividend"),
+            )],
+            std::slice::from_ref(&divisor_bound),
+        ));
+        assert!(!exact_division_has_closed_prior_certificate(
+            &goal,
+            &[Proposition::Equal(
+                value(3, signed),
+                ScalarTerm::integer(signed, IntegerValue::Signed(-7))
+                    .expect("wrong nonminimum i8 dividend"),
+            )],
+            std::slice::from_ref(&divisor_bound),
         ));
         assert!(!exact_division_has_closed_prior_certificate(
             &goal,

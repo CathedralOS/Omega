@@ -397,6 +397,56 @@ mod tests {
     }
 
     #[test]
+    fn exact_division_goal_composes_runtime_negative_bound_and_landed_dividend() {
+        let integer_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+        let dividend = value(1, integer_type);
+        let divisor = value(2, integer_type);
+        let goal = Proposition::Disjunction(vec![
+            Proposition::LessOrEqual(divisor.clone(), integer(integer_type, -2)),
+            Proposition::LessOrEqual(integer(integer_type, 1), divisor.clone()),
+            Proposition::Conjunction(vec![
+                Proposition::LessOrEqual(divisor.clone(), integer(integer_type, -1)),
+                Proposition::LessOrEqual(integer(integer_type, -127), dividend.clone()),
+            ]),
+        ]);
+        let proof = prove_canonical_integer_proposition(
+            &two_value_context(integer_type),
+            &goal,
+            &[Proposition::LessOrEqual(divisor, integer(integer_type, -1))],
+            &[Proposition::Equal(dividend, integer(integer_type, -7))],
+        )
+        .expect("runtime negative bound and landed dividend prove the joint arm");
+        let ProofRule::DisjunctionIntroduction { disjunct, index } = proof.rule else {
+            panic!("mixed joint evidence selects its canonical disjunct")
+        };
+        assert_eq!(index, 2);
+        let ProofRule::ConjunctionIntroduction(conjuncts) = disjunct.rule else {
+            panic!("mixed joint evidence proves both canonical premises")
+        };
+        assert!(matches!(
+            conjuncts[0].rule,
+            ProofRule::Assumption { index: 0 }
+        ));
+        let ProofRule::IntegerLessOrEqualSubstitution {
+            relation,
+            equality,
+            endpoint,
+        } = &conjuncts[1].rule
+        else {
+            panic!("landed dividend proves its canonical floor by substitution")
+        };
+        assert_eq!(*endpoint, 1);
+        assert!(matches!(
+            relation.rule,
+            ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation)
+        ));
+        assert!(matches!(
+            equality.rule,
+            ProofRule::SemanticAxiom { index: 0 }
+        ));
+    }
+
+    #[test]
     fn exact_division_goal_composes_complete_prior_fact_proofs() {
         let unsigned = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
         let unsigned_divisor = value(2, unsigned);

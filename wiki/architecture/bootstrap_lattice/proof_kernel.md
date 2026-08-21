@@ -361,7 +361,10 @@ joint-bound family selects the ordered third disjunct when both
 `divisor <= -1` and `MIN + 1 <= dividend` are independently proved through the
 supported exact citation or checked transitivity paths. It constructs those
 two premises with conjunction introduction before disjunction introduction;
-missing or redirected operands reject. A signed `i1` divisor
+missing or redirected operands reject. A retained `divisor <= -1` may also pair
+with an independently landed nonminimum dividend literal: closed integer order
+and exact equality substitution prove the dividend floor. A minimum or
+wrong-identity landing rejects. A signed `i1` divisor
 fact alone cannot prove its two-premise conjunction. When exact prior
 `divisor <= -1` and `0 <= dividend` propositions are both independently
 retained, the complete `i1` family cites them and constructs that conjunction;
