@@ -438,7 +438,10 @@ pub enum MachineSupplySnapshot {
     Requirement,
     Boundary,
     Accepted,
-    ExternalRealization { binding: u32 },
+    ExternalRealization {
+        binding: u32,
+        mechanism: &'static str,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -1091,8 +1094,11 @@ fn machine_supply_snapshot(
         MachineSupplyMode::Requirement => MachineSupplySnapshot::Requirement,
         MachineSupplyMode::Boundary => MachineSupplySnapshot::Boundary,
         MachineSupplyMode::Accepted => MachineSupplySnapshot::Accepted,
-        MachineSupplyMode::ExternalRealization { binding } => {
-            MachineSupplySnapshot::ExternalRealization { binding: binding.0 }
+        MachineSupplyMode::ExternalRealization { binding, mechanism } => {
+            MachineSupplySnapshot::ExternalRealization {
+                binding: binding.0,
+                mechanism: mechanism.as_str(),
+            }
         }
     }
 }

@@ -1289,6 +1289,38 @@ fn rejects_authored_service_reach_on_external_realization_before_resolved_trees(
 }
 
 #[test]
+fn retains_external_realization_mechanism_without_rendering_classification() {
+    let source = r#"
+        boundary trait Console {
+            machine write(value: u8);
+        }
+
+        machine write_leaf(value: u8)
+        satisfies Console::write
+        via Binding::CompilerIntrinsic("Console::write");
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("parse");
+    let program = lower_syntax_trees(&syntax_trees).expect("resolve external realization");
+    let leaf = program
+        .machines
+        .iter()
+        .find(|machine| machine.name.as_str() == "write_leaf")
+        .expect("external leaf");
+
+    let psi_language_semantics::MachineSupplyMode::ExternalRealization { binding, mechanism } =
+        leaf.supply_mode
+    else {
+        panic!("bodyless via leaf must retain external supply");
+    };
+    assert!(binding.is_valid());
+    assert_eq!(
+        mechanism,
+        psi_language_semantics::ExternalBindingMechanism::CompilerIntrinsic
+    );
+}
+
+#[test]
 fn keeps_attached_machines_as_distinct_callables() {
     let source = r#"
     machine Game::new {

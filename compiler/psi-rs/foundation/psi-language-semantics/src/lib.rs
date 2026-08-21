@@ -102,6 +102,43 @@ pub enum PermissionClaimIdentity {
     },
 }
 
+/// Closed mechanism tag for one irreducible external realization. This is
+/// retained independently from the transitional binding interner so semantic
+/// consumers never classify a rendered `Binding::Case(...)` string.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ExternalBindingMechanism {
+    Import,
+    Syscall,
+    CompilerIntrinsic,
+    VtableSlot,
+    VtableField,
+    TableFunction,
+}
+
+impl ExternalBindingMechanism {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Import => "import",
+            Self::Syscall => "syscall",
+            Self::CompilerIntrinsic => "compiler_intrinsic",
+            Self::VtableSlot => "vtable_slot",
+            Self::VtableField => "vtable_field",
+            Self::TableFunction => "table_function",
+        }
+    }
+
+    pub const fn identity_tag(self) -> u8 {
+        match self {
+            Self::Import => 1,
+            Self::Syscall => 2,
+            Self::CompilerIntrinsic => 3,
+            Self::VtableSlot => 4,
+            Self::VtableField => 5,
+            Self::TableFunction => 6,
+        }
+    }
+}
+
 /// How a machine is supplied to its consumers (record §Machines). Provider
 /// admission, proof artifacts, manifests, and lowering consume this directly;
 /// resolved and typed trees do not retain a parallel source-spelling flag.
@@ -124,7 +161,10 @@ pub enum MachineSupplyMode {
     /// the public contract and service/operational ceilings; the normalized binding is the
     /// realization the lowering consumes. Composite lowerings are ordinary
     /// CheckedBody machines and never carry a binding.
-    ExternalRealization { binding: ExternalBindingId },
+    ExternalRealization {
+        binding: ExternalBindingId,
+        mechanism: ExternalBindingMechanism,
+    },
 }
 
 impl MachineSupplyMode {
@@ -878,6 +918,7 @@ mod tests {
             MachineSupplyMode::Requirement,
             MachineSupplyMode::ExternalRealization {
                 binding: ExternalBindingId(1),
+                mechanism: ExternalBindingMechanism::CompilerIntrinsic,
             },
         ] {
             assert!(!mode.is_checked_body());
