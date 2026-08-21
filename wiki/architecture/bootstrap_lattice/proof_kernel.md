@@ -398,10 +398,26 @@ reject. This common core is usable by direct, cast-adjacent, affine-adjacent,
 and divide/remainder-adjacent shift families. It accepts no proof authority,
 establishes no root custody, and proves no overflow bound or interval preimage.
 
+The last trusted correlated family also has a non-serialized checked custody
+form. `IntegerCorrelatedForbiddenRootWitness` binds the dividend and divisor's
+complete nonempty landed-literal affine walks, their shared direct signed
+fixed-native parameter, strict source order and disjoint definitions, and the
+exact two tight unary signature-bound axiom identities. It independently
+replays every exact add/subtract/multiply definition and each nonclosed
+sibling's prior canonical equality, recomputes both nonzero affine forms, and
+solves the divisor's integer-lattice zero and `-1` equations. The latter is
+forbidden only when the dividend form evaluates to the carrier minimum at the
+same root. No forbidden root yields the ordered two-bound conjunction; roots
+covering the entire retained interval yield falsehood; partial safety rejects.
+Stale or redirected definitions/literals/bounds, correlation, branch order,
+type or root drift, constant collapse, one-sided bounds, and arithmetic failure
+all reject. The checked result retains exact branch, landing, bound, interval,
+forbidden-root, and conclusion identities but accepts no proof authority.
+
 An intentionally versioned recursive proof-rule integration must still bind
 the root-bound proof and every normalization equality into the accepted premise
-closure. The correlated forbidden-root conversion also remains producer work
-before either exact divide/remainder row can leave
+closure. A certificate conversion for the checked correlated result also
+remains producer work before either exact divide/remainder row can leave
 `TrustedJudgment`. Because no serialized proof rule or deployed reconstruction
 path changed, proof-bundle v15, terminal codec v18, installation record v24,
 and the current trust statuses remain unchanged.

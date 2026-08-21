@@ -1823,8 +1823,27 @@ definitions, discontinuity, cycles, and target drift reject.
 The shift checker accepts no proof authority, does not establish machine-root
 custody, and proves neither left-shift overflow safety nor any surrounding
 preimage or interval claim. Affine and cast witnesses likewise remain
-non-certificate custody. Correlated forbidden-root analysis still needs its own
-normalized witness. Affine certificate production still needs
+non-certificate custody.
+
+The correlated affine exact-divide/remainder family now has one complete
+non-serialized `IntegerCorrelatedForbiddenRootWitness`. It independently
+replays both nonempty exact add/subtract/multiply branches backward from the
+dividend and divisor, including exact prior canonical equalities for nonclosed
+landed siblings. The definition walks must be disjoint, source ordered, and end
+at the same direct signed fixed-native signature parameter with nonzero checked
+coefficients. The checker deterministically reselects the tightest strict unary
+lower and upper signature bounds after the definition boundary, binds their
+exact axiom identities, and solves the divisor's integer-lattice zero and `-1`
+roots. The `-1` root is forbidden only when the checked dividend form evaluates
+to the carrier minimum there. No forbidden root reconstructs the exact
+two-bound conjunction; roots covering the whole retained interval reconstruct
+falsehood; partial safety rejects. Stale definitions or landed siblings,
+branch/correlation/order/type/root drift, one-sided or redirected bounds,
+constant branches, and checked arithmetic failure reject.
+
+This forbidden-root checker accepts no proposition as authority and does not
+turn its checked sufficient conclusion or selected bounds into a certificate
+premise. Affine certificate production still needs
 an intentionally versioned proof-rule integration that recursively checks the
 root-bound citation and binds every normalization equality into the accepted
 premise closure. Until that integration and the correlated conversions cover
