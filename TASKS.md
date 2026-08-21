@@ -199,6 +199,23 @@ Remaining:
   frame around RCX/RDX caller-copy address recipes. No production builder emits
   these operations; no stack stores, wrapper insertion, call edge, object-entry
   switch, or native-execution evidence is claimed.
+  The receiver-free wrapper caller-frame plan can now move into a sealed,
+  non-clone reserved-outgoing-frame planning authority. It retains the intact
+  authority-bearing operand chain and authorizes only four ordered eight-byte
+  writes: Image base/length at `rsp+32/+40` and InitialStorage base/length at
+  `rsp+48/+56`; shadow `[0,32)` and alignment padding `[64,72)` remain
+  unwritable, and rejection returns the intact prior caller-frame plan. The
+  main backend also owns `WriteOutgoingStackU64` through abstract, target,
+  assigned, machine-instruction, encoded-byte, and final-image replay. X86-64
+  emits canonical full-width `mov rax,imm64; mov [rsp+disp32],rax`, reusing the
+  host-call qword-store mechanic, with exact RAX/StackPointer footprint,
+  untouched flags, and no relocation. Independent assigned and final scans
+  require the exact four writes under a live 72-byte reservation before RCX/RDX
+  caller-copy address bindings and reject shadow, padding, range, order,
+  metadata, byte, footprint, incomplete-sequence, or AArch64 drift. No
+  production builder consumes this authority; no physical stack mutation,
+  wrapper insertion, call edge, object-entry switch, or native execution is
+  claimed.
   Production builds therefore still lack a source-compatible attached-root
   value/authority carrier (or separate hidden supply), generated wrapper body,
   and source-function inbound realization; defining that disposition at the
@@ -892,7 +909,7 @@ Remaining:
   Unknown or redirected case/field identities reject independently. Mixed
   common-field/case shapes, nested or recursive payload expansion, address and
   erased payload equality, and runtime sum layout remain fenced. Semantic codec
-  v18, proof-bundle v13, and installation-record v24 retain the structural
+  v18, proof-bundle v14, and installation-record v24 retain the structural
   shapes, case-payload paths, and proposition. Continue with the fenced mixed,
   nested, recursive, and erased aggregate cases. Concrete machine/state
   contracts plus domain/data predicates, trait invariants and signatures,
@@ -1027,6 +1044,20 @@ Remaining:
   `inl`/`inr` gates agree. This adds certificate capability only: all eight
   sufficient reducers and all unproved semantic rows retain `TrustedJudgment`,
   and terminal codec v18 / installation record v24 remain unchanged.
+  The next bounded certificate capability is also complete.
+  `NonzeroDivisor` now has an exact fail-closed kernel proposition projection:
+  unsigned fixed integers use `1 <= d`, signed fixed integers of at least two
+  bits use the ordered disjunction `(d <= -1) OR (1 <= d)`, and signed one-bit
+  integers use `d <= -1`; address and mismatched carriers reject, while the
+  other five canonical goal shapes remain unprojected.
+  `IntegerLessOrEqualTransitivity` checks two recursively derived `<=` premises
+  with an identical middle and exact outer endpoints, allowing existing
+  `d <= -2` evidence plus the closed `-2 <= -1` relation to establish the
+  negative disjunct. Proof-bundle v14 assigns rule tag 10; the registered
+  calculus is v11 and the Rust kernel v3. This is capability only:
+  reconstruction still uses the legacy sufficient proposition, no producer
+  emits these certificates, all reducers and operation rows remain
+  `TrustedJudgment`, and the closure remains `fully-derived false`.
   The bounded Gamma spike is complete. It canonical-decodes four exact current
   `PSITERM\0` v18 fixtures and audits a 54-row scalar ledger covering constants,
   Boolean not/equality, integer equality/order, bitwise operations, strict
