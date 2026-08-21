@@ -7,11 +7,14 @@
 use psi_arena::HandleSpan;
 use psi_symbols::SymbolHandle;
 use psi_typed_trees::TypedTrees;
-use psi_typed_trees::expression::{QuotientOperationRequest, TableCallExpression};
+use psi_typed_trees::expression::{
+    ExpressionHandle, ExpressionNode, QuotientOperationKind, QuotientOperationRequest,
+    TableCallExpression,
+};
 use psi_typed_trees::machine::Machine;
 use psi_typed_trees::signature::SignatureContract;
 use psi_typed_trees::state::State;
-use psi_typed_trees::types::TypeReferenceHandle;
+use psi_typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 use std::fmt;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -36,6 +39,7 @@ pub(super) struct DirectTerminalRelationPlan {
     pub(super) input_relations: Vec<InputRelation>,
     pub(super) result_relation: ExactQuotientRelation,
     pub(super) representative: RepresentativeTelescope,
+    pub(super) define_correspondence: Option<DefineRuntimeCorrespondence>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -57,6 +61,17 @@ pub(super) struct RepresentativeTelescope {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) struct DefineRuntimePosition {
+    pub(super) public_parameter: SymbolHandle,
+    pub(super) representative_parameter: SymbolHandle,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct DefineRuntimeCorrespondence {
+    pub(super) positions: Vec<DefineRuntimePosition>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum RelationPlanError {
     UnresolvedArgumentType(usize),
     UnresolvedInputRelationApplication(usize),
@@ -65,6 +80,14 @@ pub(super) enum RelationPlanError {
     RepresentativeEntryDoesNotResolveExactly,
     RepresentativeApplicationRequiresSubstitution,
     RepresentativeResultTypeIsUnresolved,
+    DefineOwnerRequiresSubstitution,
+    DefineRuntimeArityMismatch,
+    DefineParameterIdentityNotUnique,
+    DefineArgumentIsNotPublicParameter(usize),
+    DefineArgumentOrderMismatch(usize),
+    DefineParameterModeMismatch(usize),
+    DefineParameterTypeMismatch(usize),
+    DefineResultTypeMismatch,
 }
 
 impl fmt::Display for RelationPlanError {
@@ -91,6 +114,34 @@ impl fmt::Display for RelationPlanError {
             ),
             Self::RepresentativeResultTypeIsUnresolved => formatter.write_str(
                 "the representative operation has no exact result type",
+            ),
+            Self::DefineOwnerRequiresSubstitution => formatter.write_str(
+                "the quotient-facing definition is generic and requires exact owner-telescope substitution",
+            ),
+            Self::DefineRuntimeArityMismatch => formatter.write_str(
+                "the public, authored-call, and representative runtime telescopes have different arity",
+            ),
+            Self::DefineParameterIdentityNotUnique => formatter.write_str(
+                "the public or representative runtime telescope repeats one parameter identity",
+            ),
+            Self::DefineArgumentIsNotPublicParameter(position) => write!(
+                formatter,
+                "define argument {position} is not one exact direct public parameter"
+            ),
+            Self::DefineArgumentOrderMismatch(position) => write!(
+                formatter,
+                "define argument {position} does not name the public parameter at the same position"
+            ),
+            Self::DefineParameterModeMismatch(position) => write!(
+                formatter,
+                "define parameter {position} changes mutable/borrow mode"
+            ),
+            Self::DefineParameterTypeMismatch(position) => write!(
+                formatter,
+                "define parameter {position} does not map its exact quotient carrier or ordinary type to the representative parameter"
+            ),
+            Self::DefineResultTypeMismatch => formatter.write_str(
+                "the exact quotient result carrier does not match the representative result",
             ),
         }
     }
@@ -131,11 +182,196 @@ pub(super) fn derive_direct_terminal_plan(
         }
     };
     let representative = derive_representative_telescope(program, request)?;
+    let define_correspondence = (request.kind == QuotientOperationKind::Define)
+        .then(|| {
+            derive_define_runtime_correspondence(
+                program,
+                machine,
+                state,
+                call,
+                &input_relations,
+                result_relation,
+                &representative,
+            )
+        })
+        .transpose()?;
     Ok(DirectTerminalRelationPlan {
         input_relations,
         result_relation,
         representative,
+        define_correspondence,
     })
+}
+
+fn derive_define_runtime_correspondence(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    call: &TableCallExpression,
+    input_relations: &[InputRelation],
+    result_relation: ExactQuotientRelation,
+    representative: &RepresentativeTelescope,
+) -> Result<DefineRuntimeCorrespondence, RelationPlanError> {
+    if !program.machine_type_parameters(machine).is_empty() {
+        return Err(RelationPlanError::DefineOwnerRequiresSubstitution);
+    }
+    let public_parameters = program
+        .state_parameters(state)
+        .iter()
+        .filter(|parameter| !parameter.is_const)
+        .collect::<Vec<_>>();
+    let arguments = program.expression_table.expression_handles(call.arguments);
+    if public_parameters.len() != arguments.len()
+        || arguments.len() != representative.parameters.len()
+        || input_relations.len() != arguments.len()
+    {
+        return Err(RelationPlanError::DefineRuntimeArityMismatch);
+    }
+    if has_duplicate_parameter_symbols(public_parameters.iter().map(|parameter| parameter.symbol))
+        || has_duplicate_parameter_symbols(
+            representative
+                .parameters
+                .iter()
+                .map(|parameter| parameter.symbol),
+        )
+    {
+        return Err(RelationPlanError::DefineParameterIdentityNotUnique);
+    }
+
+    let mut positions = Vec::with_capacity(arguments.len());
+    for (position, (((public, argument), relation), representative)) in public_parameters
+        .iter()
+        .zip(arguments)
+        .zip(input_relations)
+        .zip(&representative.parameters)
+        .enumerate()
+    {
+        let argument_symbol = direct_public_parameter_symbol(program, *argument).ok_or(
+            RelationPlanError::DefineArgumentIsNotPublicParameter(position),
+        )?;
+        if argument_symbol != public.symbol {
+            return Err(RelationPlanError::DefineArgumentOrderMismatch(position));
+        }
+        if public.is_mutable != representative.is_mutable {
+            return Err(RelationPlanError::DefineParameterModeMismatch(position));
+        }
+        if !input_relation_matches_public_type(program, *relation, public.type_reference)
+            || !input_relation_matches_representative_type(
+                program,
+                *relation,
+                representative.type_reference,
+            )
+        {
+            return Err(RelationPlanError::DefineParameterTypeMismatch(position));
+        }
+        positions.push(DefineRuntimePosition {
+            public_parameter: public.symbol,
+            representative_parameter: representative.symbol,
+        });
+    }
+    if !quotient_carrier_matches_type(program, result_relation, representative.return_type) {
+        return Err(RelationPlanError::DefineResultTypeMismatch);
+    }
+    Ok(DefineRuntimeCorrespondence { positions })
+}
+
+fn has_duplicate_parameter_symbols(symbols: impl IntoIterator<Item = SymbolHandle>) -> bool {
+    let mut seen = Vec::new();
+    for symbol in symbols {
+        if seen.contains(&symbol) {
+            return true;
+        }
+        seen.push(symbol);
+    }
+    false
+}
+
+fn direct_public_parameter_symbol(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+) -> Option<SymbolHandle> {
+    let expression = match program.expression_table.expression(expression) {
+        ExpressionNode::Mutable(inner) => *inner,
+        _ => expression,
+    };
+    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    (program
+        .expression_table
+        .name_path_members(path.members)
+        .len()
+        == 1
+        && path.symbol.is_valid())
+    .then_some(path.symbol)
+}
+
+fn input_relation_matches_representative_type(
+    program: &TypedTrees,
+    relation: InputRelation,
+    representative_type: TypeReferenceHandle,
+) -> bool {
+    match relation {
+        InputRelation::ExactEquality(public_type) => {
+            program.normalized_type_identity(public_type)
+                == program.normalized_type_identity(representative_type)
+        }
+        InputRelation::Quotient(relation) => {
+            quotient_carrier_matches_type(program, relation, representative_type)
+        }
+    }
+}
+
+fn input_relation_matches_public_type(
+    program: &TypedTrees,
+    relation: InputRelation,
+    public_type: TypeReferenceHandle,
+) -> bool {
+    let relation_type = match relation {
+        InputRelation::Quotient(relation) => relation.quotient_type,
+        InputRelation::ExactEquality(type_reference) => type_reference,
+    };
+    program.normalized_type_identity(relation_type) == program.normalized_type_identity(public_type)
+}
+
+fn quotient_carrier_matches_type(
+    program: &TypedTrees,
+    relation: ExactQuotientRelation,
+    representative_type: TypeReferenceHandle,
+) -> bool {
+    if !matches!(
+        program
+            .type_reference_table
+            .type_reference(relation.quotient_type),
+        TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. }
+    ) {
+        // Borrow/reference carrier substitution needs an exact shell-preserving
+        // rewrite; do not erase that mode by unwrapping here.
+        return false;
+    }
+    let Some(quotient) = program
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.symbol == relation.quotient_symbol)
+    else {
+        return false;
+    };
+    let Some(metadata) = quotient.quotient.as_ref() else {
+        return false;
+    };
+    let Some(carrier_symbol) = super::base_data_symbol(program, metadata.carrier) else {
+        return false;
+    };
+    let Some(carrier) = program
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.symbol == carrier_symbol)
+    else {
+        return false;
+    };
+    quotient.properties.multiplicity == carrier.properties.multiplicity
+        && program.normalized_type_identity(metadata.carrier)
+            == program.normalized_type_identity(representative_type)
 }
 
 fn derive_representative_telescope(
@@ -275,6 +511,21 @@ impl DirectTerminalRelationPlan {
             program.display_type_reference_with_constraints(self.representative.return_type),
         )
     }
+
+    pub(super) fn render_define_correspondence(&self) -> Option<String> {
+        self.define_correspondence.as_ref().map(|correspondence| {
+            format!(
+                "define-runtime=[{}]",
+                correspondence
+                    .positions
+                    .iter()
+                    .enumerate()
+                    .map(|(position, _)| position.to_string())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            )
+        })
+    }
 }
 
 fn relation_name(program: &TypedTrees, symbol: SymbolHandle) -> String {
@@ -321,7 +572,24 @@ mod tests {
         relation_symbol: SymbolHandle,
         relation_name: &'static str,
     ) -> TypeReferenceHandle {
-        let carrier = program.type_reference_table.insert(TypeReferenceNode::Unit);
+        let carrier_symbol = symbol(500);
+        if !program
+            .data_definitions()
+            .iter()
+            .any(|definition| definition.symbol == carrier_symbol)
+        {
+            program.push_data_definition(DataDefinition {
+                symbol: carrier_symbol,
+                name: Identifier::generated_static("Carrier"),
+                ..Default::default()
+            });
+        }
+        let carrier = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
+                symbol: carrier_symbol,
+                name: Identifier::generated_static("Carrier"),
+            });
         if !program
             .propositions()
             .iter()
@@ -349,6 +617,15 @@ mod tests {
             .insert(TypeReferenceNode::Named {
                 symbol: quotient_symbol,
                 name: Identifier::generated_static(quotient_name),
+            })
+    }
+
+    fn carrier_type(program: &mut TypedTrees) -> TypeReferenceHandle {
+        program
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
+                symbol: symbol(500),
+                name: Identifier::generated_static("Carrier"),
             })
     }
 
@@ -479,14 +756,15 @@ mod tests {
                 ..Default::default()
             },
         );
+        let representative_carrier = carrier_type(&mut program);
         let request = push_representative(
             &mut program,
             &[
-                (ordinary_type, true, false),
+                (representative_carrier, true, false),
                 (ordinary_type, false, false),
                 (ordinary_type, false, true),
             ],
-            ordinary_type,
+            representative_carrier,
         );
 
         let plan = derive_direct_terminal_plan(&program, &machine, &state, &call, &request)
@@ -511,7 +789,7 @@ mod tests {
         assert_eq!(plan.representative.parameters.len(), 2);
         assert!(plan.representative.parameters[0].is_self);
         assert!(!plan.representative.parameters[1].is_self);
-        assert_eq!(plan.representative.return_type, ordinary_type);
+        assert_eq!(plan.representative.return_type, representative_carrier);
         assert_eq!(plan.representative.machine_contracts.count(), 1);
         assert_eq!(plan.representative.state_contracts.count(), 1);
     }
@@ -662,6 +940,47 @@ mod tests {
     }
 
     #[test]
+    fn define_runtime_correspondence_rejects_reordered_public_parameters() {
+        let mut program = TypedTrees::default();
+        let quotient_type = quotient_type(&mut program, symbol(1), "ExactQ", symbol(2), "ExactR");
+        let carrier_type = carrier_type(&mut program);
+        let left_symbol = symbol(3);
+        let right_symbol = symbol(4);
+        let left = named_argument(&mut program, "left", left_symbol);
+        let right = named_argument(&mut program, "right", right_symbol);
+        let arguments = program
+            .expression_table
+            .insert_expression_handles([right, left]);
+        let call = call_with_arguments(arguments);
+        let mut state = State {
+            return_type: quotient_type,
+            ..Default::default()
+        };
+        for (parameter_symbol, name) in [(left_symbol, "left"), (right_symbol, "right")] {
+            program.push_state_parameter(
+                &mut state,
+                StateParameter {
+                    symbol: parameter_symbol,
+                    name: Identifier::generated_static(name),
+                    type_reference: quotient_type,
+                    ..Default::default()
+                },
+            );
+        }
+        let mut request = push_representative(
+            &mut program,
+            &[(carrier_type, false, false), (carrier_type, false, false)],
+            carrier_type,
+        );
+        request.kind = QuotientOperationKind::Define;
+
+        assert_eq!(
+            derive_direct_terminal_plan(&program, &Machine::default(), &state, &call, &request,),
+            Err(RelationPlanError::DefineArgumentOrderMismatch(0))
+        );
+    }
+
+    #[test]
     fn derived_direct_terminal_plan_remains_non_executable() {
         let mut program = TypedTrees::default();
         let quotient_type = quotient_type(&mut program, symbol(1), "ExactQ", symbol(2), "ExactR");
@@ -669,9 +988,12 @@ mod tests {
         let value = named_argument(&mut program, "value", value_symbol);
         let arguments = program.expression_table.insert_expression_handles([value]);
         let mut call = call_with_arguments(arguments);
-        let carrier_type = program.type_reference_table.insert(TypeReferenceNode::Unit);
+        let carrier_type = carrier_type(&mut program);
+        // Attached and free operations share the normalized positional form:
+        // the representative receiver occupies position zero without forcing
+        // the public wrapper parameter to be spelled `self`.
         let mut request =
-            push_representative(&mut program, &[(carrier_type, false, false)], carrier_type);
+            push_representative(&mut program, &[(carrier_type, true, false)], carrier_type);
         request.kind = QuotientOperationKind::Define;
         call.quotient_operation = Some(request);
         let call = program.expression_table.insert(ExpressionNode::Call(call));
@@ -705,6 +1027,7 @@ mod tests {
                 .contains("compiler-derived direct-terminal relations RA=[0:")
         );
         assert!(diagnostics[0].message.contains("RR="));
+        assert!(diagnostics[0].message.contains("define-runtime=[0]"));
         assert!(
             diagnostics[0]
                 .message

@@ -740,8 +740,22 @@ its exact state symbol and retains its ordered runtime telescope, including an
 attached receiver and excluding proof-static `const` binders, together with its
 exact result and machine/state contract spans. Open generic/static applications
 wait for exact substitution rather than using the declaration telescope. This
-does not discharge static/`const` argument correspondence, assert runtime
-positional correspondence, or validate `Respects`.
+does not discharge static/`const` argument correspondence or validate
+`Respects`; runtime positional correspondence is derived only for the direct
+monomorphic `define` shape below.
+
+For the same direct, monomorphic `define` shape, validation now also derives a
+non-authoritative runtime correspondence only when every authored argument is
+the exact public parameter at the same position, every quotient parameter's
+carrier (or ordinary parameter's exact type) matches the representative
+parameter, borrow/mutable modes agree, multiplicity is preserved, and the
+quotient result carrier matches the representative result. Attached receivers
+participate by position and need not force the public parameter to be spelled
+`self`. Reordering,
+duplication, locals/constants, arity drift, borrowed quotient shells, and
+carrier/result drift fail closed. Static/`const` correspondence, aliases and
+normalized multi-state result flow remain later obligations, so this direct
+correspondence still grants no execution authority.
 
 Acceptance requires:
 
