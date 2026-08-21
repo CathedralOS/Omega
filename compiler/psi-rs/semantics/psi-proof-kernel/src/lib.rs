@@ -10,6 +10,7 @@
 mod evidence;
 mod integer_affine;
 mod integer_cast;
+mod integer_shift;
 mod kernel;
 mod normalization;
 mod proof;
@@ -27,6 +28,11 @@ pub use integer_affine::{
 pub use integer_cast::{
     CheckedIntegerCastChain, IntegerCastChainWitness, IntegerCastChainWitnessError,
     check_integer_cast_chain_witness,
+};
+pub use integer_shift::{
+    CheckedIntegerShiftChain, CheckedIntegerShiftStep, IntegerShiftChainWitness,
+    IntegerShiftChainWitnessError, IntegerShiftDirection, IntegerShiftStepWitness,
+    check_integer_shift_chain_witness,
 };
 pub use kernel::{KernelError, PrimitiveJudgment, decide_primitive};
 pub use normalization::{

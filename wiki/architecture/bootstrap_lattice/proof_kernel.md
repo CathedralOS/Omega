@@ -383,10 +383,25 @@ prefix/suffix sandwiches, but it neither proves cast definedness nor checks the
 surrounding arithmetic families. Mixed widening/cast words remain a distinct
 normalization problem.
 
+The shared exact-shift core has a matching non-serialized checked witness.
+`IntegerShiftChainWitness` selects a nonempty, strictly ordered sequence of
+canonical exact-left or exact-right shift equalities from one fixed-native SSA
+root to one SSA target. Every nonclosed count names an exact earlier canonical
+equality landing that term; closed counts name no redundant fact. Count
+carriers may vary across fixed-native widths, but every count must be
+nonnegative and strictly less than the value width. The checked form retains
+the exact ordered direction/count/index word rather than a cumulative count,
+which would be unsound for mixed left/right composition. Nonexact operations,
+carrier drift, unlanded, late, reversed, mistyped, negative, or out-of-range
+counts, stale/reordered/discontinuous/cyclic definitions, and target drift
+reject. This common core is usable by direct, cast-adjacent, affine-adjacent,
+and divide/remainder-adjacent shift families. It accepts no proof authority,
+establishes no root custody, and proves no overflow bound or interval preimage.
+
 An intentionally versioned recursive proof-rule integration must still bind
 the root-bound proof and every normalization equality into the accepted premise
-closure. Cast/shift witness forms and the correlated forbidden-root conversion
-also remain producer work before either exact divide/remainder row can leave
+closure. The correlated forbidden-root conversion also remains producer work
+before either exact divide/remainder row can leave
 `TrustedJudgment`. Because no serialized proof rule or deployed reconstruction
 path changed, proof-bundle v15, terminal codec v18, installation record v24,
 and the current trust statuses remain unchanged.
