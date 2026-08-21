@@ -654,7 +654,7 @@ data Main {{
     buffer: [u8; 256];
     times: [u8; 32];
     stat_buf: [u8; 144];
-    mtime: i64;
+    mtime: i64 in Wrapping;
     passed: i32 in Wrapping;
 }}
 
@@ -752,14 +752,14 @@ machine Main::main(&mut self) {{
         transition self.rc == 0 {{ true -> decode() _ -> done() }}
     }}
     state decode(&mut self) {{
-        self.mtime = (self.stat_buf[48] as i64)
-            | ((self.stat_buf[49] as i64) << 8)
-            | ((self.stat_buf[50] as i64) << 16)
-            | ((self.stat_buf[51] as i64) << 24)
-            | ((self.stat_buf[52] as i64) << 32)
-            | ((self.stat_buf[53] as i64) << 40)
-            | ((self.stat_buf[54] as i64) << 48)
-            | ((self.stat_buf[55] as i64) << 56);
+        self.mtime = (self.stat_buf[48] as i64 in Wrapping)
+            | ((self.stat_buf[49] as i64 in Wrapping) << 8)
+            | ((self.stat_buf[50] as i64 in Wrapping) << 16)
+            | ((self.stat_buf[51] as i64 in Wrapping) << 24)
+            | ((self.stat_buf[52] as i64 in Wrapping) << 32)
+            | ((self.stat_buf[53] as i64 in Wrapping) << 40)
+            | ((self.stat_buf[54] as i64 in Wrapping) << 48)
+            | ((self.stat_buf[55] as i64 in Wrapping) << 56);
         transition self.mtime == 1500000000 {{ true -> finish() _ -> done() }}
     }}
     state finish(&mut self) {{
@@ -801,7 +801,7 @@ data Main {{
     buffer: [u8; 256];
     times: [u8; 32];
     stat_buf: [u8; 144];
-    mtime: i64;
+    mtime: i64 in Wrapping;
     passed: i32 in Wrapping;
 }}
 
@@ -881,14 +881,14 @@ machine Main::main(&mut self) {{
         transition self.rc == 0 {{ true -> decode() _ -> done() }}
     }}
     state decode(&mut self) {{
-        self.mtime = (self.stat_buf[40] as i64)
-            | ((self.stat_buf[41] as i64) << 8)
-            | ((self.stat_buf[42] as i64) << 16)
-            | ((self.stat_buf[43] as i64) << 24)
-            | ((self.stat_buf[44] as i64) << 32)
-            | ((self.stat_buf[45] as i64) << 40)
-            | ((self.stat_buf[46] as i64) << 48)
-            | ((self.stat_buf[47] as i64) << 56);
+        self.mtime = (self.stat_buf[40] as i64 in Wrapping)
+            | ((self.stat_buf[41] as i64 in Wrapping) << 8)
+            | ((self.stat_buf[42] as i64 in Wrapping) << 16)
+            | ((self.stat_buf[43] as i64 in Wrapping) << 24)
+            | ((self.stat_buf[44] as i64 in Wrapping) << 32)
+            | ((self.stat_buf[45] as i64 in Wrapping) << 40)
+            | ((self.stat_buf[46] as i64 in Wrapping) << 48)
+            | ((self.stat_buf[47] as i64 in Wrapping) << 56);
         transition self.mtime == 1500000000 {{ true -> finish() _ -> done() }}
     }}
     state finish(&mut self) {{

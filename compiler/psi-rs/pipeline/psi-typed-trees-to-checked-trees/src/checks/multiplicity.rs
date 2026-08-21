@@ -107,9 +107,10 @@ impl ClaimIdentityAllocator {
 pub(crate) fn check_linear_obligations(
     program: &psi_typed_trees::TypedTrees,
     facts: &mut CheckFacts,
+    incoming_guards: &super::ranges::incoming_guards::IncomingGuardIndex,
 ) -> Result<(), Vec<Diagnostic>> {
     validate_nominal_drop_moves(program, facts)?;
-    record_permission_events(program, facts);
+    record_permission_events_with_incoming_guards(program, facts, incoming_guards);
     validate_linear_permission_events(program, facts)
 }
 
@@ -309,9 +310,21 @@ fn nominal_drop_type_name(
     data_name_with_nominal_drop(program, definition.name.as_str())
 }
 
+#[cfg(test)]
 pub(crate) fn record_permission_events(
     program: &psi_typed_trees::TypedTrees,
     facts: &mut CheckFacts,
+) {
+    let call_frames = psi_validation::CallFrameResolver::new(program);
+    let incoming_guards =
+        super::ranges::incoming_guards::IncomingGuardIndex::build(program, call_frames.as_ref());
+    record_permission_events_with_incoming_guards(program, facts, &incoming_guards);
+}
+
+fn record_permission_events_with_incoming_guards(
+    program: &psi_typed_trees::TypedTrees,
+    facts: &mut CheckFacts,
+    incoming_guards: &super::ranges::incoming_guards::IncomingGuardIndex,
 ) {
     let mut permission_events = Vec::new();
     let mut claim_identities = ClaimIdentityAllocator::default();
@@ -436,7 +449,7 @@ pub(crate) fn record_permission_events(
         .permissions
         .insert_many(permission_events);
     publish_claim_outcome_maps(facts, claim_outcome_maps);
-    record_crash_frontier_lower_bounds(program, facts);
+    record_crash_frontier_lower_bounds(program, facts, incoming_guards);
 }
 
 #[derive(Debug)]
@@ -454,17 +467,8 @@ struct DerivedCrashFrontier {
 fn record_crash_frontier_lower_bounds(
     program: &psi_typed_trees::TypedTrees,
     facts: &mut CheckFacts,
+    incoming_guards: &super::ranges::incoming_guards::IncomingGuardIndex,
 ) {
-    let incoming_guards_by_machine = program
-        .machines()
-        .iter()
-        .map(|machine| {
-            (
-                machine.symbol,
-                super::ranges::incoming_guards::collect_incoming_guard_facts(program, machine),
-            )
-        })
-        .collect::<Vec<_>>();
     let mut derived = Vec::new();
     for (_, state_flow) in facts.flow.control.states.iter() {
         let Some(machine) = program
@@ -493,12 +497,9 @@ fn record_crash_frontier_lower_bounds(
         let mut places =
             initial_linear_places(program, state, state_flow.machine_symbol, state.symbol);
         apply_recorded_state_entry_events(&events, &facts.flow.ownership.segments, &mut places);
-        let incoming = incoming_guards_by_machine
-            .iter()
-            .find_map(|(symbol, guards)| (*symbol == machine.symbol).then_some(guards.as_slice()))
-            .unwrap_or_default();
+        let incoming = incoming_guards.for_machine(machine.symbol);
         let proven_conditional_claims =
-            proven_conditional_entry_claims(program, state, &incoming, &places);
+            proven_conditional_entry_claims(program, state, incoming, &places);
 
         let first_transition = statements
             .iter()

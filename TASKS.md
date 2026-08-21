@@ -897,6 +897,30 @@ Remaining:
   behavior, content, qualification, carry, and machine-contract test families.
   All 188 embedded tests and 215 test/helper functions remain, and no family
   module exceeds 1,043 lines.
+  The checked interpreter now follows the same responsibility boundary. Its
+  former 9,938-line evaluator is a 1,205-line state/model parent over separate
+  execution, statement/call, wire-codec, host-dispatch, filesystem, console,
+  expression/value-call, name/place, cast/recast, record-view, type-metadata,
+  scalar-operation, and typed-program-lookup modules. The complete function
+  and declaration inventories remain; cross-responsibility collaboration is
+  narrowly exposed through `pub(super)`, local helpers remain private, and no
+  child responsibility exceeds 1,408 lines. This is a semantics-preserving
+  split; exact host-service grant custody remains a separate authority task
+  rather than being hidden inside the refactor.
+  Profiling the differential corpus also ruled out a wholesale Arena-to-
+  `PagedArena` migration as a concurrency fix: `PagedArena` provides stable
+  paged storage, not concurrent mutation, and the existing sound parallel
+  pattern remains worker-local `Arena`s followed by deterministic ordered
+  merge. The measured stalls were duplicated semantic work instead. Backend
+  state-value planning now omits states outside the exact required runtime
+  closure, and checked lowering builds one call-frame/incoming-guard index for
+  all range, contract, crash, and multiplicity consumers. On the helper-rich
+  Mandelbrot differential canary this reduced checked lowering from about
+  15.6s to 9.5s, native compilation from about 53.8s to 10.1s, and the complete
+  interpreter/native comparison from about 75.6s to 26.2s without weakening
+  whole-program validation. Corpus-level bounded parallelism remains the next
+  harness/compiler execution-policy optimization; each independent compile
+  should stay single-worker to avoid nested oversubscription.
   The compiler canary integration suite is no longer a 48,301-line permutation
   file. Its shared compile helpers, exact corpus registries, and umbrella
   orchestration now form a 3,277-line root over twenty-one responsibility

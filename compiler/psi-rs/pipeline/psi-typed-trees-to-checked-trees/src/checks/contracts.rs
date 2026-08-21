@@ -20,9 +20,10 @@ use psi_checked_trees::CheckFacts;
 use psi_diagnostics::Diagnostic;
 use writes::check_domain_field_writes;
 
-pub(crate) fn check_flow_call_contracts(
+pub(super) fn check_flow_call_contracts(
     program: &psi_typed_trees::TypedTrees,
     facts: &CheckFacts,
+    incoming_guards: &crate::checks::ranges::incoming_guards::IncomingGuardIndex,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
 
@@ -73,7 +74,14 @@ pub(crate) fn check_flow_call_contracts(
             if caller_is_proof && is_proof_machine(call_flow.target_symbol) {
                 continue;
             }
-            check_call_requires(program, facts, state_flow, call_flow, &mut diagnostics);
+            check_call_requires(
+                program,
+                facts,
+                state_flow,
+                call_flow,
+                incoming_guards.for_machine(state_flow.machine_symbol),
+                &mut diagnostics,
+            );
         }
         for exit_flow in facts.flow.control.exits.span_or_empty(state_flow.exits) {
             check_exit_ensures(program, facts, state_flow, exit_flow, &mut diagnostics);
