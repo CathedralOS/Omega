@@ -1350,7 +1350,12 @@ compiler concept is introduced.
   admitted only when the fields do not consume that remaining shared
   computation-depth-two budget. The literal receiver may use the existing
   two-level aggregate budget while carrying that reduced computation budget
-  unchanged; a third aggregate level remains fenced.
+  unchanged; a third aggregate level remains fenced. The same primitive
+  assignment may directly index a fixed-array literal whose eagerly evaluated
+  elements contain bounded calls or use the one remaining scalar-computation
+  shell; all element and index writes publish even when the selected index is
+  constant. One outer scalar shell may instead consume that remaining budget;
+  combining both remains a third-shell fence.
   Indexing irreversibly coarsens to the nearest backing collection while
   preserving independent index-call writes. Finite named-state SCCs accept only
   bijective write-capable parameter permutations. Primitive-only concrete

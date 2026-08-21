@@ -236,7 +236,13 @@ Current ownership is:
   bounded direct-call trees. That projection may sit below one further unary,
   binary, primitive-cast, member-projection, or indexing shell: the projection
   consumes one of the existing two computation shells, so a third shell still
-  fails closed.
+  fails closed. A direct primitive index projection from a fixed-array literal
+  follows the same shared budget. Every eagerly evaluated element publishes
+  its bounded call writes; either one element computation shell or one outer
+  scalar shell may use the remaining depth, while combining both remains a
+  third-shell fence. Nested array literals remain conservative at this
+  projection site because no independent contextual aggregate type is retained
+  there.
   Targets may project through a stable helper-local
   mutable alias or an exact transparent call-produced place. An indexed target
   may contain one or more indexes whose non-rebinding direct-call trees are

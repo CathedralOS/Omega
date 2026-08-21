@@ -406,6 +406,13 @@ operators, primitive value casts, member projections, or indexing. The
 aggregate-depth-two and computed-depth-two rails do not widen the depth-four
 call budget. A third aggregate or computed level, generic, recursive, or
 reference-bearing carriers, and other computed field shapes remain fences.
+A primitive assignment may directly project a field from one such concrete
+record/case literal or index a fixed-array literal. The projection consumes one
+of the two computation shells. Every eagerly evaluated literal field or array
+element publishes its bounded call writes; the remaining shell may be used by
+an element computation or by one outer scalar computation, but not both.
+Nested array literals at the direct index site remain fenced because that site
+does not retain a separate contextual aggregate type for validating them.
 A value-shaped assignment through an indexed target likewise preserves a
 separately returned parameter origin when the collection projects through a
 stable helper-local mutable alias or an exact transparent helper result and
