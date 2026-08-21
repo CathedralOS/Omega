@@ -65,7 +65,10 @@ use state_paths::{
 use transition_equations::{
     PermutedCycleFrameEquation, append_permuted_cycle_frame_edge, transition_state_reaches,
 };
-use transition_topology::{named_transition_subgraph_is_acyclic, named_transition_target_state};
+use transition_topology::{
+    named_transition_preserves_state_namespace, named_transition_subgraph_is_acyclic,
+    named_transition_target_state,
+};
 use transparent_effects::{
     call_is_transparent_mutable_slice_view, expression_is_effectful_for_transparent_result,
     frame_place_root_symbol,
@@ -3089,42 +3092,6 @@ fn summarize_transition_target_written_paths(
             Some(instantiated)
         }
     }
-}
-
-/// A named edge closing a state cycle is frame-equivalent to a bare `self`
-/// edge when every parameter capable of carrying caller-visible writes is fed
-/// by the source parameter at that same ordinal. Reordering primitive values
-/// and shared references cannot redirect a write and therefore does not make
-/// an otherwise finite frame opaque. Parameter symbols are state-local, so a
-/// multi-state cycle compares each write-capable argument to the source
-/// namespace rather than requiring the target's distinct symbol.
-fn named_transition_preserves_state_namespace(
-    program: &TypedTrees,
-    source_state: &State,
-    target_state: &State,
-    arguments: &[ExpressionHandle],
-) -> bool {
-    let source_parameters = program
-        .state_parameters(source_state)
-        .iter()
-        .filter(|parameter| !parameter.is_self)
-        .collect::<Vec<_>>();
-    let target_parameters = program
-        .state_parameters(target_state)
-        .iter()
-        .filter(|parameter| !parameter.is_self)
-        .collect::<Vec<_>>();
-    source_parameters.len() == target_parameters.len()
-        && target_parameters.len() == arguments.len()
-        && source_parameters
-            .into_iter()
-            .zip(target_parameters)
-            .zip(arguments.iter().copied())
-            .all(|((source, target), argument)| {
-                !(parameter_may_carry_write(program, source)
-                    || parameter_may_carry_write(program, target))
-                    || expression_forwards_exact_symbol(program, argument, source.symbol)
-            })
 }
 
 fn instantiate_written_path(
