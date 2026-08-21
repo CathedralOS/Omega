@@ -374,8 +374,13 @@ rejects. A complete two-citation transitive family also accepts exact prior
 `1 <= K` and `K <= divisor`, or signed `divisor <= K` and `K <= -2`, only when
 the middle term and operand identities match exactly. Its proof is one
 `IntegerLessOrEqualTransitivity` node over the two citations; missing,
-disconnected, reversed, or redirected pairs reject. No result equation
-participates. The existing
+disconnected, reversed, or redirected pairs reject. An exact prior canonical
+goal may be cited directly, while an exact prior canonical arm is introduced
+only at its ordered disjunct index. Reconstruction now mirrors the producer's
+recursive `LessOrEqual`/conjunction/disjunction shape rather than maintaining
+separate safe-divisor and exceptional selectors. Redirected goals, reordered
+joint conjunctions, and wrong operands reject. No result equation participates.
+The existing
 proof rules and proof-bundle v15 codec need no vocabulary change.
 All other exact divide/remainder reconstruction remains on its trusted reducer
 until an untrusted producer can materialize kernel-checkable certificates for
