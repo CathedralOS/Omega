@@ -1793,8 +1793,13 @@ or excluded evidence rejects these paths. A complete two-citation transitive
 family also accepts exact prior `1 <= K` and `K <= divisor`, or signed
 `divisor <= K` and `K <= -2`, only with the exact shared middle term and operand
 identity. The producer places both citations under one checked transitivity
-node; missing, disconnected, reversed, or redirected pairs reject. No
-operation-result equation is available as proof authority. The existing proof
+node; missing, disconnected, reversed, or redirected pairs reject. An exact
+prior canonical goal is cited directly; an exact prior canonical arm is
+introduced only at its ordered disjunct index. Reconstruction uses the same
+recursive `LessOrEqual`/conjunction/disjunction shape as the producer instead of
+separate safe-divisor and exceptional selectors. Redirected goals, reordered
+joint conjunctions, or wrong operands reject. No operation-result equation is
+available as proof authority. The existing proof
 rules and proof-bundle v15 codec carry these certificates without a vocabulary
 change. All other exact divide/remainder families remain
 on their explicitly trusted sufficient reducer, and both complete rows retain

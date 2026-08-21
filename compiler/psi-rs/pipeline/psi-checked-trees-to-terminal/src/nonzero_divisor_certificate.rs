@@ -447,6 +447,64 @@ mod tests {
     }
 
     #[test]
+    fn exact_division_goal_cites_complete_retained_goal_or_arm() {
+        let integer_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+        let dividend = value(1, integer_type);
+        let divisor = value(2, integer_type);
+        let joint_arm = Proposition::Conjunction(vec![
+            Proposition::LessOrEqual(divisor.clone(), integer(integer_type, -1)),
+            Proposition::LessOrEqual(integer(integer_type, -127), dividend.clone()),
+        ]);
+        let goal = Proposition::Disjunction(vec![
+            Proposition::LessOrEqual(divisor, integer(integer_type, -2)),
+            Proposition::LessOrEqual(integer(integer_type, 1), value(2, integer_type)),
+            joint_arm.clone(),
+        ]);
+        let whole_goal = prove_canonical_integer_proposition(
+            &two_value_context(integer_type),
+            &goal,
+            std::slice::from_ref(&goal),
+            &[],
+        )
+        .expect("exact retained canonical goal is cited directly");
+        assert!(matches!(
+            whole_goal.rule,
+            ProofRule::Assumption { index: 0 }
+        ));
+
+        let retained_arm = prove_canonical_integer_proposition(
+            &two_value_context(integer_type),
+            &goal,
+            &[],
+            std::slice::from_ref(&joint_arm),
+        )
+        .expect("exact retained canonical arm is introduced");
+        let ProofRule::DisjunctionIntroduction { disjunct, index } = retained_arm.rule else {
+            panic!("retained canonical arm is wrapped by disjunction introduction")
+        };
+        assert_eq!(index, 2);
+        assert!(matches!(
+            disjunct.rule,
+            ProofRule::SemanticAxiom { index: 0 }
+        ));
+
+        let redirected_arm = Proposition::Conjunction(vec![
+            Proposition::LessOrEqual(value(3, integer_type), integer(integer_type, -1)),
+            Proposition::LessOrEqual(integer(integer_type, -127), dividend),
+        ]);
+        assert!(
+            prove_canonical_integer_proposition(
+                &two_value_context(integer_type),
+                &goal,
+                &[],
+                &[redirected_arm],
+            )
+            .is_none(),
+            "redirected canonical arm cannot prove the goal",
+        );
+    }
+
+    #[test]
     fn exact_division_goal_composes_complete_prior_fact_proofs() {
         let unsigned = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
         let unsigned_divisor = value(2, unsigned);

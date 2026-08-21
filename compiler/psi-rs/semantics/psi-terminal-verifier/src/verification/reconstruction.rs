@@ -467,47 +467,11 @@ pub(super) fn reconstruct_machine_semantics(
     })
 }
 
-/// The complete closed landed-literal exact divide/remainder families. A
-/// directly landed unsigned nonzero divisor or signed divisor other than zero
-/// and -1 makes definedness independent of the dividend. A signed -1 divisor
-/// is also complete when the dividend is independently landed above the
-/// carrier minimum or its exact canonical minimum-plus-one bound is retained
-/// as a prior proposition. A retained stronger literal lower bound is complete
-/// through one closed transitivity step. Their canonical proofs need only
-/// prior citations and closed integer order; no value-root custody or
-/// operation-definition authority participates.
+/// The complete prior-fact exact divide/remainder families whose canonical
+/// proofs need only exact citations, closed integer order, substitution, and
+/// transitivity. No value-root custody or operation-definition authority
+/// participates.
 fn exact_division_has_closed_prior_certificate(
-    goal: &CanonicalScalarGoal,
-    semantic_axioms: &[Proposition],
-    requirements: &[Proposition],
-) -> bool {
-    let CanonicalScalarGoal::ExactDivisionDefined {
-        integer_type,
-        left,
-        right,
-    } = goal
-    else {
-        return false;
-    };
-    if retained_exact_division_safe_divisor_bound(goal, semantic_axioms, requirements) {
-        return true;
-    }
-    let Some(value) = super::known_integer_term_value(*integer_type, right, semantic_axioms) else {
-        return false;
-    };
-    match (integer_type.sign(), value) {
-        (psi_core::IntegerSign::Unsigned, psi_core::IntegerValue::Unsigned(value)) => value != 0,
-        (psi_core::IntegerSign::Signed, psi_core::IntegerValue::Signed(value)) if value == -1 => {
-            super::known_integer_term_value(*integer_type, left, semantic_axioms)
-                .is_some_and(|left| left != integer_type.minimum_value())
-                || retained_exact_division_exception_bound(goal, semantic_axioms, requirements)
-        }
-        (psi_core::IntegerSign::Signed, psi_core::IntegerValue::Signed(value)) => value != 0,
-        _ => false,
-    }
-}
-
-fn retained_exact_division_safe_divisor_bound(
     goal: &CanonicalScalarGoal,
     semantic_axioms: &[Proposition],
     requirements: &[Proposition],
@@ -515,34 +479,39 @@ fn retained_exact_division_safe_divisor_bound(
     let Ok(Some(proposition)) = goal.kernel_proposition() else {
         return false;
     };
-    let retained = |candidate: &Proposition| {
-        requirements
-            .iter()
-            .chain(semantic_axioms)
-            .any(|fact| fact == candidate || closed_transitive_integer_bound(candidate, fact))
-            || landed_literal_integer_bound(candidate, semantic_axioms)
-            || retained_two_fact_transitive_integer_bound(candidate, requirements, semantic_axioms)
-    };
-    match &proposition {
-        Proposition::LessOrEqual(_, _) => retained(&proposition),
-        Proposition::Disjunction(disjuncts) => {
-            disjuncts
-                .first()
-                .is_some_and(|candidate| retained(candidate))
-                || disjuncts
-                    .get(1)
-                    .is_some_and(|candidate| retained(candidate))
-                || disjuncts.get(2).is_some_and(|candidate| {
-                    matches!(
-                        candidate,
-                        Proposition::Conjunction(conjuncts)
-                            if !conjuncts.is_empty() && conjuncts.iter().all(retained)
-                    )
-                })
+    retained_canonical_integer_proposition(&proposition, requirements, semantic_axioms)
+}
+
+fn retained_canonical_integer_proposition(
+    goal: &Proposition,
+    requirements: &[Proposition],
+    semantic_axioms: &[Proposition],
+) -> bool {
+    if requirements
+        .iter()
+        .chain(semantic_axioms)
+        .any(|fact| fact == goal)
+    {
+        return true;
+    }
+    match goal {
+        Proposition::LessOrEqual(_, _) => {
+            requirements
+                .iter()
+                .chain(semantic_axioms)
+                .any(|fact| closed_transitive_integer_bound(goal, fact))
+                || landed_literal_integer_bound(goal, semantic_axioms)
+                || retained_two_fact_transitive_integer_bound(goal, requirements, semantic_axioms)
         }
         Proposition::Conjunction(conjuncts) => {
-            !conjuncts.is_empty() && conjuncts.iter().all(retained)
+            !conjuncts.is_empty()
+                && conjuncts.iter().all(|conjunct| {
+                    retained_canonical_integer_proposition(conjunct, requirements, semantic_axioms)
+                })
         }
+        Proposition::Disjunction(disjuncts) => disjuncts.iter().any(|disjunct| {
+            retained_canonical_integer_proposition(disjunct, requirements, semantic_axioms)
+        }),
         _ => false,
     }
 }
@@ -588,38 +557,6 @@ fn retained_two_fact_transitive_integer_bound(
                     )
                 })
     })
-}
-
-fn retained_exact_division_exception_bound(
-    goal: &CanonicalScalarGoal,
-    semantic_axioms: &[Proposition],
-    requirements: &[Proposition],
-) -> bool {
-    let Ok(Some(proposition)) = goal.kernel_proposition() else {
-        return false;
-    };
-    let bound = match &proposition {
-        Proposition::Disjunction(disjuncts) => {
-            let Some(Proposition::Conjunction(exception)) = disjuncts.get(2) else {
-                return false;
-            };
-            let Some(bound) = exception.get(1) else {
-                return false;
-            };
-            bound
-        }
-        Proposition::Conjunction(conjuncts) => {
-            let Some(bound) = conjuncts.get(1) else {
-                return false;
-            };
-            bound
-        }
-        _ => return false,
-    };
-    requirements
-        .iter()
-        .chain(semantic_axioms)
-        .any(|fact| fact == bound || closed_transitive_integer_bound(bound, fact))
 }
 
 fn closed_transitive_integer_bound(goal: &Proposition, retained: &Proposition) -> bool {
@@ -1221,6 +1158,63 @@ mod tests {
                 ),
                 dividend_bound,
             ],
+        ));
+    }
+
+    #[test]
+    fn exact_division_selects_exact_retained_canonical_goal_or_arm() {
+        let signed = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+        let goal = CanonicalScalarGoal::ExactDivisionDefined {
+            integer_type: signed,
+            left: value(1, signed),
+            right: value(2, signed),
+        };
+        let canonical = goal
+            .kernel_proposition()
+            .expect("exact goal projects")
+            .expect("exact goal has a kernel proposition");
+        assert!(exact_division_has_closed_prior_certificate(
+            &goal,
+            &[],
+            std::slice::from_ref(&canonical),
+        ));
+        assert!(exact_division_has_closed_prior_certificate(
+            &goal,
+            std::slice::from_ref(&canonical),
+            &[],
+        ));
+        let Proposition::Disjunction(disjuncts) = &canonical else {
+            panic!("signed exact goal is an ordered disjunction")
+        };
+        let joint_arm = disjuncts[2].clone();
+        assert!(exact_division_has_closed_prior_certificate(
+            &goal,
+            &[],
+            std::slice::from_ref(&joint_arm),
+        ));
+        let Proposition::Conjunction(joint_conjuncts) = joint_arm else {
+            panic!("signed exceptional arm is a conjunction")
+        };
+        assert!(!exact_division_has_closed_prior_certificate(
+            &goal,
+            &[],
+            &[Proposition::Conjunction(vec![
+                joint_conjuncts[1].clone(),
+                joint_conjuncts[0].clone(),
+            ])],
+        ));
+        let redirected = CanonicalScalarGoal::ExactDivisionDefined {
+            integer_type: signed,
+            left: value(1, signed),
+            right: value(3, signed),
+        }
+        .kernel_proposition()
+        .expect("redirected exact goal projects")
+        .expect("redirected exact goal has a kernel proposition");
+        assert!(!exact_division_has_closed_prior_certificate(
+            &goal,
+            &[],
+            &[redirected],
         ));
     }
 }
