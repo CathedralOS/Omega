@@ -803,6 +803,13 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
             omega_abstract_operations::AbstractOperationKind::CallInternalFunction { target } => {
                 Self::CallInternalFunction { target: *target }
             }
+            omega_abstract_operations::AbstractOperationKind::LoadOutgoingStackAddress {
+                register,
+                stack_byte_offset,
+            } => Self::LoadOutgoingStackAddress {
+                register: *register,
+                stack_byte_offset: *stack_byte_offset,
+            },
             omega_abstract_operations::AbstractOperationKind::BeginPlatformCall => Self::BeginPlatformCall,
             omega_abstract_operations::AbstractOperationKind::HostOperation { .. } => {
                 panic!("abstract host operation ordinals must be lowered in omega-abstract-operations-to-target-operations")

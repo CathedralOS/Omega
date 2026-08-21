@@ -6,9 +6,10 @@ pub type AbstractOperationDomain = OperationDomain;
 impl OperationSemanticQuery for AbstractOperationKind {
     fn semantic_domain(&self) -> AbstractOperationDomain {
         match self {
-            Self::EnterFunction | Self::LeaveFunction | Self::CallInternalFunction { .. } => {
-                AbstractOperationDomain::FunctionBoundary
-            }
+            Self::EnterFunction
+            | Self::LeaveFunction
+            | Self::CallInternalFunction { .. }
+            | Self::LoadOutgoingStackAddress { .. } => AbstractOperationDomain::FunctionBoundary,
 
             Self::EnterDispatchLoop { .. }
             | Self::EnterDispatchCase { .. }

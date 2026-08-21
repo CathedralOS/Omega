@@ -1055,6 +1055,14 @@ fn machine_instruction_width(
                 omega_isa_aarch64::internal_function_call_width()
             }
         },
+        SelectedInstructionKind::LoadOutgoingStackAddress { .. } => {
+            if input.target.architecture != omega_target::Architecture::X86_64 {
+                return Err(Diagnostic::error(
+                    "outgoing stack-address loads are supported only on x86-64",
+                ));
+            }
+            omega_isa_x86_64::outgoing_stack_address_load_width()
+        }
         SelectedInstructionKind::LeaveFunction => return_width(input.target.architecture),
         SelectedInstructionKind::EvaluateDispatchGuard { .. }
         | SelectedInstructionKind::LeaveDispatchLoop

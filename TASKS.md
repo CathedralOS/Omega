@@ -177,6 +177,17 @@ Remaining:
   operation allocates or writes stack storage, changes RCX/RDX, inserts a
   wrapper, emits a call or relocation, selects a new object entry, or proves
   native execution.
+  The main backend now also owns a compiler-private RSP-relative outgoing-stack
+  address-load operation across abstract, target, assigned, machine-
+  instruction, encoded-byte, and final-image replay. For x86-64 it retains
+  exact `lea register,[rsp+disp32]` bytes, rejects non-positional registers,
+  offsets outside nonnegative `disp32`, and non-x86 targets, carries no
+  relocation, and derives the exact selected-register plus stack-pointer
+  footprint. Synthetic gates pin `RCX=&rsp+32` and `RDX=&rsp+48` and reject
+  opcode, ModRM, displacement, metadata, and footprint drift. No production
+  builder emits this operation, the authority-bearing caller-frame plan
+  remains unconsumed, and no stack reservation/write, wrapper insertion, call
+  edge, object-entry switch, or native-execution evidence is claimed.
   Production builds therefore still lack a source-compatible attached-root
   value/authority carrier (or separate hidden supply), generated wrapper body,
   and source-function inbound realization; defining that disposition at the

@@ -376,6 +376,13 @@ fn compiler_instruction_validation_kind(
         SelectedInstructionKind::CallInternalFunction { target } => {
             Some(CompilerInstructionValidationKind::InternalFunctionCall { target: *target })
         }
+        SelectedInstructionKind::LoadOutgoingStackAddress {
+            register,
+            stack_byte_offset,
+        } => Some(CompilerInstructionValidationKind::OutgoingStackAddressLoad {
+            register: *register,
+            stack_byte_offset: *stack_byte_offset,
+        }),
         SelectedInstructionKind::EnterDispatchLoop {
             entry_dispatch_index,
             ..

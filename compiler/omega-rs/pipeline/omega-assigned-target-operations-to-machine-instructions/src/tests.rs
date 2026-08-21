@@ -43,6 +43,46 @@ fn preserves_private_function_identity_through_machine_lowering() {
 }
 
 #[test]
+fn lowers_outgoing_stack_address_to_exact_machine_kind() {
+    let mut assigned = AssignedTargetOperationPlan::default();
+    let instructions =
+        assigned
+            .code
+            .instructions
+            .insert_many([omega_assigned_target_operations::AssignedOperation {
+            kind:
+                omega_assigned_target_operations::AssignedOperationKind::LoadOutgoingStackAddress {
+                    register: omega_calling_conventions::MachineRegister::X86Rdx,
+                    stack_byte_offset: 48,
+                },
+            ..Default::default()
+        }]);
+    assigned
+        .code
+        .functions
+        .insert(AssignedTargetOperationFunction {
+            symbol: Arc::from("synthetic_wrapper"),
+            identity: MachineFunctionIdentity::default(),
+            instructions,
+        });
+    let machine = build_machine_instructions(&assigned).expect("machine lowering");
+    let [instruction] = machine.code.instructions.storage_slice() else {
+        panic!("one caller-frame address instruction should lower")
+    };
+    assert_eq!(
+        instruction.kind,
+        omega_machine_instructions::MachineInstructionKind::OutgoingStackAddressLoad
+    );
+    assert_eq!(
+        instruction.source_kind,
+        omega_assigned_target_operations::AssignedOperationKind::LoadOutgoingStackAddress {
+            register: omega_calling_conventions::MachineRegister::X86Rdx,
+            stack_byte_offset: 48,
+        }
+    );
+}
+
+#[test]
 fn copies_assigned_value_summary_to_machine_instruction_plan() {
     let mut assigned_operations = AssignedTargetOperationPlan::default();
     let machine_symbol = SymbolHandle::from_arena_index(1);
