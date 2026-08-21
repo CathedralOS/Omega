@@ -454,9 +454,6 @@ impl Compiler {
     }
 
     pub fn compile(self) -> Result<CompileReport, Vec<Diagnostic>> {
-        let workers = self
-            .worker_count
-            .map_or_else(WorkerPool::with_available_parallelism, WorkerPool::new);
         let mut timings = CompileTimings::default();
 
         let (source_file_count, mut syntax) = source_files_to_syntax_trees(
@@ -729,6 +726,12 @@ impl Compiler {
             });
         }
 
+        // Frontend-only compilation never submits work to the backend pool.
+        // Construct it only after the checked-only exit so large validation
+        // corpora do not spawn and join a host-sized thread set per source.
+        let workers = self
+            .worker_count
+            .map_or_else(WorkerPool::with_available_parallelism, WorkerPool::new);
         let state_graph = checked_trees_to_state_graph(&checked, workers.handle(), &mut timings)?;
         write_state_graph_snapshot(&self.options, &state_graph)?;
         let control_flow = state_graph_to_control_flow(state_graph, &mut timings)?;
