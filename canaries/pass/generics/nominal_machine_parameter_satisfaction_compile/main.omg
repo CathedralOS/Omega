@@ -1,0 +1,28 @@
+// PASS canary (ENT4): a signature-free nominal binder resolves one exact
+// requirement, and selection requires its authored satisfaction row.
+
+trait Handler {
+    machine call(value: i32) -> i32;
+}
+
+machine chosen(value: i32) -> i32
+satisfies Handler::call
+{
+    value
+}
+
+machine register<machine Selected>(value: i32) -> i32
+where machine Selected satisfies Handler::call;
+{
+    Selected(value)
+}
+
+machine caller(value: i32) -> i32 {
+    register<chosen>(value)
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}
