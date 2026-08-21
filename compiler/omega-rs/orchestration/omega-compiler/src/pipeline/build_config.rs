@@ -171,7 +171,7 @@ pub(crate) fn selected_program_entry_machine<'config>(
 pub(crate) fn validate_selected_program_entry_shape(
     typed: &TypedTrees,
     selected: SelectedProgramEntry<'_>,
-) -> Result<Option<String>, Vec<Diagnostic>> {
+) -> Result<super::SelectedProgramEntrySourceSignature, Vec<Diagnostic>> {
     let machine_name = selected.machine_name;
     let Some(machine) = typed
         .machines()
@@ -268,7 +268,10 @@ pub(crate) fn validate_selected_program_entry_shape(
                 for (index, (actual, required)) in
                     visible.iter().zip(required.parameters.iter()).enumerate()
                 {
-                    if typed.normalized_type_identity(actual.type_reference) != required.identity {
+                    if typed.normalized_type_identity(actual.type_reference) != required.identity
+                        || actual.is_const != required.is_const
+                        || actual.is_mutable != required.is_mutable
+                    {
                         diagnostics.push(Diagnostic::error(format!(
                             "target root slot `{}::{}` requires visible parameter {index} ({}) to have exact type `{}`, but entry machine `{machine_name}` declares `{}`",
                             selected.slot.owner.root_slot_owner_name(),
@@ -292,15 +295,51 @@ pub(crate) fn validate_selected_program_entry_shape(
         }
     }
 
-    if diagnostics.is_empty() {
-        Ok(self_parameters.first().map(|receiver| {
-            typed
-                .normalized_type_identity(receiver.type_reference)
-                .into_string()
-        }))
-    } else {
-        Err(diagnostics)
+    if !diagnostics.is_empty() {
+        return Err(diagnostics);
     }
+    let receiver = self_parameters.first().map_or(
+        super::ProgramEntrySourceReceiverSignature::Free,
+        |receiver| super::ProgramEntrySourceReceiverSignature::ProvisionedMutable {
+            normalized_type_identity: typed
+                .normalized_type_identity(receiver.type_reference)
+                .into_string(),
+        },
+    );
+    let visible_parameters = visible
+        .iter()
+        .enumerate()
+        .map(|(index, parameter)| {
+            let role = match index {
+                0 => super::ProgramStorageEntryRootRole::Image,
+                1 => super::ProgramStorageEntryRootRole::InitialStorage,
+                _ => unreachable!("selected source shape validation fixed visible arity"),
+            };
+            super::SelectedProgramEntrySourceSignature::visible_parameter(
+                role,
+                index,
+                typed
+                    .normalized_type_identity(parameter.type_reference)
+                    .into_string(),
+                parameter.is_const,
+                parameter.is_mutable,
+            )
+        })
+        .collect();
+    super::SelectedProgramEntrySourceSignature::from_checked_typed_entry(
+        selected.slot,
+        machine.symbol,
+        entry.symbol,
+        machine.name.as_str().to_owned(),
+        entry.name.as_str().to_owned(),
+        typed
+            .normalized_machine_overload_identity(machine)
+            .expect("selected entry has one checked executable state")
+            .identity(),
+        receiver,
+        visible_parameters,
+    )
+    .map_err(|diagnostic| vec![Diagnostic::error(diagnostic)])
 }
 
 pub(crate) fn validate_selected_program_entry_calling_plan(
@@ -393,6 +432,8 @@ pub(crate) fn validate_selected_program_entry_calling_plan(
 struct ArrivalRequirementParameterType {
     identity: psi_typed_trees::type_identity::NormalizedTypeIdentity,
     display: String,
+    is_const: bool,
+    is_mutable: bool,
 }
 
 struct ArrivalRequirementContract {
@@ -447,6 +488,8 @@ fn arrival_requirement_contract(
             .map(|parameter| ArrivalRequirementParameterType {
                 identity: typed.normalized_type_identity(parameter.type_reference),
                 display: typed.display_type_reference_with_constraints(parameter.type_reference),
+                is_const: parameter.is_const,
+                is_mutable: parameter.is_mutable,
             })
             .collect(),
     })

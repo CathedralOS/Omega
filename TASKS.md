@@ -100,19 +100,28 @@ Remaining:
   or receiver placement. Production builds still emit and select
   `Source(entry StateKey)`. The native bridge now retains only a non-
   authoritative continuation staging plan, distinct from the physical arrival
-  `BoundaryEntryPlan`. It does not claim an independently checked source
-  signature, root-value carrier, root authority, or complete `CallPlan`. For an
+  `BoundaryEntryPlan`. That staging plan itself carries no source signature,
+  root-value carrier, root authority, or complete `CallPlan`. For an
   attached entry it stages the first compiler-private ABI position as a hidden
   receiver-pointer candidate, and the production executor gate binds that
   candidate to the exact mapped address and live activation loan; identity,
   shape, alignment, and loan-length drift reject. The free form is recorded but
   has no production executor traversal because the current gate requires
-  receiver activation. Attached receiver storage partitions `InitialStorage`,
+  receiver activation. The bridge now separately retains the exact checked
+  source declaration signature captured before typed ownership moves into the
+  backend: target slot, machine/state symbols and names, canonical normalized
+  callable identity, Unit result, free-versus-mutable receiver identity, and
+  ordered receiver-excluded visible parameter type/mode rows. Those facts are
+  rechecked against the exact lowered continuation, selected slot, arrival
+  parameter identities, and checked receiver layout; they carry no ABI shape,
+  runtime value, `Extent`, or root authority. Attached receiver storage
+  partitions `InitialStorage`,
   and its potentially noncontiguous conserved remainders cannot be invented as
   one outbound `Extent`. Production builds therefore still lack an exact
-  source-call signature/authority carrier, generated wrapper body, and source-
-  function inbound realization; defining the conserved residual argument (or
-  separate hidden supply), emitting the body, realizing its placements,
+  source root-value/authority carrier, outbound ABI plan, generated wrapper
+  body, and source-function inbound realization; defining the conserved
+  residual argument (or separate hidden supply), emitting the body, realizing
+  its placements,
   defining the installation-carrier linkage, adding the
   exact native call edge to the retained operation, and retaining resulting
   native bridge evidence remain before this slice is complete.
@@ -155,8 +164,10 @@ Remaining:
   run their unchanged Unit entries through authored four-host roots. Four
   nested-loop/index probes and six dependent range, ordering, subtraction, and
   product-index probes likewise retain their exact programs under authored
-  four-host roots. The tracked corpus audit leaves 127 legacy fixtures without
-  an authored `build.omg` root.
+  four-host roots. Ten dungeon reentry, Boolean/ordered dispatch, and
+  string-field lookup regressions now also run their unchanged Unit entries
+  through authored roots. The tracked corpus audit leaves 117 legacy fixtures
+  without an authored `build.omg` root.
   Continue migrating those fixtures through production entry
   selection; replace result-as-process-exit probes with ordinary Unit entries
   and explicit exit providers rather than preserving the legacy entry seam.

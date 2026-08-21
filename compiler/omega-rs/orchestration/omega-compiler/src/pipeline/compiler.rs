@@ -610,12 +610,14 @@ impl Compiler {
             &build_config,
             self.options.target_name.as_deref(),
         )?;
-        let selected_program_entry_receiver =
+        let selected_program_entry_source_signature =
             if let Some(selected_program_entry) = selected_program_entry {
-                crate::pipeline::build_config::validate_selected_program_entry_shape(
-                    &typed,
-                    selected_program_entry,
-                )?
+                Some(
+                    crate::pipeline::build_config::validate_selected_program_entry_shape(
+                        &typed,
+                        selected_program_entry,
+                    )?,
+                )
             } else {
                 None
             };
@@ -873,6 +875,13 @@ impl Compiler {
         let program_storage_entry = program_entry_realization
             .as_ref()
             .map(|(_, selected)| {
+                let source_signature = selected_program_entry_source_signature
+                    .as_ref()
+                    .ok_or_else(|| {
+                        vec![Diagnostic::error(
+                            "selected program-storage entry lost its checked source signature before backend binding",
+                        )]
+                    })?;
                 let plan = backend.plan.entry_boundary_plan.as_ref().ok_or_else(|| {
                     vec![Diagnostic::error(
                         "selected program-storage entry lost its retained calling plan before backend binding",
@@ -884,13 +893,18 @@ impl Compiler {
                     &backend.plan.runtime_storage,
                     &backend.plan.layouts,
                     backend.plan.entry_key,
-                    selected_program_entry_receiver.as_deref(),
+                    source_signature,
                 )
                 .map_err(|diagnostic| vec![Diagnostic::error(diagnostic.to_string())])
             })
             .transpose()?;
         let program_storage_entry_bridge = program_storage_entry
             .map(|binding| {
+                if binding.source_signature().is_none() {
+                    return Err(vec![Diagnostic::error(
+                        "compiler-generated program-storage binding lost its checked source signature",
+                    )]);
+                }
                 crate::pipeline::program_storage_entry::bind_emitted_program_storage_entry_native_bridge(
                     binding,
                     program_storage_entry_provider,
