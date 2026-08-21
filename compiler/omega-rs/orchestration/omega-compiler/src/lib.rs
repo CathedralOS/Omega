@@ -19,6 +19,7 @@ pub use pipeline::{
     ProgramEntrySourceExtentValueLayout, ProgramEntrySourceReceiverSignature,
     ProgramEntrySourceResultSignature, ProgramEntrySourceVisibleParameterSignature,
     ProgramStorageEntryBridgeError, ProgramStorageEntryContinuationAbiPlan,
+    ProgramStorageEntryContinuationInboundArgument, ProgramStorageEntryContinuationInboundPlan,
     ProgramStorageEntryContinuationReceiverAbiPlan, ProgramStorageEntryContinuationReceiverBinding,
     ProgramStorageEntryContinuationReceiverBindingError,
     ProgramStorageEntryContinuationVisibleArgumentPlan, ProgramStorageEntryDiagnostic,
