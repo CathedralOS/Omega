@@ -1,9 +1,8 @@
 //! Closure and validation of name-owned generic conformance applications.
 //!
 //! The call syntax carries a recursively delimited static application. This
-//! module is the single place that classifies its declaration-owned telescope
-//! and publishes an argument-sensitive semantic identity; monomorphization
-//! consumes that identity without growing another parser/validator copy.
+//! module classifies its declaration-owned telescope and publishes an
+//! argument-sensitive semantic identity.
 
 use psi_diagnostics::Diagnostic;
 use psi_symbols::{SymbolHandle, SymbolKind};
@@ -202,7 +201,19 @@ pub(crate) fn close_conformance_application(
         .type_reference_table
         .type_reference_handles(conformance.arguments)
         .iter()
-        .map(|argument| substituted_type_identity(program, *argument, &substitutions))
+        .map(|argument| {
+            substituted_type_identity_with_lifetimes(
+                program,
+                *argument,
+                &substitutions,
+                &conformance
+                    .lifetime_parameters
+                    .iter()
+                    .zip(&lifetime_arguments)
+                    .map(|(parameter, argument)| (parameter.as_str().to_owned(), argument.clone()))
+                    .collect::<Vec<_>>(),
+            )
+        })
         .collect::<Vec<_>>();
     let Some(rows) = program.closed_conformance_rows(conformance) else {
         return Err(Diagnostic::error(format!(
@@ -281,10 +292,11 @@ pub(crate) fn static_argument_identity(
     argument.display_name()
 }
 
-pub(crate) fn substituted_type_identity(
+pub(crate) fn substituted_type_identity_with_lifetimes(
     program: &TypedTrees,
     handle: TypeReferenceHandle,
     substitutions: &[(SymbolHandle, String)],
+    lifetime_substitutions: &[(String, String)],
 ) -> String {
     match program.type_reference_table.type_reference(handle) {
         TypeReferenceNode::Named { symbol, .. } => substitutions
@@ -297,14 +309,31 @@ pub(crate) fn substituted_type_identity(
             lifetime,
         } => format!(
             "&{}{}{}",
-            lifetime
-                .as_ref()
-                .map_or(String::new(), |name| format!("'{} ", name.as_str())),
+            lifetime.as_ref().map_or(String::new(), |name| {
+                let lifetime = lifetime_substitutions
+                    .iter()
+                    .rev()
+                    .find_map(|(parameter, argument)| {
+                        (parameter == name.as_str()).then_some(argument.as_str())
+                    })
+                    .unwrap_or_else(|| name.as_str());
+                format!("'{lifetime} ")
+            }),
             if *is_mutable { "mut " } else { "" },
-            substituted_type_identity(program, *referee, substitutions)
+            substituted_type_identity_with_lifetimes(
+                program,
+                *referee,
+                substitutions,
+                lifetime_substitutions,
+            )
         ),
         TypeReferenceNode::Constrained { base_type, .. } => {
-            substituted_type_identity(program, *base_type, substitutions)
+            substituted_type_identity_with_lifetimes(
+                program,
+                *base_type,
+                substitutions,
+                lifetime_substitutions,
+            )
         }
         TypeReferenceNode::FixedArray {
             element_type,
@@ -322,12 +351,22 @@ pub(crate) fn substituted_type_identity(
             };
             format!(
                 "[{}; {length}]",
-                substituted_type_identity(program, *element_type, substitutions)
+                substituted_type_identity_with_lifetimes(
+                    program,
+                    *element_type,
+                    substitutions,
+                    lifetime_substitutions,
+                )
             )
         }
         TypeReferenceNode::Slice { element_type } => format!(
             "[{}]",
-            substituted_type_identity(program, *element_type, substitutions)
+            substituted_type_identity_with_lifetimes(
+                program,
+                *element_type,
+                substitutions,
+                lifetime_substitutions,
+            )
         ),
         TypeReferenceNode::Generic {
             base_name,
@@ -337,14 +376,30 @@ pub(crate) fn substituted_type_identity(
         } => {
             let mut rendered = lifetime_arguments
                 .iter()
-                .map(|lifetime| format!("'{}", lifetime.as_str()))
+                .map(|lifetime| {
+                    let lifetime = lifetime_substitutions
+                        .iter()
+                        .rev()
+                        .find_map(|(parameter, argument)| {
+                            (parameter == lifetime.as_str()).then_some(argument.as_str())
+                        })
+                        .unwrap_or_else(|| lifetime.as_str());
+                    format!("'{lifetime}")
+                })
                 .collect::<Vec<_>>();
             rendered.extend(
                 program
                     .type_reference_table
                     .type_reference_handles(*arguments)
                     .iter()
-                    .map(|argument| substituted_type_identity(program, *argument, substitutions)),
+                    .map(|argument| {
+                        substituted_type_identity_with_lifetimes(
+                            program,
+                            *argument,
+                            substitutions,
+                            lifetime_substitutions,
+                        )
+                    }),
             );
             format!("{}<{}>", base_name.as_str(), rendered.join(","))
         }

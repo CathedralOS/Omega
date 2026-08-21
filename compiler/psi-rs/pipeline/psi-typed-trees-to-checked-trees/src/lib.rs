@@ -1,6 +1,7 @@
 mod call_acknowledgements;
 mod capabilities;
 mod checks;
+mod conformance_application_lifetimes;
 mod conformance_applications;
 mod context;
 mod facts;
@@ -42,6 +43,7 @@ pub fn normalize_open_index_identities(
 pub fn specialize_static_machine_calls(
     program: &mut psi_typed_trees::TypedTrees,
 ) -> Result<(), Vec<psi_diagnostics::Diagnostic>> {
+    conformance_application_lifetimes::resolve_elided_conformance_lifetimes(program)?;
     conformance_applications::validate_conformance_applications(program)?;
     psi_validation::validate_static_machine_selections(program)?;
     psi_validation::validate_generic_machine_contract_entailment(program)?;

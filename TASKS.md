@@ -1519,9 +1519,12 @@ Remaining N6/N8 work:
   exact declaration/subject/trait identities, normalized row map, and canonical
   application commitment. Format-13/vocabulary-18 codec round trips preserve the
   table, and a dedicated verifier module rejects unknown owners, malformed or
-  duplicate applications, and redirected rows. Remaining work is to resolve
-  uniquely elided lifetimes from contextual ordinary borrow constraints instead
-  of requiring them explicitly.
+  duplicate applications, and redirected rows. Erased conformance lifetimes now
+  resolve only from the enclosing call's parameter-position ordinary borrow
+  constraints. The closer retains the resolved region in checked and terminal
+  identity, rejects missing or conflicting constraints, and checks an explicitly
+  supplied region against the same call-site constraint; declaration arity alone
+  never selects a lifetime.
 - Add `Respects` over compiler-derived positional call telescopes, deriving its
   dependent domain, pointwise input relations, and lifted result relation.
 - Add exact-pair-selected heterogeneous constructor lifts. Dependent records
