@@ -159,26 +159,11 @@ fn compiler_body_place_copy_footprints_reach_x86_and_aarch64_artifacts() {
             std::process::id()
         ));
         let _ = fs::remove_dir_all(&scratch);
-        let source = scratch.join("src");
         let output = scratch.join("out");
-        fs::create_dir_all(&source).expect("create compiler-body place-copy source directory");
-        fs::copy(canary.join("main.omg"), source.join("main.omg"))
-            .expect("copy compiler-body place-copy canary");
-        fs::write(
-            source.join("build.omg"),
-            hosted_main_program_entry_build(target),
-        )
-        .expect("write compiler-body place-copy target");
-
-        compile_with_auxiliary_artifacts(CompileOptions {
-            root_path: source.join("main.omg"),
-            build_dir: Some(output.clone()),
-            target_name: Some(target.into()),
-            write_output: true,
-        })
-        .unwrap_or_else(|diagnostics| {
-            panic!("compiler-body place copy should compile for {target}: {diagnostics:?}")
-        });
+        compile_rooted_canary_for_target_with_auxiliary_artifacts(&canary, output.clone(), target)
+            .unwrap_or_else(|diagnostics| {
+                panic!("compiler-body place copy should compile for {target}: {diagnostics:?}")
+            });
         let abstract_operations = fs::read_to_string(output.join("08_abstract_operations.html"))
             .expect("compiler-body place-copy abstract operations should be written");
         let footprints = fs::read_to_string(output.join("08_boundary_footprints.json"))
@@ -492,24 +477,12 @@ fn compiler_body_indexed_to_pointee_copy_footprints_reach_x86_and_aarch64_artifa
             std::process::id()
         ));
         let _ = fs::remove_dir_all(&scratch);
-        let source = scratch.join("src");
         let output = scratch.join("out");
-        fs::create_dir_all(&source)
-            .expect("create compiler-body indexed-to-pointee source directory");
-        fs::copy(canary.join("main.omg"), source.join("main.omg"))
-            .expect("copy compiler-body indexed-to-pointee canary");
-        fs::write(
-            source.join("build.omg"),
-            hosted_main_program_entry_build(target),
+        compile_rooted_canary_for_target_with_auxiliary_artifacts(
+            &canary,
+            output.clone(),
+            target,
         )
-        .expect("write compiler-body indexed-to-pointee target");
-
-        compile_with_auxiliary_artifacts(CompileOptions {
-            root_path: source.join("main.omg"),
-            build_dir: Some(output.clone()),
-            target_name: Some(target.into()),
-            write_output: true,
-        })
         .unwrap_or_else(|diagnostics| {
             panic!(
                 "compiler-body indexed-to-pointee copy should compile for {target}: {diagnostics:?}"
@@ -1155,28 +1128,13 @@ fn compiler_body_pointee_binary_write_footprints_reach_x86_and_aarch64_artifacts
             std::process::id()
         ));
         let _ = fs::remove_dir_all(&scratch);
-        let source = scratch.join("src");
         let output = scratch.join("out");
-        fs::create_dir_all(&source)
-            .expect("create compiler-body pointee binary-write source directory");
-        fs::copy(canary.join("main.omg"), source.join("main.omg"))
-            .expect("copy compiler-body pointee binary-write canary");
-        fs::write(
-            source.join("build.omg"),
-            hosted_main_program_entry_build(target),
-        )
-        .expect("write compiler-body pointee binary-write target");
-        compile_with_auxiliary_artifacts(CompileOptions {
-            root_path: source.join("main.omg"),
-            build_dir: Some(output.clone()),
-            target_name: Some(target.into()),
-            write_output: true,
-        })
-        .unwrap_or_else(|diagnostics| {
-            panic!(
+        compile_rooted_canary_for_target_with_auxiliary_artifacts(&canary, output.clone(), target)
+            .unwrap_or_else(|diagnostics| {
+                panic!(
                 "compiler-body pointee binary writes should compile for {target}: {diagnostics:?}"
             )
-        });
+            });
         let footprints = fs::read_to_string(output.join("08_boundary_footprints.json"))
             .expect("compiler-body pointee binary-write footprint evidence should be written");
         assert!(

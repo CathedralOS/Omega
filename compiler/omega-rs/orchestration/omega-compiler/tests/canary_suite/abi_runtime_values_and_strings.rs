@@ -3217,20 +3217,14 @@ fn runtime_nested_value_call_caller_local_guard_exit_canary_runs() {
     // and the TRUE arm never dispatched -- the dungeon's side rooms R05/R06
     // were never carved, rendering empty description lines.
     let canary = pass_canary("dungeon/runtime_nested_value_call_caller_local_guard_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-nested-value-call-caller-local-guard-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("nested value-call caller-local guard canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("nested value-call caller-local guard canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
