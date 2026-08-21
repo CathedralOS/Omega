@@ -85,7 +85,7 @@ struct SpecializationKey {
     type_arguments: Vec<String>,
     const_arguments: Vec<String>,
     machine_arguments: Vec<SymbolHandle>,
-    evidence_arguments: Vec<SymbolHandle>,
+    evidence_arguments: Vec<u64>,
 }
 
 pub(crate) fn monomorphize_generic_machine_value_calls(
@@ -347,7 +347,12 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
         let candidate = &mut candidates[candidate_index];
         match &candidate.evidence_bindings[parameter_index] {
             None => candidate.evidence_bindings[parameter_index] = Some(binding),
-            Some(existing) if existing.symbol != binding.symbol => candidate.conflicted = true,
+            Some(existing)
+                if existing.symbol != binding.symbol
+                    || existing.display_name() != binding.display_name() =>
+            {
+                candidate.conflicted = true
+            }
             Some(_) => {}
         }
     }
@@ -1015,7 +1020,12 @@ fn selection_from_proposals(
         }
         match &selection.evidence_bindings[parameter] {
             None => selection.evidence_bindings[parameter] = Some(binding),
-            Some(existing) if existing.symbol != binding.symbol => selection.conflicted = true,
+            Some(existing)
+                if existing.symbol != binding.symbol
+                    || existing.display_name() != binding.display_name() =>
+            {
+                selection.conflicted = true
+            }
             Some(_) => {}
         }
     }
@@ -1137,7 +1147,14 @@ fn unique_complete_selections(
             evidence_arguments: selection
                 .evidence_bindings
                 .iter()
-                .map(|binding| binding.as_ref().expect("complete selection").symbol)
+                .map(|binding| {
+                    crate::conformance_applications::close_conformance_application(
+                        program,
+                        binding.as_ref().expect("complete selection"),
+                    )
+                    .expect("validated complete conformance application")
+                    .fingerprint
+                })
                 .collect(),
         };
         if let Some((_, members)) = groups.iter_mut().find(|(existing, _)| *existing == key) {
@@ -1508,12 +1525,11 @@ fn validate_candidate_conformance_bounds(
                 )));
                 continue;
             };
-            let Some(selected_symbol) = candidate.evidence_bindings[evidence_index]
-                .as_ref()
-                .map(|binding| binding.symbol)
+            let Some(selected_binding) = candidate.evidence_bindings[evidence_index].as_ref()
             else {
                 continue;
             };
+            let selected_symbol = selected_binding.symbol;
             let Some(selected) = program
                 .conformances()
                 .iter()
@@ -1529,15 +1545,29 @@ fn validate_candidate_conformance_bounds(
                 )));
                 continue;
             };
-            let selected_carrier = selected.carrier_name().map(|carrier| carrier.as_str());
-            let selected_is_closed = matches!(
-                selected.implementation,
-                psi_typed_trees::trait_definition::ConformanceImplementation::Closed { .. }
-            );
-            if selected_carrier != Some(type_name)
-                || selected.trait_name != bound.carrier_name
-                || !conformance_arguments_match_candidate(program, candidate, bound, selected)
-                || !selected_is_closed
+            let application = match crate::conformance_applications::close_conformance_application(
+                program,
+                selected_binding,
+            ) {
+                Ok(application) => application,
+                Err(diagnostic) => {
+                    diagnostics.push(diagnostic);
+                    continue;
+                }
+            };
+            let expected_trait = program
+                .traits()
+                .iter()
+                .find(|definition| definition.symbol == bound.carrier);
+            if application.subject_identity.as_deref() != Some(type_name)
+                || expected_trait
+                    .is_none_or(|definition| application.trait_definition != definition.symbol)
+                || !conformance_application_arguments_match_candidate(
+                    program,
+                    candidate,
+                    bound,
+                    &application,
+                )
             {
                 diagnostics.push(Diagnostic::error(format!(
                     "generic machine `{}` cannot bind `{}` to conformance `{}`: expected a complete `{type_name} satisfies {}` map with the instantiated trait arguments",
@@ -1647,6 +1677,43 @@ fn concrete_data_type_name(program: &TypedTrees, handle: TypeReferenceHandle) ->
         }
         _ => None,
     }
+}
+
+fn conformance_application_arguments_match_candidate(
+    program: &TypedTrees,
+    candidate: &Candidate,
+    bound: &psi_typed_trees::machine::GenericConformanceBound,
+    application: &psi_typed_trees::typed_trees::ClosedConformanceApplication,
+) -> bool {
+    let substitutions = candidate
+        .type_parameters
+        .iter()
+        .zip(candidate.type_bindings.iter())
+        .filter_map(|((symbol, _), binding)| {
+            binding.map(|binding| (*symbol, program.display_type_reference(binding)))
+        })
+        .chain(
+            candidate
+                .const_parameters
+                .iter()
+                .zip(candidate.const_bindings.iter())
+                .filter_map(|((symbol, _, _), binding)| {
+                    binding.map(|binding| (*symbol, program.display_type_reference(binding)))
+                }),
+        )
+        .collect::<Vec<_>>();
+    application.trait_arguments.len() == bound.arguments.len()
+        && bound
+            .arguments
+            .iter()
+            .zip(application.trait_arguments.iter())
+            .all(|(required, actual)| {
+                crate::conformance_applications::substituted_type_identity(
+                    program,
+                    *required,
+                    &substitutions,
+                ) == *actual
+            })
 }
 
 fn conformance_arguments_match_candidate(
@@ -1870,11 +1937,7 @@ fn clone_specialized_machine(
             binding
                 .as_ref()
                 .expect("complete specialization")
-                .path
-                .iter()
-                .map(|member| member.as_str())
-                .collect::<Vec<_>>()
-                .join("::")
+                .display_name()
         })
         .collect();
     let fingerprint = specialization_fingerprint(
@@ -2071,6 +2134,17 @@ fn clone_specialized_machine(
                 .evidence_bindings
                 .iter()
                 .map(|binding| binding.as_ref().expect("complete specialization").symbol)
+                .collect(),
+            conformance_applications: candidate
+                .evidence_bindings
+                .iter()
+                .map(|binding| {
+                    crate::conformance_applications::close_conformance_application(
+                        source,
+                        binding.as_ref().expect("complete specialization"),
+                    )
+                    .expect("validated closed conformance application")
+                })
                 .collect(),
             template_contract_fingerprint,
             accepted_template_commitment,
@@ -3150,11 +3224,18 @@ fn apply_specialization(program: &mut TypedTrees, candidate: &Candidate) {
             binding
                 .as_ref()
                 .expect("complete specialization")
-                .path
-                .iter()
-                .map(|member| member.as_str())
-                .collect::<Vec<_>>()
-                .join("::")
+                .display_name()
+        })
+        .collect();
+    let conformance_applications = candidate
+        .evidence_bindings
+        .iter()
+        .map(|binding| {
+            crate::conformance_applications::close_conformance_application(
+                program,
+                binding.as_ref().expect("complete specialization"),
+            )
+            .expect("validated closed conformance application")
         })
         .collect();
     let fingerprint = specialization_fingerprint(
@@ -3179,6 +3260,7 @@ fn apply_specialization(program: &mut TypedTrees, candidate: &Candidate) {
                 .iter()
                 .map(|binding| binding.as_ref().expect("complete specialization").symbol)
                 .collect(),
+            conformance_applications,
             template_contract_fingerprint,
             accepted_template_commitment,
             machine_argument_contract_fingerprints: Vec::new(),
@@ -3778,22 +3860,21 @@ pub(crate) fn bind_specialization_contract_identities(
                 })
                 .collect();
             let conformance_identities = specialization
-                .conformance_arguments
+                .conformance_applications
                 .iter()
-                .filter_map(|conformance_symbol| {
+                .filter_map(|application| {
                     let Some(conformance) = program
                         .conformances()
                         .iter()
-                        .find(|conformance| conformance.symbol == *conformance_symbol)
+                        .find(|conformance| conformance.symbol == application.declaration)
                     else {
                         diagnostics.push(Diagnostic::error(format!(
                             "generic specialization references conformance symbol {:?}, but no package conformance exists",
-                            conformance_symbol
+                            application.declaration
                         )));
                         return None;
                     };
-                    let Some(identity) = conformance_argument_fingerprint(program, conformance)
-                    else {
+                    if program.closed_conformance_rows(conformance).is_none() {
                         diagnostics.push(Diagnostic::error(format!(
                             "generic specialization selected `{}`, but it is not a closed conformance map",
                             conformance
@@ -3803,8 +3884,8 @@ pub(crate) fn bind_specialization_contract_identities(
                                 .unwrap_or("<unnamed-conformance>")
                         )));
                         return None;
-                    };
-                    Some(identity)
+                    }
+                    Some(application.fingerprint)
                 })
                 .collect();
             (machine_identities, conformance_identities)
@@ -3874,52 +3955,6 @@ fn specialization_contract_fingerprint(
     hash
 }
 
-fn conformance_argument_fingerprint(
-    program: &TypedTrees,
-    conformance: &psi_typed_trees::trait_definition::Conformance,
-) -> Option<u64> {
-    const OFFSET: u64 = 0xcbf29ce484222325;
-    const PRIME: u64 = 0x100000001b3;
-    let rows = program.closed_conformance_rows(conformance)?;
-    let mut bytes = Vec::new();
-    if let Some(alias) = &conformance.alias {
-        bytes.extend(alias.as_str().as_bytes());
-    }
-    bytes.push(0xff);
-    if let Some(carrier) = conformance.carrier_name() {
-        bytes.extend(carrier.as_str().as_bytes());
-    }
-    bytes.push(0xfe);
-    bytes.extend(conformance.trait_name.as_str().as_bytes());
-    bytes.push(0xfd);
-    for argument in program
-        .type_reference_table
-        .type_reference_handles(conformance.arguments)
-    {
-        bytes.extend(
-            program
-                .normalized_type_identity(*argument)
-                .as_str()
-                .as_bytes(),
-        );
-        bytes.push(0xfc);
-    }
-    for row in rows {
-        bytes.extend(row.declaring_trait_name.as_str().as_bytes());
-        bytes.push(0xfb);
-        bytes.extend(row.requirement_name.as_str().as_bytes());
-        bytes.push(0xfa);
-        bytes.extend(row.realization_name.as_str().as_bytes());
-        bytes.push(0xf9);
-    }
-    let mut hash = OFFSET;
-    for byte in bytes {
-        hash ^= u64::from(byte);
-        hash = hash.wrapping_mul(PRIME);
-    }
-    Some(hash)
-}
-
 fn encode_data_properties(properties: psi_typed_trees::data::DataProperties, output: &mut Vec<u8>) {
     output.push(match properties.multiplicity {
         psi_language_semantics::Multiplicity::Unrestricted => 1,
@@ -3980,6 +4015,22 @@ fn encode_state_signature(
         output.push(0xfc);
     }
     output.push(u8::from(signature.terminates_guarantee));
+}
+
+pub(crate) fn canonical_state_signature_fingerprint(
+    program: &TypedTrees,
+    signature: &psi_typed_trees::signature::StateSignature,
+) -> u64 {
+    const OFFSET: u64 = 0xcbf29ce484222325;
+    const PRIME: u64 = 0x100000001b3;
+    let mut bytes = Vec::new();
+    encode_state_signature(program, signature, &[], &[], &mut bytes);
+    let mut hash = OFFSET;
+    for byte in bytes {
+        hash ^= u64::from(byte);
+        hash = hash.wrapping_mul(PRIME);
+    }
+    hash
 }
 
 fn encode_state_shape(

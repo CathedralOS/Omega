@@ -4278,6 +4278,54 @@ fn parses_static_machine_symbol_call_argument() {
 }
 
 #[test]
+fn parses_nested_static_conformance_application() {
+    let source = r#"
+        trait Encodes<T> {}
+        data Bytes {}
+        data Message {}
+
+        SequenceEncoding<Element, Output>: Bytes satisfies Encodes<Output> {}
+
+        machine send<T, Encoding: Bytes satisfies Encodes<T>>() {}
+        machine caller() {
+            send<Message, SequenceEncoding<'scope, Bytes, Message>>();
+        }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let parsed = parse_syntax_trees(&tokens).expect("nested static application should parse");
+    let call = parsed
+        .expressions
+        .iter_expressions()
+        .find_map(|(_, expression)| match expression {
+            psi_syntax_trees::expression::ExpressionNode::Call(call)
+                if call.target.as_str() == "send" =>
+            {
+                Some(call)
+            }
+            _ => None,
+        })
+        .expect("generic call expression");
+    let application = call.machine_arguments[1]
+        .application
+        .as_ref()
+        .expect("nested conformance application");
+    assert_eq!(
+        call.machine_arguments[1].path[0].as_str(),
+        "SequenceEncoding"
+    );
+    assert_eq!(application.lifetime_arguments[0].as_str(), "scope");
+    assert_eq!(application.arguments.len(), 2);
+    assert_eq!(application.arguments[0].path[0].as_str(), "Bytes");
+    assert_eq!(application.arguments[1].path[0].as_str(), "Message");
+    assert_eq!(
+        call.display_name(&parsed.expressions),
+        "send<Message, SequenceEncoding<'scope, Bytes, Message>>()"
+    );
+}
+
+#[test]
 fn parses_evidence_term_member_as_a_distinct_proof_static_argument() {
     let source = r#"
         machine consume<machine Witness>()

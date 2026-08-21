@@ -1,6 +1,6 @@
 use crate::expression::{
-    BinaryOperator, ExpressionNode, ExpressionTable, TableBinaryExpression, TableCallExpression,
-    TableCastExpression, TableUnaryExpression, UnaryOperator,
+    BinaryOperator, ExpressionNode, ExpressionTable, StaticMachineArgument, TableBinaryExpression,
+    TableCallExpression, TableCastExpression, TableUnaryExpression, UnaryOperator,
 };
 use crate::name::DiagnosticName;
 
@@ -113,19 +113,7 @@ impl TableCallExpression {
                 "<{}>",
                 self.machine_arguments
                     .iter()
-                    .map(|argument| {
-                        argument.const_literal.as_ref().map_or_else(
-                            || {
-                                argument.evidence_projection.as_ref().map_or_else(
-                                    || display_name_path(&argument.path, "::"),
-                                    |projection| {
-                                        format!("{}.{}", projection.term, projection.member)
-                                    },
-                                )
-                            },
-                            |literal| literal.text().to_owned(),
-                        )
-                    })
+                    .map(StaticMachineArgument::display_name)
                     .collect::<Vec<_>>()
                     .join(", ")
             )
@@ -144,6 +132,30 @@ impl TableCallExpression {
         } else {
             format!("{}{machine_arguments}({arguments})", self.target)
         }
+    }
+}
+
+impl StaticMachineArgument {
+    fn display_name(&self) -> String {
+        if let Some(literal) = &self.const_literal {
+            return literal.text().to_owned();
+        }
+        if let Some(projection) = &self.evidence_projection {
+            return format!("{}.{}", projection.term, projection.member);
+        }
+        let mut rendered = display_name_path(&self.path, "::");
+        if let Some(application) = &self.application {
+            let mut arguments = application
+                .lifetime_arguments
+                .iter()
+                .map(|lifetime| format!("'{lifetime}"))
+                .collect::<Vec<_>>();
+            arguments.extend(application.arguments.iter().map(Self::display_name));
+            rendered.push('<');
+            rendered.push_str(&arguments.join(", "));
+            rendered.push('>');
+        }
+        rendered
     }
 }
 

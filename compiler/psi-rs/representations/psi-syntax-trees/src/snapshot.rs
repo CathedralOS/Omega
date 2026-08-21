@@ -47,6 +47,11 @@ pub struct IdentifierSnapshot {
 #[serde(untagged)]
 pub enum StaticArgumentSnapshot {
     Path(Vec<IdentifierSnapshot>),
+    Application {
+        path: Vec<IdentifierSnapshot>,
+        lifetime_arguments: Vec<IdentifierSnapshot>,
+        arguments: Vec<StaticArgumentSnapshot>,
+    },
     Const(String),
     EvidenceProjection {
         term: IdentifierSnapshot,
@@ -1942,6 +1947,16 @@ fn snapshot_static_argument(
         StaticArgumentSnapshot::EvidenceProjection {
             term: snapshot_identifier(&projection.term),
             member: snapshot_identifier(&projection.member),
+        }
+    } else if let Some(application) = &argument.application {
+        StaticArgumentSnapshot::Application {
+            path: snapshot_identifier_slice(&argument.path),
+            lifetime_arguments: snapshot_identifier_slice(&application.lifetime_arguments),
+            arguments: application
+                .arguments
+                .iter()
+                .map(snapshot_static_argument)
+                .collect(),
         }
     } else {
         StaticArgumentSnapshot::Path(snapshot_identifier_slice(&argument.path))

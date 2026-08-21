@@ -238,6 +238,32 @@ pub(in crate::symbols) fn resolve_static_machine_argument_symbol(
     call_target_for_attached_data(symbols, &owner, target.as_str())
 }
 
+/// Stamp one static argument and every declaration-owned nested application.
+/// Nested application slots may be types, consts, or machines, so they use the
+/// proof-static resolver; their final category is checked against the selected
+/// declaration's own telescope after typed lowering.
+pub(in crate::symbols) fn assign_static_argument_symbols(
+    symbols: &SymbolTable,
+    scope_symbol: SymbolHandle,
+    argument: &mut psi_symbol_resolved_trees::expression::StaticMachineArgument,
+    proof_static: bool,
+) {
+    if argument.evidence_projection.is_some() || argument.const_literal.is_some() {
+        argument.symbol = SymbolHandle::invalid();
+    } else {
+        argument.symbol = if proof_static {
+            resolve_proposition_binder_argument_symbol(symbols, scope_symbol, &argument.path)
+        } else {
+            resolve_static_machine_argument_symbol(symbols, scope_symbol, &argument.path)
+        };
+    }
+    if let Some(application) = &mut argument.application {
+        for nested in &mut application.arguments {
+            assign_static_argument_symbols(symbols, scope_symbol, nested, true);
+        }
+    }
+}
+
 /// Resolve a proof-static proposition-family binder argument. Unlike an
 /// executable call's machine selection, proposition arguments may name a
 /// lexical type/const binder, a concrete type, or a machine identity. The

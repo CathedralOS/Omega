@@ -412,13 +412,7 @@ fn count_statement_node(
             }
             count_identifier(&call.target, counts);
             for argument in &call.machine_arguments {
-                for member in &argument.path {
-                    count_identifier(member, counts);
-                }
-                if let Some(projection) = &argument.evidence_projection {
-                    count_identifier(&projection.term, counts);
-                    count_identifier(&projection.member, counts);
-                }
+                count_static_argument(argument, counts);
             }
             for argument in syntax_trees.statements.expression_handles(call.arguments) {
                 count_expression_handle(syntax_trees, *argument, counts);
@@ -608,13 +602,7 @@ fn count_expression_handle(
             }
             count_identifier(&call.target, counts);
             for argument in &call.machine_arguments {
-                for member in &argument.path {
-                    count_identifier(member, counts);
-                }
-                if let Some(projection) = &argument.evidence_projection {
-                    count_identifier(&projection.term, counts);
-                    count_identifier(&projection.member, counts);
-                }
+                count_static_argument(argument, counts);
             }
             for argument in syntax_trees.expressions.expression_handles(call.arguments) {
                 count_expression_handle(syntax_trees, *argument, counts);
@@ -671,6 +659,27 @@ fn count_expression_handle(
         }
         crate::expression::ExpressionNode::ZeroValue(type_reference) => {
             count_type_reference_handle(syntax_trees, *type_reference, counts);
+        }
+    }
+}
+
+fn count_static_argument(
+    argument: &crate::expression::StaticMachineArgument,
+    counts: &mut AstIdentityStorageCounts,
+) {
+    for member in &argument.path {
+        count_identifier(member, counts);
+    }
+    if let Some(projection) = &argument.evidence_projection {
+        count_identifier(&projection.term, counts);
+        count_identifier(&projection.member, counts);
+    }
+    if let Some(application) = &argument.application {
+        for lifetime in &application.lifetime_arguments {
+            count_identifier(lifetime, counts);
+        }
+        for nested in &application.arguments {
+            count_static_argument(nested, counts);
         }
     }
 }

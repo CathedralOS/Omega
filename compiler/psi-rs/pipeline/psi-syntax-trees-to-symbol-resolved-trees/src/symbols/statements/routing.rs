@@ -7,8 +7,7 @@ use crate::symbols::expressions::{
 use crate::symbols::scope::MachineScope;
 use crate::symbols::scoped_paths::resolve_state_scoped_members;
 use crate::symbols::targets::{
-    assign_transition_target_symbols, resolve_call_target_symbol,
-    resolve_static_machine_argument_symbol,
+    assign_static_argument_symbols, assign_transition_target_symbols, resolve_call_target_symbol,
 };
 use crate::symbols::type_references::assign_type_reference_symbol_with_locals_and_self_type_and_constraints;
 
@@ -89,12 +88,7 @@ pub(super) fn assign_statement_symbols(
                 symbols,
             );
             for argument in &mut call.machine_arguments {
-                if argument.evidence_projection.is_some() {
-                    argument.symbol = SymbolHandle::invalid();
-                    continue;
-                }
-                argument.symbol =
-                    resolve_static_machine_argument_symbol(symbols, machine.symbol, &argument.path);
+                assign_static_argument_symbols(symbols, machine.symbol, argument, false);
             }
         }
         psi_symbol_resolved_trees::statement::Statement::EvidencePackageDestructure(binding) => {

@@ -9,9 +9,7 @@ use super::super::lookup::{
 };
 use super::super::scope::MachineScope;
 use super::super::scoped_paths::resolve_state_scoped_table_path;
-use super::super::targets::{
-    resolve_proposition_binder_argument_symbol, resolve_static_machine_argument_symbol,
-};
+use super::super::targets::assign_static_argument_symbols;
 
 /// The spelled member names of a `self`-rooted receiver path, root -> leaf
 /// (`["self", "p"]` for the receiver `self.p`). `None` for non-place receivers
@@ -149,19 +147,12 @@ pub(super) fn assign_call_symbol(
     {
         call.target_symbol = target_symbol;
         for argument in &mut call.machine_arguments {
-            if argument.evidence_projection.is_some() {
-                argument.symbol = SymbolHandle::invalid();
-                continue;
-            }
-            argument.symbol = if target_symbol.is_valid()
+            let proof_static = target_symbol.is_valid()
                 && matches!(
                     symbols.get(target_symbol).kind,
                     SymbolKind::Proposition | SymbolKind::PropositionParameter
-                ) {
-                resolve_proposition_binder_argument_symbol(symbols, machine.symbol, &argument.path)
-            } else {
-                resolve_static_machine_argument_symbol(symbols, machine.symbol, &argument.path)
-            };
+                );
+            assign_static_argument_symbols(symbols, machine.symbol, argument, proof_static);
         }
     }
 }
