@@ -1664,4 +1664,47 @@ mod tests {
             ],
         ));
     }
+
+    #[test]
+    fn exact_division_selects_two_citation_dividend_floor_under_endpoint_transport() {
+        let signed = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+        let goal = CanonicalScalarGoal::ExactDivisionDefined {
+            integer_type: signed,
+            left: value(1, signed),
+            right: value(2, signed),
+        };
+        let divisor_bound = Proposition::LessOrEqual(
+            value(2, signed),
+            ScalarTerm::integer(signed, IntegerValue::Signed(-1)).expect("i8 -1"),
+        );
+        let dividend_floor = Proposition::LessOrEqual(
+            ScalarTerm::integer(signed, IntegerValue::Signed(-127)).expect("i8 minimum + 1"),
+            value(4, signed),
+        );
+        let middle_bound = Proposition::LessOrEqual(value(4, signed), value(3, signed));
+        let dividend_equality = Proposition::Equal(value(3, signed), value(1, signed));
+        assert!(exact_division_has_closed_prior_certificate(
+            &goal,
+            std::slice::from_ref(&divisor_bound),
+            &[
+                dividend_floor.clone(),
+                middle_bound.clone(),
+                dividend_equality.clone(),
+            ],
+        ));
+        assert!(!exact_division_has_closed_prior_certificate(
+            &goal,
+            std::slice::from_ref(&divisor_bound),
+            &[dividend_floor.clone(), dividend_equality.clone()],
+        ));
+        assert!(!exact_division_has_closed_prior_certificate(
+            &goal,
+            &[divisor_bound],
+            &[
+                dividend_floor,
+                Proposition::LessOrEqual(value(4, signed), value(2, signed)),
+                dividend_equality,
+            ],
+        ));
+    }
 }

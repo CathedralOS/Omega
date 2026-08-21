@@ -386,8 +386,12 @@ replaces that closed side with a second exact citation: unsigned `1 <= M` and
 `M <= K`, or signed `K <= M` and `M <= -2`, followed by `K == divisor`.
 The proof nests two-citation transitivity beneath endpoint substitution in
 deterministic ledger order. Missing or disconnected middle relations, weak
-signed ceilings, redirected equalities, or wrong endpoints reject. A signed
-`i1` divisor
+signed ceilings, redirected equalities, or wrong endpoints reject. The signed
+joint arm has the corresponding complete dividend sibling: exact
+`divisor <= -1`, `MIN + 1 <= M`, `M <= K`, and `K == dividend`. Its ordered
+conjunction cites the divisor bound directly and nests the two dividend-floor
+citations beneath endpoint substitution. A missing or disconnected middle fact
+rejects. A signed `i1` divisor
 fact alone cannot prove its two-premise conjunction. When exact prior
 `divisor <= -1` and `0 <= dividend` propositions are both independently
 retained, the complete `i1` family cites them and constructs that conjunction;
