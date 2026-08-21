@@ -20,8 +20,8 @@ pub use evidence::{
     Obligation, ObligationClass, ProofSystemMarker, verify_obligation,
 };
 pub use integer_affine::{
-    CheckedIntegerAffineForm, IntegerAffineWitness, IntegerAffineWitnessError,
-    check_integer_affine_witness,
+    CheckedIntegerAffineForm, IntegerAffineBoundConversionError, IntegerAffineWitness,
+    IntegerAffineWitnessError, check_integer_affine_bound_conversion, check_integer_affine_witness,
 };
 pub use kernel::{KernelError, PrimitiveJudgment, decide_primitive};
 pub use normalization::{
