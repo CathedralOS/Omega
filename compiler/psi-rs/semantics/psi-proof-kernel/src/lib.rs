@@ -10,6 +10,7 @@
 mod evidence;
 mod integer_affine;
 mod integer_cast;
+mod integer_forbidden_root;
 mod integer_shift;
 mod kernel;
 mod normalization;
@@ -28,6 +29,11 @@ pub use integer_affine::{
 pub use integer_cast::{
     CheckedIntegerCastChain, IntegerCastChainWitness, IntegerCastChainWitnessError,
     check_integer_cast_chain_witness,
+};
+pub use integer_forbidden_root::{
+    CheckedIntegerCorrelatedForbiddenRoots, CorrelatedAffineBranch, CorrelatedAffineBranchWitness,
+    CorrelatedAffineStepWitness, IntegerCorrelatedForbiddenRootWitness,
+    IntegerCorrelatedForbiddenRootWitnessError, check_integer_correlated_forbidden_root_witness,
 };
 pub use integer_shift::{
     CheckedIntegerShiftChain, CheckedIntegerShiftStep, IntegerShiftChainWitness,
