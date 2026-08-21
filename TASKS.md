@@ -239,6 +239,19 @@ Remaining:
   realization. This emits no wrapper body or call, consumes no installation-
   derived values, does not switch the object entry, and does not claim native
   execution.
+  The emitted receiver-free UEFI/Microsoft bridge now also retains a sealed
+  post-encoding phase-alignment template for the future generated wrapper body.
+  It binds the canonical generated-wrapper identity and symbol to the exact
+  retained Source identity, symbol, and text interval, then pins eleven ordered
+  compiler-private steps: function entry, a balanced 72-byte outgoing
+  reservation, four launch-time indirect Image/InitialStorage field copies
+  from RCX/RDX into `rsp+32/+40/+48/+56`, RCX/RDX caller-copy address loads,
+  one exact Source-identity call, balanced release, and Unit return. Receiver,
+  role/index, shape/placement, identity, interval, call-target, frame, and
+  sequence drift fail closed. Installation-owned operand bytes and authority
+  are deliberately not routed backward into compilation. No backend insertion
+  pass consumes this template yet; no wrapper function, call relocation,
+  object-entry switch, or native execution is claimed.
   Production builds therefore still lack a source-compatible attached-root
   value/authority carrier (or separate hidden supply) and generated wrapper
   body; defining that disposition at the source schema, emitting the body,

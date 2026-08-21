@@ -22,6 +22,7 @@ mod program_storage_root_argument_binding;
 mod program_storage_root_authority;
 mod program_storage_source_call;
 mod program_storage_wrapper;
+mod program_storage_wrapper_body;
 mod program_storage_wrapper_frame;
 mod project;
 mod provider_approval;
@@ -111,6 +112,9 @@ pub use program_storage_source_call::{
 pub use program_storage_wrapper::{
     ProgramStorageEntryRootRole, ProgramStorageEntryWrapperReceiverTransfer,
     ProgramStorageEntryWrapperRootTransferPlan, ProgramStorageEntryWrapperTransferPlan,
+};
+pub use program_storage_wrapper_body::{
+    ProgramStorageEntryWrapperBodyTemplatePlan, ProgramStorageEntryWrapperBodyTemplateStep,
 };
 pub use program_storage_wrapper_frame::{
     ProgramStorageEntryWrapperCallerFrameError, ProgramStorageEntryWrapperCallerFramePlan,

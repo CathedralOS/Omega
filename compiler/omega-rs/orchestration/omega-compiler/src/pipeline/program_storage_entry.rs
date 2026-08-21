@@ -318,6 +318,8 @@ pub struct ProgramStorageEntryNativeBridgePlan {
     continuation_inbound: Option<
         super::program_storage_continuation_inbound::ProgramStorageEntryContinuationInboundPlan,
     >,
+    wrapper_body_template:
+        Option<super::program_storage_wrapper_body::ProgramStorageEntryWrapperBodyTemplatePlan>,
     selected_provider: Option<super::provider_plans::SelectedExternalRootProviderPlan>,
     target_profile: String,
     entry_symbol: String,
@@ -370,6 +372,16 @@ impl ProgramStorageEntryNativeBridgePlan {
         &super::program_storage_continuation_inbound::ProgramStorageEntryContinuationInboundPlan,
     > {
         self.continuation_inbound.as_ref()
+    }
+
+    /// Address-free, post-encoding phase-alignment template for the exact
+    /// receiver-free generated body. This is not evidence that the template
+    /// has been inserted, lowered, emitted, or selected as the object entry.
+    pub const fn wrapper_body_template(
+        &self,
+    ) -> Option<&super::program_storage_wrapper_body::ProgramStorageEntryWrapperBodyTemplatePlan>
+    {
+        self.wrapper_body_template.as_ref()
     }
 
     pub const fn selected_provider(
@@ -744,11 +756,22 @@ pub fn bind_emitted_program_storage_entry_native_bridge(
         })
         .transpose()?
         .flatten();
+    let wrapper_body_template = match (&continuation_abi, &continuation_inbound) {
+        (Some(abi), Some(inbound)) => Some(
+            super::program_storage_wrapper_body::plan_program_storage_entry_wrapper_body_template(
+                &wrapper_transfer,
+                abi,
+                inbound,
+            )?,
+        ),
+        _ => None,
+    };
     Ok(ProgramStorageEntryNativeBridgePlan {
         binding,
         wrapper_transfer,
         continuation_abi,
         continuation_inbound,
+        wrapper_body_template,
         selected_provider,
         target_profile,
         entry_symbol: entry.name.clone(),
