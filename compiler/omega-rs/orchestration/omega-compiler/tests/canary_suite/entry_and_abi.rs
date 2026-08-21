@@ -1691,12 +1691,12 @@ fn discovered_exact_native_coverage_is_consistent() {
         0
     );
     let legacy_positive = coverage
-        .unique_legacy_owner("dependent/runtime_bounded_product_index_exit")
+        .unique_legacy_owner("host/runtime_user32_key_state_exit")
         .expect("known legacy exact-native owner should be discovered");
-    assert_eq!(legacy_positive.expected_status, 7);
+    assert_eq!(legacy_positive.expected_status, 70);
     assert_eq!(
         legacy_positive.test_name,
-        "runtime_bounded_product_index_exit_canary_runs"
+        "runtime_user32_key_state_exit_canary_runs"
     );
     assert_eq!(
         coverage.legacy_owner_count("traits/boundary_trait_effects_host_call"),
