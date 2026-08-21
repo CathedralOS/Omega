@@ -141,8 +141,12 @@ fn reject_quotient_operation_requests(program: &TypedTrees, diagnostics: &mut Ve
                             .render_representative_precondition()
                             .map(|value| format!(" plus exact {value}"))
                             .unwrap_or_default();
+                        let public_precondition = plan
+                            .render_public_precondition()
+                            .map(|value| format!(" plus exact {value}"))
+                            .unwrap_or_default();
                         diagnostics.push(Diagnostic::error(format!(
-                            "`Quotient::{operation}` has compiler-derived direct-terminal relations {} and {} plus exact representative telescope {}{correspondence}{precondition}, but executable quotient operations are not admitted until complete operation/static correspondence, the selected `Respects` contract, and normalized result flow are independently checked",
+                            "`Quotient::{operation}` has compiler-derived direct-terminal relations {} and {} plus exact representative telescope {}{correspondence}{public_precondition}{precondition}, but executable quotient operations are not admitted until complete operation/static correspondence, the selected `Respects` contract, and normalized result flow are independently checked",
                             plan.render_ra(program),
                             plan.render_rr(program),
                             plan.render_representative_telescope(program),
