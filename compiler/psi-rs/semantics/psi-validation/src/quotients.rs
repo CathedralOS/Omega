@@ -1,10 +1,8 @@
 //! N6 proof quotient migration boundary.
 //!
-//! The declaration validator below is the legacy pilot: it still accepts an
-//! ordinary boolean relation and structurally discovers reflexivity, symmetry,
-//! and transitivity contracts. That is not the settled quotient-formation
-//! authority, which must select one exact named `Equivalence` conformance from
-//! the declaration's static `where` surface.
+//! Quotient formation selects one exact proposition relation and one exact
+//! named `Equivalence` conformance from the declaration's static `where`
+//! surface. Structural law-machine discovery is not an authority path.
 //!
 //! Sealed `Quotient::lift`/`define` requests retain their exact source-selected
 //! operation and conformance identities, but this module rejects executable
@@ -15,14 +13,14 @@
 use psi_diagnostics::Diagnostic;
 use psi_symbols::SymbolHandle;
 use psi_typed_trees::TypedTrees;
-use psi_typed_trees::domain::ProofFact;
-use psi_typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
+use psi_typed_trees::expression::ExpressionNode;
 use psi_typed_trees::machine::Machine;
 use psi_typed_trees::proof_only::ProofOnlyClassification;
-use psi_typed_trees::signature::SignatureContractKind;
 use psi_typed_trees::state::State;
-use psi_typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
+use psi_typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 use std::collections::HashSet;
+
+const CORE_EQUIVALENCE_SOURCE: &str = "relation.omg";
 
 pub(crate) fn validate_quotients(
     program: &TypedTrees,
@@ -82,63 +80,565 @@ pub(crate) fn validate_quotients(
             )));
         }
 
-        let Some(relation) = find_machine(program, quotient.relation_symbol) else {
+        let Some(relation) = program
+            .propositions()
+            .iter()
+            .find(|relation| relation.symbol == quotient.relation_symbol)
+        else {
             diagnostics.push(Diagnostic::error(format!(
-                "quotient data `{}` names unknown equivalence relation machine `{relation_name}`",
+                "quotient data `{}` relation `{relation_name}` must resolve to one exact proposition family",
                 definition.name,
             )));
             continue;
         };
-        let Some(entry) = program.machine_states(relation).first() else {
-            diagnostics.push(Diagnostic::error(format!(
-                "quotient data `{}` relation `{relation_name}` has no callable entry state",
-                definition.name,
-            )));
-            continue;
-        };
-        let parameters = program.state_parameters(entry);
-        let signature_matches = relation.attached_data.is_none()
-            && relation.supply_mode.is_checked_body()
-            && parameters.len() == 2
+        let parameters = program.proposition_parameters(relation);
+        let signature_matches = parameters.len() == 2
             && parameters.iter().all(|parameter| {
                 base_data_symbol(program, parameter.type_reference) == Some(carrier_symbol)
-            })
-            && program
-                .type_reference_table
-                .primitive_type(entry.return_type)
-                == Some(PrimitiveType::Bool)
-            && authored_behavior_is_empty(program, relation);
+            });
         if !signature_matches {
             diagnostics.push(Diagnostic::error(format!(
-                "quotient data `{}` relation `{relation_name}` must be a free checked pure machine `(a: {}, b: {}) -> bool`",
-                definition.name, carrier.name, carrier.name,
+                "quotient data `{}` relation `{relation_name}` must be one proposition family over exactly two `{}` carrier values",
+                definition.name, carrier.name,
             )));
             continue;
         }
 
-        let relation_targets: HashSet<u32> = std::iter::once(relation.symbol)
-            .chain(
-                program
-                    .machine_states(relation)
-                    .iter()
-                    .map(|state| state.symbol),
-            )
-            .map(|symbol| symbol.arena_index())
-            .collect();
-        let laws = discover_equivalence_laws(program, relation, &relation_targets);
-        for (present, law) in [
-            (laws.reflexive, "reflexivity"),
-            (laws.symmetric, "symmetry"),
-            (laws.transitive, "transitivity"),
-        ] {
-            if !present {
-                diagnostics.push(Diagnostic::error(format!(
-                    "quotient data `{}` cannot admit `{relation_name}` as an equivalence: missing a structurally matching {law} proof machine",
-                    definition.name,
-                )));
-            }
+        validate_equivalence_selection(
+            program,
+            definition,
+            quotient,
+            relation,
+            carrier_symbol,
+            diagnostics,
+        );
+    }
+}
+
+fn validate_equivalence_selection(
+    program: &TypedTrees,
+    definition: &psi_typed_trees::data::DataDefinition,
+    quotient: &psi_typed_trees::data::QuotientDefinition,
+    relation: &psi_typed_trees::proposition::PropositionDefinition,
+    carrier_symbol: SymbolHandle,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let Some(selection) = &quotient.equivalence else {
+        diagnostics.push(Diagnostic::error(format!(
+            "quotient data `{}` requires one exact named `Equivalence` conformance in its static `where R satisfies Equivalence<C, R> as Name` surface",
+            definition.name,
+        )));
+        return;
+    };
+    if selection.relation_symbol != quotient.relation_symbol
+        || selection.relation != quotient.relation
+    {
+        diagnostics.push(Diagnostic::error(format!(
+            "quotient data `{}` selects equivalence evidence for `{}` instead of its exact relation `{}`",
+            definition.name,
+            selection
+                .relation
+                .iter()
+                .map(|member| member.as_str())
+                .collect::<Vec<_>>()
+                .join("::"),
+            quotient
+                .relation
+                .iter()
+                .map(|member| member.as_str())
+                .collect::<Vec<_>>()
+                .join("::"),
+        )));
+    }
+    if !is_sealed_core_equivalence(program, selection.trait_symbol, &selection.trait_name) {
+        diagnostics.push(Diagnostic::error(format!(
+            "quotient data `{}` static selection must resolve the sealed toolchain `Equivalence` declaration from `{CORE_EQUIVALENCE_SOURCE}`; an authored lookalike is not equivalence authority",
+            definition.name
+        )));
+        return;
+    }
+    let Some(trait_definition) = program
+        .traits()
+        .iter()
+        .find(|candidate| candidate.symbol == selection.trait_symbol)
+    else {
+        diagnostics.push(Diagnostic::error(format!(
+            "quotient data `{}` static selection retains no exact `Equivalence` trait identity",
+            definition.name,
+        )));
+        return;
+    };
+    if trait_definition.is_boundary {
+        diagnostics.push(Diagnostic::error(format!(
+            "quotient data `{}` cannot use boundary trait `{}` as equivalence authority",
+            definition.name, trait_definition.name,
+        )));
+    }
+
+    let selection_arguments = program
+        .type_reference_table
+        .type_reference_handles(selection.trait_arguments);
+    let [selected_carrier, selected_relation] = selection_arguments else {
+        diagnostics.push(Diagnostic::error(format!(
+            "quotient data `{}` must select `Equivalence<C, R>` with exactly its carrier and relation arguments",
+            definition.name,
+        )));
+        return;
+    };
+    if program.normalized_type_identity(*selected_carrier)
+        != program.normalized_type_identity(quotient.carrier)
+        || type_reference_symbol(program, *selected_relation) != Some(relation.symbol)
+    {
+        diagnostics.push(Diagnostic::error(format!(
+            "quotient data `{}` selected `Equivalence` arguments do not exactly match carrier `{}` and relation `{}`",
+            definition.name,
+            program.display_type_reference(quotient.carrier),
+            relation.name,
+        )));
+    }
+
+    let Some(conformance) = program
+        .conformances()
+        .iter()
+        .find(|candidate| candidate.symbol == selection.conformance_symbol)
+    else {
+        diagnostics.push(Diagnostic::error(format!(
+            "quotient data `{}` names unresolved equivalence conformance `{}`",
+            definition.name, selection.conformance_name,
+        )));
+        return;
+    };
+    if conformance.alias.as_ref() != Some(&selection.conformance_name)
+        || conformance.trait_name != selection.trait_name
+        || !conformance.lifetime_parameters.is_empty()
+        || !program.conformance_type_parameters(conformance).is_empty()
+    {
+        diagnostics.push(Diagnostic::error(format!(
+            "quotient data `{}` must select one exact closed nongeneric conformance named `{}` for `Equivalence`",
+            definition.name, selection.conformance_name,
+        )));
+        return;
+    }
+    if !matches!(
+        conformance.subject,
+        psi_typed_trees::trait_definition::ConformanceSubject::Subjectless
+    ) {
+        diagnostics.push(Diagnostic::error(format!(
+            "quotient data `{}` conformance `{}` must be carrierless proof evidence for its exact relation `{}`",
+            definition.name, selection.conformance_name, relation.name
+        )));
+    }
+    let conformance_arguments = program
+        .type_reference_table
+        .type_reference_handles(conformance.arguments);
+    if conformance_arguments.len() != selection_arguments.len()
+        || conformance_arguments
+            .iter()
+            .zip(selection_arguments)
+            .any(|(actual, selected)| {
+                program.normalized_type_identity(*actual)
+                    != program.normalized_type_identity(*selected)
+            })
+    {
+        diagnostics.push(Diagnostic::error(format!(
+            "quotient data `{}` conformance `{}` does not implement the exact selected `Equivalence<C, R>` application",
+            definition.name, selection.conformance_name,
+        )));
+    }
+    let Some(rows) = program.closed_conformance_rows(conformance) else {
+        diagnostics.push(Diagnostic::error(format!(
+            "quotient data `{}` conformance `{}` must be one closed implementation; attached structural satisfier discovery is not permitted",
+            definition.name, selection.conformance_name,
+        )));
+        return;
+    };
+    for row in rows {
+        let Some(declaring_trait) = program
+            .traits()
+            .iter()
+            .find(|candidate| candidate.symbol == row.declaring_trait)
+        else {
+            diagnostics.push(Diagnostic::error(format!(
+                "quotient data `{}` conformance `{}` row `{}::{}` has no exact declaring trait",
+                definition.name,
+                selection.conformance_name,
+                row.declaring_trait_name,
+                row.requirement_name,
+            )));
+            continue;
+        };
+        let Some(requirement) = program
+            .trait_machine_signatures(declaring_trait)
+            .iter()
+            .find(|candidate| candidate.symbol == row.requirement)
+        else {
+            diagnostics.push(Diagnostic::error(format!(
+                "quotient data `{}` conformance `{}` row `{}::{}` has no exact inherited requirement",
+                definition.name,
+                selection.conformance_name,
+                row.declaring_trait_name,
+                row.requirement_name,
+            )));
+            continue;
+        };
+        let Some(declaring_arguments) = crate::traits::arguments_for_declaring_trait(
+            program,
+            trait_definition,
+            selection_arguments,
+            row.declaring_trait,
+            &mut Vec::new(),
+        ) else {
+            diagnostics.push(Diagnostic::error(format!(
+                "quotient data `{}` conformance `{}` cannot instantiate inherited row `{}::{}`",
+                definition.name,
+                selection.conformance_name,
+                row.declaring_trait_name,
+                row.requirement_name,
+            )));
+            continue;
+        };
+        let Some(machine) = program
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == row.realization_machine)
+        else {
+            diagnostics.push(Diagnostic::error(format!(
+                "quotient data `{}` conformance `{}` row `{}::{}` has no exact realization",
+                definition.name,
+                selection.conformance_name,
+                row.declaring_trait_name,
+                row.requirement_name,
+            )));
+            continue;
+        };
+        crate::contract_entailment::check_law_conformance(
+            program,
+            machine,
+            Some(selection.conformance_name.as_str()),
+            declaring_trait,
+            requirement,
+            &declaring_arguments,
+            diagnostics,
+        );
+        if !row_has_exact_equivalence_premises(
+            program,
+            machine,
+            relation,
+            row.requirement_name.as_str(),
+        ) {
+            diagnostics.push(Diagnostic::error(format!(
+                "quotient data `{}` conformance `{}` row `{}::{}` strengthens or changes the sealed equivalence law premises; quotient formation requires the exact inherited contract",
+                definition.name,
+                selection.conformance_name,
+                row.declaring_trait_name,
+                row.requirement_name,
+            )));
+        }
+        let mut visited = HashSet::new();
+        if let Err(admitted) = checked_proof_dependency(program, machine, &mut visited) {
+            diagnostics.push(Diagnostic::error(format!(
+                "quotient data `{}` conformance `{}` depends on admitted or boundary proof machine `{admitted}` through row `{}::{}`; admitted evidence cannot license `%`",
+                definition.name,
+                selection.conformance_name,
+                row.declaring_trait_name,
+                row.requirement_name,
+            )));
         }
     }
+
+    if base_data_symbol(program, quotient.carrier) != Some(carrier_symbol) {
+        diagnostics.push(Diagnostic::error(format!(
+            "quotient data `{}` changed carrier identity while checking equivalence selection",
+            definition.name,
+        )));
+    }
+}
+
+fn row_has_exact_equivalence_premises(
+    program: &TypedTrees,
+    machine: &Machine,
+    relation: &psi_typed_trees::proposition::PropositionDefinition,
+    requirement: &str,
+) -> bool {
+    let expected: &[(usize, usize)] = match requirement {
+        "reflexive" => &[],
+        "symmetric" => &[(0, 1)],
+        "transitive" => &[(0, 1), (1, 2)],
+        _ => return false,
+    };
+    let Some(entry) = program.machine_states(machine).first() else {
+        return false;
+    };
+    let parameters = program.state_parameters(entry);
+    let facts = program
+        .machine_contracts(machine)
+        .iter()
+        .filter(|contract| {
+            contract.kind == psi_typed_trees::signature::SignatureContractKind::Requires
+        })
+        .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))
+        .collect::<Vec<_>>();
+    facts.len() == expected.len()
+        && facts.iter().zip(expected).all(|(fact, (left, right))| {
+            let (Some(left), Some(right)) = (parameters.get(*left), parameters.get(*right)) else {
+                return false;
+            };
+            fact_is_exact_relation_pair(program, fact, relation, left, right, parameters)
+        })
+}
+
+fn fact_is_exact_relation_pair(
+    program: &TypedTrees,
+    fact: &psi_typed_trees::domain::ProofFact,
+    relation: &psi_typed_trees::proposition::PropositionDefinition,
+    left: &psi_typed_trees::signature::StateParameter,
+    right: &psi_typed_trees::signature::StateParameter,
+    parameters: &[psi_typed_trees::signature::StateParameter],
+) -> bool {
+    match fact {
+        psi_typed_trees::domain::ProofFact::Proposition(application) => {
+            exact_relation_application_matches(
+                program,
+                application,
+                relation.symbol,
+                left.symbol,
+                right.symbol,
+                left.type_reference,
+                right.type_reference,
+            )
+        }
+        psi_typed_trees::domain::ProofFact::Expression(actual) => {
+            let psi_typed_trees::proposition::PropositionBody::Transparent {
+                proposition:
+                    psi_typed_trees::proposition::PropositionFormula::BooleanExpression(expected),
+            } = relation.body
+            else {
+                return false;
+            };
+            let relation_parameters = program.proposition_parameters(relation);
+            let [relation_left, relation_right] = relation_parameters else {
+                return false;
+            };
+            let expected = program.render_proof_expression_with_parameters(
+                expected,
+                &[
+                    (
+                        relation_left.symbol,
+                        relation_left.name.as_str().to_owned(),
+                        "$left".to_owned(),
+                    ),
+                    (
+                        relation_right.symbol,
+                        relation_right.name.as_str().to_owned(),
+                        "$right".to_owned(),
+                    ),
+                ],
+            );
+            let substitutions = parameters
+                .iter()
+                .map(|parameter| {
+                    let replacement = if parameter.symbol == left.symbol {
+                        "$left"
+                    } else if parameter.symbol == right.symbol {
+                        "$right"
+                    } else {
+                        "$other"
+                    };
+                    (
+                        parameter.symbol,
+                        parameter.name.as_str().to_owned(),
+                        replacement.to_owned(),
+                    )
+                })
+                .collect::<Vec<_>>();
+            expected == program.render_proof_expression_with_parameters(*actual, &substitutions)
+        }
+        psi_typed_trees::domain::ProofFact::Membership(_) => false,
+    }
+}
+
+pub(crate) fn exact_relation_application_matches(
+    program: &TypedTrees,
+    application: &psi_typed_trees::proposition::PropositionApplication,
+    relation_symbol: SymbolHandle,
+    left_symbol: SymbolHandle,
+    right_symbol: SymbolHandle,
+    left_type: TypeReferenceHandle,
+    right_type: TypeReferenceHandle,
+) -> bool {
+    let Some(relation) = program
+        .propositions()
+        .iter()
+        .find(|relation| relation.symbol == relation_symbol)
+    else {
+        return false;
+    };
+    if application.proposition != relation.symbol
+        || !matches!(
+            program.expression_table.expression_handles(application.arguments),
+            [left_expression, right_expression]
+                if expression_is_symbol(program, *left_expression, left_symbol)
+                    && expression_is_symbol(program, *right_expression, right_symbol)
+        )
+    {
+        return false;
+    }
+    let Some(mut expected_binders) = exact_generic_argument_symbols(program, left_type) else {
+        return false;
+    };
+    let Some(right_binders) = exact_generic_argument_symbols(program, right_type) else {
+        return false;
+    };
+    expected_binders.extend(right_binders);
+    let declared_binders = program.proposition_binders(relation);
+    application.binder_arguments.len() == declared_binders.len()
+        && expected_binders.len() == declared_binders.len()
+        && application
+            .binder_arguments
+            .iter()
+            .zip(declared_binders)
+            .zip(expected_binders)
+            .all(|((actual, declared), expected)| {
+                actual.symbol == expected
+                    && matches!(
+                        (actual.kind, &declared.kind),
+                        (
+                            psi_typed_trees::proposition::PropositionBinderArgumentKind::Type,
+                            psi_typed_trees::proposition::PropositionBinderKind::Type,
+                        ) | (
+                            psi_typed_trees::proposition::PropositionBinderArgumentKind::Const,
+                            psi_typed_trees::proposition::PropositionBinderKind::Const { .. },
+                        ) | (
+                            psi_typed_trees::proposition::PropositionBinderArgumentKind::Machine,
+                            psi_typed_trees::proposition::PropositionBinderKind::Machine,
+                        )
+                    )
+            })
+}
+
+fn exact_generic_argument_symbols(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> Option<Vec<SymbolHandle>> {
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Generic { arguments, .. } => program
+            .type_reference_table
+            .type_reference_handles(*arguments)
+            .iter()
+            .map(|argument| type_reference_symbol(program, *argument))
+            .collect(),
+        TypeReferenceNode::Reference { referee, .. } => {
+            exact_generic_argument_symbols(program, *referee)
+        }
+        TypeReferenceNode::Constrained { base_type, .. } => {
+            exact_generic_argument_symbols(program, *base_type)
+        }
+        TypeReferenceNode::Named { .. } => Some(Vec::new()),
+        _ => None,
+    }
+}
+
+fn expression_is_symbol(
+    program: &TypedTrees,
+    expression: psi_typed_trees::expression::ExpressionHandle,
+    symbol: SymbolHandle,
+) -> bool {
+    matches!(
+        program.expression_table.expression(expression),
+        ExpressionNode::Name(path) if symbol.is_valid() && path.symbol == symbol
+    )
+}
+
+fn is_sealed_core_equivalence(
+    program: &TypedTrees,
+    symbol: SymbolHandle,
+    name: &psi_typed_trees::name::Identifier,
+) -> bool {
+    if !symbol.is_valid() || name.as_str() != "Equivalence" {
+        return false;
+    }
+    let Some(span) = program.symbols.symbol_source_span(symbol) else {
+        return false;
+    };
+    let Some(source) = program.symbols.source_file(span) else {
+        return false;
+    };
+    let source_matches = source.origin == psi_source::SourceOrigin::Toolchain
+        && source
+            .path
+            .strip_prefix(&source.package_root)
+            .ok()
+            .is_some_and(|relative| relative == std::path::Path::new(CORE_EQUIVALENCE_SOURCE));
+    let Some(definition) = program
+        .traits()
+        .iter()
+        .find(|definition| definition.symbol == symbol)
+    else {
+        return false;
+    };
+    let parameters = program.trait_type_parameters(definition);
+    let parameter_shape = matches!(
+        parameters,
+        [carrier, relation]
+            if matches!(carrier.kind, psi_typed_trees::data::TypeParameterKind::Type)
+                && matches!(relation.kind, psi_typed_trees::data::TypeParameterKind::Proposition { .. })
+    );
+    let mut parent_names = program
+        .trait_requirements(definition)
+        .iter()
+        .filter_map(|parent| {
+            program
+                .traits()
+                .iter()
+                .find(|candidate| candidate.symbol == parent.symbol)
+                .map(|parent| parent.name.as_str())
+        })
+        .collect::<Vec<_>>();
+    parent_names.sort_unstable();
+    source_matches && parameter_shape && parent_names == ["Reflexive", "Symmetric", "Transitive"]
+}
+
+fn type_reference_symbol(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> Option<SymbolHandle> {
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Named { symbol, .. } => Some(*symbol),
+        TypeReferenceNode::Generic { base_symbol, .. } => Some(*base_symbol),
+        TypeReferenceNode::Reference { referee, .. } => type_reference_symbol(program, *referee),
+        TypeReferenceNode::Constrained { base_type, .. } => {
+            type_reference_symbol(program, *base_type)
+        }
+        _ => None,
+    }
+}
+
+fn checked_proof_dependency<'program>(
+    program: &'program TypedTrees,
+    machine: &'program Machine,
+    visited: &mut HashSet<u32>,
+) -> Result<(), &'program str> {
+    if !machine.supply_mode.is_checked_body() {
+        return Err(machine.name.as_str());
+    }
+    if !visited.insert(machine.symbol.arena_index()) {
+        return Ok(());
+    }
+    for dependency in crate::call_cycles::machine_call_dependency_symbols(program, machine) {
+        let Some(callee) = program.machines().iter().find(|candidate| {
+            candidate.symbol == dependency
+                || program
+                    .machine_states(candidate)
+                    .iter()
+                    .any(|state| state.symbol == dependency)
+        }) else {
+            continue;
+        };
+        if callee.symbol != machine.symbol {
+            checked_proof_dependency(program, callee, visited)?;
+        }
+    }
+    Ok(())
 }
 
 fn base_data_symbol(
@@ -153,164 +653,6 @@ fn base_data_symbol(
         TypeReferenceNode::Generic { base_symbol, .. } => Some(*base_symbol),
         TypeReferenceNode::Reference { referee, .. } => base_data_symbol(program, *referee),
         TypeReferenceNode::Constrained { base_type, .. } => base_data_symbol(program, *base_type),
-        _ => None,
-    }
-}
-
-fn find_machine(program: &TypedTrees, symbol: SymbolHandle) -> Option<&Machine> {
-    if !symbol.is_valid() {
-        return None;
-    }
-    program.machines().iter().find(|machine| {
-        machine.symbol == symbol
-            || program
-                .machine_states(machine)
-                .iter()
-                .any(|state| state.symbol == symbol)
-    })
-}
-
-#[derive(Default)]
-struct EquivalenceLaws {
-    reflexive: bool,
-    symmetric: bool,
-    transitive: bool,
-}
-
-fn discover_equivalence_laws(
-    program: &TypedTrees,
-    relation: &Machine,
-    relation_targets: &HashSet<u32>,
-) -> EquivalenceLaws {
-    let mut laws = EquivalenceLaws::default();
-    for proof in program.machines() {
-        if proof.symbol == relation.symbol
-            || !proof.supply_mode.is_checked_body()
-            || !authored_behavior_is_empty(program, proof)
-        {
-            continue;
-        }
-        let requires = relation_pairs_in_contracts(
-            program,
-            proof,
-            SignatureContractKind::Requires,
-            relation_targets,
-            relation.name.as_str(),
-        );
-        let ensures = relation_pairs_in_contracts(
-            program,
-            proof,
-            SignatureContractKind::Ensures,
-            relation_targets,
-            relation.name.as_str(),
-        );
-
-        laws.reflexive |= ensures.iter().any(|(left, right)| left == right);
-        laws.symmetric |= requires.iter().any(|(left, right)| {
-            ensures
-                .iter()
-                .any(|(out_left, out_right)| out_left == right && out_right == left)
-        });
-        laws.transitive |= requires.iter().any(|(left, middle)| {
-            requires.iter().any(|(next_left, right)| {
-                next_left == middle
-                    && ensures
-                        .iter()
-                        .any(|(out_left, out_right)| out_left == left && out_right == right)
-            })
-        });
-    }
-    laws
-}
-
-fn relation_pairs_in_contracts(
-    program: &TypedTrees,
-    machine: &Machine,
-    kind: SignatureContractKind,
-    relation_targets: &HashSet<u32>,
-    relation_name: &str,
-) -> Vec<(String, String)> {
-    let mut pairs = Vec::new();
-    for contract in program
-        .machine_contracts(machine)
-        .iter()
-        .filter(|contract| contract.kind == kind)
-    {
-        for fact in program.proof_facts.span_or_empty(contract.facts) {
-            let ProofFact::Expression(expression) = fact else {
-                continue;
-            };
-            if let Some(pair) = relation_pair(program, *expression, relation_targets, relation_name)
-            {
-                pairs.push(pair);
-            }
-        }
-    }
-    pairs
-}
-
-fn relation_pair(
-    program: &TypedTrees,
-    expression: ExpressionHandle,
-    relation_targets: &HashSet<u32>,
-    relation_name: &str,
-) -> Option<(String, String)> {
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Call(call) => {
-            relation_call_pair(program, call, relation_targets, relation_name)
-        }
-        ExpressionNode::Binary(binary) if binary.operator == BinaryOperator::Equal => {
-            if matches!(
-                program.expression_table.expression(binary.right),
-                ExpressionNode::Boolean(true)
-            ) {
-                relation_pair(program, binary.left, relation_targets, relation_name)
-            } else if matches!(
-                program.expression_table.expression(binary.left),
-                ExpressionNode::Boolean(true)
-            ) {
-                relation_pair(program, binary.right, relation_targets, relation_name)
-            } else {
-                None
-            }
-        }
-        _ => None,
-    }
-}
-
-fn relation_call_pair(
-    program: &TypedTrees,
-    call: &psi_typed_trees::expression::TableCallExpression,
-    relation_targets: &HashSet<u32>,
-    relation_name: &str,
-) -> Option<(String, String)> {
-    if !relation_targets.contains(&call.target_symbol.arena_index())
-        && call.target.as_str() != relation_name
-    {
-        return None;
-    }
-    let arguments = program.expression_table.expression_handles(call.arguments);
-    let [left, right] = arguments else {
-        return None;
-    };
-    Some((
-        name_operand(program, *left)?,
-        name_operand(program, *right)?,
-    ))
-}
-
-fn name_operand(program: &TypedTrees, expression: ExpressionHandle) -> Option<String> {
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Name(path) => Some(
-            program
-                .expression_table
-                .name_path_members(path.members)
-                .iter()
-                .map(|member| member.as_str())
-                .collect::<Vec<_>>()
-                .join("::"),
-        ),
-        ExpressionNode::Mutable(inner) => name_operand(program, *inner),
         _ => None,
     }
 }
@@ -429,14 +771,19 @@ fn quotient_for_type(
 
 #[cfg(test)]
 mod tests {
-    use super::validate_quotients;
+    use super::{exact_relation_application_matches, validate_quotients};
     use psi_symbols::SymbolHandle;
     use psi_typed_trees::TypedTrees;
     use psi_typed_trees::expression::{
         ExpressionHandle, ExpressionNode, QuotientOperationKind, QuotientOperationRequest,
-        StaticMachineArgument, TableCallExpression,
+        StaticMachineArgument, TableCallExpression, TableNamePath,
     };
     use psi_typed_trees::name::Identifier;
+    use psi_typed_trees::proposition::{
+        PropositionApplication, PropositionBinder, PropositionBinderArgument,
+        PropositionBinderArgumentKind, PropositionBinderKind, PropositionDefinition,
+    };
+    use psi_typed_trees::types::TypeReferenceNode;
 
     fn static_argument(name: &'static str) -> StaticMachineArgument {
         StaticMachineArgument {
@@ -482,13 +829,118 @@ mod tests {
                 .contains("executable quotient operations are not admitted")
         );
     }
-}
 
-fn authored_behavior_is_empty(program: &TypedTrees, machine: &Machine) -> bool {
-    program
-        .service_reach_rows
-        .services(machine.service_reach_row)
-        .is_empty()
-        && !machine.suspends
-        && !machine.blocks
+    #[test]
+    fn quotient_relation_application_rejects_swapped_generic_binders() {
+        let mut program = TypedTrees::default();
+        let relation_symbol = SymbolHandle::from_arena_index(1);
+        let left_symbol = SymbolHandle::from_arena_index(2);
+        let right_symbol = SymbolHandle::from_arena_index(3);
+        let left_binder = SymbolHandle::from_arena_index(4);
+        let right_binder = SymbolHandle::from_arena_index(5);
+        let family_symbol = SymbolHandle::from_arena_index(6);
+
+        let mut relation = PropositionDefinition {
+            symbol: relation_symbol,
+            name: Identifier::generated_static("Related"),
+            ..Default::default()
+        };
+        for (symbol, name) in [(left_binder, "L"), (right_binder, "R")] {
+            program.push_proposition_binder(
+                &mut relation,
+                PropositionBinder {
+                    symbol,
+                    name: Identifier::generated_static(name),
+                    kind: PropositionBinderKind::Machine,
+                    ..Default::default()
+                },
+            );
+        }
+        program.push_proposition(relation);
+
+        let left_argument = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
+                symbol: left_binder,
+                name: Identifier::generated_static("L"),
+            });
+        let right_argument = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
+                symbol: right_binder,
+                name: Identifier::generated_static("R"),
+            });
+        let left_arguments = program
+            .type_reference_table
+            .insert_type_reference_handles([left_argument]);
+        let right_arguments = program
+            .type_reference_table
+            .insert_type_reference_handles([right_argument]);
+        let left_type = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Generic {
+                base_symbol: family_symbol,
+                base_name: Identifier::generated_static("Carrier"),
+                lifetime_arguments: Vec::new(),
+                arguments: left_arguments,
+            });
+        let right_type = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Generic {
+                base_symbol: family_symbol,
+                base_name: Identifier::generated_static("Carrier"),
+                lifetime_arguments: Vec::new(),
+                arguments: right_arguments,
+            });
+
+        let left = program
+            .expression_table
+            .insert(ExpressionNode::Name(TableNamePath {
+                head_symbol: left_symbol,
+                symbol: left_symbol,
+                ..Default::default()
+            }));
+        let right = program
+            .expression_table
+            .insert(ExpressionNode::Name(TableNamePath {
+                head_symbol: right_symbol,
+                symbol: right_symbol,
+                ..Default::default()
+            }));
+        let arguments = program
+            .expression_table
+            .insert_expression_handles([left, right]);
+        let binder_argument = |symbol| PropositionBinderArgument {
+            kind: PropositionBinderArgumentKind::Machine,
+            path: Box::default(),
+            const_literal: None,
+            evidence_projection: None,
+            symbol,
+        };
+        let application = |binders: [SymbolHandle; 2]| PropositionApplication {
+            proposition: relation_symbol,
+            name: Identifier::generated_static("Related"),
+            binder_arguments: binders.map(binder_argument).into(),
+            arguments,
+        };
+
+        assert!(exact_relation_application_matches(
+            &program,
+            &application([left_binder, right_binder]),
+            relation_symbol,
+            left_symbol,
+            right_symbol,
+            left_type,
+            right_type,
+        ));
+        assert!(!exact_relation_application_matches(
+            &program,
+            &application([right_binder, left_binder]),
+            relation_symbol,
+            left_symbol,
+            right_symbol,
+            left_type,
+            right_type,
+        ));
+    }
 }

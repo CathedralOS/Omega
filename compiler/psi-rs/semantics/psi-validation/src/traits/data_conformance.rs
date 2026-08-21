@@ -234,7 +234,7 @@ fn validate_closed_rows(
     }
 }
 
-fn arguments_for_declaring_trait(
+pub(crate) fn arguments_for_declaring_trait(
     program: &TypedTrees,
     current_trait: &TraitDefinition,
     current_arguments: &[TypeReferenceHandle],

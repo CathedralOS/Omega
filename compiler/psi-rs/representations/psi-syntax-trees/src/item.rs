@@ -555,6 +555,17 @@ pub struct DataDefinition {
 pub struct QuotientDefinition {
     pub carrier: crate::types::TypeReferenceHandle,
     pub relation: HandleSpan<Identifier>,
+    /// Exact declaration-site selection from
+    /// `where R satisfies Equivalence<C, R> as Name;`.
+    pub equivalence: Option<QuotientEquivalenceSelection>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct QuotientEquivalenceSelection {
+    pub relation: HandleSpan<Identifier>,
+    pub trait_name: Identifier,
+    pub trait_arguments: HandleSpan<crate::types::TypeReferenceHandle>,
+    pub conformance_name: Identifier,
 }
 
 /// The subject of a whole-trait conformance. Carrier-owned conformances inherit

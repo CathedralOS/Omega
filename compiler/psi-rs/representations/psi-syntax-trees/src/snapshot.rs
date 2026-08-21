@@ -270,6 +270,15 @@ pub struct DataPropertiesSnapshot {
 pub struct QuotientSnapshot {
     pub carrier: TypeReferenceSnapshot,
     pub relation: Vec<IdentifierSnapshot>,
+    pub equivalence: Option<QuotientEquivalenceSelectionSnapshot>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct QuotientEquivalenceSelectionSnapshot {
+    pub relation: Vec<IdentifierSnapshot>,
+    pub trait_name: IdentifierSnapshot,
+    pub trait_arguments: Vec<TypeReferenceSnapshot>,
+    pub conformance_name: IdentifierSnapshot,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -826,6 +835,23 @@ fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnapshot {
                         .items
                         .identifier_path_members(quotient.relation),
                 ),
+                equivalence: quotient.equivalence.as_ref().map(|selection| {
+                    QuotientEquivalenceSelectionSnapshot {
+                        relation: snapshot_identifier_slice(
+                            syntax_trees
+                                .items
+                                .identifier_path_members(selection.relation),
+                        ),
+                        trait_name: snapshot_identifier(&selection.trait_name),
+                        trait_arguments: syntax_trees
+                            .type_references
+                            .type_reference_handles(selection.trait_arguments)
+                            .iter()
+                            .map(|argument| snapshot_type_reference_handle(syntax_trees, *argument))
+                            .collect(),
+                        conformance_name: snapshot_identifier(&selection.conformance_name),
+                    }
+                }),
             }),
             members: syntax_trees
                 .items

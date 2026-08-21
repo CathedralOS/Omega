@@ -519,7 +519,7 @@ fn retained_exact_division_safe_divisor_bound(
         requirements
             .iter()
             .chain(semantic_axioms)
-            .any(|fact| fact == candidate)
+            .any(|fact| fact == candidate || closed_transitive_integer_bound(candidate, fact))
     };
     match &proposition {
         Proposition::LessOrEqual(_, _) => retained(&proposition),
@@ -565,28 +565,30 @@ fn retained_exact_division_exception_bound(
     requirements
         .iter()
         .chain(semantic_axioms)
-        .any(|fact| fact == bound || closed_transitive_lower_bound(bound, fact))
+        .any(|fact| fact == bound || closed_transitive_integer_bound(bound, fact))
 }
 
-fn closed_transitive_lower_bound(goal: &Proposition, retained: &Proposition) -> bool {
+fn closed_transitive_integer_bound(goal: &Proposition, retained: &Proposition) -> bool {
     let Proposition::LessOrEqual(goal_left, goal_right) = goal else {
         return false;
     };
     let Proposition::LessOrEqual(retained_left, retained_right) = retained else {
         return false;
     };
-    if retained_right != goal_right {
-        return false;
-    }
-    let Some((goal_type, goal_left)) = goal_left.integer_value() else {
+    (retained_right == goal_right && closed_integer_less_or_equal(goal_left, retained_left))
+        || (retained_left == goal_left && closed_integer_less_or_equal(retained_right, goal_right))
+}
+
+fn closed_integer_less_or_equal(left: &ScalarTerm, right: &ScalarTerm) -> bool {
+    let Some((left_type, left)) = left.integer_value() else {
         return false;
     };
-    let Some((retained_type, retained_left)) = retained_left.integer_value() else {
+    let Some((right_type, right)) = right.integer_value() else {
         return false;
     };
-    goal_type == retained_type
-        && goal_type
-            .compare(goal_left, retained_left)
+    left_type == right_type
+        && left_type
+            .compare(left, right)
             .is_some_and(|order| !order.is_gt())
 }
 
@@ -720,6 +722,32 @@ mod tests {
         ));
         assert!(exact_division_has_closed_prior_certificate(
             &unsigned_goal,
+            &[],
+            &[Proposition::LessOrEqual(
+                ScalarTerm::integer(unsigned, IntegerValue::Unsigned(2))
+                    .expect("stronger u8 floor"),
+                unsigned_right.clone(),
+            )],
+        ));
+        assert!(!exact_division_has_closed_prior_certificate(
+            &unsigned_goal,
+            &[],
+            &[Proposition::LessOrEqual(
+                ScalarTerm::integer(unsigned, IntegerValue::Unsigned(0)).expect("weak u8 floor"),
+                unsigned_right.clone(),
+            )],
+        ));
+        assert!(!exact_division_has_closed_prior_certificate(
+            &unsigned_goal,
+            &[],
+            &[Proposition::LessOrEqual(
+                ScalarTerm::integer(unsigned, IntegerValue::Unsigned(2))
+                    .expect("stronger u8 floor"),
+                value(9, unsigned),
+            )],
+        ));
+        assert!(exact_division_has_closed_prior_certificate(
+            &unsigned_goal,
             &[Proposition::Equal(
                 unsigned_right.clone(),
                 ScalarTerm::integer(unsigned, IntegerValue::Unsigned(5)).expect("u8 literal"),
@@ -784,9 +812,36 @@ mod tests {
         ));
         assert!(exact_division_has_closed_prior_certificate(
             &negative_one_goal,
+            &[],
+            &[Proposition::LessOrEqual(
+                ScalarTerm::integer(signed, IntegerValue::Signed(3))
+                    .expect("stronger i8 positive floor"),
+                value(6, signed),
+            )],
+        ));
+        assert!(exact_division_has_closed_prior_certificate(
+            &negative_one_goal,
             &[Proposition::LessOrEqual(
                 value(6, signed),
                 ScalarTerm::integer(signed, IntegerValue::Signed(-2)).expect("i8 -2"),
+            )],
+            &[],
+        ));
+        assert!(exact_division_has_closed_prior_certificate(
+            &negative_one_goal,
+            &[Proposition::LessOrEqual(
+                value(6, signed),
+                ScalarTerm::integer(signed, IntegerValue::Signed(-3))
+                    .expect("stronger i8 negative ceiling"),
+            )],
+            &[],
+        ));
+        assert!(!exact_division_has_closed_prior_certificate(
+            &negative_one_goal,
+            &[Proposition::LessOrEqual(
+                value(6, signed),
+                ScalarTerm::integer(signed, IntegerValue::Signed(-1))
+                    .expect("weak i8 negative ceiling"),
             )],
             &[],
         ));

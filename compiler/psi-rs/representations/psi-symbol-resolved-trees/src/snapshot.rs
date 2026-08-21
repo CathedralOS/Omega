@@ -295,6 +295,18 @@ pub struct QuotientDefinitionSnapshot {
     pub carrier: TypeReferenceSnapshot,
     pub relation: Vec<String>,
     pub relation_symbol: u32,
+    pub equivalence: Option<QuotientEquivalenceSelectionSnapshot>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct QuotientEquivalenceSelectionSnapshot {
+    pub relation: Vec<String>,
+    pub relation_symbol: u32,
+    pub trait_name: String,
+    pub trait_symbol: u32,
+    pub trait_arguments: Vec<TypeReferenceSnapshot>,
+    pub conformance_name: String,
+    pub conformance_symbol: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -777,6 +789,21 @@ fn data_definition_snapshot(
                 carrier: type_reference_snapshot(program, &quotient.carrier),
                 relation: quotient.relation.iter().map(ToString::to_string).collect(),
                 relation_symbol: quotient.relation_symbol.arena_index(),
+                equivalence: quotient.equivalence.as_ref().map(|selection| {
+                    QuotientEquivalenceSelectionSnapshot {
+                        relation: selection.relation.iter().map(ToString::to_string).collect(),
+                        relation_symbol: selection.relation_symbol.arena_index(),
+                        trait_name: selection.trait_name.to_string(),
+                        trait_symbol: selection.trait_symbol.arena_index(),
+                        trait_arguments: program
+                            .child_type_references(selection.trait_arguments)
+                            .iter()
+                            .map(|argument| type_reference_snapshot(program, argument))
+                            .collect(),
+                        conformance_name: selection.conformance_name.to_string(),
+                        conformance_symbol: selection.conformance_symbol.arena_index(),
+                    }
+                }),
             }),
         retired_identities: data.retired_identities.clone(),
         members: program

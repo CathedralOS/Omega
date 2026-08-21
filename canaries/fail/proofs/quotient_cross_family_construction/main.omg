@@ -1,3 +1,5 @@
+use omega::language::core::relation;
+
 data Index {
     case Zero;
     case Next(previous: Index);
@@ -19,30 +21,47 @@ where machine S(index: Index) -> Index;
 
 boundary machine source(index: Index) -> Index;
 
-machine equivalent(a: Stream, b: Stream) -> bool {
-    transition { _ -> (true) }
-}
+proposition equivalent<machine A, machine B>(a: Stream<A>, b: Stream<B>) = a == b;
 
-machine equivalent_reflexive(a: Stream)
-ensures equivalent(a, a)
+machine equivalent_reflexive<machine A>(a: Stream<A>)
+where machine A(index: Index) -> Index;
+ensures a == a
 {
 }
 
-machine equivalent_symmetric(a: Stream, b: Stream)
-requires equivalent(a, b)
-ensures equivalent(b, a)
+machine equivalent_symmetric<machine A, machine B>(a: Stream<A>, b: Stream<B>)
+where machine A(index: Index) -> Index;
+where machine B(index: Index) -> Index;
+requires a == b
+ensures b == a
 {
 }
 
-machine equivalent_transitive(a: Stream, b: Stream, c: Stream)
+machine equivalent_transitive<machine A, machine B, machine C>(
+    a: Stream<A>,
+    b: Stream<B>,
+    c: Stream<C>
+)
+where machine A(index: Index) -> Index;
+where machine B(index: Index) -> Index;
+where machine C(index: Index) -> Index;
 requires
-    equivalent(a, b)
-    equivalent(b, c)
-ensures equivalent(a, c)
+    a == b
+    b == c
+ensures a == c
 {
 }
 
-data EquivalenceClass = Stream % equivalent;
+StreamEquivalence: satisfies Equivalence<Stream, equivalent> {
+    Reflexive::reflexive = equivalent_reflexive;
+    Symmetric::symmetric = equivalent_symmetric;
+    Transitive::transitive = equivalent_transitive;
+}
+
+data EquivalenceClass = Stream % equivalent
+where equivalent satisfies
+    Equivalence<Stream, equivalent>
+    as StreamEquivalence;
 
 machine bad(value: OtherStream<source>) -> EquivalenceClass {
     value as EquivalenceClass

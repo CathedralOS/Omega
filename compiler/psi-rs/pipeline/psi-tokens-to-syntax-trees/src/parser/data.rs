@@ -7,7 +7,7 @@ use psi_syntax_trees::SyntaxTrees;
 use psi_syntax_trees::identifier::Identifier;
 use psi_syntax_trees::item::{
     DataDefinition, DataField, DataMember, DataProperties, DataVariant, QuotientDefinition,
-    TypeParameter, TypeParameterKind,
+    QuotientEquivalenceSelection, TypeParameter, TypeParameterKind,
 };
 use psi_tokens::{PunctuationKind, TokenKind};
 use std::collections::HashSet;
@@ -65,7 +65,28 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
         let (relation, next) = parse_path_handle_span(input, |member| {
             syntax_trees.items.append_identifier_path_member(member)
         })?;
-        input = next.take_punctuation(PunctuationKind::Semicolon, ";")?;
+        input = next;
+        let equivalence = if input.at_contextual("where") {
+            input = input.take_contextual("where")?;
+            let (selected_relation, next) = parse_path_handle_span(input, |member| {
+                syntax_trees.items.append_identifier_path_member(member)
+            })?;
+            input = next.take_contextual("satisfies")?;
+            let ((trait_name, trait_arguments), next) =
+                crate::parser::item::parse_conformance_trait_application(syntax_trees, input)?;
+            input = next.take_contextual("as")?;
+            let (conformance_name, next) = input.take_identifier()?;
+            input = next;
+            Some(QuotientEquivalenceSelection {
+                relation: selected_relation,
+                trait_name,
+                trait_arguments,
+                conformance_name,
+            })
+        } else {
+            None
+        };
+        input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
         return Ok((
             ParsedDataDefinition::Plain(DataDefinition {
                 name,
@@ -73,7 +94,11 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
                 lifetime_parameters,
                 type_parameters,
                 properties,
-                quotient: Some(QuotientDefinition { carrier, relation }),
+                quotient: Some(QuotientDefinition {
+                    carrier,
+                    relation,
+                    equivalence,
+                }),
                 where_facts: HandleSpan::empty(),
                 members: HandleSpan::empty(),
             }),

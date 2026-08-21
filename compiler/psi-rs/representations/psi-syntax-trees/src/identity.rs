@@ -119,6 +119,22 @@ fn count_item(syntax_trees: &SyntaxTrees, item: &Item, counts: &mut AstIdentityS
                 {
                     count_identifier(member, counts);
                 }
+                if let Some(selection) = &quotient.equivalence {
+                    for member in syntax_trees
+                        .items
+                        .identifier_path_members(selection.relation)
+                    {
+                        count_identifier(member, counts);
+                    }
+                    count_identifier(&selection.trait_name, counts);
+                    for argument in syntax_trees
+                        .type_references
+                        .type_reference_handles(selection.trait_arguments)
+                    {
+                        count_type_reference_handle(syntax_trees, *argument, counts);
+                    }
+                    count_identifier(&selection.conformance_name, counts);
+                }
             }
             for member in syntax_trees.items.data_members(data_definition.members) {
                 match member {

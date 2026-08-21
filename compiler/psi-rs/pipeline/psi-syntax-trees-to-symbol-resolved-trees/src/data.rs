@@ -1,5 +1,5 @@
 use crate::lowerer::Lowerer;
-use crate::type_reference::lower_type_reference_handle;
+use crate::type_reference::{lower_child_type_references, lower_type_reference_handle};
 use psi_arena::HandleSpan;
 use psi_diagnostics::Diagnostic;
 use psi_symbol_resolved_trees::data::{
@@ -39,6 +39,34 @@ pub(crate) fn lower_data_definition(
                     .map(crate::name::lower_name)
                     .collect(),
                 relation_symbol: SymbolHandle::invalid(),
+                equivalence: quotient
+                    .equivalence
+                    .as_ref()
+                    .map(|selection| {
+                        Ok::<_, Diagnostic>(
+                            psi_symbol_resolved_trees::data::QuotientEquivalenceSelection {
+                                relation: syntax_trees
+                                    .items
+                                    .identifier_path_members(selection.relation)
+                                    .iter()
+                                    .map(crate::name::lower_name)
+                                    .collect(),
+                                relation_symbol: SymbolHandle::invalid(),
+                                trait_name: crate::name::lower_name(&selection.trait_name),
+                                trait_symbol: SymbolHandle::invalid(),
+                                trait_arguments: lower_child_type_references(
+                                    lowerer,
+                                    syntax_trees,
+                                    selection.trait_arguments,
+                                )?,
+                                conformance_name: crate::name::lower_name(
+                                    &selection.conformance_name,
+                                ),
+                                conformance_symbol: SymbolHandle::invalid(),
+                            },
+                        )
+                    })
+                    .transpose()?,
             })
         })
         .transpose()?;

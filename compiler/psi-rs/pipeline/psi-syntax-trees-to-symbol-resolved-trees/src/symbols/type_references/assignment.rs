@@ -40,6 +40,7 @@ pub(in crate::symbols) fn assign_type_reference_symbols(
         .roots
         .data_definitions
         .for_each_mut(|data_definition| {
+            let data_symbol = data_definition.symbol;
             let type_parameters = data_type_parameters
                 .span_or_empty(data_definition.type_parameters)
                 .to_vec();
@@ -64,6 +65,48 @@ pub(in crate::symbols) fn assign_type_reference_symbols(
                         quotient.relation.iter().map(|member| member.as_str()),
                     )
                     .unwrap_or_else(SymbolHandle::invalid);
+                if let Some(selection) = &mut quotient.equivalence {
+                    selection.relation_symbol = symbols
+                        .find_descendant_by_path(
+                            symbols.root(),
+                            selection.relation.iter().map(|member| member.as_str()),
+                        )
+                        .unwrap_or_else(SymbolHandle::invalid);
+                    selection.trait_symbol = symbols
+                        .find_child_by_name_and_kind(
+                            symbols.root(),
+                            selection.trait_name.as_str(),
+                            SymbolKind::Trait,
+                        )
+                        .unwrap_or_else(SymbolHandle::invalid);
+                    selection.conformance_symbol = symbols
+                        .find_child_by_name_and_kind(
+                            symbols.root(),
+                            selection.conformance_name.as_str(),
+                            SymbolKind::Conformance,
+                        )
+                        .unwrap_or_else(SymbolHandle::invalid);
+                    assign_type_reference_argument_symbols_with_constraints(
+                        symbols,
+                        child_type_references,
+                        type_constraints,
+                        &type_parameters,
+                        data_symbol,
+                        selection.trait_arguments,
+                    );
+                    if let Some((_, proposition_slots)) = trait_proposition_slots
+                        .iter()
+                        .find(|(name, _)| name == selection.trait_name.as_str())
+                    {
+                        assign_proposition_family_argument_symbols(
+                            symbols,
+                            child_type_references,
+                            &type_parameters,
+                            selection.trait_arguments,
+                            proposition_slots,
+                        );
+                    }
+                }
             }
             for member in data_members.span_mut_or_empty(data_definition.members) {
                 match member {

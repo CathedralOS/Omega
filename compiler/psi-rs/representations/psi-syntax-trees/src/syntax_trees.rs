@@ -378,6 +378,15 @@ impl SyntaxTrees {
                 .map(|quotient| crate::item::QuotientDefinition {
                     carrier: self.copy_type_reference_handle(other, quotient.carrier),
                     relation: self.copy_item_identifier_span(other, quotient.relation),
+                    equivalence: quotient.equivalence.as_ref().map(|selection| {
+                        crate::item::QuotientEquivalenceSelection {
+                            relation: self.copy_item_identifier_span(other, selection.relation),
+                            trait_name: selection.trait_name.clone(),
+                            trait_arguments: self
+                                .copy_type_reference_handle_span(other, selection.trait_arguments),
+                            conformance_name: selection.conformance_name.clone(),
+                        }
+                    }),
                 }),
             where_facts: self.copy_domain_fact_span(other, data.where_facts),
             members: self.copy_data_member_span(other, data.members),

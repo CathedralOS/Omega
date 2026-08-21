@@ -1,1 +1,1 @@
-missing a structurally matching symmetry proof machine
+strengthens or changes the sealed equivalence law premises

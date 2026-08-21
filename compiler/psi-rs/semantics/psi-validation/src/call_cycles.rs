@@ -22,6 +22,176 @@ use psi_typed_trees::machine::Machine;
 use psi_typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
+/// Return every exact machine/state symbol called from `machine`, independent
+/// of whether the call executes at runtime.  Unlike the cycle graph, proof
+/// provenance must include calls in assembly facts and all value/terminal
+/// expression positions: an admitted theorem does not become checked merely
+/// because its citation is nested inside another expression.
+pub(crate) fn machine_call_dependency_symbols(
+    program: &TypedTrees,
+    machine: &Machine,
+) -> Vec<SymbolHandle> {
+    let mut symbols = Vec::new();
+    collect_contract_dependency_symbols(program, program.machine_contracts(machine), &mut symbols);
+    for state in program.machine_states(machine) {
+        collect_contract_dependency_symbols(program, program.state_contracts(state), &mut symbols);
+        for statement in program.statement_table.statements(state.statement_nodes) {
+            collect_statement_dependency_symbols(program, statement, &mut symbols);
+        }
+    }
+    symbols.sort_unstable_by_key(|symbol| symbol.arena_index());
+    symbols.dedup();
+    symbols
+}
+
+fn collect_contract_dependency_symbols(
+    program: &TypedTrees,
+    contracts: &[psi_typed_trees::signature::SignatureContract],
+    symbols: &mut Vec<SymbolHandle>,
+) {
+    for fact in contracts
+        .iter()
+        .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))
+    {
+        match fact {
+            psi_typed_trees::domain::ProofFact::Expression(expression) => {
+                collect_expression_dependency_symbols(program, *expression, symbols);
+            }
+            psi_typed_trees::domain::ProofFact::Membership(membership) => {
+                collect_expression_dependency_symbols(program, membership.value, symbols);
+            }
+            psi_typed_trees::domain::ProofFact::Proposition(application) => {
+                for argument in program
+                    .expression_table
+                    .expression_handles(application.arguments)
+                {
+                    collect_expression_dependency_symbols(program, *argument, symbols);
+                }
+            }
+        }
+    }
+}
+
+fn push_dependency_symbol(symbols: &mut Vec<SymbolHandle>, symbol: SymbolHandle) {
+    if symbol.is_valid() {
+        symbols.push(symbol);
+    }
+}
+
+fn collect_statement_dependency_symbols(
+    program: &TypedTrees,
+    statement: &StatementNode,
+    symbols: &mut Vec<SymbolHandle>,
+) {
+    match statement {
+        StatementNode::AssemblyFact(fact) => {
+            collect_expression_dependency_symbols(program, fact.expression, symbols)
+        }
+        StatementNode::Assignment(assignment) => {
+            collect_expression_dependency_symbols(program, assignment.target, symbols);
+            collect_expression_dependency_symbols(program, assignment.value, symbols);
+        }
+        StatementNode::Call(call) => {
+            push_dependency_symbol(symbols, call.target_symbol);
+            for argument in program.statement_table.expression_handles(call.arguments) {
+                collect_expression_dependency_symbols(program, *argument, symbols);
+            }
+        }
+        StatementNode::Expression(handle) => {
+            collect_expression_dependency_symbols(program, *handle, symbols)
+        }
+        StatementNode::LocalData(local) => {
+            collect_expression_dependency_symbols(program, local.initial_value, symbols)
+        }
+        StatementNode::Transition(transition) => {
+            if let TransitionGuardNode::When(guard) = transition.guard {
+                collect_expression_dependency_symbols(program, guard, symbols);
+            }
+            for target_handle in [transition.target, transition.continuation] {
+                if !target_handle.is_valid() {
+                    continue;
+                }
+                match program.statement_table.transition_target(target_handle) {
+                    TransitionTargetNode::Named {
+                        path, arguments, ..
+                    } => {
+                        push_dependency_symbol(symbols, path.symbol);
+                        for argument in program.statement_table.expression_handles(*arguments) {
+                            collect_expression_dependency_symbols(program, *argument, symbols);
+                        }
+                    }
+                    TransitionTargetNode::Value(handle) => {
+                        collect_expression_dependency_symbols(program, *handle, symbols)
+                    }
+                    TransitionTargetNode::SelfTarget | TransitionTargetNode::Terminal => {}
+                }
+            }
+        }
+    }
+}
+
+fn collect_expression_dependency_symbols(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    symbols: &mut Vec<SymbolHandle>,
+) {
+    if !expression.is_valid() {
+        return;
+    }
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Atomic(atomic) => {
+            collect_expression_dependency_symbols(program, atomic.value, symbols)
+        }
+        ExpressionNode::Call(call) => {
+            push_dependency_symbol(symbols, call.target_symbol);
+            collect_expression_dependency_symbols(program, call.receiver, symbols);
+            for argument in program.expression_table.expression_handles(call.arguments) {
+                collect_expression_dependency_symbols(program, *argument, symbols);
+            }
+        }
+        ExpressionNode::Binary(binary) => {
+            collect_expression_dependency_symbols(program, binary.left, symbols);
+            collect_expression_dependency_symbols(program, binary.right, symbols);
+        }
+        ExpressionNode::Cast(cast) => {
+            collect_expression_dependency_symbols(program, cast.value, symbols)
+        }
+        ExpressionNode::Indexed(indexed) => {
+            collect_expression_dependency_symbols(program, indexed.collection, symbols);
+            collect_expression_dependency_symbols(program, indexed.index, symbols);
+        }
+        ExpressionNode::Member(member) => {
+            collect_expression_dependency_symbols(program, member.receiver, symbols)
+        }
+        ExpressionNode::Mutable(inner) => {
+            collect_expression_dependency_symbols(program, *inner, symbols)
+        }
+        ExpressionNode::Range(range) => {
+            collect_expression_dependency_symbols(program, range.start, symbols);
+            collect_expression_dependency_symbols(program, range.end, symbols);
+        }
+        ExpressionNode::Unary(unary) => {
+            collect_expression_dependency_symbols(program, unary.operand, symbols)
+        }
+        ExpressionNode::ArrayLiteral(items) => {
+            for item in program.expression_table.expression_handles(*items) {
+                collect_expression_dependency_symbols(program, *item, symbols);
+            }
+        }
+        ExpressionNode::StructLiteral(literal) => {
+            for field in program.expression_table.struct_fields(literal.fields) {
+                collect_expression_dependency_symbols(program, field.value, symbols);
+            }
+        }
+        ExpressionNode::Boolean(_)
+        | ExpressionNode::Float(_)
+        | ExpressionNode::Integer(_)
+        | ExpressionNode::Name(_)
+        | ExpressionNode::String(_)
+        | ExpressionNode::ZeroValue(_) => {}
+    }
+}
+
 pub(crate) fn validate_machine_call_cycles(
     program: &TypedTrees,
     symbols: &TopLevelSymbols<'_>,
@@ -799,4 +969,79 @@ fn tail_edge_decrease_proven(
         program.expression_table.expression(binary.right),
         ExpressionNode::Integer(literal) if literal.value_i64() == Some(1)
     )
+}
+
+#[cfg(test)]
+mod dependency_tests {
+    use super::machine_call_dependency_symbols;
+    use psi_symbols::SymbolHandle;
+    use psi_typed_trees::TypedTrees;
+    use psi_typed_trees::domain::ProofFact;
+    use psi_typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
+    use psi_typed_trees::machine::Machine;
+    use psi_typed_trees::name::Identifier;
+    use psi_typed_trees::signature::{SignatureContract, SignatureContractKind};
+    use psi_typed_trees::state::State;
+    use psi_typed_trees::statement::{StatementNode, TableTransition, TransitionTargetNode};
+
+    fn call(program: &mut TypedTrees, target: u32) -> ExpressionHandle {
+        let arguments = program
+            .expression_table
+            .insert_expression_handles(std::iter::empty());
+        program
+            .expression_table
+            .insert(ExpressionNode::Call(TableCallExpression {
+                receiver: ExpressionHandle::invalid(),
+                target_symbol: SymbolHandle::from_arena_index(target),
+                target: Identifier::generated("proof"),
+                machine_arguments: Box::default(),
+                quotient_operation: None,
+                arguments,
+                evidence_arguments: Box::default(),
+                operational_acknowledgement: Default::default(),
+            }))
+    }
+
+    #[test]
+    fn proof_dependencies_include_contract_and_terminal_value_calls() {
+        let mut program = TypedTrees::default();
+        let contract_call = call(&mut program, 41);
+        let terminal_call = call(&mut program, 42);
+        let facts = program
+            .proof_facts
+            .insert_many([ProofFact::Expression(contract_call)]);
+        let mut machine = Machine {
+            symbol: SymbolHandle::from_arena_index(10),
+            name: Identifier::generated("checked_row"),
+            ..Machine::default()
+        };
+        program.push_machine_contract(
+            &mut machine,
+            SignatureContract {
+                kind: SignatureContractKind::Ensures,
+                facts,
+                ..SignatureContract::default()
+            },
+        );
+        let target = program
+            .statement_table
+            .insert_transition_target(TransitionTargetNode::Value(terminal_call));
+        let mut state = State::default();
+        program.statement_table.push_statement(
+            &mut state.statement_nodes,
+            StatementNode::Transition(TableTransition {
+                target,
+                ..TableTransition::default()
+            }),
+        );
+        program.push_machine_state(&mut machine, state);
+
+        assert_eq!(
+            machine_call_dependency_symbols(&program, &machine),
+            [
+                SymbolHandle::from_arena_index(41),
+                SymbolHandle::from_arena_index(42),
+            ]
+        );
+    }
 }

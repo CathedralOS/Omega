@@ -1,23 +1,23 @@
-// N6: a quotient is admitted only from an ordinary proof-only carrier and a
-// structurally proven equivalence. Construction is carrier-only, while the
-// declared relation transports representative equality to quotient equality.
+// N6: formation binds the sealed core Equivalence interface and one exact
+// named, closed, checked conformance. No proof-machine discovery participates.
+use omega::language::core::relation;
+
 data Representative {
     case Zero;
     case Next(previous: Representative);
 }
 
-machine equivalent(a: Representative, b: Representative) -> bool {
-    transition { _ -> (true) }
-}
+proposition equivalent(a: Representative, b: Representative) = a == b;
 
 machine equivalent_reflexive(a: Representative)
-ensures equivalent(a, a)
+ensures a == a
 {
 }
 
 machine equivalent_symmetric(a: Representative, b: Representative)
-requires equivalent(a, b)
-ensures equivalent(b, a)
+requires
+    a == b
+ensures b == a
 {
 }
 
@@ -27,16 +27,25 @@ machine equivalent_transitive(
     c: Representative
 )
 requires
-    equivalent(a, b)
-    equivalent(b, c)
-ensures equivalent(a, c)
+    a == b
+    b == c
+ensures a == c
 {
 }
 
-data EquivalenceClass = Representative % equivalent;
+RepresentativeEquivalence: satisfies Equivalence<Representative, equivalent> {
+    Reflexive::reflexive = equivalent_reflexive;
+    Symmetric::symmetric = equivalent_symmetric;
+    Transitive::transitive = equivalent_transitive;
+}
+
+data EquivalenceClass = Representative % equivalent
+where equivalent satisfies
+    Equivalence<Representative, equivalent>
+    as RepresentativeEquivalence;
 
 machine quotient_congruence(a: Representative, b: Representative)
-requires equivalent(a, b)
+requires a == b
 ensures (a as EquivalenceClass) == (b as EquivalenceClass)
 {
 }

@@ -388,7 +388,7 @@ pub(super) fn parse_item<'tokens, 'source>(
     ]))
 }
 
-fn parse_conformance_trait_application<'tokens, 'source>(
+pub(super) fn parse_conformance_trait_application<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<

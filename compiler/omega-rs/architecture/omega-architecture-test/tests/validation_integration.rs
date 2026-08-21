@@ -2726,76 +2726,50 @@ fn concrete_generic_carry_keeps_restrictive_substituted_arguments() {
 }
 
 #[test]
-fn quotient_admits_proven_equivalence_and_carrier_congruence() {
+fn quotient_rejects_an_authored_empty_equivalence_lookalike() {
     let typed = typed_program_from_source(
         r#"
-        data Carrier {
-            case Zero;
-            case Next(prev: Carrier);
-        }
-
-        machine equivalent(a: Carrier, b: Carrier) -> bool {
-            transition { _ -> (true) }
-        }
-
-        machine equivalent_reflexive(a: Carrier)
-        ensures equivalent(a, a)
+        data Carrier {}
+        proposition equivalent(a: Carrier, b: Carrier);
+        trait Equivalence<C, proposition Relation>
+        where proposition Relation(left: C, right: C);
         {
         }
-
-        machine equivalent_symmetric(a: Carrier, b: Carrier)
-        requires equivalent(a, b)
-        ensures equivalent(b, a)
-        {
-        }
-
-        machine equivalent_transitive(a: Carrier, b: Carrier, c: Carrier)
-        requires
-            equivalent(a, b)
-            equivalent(b, c)
-        ensures equivalent(a, c)
-        {
-        }
-
-        data Quotient = Carrier % equivalent;
-
-        machine quotient_congruence(a: Carrier, b: Carrier)
-        requires equivalent(a, b)
-        ensures (a as Quotient) == (b as Quotient)
-        {
-        }
+        FakeEquivalence: satisfies Equivalence<Carrier, equivalent> {}
+        data Quotient = Carrier % equivalent
+        where equivalent satisfies Equivalence<Carrier, equivalent> as FakeEquivalence;
         "#,
     );
-    validate_program(&typed).expect("proven equivalence should admit its quotient");
-}
-
-#[test]
-fn quotient_rejects_missing_equivalence_law() {
-    let typed = typed_program_from_source(
-        r#"
-        data Carrier { case Zero; case Next(prev: Carrier); }
-        machine equivalent(a: Carrier, b: Carrier) -> bool {
-            transition { _ -> (true) }
-        }
-        machine equivalent_reflexive(a: Carrier)
-        ensures equivalent(a, a) { }
-        machine equivalent_transitive(a: Carrier, b: Carrier, c: Carrier)
-        requires equivalent(a, b), equivalent(b, c)
-        ensures equivalent(a, c) { }
-        data Quotient = Carrier % equivalent;
-        "#,
-    );
-    let diagnostics = validate_program(&typed).expect_err("symmetry evidence is mandatory");
+    let diagnostics = validate_program(&typed)
+        .expect_err("a local same-name empty trait must not license quotient formation");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
-            .contains("missing a structurally matching symmetry proof machine")
+            .contains("sealed toolchain `Equivalence` declaration")
+            && diagnostic.message.contains("authored lookalike")
     }));
 }
 
 #[test]
-fn quotient_rejects_external_relation_even_when_its_shape_matches() {
-    let mut typed = typed_program_from_source(
+fn quotient_rejects_missing_named_equivalence_selection() {
+    let typed = typed_program_from_source(
+        r#"
+        data Carrier { case Zero; case Next(prev: Carrier); }
+        proposition equivalent(a: Carrier, b: Carrier);
+        data Quotient = Carrier % equivalent;
+        "#,
+    );
+    let diagnostics = validate_program(&typed).expect_err("the exact named selection is mandatory");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("requires one exact named `Equivalence` conformance")
+    }));
+}
+
+#[test]
+fn quotient_rejects_boolean_relation_even_when_its_shape_matches() {
+    let typed = typed_program_from_source(
         r#"
         data Carrier { case Zero; case Next(prev: Carrier); }
         machine equivalent(a: Carrier, b: Carrier) -> bool {
@@ -2804,21 +2778,12 @@ fn quotient_rejects_external_relation_even_when_its_shape_matches() {
         data Quotient = Carrier % equivalent;
         "#,
     );
-    let relation = typed
-        .machines_mut()
-        .iter_mut()
-        .find(|machine| machine.name.as_str() == "equivalent")
-        .expect("relation machine");
-    relation.supply_mode = psi_language_semantics::MachineSupplyMode::ExternalRealization {
-        binding: psi_language_semantics::ExternalBindingId(1),
-    };
-
     let diagnostics = validate_program(&typed)
-        .expect_err("an external realization cannot act as a checked quotient relation");
+        .expect_err("an executable decision machine is not a quotient proposition identity");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
-            .contains("must be a free checked pure machine")
+            .contains("must resolve to one exact proposition family")
     }));
 }
 
