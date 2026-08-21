@@ -137,3 +137,24 @@ enter the expected conformance application without becoming inferable authored
 non-lifetime arguments. The selection must remain explicit, argument-sensitive,
 and retained in checked and terminal identity, with no visibility search,
 priority, or structural proof-machine discovery.
+
+## Q8 — Registered-callback private placement contract
+
+The settled callback surface selects a named static machine through
+`where machine Selected satisfies Trait::requirement`. The requirement's
+evaluated `BoundaryEntryPlan` completely describes the *inbound callback* ABI,
+but it does not identify where an outbound registrar expects the generated
+private entry pointer. The current external-binding schema describes only the
+registrar mechanism and its ordinary runtime parameters; a static-machine
+ordinal is not a native argument ordinal, and the guides permit either a direct
+native argument or a nested field.
+
+Choose the authored binding form that maps each nominal callback binder to one
+exact private placement destination. In particular, decide whether the row is
+part of the registrar's calling plan, its external-binding declaration, or a
+separate normalized materialization plan; how it denotes a direct argument
+versus a nested field; and how that destination participates in compatibility
+identity. The compiler must reject missing, duplicate, or shape-incompatible
+destinations and materialize only a private relocation. It must not infer a
+slot from static-machine order, append an undeclared ABI parameter, or expose
+the generated symbol as source-visible `addr` data.

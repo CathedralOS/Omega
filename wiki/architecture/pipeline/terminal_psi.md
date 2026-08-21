@@ -127,6 +127,12 @@ private relocation. Retained registration provenance keeps the selected
 identity and lease disposition without making the actual envelope an ambient
 caller fact.
 
+Legacy native planning already binds each such row to the selected control-flow
+entry and one deterministic private thunk symbol, failing closed if the entry
+was lost. This is still address-free planning: multi-entry code emission and
+placement of the private symbol into the registrar's declared native slot are
+separate lowering steps.
+
 Reference identities retain loan compatibility and permitted operations
 separately. `&write T` carries an exclusive loan over an existing valid `T`
 with mutation but no observation authority. Terminal production preserves that

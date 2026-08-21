@@ -826,9 +826,14 @@ Registered nominal callback admission likewise joins its checked call-site and
 selected-machine identity to the one validated target `BoundaryEntryPlan`.
 That target-owned row survives both checked-only compilation and the native
 `BackendPlan`; callback thunk lowering must consume it directly and may not
-re-evaluate a calling convention. Thunk instruction emission, its private
+re-evaluate a calling convention. Native planning resolves the selected entry
+to an exact control-flow key and assigns one deterministic compiler-private
+thunk symbol; a missing selected entry rejects before instruction selection.
+Multi-entry/re-entrant instruction emission, the private registration
 relocation, and registration lifetime accounting remain the next vertical
-slice.
+slice. The source binding location for that private pointer is tracked in
+`OWNER_QUESTIONS.md` Q8; it cannot be inferred from the callback's inbound
+entry plan.
 
 Compiler-body memory operations likewise retain their exact plan-selected place
 and relocation recipes through emission and replay validation. Current

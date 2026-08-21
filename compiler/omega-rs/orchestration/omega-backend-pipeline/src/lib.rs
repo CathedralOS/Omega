@@ -7,6 +7,7 @@ use std::sync::Arc;
 use omega_control_flow::ControlFlowPlan;
 
 mod builder;
+mod callback_thunks;
 mod entry;
 mod skeleton;
 mod timing;
