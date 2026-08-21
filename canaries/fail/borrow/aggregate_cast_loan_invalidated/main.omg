@@ -1,0 +1,28 @@
+// FAIL canary (lifetimes stage 2): a denotation-preserving same-carrier cast
+// cannot launder the helper-produced aggregate's mutable source loan.
+
+data View {
+    body: &mut i32;
+}
+
+data Outer {
+    view: View;
+}
+
+machine make_view(source: &mut i32) -> View {
+    let result: View = View { body: source };
+    transition { _ -> result }
+}
+
+machine exercise(source: &mut i32) {
+    let inner: View = make_view(source);
+    let held: Outer = Outer { view: inner as View };
+    source = 1;
+    held.view.body = 2;
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

@@ -151,6 +151,9 @@ Current ownership is:
   borrow-carrying aggregates nested inside those literals are expanded beneath
   the enclosing path prefix, retaining their source selection and read/mutable
   polarity rather than becoming opaque at the nested expression boundary.
+  Denotation-preserving same-carrier value casts recursively reuse that source
+  expansion at root and nested positions; the borrow-recast form does not enter
+  this path and remains governed by its validated representation footprint.
   `checks/borrows/persistent.rs` admits borrow-carrying writes backed only by
   immutable artifact-lifetime storage (direct/nested literals, folded literal
   joins, and machine results whose every value exit resolves to such a source),

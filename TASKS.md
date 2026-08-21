@@ -1585,8 +1585,11 @@ checked-result arithmetic decision listed below.
   local/state-parameter forwarding, loan-root rebasing, and exact R5 facts.
   Direct helper-call results and moved/projected borrow-carrying aggregates now
   retain exact source loans, enclosing field/fixed-index paths, and polarity
-  when nested inside another literal; remaining computed aggregate expression
-  forms still need the same propagation law.
+  when nested inside another literal. Same-carrier denotation-preserving value
+  casts also retain those loans at root and nested positions across moved,
+  helper-produced, and literal operands; representation recasts remain a
+  separate footprint judgment. Remaining computed aggregate expression forms
+  still need the same propagation law.
 - Materialize dynamic descriptors for pass-through, rebound, and escaping
   borrows from the retained exact conformance rows and declaring-trait symbol.
   Bodyless/bare requirements do not license `dyn`; ambiguous same-carrier
