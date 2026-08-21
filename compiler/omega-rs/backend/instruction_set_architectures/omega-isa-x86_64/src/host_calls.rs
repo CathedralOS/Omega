@@ -4,6 +4,7 @@ use super::{
     append_mov_r15_imm64, append_mov_rax_imm64, append_mov_rdx_imm64, disp32,
     encode_outgoing_stack_address_load_bytes, immediate_i32, x86_gpr_number,
 };
+use crate::caller_frame::append_store_rax_to_rsp_disp32;
 use crate::caller_frame::rsp_adjust_width;
 pub(super) use crate::caller_frame::{append_add_rsp, append_sub_rsp};
 use omega_calling_conventions::{
@@ -1085,8 +1086,10 @@ fn append_win64_store_rax_to_rsp(
     stack_byte_offset: u32,
     byte_count: usize,
 ) -> Result<(), Diagnostic> {
+    if byte_count == 8 {
+        return append_store_rax_to_rsp_disp32(bytes, stack_byte_offset);
+    }
     match byte_count {
-        8 => bytes.extend([0x48, 0x89, 0x84, 0x24]),
         4 => bytes.extend([0x89, 0x84, 0x24]),
         2 => bytes.extend([0x66, 0x89, 0x84, 0x24]),
         1 => bytes.extend([0x88, 0x84, 0x24]),
@@ -1159,14 +1162,22 @@ fn append_win64_indirect_aggregate_argument<T: InstructionOperandLike>(
             .ok()
             .and_then(|offset| offset.checked_add(copied))
             .ok_or_else(|| Diagnostic::error("Microsoft x64 aggregate copy offset overflow"))?;
-        match fragment {
-            8 => bytes.extend([0x48, 0x89, 0x84, 0x24]), // mov [rsp+disp32], rax
-            4 => bytes.extend([0x89, 0x84, 0x24]),       // mov [rsp+disp32], eax
-            2 => bytes.extend([0x66, 0x89, 0x84, 0x24]), // mov [rsp+disp32], ax
-            1 => bytes.extend([0x88, 0x84, 0x24]),       // mov [rsp+disp32], al
-            _ => unreachable!("aggregate copy fragment width is canonical"),
+        if fragment == 8 {
+            append_store_rax_to_rsp_disp32(
+                bytes,
+                u32::try_from(target_offset).map_err(|_| {
+                    Diagnostic::error("Microsoft x64 aggregate copy offset exceeds u32")
+                })?,
+            )?;
+        } else {
+            match fragment {
+                4 => bytes.extend([0x89, 0x84, 0x24]), // mov [rsp+disp32], eax
+                2 => bytes.extend([0x66, 0x89, 0x84, 0x24]), // mov [rsp+disp32], ax
+                1 => bytes.extend([0x88, 0x84, 0x24]), // mov [rsp+disp32], al
+                _ => unreachable!("aggregate copy fragment width is canonical"),
+            }
+            bytes.extend(disp32(target_offset)?.to_le_bytes());
         }
-        bytes.extend(disp32(target_offset)?.to_le_bytes());
         copied += fragment;
     }
 

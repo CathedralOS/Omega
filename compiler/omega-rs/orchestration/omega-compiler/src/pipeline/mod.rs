@@ -16,6 +16,7 @@ mod program_entry_source_signature;
 mod program_storage_entry;
 mod program_storage_extent_operand;
 mod program_storage_extent_value;
+mod program_storage_reserved_outgoing_frame;
 mod program_storage_root_argument_binding;
 mod program_storage_root_authority;
 mod program_storage_source_call;
@@ -80,6 +81,11 @@ pub use program_storage_extent_value::{
     ProgramStorageEntryExtentLogicalValue, ProgramStorageEntryWholeRootLogicalValueCarrier,
     ProgramStorageEntryWholeRootLogicalValueError,
     bind_program_storage_entry_whole_root_logical_values,
+};
+pub use program_storage_reserved_outgoing_frame::{
+    ProgramStorageEntryOutgoingStackWord, ProgramStorageEntryReservedOutgoingStackFrameError,
+    ProgramStorageEntryReservedOutgoingStackFramePlan,
+    reserve_program_storage_entry_outgoing_stack_frame,
 };
 pub use program_storage_root_argument_binding::{
     ProgramStorageEntryRecordedWholeRootArgumentError,

@@ -117,6 +117,10 @@ pub enum CompilerInstructionValidationKind {
     OutgoingStackFrameReserve {
         byte_count: u32,
     },
+    OutgoingStackU64Write {
+        stack_byte_offset: u32,
+        value: u64,
+    },
     OutgoingStackFrameRelease {
         byte_count: u32,
     },

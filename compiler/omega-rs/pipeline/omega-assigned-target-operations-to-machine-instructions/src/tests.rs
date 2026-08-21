@@ -55,6 +55,42 @@ fn lowers_outgoing_stack_address_to_exact_machine_kind() {
             ..Default::default()
         },
         omega_assigned_target_operations::AssignedOperation {
+            kind: omega_assigned_target_operations::AssignedOperationKind::WriteOutgoingStackU64 {
+                stack_byte_offset: 32,
+                value: 0x1000,
+            },
+            ..Default::default()
+        },
+        omega_assigned_target_operations::AssignedOperation {
+            kind: omega_assigned_target_operations::AssignedOperationKind::WriteOutgoingStackU64 {
+                stack_byte_offset: 40,
+                value: 0x800,
+            },
+            ..Default::default()
+        },
+        omega_assigned_target_operations::AssignedOperation {
+            kind: omega_assigned_target_operations::AssignedOperationKind::WriteOutgoingStackU64 {
+                stack_byte_offset: 48,
+                value: 0x8000,
+            },
+            ..Default::default()
+        },
+        omega_assigned_target_operations::AssignedOperation {
+            kind: omega_assigned_target_operations::AssignedOperationKind::WriteOutgoingStackU64 {
+                stack_byte_offset: 56,
+                value: 0x2000,
+            },
+            ..Default::default()
+        },
+        omega_assigned_target_operations::AssignedOperation {
+            kind:
+                omega_assigned_target_operations::AssignedOperationKind::LoadOutgoingStackAddress {
+                    register: omega_calling_conventions::MachineRegister::X86Rcx,
+                    stack_byte_offset: 32,
+                },
+            ..Default::default()
+        },
+        omega_assigned_target_operations::AssignedOperation {
             kind:
                 omega_assigned_target_operations::AssignedOperationKind::LoadOutgoingStackAddress {
                     register: omega_calling_conventions::MachineRegister::X86Rdx,
@@ -79,7 +115,17 @@ fn lowers_outgoing_stack_address_to_exact_machine_kind() {
             instructions,
         });
     let machine = build_machine_instructions(&assigned).expect("machine lowering");
-    let [reserve, instruction, release] = machine.code.instructions.storage_slice() else {
+    let [
+        reserve,
+        write0,
+        write1,
+        write2,
+        write3,
+        address0,
+        address1,
+        release,
+    ] = machine.code.instructions.storage_slice()
+    else {
         panic!("balanced caller-frame address instructions should lower")
     };
     assert_eq!(
@@ -87,11 +133,18 @@ fn lowers_outgoing_stack_address_to_exact_machine_kind() {
         omega_machine_instructions::MachineInstructionKind::OutgoingStackFrameReserve
     );
     assert_eq!(
-        instruction.kind,
+        write0.kind,
+        omega_machine_instructions::MachineInstructionKind::OutgoingStackU64Write
+    );
+    assert_eq!(write1.kind, write0.kind);
+    assert_eq!(write2.kind, write0.kind);
+    assert_eq!(write3.kind, write0.kind);
+    assert_eq!(
+        address0.kind,
         omega_machine_instructions::MachineInstructionKind::OutgoingStackAddressLoad
     );
     assert_eq!(
-        instruction.source_kind,
+        address1.source_kind,
         omega_assigned_target_operations::AssignedOperationKind::LoadOutgoingStackAddress {
             register: omega_calling_conventions::MachineRegister::X86Rdx,
             stack_byte_offset: 48,

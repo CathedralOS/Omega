@@ -761,6 +761,23 @@ pub(super) fn encode_machine_instruction_bytes(
             }
             omega_isa_x86_64::encode_outgoing_stack_frame_reserve_bytes(*byte_count)
         }
+        SelectedInstructionKind::WriteOutgoingStackU64 {
+            stack_byte_offset,
+            value,
+        } => {
+            if input.target.architecture != omega_target::Architecture::X86_64 {
+                return Err(Diagnostic::error(
+                    "outgoing stack u64 writes are supported only on x86-64",
+                ));
+            }
+            Ok(
+                omega_isa_x86_64::encode_outgoing_stack_u64_write_bytes(
+                    *stack_byte_offset,
+                    *value,
+                )?
+                .to_vec(),
+            )
+        }
         SelectedInstructionKind::ReleaseOutgoingStackFrame { byte_count } => {
             if input.target.architecture != omega_target::Architecture::X86_64 {
                 return Err(Diagnostic::error(

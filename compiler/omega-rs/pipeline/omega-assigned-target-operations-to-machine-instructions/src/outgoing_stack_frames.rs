@@ -3,16 +3,30 @@
 use omega_assigned_target_operations::{AssignedOperation, AssignedOperationKind};
 use psi_diagnostics::Diagnostic;
 
+#[derive(Clone, Copy)]
+struct ActiveFrame {
+    byte_count: u32,
+    next_write: usize,
+    next_address: usize,
+}
+
 pub(crate) fn validate_outgoing_stack_frames(
     target: omega_target::NativeTarget,
     instructions: &[AssignedOperation],
 ) -> Result<(), Diagnostic> {
-    let mut active = None;
+    let mut active: Option<ActiveFrame> = None;
     for instruction in instructions {
         match instruction.kind {
             AssignedOperationKind::ReserveOutgoingStackFrame { byte_count } => {
                 validate_frame_byte_count(target, byte_count)?;
-                if active.replace(byte_count).is_some() {
+                if active
+                    .replace(ActiveFrame {
+                        byte_count,
+                        next_write: 0,
+                        next_address: 0,
+                    })
+                    .is_some()
+                {
                     return Err(Diagnostic::error(
                         "compiler-private outgoing stack frames may not nest",
                     ));
@@ -20,26 +34,65 @@ pub(crate) fn validate_outgoing_stack_frames(
             }
             AssignedOperationKind::ReleaseOutgoingStackFrame { byte_count } => {
                 validate_frame_byte_count(target, byte_count)?;
-                if active != Some(byte_count) {
+                let Some(frame) = active else {
                     return Err(Diagnostic::error(
                         "compiler-private outgoing stack-frame release has no exact matching reservation",
+                    ));
+                };
+                if frame.byte_count != byte_count
+                    || (frame.next_write != 0 && (frame.next_write != 4 || frame.next_address != 2))
+                {
+                    return Err(Diagnostic::error(
+                        "compiler-private outgoing stack-frame release precedes its exact writes and address bindings",
                     ));
                 }
                 active = None;
             }
-            AssignedOperationKind::LoadOutgoingStackAddress {
+            AssignedOperationKind::WriteOutgoingStackU64 {
                 stack_byte_offset, ..
             } => {
-                let Some(byte_count) = active else {
+                let Some(frame) = active.as_mut() else {
+                    return Err(Diagnostic::error(
+                        "outgoing stack u64 write occurs outside a live reserved frame",
+                    ));
+                };
+                let expected_offsets = [32, 40, 48, 56];
+                if frame.byte_count != 72
+                    || frame.next_address != 0
+                    || expected_offsets.get(frame.next_write).copied() != Some(stack_byte_offset)
+                    || stack_byte_offset < 32
+                    || stack_byte_offset % 8 != 0
+                    || stack_byte_offset.checked_add(8).is_none_or(|end| end > 64)
+                {
+                    return Err(Diagnostic::error(
+                        "outgoing stack u64 write violates exact 72-byte frame order or writable ranges",
+                    ));
+                }
+                frame.next_write += 1;
+            }
+            AssignedOperationKind::LoadOutgoingStackAddress {
+                register,
+                stack_byte_offset,
+            } => {
+                let Some(frame) = active.as_mut() else {
                     return Err(Diagnostic::error(
                         "outgoing stack-address load occurs outside a live reserved frame",
                     ));
                 };
-                if stack_byte_offset >= byte_count {
+                let expected = [
+                    (omega_calling_conventions::MachineRegister::X86Rcx, 32),
+                    (omega_calling_conventions::MachineRegister::X86Rdx, 48),
+                ];
+                if frame.byte_count != 72
+                    || frame.next_write != 4
+                    || expected.get(frame.next_address).copied()
+                        != Some((register, stack_byte_offset))
+                {
                     return Err(Diagnostic::error(
-                        "outgoing stack-address load lies outside its live reserved frame",
+                        "outgoing stack-address load precedes or drifts from exact caller-copy writes",
                     ));
                 }
+                frame.next_address += 1;
             }
             _ => {}
         }
@@ -81,24 +134,38 @@ mod tests {
         }
     }
 
+    fn exact_writes() -> Vec<AssignedOperation> {
+        [32, 40, 48, 56]
+            .into_iter()
+            .enumerate()
+            .map(|(index, stack_byte_offset)| {
+                operation(AssignedOperationKind::WriteOutgoingStackU64 {
+                    stack_byte_offset,
+                    value: index as u64 + 1,
+                })
+            })
+            .collect()
+    }
+
     #[test]
     fn exact_balanced_frame_and_addresses_are_admitted() {
-        validate_outgoing_stack_frames(
-            omega_target::NativeTarget::uefi_x64(),
-            &[
-                operation(AssignedOperationKind::ReserveOutgoingStackFrame { byte_count: 72 }),
-                operation(AssignedOperationKind::LoadOutgoingStackAddress {
-                    register: MachineRegister::X86Rcx,
-                    stack_byte_offset: 32,
-                }),
-                operation(AssignedOperationKind::LoadOutgoingStackAddress {
-                    register: MachineRegister::X86Rdx,
-                    stack_byte_offset: 48,
-                }),
-                operation(AssignedOperationKind::ReleaseOutgoingStackFrame { byte_count: 72 }),
-            ],
-        )
-        .expect("exact balanced caller frame");
+        let mut instructions = vec![operation(
+            AssignedOperationKind::ReserveOutgoingStackFrame { byte_count: 72 },
+        )];
+        instructions.extend(exact_writes());
+        instructions.extend([
+            operation(AssignedOperationKind::LoadOutgoingStackAddress {
+                register: MachineRegister::X86Rcx,
+                stack_byte_offset: 32,
+            }),
+            operation(AssignedOperationKind::LoadOutgoingStackAddress {
+                register: MachineRegister::X86Rdx,
+                stack_byte_offset: 48,
+            }),
+            operation(AssignedOperationKind::ReleaseOutgoingStackFrame { byte_count: 72 }),
+        ]);
+        validate_outgoing_stack_frames(omega_target::NativeTarget::uefi_x64(), &instructions)
+            .expect("exact balanced caller frame");
     }
 
     #[test]
@@ -157,5 +224,29 @@ mod tests {
             validate_outgoing_stack_frames(omega_target::NativeTarget::uefi_x64(), &out_of_range,)
                 .is_err()
         );
+    }
+
+    #[test]
+    fn shadow_padding_reorder_and_incomplete_write_sequences_reject() {
+        let target = omega_target::NativeTarget::uefi_x64();
+        for offset in [0, 24, 33, 40, 64] {
+            let instructions = [
+                operation(AssignedOperationKind::ReserveOutgoingStackFrame { byte_count: 72 }),
+                operation(AssignedOperationKind::WriteOutgoingStackU64 {
+                    stack_byte_offset: offset,
+                    value: 1,
+                }),
+                operation(AssignedOperationKind::ReleaseOutgoingStackFrame { byte_count: 72 }),
+            ];
+            assert!(validate_outgoing_stack_frames(target, &instructions).is_err());
+        }
+        let mut incomplete = vec![operation(
+            AssignedOperationKind::ReserveOutgoingStackFrame { byte_count: 72 },
+        )];
+        incomplete.extend(exact_writes().into_iter().take(3));
+        incomplete.push(operation(
+            AssignedOperationKind::ReleaseOutgoingStackFrame { byte_count: 72 },
+        ));
+        assert!(validate_outgoing_stack_frames(target, &incomplete).is_err());
     }
 }

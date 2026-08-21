@@ -815,6 +815,13 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
             } => Self::ReserveOutgoingStackFrame {
                 byte_count: *byte_count,
             },
+            omega_abstract_operations::AbstractOperationKind::WriteOutgoingStackU64 {
+                stack_byte_offset,
+                value,
+            } => Self::WriteOutgoingStackU64 {
+                stack_byte_offset: *stack_byte_offset,
+                value: *value,
+            },
             omega_abstract_operations::AbstractOperationKind::ReleaseOutgoingStackFrame {
                 byte_count,
             } => Self::ReleaseOutgoingStackFrame {

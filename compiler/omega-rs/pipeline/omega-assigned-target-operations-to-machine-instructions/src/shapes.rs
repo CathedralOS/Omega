@@ -127,6 +127,9 @@ pub(super) fn lower_machine_instruction_kind(
         SelectedInstructionKind::ReserveOutgoingStackFrame { .. } => {
             MachineInstructionKind::OutgoingStackFrameReserve
         }
+        SelectedInstructionKind::WriteOutgoingStackU64 { .. } => {
+            MachineInstructionKind::OutgoingStackU64Write
+        }
         SelectedInstructionKind::ReleaseOutgoingStackFrame { .. } => {
             MachineInstructionKind::OutgoingStackFrameRelease
         }
