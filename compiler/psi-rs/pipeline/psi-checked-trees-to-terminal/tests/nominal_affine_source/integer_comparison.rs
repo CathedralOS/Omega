@@ -103,6 +103,8 @@ const MIXED_NOMINAL_SHARED_INTEGER_COMPARISON_CONVERGENCE_SOURCE: &str = r#"
                 && ((((wide / 256u16) as u8) < 255u8)
                     && ((((wide / 2u16) % 3u16) as u8) < 3u8)
                     && (((signed % -3i64) as i8) < 3i8)
+                    && ((signed / -1i64) <= 128i64)
+                    && ((signed % -1i64) <= 0i64)
                     && (((wide % 3u16) as i8) < 3i8)
                     && ((((small / divisor) % 2u8) < 2u8)
                         && ((((input as u8) / divisor) % 2u8) < 2u8)
@@ -891,6 +893,64 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
         assert!(matches!(
             conjuncts[1].rule,
             ProofRule::Assumption { .. }
+        ));
+    }
+    let transitive_bound_negative_one_obligations = entry
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .filter_map(|operation| {
+            let (left, right, obligation, is_remainder) = match operation.kind {
+                OperationKind::ExactIntegerDivide {
+                    left, right, obligation, ..
+                } => (left, right, obligation, false),
+                OperationKind::ExactIntegerRemainder {
+                    left, right, obligation, ..
+                } => (left, right, obligation, true),
+                _ => return None,
+            };
+            if left != signed_parameter {
+                return None;
+            }
+            entry
+                .blocks
+                .iter()
+                .flat_map(|block| &block.operations)
+                .any(|candidate| {
+                    candidate.result.scalar_ref().map(|result| result.id) == Some(right)
+                        && matches!(
+                            candidate.kind,
+                            OperationKind::IntegerConstant {
+                                value: IntegerValue::Signed(-1),
+                            }
+                        )
+                })
+                .then_some((obligation, is_remainder))
+        })
+        .collect::<Vec<_>>();
+    assert!(transitive_bound_negative_one_obligations.len() >= 2);
+    assert!(transitive_bound_negative_one_obligations.iter().any(|(_, is_remainder)| !is_remainder));
+    assert!(transitive_bound_negative_one_obligations.iter().any(|(_, is_remainder)| *is_remainder));
+    for (obligation, _) in &transitive_bound_negative_one_obligations {
+        let evidence = lowered
+            .proof_bundle
+            .evidence
+            .iter()
+            .find(|evidence| evidence.obligation == *obligation)
+            .expect("transitive-bound -1 exact operation has evidence");
+        let EvidenceRoute::CertificateDerived(certificate) = &evidence.route else {
+            panic!("transitive-bound -1 exact operation has a recursive certificate")
+        };
+        let ProofRule::DisjunctionIntroduction { disjunct, index } = &certificate.proof.rule else {
+            panic!("transitive-bound -1 operation selects the exact exceptional arm")
+        };
+        assert_eq!(*index, 2);
+        let ProofRule::ConjunctionIntroduction(conjuncts) = &disjunct.rule else {
+            panic!("transitive-bound -1 operation proves both exceptional premises")
+        };
+        assert!(matches!(
+            conjuncts[1].rule,
+            ProofRule::IntegerLessOrEqualTransitivity { .. }
         ));
     }
     let exact_divide_obligation = entry
@@ -4006,6 +4066,42 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
         decode_proof_bundle(&proof).expect("shared integer convergence proof decodes"),
         lowered.proof_bundle,
     );
+    let stale_transitive_obligation = transitive_bound_negative_one_obligations[0].0;
+    let mut stale_transitive_bound =
+        decode_proof_bundle(&proof).expect("decode transitive-bound proof mutation");
+    let stale_evidence = stale_transitive_bound
+        .evidence
+        .iter_mut()
+        .find(|evidence| evidence.obligation == stale_transitive_obligation)
+        .expect("transitive-bound operation retains exact evidence");
+    let EvidenceRoute::CertificateDerived(certificate) = &mut stale_evidence.route else {
+        panic!("transitive-bound operation retains a recursive certificate")
+    };
+    let ProofRule::DisjunctionIntroduction { disjunct, .. } = &mut certificate.proof.rule else {
+        panic!("transitive-bound operation retains the exceptional disjunct")
+    };
+    let ProofRule::ConjunctionIntroduction(conjuncts) = &mut disjunct.rule else {
+        panic!("transitive-bound operation retains both exceptional premises")
+    };
+    let ProofRule::IntegerLessOrEqualTransitivity {
+        middle_less_or_equal_right,
+        ..
+    } = &mut conjuncts[1].rule
+    else {
+        panic!("transitive-bound operation retains its exact prior-bound citation")
+    };
+    middle_less_or_equal_right.rule = ProofRule::Assumption { index: usize::MAX };
+    assert!(matches!(
+        psi_terminal_verifier::verify_module(
+            &decode_module(&semantics).expect("decode transitive-bound semantics"),
+            &stale_transitive_bound,
+            &AdmissionProfile::default(),
+        ),
+        Err(psi_terminal_verifier::VerificationError::RejectedEvidence {
+            obligation,
+            ..
+        }) if obligation == stale_transitive_obligation
+    ));
     // The canonical source-to-terminal path and interpreter remain part of
     // every test run. The exhaustive mutation matrix performs 92 independent
     // full verifier replays and is intentionally opt-in; focused verifier

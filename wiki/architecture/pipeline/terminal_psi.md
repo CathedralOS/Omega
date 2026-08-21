@@ -1765,7 +1765,11 @@ retained exact `MIN + 1 <= dividend` proposition (`0 <= dividend` for `i1`)
 from a machine requirement or pre-site semantic axiom. The producer cites that
 exact proposition as the second recursive premise; it neither imports the
 trusted reducer result nor infers a wider interval. Missing, stale, or weaker
-bounds reject. Missing or excluded evidence rejects these paths; no
+bounds reject. A retained same-carrier literal lower bound `K <= dividend` is
+also complete when closed order proves `MIN + 1 <= K`: the producer composes
+that primitive judgment and exact prior citation through one checked
+transitivity step. Reversed, mistyped, weaker, or wrong-dividend facts reject.
+Missing or excluded evidence rejects these paths; no
 operation-result equation is available as proof authority. The existing proof
 rules and proof-bundle v15 codec carry these certificates without a vocabulary
 change. All other exact divide/remainder families remain

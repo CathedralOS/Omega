@@ -349,8 +349,12 @@ from those exact equalities and closed order. An exact independently retained
 `MIN + 1 <= dividend` proposition (`0 <= dividend` for `i1`) may replace the
 dividend landing: it is cited directly as the second recursive premise from a
 machine requirement or pre-site semantic axiom. No reducer result or wider
-interval is imported; missing, stale, or weaker bounds reject. Missing or
-excluded evidence rejects, and no result equation participates. The existing
+interval is imported; missing, stale, or weaker bounds reject. One retained
+same-carrier literal lower bound `K <= dividend` may instead prove the floor
+when closed order establishes `MIN + 1 <= K`; the certificate binds the exact
+citation through `IntegerLessOrEqualTransitivity`. Reversed, mistyped, weaker,
+or wrong-dividend facts reject. Missing or excluded evidence rejects, and no
+result equation participates. The existing
 proof rules and proof-bundle v15 codec need no vocabulary change.
 All other exact divide/remainder reconstruction remains on its trusted reducer
 until an untrusted producer can materialize kernel-checkable certificates for
