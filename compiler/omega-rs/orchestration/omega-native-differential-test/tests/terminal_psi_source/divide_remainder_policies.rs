@@ -452,7 +452,6 @@ fn only_canonical_nonzero_rows_bypass_legacy_divisor_reduction() {
     for machine in [
         "terminal_exact_divide_known_right",
         "terminal_exact_remainder_known_right",
-        "terminal_saturating_remainder_known_right",
     ] {
         let lowered = lower_machine(&checked, machine)
             .unwrap_or_else(|error| panic!("{machine} should lower: {error:?}"));
@@ -462,8 +461,7 @@ fn only_canonical_nonzero_rows_bypass_legacy_divisor_reduction() {
             .flat_map(|block| &block.operations)
             .find_map(|operation| match operation.kind {
                 OperationKind::ExactIntegerDivide { obligation, .. }
-                | OperationKind::ExactIntegerRemainder { obligation, .. }
-                | OperationKind::SaturatingIntegerRemainder { obligation, .. } => Some(obligation),
+                | OperationKind::ExactIntegerRemainder { obligation, .. } => Some(obligation),
                 _ => None,
             })
             .expect("controlled operation owns an obligation");
@@ -991,6 +989,38 @@ fn checked_source_saturating_remainder_uses_known_nonzero_divisor() {
             .any(|evidence| evidence.obligation == obligation)
     );
 
+    let reconstructed =
+        psi_terminal_verifier::reconstruct_operation_obligations(&lowered.semantic_module)
+            .expect("saturating-remainder obligation reconstructs");
+    let site = reconstructed
+        .iter()
+        .find(|site| site.obligation.id == obligation)
+        .expect("saturating-remainder obligation is reconstructed");
+    let OperationKind::SaturatingIntegerRemainder { right, .. } = remainder_operation.kind else {
+        unreachable!()
+    };
+    let u32_type = IntegerType::new(IntegerSign::Unsigned, 32).expect("u32");
+    assert_eq!(
+        site.obligation.proposition,
+        psi_core::Proposition::LessOrEqual(
+            psi_core::ScalarTerm::integer(u32_type, IntegerValue::Unsigned(1)).unwrap(),
+            psi_core::ScalarTerm::value(right, ScalarType::Integer(u32_type)),
+        )
+    );
+    let evidence = lowered
+        .proof_bundle
+        .evidence
+        .iter()
+        .find(|evidence| evidence.obligation == obligation)
+        .expect("saturating-remainder certificate exists");
+    let psi_proof_kernel::EvidenceRoute::CertificateDerived(certificate) = &evidence.route else {
+        panic!("saturating remainder must use a checked certificate")
+    };
+    assert!(matches!(
+        certificate.proof.rule,
+        psi_proof_kernel::ProofRule::IntegerLessOrEqualSubstitution { endpoint: 1, .. }
+    ));
+
     let semantic = encode_module(&lowered.semantic_module).expect("saturating-remainder semantics");
     let proof = encode_proof_bundle(&lowered.proof_bundle).expect("saturating-remainder proof");
     let module = decode_module(&semantic).expect("decode saturating-remainder semantics");
@@ -1010,7 +1040,35 @@ fn checked_source_saturating_remainder_uses_known_nonzero_divisor() {
             if missing == obligation
     ));
 
-    let u32_type = IntegerType::new(IntegerSign::Unsigned, 32).expect("u32");
+    let mut corrupt_remainder_proof =
+        decode_proof_bundle(&proof).expect("decode saturating-remainder proof");
+    let corrupt = corrupt_remainder_proof
+        .evidence
+        .iter_mut()
+        .find(|evidence| evidence.obligation == obligation)
+        .expect("saturating-remainder certificate exists");
+    let psi_proof_kernel::EvidenceRoute::CertificateDerived(certificate) = &mut corrupt.route
+    else {
+        panic!("saturating remainder must use a checked certificate")
+    };
+    let psi_proof_kernel::ProofRule::IntegerLessOrEqualSubstitution { endpoint, .. } =
+        &mut certificate.proof.rule
+    else {
+        panic!("known divisor uses literal equality substitution")
+    };
+    *endpoint = 0;
+    assert!(matches!(
+        verify_module(
+            &module,
+            &corrupt_remainder_proof,
+            &AdmissionProfile::default()
+        ),
+        Err(psi_terminal_verifier::VerificationError::RejectedEvidence {
+            obligation: rejected,
+            ..
+        }) if rejected == obligation
+    ));
+
     let argument = |value| TerminalScalarValue::Integer {
         scalar_type: u32_type,
         value: IntegerValue::Unsigned(value),
