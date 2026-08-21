@@ -28,6 +28,7 @@ impl From<omega_machine_program::MachineProgram> for MachineInstructionPlan {
                 }))
                 .expect("machine instruction arena insertion should not fail");
             code.functions.insert(MachineInstructionFunction {
+                symbol: std::sync::Arc::clone(&function.symbol),
                 source_key: function.source_key,
                 instructions: inserted,
             });
@@ -62,6 +63,7 @@ impl From<MachineInstructionPlan> for omega_machine_program::MachineProgram {
                 .expect("machine instruction arena insertion should not fail");
             code.functions
                 .insert(omega_machine_program::MachineFunction {
+                    symbol: std::sync::Arc::clone(&function.symbol),
                     source_key: function.source_key,
                     instructions: inserted,
                 });

@@ -23,6 +23,7 @@ pub(crate) fn build_machine_instruction_code(
         )?;
 
         code.functions.insert(MachineInstructionFunction {
+            symbol: std::sync::Arc::clone(&function.symbol),
             source_key: function.source_key,
             instructions: function_instructions,
         });

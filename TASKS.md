@@ -1289,8 +1289,12 @@ Owners:
   resolves each selected machine/entry pair to one exact `ControlFlow`
   `StateKey`, rejects a lost entry before instruction selection, and assigns a
   deterministic compiler-private thunk symbol joined by placement-row index.
-  The symbol is planned object identity only and never an Omega value. The
-  remaining slices are resource-ceiling aggregation,
+  The symbol is planned object identity only and never an Omega value. Function
+  identity now survives assigned operations, machine instructions, encoded
+  bytes, and exact object-entry selection. Image emission fails closed until
+  every planned callback owns one exact encoded function and one matching
+  private text symbol; a plan row can no longer be mistaken for emitted thunk
+  evidence. The remaining slices are resource-ceiling aggregation,
   multi-entry/re-entrant target instruction lowering, and the
   private registration relocation (whose binding placement is design-blocked
   on `OWNER_QUESTIONS.md` Q8),

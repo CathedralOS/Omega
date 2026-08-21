@@ -74,6 +74,7 @@ mod tests {
             .code
             .functions
             .insert(MachineInstructionFunction {
+                symbol: std::sync::Arc::from("test_entry"),
                 source_key: Default::default(),
                 instructions,
             });
@@ -145,6 +146,7 @@ mod tests {
             .next()
             .map(|(_, function)| function)
             .expect("encoded function");
+        assert_eq!(encoded_function.symbol.as_ref(), "test_entry");
         assert_eq!(encoded_function.instructions.len(), 2);
         assert_eq!(
             encoded

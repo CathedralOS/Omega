@@ -3,8 +3,30 @@ use omega_abstract_operations::{
     AbstractBoundaryPolicyCheck, AbstractBoundaryPolicyVerdict, AbstractPermissionEvent,
     AbstractSourceBoundaryEdge, AbstractValueFact, AbstractValueOrigin, AbstractValueStatementRole,
 };
-use omega_assigned_target_operations::AssignedTargetOperationPlan;
+use omega_assigned_target_operations::{
+    AssignedTargetOperationFunction, AssignedTargetOperationPlan,
+};
 use psi_symbols::SymbolHandle;
+use std::sync::Arc;
+
+#[test]
+fn preserves_private_function_identity_through_machine_lowering() {
+    let mut assigned = AssignedTargetOperationPlan::default();
+    assigned
+        .code
+        .functions
+        .insert(AssignedTargetOperationFunction {
+            symbol: Arc::from("__omega_callback_test"),
+            source_key: Default::default(),
+            instructions: Default::default(),
+        });
+
+    let machine = build_machine_instructions(&assigned).expect("machine instructions");
+    let [function] = machine.code.functions.storage_slice() else {
+        panic!("one assigned function should produce one machine function")
+    };
+    assert_eq!(function.symbol.as_ref(), "__omega_callback_test");
+}
 
 #[test]
 fn copies_assigned_value_summary_to_machine_instruction_plan() {

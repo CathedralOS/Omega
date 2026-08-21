@@ -42,6 +42,7 @@ fn builds_sections_and_symbols_for_runtime_frame_import_and_data() {
         .code
         .functions
         .insert(EncodedMachineFunction {
+            symbol: std::sync::Arc::from(omega_object_file::entry_symbol_name(target)),
             source_key: Default::default(),
             byte_offset: 32,
             byte_count: 12,
@@ -162,6 +163,7 @@ fn reports_missing_entry_machine_layout() {
         .code
         .functions
         .insert(EncodedMachineFunction {
+            symbol: std::sync::Arc::from(omega_object_file::entry_symbol_name(target)),
             source_key: Default::default(),
             byte_offset: 0,
             byte_count: 4,
@@ -223,8 +225,9 @@ fn reports_missing_encoded_entry_function() {
     assert!(
         diagnostic
             .message
-            .starts_with("missing encoded entry function for state key")
+            .starts_with("missing encoded entry function `")
     );
+    assert!(diagnostic.message.contains("for state key"));
 }
 
 fn empty_host_abi(target: NativeTarget) -> HostAbiPlan {
