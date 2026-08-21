@@ -9,11 +9,15 @@ use omega_control_flow::ControlFlowPlan;
 mod builder;
 mod callback_thunks;
 mod entry;
+mod program_storage_wrapper;
 mod skeleton;
 mod timing;
 
 pub use builder::render_frame_slot_table;
 pub use omega_backend_plan::{BackendPlan, BackendPlanPhaseTiming};
+pub use program_storage_wrapper::{
+    ProgramStorageEntryWrapperInsertion, insert_program_storage_entry_wrapper,
+};
 
 /// `freestanding`: the selected build trusts no ambient host packages, so use
 /// an empty host ABI baseline (no implicit bindings/lowerings or import
