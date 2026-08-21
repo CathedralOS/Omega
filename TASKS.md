@@ -1243,7 +1243,12 @@ Remaining:
   family now accepts exact literal equalities retained as machine requirements,
   not only pre-site semantic landings. The selector checks every same-carrier
   equality for the exact operand, and the producer cites it as an `Assumption`;
-  zero-only, minimum-dividend, mistyped, or redirected premises reject. A signed `i1`
+  zero-only, minimum-dividend, mistyped, or redirected premises reject. The next
+  complete endpoint-transport family pairs an exact retained bound on `K` with
+  an independently retained `K == divisor` equality in either orientation. The
+  producer cites both children under `IntegerLessOrEqualSubstitution`, replacing
+  only the canonical endpoint; a missing bound, unrelated equality, weak bound,
+  or changed untouched endpoint rejects. A signed `i1`
   divisor fact alone remains
   insufficient because its canonical conjunction also requires the dividend
   premise. The complete retained-bound `i1` family now selects that conjunction
@@ -1552,7 +1557,7 @@ Remaining:
   unchanged; only type-shell normalization and unresolved-call reporting are
   shared privately back to per-call validation.
   Complete-or-opaque caller write-frame inference, alias-origin propagation,
-  and transition-cycle frame equations now form a 3,192-line
+  and transition-cycle frame equations now form a 3,159-line
   `calls/write_frames.rs` child. Its 459-line `write_frames/demand.rs` child
   owns the public resolver facade plus expression/statement demand collection
   and conservative fallback; a separate 123-line
@@ -1581,10 +1586,11 @@ Remaining:
   frames. A 114-line `write_frames/parameter_aliases.rs` leaf owns the narrow
   parameter-relative origin carrier, exact symbol/name alias lookup, and
   syntax-only transparent mutable-reborrow detection; recursive origin and call
-  analysis remain in the parent. An 85-line
+  analysis remain in the parent. A 125-line
   `write_frames/transition_topology.rs` leaf owns named-edge target resolution
-  and acyclicity checking within one machine, without constructing or solving
-  frame equations. A 91-line `write_frames/transition_equations.rs` leaf owns
+  and acyclicity checking within one machine plus exact write-capable namespace
+  preservation for cycle-closing edges, without constructing or solving frame
+  equations. A 91-line `write_frames/transition_equations.rs` leaf owns
   the private equation/edge carriers, exact named-edge capture, and read-only
   equation-graph reachability; construction, permutation validation, and
   fixed-point solving remain in the parent. A 61-line
@@ -2489,10 +2495,13 @@ boundary without its corresponding checked law.
   and serialized snapshot surfaces. The ordinary trait requirement record is
   the sole carrier; conformances continue to implement the named requirement
   without a second token-binding field. Parser, resolved, typed-snapshot, and
-  checked-pipeline tests pin this round trip. Normalize an attached receiver as
-  operand position zero and an explicit first parameter as position zero
-  otherwise. A trait-backed token use consumes one exact conformance already
-  selected by a proof-static
+  checked-pipeline tests pin this round trip. One shared operand-telescope
+  normalizer now places an attached receiver at position zero and otherwise
+  preserves the explicit parameter order; use-site matching, top-level overlap
+  identity, and trait-owned overlap identity consume that same key. A trait
+  rejects a second binding of one token over the same alpha-normalized operand
+  telescope while distinct operand telescopes remain legal. A trait-backed token
+  use still needs to consume one exact conformance already selected by a proof-static
   binder, rejects with none or several, and never searches visible conformances.
   A concrete direct wrapper may crown only one token meaning per normalized
   operand signature; alternative conformances remain named explicit calls.
