@@ -1615,8 +1615,7 @@ machine build(builder: &mut Build) {
     );
     assert_eq!(
         template.wrapper_symbol(),
-        omega_object_file::private_function_symbol_name(wrapper_identity)
-            .expect("canonical private wrapper symbol")
+        omega_object_file::entry_symbol_name(omega_target::NativeTarget::uefi_x64())
     );
     assert_eq!(template.steps().len(), 11);
     assert!(matches!(
@@ -1634,8 +1633,8 @@ machine build(builder: &mut Build) {
             target: source_identity,
         }
     );
-    assert_eq!(bridge.entry_function_identity(), source_identity);
-    assert_ne!(bridge.entry_function_identity(), wrapper_identity);
+    assert_eq!(bridge.entry_function_identity(), wrapper_identity);
+    assert_ne!(bridge.entry_function_identity(), source_identity);
     let installation = install_program_storage_entry_roots(
         &build_dir,
         bridge.binding().clone(),

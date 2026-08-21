@@ -133,6 +133,40 @@ pub fn derive_boundary_call_return_mechanics_footprint<'instruction>(
                     omega_isa_x86_64::entry_indirect_u64_to_outgoing_stack_copy_additional_machine_state(),
                 )
             }
+            SelectedInstructionKind::LoadOutgoingStackAddress { register, .. } => {
+                if architecture != omega_target::Architecture::X86_64 {
+                    return Err(PlanDiagnostic(
+                        "outgoing stack-address loads are supported only on x86-64".into(),
+                    ));
+                }
+                (
+                    omega_isa_x86_64::outgoing_stack_address_load_register_writes(*register),
+                    omega_isa_x86_64::outgoing_stack_address_load_additional_machine_state(),
+                )
+            }
+            SelectedInstructionKind::ReserveOutgoingStackFrame { .. }
+            | SelectedInstructionKind::ReleaseOutgoingStackFrame { .. } => {
+                if architecture != omega_target::Architecture::X86_64 {
+                    return Err(PlanDiagnostic(
+                        "outgoing stack frames are supported only on x86-64".into(),
+                    ));
+                }
+                (
+                    omega_isa_x86_64::outgoing_stack_frame_adjust_register_writes(),
+                    omega_isa_x86_64::outgoing_stack_frame_adjust_additional_machine_state(),
+                )
+            }
+            SelectedInstructionKind::WriteOutgoingStackU64 { .. } => {
+                if architecture != omega_target::Architecture::X86_64 {
+                    return Err(PlanDiagnostic(
+                        "outgoing stack u64 writes are supported only on x86-64".into(),
+                    ));
+                }
+                (
+                    omega_isa_x86_64::outgoing_stack_u64_write_register_writes(),
+                    omega_isa_x86_64::outgoing_stack_u64_write_additional_machine_state(),
+                )
+            }
             _ => continue,
         };
         registers.extend_from_slice(writes.as_slice());

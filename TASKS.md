@@ -240,7 +240,7 @@ Remaining:
   derived values, does not switch the object entry, and does not claim native
   execution.
   The emitted receiver-free UEFI/Microsoft bridge now also retains a sealed
-  post-encoding phase-alignment template for the future generated wrapper body.
+  post-encoding phase-alignment template for the generated wrapper body.
   It binds the canonical generated-wrapper identity and symbol to the exact
   retained Source identity, symbol, and text interval, then pins eleven ordered
   compiler-private steps: function entry, a balanced 72-byte outgoing
@@ -249,15 +249,20 @@ Remaining:
   one exact Source-identity call, balanced release, and Unit return. Receiver,
   role/index, shape/placement, identity, interval, call-target, frame, and
   sequence drift fail closed. Installation-owned operand bytes and authority
-  are deliberately not routed backward into compilation. No backend insertion
-  pass consumes this template yet; no wrapper function, call relocation,
-  object-entry switch, or native execution is claimed.
-  Production builds therefore still lack a source-compatible attached-root
-  value/authority carrier (or separate hidden supply) and generated wrapper
-  body; defining that disposition at the source schema, emitting the body,
-  physically realizing receiver-free root values, adding the exact native call
-  edge to the retained operation, and retaining resulting native bridge
-  evidence remain before this slice is complete.
+  are deliberately not routed backward into compilation. A transactional
+  second backend pass now consumes this template: it privately relabels the
+  retained `Source(StateKey)`, appends the exact generated wrapper operations,
+  and rebuilds target, assigned, machine, encoded, object, and relocation plans
+  as candidates before publishing any mutation. Independent replay pins the
+  wrapper bytes and validation rows, retained Source interval, object entry,
+  and exact single `call rel32` relocation to Source. The final bridge names
+  `ProgramStorageEntryWrapper(StateKey)` as entry while retaining Source as its
+  continuation, and the rebuilt plan proceeds through checked final-image
+  validation. Candidate failure leaves the original backend unchanged.
+  Production builds still lack a source-compatible attached-root
+  value/authority carrier (or separate hidden supply), final firmware
+  composition, and native-execution evidence; those remain before this slice
+  is complete.
 
   The CLI corpus is rooted on all hosted targets except the four GUI samples,
   which currently select Windows x64 and macOS arm64. Linux needs an ordinary

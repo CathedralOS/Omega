@@ -861,7 +861,7 @@ impl Compiler {
             .flatten();
         // Selected external leaves become the target's source-authored
         // platform surface.
-        let backend = control_flow_to_backend_plan(
+        let mut backend = control_flow_to_backend_plan(
             checked,
             entry_machine_name.as_deref(),
             program_entry_boundary_plan,
@@ -898,16 +898,17 @@ impl Compiler {
                 .map_err(|diagnostic| vec![Diagnostic::error(diagnostic.to_string())])
             })
             .transpose()?;
-        let program_storage_entry_bridge = program_storage_entry
-            .map(|binding| {
-                if binding.source_signature().is_none() {
-                    return Err(vec![Diagnostic::error(
-                        "compiler-generated program-storage binding lost its checked source signature",
-                    )]);
-                }
-                crate::pipeline::program_storage_entry::bind_emitted_program_storage_entry_native_bridge(
+        let bind_bridge = |binding: crate::pipeline::ProgramStorageEntryPlanBinding,
+                           backend: &crate::pipeline::stages::BackendPlanningSurface,
+                           selected_provider| {
+            if binding.source_signature().is_none() {
+                return Err(vec![Diagnostic::error(
+                    "compiler-generated program-storage binding lost its checked source signature",
+                )]);
+            }
+            crate::pipeline::program_storage_entry::bind_emitted_program_storage_entry_native_bridge(
                     binding,
-                    program_storage_entry_provider,
+                    selected_provider,
                     self.options
                         .target_name
                         .clone()
@@ -926,8 +927,36 @@ impl Compiler {
                     backend.plan.entry_state_name().to_owned(),
                 )
                 .map_err(|diagnostic| vec![Diagnostic::error(diagnostic.to_string())])
+        };
+        let preview_program_storage_entry_bridge = program_storage_entry
+            .as_ref()
+            .map(|binding| {
+                bind_bridge(
+                    binding.clone(),
+                    &backend,
+                    program_storage_entry_provider.clone(),
+                )
             })
             .transpose()?;
+        if let Some(template) = preview_program_storage_entry_bridge
+            .as_ref()
+            .and_then(|bridge| bridge.wrapper_body_template())
+        {
+            crate::pipeline::program_storage_wrapper_body::insert_and_validate_program_storage_entry_wrapper(
+                template,
+                &mut backend.plan,
+            )
+            .map_err(|diagnostic| vec![Diagnostic::error(diagnostic.to_string())])?;
+        }
+        let program_storage_entry_bridge = if let Some(binding) = program_storage_entry {
+            Some(bind_bridge(
+                binding,
+                &backend,
+                program_storage_entry_provider,
+            )?)
+        } else {
+            None
+        };
         if self.options.write_output && emit_auxiliary_artifacts {
             if let Some(bridge) = &program_storage_entry_bridge {
                 write_program_storage_entry_snapshot(&self.options, bridge)?;

@@ -31,6 +31,7 @@ omega-executable-installation = { path = "../../foundation/omega-executable-inst
 omega-image = { path = "../../backend/images/omega-image" }
 omega-image-emission = { path = "../../backend/images/omega-image-emission" }
 omega-instruction-selection = { path = "../../backend/omega-instruction-selection" }
+omega-isa-x86_64 = { path = "../../backend/instruction_set_architectures/omega-isa-x86_64" }
 psi-source = { path = "../../../psi-rs/foundation/psi-source" }
 psi-source-files-to-tokens = { path = "../../../psi-rs/pipeline/psi-source-files-to-tokens" }
 psi-tokens = { path = "../../../psi-rs/representations/psi-tokens" }
