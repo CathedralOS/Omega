@@ -79,7 +79,10 @@ pub use effects::{validate_asm_discharge, validate_behavior_plan};
 /// through the `&mut` marker), WITH its Constrained shells -- exposed for the
 /// typed-trees machine-monomorphization pass's param-position inference.
 pub use literals::land_float_literal_destinations;
-pub use machine_parameters::validate_static_machine_selections;
+pub use machine_parameters::{
+    ValidatedNominalMachineUse, ValidatedNominalMachineUseSite, validate_static_machine_selections,
+    validate_static_machine_selections_with_facts,
+};
 pub use places::declared_place_type_raw;
 pub use places::unwrapped_type_reference;
 pub use properties::{

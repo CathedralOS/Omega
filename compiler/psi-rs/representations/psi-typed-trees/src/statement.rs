@@ -379,6 +379,22 @@ impl StatementTable {
         self.statements.span_or_empty(span)
     }
 
+    pub fn iter_statements(
+        &self,
+        span: HandleSpan<StatementNode>,
+    ) -> impl Iterator<Item = (StatementHandle, &StatementNode)> {
+        (0..span.count()).map(move |offset| {
+            let handle = Handle::from_parts(
+                span.start()
+                    .arena_index()
+                    .checked_add(offset)
+                    .expect("statement span handle overflow"),
+                span.start().generation(),
+            );
+            (handle, self.statements.get(handle))
+        })
+    }
+
     /// Mutable span access for deterministic pre-check normalization passes.
     /// Handles and statement order remain unchanged.
     pub fn statements_mut(&mut self, span: HandleSpan<StatementNode>) -> &mut [StatementNode] {

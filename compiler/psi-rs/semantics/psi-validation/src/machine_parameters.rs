@@ -11,11 +11,11 @@ use psi_symbols::{SymbolHandle, SymbolKind};
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::data::{MachineParameterContract, TypeParameter, TypeParameterKind};
 use psi_typed_trees::domain::ProofFact;
-use psi_typed_trees::expression::{ExpressionNode, StaticMachineArgument};
+use psi_typed_trees::expression::{ExpressionHandle, ExpressionNode, StaticMachineArgument};
 use psi_typed_trees::machine::Machine;
 use psi_typed_trees::signature::{SignatureContract, SignatureContractKind, StateParameter};
 use psi_typed_trees::state::State;
-use psi_typed_trees::statement::StatementNode;
+use psi_typed_trees::statement::{StatementHandle, StatementNode};
 use psi_typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
 
 #[derive(Clone, Copy)]
@@ -28,6 +28,33 @@ struct MachineSuspensionRow {
 struct MachineBlockingRow {
     symbol: SymbolHandle,
     transitive_may_block: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ValidatedNominalMachineUseSite {
+    Statement(StatementHandle),
+    Expression(ExpressionHandle),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ValidatedNominalMachineUse {
+    pub site: ValidatedNominalMachineUseSite,
+    pub registration_operation: SymbolHandle,
+    pub static_machine_ordinal: u32,
+    pub selected_machine: SymbolHandle,
+    pub selected_entry: SymbolHandle,
+    pub satisfaction_trait: SymbolHandle,
+    pub satisfaction_requirement: SymbolHandle,
+    pub canonical_requirement_overload: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct AdmittedNominalSelection {
+    selected_machine: SymbolHandle,
+    selected_entry: SymbolHandle,
+    satisfaction_trait: SymbolHandle,
+    satisfaction_requirement: SymbolHandle,
+    canonical_requirement_overload: String,
 }
 
 fn project_operational_rows(
@@ -56,6 +83,14 @@ pub(crate) fn validate_static_machine_arguments(
     program: &TypedTrees,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    validate_static_machine_arguments_with_facts(program, diagnostics, &mut Vec::new());
+}
+
+fn validate_static_machine_arguments_with_facts(
+    program: &TypedTrees,
+    diagnostics: &mut Vec<Diagnostic>,
+    nominal_uses: &mut Vec<ValidatedNominalMachineUse>,
+) {
     let (service_reaches, suspensions, blockings) = {
         let operational = psi_effects::infer_operational_may(program);
         let service_reaches = psi_effects::infer_service_reaches(program, &operational);
@@ -63,7 +98,7 @@ pub(crate) fn validate_static_machine_arguments(
         (service_reaches, suspensions, blockings)
     };
     let invocations = psi_effects::infer_synchronous_invocations(program);
-    for (_, expression) in program.expression_table.iter_expressions() {
+    for (handle, expression) in program.expression_table.iter_expressions() {
         if let ExpressionNode::Call(call) = expression {
             validate_call_selection(
                 program,
@@ -71,17 +106,22 @@ pub(crate) fn validate_static_machine_arguments(
                 &blockings,
                 &service_reaches,
                 &invocations,
+                ValidatedNominalMachineUseSite::Expression(handle),
                 call.target_symbol,
                 call.target.as_str(),
                 &call.machine_arguments,
                 diagnostics,
+                nominal_uses,
             );
         }
     }
 
     for machine in program.machines() {
         for state in program.machine_states(machine) {
-            for statement in program.statement_table.statements(state.statement_nodes) {
+            for (statement_handle, statement) in program
+                .statement_table
+                .iter_statements(state.statement_nodes)
+            {
                 if let StatementNode::Call(call) = statement {
                     validate_call_selection(
                         program,
@@ -89,10 +129,12 @@ pub(crate) fn validate_static_machine_arguments(
                         &blockings,
                         &service_reaches,
                         &invocations,
+                        ValidatedNominalMachineUseSite::Statement(statement_handle),
                         call.target_symbol,
                         call.target.as_str(),
                         &call.machine_arguments,
                         diagnostics,
+                        nominal_uses,
                     );
                 }
             }
@@ -103,10 +145,17 @@ pub(crate) fn validate_static_machine_arguments(
 /// Run MP2b admission as a standalone pre-specialization gate. MP4 consumes
 /// the static argument syntax, so its refinement proof must happen first.
 pub fn validate_static_machine_selections(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
+    validate_static_machine_selections_with_facts(program).map(|_| ())
+}
+
+pub fn validate_static_machine_selections_with_facts(
+    program: &TypedTrees,
+) -> Result<Vec<ValidatedNominalMachineUse>, Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
-    validate_static_machine_arguments(program, &mut diagnostics);
+    let mut nominal_uses = Vec::new();
+    validate_static_machine_arguments_with_facts(program, &mut diagnostics, &mut nominal_uses);
     if diagnostics.is_empty() {
-        Ok(())
+        Ok(nominal_uses)
     } else {
         Err(diagnostics)
     }
@@ -118,10 +167,12 @@ fn validate_call_selection(
     blockings: &[MachineBlockingRow],
     service_reaches: &psi_effects::ServiceReachInferencePlan,
     invocations: &psi_effects::InvocationInferencePlan,
+    site: ValidatedNominalMachineUseSite,
     target_symbol: SymbolHandle,
     target_name: &str,
     arguments: &[StaticMachineArgument],
     diagnostics: &mut Vec<Diagnostic>,
+    nominal_uses: &mut Vec<ValidatedNominalMachineUse>,
 ) {
     let (requirements, generic_types): (Vec<_>, Vec<_>) = if let Some((callee, _)) =
         machine_and_state(program, target_symbol)
@@ -220,7 +271,9 @@ fn validate_call_selection(
 
     let mut bindings = Vec::new();
 
-    for ((parameter, requirement), selected) in requirements.into_iter().zip(machine_arguments) {
+    for (static_machine_ordinal, ((parameter, requirement), selected)) in
+        requirements.into_iter().zip(machine_arguments).enumerate()
+    {
         let rendered = selected
             .path
             .iter()
@@ -241,7 +294,7 @@ fn validate_call_selection(
             )));
             continue;
         }
-        if !validate_nominal_machine_selection(
+        let Ok(nominal_selection) = validate_nominal_machine_selection(
             program,
             target_name,
             parameter,
@@ -249,9 +302,9 @@ fn validate_call_selection(
             selected.symbol,
             &rendered,
             diagnostics,
-        ) {
+        ) else {
             continue;
-        }
+        };
         let requirement = machine_parameter_signature(program, requirement);
         validate_selected_callable_shape(
             program,
@@ -268,6 +321,19 @@ fn validate_call_selection(
             &mut bindings,
             diagnostics,
         );
+        if let Some(selection) = nominal_selection {
+            nominal_uses.push(ValidatedNominalMachineUse {
+                site,
+                registration_operation: target_symbol,
+                static_machine_ordinal: u32::try_from(static_machine_ordinal)
+                    .expect("static machine argument ordinal overflow"),
+                selected_machine: selection.selected_machine,
+                selected_entry: selection.selected_entry,
+                satisfaction_trait: selection.satisfaction_trait,
+                satisfaction_requirement: selection.satisfaction_requirement,
+                canonical_requirement_overload: selection.canonical_requirement_overload,
+            });
+        }
     }
 }
 
@@ -806,7 +872,7 @@ pub(crate) fn validate_data_machine_selection(
     generic_types: &[&TypeParameter],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    if !validate_nominal_machine_selection(
+    if validate_nominal_machine_selection(
         program,
         family_name,
         parameter,
@@ -814,7 +880,9 @@ pub(crate) fn validate_data_machine_selection(
         selected_symbol,
         selected_name,
         diagnostics,
-    ) {
+    )
+    .is_err()
+    {
         return;
     }
     let requirement = machine_parameter_signature(program, requirement);
@@ -850,13 +918,13 @@ fn validate_nominal_machine_selection(
     selected_symbol: SymbolHandle,
     selected_name: &str,
     diagnostics: &mut Vec<Diagnostic>,
-) -> bool {
+) -> Result<Option<AdmittedNominalSelection>, ()> {
     let MachineParameterContract::Nominal {
         trait_definition: required_trait,
         requirement: required_requirement,
     } = required_contract
     else {
-        return true;
+        return Ok(None);
     };
 
     // Forwarding another static binder is sound only when that binder carries
@@ -872,13 +940,13 @@ fn validate_nominal_machine_selection(
                 requirement,
             } if trait_definition == required_trait && requirement == required_requirement
         ) {
-            return true;
+            return Ok(None);
         }
         diagnostics.push(Diagnostic::error(format!(
             "machine parameter `{}` forwarded into `{generic_owner}` does not carry the exact nominal requirement of `{}`; matching callable structure establishes no satisfaction row",
             selected_parameter.name, parameter.name
         )));
-        return false;
+        return Err(());
     }
 
     let Some((selected_machine, selected_state)) = machine_and_state(program, selected_symbol)
@@ -887,21 +955,21 @@ fn validate_nominal_machine_selection(
             "static machine argument `{selected_name}` for nominal parameter `{}` does not resolve to a concrete machine entry",
             parameter.name
         )));
-        return false;
+        return Err(());
     };
     let Some(entry_state) = program.machine_states(selected_machine).first() else {
         diagnostics.push(Diagnostic::error(format!(
             "static machine argument `{selected_name}` for nominal parameter `{}` has no callable entry",
             parameter.name
         )));
-        return false;
+        return Err(());
     };
     if entry_state.symbol != selected_state.symbol {
         diagnostics.push(Diagnostic::error(format!(
             "static machine argument `{selected_name}` selects a non-entry state; nominal parameter `{}` requires the machine entry that owns its satisfaction row",
             parameter.name
         )));
-        return false;
+        return Err(());
     }
 
     let view = program
@@ -934,10 +1002,18 @@ fn validate_nominal_machine_selection(
             "static machine argument `{selected_name}` for nominal parameter `{}` retains {matching_rows} authored satisfaction row(s) for exact requirement `{}::{}`; exactly one is required and structural coincidence establishes none",
             parameter.name, trait_definition.name, requirement.name
         )));
-        return false;
+        return Err(());
     }
 
-    true
+    Ok(Some(AdmittedNominalSelection {
+        selected_machine: selected_machine.symbol,
+        selected_entry: entry_state.symbol,
+        satisfaction_trait: *required_trait,
+        satisfaction_requirement: *required_requirement,
+        canonical_requirement_overload: program
+            .normalized_trait_requirement_overload_identity(trait_definition, requirement)
+            .identity(),
+    }))
 }
 
 #[derive(Clone, Copy)]
