@@ -1259,7 +1259,13 @@ Remaining:
   bound on `K` (for example `2 <= K` or signed `K <= -3`), then endpoint
   substitution carries it to the divisor. The producer nests one checked
   transitivity node beneath substitution; weak bounds, missing equalities, or
-  wrong endpoints reject. A signed `i1`
+  wrong endpoints reject. The next complete nested family replaces that
+  transitivity node's closed side with a second exact citation: unsigned
+  `1 <= M` and `M <= K`, or signed `K <= M` and `M <= -2`, followed by
+  `K == divisor`. The producer nests the two-citation transitivity proof beneath
+  endpoint substitution in deterministic ledger order. A missing or
+  disconnected middle relation, weak signed ceiling, redirected equality, or
+  wrong endpoint rejects. A signed `i1`
   divisor fact alone remains
   insufficient because its canonical conjunction also requires the dividend
   premise. The complete retained-bound `i1` family now selects that conjunction
@@ -1568,15 +1574,16 @@ Remaining:
   unchanged; only type-shell normalization and unresolved-call reporting are
   shared privately back to per-call validation.
   Complete-or-opaque caller write-frame inference, alias-origin propagation,
-  and transition-cycle frame equations now form a 3,053-line
+  and transition-cycle frame equations now form a 3,017-line
   `calls/write_frames.rs` child. Its 459-line `write_frames/demand.rs` child
   owns the public resolver facade plus expression/statement demand collection
   and conservative fallback; a separate 123-line
   `write_frames/boundary_calls.rs` child owns boundary-trait signature
-  resolution and receiver/exclusive-argument write frames. A focused 176-line
+  resolution and receiver/exclusive-argument write frames. A focused 214-line
   `write_frames/isolation.rs` child owns caller-isolated local/aggregate
-  classification and exact struct-literal field/type lookup through five
-  parent-private predicates; it has no callback into frame inference. A
+  classification, exact struct-literal field/type lookup, and bounded direct-call
+  initializer-shape admission through six parent-private predicates; it has no
+  callback into frame inference. A
   separate 99-line `write_frames/transparent_effects.rs` leaf owns recursive
   syntactic effect classification, compiler-owned slice-view transparency, and
   place-root symbol recovery through three parent-private queries, likewise
@@ -2451,12 +2458,13 @@ Remaining N6/N8 work:
   parameter spelled `self`; reorder, duplication, locals/literals, arity,
   borrowed-shell, type, and result drift reject. Owner static/const and
   contract-fact substitution remain explicitly unresolved. For exact direct
-  `define` correspondence, representative machine/state `requires` facts are
-  now partitioned into the future `P` surface versus fixed contract facts by
-  complete expression dependency on quotient-bearing representative positions;
-  exact owner/contract/fact coordinates are retained and unresolved value
-  identities reject. This partition proves no implication, equivalence, or
-  `Respects` clause. Every request still rejects as non-executable until exact
+  `define` correspondence, quotient-facing machine/state `requires` facts are
+  partitioned into `Q` versus fixed facts, while representative machine/state
+  `requires` facts are partitioned into `P` versus fixed facts. Both use complete
+  expression dependency on the corresponding quotient-bearing runtime
+  positions; exact side/owner/contract/fact coordinates are retained and
+  unresolved value identities reject. These partitions prove no `Q <-> P`
+  equivalence or `Respects` clause. Every request still rejects as non-executable until exact
   correspondence, the selected `Respects` contract, and normalized result flow
   are checked and retained in checked/terminal identity.
 - Suppress every synthesized representation observer on quotient formation.
@@ -2564,8 +2572,11 @@ conformance cannot change token meaning; and no accepted source contains a
   is write-only symbol-resolution interning, never semantic reconstruction.
   External leaves now retain a closed mechanism tag in their supply mode;
   validation, public snapshots, and contract fingerprints consume that tag
-  rather than classifying a `Binding::Case(...)` prefix. Delete the remaining
-  semantic lookup by display name.
+  rather than classifying a `Binding::Case(...)` prefix. Resolved and typed
+  conformance rows retain the exact `ExternalBindingId` instead of a copied
+  rendering; their consumers distinguish external from checked satisfiers by
+  identity presence, and the interner exposes no rendering lookup. Delete the
+  remaining intrinsic-catalog lookup by display name.
 - Replace string-backed foreign binding identity with nominal `LibraryId`,
   `SymbolId`, `CallingPlanId`, firmware/table, vtable, and mechanism-specific
   values. Raw object-format library/symbol bytes may exist only in sealed
