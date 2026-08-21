@@ -1081,20 +1081,14 @@ fn runtime_dyn_single_impl_dispatch_exit_canary_runs() {
 #[test]
 fn runtime_local_named_dyn_devirtualized_exit_canary_runs() {
     let canary = pass_canary("traits/runtime_local_named_dyn_devirtualized_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-local-named-dyn-devirtualized-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("a local named dynamic coercion should devirtualize through its exact row");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("a local named dynamic coercion should devirtualize through its exact row");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()

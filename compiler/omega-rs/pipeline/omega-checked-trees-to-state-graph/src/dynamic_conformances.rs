@@ -86,22 +86,24 @@ fn validate_selection(
     }
 
     let source = exact_source_place(program, cast.value)?;
-    if source.symbol != selection.source_symbol
-        || source.name != selection.source_name
-        || source.path != selection.source_path
-    {
+    if source.name != selection.source_name || source.path != selection.source_path {
         return Err(Diagnostic::error(
             "state-graph dynamic selection source place disagrees with its exact cast",
         ));
     }
-    let source_type = exact_source_declaration_type(
+    let source_declaration = exact_source_declaration(
         program,
         machine,
         state,
         selection.statement_index,
-        source.symbol,
+        &source.path,
     )?;
-    let source_data = exact_named_data(program, source_type)?;
+    if source_declaration.symbol != selection.source_symbol {
+        return Err(Diagnostic::error(
+            "state-graph dynamic selection source declaration identity drifted",
+        ));
+    }
+    let source_data = exact_named_data(program, source_declaration.type_reference)?;
     if source_data.symbol != selection.source_data {
         return Err(Diagnostic::error(
             "state-graph dynamic selection source-data identity drifted",
@@ -235,7 +237,6 @@ fn exact_dynamic_type(
 
 #[derive(Debug)]
 struct SourcePlace {
-    symbol: SymbolHandle,
     name: Identifier,
     path: Vec<Identifier>,
 }
@@ -263,7 +264,6 @@ fn exact_source_place(
                 ));
             }
             Ok(SourcePlace {
-                symbol: name.symbol,
                 name: leaf.clone(),
                 path: vec![leaf],
             })
@@ -275,7 +275,6 @@ fn exact_source_place(
                 ));
             }
             let mut source = exact_source_place(program, member.receiver)?;
-            source.symbol = member.member_symbol;
             source.name = member.member.clone();
             source.path.push(member.member.clone());
             Ok(source)
@@ -286,17 +285,115 @@ fn exact_source_place(
     }
 }
 
-fn exact_source_declaration_type(
+#[derive(Debug, Clone, Copy)]
+struct ExactSourceDeclaration {
+    symbol: SymbolHandle,
+    type_reference: TypeReferenceHandle,
+}
+
+fn exact_source_declaration(
     program: &CheckedTrees,
     machine: &psi_checked_trees::machine::Machine,
     state: &psi_checked_trees::state::State,
     statement_index: usize,
-    symbol: SymbolHandle,
-) -> Result<TypeReferenceHandle, Diagnostic> {
+    path: &[Identifier],
+) -> Result<ExactSourceDeclaration, Diagnostic> {
+    let (root, rest) = path
+        .split_first()
+        .ok_or_else(|| Diagnostic::error("state-graph dynamic selection source path is empty"))?;
+    if rest.is_empty() {
+        let mut matches = Vec::new();
+        for parameter in program.state_parameters(state) {
+            if parameter.name == *root {
+                matches.push(ExactSourceDeclaration {
+                    symbol: parameter.symbol,
+                    type_reference: parameter.type_reference,
+                });
+            }
+        }
+        for statement in program
+            .statement_table
+            .statements(state.statement_nodes)
+            .iter()
+            .take(statement_index)
+        {
+            if let psi_checked_trees::statement::StatementNode::LocalData(local) = statement
+                && local.name == *root
+            {
+                matches.push(ExactSourceDeclaration {
+                    symbol: local.symbol,
+                    type_reference: local.type_reference,
+                });
+            }
+        }
+        return exact_one_source_declaration(matches);
+    }
+
+    let mut current_data = if root.as_str() == "self" {
+        if let Some(owned) = program
+            .machine_owned_data(machine)
+            .iter()
+            .find(|owned| owned.name == rest[0])
+        {
+            if rest.len() == 1 {
+                return exact_one_source_declaration(vec![ExactSourceDeclaration {
+                    symbol: owned.symbol,
+                    type_reference: owned.type_reference,
+                }]);
+            }
+            exact_named_data(program, owned.type_reference)?
+        } else {
+            let attached = machine.attached_data.as_ref().ok_or_else(|| {
+                Diagnostic::error("state-graph dynamic selection self source has no attached data")
+            })?;
+            let matches = program
+                .data_definitions()
+                .iter()
+                .filter(|definition| definition.name == *attached)
+                .collect::<Vec<_>>();
+            let [definition] = matches.as_slice() else {
+                return Err(Diagnostic::error(
+                    "state-graph dynamic selection attached source data is missing or ambiguous",
+                ));
+            };
+            *definition
+        }
+    } else {
+        let root =
+            exact_lexical_source_declaration(program, machine, state, statement_index, root)?;
+        exact_named_data(program, root.type_reference)?
+    };
+
+    for (index, member_name) in rest.iter().enumerate() {
+        let member = exact_data_field(program, current_data, member_name)?;
+        let declaration = ExactSourceDeclaration {
+            symbol: member.symbol,
+            type_reference: member.type_reference,
+        };
+        if index + 1 == rest.len() {
+            return exact_one_source_declaration(vec![declaration]);
+        }
+        current_data = exact_named_data(program, declaration.type_reference)?;
+    }
+    Err(Diagnostic::error(
+        "state-graph dynamic selection source declaration is missing or ambiguous",
+    ))
+}
+
+fn exact_lexical_source_declaration(
+    program: &CheckedTrees,
+    machine: &psi_checked_trees::machine::Machine,
+    state: &psi_checked_trees::state::State,
+    statement_index: usize,
+    name: &Identifier,
+) -> Result<ExactSourceDeclaration, Diagnostic> {
     let mut matches = Vec::new();
     for parameter in program.state_parameters(state) {
-        if parameter.symbol == symbol {
-            matches.push(parameter.type_reference);
+        if parameter.name == *name {
+            matches.push(ExactSourceDeclaration {
+                symbol: parameter.symbol,
+                type_reference: parameter.type_reference,
+            });
         }
     }
     for statement in program
@@ -306,38 +403,64 @@ fn exact_source_declaration_type(
         .take(statement_index)
     {
         if let psi_checked_trees::statement::StatementNode::LocalData(local) = statement
-            && local.symbol == symbol
+            && local.name == *name
         {
-            matches.push(local.type_reference);
+            matches.push(ExactSourceDeclaration {
+                symbol: local.symbol,
+                type_reference: local.type_reference,
+            });
         }
     }
-    for data in program.machine_owned_data(machine) {
-        if data.symbol == symbol {
-            matches.push(data.type_reference);
+    for owned in program.machine_owned_data(machine) {
+        if owned.name == *name {
+            matches.push(ExactSourceDeclaration {
+                symbol: owned.symbol,
+                type_reference: owned.type_reference,
+            });
         }
     }
-    for definition in program.data_definitions() {
-        for member in program.data_members(definition) {
-            match member {
-                psi_checked_trees::data::DataMember::Field(field) => {
-                    if field.symbol == symbol {
-                        matches.push(field.type_reference);
-                    }
-                }
-                psi_checked_trees::data::DataMember::Variant(variant) => {
-                    for field in program.data_payload_fields(variant) {
-                        if field.symbol == symbol {
-                            matches.push(field.type_reference);
-                        }
-                    }
-                }
+    exact_one_source_declaration(matches)
+}
+
+fn exact_one_source_declaration(
+    matches: Vec<ExactSourceDeclaration>,
+) -> Result<ExactSourceDeclaration, Diagnostic> {
+    match matches.as_slice() {
+        [declaration] if declaration.symbol.is_valid() && declaration.type_reference.is_valid() => {
+            Ok(*declaration)
+        }
+        _ => Err(Diagnostic::error(
+            "state-graph dynamic selection source declaration is missing or ambiguous",
+        )),
+    }
+}
+
+fn exact_data_field<'program>(
+    program: &'program CheckedTrees,
+    data: &'program psi_checked_trees::data::DataDefinition,
+    name: &Identifier,
+) -> Result<&'program psi_checked_trees::data::DataField, Diagnostic> {
+    let mut matches = Vec::new();
+    for member in program.data_members(data) {
+        match member {
+            psi_checked_trees::data::DataMember::Field(field) if field.name == *name => {
+                matches.push(field);
             }
+            psi_checked_trees::data::DataMember::Variant(variant) => {
+                matches.extend(
+                    program
+                        .data_payload_fields(variant)
+                        .iter()
+                        .filter(|field| field.name == *name),
+                );
+            }
+            _ => {}
         }
     }
     match matches.as_slice() {
-        [reference] if reference.is_valid() => Ok(*reference),
+        [field] if field.symbol.is_valid() && field.type_reference.is_valid() => Ok(*field),
         _ => Err(Diagnostic::error(
-            "state-graph dynamic selection source declaration is missing or ambiguous",
+            "state-graph dynamic selection source member is missing or ambiguous",
         )),
     }
 }
@@ -868,6 +991,11 @@ mod tests {
         let mut target = fixture(false, RowShape::Honest);
         target.facts.dynamic_conformances.selections[0].target_trait = symbol(90);
         assert!(error(&target).contains("target identity drifted"));
+
+        let mut source_declaration = fixture(true, RowShape::Honest);
+        source_declaration.facts.dynamic_conformances.selections[0].source_symbol =
+            symbol(SOURCE_PARAMETER);
+        assert!(error(&source_declaration).contains("source declaration identity drifted"));
 
         let mut source_data = fixture(false, RowShape::Honest);
         source_data.facts.dynamic_conformances.selections[0].source_data = symbol(HOLDER);

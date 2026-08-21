@@ -20,9 +20,11 @@ pub struct DynamicConformanceSelection {
     pub machine: psi_symbols::SymbolHandle,
     pub state: psi_symbols::SymbolHandle,
     pub statement_index: usize,
-    /// Exact source place repackaged by this coercion. Whole-artifact
-    /// devirtualization uses it as the selected realization's receiver instead
-    /// of treating the two-word dynamic descriptor as the concrete `self`.
+    /// Exact source place repackaged by this coercion. `source_symbol` is the
+    /// authored leaf declaration reached through `source_path`, not a
+    /// synthesized member-accessor identity. Whole-artifact devirtualization
+    /// uses it as the selected realization's receiver instead of treating the
+    /// two-word dynamic descriptor as the concrete `self`.
     pub source_symbol: psi_symbols::SymbolHandle,
     pub source_name: Identifier,
     pub source_path: Vec<Identifier>,
@@ -89,7 +91,7 @@ pub fn collect_dynamic_conformance_selections(
                     )));
                     continue;
                 }
-                let Some(source_place) = dynamic_source_place(program, cast.value) else {
+                let Some(mut source_place) = dynamic_source_place(program, cast.value) else {
                     diagnostics.push(Diagnostic::error(format!(
                         "local dynamic coercion `{}` requires a direct named or member source place",
                         cast.display_name(&program.expression_table)
@@ -108,6 +110,20 @@ pub fn collect_dynamic_conformance_selections(
                     )));
                     continue;
                 };
+                let Some(source_symbol) = crate::places::declared_place_leaf_symbol(
+                    program,
+                    machine,
+                    Some(state),
+                    statement_index,
+                    cast.value,
+                ) else {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "local dynamic coercion `{}` has no exact source declaration identity",
+                        cast.display_name(&program.expression_table)
+                    )));
+                    continue;
+                };
+                source_place.symbol = source_symbol;
                 let Some((source_data, source_name)) = nominal_data_type(program, source_type)
                 else {
                     diagnostics.push(Diagnostic::error(format!(
