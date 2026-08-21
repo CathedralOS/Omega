@@ -559,12 +559,14 @@ fn reflected_record_layout(
     name: &str,
     visiting: &mut Vec<psi_symbols::SymbolHandle>,
 ) -> Option<(u64, u64)> {
-    let data = typed
-        .data_definitions()
-        .iter()
-        .find(|data| (symbol.is_valid() && data.symbol == symbol) || data.name.as_str() == name)?;
+    let data = typed.data_definitions().iter().find(|data| {
+        if symbol.is_valid() {
+            data.symbol == symbol
+        } else {
+            data.name.as_str() == name
+        }
+    })?;
     if data.supply_mode != psi_language_semantics::DataSupplyMode::CheckedShape
-        || data.name.as_str().contains('<')
         || !data.type_parameters.is_empty()
         || !data.lifetime_parameters.is_empty()
         || visiting.contains(&data.symbol)
@@ -768,7 +770,13 @@ fn encode_typed_owned_record(
     let data = typed
         .data_definitions()
         .iter()
-        .find(|data| (symbol.is_valid() && data.symbol == symbol) || data.name.as_str() == name)
+        .find(|data| {
+            if symbol.is_valid() {
+                data.symbol == symbol
+            } else {
+                data.name.as_str() == name
+            }
+        })
         .ok_or_else(|| MaterializationDiagnostic(format!("no typed data named `{name}` exists")))?;
     if visiting.contains(&data.symbol) {
         return Err(MaterializationDiagnostic(format!(
@@ -776,7 +784,6 @@ fn encode_typed_owned_record(
         )));
     }
     if data.supply_mode != psi_language_semantics::DataSupplyMode::CheckedShape
-        || data.name.as_str().contains('<')
         || !data.type_parameters.is_empty()
         || !data.lifetime_parameters.is_empty()
     {

@@ -3030,6 +3030,38 @@ fn normalize_template_type_reference(
 /// FIELDS plus machine-body `let`-local, state PARAMETER, and RETURN types. Run
 /// afresh each fixpoint round so newly-synthesized records' fields are seen.
 fn collect_type_reference_positions(syntax: &SyntaxTrees) -> Vec<TypeReferenceHandle> {
+    fn collect(
+        syntax: &SyntaxTrees,
+        type_reference: TypeReferenceHandle,
+        positions: &mut Vec<TypeReferenceHandle>,
+    ) {
+        positions.push(type_reference);
+        match syntax.tables.type_references.type_reference(type_reference) {
+            TypeReferenceNode::Reference { referee, .. } => collect(syntax, *referee, positions),
+            TypeReferenceNode::Constrained { base_type, .. } => {
+                collect(syntax, *base_type, positions)
+            }
+            TypeReferenceNode::FixedArray { element_type, .. }
+            | TypeReferenceNode::Slice { element_type } => {
+                collect(syntax, *element_type, positions)
+            }
+            TypeReferenceNode::Generic { arguments, .. } => {
+                for argument in syntax
+                    .tables
+                    .type_references
+                    .type_reference_handles(*arguments)
+                {
+                    collect(syntax, *argument, positions);
+                }
+            }
+            TypeReferenceNode::ConstExpression(_)
+            | TypeReferenceNode::DynamicTrait { .. }
+            | TypeReferenceNode::Named(_)
+            | TypeReferenceNode::SelfType
+            | TypeReferenceNode::Unit => {}
+        }
+    }
+
     let mut positions: Vec<TypeReferenceHandle> = Vec::new();
     for item in syntax.root_items() {
         match item {
@@ -3042,15 +3074,14 @@ fn collect_type_reference_positions(syntax: &SyntaxTrees) -> Vec<TypeReferenceHa
             Item::Data(definition) if definition.type_parameters.is_empty() => {
                 for member in syntax.tables.items.data_members(definition.members) {
                     match member {
-                        DataMember::Field(field) => positions.push(field.type_reference),
-                        DataMember::Variant(variant) => positions.extend(
-                            syntax
-                                .tables
-                                .items
-                                .data_payload_fields(variant.payload)
-                                .iter()
-                                .map(|field| field.type_reference),
-                        ),
+                        DataMember::Field(field) => {
+                            collect(syntax, field.type_reference, &mut positions)
+                        }
+                        DataMember::Variant(variant) => {
+                            for field in syntax.tables.items.data_payload_fields(variant.payload) {
+                                collect(syntax, field.type_reference, &mut positions);
+                            }
+                        }
                         DataMember::Retired(_) => {}
                     }
                 }
@@ -3062,30 +3093,33 @@ fn collect_type_reference_positions(syntax: &SyntaxTrees) -> Vec<TypeReferenceHa
                 // `satisfies Trait<Algebra<Unit>>` generic makes an otherwise
                 // exact requirement mismatch after instance synthesis.
                 for conformance in syntax.tables.items.satisfies_clauses(machine.satisfies) {
-                    positions.extend_from_slice(
-                        syntax
-                            .tables
-                            .type_references
-                            .type_reference_handles(conformance.arguments),
-                    );
+                    for argument in syntax
+                        .tables
+                        .type_references
+                        .type_reference_handles(conformance.arguments)
+                    {
+                        collect(syntax, *argument, &mut positions);
+                    }
                 }
                 for state_handle in syntax.tables.items.state_handles(machine.states) {
                     let state = syntax.tables.items.state(*state_handle);
-                    positions.push(state.return_type);
+                    collect(syntax, state.return_type, &mut positions);
                     for parameter_handle in syntax.tables.items.state_parameters(state.parameters) {
-                        positions.push(
+                        collect(
+                            syntax,
                             syntax
                                 .tables
                                 .items
                                 .state_parameter(*parameter_handle)
                                 .type_reference,
+                            &mut positions,
                         );
                     }
                     for statement_handle in syntax.tables.items.statements(state.statements) {
                         if let StatementNode::LocalData(local) =
                             syntax.tables.statements.statement(*statement_handle)
                         {
-                            positions.push(local.type_reference);
+                            collect(syntax, local.type_reference, &mut positions);
                         }
                     }
                 }

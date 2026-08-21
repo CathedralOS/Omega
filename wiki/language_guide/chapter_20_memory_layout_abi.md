@@ -934,8 +934,11 @@ extra, incomplete, wrong-count, irregular-stride, overlapping, scalar-fragment,
 stored-integer, or out-of-bounds fields before changing the destination. This is
 the normalized writer primitive. The current typed source-owned bridge derives
 complete bytes for recursively fixed records and arrays in the supported
-checked-shape subset, including erased fields that remain semantically required
-but contribute no storage. This omission is recursive: a relevant nested record with only erased
+checked-shape subset, including fully specialized generic-record instances and
+erased fields that remain semantically required but contribute no storage. A
+specialized record is selected by its synthesized concrete symbol and
+substituted member types, not by the spelling of its name; unresolved generic
+shapes still reject. This omission is recursive: a relevant nested record with only erased
 runtime content receives no physical field entry, but its exact semantic value
 is still required. It rejects malformed nested values atomically. Runtime establishment
 beyond that fixed subset remains source-materialization work; sum placement

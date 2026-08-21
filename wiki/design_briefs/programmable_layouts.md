@@ -137,8 +137,12 @@ The same normalized geometry may feed different compiler-owned consumers:
   physical plan entry. This
   does not create a by-value public ABI carrier. Schema/type mismatch, duplicate
   or missing fields, out-of-range scalars,
-  sum/generic/reference shapes, and unsupported recursion reject before
-  destination mutation. An
+  sum/unresolved-generic/reference shapes, and unsupported recursion reject
+  before destination mutation. A fully specialized generic record is no longer
+  generic at this seam: the synthesized concrete `CheckedShape` symbol and its
+  substituted member type references provide the exact recursive schema.
+  Angle-bracket spelling is descriptive only and cannot select layout identity.
+  An
   admitted zero-argument source machine may supply that structured value through
   Psi's checked interpreter, so source construction reaches the same writer
   without exposing physical field bytes; or

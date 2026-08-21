@@ -784,6 +784,168 @@ machine Main::main(&mut self) { }
 }
 
 #[test]
+fn source_machine_owned_closed_generic_records_use_exact_specialized_shapes() {
+    let main_path = write_program(
+        "source-owned-closed-generic-records",
+        r#"
+use omega::language::core::layout;
+
+data Split { entries: [FieldEntry; 64]; }
+machine Split::plan(&mut self, schema: Schema) -> Plan {
+    self.entries[0] = FieldEntry {
+        key: schema.fields[1].key,
+        placement: FieldPlan::At { offset: 16 },
+    };
+    self.entries[1] = FieldEntry {
+        key: schema.fields[0].key,
+        placement: FieldPlan::At { offset: 2 },
+    };
+    self.entries[2] = FieldEntry {
+        key: schema.fields[1].key,
+        placement: FieldPlan::At { offset: 8 },
+    };
+    Plan { entries: self.entries, entry_count: 3,
+           size_fixed: 24, size_is_dynamic: false, align: 4 }
+}
+data Evidence { case Only; }
+data Cell<T> { proof [erased]: Evidence; value: T; }
+data Samples { narrow: Cell<u16>; wide: [Cell<u32>; 2]; }
+machine make_samples() -> Samples {
+    let narrow: Cell<u16> = Cell { proof: Evidence::Only, value: 258 };
+    let wide0: Cell<u32> = Cell { proof: Evidence::Only, value: 50595078 };
+    let wide1: Cell<u32> = Cell { proof: Evidence::Only, value: 117967114 };
+    let wide: [Cell<u32>; 2] = [wide0, wide1];
+    Samples { narrow: narrow, wide: wide }
+}
+data Main { }
+machine Main::main(&mut self) { }
+"#,
+    );
+    let checked = compile_to_checked(&main_path, None)
+        .expect("closed generic record specializations should check");
+    let narrow = checked
+        .typed
+        .data_definitions()
+        .iter()
+        .find(|data| data.name.as_str() == "Cell<u16>")
+        .expect("the narrow closed specialization should be synthesized");
+    let wide = checked
+        .typed
+        .data_definitions()
+        .iter()
+        .find(|data| data.name.as_str() == "Cell<u32>")
+        .expect("the wide closed specialization should be synthesized");
+    assert_ne!(narrow.symbol, wide.symbol);
+    assert!(narrow.type_parameters.is_empty() && wide.type_parameters.is_empty());
+
+    let report = compute_layout_plan(&checked.typed, "Split::plan", "Samples")
+        .expect("closed specialized records should derive exact nested extents");
+    let mut little = [0xa5; 24];
+    evaluate_and_materialize_typed_owned_layout_into(
+        &checked.typed,
+        "make_samples",
+        "Samples",
+        &report,
+        ByteOrder::LittleEndian,
+        &mut little,
+    )
+    .expect("distinct closed specializations should materialize through their concrete shapes");
+    assert_eq!(&little[2..4], &[2, 1]);
+    assert_eq!(&little[8..12], &[6, 5, 4, 3]);
+    assert_eq!(&little[16..20], &[10, 9, 8, 7]);
+    assert!(
+        little[..2]
+            .iter()
+            .chain(&little[4..8])
+            .chain(&little[12..16])
+            .chain(&little[20..])
+            .all(|byte| *byte == 0)
+    );
+
+    let mut big = [0xa5; 24];
+    evaluate_and_materialize_typed_owned_layout_into(
+        &checked.typed,
+        "make_samples",
+        "Samples",
+        &report,
+        ByteOrder::BigEndian,
+        &mut big,
+    )
+    .expect("specialized records should retain the selected target byte order");
+    assert_eq!(&big[2..4], &[1, 2]);
+    assert_eq!(&big[8..12], &[3, 4, 5, 6]);
+    assert_eq!(&big[16..20], &[7, 8, 9, 10]);
+
+    fn cell(type_name: &str, proof_name: &str, value: i64) -> BuildTimeValue {
+        BuildTimeValue::Struct {
+            type_name: type_name.to_owned(),
+            fields: vec![
+                (
+                    proof_name.to_owned(),
+                    BuildTimeValue::Case {
+                        variant: "Only".to_owned(),
+                        payload: Vec::new(),
+                    },
+                ),
+                ("value".to_owned(), BuildTimeValue::Int(value)),
+            ],
+        }
+    }
+    fn samples(narrow_type: &str, narrow_proof: &str, wide_values: &[i64]) -> BuildTimeValue {
+        BuildTimeValue::Struct {
+            type_name: "Samples".to_owned(),
+            fields: vec![
+                ("narrow".to_owned(), cell(narrow_type, narrow_proof, 258)),
+                (
+                    "wide".to_owned(),
+                    BuildTimeValue::Array(
+                        wide_values
+                            .iter()
+                            .map(|value| cell("Cell<u32>", "proof", *value))
+                            .collect(),
+                    ),
+                ),
+            ],
+        }
+    }
+    for (description, malformed, expected) in [
+        (
+            "wrong specialization",
+            samples("Cell<u32>", "proof", &[50_595_078, 117_967_114]),
+            "does not match `Cell<u16>`",
+        ),
+        (
+            "missing erased semantic field",
+            samples("Cell<u16>", "forged", &[50_595_078, 117_967_114]),
+            "no field `proof`",
+        ),
+        (
+            "wrong specialized array count",
+            samples("Cell<u16>", "proof", &[50_595_078]),
+            "has 1 elements, expected 2",
+        ),
+        (
+            "late out-of-range specialized scalar",
+            samples("Cell<u16>", "proof", &[50_595_078, -1]),
+            "outside `u32`",
+        ),
+    ] {
+        let mut unchanged = [0x5a; 24];
+        let error = materialize_typed_owned_layout_into(
+            &checked.typed,
+            "Samples",
+            &report,
+            &malformed,
+            ByteOrder::LittleEndian,
+            &mut unchanged,
+        )
+        .expect_err(description);
+        assert!(error.0.contains(expected), "{description}: {error:?}");
+        assert_eq!(unchanged, [0x5a; 24], "{description}");
+    }
+}
+
+#[test]
 fn source_machine_owned_erased_fields_are_semantic_but_not_materialized() {
     let main_path = write_program(
         "source-owned-erased-field",
