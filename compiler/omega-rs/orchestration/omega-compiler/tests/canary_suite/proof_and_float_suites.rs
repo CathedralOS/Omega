@@ -1143,13 +1143,8 @@ fn float_trapping_arithmetic_canaries_abort() {
         let build_dir =
             std::env::temp_dir().join(format!("omega-float-{leaf}-{}", std::process::id()));
         let _ = fs::remove_dir_all(&build_dir);
-        compile(CompileOptions {
-            root_path: canary.join("main.omg"),
-            build_dir: Some(build_dir.clone()),
-            target_name: None,
-            write_output: true,
-        })
-        .expect("Trapping float arithmetic canary should compile");
+        compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+            .expect("Trapping float arithmetic canary should compile from its authored root");
         let output = Command::new(build_dir.join(executable_name()))
             .output()
             .expect("Trapping float arithmetic canary should start");

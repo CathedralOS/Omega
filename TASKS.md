@@ -188,6 +188,17 @@ Remaining:
   builder emits this operation, the authority-bearing caller-frame plan
   remains unconsumed, and no stack reservation/write, wrapper insertion, call
   edge, object-entry switch, or native-execution evidence is claimed.
+  The main backend now also owns paired compiler-private outgoing-stack frame
+  reserve/release operations through abstract, target, assigned, machine-
+  instruction, encoded-byte, and final-image replay. For x86-64, frame size is
+  validated to cover Microsoft shadow space, fit positive `disp32`, and
+  preserve pre-call alignment; reserve/release bytes and
+  X86Rsp/Flags/StackPointer footprints replay with no relocation. Independent
+  lowering and final-image scans reject orphan, nested, mismatched, unreleased,
+  and out-of-range address-use rows. Synthetic gates pin the balanced 72-byte
+  frame around RCX/RDX caller-copy address recipes. No production builder emits
+  these operations; no stack stores, wrapper insertion, call edge, object-entry
+  switch, or native-execution evidence is claimed.
   Production builds therefore still lack a source-compatible attached-root
   value/authority carrier (or separate hidden supply), generated wrapper body,
   and source-function inbound realization; defining that disposition at the
@@ -248,8 +259,9 @@ Remaining:
   roots. Nine proof/runtime, dependent-call, saturating-arithmetic, storage-
   alias, and case-membership probes now also consume authored roots. Ten
   indexed-write, target-selection, stdin, host-result, room-dispatch, and
-  accepted-proof probes now likewise consume authored roots. The tracked
-  corpus audit leaves 48
+  accepted-proof probes now likewise consume authored roots. Ten trapping-
+  conversion, trapping-float, and portable filesystem probes now also consume
+  authored roots. The tracked corpus audit leaves 38
   legacy fixtures without an authored `build.omg` root.
   Continue migrating those fixtures through production entry
   selection; replace result-as-process-exit probes with ordinary Unit entries
@@ -879,7 +891,7 @@ Remaining:
   Unknown or redirected case/field identities reject independently. Mixed
   common-field/case shapes, nested or recursive payload expansion, address and
   erased payload equality, and runtime sum layout remain fenced. Semantic codec
-  v18, proof-bundle v12, and installation-record v24 retain the structural
+  v18, proof-bundle v13, and installation-record v24 retain the structural
   shapes, case-payload paths, and proposition. Continue with the fenced mixed,
   nested, recursive, and erased aggregate cases. Concrete machine/state
   contracts plus domain/data predicates, trait invariants and signatures,
@@ -1002,6 +1014,18 @@ Remaining:
   the dispatcher falsely claims a kernel derivation of the canonical goal. The
   trust graph binds the table to exactly those twelve denotation nodes and the
   dispatcher to every affected reducer.
+  The next bounded proof-calculus parity slice exposes canonical disjunction
+  introduction in the production certificate kernel. One
+  `DisjunctionIntroduction` node owns exactly one independently checked child
+  and one selected canonical arm index; a non-disjunction conclusion, absent or
+  out-of-range arm, mismatched child conclusion, stale proof vocabulary, or
+  excess proof depth rejects. Canonical proof-bundle v13 assigns rule tag 9.
+  The registered proof-calculus root now binds the exact proposition,
+  proof-rule, primitive/evidence, and proof-codec definitions, while the Rust
+  kernel remains an explicit trusted implementation. Independent Beta/Gamma
+  `inl`/`inr` gates agree. This adds certificate capability only: all eight
+  sufficient reducers and all unproved semantic rows retain `TrustedJudgment`,
+  and terminal codec v18 / installation record v24 remain unchanged.
   The bounded Gamma spike is complete. It canonical-decodes four exact current
   `PSITERM\0` v18 fixtures and audits a 54-row scalar ledger covering constants,
   Boolean not/equality, integer equality/order, bitwise operations, strict

@@ -3430,6 +3430,8 @@ fn float_policy_adapters_retain_differential_results() {
             "arithmetic/float_trapping_overflow_traps"
                 | "arithmetic/float_trapping_divzero_traps"
                 | "arithmetic/float_trapping_invalid_traps"
+                | "float/float_trapping_propagated_nan_traps"
+                | "float/float_trapping_propagated_infinity_traps"
         ) {
             compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         } else {
@@ -3483,22 +3485,31 @@ fn float_policy_adapters_retain_differential_results() {
                 std::process::id()
             ));
             let _ = fs::remove_dir_all(&scratch);
-            let source_dir = scratch.join("src");
-            fs::create_dir_all(&source_dir).expect("float-policy cross-target source directory");
-            fs::copy(canary.join("main.omg"), source_dir.join("main.omg"))
-                .expect("copy float-policy canary");
-            fs::write(
-                source_dir.join("build.omg"),
-                hosted_main_program_entry_build(target),
-            )
-            .expect("write float-policy target manifest");
-            compile(CompileOptions {
-                root_path: source_dir.join("main.omg"),
-                build_dir: Some(scratch.join("out")),
-                target_name: Some(target.to_owned()),
-                write_output: true,
-            })
-            .unwrap_or_else(|diagnostics| {
+            let cross_compile = if matches!(
+                *case_name,
+                "float/float_trapping_propagated_nan_traps"
+                    | "float/float_trapping_propagated_infinity_traps"
+            ) {
+                compile_rooted_canary_for_target(&canary, scratch.join("out"), target)
+            } else {
+                let source_dir = scratch.join("src");
+                fs::create_dir_all(&source_dir)
+                    .expect("float-policy cross-target source directory");
+                fs::copy(canary.join("main.omg"), source_dir.join("main.omg"))
+                    .expect("copy float-policy canary");
+                fs::write(
+                    source_dir.join("build.omg"),
+                    hosted_main_program_entry_build(target),
+                )
+                .expect("write float-policy target manifest");
+                compile(CompileOptions {
+                    root_path: source_dir.join("main.omg"),
+                    build_dir: Some(scratch.join("out")),
+                    target_name: Some(target.to_owned()),
+                    write_output: true,
+                })
+            };
+            cross_compile.unwrap_or_else(|diagnostics| {
                 panic!("{case_name} should compile for {target}: {diagnostics:#?}")
             });
             let _ = fs::remove_dir_all(&scratch);
