@@ -702,18 +702,12 @@ fn runtime_signed_index_guarded_exit_canary_runs() {
 #[test]
 fn runtime_two_pointer_sum_exit_canary_runs() {
     let canary = pass_canary("slices/runtime_two_pointer_sum_exit");
-    let main_path = canary.join("main.omg");
     let build_dir =
         std::env::temp_dir().join(format!("omega-runtime-two-pointer-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime two-pointer-sum canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("runtime two-pointer-sum canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -733,20 +727,14 @@ fn runtime_two_pointer_sum_exit_canary_runs() {
 #[test]
 fn runtime_two_pointer_reverse_exit_canary_runs() {
     let canary = pass_canary("slices/runtime_two_pointer_reverse_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-two-pointer-reverse-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime two-pointer-reverse canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("runtime two-pointer-reverse canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -766,20 +754,14 @@ fn runtime_two_pointer_reverse_exit_canary_runs() {
 #[test]
 fn runtime_branched_index_bound_exit_canary_runs() {
     let canary = pass_canary("slices/runtime_branched_index_bound_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-branched-bound-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime branched-index-bound canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("runtime branched-index-bound canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -799,20 +781,14 @@ fn runtime_branched_index_bound_exit_canary_runs() {
 #[test]
 fn runtime_indexed_array_write_exit_canary_runs() {
     let canary = pass_canary("slices/runtime_indexed_array_write_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-indexed-write-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime indexed-array-write canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("runtime indexed-array-write canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -835,20 +811,14 @@ fn recursive_subslice_element_accumulator_exit_canary_runs() {
     // s descriptor is retargeted to s[1..]. Was an off-by-one (descriptor
     // advanced first -> summed the next window's head -> native exit 71).
     let canary = pass_canary("slices/recursive_subslice_element_accumulator_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-recursive-subslice-accum-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("recursive subslice element accumulator canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("recursive subslice element accumulator canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -906,20 +876,14 @@ fn runtime_machine_field_subslice_arg_index_exit_canary_runs() {
     // `x.as_slice()[a..b]` bases, so a bare base declined and the argument fell
     // through to a garbage copy (wrong len AND elements natively). Exits 70.
     let canary = pass_canary("slices/runtime_machine_field_subslice_arg_index_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-machine-field-subslice-arg-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("machine-field subslice arg canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("machine-field subslice arg canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -974,20 +938,14 @@ fn runtime_indexed_read_operand_exit_canary_runs() {
     // hoisted into synthetic `let __hoist_N = self.nums[self.i];` temps.
     // Exits 70 when acc == 20 and big == 20.
     let canary = pass_canary("slices/runtime_indexed_read_operand_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-indexed-operand-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime indexed read operand canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("runtime indexed read operand canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()

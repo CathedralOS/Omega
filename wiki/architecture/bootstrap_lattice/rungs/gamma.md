@@ -136,8 +136,9 @@ scalar-type grammar retains carrier/sign/
 width, integer values retain their exact raw two's-complement or unsigned bits,
 and strings retain raw bytes without assigning identity or path meaning.
 An independently gated structural-leaf module in the same directory owns the
-exact v17 IEEE kind/format, byte-sequence carrier, full-width canonical
-structural path, and atomic IEEE/byte/case-membership proposition-tag grammar.
+exact v18 IEEE kind/format, byte-sequence carrier, full-width canonical
+structural path including exact case segments, and atomic
+IEEE/byte/case-membership proposition-tag grammar.
 It checks the leaf-specific nonempty-path and canonical operand constraints but
 is intentionally not imported by the bounded ledger spike, which still rejects
 those tags.

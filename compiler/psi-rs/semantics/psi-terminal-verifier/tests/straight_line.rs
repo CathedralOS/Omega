@@ -2712,6 +2712,7 @@ fn payloadless_sum_case_membership_resolves_exact_case_identity() {
         cases: vec![StructuralCaseDeclaration {
             id: case,
             identity: "Present".to_owned(),
+            fields: Vec::new(),
         }],
     };
     module.machines[0]

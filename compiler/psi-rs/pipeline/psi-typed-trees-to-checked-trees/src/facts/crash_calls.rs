@@ -350,7 +350,8 @@ fn substitute_checked_boolean_expression(
         CheckedBooleanExpression::StructuralParameterField { .. }
         | CheckedBooleanExpression::IeeeFloatComparison { .. }
         | CheckedBooleanExpression::ByteSequenceEqual { .. }
-        | CheckedBooleanExpression::PayloadlessSumEqual { .. } => return None,
+        | CheckedBooleanExpression::PayloadlessSumEqual { .. }
+        | CheckedBooleanExpression::StructuralCaseMembership { .. } => return None,
         CheckedBooleanExpression::Not(operand) => CheckedBooleanExpression::Not(Box::new(
             substitute_checked_boolean_expression(operand, arguments)?,
         )),

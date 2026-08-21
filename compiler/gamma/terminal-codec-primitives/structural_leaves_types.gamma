@@ -1,4 +1,4 @@
-; Exact current v17 structural-leaf codec vocabulary.  These are byte grammar
+; Exact current v18 structural-leaf codec vocabulary.  These are byte grammar
 ; carriers only: the bounded ledger spike does not import them and gains no new
 ; semantic authority from this shared layer.
 
@@ -25,7 +25,8 @@
 
 (data TerminalCanonicalStructuralPathSegment
   (TerminalStructuralField TerminalSemanticId)
-  (TerminalStructuralFixedIndex U64))
+  (TerminalStructuralFixedIndex U64)
+  (TerminalStructuralCase TerminalSemanticId))
 (data TerminalCanonicalStructuralPath
   (TerminalStructuralPathNil)
   (TerminalStructuralPathCons

@@ -1,6 +1,6 @@
 ; Q7 canonical-semantic-ledger Gamma spike: closed data vocabulary.
 ;
-; This is deliberately a bounded PSITERM v17 slice, not a second production
+; This is deliberately a bounded PSITERM v18 slice, not a second production
 ; format.  The shared canonical-bytes layer supplies Bytes/RInt/RBytes and its
 ; fixed-width primitives; decode.gamma consumes the real canonical bytes pinned by
 ; psi-terminal-codec/tests/ledger_spike.rs.  The closed types make every byte,

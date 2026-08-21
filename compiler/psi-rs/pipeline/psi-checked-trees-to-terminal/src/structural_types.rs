@@ -205,6 +205,50 @@ pub(super) fn retain_additional_structural_types(
                             id: StructuralCaseId::new(allocate_dense(&mut next_case)?)
                                 .expect("allocated structural case identity is nonzero"),
                             identity: case.identity.clone(),
+                            fields: {
+                                let mut field_identities = BTreeSet::new();
+                                case.fields
+                                    .iter()
+                                    .map(|field| {
+                                        if field.identity.is_empty()
+                                            || !field_identities.insert(field.identity.as_str())
+                                        {
+                                            return Err(LoweringError::Unsupported(
+                                                "scalar cleanup structural sum payload fields are invalid",
+                                            ));
+                                        }
+                                        let field_type = match &field.field_type {
+                                            CheckedUnitStructuralFieldType::Scalar(primitive) => {
+                                                terminal_structural_field_type(*primitive)?
+                                            }
+                                            CheckedUnitStructuralFieldType::ByteSequence(
+                                                carrier,
+                                            ) => StructuralFieldType::ByteSequence(
+                                                terminal_byte_sequence_carrier(*carrier),
+                                            ),
+                                            CheckedUnitStructuralFieldType::Structural {
+                                                type_identity,
+                                            } => StructuralFieldType::Structural(lookup_type_id(
+                                                &type_ids,
+                                                type_identity,
+                                            )?),
+                                            CheckedUnitStructuralFieldType::Erased {
+                                                type_identity,
+                                            } => StructuralFieldType::Erased {
+                                                type_identity: type_identity.clone(),
+                                            },
+                                        };
+                                        Ok(StructuralFieldDeclaration {
+                                            id: structural_field_id(allocate_dense(
+                                                &mut next_field,
+                                            )?),
+                                            identity: field.identity.clone(),
+                                            relevance: field.relevance,
+                                            field_type,
+                                        })
+                                    })
+                                    .collect::<Result<Vec<_>, LoweringError>>()?
+                            },
                         })
                     })
                     .collect::<Result<Vec<_>, LoweringError>>()?;
@@ -320,6 +364,50 @@ pub(super) fn lower_structural_type_plans(
                                 id: StructuralCaseId::new(allocate_dense(&mut next_case)?)
                                     .expect("allocated structural case identity is nonzero"),
                                 identity: case.identity.clone(),
+                                fields: {
+                                    let mut field_identities = BTreeSet::new();
+                                    case.fields
+                                        .iter()
+                                        .map(|field| {
+                                            if field.identity.is_empty()
+                                                || !field_identities
+                                                    .insert(field.identity.as_str())
+                                            {
+                                                return Err(LoweringError::Unsupported(
+                                                    "structural sum case has duplicate payload field identities",
+                                                ));
+                                            }
+                                            let field_type = match &field.field_type {
+                                                CheckedUnitStructuralFieldType::Scalar(
+                                                    primitive,
+                                                ) => terminal_structural_field_type(*primitive)?,
+                                                CheckedUnitStructuralFieldType::ByteSequence(
+                                                    carrier,
+                                                ) => StructuralFieldType::ByteSequence(
+                                                    terminal_byte_sequence_carrier(*carrier),
+                                                ),
+                                                CheckedUnitStructuralFieldType::Structural {
+                                                    type_identity,
+                                                } => StructuralFieldType::Structural(
+                                                    lookup_type_id(&type_ids, type_identity)?,
+                                                ),
+                                                CheckedUnitStructuralFieldType::Erased {
+                                                    type_identity,
+                                                } => StructuralFieldType::Erased {
+                                                    type_identity: type_identity.clone(),
+                                                },
+                                            };
+                                            Ok(StructuralFieldDeclaration {
+                                                id: structural_field_id(allocate_dense(
+                                                    &mut next_field,
+                                                )?),
+                                                identity: field.identity.clone(),
+                                                relevance: field.relevance,
+                                                field_type,
+                                            })
+                                        })
+                                        .collect::<Result<Vec<_>, LoweringError>>()?
+                                },
                             })
                         })
                         .collect::<Result<Vec<_>, LoweringError>>()?;

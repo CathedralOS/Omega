@@ -18,7 +18,7 @@ use sha2::{Digest, Sha256};
 
 const MAGIC: &[u8; 8] = b"PSIPRF\0\0";
 /// Single current pre-release proof vocabulary marker.
-const FORMAT_MARKER: u16 = 11;
+const FORMAT_MARKER: u16 = 12;
 const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-proof-bundle-fingerprint\0";
 const MAX_PROPOSITION_DEPTH: usize = 256;
 const MAX_SCALAR_TERM_DEPTH: usize = 256;
@@ -662,6 +662,10 @@ fn encode_canonical_structural_field(
                 writer.u8(2);
                 writer.u64(*index);
             }
+            CanonicalStructuralPathSegment::Case(case) => {
+                writer.u8(3);
+                writer.id(*case);
+            }
         }
     }
     Ok(())
@@ -677,6 +681,7 @@ fn decode_canonical_structural_field(
         path.push(match reader.u8()? {
             1 => CanonicalStructuralPathSegment::Field(reader.id("StructuralFieldId")?),
             2 => CanonicalStructuralPathSegment::FixedIndex(reader.u64()?),
+            3 => CanonicalStructuralPathSegment::Case(reader.id("StructuralCaseId")?),
             tag => {
                 return Err(ProofCodecError::InvalidTag(
                     "CanonicalStructuralPathSegment",
@@ -869,6 +874,10 @@ fn encode_scalar_term(
                         writer.u8(2);
                         writer.u64(*index);
                     }
+                    CanonicalStructuralPathSegment::Case(case) => {
+                        writer.u8(3);
+                        writer.id(*case);
+                    }
                 }
             }
         }
@@ -889,6 +898,10 @@ fn encode_scalar_term(
                     CanonicalStructuralPathSegment::FixedIndex(index) => {
                         writer.u8(2);
                         writer.u64(*index);
+                    }
+                    CanonicalStructuralPathSegment::Case(case) => {
+                        writer.u8(3);
+                        writer.id(*case);
                     }
                 }
             }
@@ -1685,6 +1698,7 @@ fn decode_scalar_term(
                 path.push(match reader.u8()? {
                     1 => CanonicalStructuralPathSegment::Field(reader.id("StructuralFieldId")?),
                     2 => CanonicalStructuralPathSegment::FixedIndex(reader.u64()?),
+                    3 => CanonicalStructuralPathSegment::Case(reader.id("StructuralCaseId")?),
                     tag => {
                         return Err(ProofCodecError::InvalidTag(
                             "CanonicalStructuralPathSegment",
@@ -1703,6 +1717,7 @@ fn decode_scalar_term(
                 path.push(match reader.u8()? {
                     1 => CanonicalStructuralPathSegment::Field(reader.id("StructuralFieldId")?),
                     2 => CanonicalStructuralPathSegment::FixedIndex(reader.u64()?),
+                    3 => CanonicalStructuralPathSegment::Case(reader.id("StructuralCaseId")?),
                     tag => {
                         return Err(ProofCodecError::InvalidTag(
                             "CanonicalStructuralPathSegment",

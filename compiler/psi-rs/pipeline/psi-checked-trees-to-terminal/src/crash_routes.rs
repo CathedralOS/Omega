@@ -164,7 +164,7 @@ pub(super) fn lower_checked_crash_route_buckets(
 
 fn lower_structural_member_path(
     parameter_position: u32,
-    path: &[String],
+    path: &[psi_checked_trees::CheckedStructuralPredicatePathSegment],
     parameters: &[StructuralParameterDeclaration],
     structural_types: &[StructuralTypeDeclaration],
 ) -> Result<
@@ -186,15 +186,42 @@ fn lower_structural_member_path(
         ))?;
     let mut structural_type = parameter.structural_type;
     let mut terminal_path = Vec::with_capacity(path.len());
-    for (index, identity) in path.iter().enumerate() {
+    let mut selected_case_fields = None;
+    for (index, segment) in path.iter().enumerate() {
         let declaration = structural_types
             .iter()
             .find(|declaration| declaration.id == structural_type)
             .ok_or(LoweringError::Unsupported(
                 "structural scalar contract path type is absent",
             ))?;
-        let StructuralTypeShape::Record { fields } = &declaration.shape else {
-            return unsupported("structural scalar contract path receiver is not a record");
+        if let psi_checked_trees::CheckedStructuralPredicatePathSegment::Case(identity) = segment {
+            if selected_case_fields.is_some() || index + 1 == path.len() {
+                return unsupported("structural scalar contract has a malformed case path");
+            }
+            let StructuralTypeShape::Sum { cases } = &declaration.shape else {
+                return unsupported("structural scalar contract case receiver is not a sum");
+            };
+            let case = cases
+                .iter()
+                .find(|candidate| candidate.identity == *identity)
+                .ok_or(LoweringError::Unsupported(
+                    "structural scalar contract case is absent",
+                ))?;
+            terminal_path.push(CanonicalStructuralPathSegment::Case(case.id));
+            selected_case_fields = Some(&case.fields);
+            continue;
+        }
+        let psi_checked_trees::CheckedStructuralPredicatePathSegment::Field(identity) = segment
+        else {
+            unreachable!("case path handled above")
+        };
+        let fields = if let Some(fields) = selected_case_fields.take() {
+            fields
+        } else {
+            let StructuralTypeShape::Record { fields } = &declaration.shape else {
+                return unsupported("structural scalar contract field receiver is not a record");
+            };
+            fields
         };
         let field = fields
             .iter()
@@ -220,7 +247,7 @@ fn lower_structural_member_path(
 
 fn lower_structural_member_term(
     parameter_position: u32,
-    path: &[String],
+    path: &[psi_checked_trees::CheckedStructuralPredicatePathSegment],
     expected: ScalarType,
     parameters: &[StructuralParameterDeclaration],
     structural_types: &[StructuralTypeDeclaration],
@@ -288,7 +315,11 @@ fn lower_structural_sum_subject(
         ))?;
     let mut structural_type = parameter.structural_type;
     let mut terminal_path = Vec::with_capacity(subject.path.len());
-    for identity in &subject.path {
+    for segment in &subject.path {
+        let psi_checked_trees::CheckedStructuralPredicatePathSegment::Field(identity) = segment
+        else {
+            return unsupported("structural sum subject cannot select a case payload");
+        };
         let declaration = structural_types
             .iter()
             .find(|declaration| declaration.id == structural_type)
@@ -318,7 +349,7 @@ fn lower_structural_sum_subject(
             .map(|declaration| &declaration.shape),
         Some(StructuralTypeShape::Sum { .. })
     ) {
-        return unsupported("structural sum predicate subject is not a payload-less sum");
+        return unsupported("structural sum predicate subject is not a sum");
     }
     Ok((
         StructuralCaseSubject::new(parameter.place, terminal_path),
@@ -1024,6 +1055,9 @@ pub(super) fn lower_structural_crash_route_buckets(
             CheckedBooleanExpression::PayloadlessSumEqual { .. } => {
                 unsupported("payload-less sum equality lowers through case-membership propositions")
             }
+            CheckedBooleanExpression::StructuralCaseMembership { .. } => {
+                unsupported("sum membership lowers as an atomic proposition")
+            }
             CheckedBooleanExpression::Parameter { .. }
             | CheckedBooleanExpression::Local { .. }
             | CheckedBooleanExpression::And { .. }
@@ -1043,7 +1077,8 @@ pub(super) fn lower_structural_crash_route_buckets(
             match expression {
                 CheckedBooleanExpression::IeeeFloatComparison { .. }
                 | CheckedBooleanExpression::ByteSequenceEqual { .. }
-                | CheckedBooleanExpression::PayloadlessSumEqual { .. } => true,
+                | CheckedBooleanExpression::PayloadlessSumEqual { .. }
+                | CheckedBooleanExpression::StructuralCaseMembership { .. } => true,
                 CheckedBooleanExpression::Not(operand) => {
                     contains_structural_atomic_proposition(operand)
                 }
@@ -1112,6 +1147,28 @@ pub(super) fn lower_structural_crash_route_buckets(
                 std::mem::swap(&mut left, &mut right);
             }
             return Ok(Proposition::ByteSequenceEqual { left, right });
+        }
+        if let CheckedBooleanExpression::StructuralCaseMembership { subject, case } = expression {
+            let (subject, structural_type) =
+                lower_structural_sum_subject(subject, parameters, structural_types)?;
+            let StructuralTypeShape::Sum { cases } = &structural_types
+                .iter()
+                .find(|declaration| declaration.id == structural_type)
+                .expect("sum subject type was resolved")
+                .shape
+            else {
+                unreachable!("sum subject resolver returned a sum")
+            };
+            let case = cases
+                .iter()
+                .find(|candidate| candidate.identity == *case)
+                .ok_or(LoweringError::Unsupported(
+                    "structural sum membership case was redirected",
+                ))?;
+            return Ok(Proposition::StructuralCaseMembership {
+                subject,
+                case: case.id,
+            });
         }
         if let CheckedBooleanExpression::PayloadlessSumEqual { left, right, cases } = expression {
             let (left, left_type) =
@@ -1276,7 +1333,12 @@ pub(super) fn lower_structural_crash_route_buckets(
                                 ScalarTerm::boolean(true),
                                 lower_structural_member_term(
                                     parameter_position,
-                                    &path,
+                                    &path
+                                        .into_iter()
+                                        .map(
+                                            psi_checked_trees::CheckedStructuralPredicatePathSegment::Field,
+                                        )
+                                        .collect::<Vec<_>>(),
                                     ScalarType::Boolean,
                                     parameters,
                                     structural_types,
@@ -1736,7 +1798,8 @@ fn checked_boolean_scalar_term(
         }
         CheckedBooleanExpression::IeeeFloatComparison { .. }
         | CheckedBooleanExpression::ByteSequenceEqual { .. }
-        | CheckedBooleanExpression::PayloadlessSumEqual { .. } => {
+        | CheckedBooleanExpression::PayloadlessSumEqual { .. }
+        | CheckedBooleanExpression::StructuralCaseMembership { .. } => {
             return unsupported("structural equality requires structural signature lowering");
         }
         CheckedBooleanExpression::And { .. } | CheckedBooleanExpression::Or { .. } => {

@@ -3,6 +3,7 @@ use psi_checked_trees::{
     CheckedIntegerComparisonKind, CheckedIntegerRange, CheckedLocatedScalarExpression,
     CheckedOperatorFacts, CheckedOperatorResolutionStatus, CheckedScalarExpression,
     CheckedScalarExpressionPlans, CheckedScalarExpressionRole, CheckedStructuralParameterField,
+    CheckedStructuralPredicatePathSegment,
 };
 use psi_numerics::{
     arithmetic::ArithmeticDomain,
@@ -311,7 +312,7 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
         program: &TypedTrees,
         parameters: &[StateParameter],
         expression: ExpressionHandle,
-        fields: &mut Vec<String>,
+        fields: &mut Vec<CheckedStructuralPredicatePathSegment>,
     ) -> Option<u32> {
         match program.expression_table.expression(expression) {
             ExpressionNode::Name(name) => {
@@ -335,10 +336,53 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
                     })
                     .and_then(|position| u32::try_from(position).ok())
             }
-            ExpressionNode::Member(member) if member.case_variant.is_none() => {
+            ExpressionNode::Member(member) => {
                 let parameter =
                     structural_parameter_field_path(program, parameters, member.receiver, fields)?;
-                fields.push(member.member.as_str().to_owned());
+                let field_identity = |field: &psi_typed_trees::data::DataField| {
+                    field
+                        .identity
+                        .map(|identity| format!("#{identity}"))
+                        .unwrap_or_else(|| field.name.as_str().to_owned())
+                };
+                if let Some(case_name) = &member.case_variant {
+                    let (case, field) = program.data_definitions().iter().find_map(|data| {
+                        program.data_members(data).iter().find_map(|candidate| {
+                            let psi_typed_trees::data::DataMember::Variant(variant) = candidate
+                            else {
+                                return None;
+                            };
+                            if variant.name != *case_name {
+                                return None;
+                            }
+                            program
+                                .data_payload_fields(variant)
+                                .iter()
+                                .find(|field| field.symbol == member.member_symbol)
+                                .map(|field| {
+                                    (
+                                        variant
+                                            .identity
+                                            .map(|identity| format!("#{identity}"))
+                                            .unwrap_or_else(|| variant.name.as_str().to_owned()),
+                                        field_identity(field),
+                                    )
+                                })
+                        })
+                    })?;
+                    fields.push(CheckedStructuralPredicatePathSegment::Case(case));
+                    fields.push(CheckedStructuralPredicatePathSegment::Field(field));
+                } else {
+                    let identity = program.data_definitions().iter().find_map(|data| {
+                        program.data_members(data).iter().find_map(|candidate| {
+                            let psi_typed_trees::data::DataMember::Field(field) = candidate else {
+                                return None;
+                            };
+                            (field.symbol == member.member_symbol).then(|| field_identity(field))
+                        })
+                    })?;
+                    fields.push(CheckedStructuralPredicatePathSegment::Field(identity));
+                }
                 Some(parameter)
             }
             _ => None,
@@ -387,7 +431,7 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
             program: &TypedTrees,
             parameters: &[StateParameter],
             parameter_position: u32,
-            path: &[String],
+            path: &[CheckedStructuralPredicatePathSegment],
         ) -> Option<TypeReferenceHandle> {
             let Some(parameter) = usize::try_from(parameter_position)
                 .ok()
@@ -395,17 +439,53 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
             else {
                 return None;
             };
-            path.iter()
-                .try_fold(parameter.type_reference, |receiver, field| {
-                    field_type(program, receiver, field)
-                })
+            let mut receiver = parameter.type_reference;
+            let mut selected_case = None;
+            for segment in path {
+                match segment {
+                    CheckedStructuralPredicatePathSegment::Case(case) => {
+                        if selected_case.is_some() {
+                            return None;
+                        }
+                        let data = structural_data(program, receiver)?;
+                        let variant = program.data_members(data).iter().find_map(|member| {
+                            let psi_typed_trees::data::DataMember::Variant(variant) = member else {
+                                return None;
+                            };
+                            let identity = variant
+                                .identity
+                                .map(|identity| format!("#{identity}"))
+                                .unwrap_or_else(|| variant.name.as_str().to_owned());
+                            (identity == *case).then_some(variant)
+                        })?;
+                        selected_case = Some(variant);
+                    }
+                    CheckedStructuralPredicatePathSegment::Field(field) => {
+                        receiver = if let Some(variant) = selected_case.take() {
+                            program
+                                .data_payload_fields(variant)
+                                .iter()
+                                .find_map(|candidate| {
+                                    let identity = candidate
+                                        .identity
+                                        .map(|identity| format!("#{identity}"))
+                                        .unwrap_or_else(|| candidate.name.as_str().to_owned());
+                                    (identity == *field).then_some(candidate.type_reference)
+                                })?
+                        } else {
+                            field_type(program, receiver, field)?
+                        };
+                    }
+                }
+            }
+            selected_case.is_none().then_some(receiver)
         }
 
         fn path_primitive_type(
             program: &TypedTrees,
             parameters: &[StateParameter],
             parameter_position: u32,
-            path: &[String],
+            path: &[CheckedStructuralPredicatePathSegment],
         ) -> Option<PrimitiveType> {
             program.primitive_type_reference(path_type_reference(
                 program,
@@ -497,8 +577,8 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
                 left_parameter: u32,
                 right_parameter: u32,
                 type_reference: TypeReferenceHandle,
-                left_path: &mut Vec<String>,
-                right_path: &mut Vec<String>,
+                left_path: &mut Vec<CheckedStructuralPredicatePathSegment>,
+                right_path: &mut Vec<CheckedStructuralPredicatePathSegment>,
                 output: &mut Vec<CheckedBooleanExpression>,
                 visiting: &mut Vec<psi_symbols::SymbolHandle>,
             ) -> Option<()> {
@@ -522,8 +602,14 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
                 }
                 visiting.push(data.symbol);
                 for field in structural_record_fields(program, type_reference)? {
-                    left_path.push(field.name.as_str().to_owned());
-                    right_path.push(field.name.as_str().to_owned());
+                    let field_identity = field
+                        .identity
+                        .map(|identity| format!("#{identity}"))
+                        .unwrap_or_else(|| field.name.as_str().to_owned());
+                    left_path.push(CheckedStructuralPredicatePathSegment::Field(
+                        field_identity.clone(),
+                    ));
+                    right_path.push(CheckedStructuralPredicatePathSegment::Field(field_identity));
                     match program.primitive_type_reference(field.type_reference) {
                         Some(PrimitiveType::Bool) => {
                             output.push(CheckedBooleanExpression::Equal {
@@ -638,6 +724,157 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
             let right_data = structural_data(program, right_type)?;
             if left_data.symbol != right_data.symbol || left_data.name != right_data.name {
                 return None;
+            }
+            let members = program.data_members(left_data);
+            if matches!(
+                psi_typed_trees::data::DataDefinition::shape_kind_from_members(members),
+                psi_typed_trees::data::DataShapeKind::Enum
+            ) && members.iter().any(|member| match member {
+                psi_typed_trees::data::DataMember::Variant(variant) => {
+                    !program.data_payload_fields(variant).is_empty()
+                }
+                psi_typed_trees::data::DataMember::Field(_) => false,
+            }) {
+                let mut arms = Vec::new();
+                for member in members {
+                    let psi_typed_trees::data::DataMember::Variant(variant) = member else {
+                        return None;
+                    };
+                    let case = variant
+                        .identity
+                        .map(|identity| format!("#{identity}"))
+                        .unwrap_or_else(|| variant.name.as_str().to_owned());
+                    let left_subject = CheckedStructuralParameterField {
+                        parameter_position: left_parameter,
+                        path: left_path.clone(),
+                    };
+                    let right_subject = CheckedStructuralParameterField {
+                        parameter_position: right_parameter,
+                        path: right_path.clone(),
+                    };
+                    let mut comparisons = vec![
+                        CheckedBooleanExpression::StructuralCaseMembership {
+                            subject: left_subject,
+                            case: case.clone(),
+                        },
+                        CheckedBooleanExpression::StructuralCaseMembership {
+                            subject: right_subject,
+                            case: case.clone(),
+                        },
+                    ];
+                    for field in program.data_payload_fields(variant) {
+                        if field.relevance.is_erased() {
+                            return None;
+                        }
+                        let field_identity = field
+                            .identity
+                            .map(|identity| format!("#{identity}"))
+                            .unwrap_or_else(|| field.name.as_str().to_owned());
+                        let mut left = left_path.clone();
+                        left.push(CheckedStructuralPredicatePathSegment::Case(case.clone()));
+                        left.push(CheckedStructuralPredicatePathSegment::Field(
+                            field_identity.clone(),
+                        ));
+                        let mut right = right_path.clone();
+                        right.push(CheckedStructuralPredicatePathSegment::Case(case.clone()));
+                        right.push(CheckedStructuralPredicatePathSegment::Field(field_identity));
+                        match program.primitive_type_reference(field.type_reference) {
+                            Some(PrimitiveType::Bool) => {
+                                comparisons.push(CheckedBooleanExpression::Equal {
+                                    left: Box::new(
+                                        CheckedBooleanExpression::StructuralParameterField {
+                                            parameter_position: left_parameter,
+                                            path: left,
+                                        },
+                                    ),
+                                    right: Box::new(
+                                        CheckedBooleanExpression::StructuralParameterField {
+                                            parameter_position: right_parameter,
+                                            path: right,
+                                        },
+                                    ),
+                                });
+                            }
+                            Some(primitive_type)
+                                if is_integer(primitive_type)
+                                    && primitive_type != PrimitiveType::Addr =>
+                            {
+                                comparisons.push(CheckedBooleanExpression::IntegerComparison {
+                                    kind: CheckedIntegerComparisonKind::Equal,
+                                    left: Box::new(
+                                        CheckedScalarExpression::StructuralParameterField {
+                                            parameter_position: left_parameter,
+                                            path: left,
+                                            primitive_type,
+                                        },
+                                    ),
+                                    right: Box::new(
+                                        CheckedScalarExpression::StructuralParameterField {
+                                            parameter_position: right_parameter,
+                                            path: right,
+                                            primitive_type,
+                                        },
+                                    ),
+                                });
+                            }
+                            Some(primitive_type)
+                                if matches!(
+                                    primitive_type,
+                                    PrimitiveType::F32 | PrimitiveType::F64
+                                ) =>
+                            {
+                                comparisons.push(CheckedBooleanExpression::IeeeFloatComparison {
+                                    kind: CheckedIeeeFloatComparisonKind::Equal,
+                                    primitive_type,
+                                    left: CheckedStructuralParameterField {
+                                        parameter_position: left_parameter,
+                                        path: left,
+                                    },
+                                    right: CheckedStructuralParameterField {
+                                        parameter_position: right_parameter,
+                                        path: right,
+                                    },
+                                });
+                            }
+                            Some(_) => return None,
+                            None if crate::flow::byte_sequence_carrier(
+                                program,
+                                field.type_reference,
+                                &[],
+                            )
+                            .is_some() =>
+                            {
+                                comparisons.push(CheckedBooleanExpression::ByteSequenceEqual {
+                                    left: CheckedStructuralParameterField {
+                                        parameter_position: left_parameter,
+                                        path: left,
+                                    },
+                                    right: CheckedStructuralParameterField {
+                                        parameter_position: right_parameter,
+                                        path: right,
+                                    },
+                                });
+                            }
+                            None => return None,
+                        }
+                    }
+                    let mut comparisons = comparisons.into_iter();
+                    let first = comparisons.next()?;
+                    arms.push(comparisons.fold(first, |left, right| {
+                        CheckedBooleanExpression::And {
+                            left: Box::new(left),
+                            right: Box::new(right),
+                        }
+                    }));
+                }
+                let mut arms = arms.into_iter();
+                let first = arms.next()?;
+                return Some(
+                    arms.fold(first, |left, right| CheckedBooleanExpression::Or {
+                        left: Box::new(left),
+                        right: Box::new(right),
+                    }),
+                );
             }
             let mut comparisons = Vec::new();
             collect_comparisons(
@@ -884,6 +1121,74 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
                     path,
                 },
             ))
+        }
+
+        fn lower_structural_case_membership(
+            program: &TypedTrees,
+            _operators: &CheckedOperatorFacts,
+            parameters: &[StateParameter],
+            expression: ExpressionHandle,
+        ) -> Option<CheckedBooleanExpression> {
+            let ExpressionNode::Binary(binary) = program.expression_table.expression(expression)
+            else {
+                return None;
+            };
+            if binary.operator != BinaryOperator::Equal {
+                return None;
+            }
+            let classifier = |candidate: ExpressionHandle| {
+                let ExpressionNode::Name(name) = program.expression_table.expression(candidate)
+                else {
+                    return None;
+                };
+                program.data_definitions().iter().find_map(|data| {
+                    program.data_members(data).iter().find_map(|member| {
+                        let psi_typed_trees::data::DataMember::Variant(variant) = member else {
+                            return None;
+                        };
+                        (variant.symbol == name.symbol).then(|| {
+                            (
+                                data.symbol,
+                                variant
+                                    .identity
+                                    .map(|identity| format!("#{identity}"))
+                                    .unwrap_or_else(|| variant.name.as_str().to_owned()),
+                            )
+                        })
+                    })
+                })
+            };
+            let (subject_expression, data_symbol, case) =
+                if let Some((data, case)) = classifier(binary.right) {
+                    (binary.left, data, case)
+                } else if let Some((data, case)) = classifier(binary.left) {
+                    (binary.right, data, case)
+                } else {
+                    return None;
+                };
+            let mut path = Vec::new();
+            let parameter_position = structural_parameter_field_path(
+                program,
+                parameters,
+                subject_expression,
+                &mut path,
+            )?;
+            let subject_type = path_type_reference(program, parameters, parameter_position, &path)?;
+            (structural_data(program, subject_type)?.symbol == data_symbol).then_some(
+                CheckedBooleanExpression::StructuralCaseMembership {
+                    subject: CheckedStructuralParameterField {
+                        parameter_position,
+                        path,
+                    },
+                    case,
+                },
+            )
+        }
+
+        if let Some(membership) =
+            lower_structural_case_membership(program, operators, parameters, expression)
+        {
+            return Some(membership);
         }
 
         let mut path = Vec::new();
@@ -1930,7 +2235,8 @@ fn contains_short_circuit(expression: &CheckedBooleanExpression) -> bool {
         | CheckedBooleanExpression::IntegerComparison { .. }
         | CheckedBooleanExpression::IeeeFloatComparison { .. }
         | CheckedBooleanExpression::ByteSequenceEqual { .. }
-        | CheckedBooleanExpression::PayloadlessSumEqual { .. } => false,
+        | CheckedBooleanExpression::PayloadlessSumEqual { .. }
+        | CheckedBooleanExpression::StructuralCaseMembership { .. } => false,
         CheckedBooleanExpression::Not(operand) => contains_short_circuit(operand),
         CheckedBooleanExpression::Equal { left, right } => {
             contains_short_circuit(left) || contains_short_circuit(right)

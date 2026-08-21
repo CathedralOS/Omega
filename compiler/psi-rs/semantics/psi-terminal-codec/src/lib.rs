@@ -67,7 +67,7 @@ use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
 
 const MAGIC: &[u8; 8] = b"PSITERM\0";
-const FORMAT_MARKER: u16 = 17;
+const FORMAT_MARKER: u16 = 18;
 const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 const MAX_PROPOSITION_DEPTH: usize = 256;
 const MAX_SCALAR_TERM_DEPTH: usize = 256;
@@ -188,6 +188,15 @@ fn validate_canonical_order(module: &TerminalModule) -> Result<(), CodecError> {
             {
                 return Err(CodecError::NonCanonicalOrder(
                     "structural cases by StructuralCaseId",
+                ));
+            }
+            StructuralTypeShape::Sum { cases }
+                if cases
+                    .iter()
+                    .any(|case| !strictly_increasing(case.fields.iter().map(|field| field.id))) =>
+            {
+                return Err(CodecError::NonCanonicalOrder(
+                    "structural case fields by StructuralFieldId",
                 ));
             }
             _ => {}
@@ -596,6 +605,40 @@ fn validate_structural_foundation(module: &TerminalModule) -> Result<(), CodecEr
                 )?;
                 if cases.is_empty() {
                     return malformed("structural sum must declare at least one case");
+                }
+                for case in cases {
+                    require_unique_nonempty_identities(
+                        case.fields.iter().map(|field| field.identity.as_str()),
+                        "structural case payload field identity",
+                    )?;
+                    for field in &case.fields {
+                        match &field.field_type {
+                            StructuralFieldType::Structural(field_type)
+                                if !has_structural_type(module, *field_type) =>
+                            {
+                                return malformed(
+                                    "structural case payload references an unknown structural type",
+                                );
+                            }
+                            StructuralFieldType::Erased { type_identity }
+                                if !field.relevance.is_erased() || type_identity.is_empty() =>
+                            {
+                                return malformed(
+                                    "opaque structural case payload must have erased relevance and a nonempty type identity",
+                                );
+                            }
+                            StructuralFieldType::Scalar(_)
+                            | StructuralFieldType::IeeeFloat(_)
+                            | StructuralFieldType::Structural(_)
+                                if field.relevance.is_erased() =>
+                            {
+                                return malformed(
+                                    "erased structural case payload must use its opaque semantic type identity",
+                                );
+                            }
+                            _ => {}
+                        }
+                    }
                 }
             }
         }
@@ -1111,7 +1154,13 @@ fn validate_structural_type_graph(module: &TerminalModule) -> Result<(), CodecEr
             StructuralTypeShape::FixedArray { element, .. } => {
                 visit(module, *element, active, complete)?;
             }
-            StructuralTypeShape::Sum { .. } => {}
+            StructuralTypeShape::Sum { cases } => {
+                for field in cases.iter().flat_map(|case| &case.fields) {
+                    if let StructuralFieldType::Structural(target) = &field.field_type {
+                        visit(module, *target, active, complete)?;
+                    }
+                }
+            }
         }
         active.remove(&id);
         complete.insert(id);
@@ -1672,6 +1721,10 @@ fn encode_canonical_structural_field(
                 writer.u8(2);
                 writer.u64(*index);
             }
+            CanonicalStructuralPathSegment::Case(case) => {
+                writer.u8(3);
+                writer.id(*case);
+            }
         }
     }
     Ok(())
@@ -1687,6 +1740,7 @@ fn decode_canonical_structural_field(
         path.push(match reader.u8()? {
             1 => CanonicalStructuralPathSegment::Field(reader.id("StructuralFieldId")?),
             2 => CanonicalStructuralPathSegment::FixedIndex(reader.u64()?),
+            3 => CanonicalStructuralPathSegment::Case(reader.id("StructuralCaseId")?),
             tag => {
                 return Err(CodecError::InvalidTag(
                     "CanonicalStructuralPathSegment",
@@ -1720,6 +1774,41 @@ fn decode_byte_sequence_carrier(
     }
 }
 
+fn encode_structural_field(
+    writer: &mut Writer,
+    field: &StructuralFieldDeclaration,
+) -> Result<(), CodecError> {
+    writer.id(field.id);
+    writer.string("structural field identity", &field.identity)?;
+    writer.u8(match field.relevance {
+        BindingRelevance::Relevant => 1,
+        BindingRelevance::Erased => 2,
+    });
+    match &field.field_type {
+        StructuralFieldType::Scalar(scalar_type) => {
+            writer.u8(1);
+            encode_scalar_type(writer, *scalar_type);
+        }
+        StructuralFieldType::IeeeFloat(format) => {
+            writer.u8(4);
+            encode_ieee_float_format(writer, *format);
+        }
+        StructuralFieldType::ByteSequence(carrier) => {
+            writer.u8(5);
+            encode_byte_sequence_carrier(writer, *carrier);
+        }
+        StructuralFieldType::Structural(structural_type) => {
+            writer.u8(2);
+            writer.id(*structural_type);
+        }
+        StructuralFieldType::Erased { type_identity } => {
+            writer.u8(3);
+            writer.string("erased structural field type identity", type_identity)?;
+        }
+    }
+    Ok(())
+}
+
 fn encode_structural_type(
     writer: &mut Writer,
     declaration: &StructuralTypeDeclaration,
@@ -1731,34 +1820,7 @@ fn encode_structural_type(
             writer.u8(1);
             writer.len("structural fields", fields.len())?;
             for field in fields {
-                writer.id(field.id);
-                writer.string("structural field identity", &field.identity)?;
-                writer.u8(match field.relevance {
-                    BindingRelevance::Relevant => 1,
-                    BindingRelevance::Erased => 2,
-                });
-                match &field.field_type {
-                    StructuralFieldType::Scalar(scalar_type) => {
-                        writer.u8(1);
-                        encode_scalar_type(writer, *scalar_type);
-                    }
-                    StructuralFieldType::IeeeFloat(format) => {
-                        writer.u8(4);
-                        encode_ieee_float_format(writer, *format);
-                    }
-                    StructuralFieldType::ByteSequence(carrier) => {
-                        writer.u8(5);
-                        encode_byte_sequence_carrier(writer, *carrier);
-                    }
-                    StructuralFieldType::Structural(structural_type) => {
-                        writer.u8(2);
-                        writer.id(*structural_type);
-                    }
-                    StructuralFieldType::Erased { type_identity } => {
-                        writer.u8(3);
-                        writer.string("erased structural field type identity", type_identity)?;
-                    }
-                }
+                encode_structural_field(writer, field)?;
             }
         }
         StructuralTypeShape::FixedArray { element, length } => {
@@ -1772,6 +1834,10 @@ fn encode_structural_type(
             for case in cases {
                 writer.id(case.id);
                 writer.string("structural case identity", &case.identity)?;
+                writer.len("structural case payload fields", case.fields.len())?;
+                for field in &case.fields {
+                    encode_structural_field(writer, field)?;
+                }
             }
         }
     }
@@ -2958,6 +3024,10 @@ fn encode_scalar_term(
                         writer.u8(2);
                         writer.u64(*index);
                     }
+                    CanonicalStructuralPathSegment::Case(case) => {
+                        writer.u8(3);
+                        writer.id(*case);
+                    }
                 }
             }
         }
@@ -2978,6 +3048,10 @@ fn encode_scalar_term(
                     CanonicalStructuralPathSegment::FixedIndex(index) => {
                         writer.u8(2);
                         writer.u64(*index);
+                    }
+                    CanonicalStructuralPathSegment::Case(case) => {
+                        writer.u8(3);
+                        writer.id(*case);
                     }
                 }
             }
@@ -3539,31 +3613,7 @@ fn decode_structural_type(
     let identity = reader.string("structural type identity")?;
     let shape = match reader.u8()? {
         1 => StructuralTypeShape::Record {
-            fields: decode_counted(reader, |reader| {
-                let id = reader.id("StructuralFieldId")?;
-                let identity = reader.string("structural field identity")?;
-                let relevance = match reader.u8()? {
-                    1 => BindingRelevance::Relevant,
-                    2 => BindingRelevance::Erased,
-                    tag => return Err(CodecError::InvalidTag("BindingRelevance", tag)),
-                };
-                let field_type = match reader.u8()? {
-                    1 => StructuralFieldType::Scalar(decode_scalar_type(reader)?),
-                    2 => StructuralFieldType::Structural(reader.id("StructuralTypeId")?),
-                    3 => StructuralFieldType::Erased {
-                        type_identity: reader.string("erased structural field type identity")?,
-                    },
-                    4 => StructuralFieldType::IeeeFloat(decode_ieee_float_format(reader)?),
-                    5 => StructuralFieldType::ByteSequence(decode_byte_sequence_carrier(reader)?),
-                    tag => return Err(CodecError::InvalidTag("StructuralFieldType", tag)),
-                };
-                Ok(StructuralFieldDeclaration {
-                    id,
-                    identity,
-                    relevance,
-                    field_type,
-                })
-            })?,
+            fields: decode_counted(reader, decode_structural_field)?,
         },
         2 => StructuralTypeShape::FixedArray {
             element: reader.id("StructuralTypeId")?,
@@ -3574,6 +3624,7 @@ fn decode_structural_type(
                 Ok(StructuralCaseDeclaration {
                     id: reader.id("StructuralCaseId")?,
                     identity: reader.string("structural case identity")?,
+                    fields: decode_counted(reader, decode_structural_field)?,
                 })
             })?,
         },
@@ -3583,6 +3634,34 @@ fn decode_structural_type(
         id,
         identity,
         shape,
+    })
+}
+
+fn decode_structural_field(
+    reader: &mut Reader<'_>,
+) -> Result<StructuralFieldDeclaration, CodecError> {
+    let id = reader.id("StructuralFieldId")?;
+    let identity = reader.string("structural field identity")?;
+    let relevance = match reader.u8()? {
+        1 => BindingRelevance::Relevant,
+        2 => BindingRelevance::Erased,
+        tag => return Err(CodecError::InvalidTag("BindingRelevance", tag)),
+    };
+    let field_type = match reader.u8()? {
+        1 => StructuralFieldType::Scalar(decode_scalar_type(reader)?),
+        2 => StructuralFieldType::Structural(reader.id("StructuralTypeId")?),
+        3 => StructuralFieldType::Erased {
+            type_identity: reader.string("erased structural field type identity")?,
+        },
+        4 => StructuralFieldType::IeeeFloat(decode_ieee_float_format(reader)?),
+        5 => StructuralFieldType::ByteSequence(decode_byte_sequence_carrier(reader)?),
+        tag => return Err(CodecError::InvalidTag("StructuralFieldType", tag)),
+    };
+    Ok(StructuralFieldDeclaration {
+        id,
+        identity,
+        relevance,
+        field_type,
     })
 }
 
@@ -4764,6 +4843,7 @@ fn decode_scalar_term(reader: &mut Reader<'_>, depth: usize) -> Result<ScalarTer
                 path.push(match reader.u8()? {
                     1 => CanonicalStructuralPathSegment::Field(reader.id("StructuralFieldId")?),
                     2 => CanonicalStructuralPathSegment::FixedIndex(reader.u64()?),
+                    3 => CanonicalStructuralPathSegment::Case(reader.id("StructuralCaseId")?),
                     tag => {
                         return Err(CodecError::InvalidTag(
                             "CanonicalStructuralPathSegment",
@@ -4782,6 +4862,7 @@ fn decode_scalar_term(reader: &mut Reader<'_>, depth: usize) -> Result<ScalarTer
                 path.push(match reader.u8()? {
                     1 => CanonicalStructuralPathSegment::Field(reader.id("StructuralFieldId")?),
                     2 => CanonicalStructuralPathSegment::FixedIndex(reader.u64()?),
+                    3 => CanonicalStructuralPathSegment::Case(reader.id("StructuralCaseId")?),
                     tag => {
                         return Err(CodecError::InvalidTag(
                             "CanonicalStructuralPathSegment",

@@ -92,7 +92,9 @@ Remaining:
   four-host root and Unit-entry discipline. Eight indexed-array and slice-loop
   native probes now also route their existing Unit entries through authored
   four-host roots without weakening their bounds, mutation, or conversion
-  regression shapes. The tracked corpus audit leaves 214
+  regression shapes. Nine further indexed-access, mutable-slice, subslice, and
+  two-pointer native probes retain their exact regression programs while using
+  the same authored production roots. The tracked corpus audit leaves 205
   legacy fixtures without an authored `build.omg` root.
   Continue migrating those fixtures through production entry
   selection; replace result-as-process-exit probes with ordinary Unit entries
@@ -713,18 +715,26 @@ Remaining:
   sum shape with exact case identities. Intrinsic `==` lowers to the flat
   canonical conjunction of both membership implications for every declared
   case; `!=` is that equality proposition implying falsehood. The verifier
-  independently resolves both structural subjects and every case identity,
-  while payload-bearing sums remain fenced. Semantic codec v17, proof-bundle
-  v11, and installation-record v23 retain the structural shapes and
-  proposition. Continue with case-payload paths and aggregate equality over
-  payload-bearing sums and erased fields. Add the settled total-specification
-  arithmetic slice: reject direct `Trapping` policy operations in `Prop`, retain
-  explicit fixed-integer/address embeddings into proof `Int` with their derived
-  carrier-range facts, and retain explicit same-carrier Exact coercions with
-  their ordinary formation obligations. Add the per-primitive Exact, Wrapping,
-  Saturating, and Trapping denotation bridges; compiler-derived Trapping guards
-  remain executable crash-site facts rather than predicate effects. Imported
-  crash capsules remain blocked on artifact identity and certificate binding.
+  independently resolves both structural subjects and every case identity.
+  Payload-bearing pure sums now retain exact case-payload field identities and
+  direct relevant Boolean, fixed-integer, IEEE, and byte-sequence leaf types.
+  Their intrinsic `==` is the canonical disjunction of per-case conjunctions:
+  matching membership for both roots plus that case's exact payload-leaf
+  equalities. `!=` is that complete equality proposition implying falsehood.
+  Unknown or redirected case/field identities reject independently. Mixed
+  common-field/case shapes, nested or recursive payload expansion, address and
+  erased payload equality, and runtime sum layout remain fenced. Semantic codec
+  v18, proof-bundle v12, and installation-record v24 retain the structural
+  shapes, case-payload paths, and proposition. Continue with the fenced mixed,
+  nested, recursive, and erased aggregate cases. Add the settled total-
+  specification arithmetic slice: reject direct `Trapping` policy operations
+  in `Prop`, retain explicit fixed-integer/address embeddings into proof `Int`
+  with their derived carrier-range facts, and retain explicit same-carrier
+  Exact coercions with their ordinary formation obligations. Add the per-
+  primitive Exact, Wrapping, Saturating, and Trapping denotation bridges;
+  compiler-derived Trapping guards remain executable crash-site facts rather
+  than predicate effects. Imported crash capsules remain blocked on artifact
+  identity and certificate binding.
 - **PROOF-CERTIFICATION-BRIDGE.** Emit kernel-checkable certificates from source
   automation. One recursive certificate owns one SCC, cites its ranking and
   well-foundedness evidence once, and proves every internal edge decreases;
@@ -808,7 +818,7 @@ Remaining:
   trust graph binds the table to exactly those twelve denotation nodes and the
   dispatcher to every affected reducer.
   The bounded Gamma spike is complete. It canonical-decodes four exact current
-  `PSITERM\0` v17 fixtures and audits a 54-row scalar ledger covering constants,
+  `PSITERM\0` v18 fixtures and audits a 54-row scalar ledger covering constants,
   Boolean not/equality, integer equality/order, bitwise operations, strict
   i8-to-i16 widening, partial i16-to-i8 exact cast, exact/wrapping shifts with
   independently typed counts, and the complete
@@ -841,10 +851,11 @@ Remaining:
   fixed-unsigned/address scalar-type grammar and exact widths `1..=128`, plus
   exact signed/unsigned 128-bit integer-value payloads; it
   rejects header/scalar/type/value drift plus overlong, surrogate, out-of-range,
-  isolated-continuation, and truncated encodings. Its separate v17 structural-
+  isolated-continuation, and truncated encodings. Its separate v18 structural-
   leaf module additionally owns exact IEEE kind/format, byte-sequence carrier,
-  full-width canonical path, and atomic proposition tags `11`/`12`, including
-  nonempty paths and canonical operand order. All three bounded decoders consume
+  full-width canonical paths with exact case segments, and atomic proposition
+  tags `11`/`12`/`13`, including nonempty paths and canonical operand order. All
+  three bounded decoders consume
   only the 302-line header/scalar/type/value subset; the structural-leaf module
   remains independently gated and outside their claimed semantics. Scalar
   declarations and boundary results now retain
@@ -1032,6 +1043,12 @@ Remaining:
   checking. On a fresh exact profile this removed the former 1,056-sample
   construction stack and reduced warmed Mandelbrot Stage 05 from 4.810s to
   3.421s, with byte-identical output and native/interpreter exit 70.
+  A subsequent eager complete-state write-summary prototype was rejected rather
+  than retained: against a fresh 3.505s warmed baseline it moved 170 samples
+  into resolver construction while targeting a 130-sample recursive summary
+  stack, and regressed Stage 05 to 3.606–3.648s. Output remained byte-identical,
+  but the remaining cyclic summaries need a genuinely lazy memo or SCC/fixpoint
+  design; no cache code remains.
   Corpus-level bounded parallelism is viable at the harness boundary: the
   differential runner now defaults to four independent jobs with one native
   backend worker each, retains deterministic corpus-order reporting, and
@@ -1063,7 +1080,11 @@ Remaining:
   repairing the corpus drift this broader gate exposed, the complete active
   pass umbrella finishes in 234.92s and the complete active fail umbrella in
   21.05s on the same host; both collect the whole registry rather than stopping
-  at the first failure.
+  at the first failure. Dedicated native-canary helpers now use the same
+  two-worker ceiling instead of multiplying Rust test-thread concurrency by a
+  host-wide compiler pool. The exact float total-order test fell from 128.30s
+  wall/998.98s aggregate CPU with fourteen inner workers to 91.83s/256.84s with
+  two; production compiler defaults remain unchanged.
   The compiler canary integration suite is no longer a 48,301-line permutation
   file. Its shared compile helpers, exact corpus registries, and umbrella
   orchestration now form a 3,277-line root over twenty-one responsibility

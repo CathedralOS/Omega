@@ -782,15 +782,22 @@ impl<'program> ShapeCollector<'program> {
                 let DataMember::Variant(variant) = member else {
                     unreachable!("enum shape contains only cases")
                 };
-                if !self.program.data_payload_fields(variant).is_empty() {
-                    self.in_progress.remove(&identity);
-                    return None;
+                let mut fields = Vec::new();
+                for field in self.program.data_payload_fields(variant) {
+                    let Some(field) =
+                        self.structural_field_plan(field, binders, &substitutions, &identity)
+                    else {
+                        self.in_progress.remove(&identity);
+                        return None;
+                    };
+                    fields.push(field);
                 }
                 cases.push(psi_checked_trees::CheckedUnitStructuralCasePlan {
                     identity: variant
                         .identity
                         .map(|identity| format!("#{identity}"))
                         .unwrap_or_else(|| variant.name.as_str().to_owned()),
+                    fields,
                 });
             }
             self.types.insert(
@@ -810,49 +817,12 @@ impl<'program> ShapeCollector<'program> {
                 self.in_progress.remove(&identity);
                 return None;
             };
-            let field_type = if field.relevance.is_erased() {
-                CheckedUnitStructuralFieldType::Erased {
-                    type_identity: self
-                        .program
-                        .normalized_type_identity_with_binders_and_substitutions(
-                            field.type_reference,
-                            binders,
-                            &substitutions,
-                        )
-                        .into_string(),
-                }
-            } else if let Some(carrier) =
-                byte_sequence_carrier(self.program, field.type_reference, &substitutions)
-            {
-                CheckedUnitStructuralFieldType::ByteSequence(carrier)
-            } else {
-                match scalar_type(self.program, field.type_reference, &substitutions) {
-                    Some(primitive) => CheckedUnitStructuralFieldType::Scalar(primitive),
-                    None => {
-                        let Some(nested) =
-                            self.add_type(field.type_reference, binders, &substitutions)
-                        else {
-                            self.in_progress.remove(&identity);
-                            return None;
-                        };
-                        if nested == identity {
-                            self.in_progress.remove(&identity);
-                            return None;
-                        }
-                        CheckedUnitStructuralFieldType::Structural {
-                            type_identity: nested,
-                        }
-                    }
-                }
+            let Some(field) = self.structural_field_plan(field, binders, &substitutions, &identity)
+            else {
+                self.in_progress.remove(&identity);
+                return None;
             };
-            fields.push(CheckedUnitStructuralFieldPlan {
-                identity: field
-                    .identity
-                    .map(|identity| format!("#{identity}"))
-                    .unwrap_or_else(|| field.name.as_str().to_owned()),
-                relevance: field.relevance,
-                field_type,
-            });
+            fields.push(field);
         }
         self.types.insert(
             identity.clone(),
@@ -863,6 +833,52 @@ impl<'program> ShapeCollector<'program> {
         );
         self.in_progress.remove(&identity);
         Some(identity)
+    }
+
+    fn structural_field_plan(
+        &mut self,
+        field: &psi_typed_trees::data::DataField,
+        binders: &[(SymbolHandle, String)],
+        substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+        owner_identity: &str,
+    ) -> Option<CheckedUnitStructuralFieldPlan> {
+        let field_type = if field.relevance.is_erased() {
+            CheckedUnitStructuralFieldType::Erased {
+                type_identity: self
+                    .program
+                    .normalized_type_identity_with_binders_and_substitutions(
+                        field.type_reference,
+                        binders,
+                        substitutions,
+                    )
+                    .into_string(),
+            }
+        } else if let Some(carrier) =
+            byte_sequence_carrier(self.program, field.type_reference, substitutions)
+        {
+            CheckedUnitStructuralFieldType::ByteSequence(carrier)
+        } else {
+            match scalar_type(self.program, field.type_reference, substitutions) {
+                Some(primitive) => CheckedUnitStructuralFieldType::Scalar(primitive),
+                None => {
+                    let nested = self.add_type(field.type_reference, binders, substitutions)?;
+                    if nested == owner_identity {
+                        return None;
+                    }
+                    CheckedUnitStructuralFieldType::Structural {
+                        type_identity: nested,
+                    }
+                }
+            }
+        };
+        Some(CheckedUnitStructuralFieldPlan {
+            identity: field
+                .identity
+                .map(|identity| format!("#{identity}"))
+                .unwrap_or_else(|| field.name.as_str().to_owned()),
+            relevance: field.relevance,
+            field_type,
+        })
     }
 
     pub(super) fn retain_transitive(&mut self, roots: &BTreeSet<&str>) {
@@ -892,7 +908,15 @@ impl<'program> ShapeCollector<'program> {
                     } => {
                         retained.insert(element_type_identity.clone());
                     }
-                    CheckedUnitStructuralTypeShape::Sum { .. } => {}
+                    CheckedUnitStructuralTypeShape::Sum { cases } => {
+                        for field in cases.iter().flat_map(|case| &case.fields) {
+                            if let CheckedUnitStructuralFieldType::Structural { type_identity } =
+                                &field.field_type
+                            {
+                                retained.insert(type_identity.clone());
+                            }
+                        }
+                    }
                 }
             }
             if retained.len() == old_len {
