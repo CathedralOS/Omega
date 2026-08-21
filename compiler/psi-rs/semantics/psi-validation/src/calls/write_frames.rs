@@ -21,6 +21,7 @@ mod boundary_calls;
 mod demand;
 mod isolation;
 mod place_paths;
+mod state_paths;
 mod transparent_effects;
 
 use boundary_calls::known_boundary_call_written_paths_for_parts;
@@ -36,6 +37,10 @@ use isolation::{
 use place_paths::{
     FramePathPrecision, FramePlaceOrigin, append_place_suffix, coarse_place_path, frame_place_path,
     split_place_root,
+};
+use state_paths::{
+    expression_forwards_exact_symbol, normalize_state_relative_path, push_visible_frame_path,
+    relative_state_path_is_visible,
 };
 use transparent_effects::{
     call_is_transparent_mutable_slice_view, expression_is_effectful_for_transparent_result,
@@ -3360,19 +3365,6 @@ fn build_permuted_cycle_frame_equation<'program>(
     })
 }
 
-fn push_visible_frame_path(
-    writes: &mut Vec<String>,
-    relative: String,
-    parameters: &[StateParameter],
-    locals: &[String],
-) -> Option<()> {
-    if relative_state_path_is_visible(&relative, parameters, locals)? && !writes.contains(&relative)
-    {
-        writes.push(relative);
-    }
-    Some(())
-}
-
 fn append_permuted_cycle_frame_edge(
     program: &TypedTrees,
     machine: &Machine,
@@ -3655,67 +3647,6 @@ fn type_may_carry_write(program: &TypedTrees, handle: TypeReferenceHandle) -> bo
         | TypeReferenceNode::Slice { .. }
         | TypeReferenceNode::DynamicTrait { .. } => true,
     }
-}
-
-fn expression_forwards_exact_symbol(
-    program: &TypedTrees,
-    expression: ExpressionHandle,
-    symbol: SymbolHandle,
-) -> bool {
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Mutable(inner) => expression_forwards_exact_symbol(program, *inner, symbol),
-        ExpressionNode::Name(path) => path.symbol == symbol,
-        _ => false,
-    }
-}
-
-fn relative_state_path_is_visible(
-    relative: &str,
-    parameters: &[StateParameter],
-    locals: &[String],
-) -> Option<bool> {
-    let (root, _) = split_place_root(relative);
-    if root == "self"
-        || parameters
-            .iter()
-            .any(|parameter| parameter.name.as_str() == root)
-    {
-        return Some(true);
-    }
-    if locals.iter().any(|local| local == root) {
-        return Some(false);
-    }
-    None
-}
-
-fn normalize_state_relative_path(
-    program: &TypedTrees,
-    state: &State,
-    relative: &str,
-) -> Option<Option<String>> {
-    let (root, suffix) = split_place_root(relative);
-    if root == "self" {
-        return Some(Some(append_place_suffix("self", suffix)));
-    }
-    if let Some(parameter_index) = program
-        .state_parameters(state)
-        .iter()
-        .filter(|parameter| !parameter.is_self)
-        .position(|parameter| parameter.name.as_str() == root)
-    {
-        return Some(Some(append_place_suffix(
-            &format!("$P{parameter_index}"),
-            suffix,
-        )));
-    }
-    let is_local = program
-        .statement_table
-        .statements(state.statement_nodes)
-        .iter()
-        .any(|statement| {
-            matches!(statement, StatementNode::LocalData(local) if local.name.as_str() == root)
-        });
-    is_local.then_some(None)
 }
 
 fn instantiate_written_path(
