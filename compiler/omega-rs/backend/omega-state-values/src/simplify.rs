@@ -6,7 +6,7 @@ mod helper_stack;
 use self::bindings::{
     Binding, BindingScope, ScopedBindings, append_name_suffix, simple_local_bindings,
 };
-use self::call_targets::{resolve_call_target_machine, resolve_call_target_state};
+pub(crate) use self::call_targets::{resolve_call_target_machine, resolve_call_target_state};
 use self::folding::{
     FloatLanding, IntegerLanding, ValueLanding, boolean_and, boolean_or, expressions_equivalent,
     fold_binary_expression,

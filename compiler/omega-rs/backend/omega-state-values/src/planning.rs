@@ -1,4 +1,5 @@
 use crate::collection::build_machine_state_value_plan;
+use crate::dependencies::StateValueDependencyIndex;
 use crate::model::{StateValuePlan, StateValueUse};
 use omega_control_flow::StateKey;
 use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
@@ -55,6 +56,7 @@ pub fn build_state_value_plan_with_workers(
         return StateValuePlan::default();
     }
 
+    let dependencies = Arc::new(StateValueDependencyIndex::build(&program, &context));
     let machine_count = program.machines().len();
     let machine_plans = workers.map_ordered(machine_count, move |index| {
         let machine = program
@@ -62,7 +64,7 @@ pub fn build_state_value_plan_with_workers(
             .get(index)
             .expect("state-value worker index should be in range");
 
-        build_machine_state_value_plan(&program, &context, machine)
+        build_machine_state_value_plan(&program, &context, &dependencies, machine)
     });
 
     let value_count = machine_plans
