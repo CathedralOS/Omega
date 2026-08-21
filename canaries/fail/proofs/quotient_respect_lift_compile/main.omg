@@ -1,20 +1,20 @@
+use omega::language::core::relation;
+
 data Representative {
     case Zero;
     case Next(previous: Representative);
 }
 
-machine equivalent(a: Representative, b: Representative) -> bool {
-    transition { _ -> (true) }
-}
+proposition equivalent(a: Representative, b: Representative) = a == b;
 
 machine equivalent_reflexive(a: Representative)
-ensures equivalent(a, a)
+ensures a == a
 {
 }
 
 machine equivalent_symmetric(a: Representative, b: Representative)
-requires equivalent(a, b)
-ensures equivalent(b, a)
+requires a == b
+ensures b == a
 {
 }
 
@@ -24,13 +24,22 @@ machine equivalent_transitive(
     c: Representative
 )
 requires
-    equivalent(a, b)
-    equivalent(b, c)
-ensures equivalent(a, c)
+    a == b
+    b == c
+ensures a == c
 {
 }
 
-data EquivalenceClass = Representative % equivalent;
+RepresentativeEquivalence: satisfies Equivalence<Representative, equivalent> {
+    Reflexive::reflexive = equivalent_reflexive;
+    Symmetric::symmetric = equivalent_symmetric;
+    Transitive::transitive = equivalent_transitive;
+}
+
+data EquivalenceClass = Representative % equivalent
+where equivalent satisfies
+    Equivalence<Representative, equivalent>
+    as RepresentativeEquivalence;
 
 machine advance(value: Representative) -> Representative {
     Representative::Next { previous: value }
@@ -38,8 +47,8 @@ machine advance(value: Representative) -> Representative {
 
 // This structural theorem no longer grants implicit lift authority.
 machine advance_respects(a: Representative, b: Representative)
-requires equivalent(a, b)
-ensures equivalent(advance(a), advance(b))
+requires a == b
+ensures advance(a) == advance(b)
 {
 }
 

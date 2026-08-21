@@ -1,3 +1,5 @@
+use omega::language::core::relation;
+
 // A quotient relation may quantify independently over the two representatives'
 // static generator symbols. Contract selections remain logical schema
 // arguments rather than forcing one runtime specialization of `equivalent`.
@@ -18,24 +20,19 @@ where machine S(index: Index) -> Index;
 boundary machine source_a(index: Index) -> Index;
 boundary machine source_b(index: Index) -> Index;
 
-machine equivalent<machine A, machine B>(a: Stream<A>, b: Stream<B>) -> bool
-where machine A(index: Index) -> Index;
-where machine B(index: Index) -> Index;
-{
-    transition { _ -> (true) }
-}
+proposition equivalent<machine A, machine B>(a: Stream<A>, b: Stream<B>) = a == b;
 
 machine equivalent_reflexive<machine A>(a: Stream<A>)
 where machine A(index: Index) -> Index;
-ensures equivalent<A, A>(a, a)
+ensures a == a
 {
 }
 
 machine equivalent_symmetric<machine A, machine B>(a: Stream<A>, b: Stream<B>)
 where machine A(index: Index) -> Index;
 where machine B(index: Index) -> Index;
-requires equivalent<A, B>(a, b)
-ensures equivalent<B, A>(b, a)
+requires a == b
+ensures b == a
 {
 }
 
@@ -48,16 +45,25 @@ where machine A(index: Index) -> Index;
 where machine B(index: Index) -> Index;
 where machine C(index: Index) -> Index;
 requires
-    equivalent<A, B>(a, b)
-    equivalent<B, C>(b, c)
-ensures equivalent<A, C>(a, c)
+    a == b
+    b == c
+ensures a == c
 {
 }
 
-data EquivalenceClass = Stream % equivalent;
+StreamEquivalence: satisfies Equivalence<Stream, equivalent> {
+    Reflexive::reflexive = equivalent_reflexive;
+    Symmetric::symmetric = equivalent_symmetric;
+    Transitive::transitive = equivalent_transitive;
+}
+
+data EquivalenceClass = Stream % equivalent
+where equivalent satisfies
+    Equivalence<Stream, equivalent>
+    as StreamEquivalence;
 
 machine heterogeneous_congruence(a: Stream<source_a>, b: Stream<source_b>)
-requires equivalent<source_a, source_b>(a, b)
+requires a == b
 ensures (a as EquivalenceClass) == (b as EquivalenceClass)
 {
 }

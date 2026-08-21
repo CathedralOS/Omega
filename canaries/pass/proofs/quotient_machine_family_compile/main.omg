@@ -1,3 +1,5 @@
+use omega::language::core::relation;
+
 // N6/N7 bridge: one quotient spans every concrete instance of a proof-only
 // machine-indexed carrier family. The static generator remains part of the
 // representative type, but not the quotient bucket identity.
@@ -16,30 +18,47 @@ where machine S(index: Index) -> Index;
 boundary machine source_a(index: Index) -> Index;
 boundary machine source_b(index: Index) -> Index;
 
-machine equivalent(a: Stream, b: Stream) -> bool {
-    transition { _ -> (true) }
-}
+proposition equivalent(a: Stream, b: Stream) = a == b;
 
-machine equivalent_reflexive(a: Stream)
-ensures equivalent(a, a)
+machine equivalent_reflexive<machine A>(a: Stream<A>)
+where machine A(index: Index) -> Index;
+ensures a == a
 {
 }
 
-machine equivalent_symmetric(a: Stream, b: Stream)
-requires equivalent(a, b)
-ensures equivalent(b, a)
+machine equivalent_symmetric<machine A, machine B>(a: Stream<A>, b: Stream<B>)
+where machine A(index: Index) -> Index;
+where machine B(index: Index) -> Index;
+requires a == b
+ensures b == a
 {
 }
 
-machine equivalent_transitive(a: Stream, b: Stream, c: Stream)
+machine equivalent_transitive<machine A, machine B, machine C>(
+    a: Stream<A>,
+    b: Stream<B>,
+    c: Stream<C>
+)
+where machine A(index: Index) -> Index;
+where machine B(index: Index) -> Index;
+where machine C(index: Index) -> Index;
 requires
-    equivalent(a, b)
-    equivalent(b, c)
-ensures equivalent(a, c)
+    a == b
+    b == c
+ensures a == c
 {
 }
 
-data EquivalenceClass = Stream % equivalent;
+StreamEquivalence: satisfies Equivalence<Stream, equivalent> {
+    Reflexive::reflexive = equivalent_reflexive;
+    Symmetric::symmetric = equivalent_symmetric;
+    Transitive::transitive = equivalent_transitive;
+}
+
+data EquivalenceClass = Stream % equivalent
+where equivalent satisfies
+    Equivalence<Stream, equivalent>
+    as StreamEquivalence;
 
 machine admit_a(value: Stream<source_a>) -> EquivalenceClass {
     value as EquivalenceClass
@@ -50,7 +69,7 @@ machine admit_b(value: Stream<source_b>) -> EquivalenceClass {
 }
 
 machine heterogeneous_congruence(a: Stream<source_a>, b: Stream<source_b>)
-requires equivalent(a, b)
+requires a == b
 ensures (a as EquivalenceClass) == (b as EquivalenceClass)
 {
 }

@@ -93,6 +93,7 @@ pub(crate) fn validate_machine_contract_entailment(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let mut requires = Vec::new();
+    let mut requires_propositions = Vec::new();
     let mut ensures = Vec::new();
     // Membership facts (`value in Domain`) are outside the engine's language.
     // The empty-body path drops them silently (a dropped hypothesis only
@@ -109,7 +110,13 @@ pub(crate) fn validate_machine_contract_entailment(
         for fact in program.proof_facts.span_or_empty(contract.facts) {
             match fact {
                 ProofFact::Expression(expression) => bucket.push(*expression),
-                ProofFact::Membership(_) | ProofFact::Proposition(_) => {
+                ProofFact::Proposition(application) => {
+                    if matches!(contract.kind, SignatureContractKind::Requires) {
+                        requires_propositions.push(application);
+                    }
+                    all_facts_are_expressions = false;
+                }
+                ProofFact::Membership(_) => {
                     all_facts_are_expressions = false;
                 }
             }
@@ -268,7 +275,13 @@ pub(crate) fn validate_machine_contract_entailment(
             .or_else(|| recognize_guarded_structural_value_arms(program, machine, &structural))
     };
     let judge_structural = |fact: ExpressionHandle| -> StructuralJudgment {
-        if let Some(proven) = quotient_equality_from_requires(program, &requires, fact) {
+        if let Some(proven) = quotient_equality_from_requires(
+            program,
+            machine,
+            &requires,
+            &requires_propositions,
+            fact,
+        ) {
             return if proven {
                 StructuralJudgment::Proven
             } else {
@@ -573,12 +586,14 @@ pub(crate) fn validate_machine_contract_entailment(
 /// callers reject it instead of letting the generic structural tier stand down.
 fn quotient_equality_from_requires(
     program: &TypedTrees,
+    machine: &Machine,
     requires: &[ExpressionHandle],
+    proposition_requires: &[&psi_typed_trees::proposition::PropositionApplication],
     fact: ExpressionHandle,
 ) -> Option<bool> {
     let (quotient, left, right) = quotient_equality_goal(program, fact)?;
     let relation = quotient.quotient.as_ref()?;
-    Some(requires.iter().any(|required| {
+    let expression_match = requires.iter().any(|required| {
         relation_fact_call(program, *required).is_some_and(|call| {
             relation_call_matches_quotient(program, call, relation.relation_symbol)
                 && matches!(
@@ -589,8 +604,105 @@ fn quotient_equality_from_requires(
                             || (program.expression_table.expressions_structurally_equal(*required_left, right)
                                 && program.expression_table.expressions_structurally_equal(*required_right, left))
                 )
+        }) || transparent_relation_fact_matches(
+            program,
+            *required,
+            relation.relation_symbol,
+            left,
+            right,
+        )
+    });
+    let left_identity = named_parameter_identity(program, machine, left);
+    let right_identity = named_parameter_identity(program, machine, right);
+    let proposition_match = proposition_requires.iter().any(|application| {
+        let (Some((left_symbol, left_type)), Some((right_symbol, right_type))) =
+            (left_identity, right_identity)
+        else {
+            return false;
+        };
+        let forward = crate::quotients::exact_relation_application_matches(
+            program,
+            application,
+            relation.relation_symbol,
+            left_symbol,
+            right_symbol,
+            left_type,
+            right_type,
+        );
+        let reverse = crate::quotients::exact_relation_application_matches(
+            program,
+            application,
+            relation.relation_symbol,
+            right_symbol,
+            left_symbol,
+            right_type,
+            left_type,
+        );
+        forward || reverse
+    });
+    Some(expression_match || proposition_match)
+}
+
+fn named_parameter_identity(
+    program: &TypedTrees,
+    machine: &Machine,
+    expression: ExpressionHandle,
+) -> Option<(SymbolHandle, psi_typed_trees::types::TypeReferenceHandle)> {
+    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    program
+        .machine_states(machine)
+        .iter()
+        .flat_map(|state| program.state_parameters(state))
+        .find(|parameter| parameter.symbol == path.symbol)
+        .map(|parameter| (parameter.symbol, parameter.type_reference))
+}
+
+fn transparent_relation_fact_matches(
+    program: &TypedTrees,
+    fact: ExpressionHandle,
+    relation_symbol: psi_symbols::SymbolHandle,
+    left: ExpressionHandle,
+    right: ExpressionHandle,
+) -> bool {
+    let Some(relation) = program
+        .propositions()
+        .iter()
+        .find(|relation| relation.symbol == relation_symbol)
+    else {
+        return false;
+    };
+    let psi_typed_trees::proposition::PropositionBody::Transparent {
+        proposition: psi_typed_trees::proposition::PropositionFormula::BooleanExpression(formula),
+    } = relation.body
+    else {
+        return false;
+    };
+    let [left_parameter, right_parameter] = program.proposition_parameters(relation) else {
+        return false;
+    };
+    let actual = program.render_proof_expression_with_symbols(fact, &[]);
+    [(left, right), (right, left)]
+        .into_iter()
+        .any(|(left, right)| {
+            let expected = program.render_proof_expression_with_parameters(
+                formula,
+                &[
+                    (
+                        left_parameter.symbol,
+                        left_parameter.name.as_str().to_owned(),
+                        program.render_proof_expression_with_symbols(left, &[]),
+                    ),
+                    (
+                        right_parameter.symbol,
+                        right_parameter.name.as_str().to_owned(),
+                        program.render_proof_expression_with_symbols(right, &[]),
+                    ),
+                ],
+            );
+            actual == expected
         })
-    }))
 }
 
 fn quotient_equality_names(
@@ -2977,13 +3089,16 @@ pub(crate) fn check_law_conformance(
         .collect();
 
     let mut proven_propositions = Vec::new();
+    let mut proven_expressions = Vec::new();
     for contract in program.machine_contracts(machine) {
         if contract.kind != SignatureContractKind::Ensures {
             continue;
         }
         for fact in program.proof_facts.span_or_empty(contract.facts) {
-            if let ProofFact::Proposition(application) = fact {
-                proven_propositions.push(application);
+            match fact {
+                ProofFact::Proposition(application) => proven_propositions.push(application),
+                ProofFact::Expression(expression) => proven_expressions.push(*expression),
+                ProofFact::Membership(_) => {}
             }
         }
     }
@@ -2995,6 +3110,7 @@ pub(crate) fn check_law_conformance(
         explicit_trait_arguments,
         &proposition_laws,
         &proven_propositions,
+        &proven_expressions,
         diagnostics,
     );
     if law_conjuncts.is_empty() {
@@ -3141,6 +3257,7 @@ fn check_proposition_law_conformance(
     explicit_trait_arguments: &[psi_typed_trees::types::TypeReferenceHandle],
     proposition_laws: &[&psi_typed_trees::proposition::PropositionApplication],
     proven_propositions: &[&psi_typed_trees::proposition::PropositionApplication],
+    proven_expressions: &[ExpressionHandle],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     if proposition_laws.is_empty() {
@@ -3242,6 +3359,11 @@ fn check_proposition_law_conformance(
                 .normalize_proposition_application(proven)
                 .map(|formula| formula.identity_label())
                 .is_some_and(|actual| actual == expected)
+        }) || proven_expressions.iter().any(|proven| {
+            format!(
+                "boolean:{}",
+                program.render_proof_expression_with_symbols(*proven, &[])
+            ) == expected
         });
         if !matched {
             diagnostics.push(Diagnostic::error(format!(

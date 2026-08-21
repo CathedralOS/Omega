@@ -48,6 +48,18 @@ pub struct QuotientDefinition {
     pub carrier: TypeReferenceHandle,
     pub relation: Vec<Identifier>,
     pub relation_symbol: SymbolHandle,
+    pub equivalence: Option<QuotientEquivalenceSelection>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct QuotientEquivalenceSelection {
+    pub relation: Vec<Identifier>,
+    pub relation_symbol: SymbolHandle,
+    pub trait_name: Identifier,
+    pub trait_symbol: SymbolHandle,
+    pub trait_arguments: HandleSpan<TypeReferenceHandle>,
+    pub conformance_name: Identifier,
+    pub conformance_symbol: SymbolHandle,
 }
 
 /// Declared type properties (`data Point [copy]`). The spelling set is closed

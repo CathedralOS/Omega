@@ -34,6 +34,36 @@ pub(crate) fn lower_data_definition(
                         .map(crate::name::lower_name)
                         .collect(),
                     relation_symbol: quotient.relation_symbol,
+                    equivalence: quotient
+                        .equivalence
+                        .as_ref()
+                        .map(|selection| {
+                            let trait_arguments = lowerer
+                                .source_trees
+                                .child_type_references(selection.trait_arguments)
+                                .iter()
+                                .map(|argument| lower_type_reference_into_table(lowerer, argument))
+                                .collect::<Result<Vec<_>, _>>()?;
+                            Ok::<_, Diagnostic>(typed::data::QuotientEquivalenceSelection {
+                                relation: selection
+                                    .relation
+                                    .iter()
+                                    .map(crate::name::lower_name)
+                                    .collect(),
+                                relation_symbol: selection.relation_symbol,
+                                trait_name: crate::name::lower_name(&selection.trait_name),
+                                trait_symbol: selection.trait_symbol,
+                                trait_arguments: lowerer
+                                    .typed_trees
+                                    .type_reference_table
+                                    .insert_type_reference_handles(trait_arguments),
+                                conformance_name: crate::name::lower_name(
+                                    &selection.conformance_name,
+                                ),
+                                conformance_symbol: selection.conformance_symbol,
+                            })
+                        })
+                        .transpose()?,
                 })
             })
             .transpose()?,

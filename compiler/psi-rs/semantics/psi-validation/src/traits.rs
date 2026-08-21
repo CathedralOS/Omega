@@ -9,7 +9,7 @@ pub(crate) use conformance::{
     validate_external_leaf_native_shapes, validate_generic_conformance_bounds,
     validate_machine_trait_conformances, validate_trait_conformance_bounds,
 };
-pub(crate) use data_conformance::validate_conformances;
+pub(crate) use data_conformance::{arguments_for_declaring_trait, validate_conformances};
 pub use dynamic::{
     DynamicConformanceSelection, collect_dynamic_conformance_selections,
     resolve_dynamic_call_targets,

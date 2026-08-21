@@ -702,21 +702,24 @@ optional root-selected ceiling; long or unlimited evaluation remains legal.
 
 ## Migration and acceptance
 
-The current N6 formation pilot accepts a generic `bool` relation and discovers
-reflexive, symmetric, and transitive shapes from ordinary proof-machine
-contracts. That is implemented legacy behavior, not the final semantic model
-and not quotient-formation authority. Migration must retain its
-heterogeneous-family coverage while replacing the decider and structural law
-scan with proposition evidence and the declaration's exact named
-`Equivalence` conformance.
+The N6 formation boundary now accepts only a proposition relation and the
+declaration's explicit named `Equivalence<C, R>` conformance. The selected
+conformance is subjectless, closed, nongeneric, and exact; its inherited
+Reflexive, Symmetric, and Transitive rows must have the canonical premises and
+conclusions. The `Equivalence` interface itself must resolve to the sealed
+toolchain declaration. Checked row dependencies are followed transitively, so
+an admitted or boundary proof machine cannot hide behind a local value,
+contract, guard, transition, or continuation. Generic relation applications
+also retain and check their exact binder categories and order. There is no
+Boolean-relation or structural proof-machine fallback.
 
-The first sealed-operation representation boundary is narrower and
+The sealed-operation representation boundary remains narrower and
 fail-closed. Typed calls retain the exact representative operation, exact named
 conformance application, and `lift`/`define` kind only for the sealed
 `Quotient` spelling. The carrier is non-authoritative: no checked or terminal
-operation is emitted until formation, compiler-derived relations,
-correspondence, and contracts are independently validated. The retired bare
-call pilot cannot recover authority through structural proof-machine discovery.
+operation is emitted until compiler-derived relations, correspondence, and
+contracts are independently validated. The retired bare call pilot cannot
+recover authority through structural proof-machine discovery.
 
 Acceptance requires:
 

@@ -1,22 +1,30 @@
+use omega::language::core::relation;
+
 data Representative {
     case Zero;
     case Next(previous: Representative);
 }
 
-machine equivalent(a: Representative, b: Representative) -> bool {
-    transition { _ -> (true) }
-}
+proposition equivalent(a: Representative, b: Representative) = a == b;
 
 machine equivalent_reflexive(a: Representative)
-ensures equivalent(a, a)
+ensures a == a
 {
 }
 
-// A trusted axiom may be cited normally, but it cannot establish the checked
-// equivalence admission required to create a quotient.
-boundary machine equivalent_symmetric_axiom(a: Representative, b: Representative)
-requires equivalent(a, b)
-ensures equivalent(b, a);
+boundary machine accepted_symmetry_value(
+    a: Representative,
+    b: Representative
+) -> bool;
+
+machine equivalent_symmetric(a: Representative, b: Representative)
+requires a == b
+ensures b == a
+{
+    // The admitted dependency is deliberately nested in a value expression;
+    // statement-only provenance walks must not miss it.
+    let admitted: bool = accepted_symmetry_value(a, b);
+}
 
 machine equivalent_transitive(
     a: Representative,
@@ -24,13 +32,22 @@ machine equivalent_transitive(
     c: Representative
 )
 requires
-    equivalent(a, b)
-    equivalent(b, c)
-ensures equivalent(a, c)
+    a == b
+    b == c
+ensures a == c
 {
 }
 
-data EquivalenceClass = Representative % equivalent;
+RepresentativeEquivalence: satisfies Equivalence<Representative, equivalent> {
+    Reflexive::reflexive = equivalent_reflexive;
+    Symmetric::symmetric = equivalent_symmetric;
+    Transitive::transitive = equivalent_transitive;
+}
+
+data EquivalenceClass = Representative % equivalent
+where equivalent satisfies
+    Equivalence<Representative, equivalent>
+    as RepresentativeEquivalence;
 
 data Main {
 }

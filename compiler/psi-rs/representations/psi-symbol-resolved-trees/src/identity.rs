@@ -87,6 +87,21 @@ pub fn count_identity_storage(program: &SymbolResolvedTrees) -> IdentityStorageC
             for member in &quotient.relation {
                 count_declaration_name(member, &mut counts);
             }
+            if let Some(selection) = &quotient.equivalence {
+                for member in &selection.relation {
+                    count_declaration_name(member, &mut counts);
+                }
+                count_declaration_name(&selection.trait_name, &mut counts);
+                for argument in program.child_type_references(selection.trait_arguments) {
+                    count_type_reference(
+                        argument,
+                        child_type_references,
+                        expression_table,
+                        &mut counts,
+                    );
+                }
+                count_declaration_name(&selection.conformance_name, &mut counts);
+            }
         }
         for member in program.data_members(data_definition.members) {
             match member {
