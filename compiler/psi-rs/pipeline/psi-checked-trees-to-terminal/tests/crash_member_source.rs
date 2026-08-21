@@ -619,6 +619,44 @@ const IEEE_FLOAT_AGGREGATE_EQUALITY_SOURCE: &str = r#"
     }
 "#;
 
+const BYTE_SEQUENCE_AGGREGATE_EQUALITY_SOURCE: &str = r#"
+    trait Equatable {
+        machine equals(&self, rhs: &Self) -> bool;
+    }
+
+    domain [u8]::Utf8
+    requires
+        valid_utf8(self);
+    domain [u8; 8]::Utf8
+    requires
+        valid_utf8(self);
+
+    data Borrowed { active: bool; text: &[u8] in Utf8; }
+    BorrowedEquatable: Borrowed satisfies Equatable;
+    data Bounded { active: bool; text: [u8; 8] in Utf8; }
+    BoundedEquatable: Bounded satisfies Equatable;
+
+    data Helper {}
+    machine Helper::inspect(left: Borrowed, right: Borrowed)
+    crashes Abort
+        left == right
+    {}
+
+    data Root {}
+    machine Root::enter(left: Borrowed, right: Borrowed)
+    crashes Abort
+        left == right
+    {
+        Helper::inspect(left, right);
+    }
+
+    data BoundedRoot {}
+    machine BoundedRoot::enter(left: Bounded, right: Bounded)
+    crashes Abort
+        left == right
+    {}
+"#;
+
 const EMPTY_RECORD_EQUALITY_SOURCE: &str = r#"
     trait Equatable {
         machine equals(&self, rhs: &Self) -> bool;
@@ -4283,6 +4321,145 @@ fn ieee_float_aggregate_equality_is_atomic_and_canonical_end_to_end() {
     assert!(matches!(
         psi_terminal_verifier::validate_module(&wrong_format),
         Err(psi_terminal_verifier::ModuleError::InvalidIeeeFloatFieldTerm { .. })
+    ));
+}
+
+#[test]
+fn byte_sequence_aggregate_equality_is_content_atomic_end_to_end() {
+    let tokens = Lexer::new(BYTE_SEQUENCE_AGGREGATE_EQUALITY_SOURCE)
+        .tokenize()
+        .expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("check");
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::enter")
+        .expect("borrowed byte-sequence aggregate equality lowers");
+
+    let root = &lowered.semantic_module.machines[0];
+    let helper = &lowered.semantic_module.machines[1];
+    let byte_equality = |proposition: &Proposition| {
+        let Proposition::Conjunction(conjuncts) = proposition else {
+            panic!("Boolean and byte-sequence fields form one conjunction")
+        };
+        assert_eq!(conjuncts.len(), 2);
+        conjuncts
+            .iter()
+            .find_map(|proposition| match proposition {
+                Proposition::ByteSequenceEqual { left, right } => {
+                    Some((left.clone(), right.clone()))
+                }
+                _ => None,
+            })
+            .expect("byte-sequence equality remains one semantic atom")
+    };
+    let [CrashRouteGuard::Predicate(root_route)] =
+        root.contract.crash_routes[0].alternatives.as_slice()
+    else {
+        panic!("root publishes one byte-sequence aggregate route")
+    };
+    let (left, right) = byte_equality(root_route.proposition());
+    assert_eq!(
+        (left.root(), right.root()),
+        (
+            root.structural_parameters[0].place,
+            root.structural_parameters[1].place
+        )
+    );
+    assert_eq!((left.path().len(), right.path().len()), (1, 1));
+
+    let [CrashRouteGuard::Predicate(helper_route)] =
+        helper.contract.crash_routes[0].alternatives.as_slice()
+    else {
+        panic!("helper publishes one byte-sequence aggregate route")
+    };
+    let (helper_left, helper_right) = byte_equality(helper_route.proposition());
+    assert_eq!(
+        (helper_left.root(), helper_right.root()),
+        (
+            helper.structural_parameters[0].place,
+            helper.structural_parameters[1].place
+        )
+    );
+
+    let OperationKind::CallUnit {
+        crash_continuations,
+        ..
+    } = &root.blocks[0].operations[0].kind
+    else {
+        panic!("root emits one structural Unit call")
+    };
+    let [CrashRouteGuard::Predicate(continuation)] = crash_continuations[0].alternatives.as_slice()
+    else {
+        panic!("call retains one byte-sequence crash continuation")
+    };
+    assert_eq!(continuation, root_route);
+
+    assert!(lowered.semantic_module.structural_types.iter().any(|declaration| {
+        matches!(&declaration.shape, StructuralTypeShape::Record { fields }
+            if fields.iter().any(|field| matches!(
+                field.field_type,
+                StructuralFieldType::ByteSequence(psi_terminal::ByteSequenceCarrier::BorrowedView)
+            )))
+    }));
+    psi_terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("verifier checks byte-sequence leaves and substituted roots");
+    let semantics = encode_module(&lowered.semantic_module).expect("semantic encode");
+    assert_eq!(
+        decode_module(&semantics),
+        Ok(lowered.semantic_module.clone())
+    );
+    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("proof encode");
+    assert_eq!(
+        decode_proof_bundle(&proof),
+        Ok(lowered.proof_bundle.clone())
+    );
+
+    let bounded = psi_checked_trees_to_terminal::lower_machine(&checked, "BoundedRoot::enter")
+        .expect("bounded byte-sequence aggregate equality lowers");
+    assert!(
+        bounded
+            .semantic_module
+            .structural_types
+            .iter()
+            .any(|declaration| {
+                matches!(&declaration.shape, StructuralTypeShape::Record { fields }
+                if fields.iter().any(|field| matches!(
+                    field.field_type,
+                    StructuralFieldType::ByteSequence(
+                        psi_terminal::ByteSequenceCarrier::BoundedOwned { capacity: 8 }
+                    )
+                )))
+            })
+    );
+    psi_terminal_verifier::verify_module(
+        &bounded.semantic_module,
+        &bounded.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("bounded carrier verifies");
+    let bounded_bytes = encode_module(&bounded.semantic_module).expect("bounded semantic encode");
+    assert_eq!(decode_module(&bounded_bytes), Ok(bounded.semantic_module));
+
+    let mut redirected = lowered.semantic_module;
+    let field = redirected
+        .structural_types
+        .iter_mut()
+        .find_map(|declaration| match &mut declaration.shape {
+            StructuralTypeShape::Record { fields } => fields
+                .iter_mut()
+                .find(|field| matches!(field.field_type, StructuralFieldType::ByteSequence(_))),
+            StructuralTypeShape::FixedArray { .. } => None,
+        })
+        .expect("borrowed byte-sequence field");
+    field.field_type = StructuralFieldType::Scalar(psi_core::ScalarType::Boolean);
+    assert!(matches!(
+        psi_terminal_verifier::validate_module(&redirected),
+        Err(psi_terminal_verifier::ModuleError::InvalidByteSequenceFieldTerm { .. })
     ));
 }
 

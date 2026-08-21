@@ -12,6 +12,19 @@ pub(super) fn terminal_structural_field_type(
     })
 }
 
+pub(super) fn terminal_byte_sequence_carrier(
+    carrier: psi_checked_trees::CheckedByteSequenceCarrier,
+) -> ByteSequenceCarrier {
+    match carrier {
+        psi_checked_trees::CheckedByteSequenceCarrier::BorrowedView => {
+            ByteSequenceCarrier::BorrowedView
+        }
+        psi_checked_trees::CheckedByteSequenceCarrier::BoundedOwned { capacity } => {
+            ByteSequenceCarrier::BoundedOwned { capacity }
+        }
+    }
+}
+
 pub(super) fn retain_additional_structural_types(
     module: &mut TerminalModule,
     plans: &[CheckedUnitStructuralTypePlan],
@@ -129,6 +142,11 @@ pub(super) fn retain_additional_structural_types(
                             CheckedUnitStructuralFieldType::Scalar(primitive) => {
                                 terminal_structural_field_type(*primitive)?
                             }
+                            CheckedUnitStructuralFieldType::ByteSequence(carrier) => {
+                                StructuralFieldType::ByteSequence(terminal_byte_sequence_carrier(
+                                    *carrier,
+                                ))
+                            }
                             CheckedUnitStructuralFieldType::Structural { type_identity } => {
                                 StructuralFieldType::Structural(lookup_type_id(
                                     &type_ids,
@@ -215,6 +233,11 @@ pub(super) fn lower_structural_type_plans(
                     let field_type = match &field.field_type {
                         CheckedUnitStructuralFieldType::Scalar(primitive) => {
                             terminal_structural_field_type(*primitive)?
+                        }
+                        CheckedUnitStructuralFieldType::ByteSequence(carrier) => {
+                            StructuralFieldType::ByteSequence(terminal_byte_sequence_carrier(
+                                *carrier,
+                            ))
                         }
                         CheckedUnitStructuralFieldType::Structural { type_identity } => {
                             StructuralFieldType::Structural(lookup_type_id(

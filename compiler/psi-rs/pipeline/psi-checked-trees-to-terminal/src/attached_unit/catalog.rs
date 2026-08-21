@@ -115,6 +115,9 @@ pub(super) fn lower_unit_structural_types(
                     CheckedUnitStructuralFieldType::Scalar(primitive) => {
                         terminal_structural_field_type(*primitive)?
                     }
+                    CheckedUnitStructuralFieldType::ByteSequence(carrier) => {
+                        StructuralFieldType::ByteSequence(terminal_byte_sequence_carrier(*carrier))
+                    }
                     CheckedUnitStructuralFieldType::Structural { type_identity } => {
                         StructuralFieldType::Structural(lookup_type_id(&type_ids, type_identity)?)
                     }

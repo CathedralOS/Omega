@@ -115,6 +115,7 @@ pub(crate) use terminal_unit::shared_convergence::shifts::exact_mixed_shift_chai
 pub(crate) use terminal_unit::shared_convergence::shifts::exact_shift_cast_shift_runtime_parameter_positions_for_test;
 #[cfg(test)]
 pub(crate) use terminal_unit::shared_convergence::shifts::exact_shift_left_chain_runtime_parameter_positions_for_test;
+pub(crate) use terminal_unit::types::byte_sequence_carrier;
 mod transfers;
 
 use borrow_lifetimes::{filter_expired_borrow_loans, filter_reassigned_borrow_loans};

@@ -475,6 +475,11 @@ pub enum ModuleError {
         path: Vec<CanonicalStructuralPathSegment>,
         format: psi_core::IeeeFloatFormat,
     },
+    InvalidByteSequenceFieldTerm {
+        machine: MachineId,
+        root: PlaceId,
+        path: Vec<CanonicalStructuralPathSegment>,
+    },
     UnsafeStructuralCrashExactDivisor {
         machine: MachineId,
         scalar_type: psi_core::IntegerType,

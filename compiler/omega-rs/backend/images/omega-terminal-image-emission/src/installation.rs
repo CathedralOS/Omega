@@ -32,7 +32,7 @@ use crate::{
     TerminalObjectPortEffect, can_emit_terminal_executable_image,
 };
 
-pub const TERMINAL_INSTALLATION_FORMAT_MARKER: u16 = 21;
+pub const TERMINAL_INSTALLATION_FORMAT_MARKER: u16 = 22;
 const MAGIC: &[u8; 8] = b"PSIINST\0";
 const IMAGE_DOMAIN: &[u8] = b"omega-terminal-installed-image\0";
 const RECORD_DOMAIN: &[u8] = b"omega-terminal-installation-record\0";
@@ -3547,6 +3547,19 @@ fn encode_structural_types(
                             });
                             bytes.push(0);
                         }
+                        psi_terminal::StructuralFieldType::ByteSequence(carrier) => {
+                            bytes.push(6);
+                            bytes.push(match carrier {
+                                psi_terminal::ByteSequenceCarrier::BorrowedView => 1,
+                                psi_terminal::ByteSequenceCarrier::BoundedOwned { .. } => 2,
+                            });
+                            bytes.push(0);
+                            if let psi_terminal::ByteSequenceCarrier::BoundedOwned { capacity } =
+                                carrier
+                            {
+                                push_u64(bytes, *capacity);
+                            }
+                        }
                         psi_terminal::StructuralFieldType::Structural(structural_type) => {
                             bytes.push(3);
                             bytes.extend_from_slice(&[0; 2]);
@@ -4016,6 +4029,24 @@ fn decode_structural_types(
                                 return Err(TerminalInstallationError::NonzeroReservedField);
                             }
                             psi_terminal::StructuralFieldType::IeeeFloat(format)
+                        }
+                        6 => {
+                            let carrier_tag = reader.u8()?;
+                            if reader.u8()? != 0 {
+                                return Err(TerminalInstallationError::NonzeroReservedField);
+                            }
+                            let carrier = match carrier_tag {
+                                1 => psi_terminal::ByteSequenceCarrier::BorrowedView,
+                                2 => psi_terminal::ByteSequenceCarrier::BoundedOwned {
+                                    capacity: reader.u64()?,
+                                },
+                                _ => {
+                                    return Err(
+                                        TerminalInstallationError::InvalidStructuralTypeShape,
+                                    );
+                                }
+                            };
+                            psi_terminal::StructuralFieldType::ByteSequence(carrier)
                         }
                         tag => {
                             return Err(TerminalInstallationError::InvalidStructuralFieldTypeTag(
@@ -4853,6 +4884,39 @@ mod resource_tests {
             decode_structural_types(&mut reader),
             Ok(declarations.clone())
         );
+        assert_eq!(reader.remaining(), 0);
+    }
+
+    #[test]
+    fn byte_sequence_carriers_round_trip_in_installations() {
+        let declarations = vec![psi_terminal::StructuralTypeDeclaration {
+            id: StructuralTypeId::new(1).expect("structural type"),
+            identity: "TextFields".into(),
+            shape: psi_terminal::StructuralTypeShape::Record {
+                fields: vec![
+                    psi_terminal::StructuralFieldDeclaration {
+                        id: StructuralFieldId::new(1).expect("borrowed field"),
+                        identity: "borrowed".into(),
+                        relevance: psi_terminal::BindingRelevance::Relevant,
+                        field_type: psi_terminal::StructuralFieldType::ByteSequence(
+                            psi_terminal::ByteSequenceCarrier::BorrowedView,
+                        ),
+                    },
+                    psi_terminal::StructuralFieldDeclaration {
+                        id: StructuralFieldId::new(2).expect("bounded field"),
+                        identity: "bounded".into(),
+                        relevance: psi_terminal::BindingRelevance::Relevant,
+                        field_type: psi_terminal::StructuralFieldType::ByteSequence(
+                            psi_terminal::ByteSequenceCarrier::BoundedOwned { capacity: 8 },
+                        ),
+                    },
+                ],
+            },
+        }];
+        let mut bytes = Vec::new();
+        encode_structural_types(&mut bytes, &declarations).expect("encode structural types");
+        let mut reader = Reader::new(&bytes);
+        assert_eq!(decode_structural_types(&mut reader), Ok(declarations));
         assert_eq!(reader.remaining(), 0);
     }
 }

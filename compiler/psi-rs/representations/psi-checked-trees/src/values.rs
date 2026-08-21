@@ -252,6 +252,11 @@ pub enum CheckedBooleanExpression {
         left: CheckedStructuralParameterField,
         right: CheckedStructuralParameterField,
     },
+    /// Content equality between exact byte-sequence structural leaves.
+    ByteSequenceEqual {
+        left: CheckedStructuralParameterField,
+        right: CheckedStructuralParameterField,
+    },
     And {
         left: Box<CheckedBooleanExpression>,
         right: Box<CheckedBooleanExpression>,

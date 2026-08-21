@@ -47,14 +47,14 @@
   (rheader_exact_one
     (read_terminal_header
       (B 80 (B 83 (B 73 (B 84 (B 69 (B 82 (B 77 (B 0
-        (B 15 (B 0 (B 20 (B 0 (B 9 BNil))))))))))))))
+        (B 16 (B 0 (B 20 (B 0 (B 9 BNil))))))))))))))
     9))
 
 (def terminal_header_negative_test () Int
   (if (rheader_bad
         (read_terminal_header
           (B 81 (B 83 (B 73 (B 84 (B 69 (B 82 (B 77 (B 0
-            (B 15 (B 0 (B 20 (B 0 BNil))))))))))))))
+            (B 16 (B 0 (B 20 (B 0 BNil))))))))))))))
     (if (rheader_bad
           (read_terminal_header
             (B 80 (B 83 (B 73 (B 84 (B 69 (B 82 (B 77 (B 0
@@ -62,11 +62,11 @@
       (if (rheader_bad
             (read_terminal_header
               (B 80 (B 83 (B 73 (B 84 (B 69 (B 82 (B 77 (B 0
-                (B 15 (B 0 (B 19 (B 0 BNil))))))))))))))
+                (B 16 (B 0 (B 19 (B 0 BNil))))))))))))))
         (if (rheader_bad
               (read_terminal_header
                 (B 80 (B 83 (B 73 (B 84 (B 69 (B 82 (B 77 (B 0
-                  (B 15 BNil)))))))))))
+                  (B 16 BNil)))))))))))
           1 0)
         0)
       0)

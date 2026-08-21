@@ -688,10 +688,19 @@ Remaining:
   than laundering either operator through mathematical `Equal`. Whole-record
   float `!=` canonically negates the already-sorted equality conjunction as
   `P -> Falsehood`; projected calls rebase every leaf below that implication.
-  Semantic codec v15, proof-bundle v9, and installation-record v21 retain the
-  term.
-  Continue with case-payload paths and aggregate equality over text, sums, and
-  erased fields. Trapping predicate
+  Aggregate equality now also retains byte-sequence fields as one content atom
+  over two nonempty canonical structural paths. The checked and Terminal
+  carriers distinguish borrowed views from bounded owned storage (including
+  the exact owned capacity) without admitting native pointer/descriptor layout
+  into semantic identity; equality itself is live length plus the exact live
+  byte prefix, never pointer, capacity, or unused-byte equality. Both roots are
+  independently resolved and rebased through structural calls. Borrowed
+  `&[u8] in Domain` and bounded `[u8; N] in Domain` fields participate in
+  synthesized `Equatable` record equality, while literals and direct text `!=`
+  remain outside this slice. Semantic codec v16, proof-bundle v10, and
+  installation-record v22 retain the new carrier and proposition.
+  Continue with case-payload paths and aggregate equality over sums and erased
+  fields. Trapping predicate
   arithmetic is design-blocked on owner Q4; imported crash capsules remain
   blocked on artifact identity and certificate binding.
 - **PROOF-CERTIFICATION-BRIDGE.** Emit kernel-checkable certificates from source
@@ -777,7 +786,7 @@ Remaining:
   trust graph binds the table to exactly those twelve denotation nodes and the
   dispatcher to every affected reducer.
   The bounded Gamma spike is complete. It canonical-decodes four exact current
-  `PSITERM\0` v15 fixtures and audits a 54-row scalar ledger covering constants,
+  `PSITERM\0` v16 fixtures and audits a 54-row scalar ledger covering constants,
   Boolean not/equality, integer equality/order, bitwise operations, strict
   i8-to-i16 widening, partial i16-to-i8 exact cast, exact/wrapping shifts with
   independently typed counts, and the complete

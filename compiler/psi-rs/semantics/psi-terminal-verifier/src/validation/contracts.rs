@@ -36,7 +36,8 @@ pub(super) fn validate_contract_scope(
         Proposition::Truth
         | Proposition::Falsehood
         | Proposition::Atom(_)
-        | Proposition::IeeeFloatComparison { .. } => Ok(()),
+        | Proposition::IeeeFloatComparison { .. }
+        | Proposition::ByteSequenceEqual { .. } => Ok(()),
         Proposition::Equal(left, right)
         | Proposition::LessThan(left, right)
         | Proposition::LessOrEqual(left, right) => {

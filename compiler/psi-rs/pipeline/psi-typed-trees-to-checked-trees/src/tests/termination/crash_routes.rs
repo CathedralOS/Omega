@@ -351,6 +351,87 @@ fn ieee_float_fields_retain_atomic_structural_equality() {
 }
 
 #[test]
+fn byte_sequence_fields_retain_atomic_content_equality() {
+    let source = r#"
+    trait Equatable {
+        machine equals(&self, rhs: &Self) -> bool;
+    }
+
+    domain [u8]::Utf8
+    requires
+        valid_utf8(self);
+    domain [u8; 8]::Utf8
+    requires
+        valid_utf8(self);
+
+    data Borrowed { active: bool; text: &[u8] in Utf8; }
+    BorrowedEquatable: Borrowed satisfies Equatable;
+    data Bounded { active: bool; text: [u8; 8] in Utf8; }
+    BoundedEquatable: Bounded satisfies Equatable;
+
+    machine borrowed(left: Borrowed, right: Borrowed)
+    crashes Abort
+        left == right
+    {}
+
+    machine bounded(left: Bounded, right: Bounded)
+    crashes Abort
+        left == right
+    {}
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let checked = lower_typed_trees(typed).expect("checked lowering should succeed");
+
+    for name in ["borrowed", "bounded"] {
+        let contract = checked
+            .facts
+            .contract_plans
+            .for_machine(symbol_of_checked(&checked, name))
+            .expect("contract plan");
+        let [bucket] = contract.crash.published() else {
+            panic!("{name} should publish one crash bucket")
+        };
+        let [psi_checked_trees::CrashRouteGuard::Predicate(predicate)] =
+            bucket.alternative_guards()
+        else {
+            panic!("{name} should publish one predicate")
+        };
+        let psi_checked_trees::CheckedBooleanExpression::And { left, right } = predicate
+            .scalar_expression()
+            .expect("whole-record equality remains a checked expression")
+        else {
+            panic!("{name} should compare its Boolean and byte-sequence fields")
+        };
+        assert!(
+            matches!(
+                left.as_ref(),
+                psi_checked_trees::CheckedBooleanExpression::ByteSequenceEqual { .. }
+            ) || matches!(
+                right.as_ref(),
+                psi_checked_trees::CheckedBooleanExpression::ByteSequenceEqual { .. }
+            ),
+            "{name} should retain byte content equality as one atomic leaf"
+        );
+        assert!(
+            matches!(
+                left.as_ref(),
+                psi_checked_trees::CheckedBooleanExpression::Equal { .. }
+            ) || matches!(
+                right.as_ref(),
+                psi_checked_trees::CheckedBooleanExpression::Equal { .. }
+            ),
+            "{name} should retain its scalar sibling independently"
+        );
+    }
+}
+
+#[test]
 fn checked_crash_sites_are_body_evidence_not_contract_identity() {
     let source = r#"
     machine clear_body() -> i32
