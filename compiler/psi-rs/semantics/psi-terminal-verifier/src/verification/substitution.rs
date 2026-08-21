@@ -27,11 +27,13 @@ pub(crate) fn substitute_proposition_values(
             substitute_scalar_term_values(left, substitutions),
             substitute_scalar_term_values(right, substitutions),
         ),
-        Proposition::IeeeFloatEqual {
+        Proposition::IeeeFloatComparison {
+            kind,
             format,
             left,
             right,
-        } => Proposition::IeeeFloatEqual {
+        } => Proposition::IeeeFloatComparison {
+            kind: *kind,
             format: *format,
             left: left.clone(),
             right: right.clone(),
@@ -92,7 +94,8 @@ pub(crate) fn substitute_proposition_structural_places(
             substitute_scalar_term_places(left, substitutions),
             substitute_scalar_term_places(right, substitutions),
         ),
-        Proposition::IeeeFloatEqual {
+        Proposition::IeeeFloatComparison {
+            kind,
             format,
             left,
             right,
@@ -103,7 +106,8 @@ pub(crate) fn substitute_proposition_structural_places(
                     .map(|(root, prefix)| field.rebase(*root, prefix))
                     .unwrap_or_else(|| field.clone())
             };
-            Proposition::IeeeFloatEqual {
+            Proposition::IeeeFloatComparison {
+                kind: *kind,
                 format: *format,
                 left: rebase(left),
                 right: rebase(right),

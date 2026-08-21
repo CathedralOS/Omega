@@ -578,10 +578,11 @@ fn validate_boolean_field_terms(
             validate_term(module, machine, left, runtime_requirements)?;
             validate_term(module, machine, right, runtime_requirements)?;
         }
-        Proposition::IeeeFloatEqual {
+        Proposition::IeeeFloatComparison {
             format,
             left,
             right,
+            ..
         } => {
             for field in [left, right] {
                 if !matches!(

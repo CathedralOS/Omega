@@ -704,7 +704,7 @@ fn lower_checked_boolean_expression(
                 right: Box::new(lower_checked_scalar_expression(right)?),
             }
         }
-        CheckedBooleanExpression::IeeeFloatEqual { .. } => {
+        CheckedBooleanExpression::IeeeFloatComparison { .. } => {
             return unsupported("IEEE structural equality is contract-only terminal vocabulary");
         }
         CheckedBooleanExpression::And { left, right } => LoweredBooleanReturnExpression::And {

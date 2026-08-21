@@ -947,7 +947,7 @@ pub(super) fn lower_structural_crash_route_buckets(
                 }
                 .map_err(LoweringError::InvalidCrashPredicate)
             }
-            CheckedBooleanExpression::IeeeFloatEqual { .. } => {
+            CheckedBooleanExpression::IeeeFloatComparison { .. } => {
                 unsupported("IEEE equality lowers as an atomic proposition")
             }
             CheckedBooleanExpression::Parameter { .. }
@@ -965,7 +965,8 @@ pub(super) fn lower_structural_crash_route_buckets(
         structural_types: &[StructuralTypeDeclaration],
         runtime_requirements: &[Proposition],
     ) -> Result<Proposition, LoweringError> {
-        if let CheckedBooleanExpression::IeeeFloatEqual {
+        if let CheckedBooleanExpression::IeeeFloatComparison {
+            kind,
             primitive_type,
             left,
             right,
@@ -981,7 +982,15 @@ pub(super) fn lower_structural_crash_route_buckets(
             if left > right {
                 std::mem::swap(&mut left, &mut right);
             }
-            return Ok(Proposition::IeeeFloatEqual {
+            return Ok(Proposition::IeeeFloatComparison {
+                kind: match kind {
+                    psi_checked_trees::CheckedIeeeFloatComparisonKind::Equal => {
+                        psi_core::IeeeFloatComparisonKind::Equal
+                    }
+                    psi_checked_trees::CheckedIeeeFloatComparisonKind::NotEqual => {
+                        psi_core::IeeeFloatComparisonKind::NotEqual
+                    }
+                },
                 format,
                 left,
                 right,
@@ -1173,7 +1182,7 @@ pub(super) fn substitute_structural_crash_route_roots(
                     substitute_proposition(proposition, substitutions)?;
                 }
             }
-            Proposition::IeeeFloatEqual { left, right, .. } => {
+            Proposition::IeeeFloatComparison { left, right, .. } => {
                 for field in [left, right] {
                     if let Some((root, prefix)) = substitutions.get(&field.root()) {
                         *field = field.rebase(*root, prefix);
@@ -1269,7 +1278,7 @@ pub(super) fn substitute_structural_requirement_roots(
             substitute_term(left, substitutions);
             substitute_term(right, substitutions);
         }
-        Proposition::IeeeFloatEqual { left, right, .. } => {
+        Proposition::IeeeFloatComparison { left, right, .. } => {
             for field in [left, right] {
                 if let Some((root, prefix)) = substitutions.get(&field.root()) {
                     *field = field.rebase(*root, prefix);
@@ -1497,7 +1506,7 @@ fn checked_boolean_scalar_term(
             }
             .map_err(LoweringError::InvalidCrashPredicate)?
         }
-        CheckedBooleanExpression::IeeeFloatEqual { .. } => {
+        CheckedBooleanExpression::IeeeFloatComparison { .. } => {
             return unsupported("IEEE structural equality requires structural signature lowering");
         }
         CheckedBooleanExpression::And { .. } | CheckedBooleanExpression::Or { .. } => {

@@ -1,4 +1,4 @@
-; Q7 spike decoder for the closed scalar/logic/arithmetic/control/call PSITERM v14 slice.
+; Q7 spike decoder for the closed scalar/logic/arithmetic/control/call PSITERM v15 slice.
 ; Fixed-width little-endian fields are consumed directly from Bytes.  The spike
 ; retains only small nonzero u64 identities (upper half zero), which is an
 ; explicit measured limitation of this fixture vocabulary.  The shared byte

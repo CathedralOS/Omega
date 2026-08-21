@@ -1,8 +1,8 @@
 use psi_checked_trees::{
-    CheckedBooleanExpression, CheckedIntegerBinaryKind, CheckedIntegerComparisonKind,
-    CheckedIntegerRange, CheckedLocatedScalarExpression, CheckedOperatorFacts,
-    CheckedOperatorResolutionStatus, CheckedScalarExpression, CheckedScalarExpressionPlans,
-    CheckedScalarExpressionRole, CheckedStructuralParameterField,
+    CheckedBooleanExpression, CheckedIeeeFloatComparisonKind, CheckedIntegerBinaryKind,
+    CheckedIntegerComparisonKind, CheckedIntegerRange, CheckedLocatedScalarExpression,
+    CheckedOperatorFacts, CheckedOperatorResolutionStatus, CheckedScalarExpression,
+    CheckedScalarExpressionPlans, CheckedScalarExpressionRole, CheckedStructuralParameterField,
 };
 use psi_numerics::{
     arithmetic::ArithmeticDomain,
@@ -547,7 +547,8 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
                             if left > right {
                                 std::mem::swap(&mut left, &mut right);
                             }
-                            output.push(CheckedBooleanExpression::IeeeFloatEqual {
+                            output.push(CheckedBooleanExpression::IeeeFloatComparison {
+                                kind: CheckedIeeeFloatComparisonKind::Equal,
                                 primitive_type,
                                 left,
                                 right,
@@ -917,9 +918,11 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
                         | BinaryOperator::GreaterOrEqual
                 ) && operator_is_builtin(operators, expression) =>
             {
-                if binary.operator == BinaryOperator::Equal
-                    && let Some((primitive_type, left)) =
-                        lower_structural_float_field(program, parameters, binary.left)
+                if matches!(
+                    binary.operator,
+                    BinaryOperator::Equal | BinaryOperator::NotEqual
+                ) && let Some((primitive_type, left)) =
+                    lower_structural_float_field(program, parameters, binary.left)
                     && let Some((right_type, right)) =
                         lower_structural_float_field(program, parameters, binary.right)
                     && primitive_type == right_type
@@ -928,12 +931,17 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
                     if left > right {
                         std::mem::swap(&mut left, &mut right);
                     }
-                    let equality = CheckedBooleanExpression::IeeeFloatEqual {
+                    let comparison = CheckedBooleanExpression::IeeeFloatComparison {
+                        kind: if binary.operator == BinaryOperator::Equal {
+                            CheckedIeeeFloatComparisonKind::Equal
+                        } else {
+                            CheckedIeeeFloatComparisonKind::NotEqual
+                        },
                         primitive_type,
                         left,
                         right,
                     };
-                    return Some(equality);
+                    return Some(comparison);
                 }
                 let integer_operands = (|| {
                     let left = lower_structural_integer_expression(
@@ -1867,7 +1875,7 @@ fn contains_short_circuit(expression: &CheckedBooleanExpression) -> bool {
         | CheckedBooleanExpression::Local { .. }
         | CheckedBooleanExpression::StructuralParameterField { .. }
         | CheckedBooleanExpression::IntegerComparison { .. }
-        | CheckedBooleanExpression::IeeeFloatEqual { .. } => false,
+        | CheckedBooleanExpression::IeeeFloatComparison { .. } => false,
         CheckedBooleanExpression::Not(operand) => contains_short_circuit(operand),
         CheckedBooleanExpression::Equal { left, right } => {
             contains_short_circuit(left) || contains_short_circuit(right)

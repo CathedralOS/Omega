@@ -940,7 +940,7 @@
 (def spike_machine_shape_valid
   ((vocabulary Int) (entry Int) (caller Machine) (callee Machine)
    (entry_block Block) (callee_block Block)) Int
-  (if (eq vocabulary 19)
+  (if (eq vocabulary 20)
     (if (eq entry (machine_id caller))
       (if (lt (machine_id caller) (machine_id callee))
         (if (eq (machine_entry caller) (block_id_of entry_block))

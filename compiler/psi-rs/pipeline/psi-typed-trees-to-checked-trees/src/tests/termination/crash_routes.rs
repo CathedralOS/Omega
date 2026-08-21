@@ -279,6 +279,11 @@ fn ieee_float_fields_retain_atomic_structural_equality() {
     crashes Abort
         left.wide == right.wide
     {}
+
+    machine narrow_not_equal(left: Samples, right: Samples)
+    crashes Abort
+        left.narrow != right.narrow
+    {}
     "#;
 
     let tokens = Lexer::new(source)
@@ -305,9 +310,9 @@ fn ieee_float_fields_retain_atomic_structural_equality() {
         predicate.scalar_expression().cloned().expect("scalar term")
     };
     let format = |expression: &psi_checked_trees::CheckedBooleanExpression| match expression {
-        psi_checked_trees::CheckedBooleanExpression::IeeeFloatEqual { primitive_type, .. } => {
-            Some(*primitive_type)
-        }
+        psi_checked_trees::CheckedBooleanExpression::IeeeFloatComparison {
+            primitive_type, ..
+        } => Some(*primitive_type),
         _ => None,
     };
 
@@ -319,6 +324,14 @@ fn ieee_float_fields_retain_atomic_structural_equality() {
         format(&scalar("wide")),
         Some(psi_typed_trees::types::PrimitiveType::F64)
     );
+    assert!(matches!(
+        scalar("narrow_not_equal"),
+        psi_checked_trees::CheckedBooleanExpression::IeeeFloatComparison {
+            kind: psi_checked_trees::CheckedIeeeFloatComparisonKind::NotEqual,
+            primitive_type: psi_typed_trees::types::PrimitiveType::F32,
+            ..
+        }
+    ));
     let psi_checked_trees::CheckedBooleanExpression::And { left, right } = scalar("whole") else {
         panic!("two-field float record equality is one conjunction")
     };

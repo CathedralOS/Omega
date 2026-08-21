@@ -844,6 +844,13 @@ pub enum IeeeFloatFormat {
     Binary64,
 }
 
+/// Source IEEE comparison retained without mathematical-equality laws.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum IeeeFloatComparisonKind {
+    Equal,
+    NotEqual,
+}
+
 /// One nonempty canonical path to a relevant IEEE floating-point field below
 /// a Terminal structural root.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -2312,10 +2319,11 @@ pub enum Proposition {
     Equal(ScalarTerm, ScalarTerm),
     LessThan(ScalarTerm, ScalarTerm),
     LessOrEqual(ScalarTerm, ScalarTerm),
-    /// IEEE `==` over two exact structural leaves. This remains atomic rather
-    /// than using mathematical equality: NaNs are non-reflexive while signed
-    /// zeroes compare equal under the source operator.
-    IeeeFloatEqual {
+    /// IEEE `==` or `!=` over two exact structural leaves. This remains atomic
+    /// rather than using mathematical equality: NaNs are non-reflexive while
+    /// signed zeroes compare equal under `==` and unequal under `!=`.
+    IeeeFloatComparison {
+        kind: IeeeFloatComparisonKind,
         format: IeeeFloatFormat,
         left: IeeeFloatStructuralField,
         right: IeeeFloatStructuralField,
@@ -2341,12 +2349,12 @@ impl Proposition {
             Self::LessThan(left, right) | Self::LessOrEqual(left, right) => {
                 require_same_integer_type(left, right)
             }
-            Self::IeeeFloatEqual { left, right, .. } => {
+            Self::IeeeFloatComparison { left, right, .. } => {
                 if left.path.is_empty() || right.path.is_empty() {
                     return Err(PropositionError::EmptyIeeeFloatStructuralFieldPath);
                 }
                 if left > right {
-                    return Err(PropositionError::NonCanonicalIeeeFloatEqualityOperands);
+                    return Err(PropositionError::NonCanonicalIeeeFloatComparisonOperands);
                 }
                 Ok(())
             }
@@ -2447,7 +2455,7 @@ impl PropositionContext {
                 self.validate_term(left)?;
                 self.validate_term(right)
             }
-            Proposition::IeeeFloatEqual { left, right, .. } => {
+            Proposition::IeeeFloatComparison { left, right, .. } => {
                 for field in [left, right] {
                     if !self.structural_places.contains_key(&field.root) {
                         return Err(PropositionError::UnknownStructuralPlace(field.root));
@@ -2703,7 +2711,7 @@ pub enum PropositionError {
     NonCanonicalConjunctionArity(usize),
     NonCanonicalDisjunctionArity(usize),
     EmptyIeeeFloatStructuralFieldPath,
-    NonCanonicalIeeeFloatEqualityOperands,
+    NonCanonicalIeeeFloatComparisonOperands,
     EmptyContentAlgebraParameter,
     EmptyContentCaseName,
     EmptyContentFieldName,

@@ -35,10 +35,10 @@ pub use trust_graph::{
 use psi_core::{
     CanonicalStructuralPathSegment, ClaimId, ContentAlgebra, ContentAlgebraKind,
     ContentConservation, ContentDomainId, ContentPlaceSegment, ContentPlaceVersion,
-    ContentProjectionIdentity, ContentStructuralPlace, ContentTerm, IeeeFloatFormat,
-    IeeeFloatStructuralField, IntegerCarrier, IntegerSign, IntegerType, IntegerValue, ObligationId,
-    Proposition, PropositionError, PropositionId, PsiSemanticId, ScalarTerm, ScalarType, ServiceId,
-    StructuralPlaceKind, StructuralTypeId,
+    ContentProjectionIdentity, ContentStructuralPlace, ContentTerm, IeeeFloatComparisonKind,
+    IeeeFloatFormat, IeeeFloatStructuralField, IntegerCarrier, IntegerSign, IntegerType,
+    IntegerValue, ObligationId, Proposition, PropositionError, PropositionId, PsiSemanticId,
+    ScalarTerm, ScalarType, ServiceId, StructuralPlaceKind, StructuralTypeId,
 };
 use psi_terminal::{
     BindingRelevance, Block, BoundaryMachineDeclaration, ClaimContentProjection, ClaimTransfer,
@@ -66,7 +66,7 @@ use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
 
 const MAGIC: &[u8; 8] = b"PSITERM\0";
-const FORMAT_MARKER: u16 = 14;
+const FORMAT_MARKER: u16 = 15;
 const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 const MAX_PROPOSITION_DEPTH: usize = 256;
 const MAX_SCALAR_TERM_DEPTH: usize = 256;
@@ -1237,7 +1237,7 @@ fn validate_canonical_proposition(
             validate_scalar_term_depth(left)?;
             validate_scalar_term_depth(right)
         }
-        Proposition::IeeeFloatEqual { left, right, .. } => {
+        Proposition::IeeeFloatComparison { left, right, .. } => {
             if left > right {
                 return Err(CodecError::NonCanonicalOrder("IEEE equality operands"));
             }
@@ -1561,6 +1561,23 @@ fn encode_ieee_float_format(writer: &mut Writer, format: IeeeFloatFormat) {
         IeeeFloatFormat::Binary32 => 1,
         IeeeFloatFormat::Binary64 => 2,
     });
+}
+
+fn encode_ieee_float_comparison_kind(writer: &mut Writer, kind: IeeeFloatComparisonKind) {
+    writer.u8(match kind {
+        IeeeFloatComparisonKind::Equal => 1,
+        IeeeFloatComparisonKind::NotEqual => 2,
+    });
+}
+
+fn decode_ieee_float_comparison_kind(
+    reader: &mut Reader<'_>,
+) -> Result<IeeeFloatComparisonKind, CodecError> {
+    match reader.u8()? {
+        1 => Ok(IeeeFloatComparisonKind::Equal),
+        2 => Ok(IeeeFloatComparisonKind::NotEqual),
+        tag => Err(CodecError::InvalidTag("IeeeFloatComparisonKind", tag)),
+    }
 }
 
 fn decode_ieee_float_format(reader: &mut Reader<'_>) -> Result<IeeeFloatFormat, CodecError> {
@@ -2695,12 +2712,14 @@ fn encode_proposition(
                 encode_proposition(writer, disjunct, depth + 1)?;
             }
         }
-        Proposition::IeeeFloatEqual {
+        Proposition::IeeeFloatComparison {
+            kind,
             format,
             left,
             right,
         } => {
             writer.u8(11);
+            encode_ieee_float_comparison_kind(writer, *kind);
             encode_ieee_float_format(writer, *format);
             encode_ieee_float_field(writer, left)?;
             encode_ieee_float_field(writer, right)?;
@@ -4290,7 +4309,8 @@ fn decode_proposition(reader: &mut Reader<'_>, depth: usize) -> Result<Propositi
             }
             Proposition::Disjunction(disjuncts)
         }
-        11 => Proposition::IeeeFloatEqual {
+        11 => Proposition::IeeeFloatComparison {
+            kind: decode_ieee_float_comparison_kind(reader)?,
             format: decode_ieee_float_format(reader)?,
             left: decode_ieee_float_field(reader)?,
             right: decode_ieee_float_field(reader)?,
