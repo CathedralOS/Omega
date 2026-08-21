@@ -1,4 +1,4 @@
-use omega_control_flow::StateKey;
+use omega_control_flow::MachineFunctionIdentity;
 use psi_arena::HandleSpan;
 use std::sync::Arc;
 
@@ -7,7 +7,7 @@ use super::TargetOperation;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TargetOperationFunction {
     pub symbol: Arc<str>,
-    pub source_key: StateKey,
+    pub identity: MachineFunctionIdentity,
     pub instructions: HandleSpan<TargetOperation>,
 }
 
@@ -17,7 +17,7 @@ impl Default for TargetOperationFunction {
     fn default() -> Self {
         Self {
             symbol: Arc::from(""),
-            source_key: StateKey::default(),
+            identity: MachineFunctionIdentity::default(),
             instructions: HandleSpan::empty(),
         }
     }

@@ -1,4 +1,4 @@
-use omega_control_flow::StateKey;
+use omega_control_flow::MachineFunctionIdentity;
 use psi_arena::HandleSpan;
 use std::sync::Arc;
 
@@ -7,7 +7,7 @@ use crate::EncodedMachineInstruction;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EncodedMachineFunction {
     pub symbol: Arc<str>,
-    pub source_key: StateKey,
+    pub identity: MachineFunctionIdentity,
     pub byte_offset: usize,
     pub byte_count: usize,
     /// Exact contiguous encoded-instruction rows owned by this function.
@@ -20,7 +20,7 @@ impl Default for EncodedMachineFunction {
     fn default() -> Self {
         Self {
             symbol: Arc::from(""),
-            source_key: StateKey::default(),
+            identity: MachineFunctionIdentity::default(),
             byte_offset: 0,
             byte_count: 0,
             instructions: HandleSpan::empty(),

@@ -1,17 +1,56 @@
 use crate::build_target_operation_plan;
 use omega_abstract_operations::{
     AbstractBoundaryEdge, AbstractBoundaryLink, AbstractBoundaryPolicyVerdict,
-    AbstractOperationPlan, AbstractPermissionEvent, AbstractSourceBoundaryEdge, AbstractValueFact,
-    AbstractValueOrigin, AbstractValueStatementRole, BoundaryFootprintFragment,
-    BoundaryFootprintFragmentOrigin,
+    AbstractFunctionPlan, AbstractOperationPlan, AbstractPermissionEvent,
+    AbstractSourceBoundaryEdge, AbstractValueFact, AbstractValueOrigin, AbstractValueStatementRole,
+    BoundaryFootprintFragment, BoundaryFootprintFragmentOrigin,
 };
 use omega_calling_conventions::{
     HostCapability, HostOperation, HostOperationKey, MachineRegister, MachineStateSet, RegisterSet,
     StateFootprintEvidence, build_host_abi_plan,
 };
+use omega_control_flow::{MachineFunctionIdentity, StateKey};
 use omega_platform_interface::HostCallPlan;
 use omega_target::NativeTarget;
 use psi_symbols::SymbolHandle;
+use std::sync::Arc;
+
+#[test]
+fn preserves_generated_function_identity_in_target_plan() {
+    let continuation = StateKey {
+        machine: SymbolHandle::from_arena_index(1),
+        state: SymbolHandle::from_arena_index(2),
+        segment_index: 0,
+    };
+    let identity = MachineFunctionIdentity::program_storage_entry_wrapper(continuation)
+        .expect("valid continuation should admit wrapper identity");
+    let mut abstract_operations = AbstractOperationPlan::default();
+    abstract_operations
+        .code
+        .functions
+        .insert(AbstractFunctionPlan {
+            symbol: Arc::from("__omega_program_storage_entry"),
+            identity,
+            instructions: Default::default(),
+        });
+
+    let target_operations = build_target_operation_plan(
+        NativeTarget::host(),
+        &build_host_abi_plan(NativeTarget::host()),
+        &HostCallPlan::default(),
+        &abstract_operations,
+    );
+
+    let [function] = target_operations.code.functions.storage_slice() else {
+        panic!("one abstract function should produce one target function")
+    };
+    assert_eq!(function.identity, identity);
+    assert_eq!(function.identity.source_key(), None);
+    assert_eq!(
+        function.identity.program_storage_entry_continuation(),
+        Some(continuation)
+    );
+}
 
 #[test]
 fn copies_abstract_value_summary_to_target_plan() {

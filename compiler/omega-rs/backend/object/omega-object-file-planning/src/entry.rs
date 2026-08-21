@@ -24,21 +24,41 @@ pub(crate) fn entry_machine_layout<'plan>(
 pub(crate) fn entry_function<'plan>(
     input: &ObjectPlanningInput<'plan>,
 ) -> Result<&'plan EncodedMachineFunction, Diagnostic> {
-    input
+    let mut matches = input
         .encoded_machine
         .code
         .functions
         .iter()
-        .find(|(_, function)| {
-            function.source_key == input.entry_state_key
-                && function.symbol.as_ref() == entry_symbol_name(input.target)
-        })
-        .map(|(_, function)| function)
-        .ok_or_else(|| {
-            Diagnostic::error(format!(
-                "missing encoded entry function `{}` for state key {:?}",
+        .filter(|(_, function)| function.symbol.as_ref() == entry_symbol_name(input.target));
+    let Some((_, entry)) = matches.next() else {
+        return Err(Diagnostic::error(format!(
+            "missing encoded entry function `{}` for identity {:?}",
+            entry_symbol_name(input.target),
+            input.entry_function_identity,
+        )));
+    };
+    if matches.next().is_some() {
+        Err(Diagnostic::error(format!(
+            "encoded entry function `{}` is ambiguous for identity {:?}",
+            entry_symbol_name(input.target),
+            input.entry_function_identity,
+        )))
+    } else {
+        if entry.identity != input.entry_function_identity {
+            return Err(Diagnostic::error(format!(
+                "encoded entry function `{}` has identity {:?}, not selected identity {:?}",
                 entry_symbol_name(input.target),
-                input.entry_state_key,
-            ))
-        })
+                entry.identity,
+                input.entry_function_identity,
+            )));
+        }
+        if !entry.identity.is_valid() {
+            return Err(Diagnostic::error(format!(
+                "encoded entry function `{}` has invalid identity {:?}",
+                entry_symbol_name(input.target),
+                entry.identity,
+            )));
+        }
+        Ok(entry)
+    }
 }

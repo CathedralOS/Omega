@@ -7,7 +7,7 @@ pub(crate) fn assign_function(
 ) -> AssignedTargetOperationFunction {
     AssignedTargetOperationFunction {
         symbol: std::sync::Arc::clone(&function.symbol),
-        source_key: function.source_key,
+        identity: function.identity,
         instructions: assigned_operation_span_from_target(function.instructions),
     }
 }

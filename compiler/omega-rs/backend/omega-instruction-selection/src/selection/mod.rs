@@ -101,7 +101,7 @@ pub fn build_instruction_plan(input: &InstructionSelectionInput<'_>) -> Abstract
         .functions
         .insert(AbstractFunctionPlan {
             symbol: input.entry_symbol.clone(),
-            source_key: input.entry_key,
+            identity: omega_control_flow::MachineFunctionIdentity::source(input.entry_key),
             instructions,
         });
     instruction_plan.permission_realization_candidates = permission_realization_candidates;

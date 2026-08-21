@@ -3,8 +3,43 @@ use omega_abstract_operations::{
     AbstractBoundaryPolicyCheck, AbstractBoundaryPolicyVerdict, AbstractPermissionEvent,
     AbstractValueFact, AbstractValueOrigin, AbstractValueStatementRole,
 };
+use omega_control_flow::{MachineFunctionIdentity, StateKey};
+use omega_target_operations::TargetOperationFunction;
 use omega_target_operations::TargetOperationPlan;
 use psi_symbols::SymbolHandle;
+use std::sync::Arc;
+
+#[test]
+fn preserves_generated_function_identity_in_assigned_plan() {
+    let continuation = StateKey {
+        machine: SymbolHandle::from_arena_index(1),
+        state: SymbolHandle::from_arena_index(2),
+        segment_index: 0,
+    };
+    let identity = MachineFunctionIdentity::program_storage_entry_wrapper(continuation)
+        .expect("valid continuation should admit wrapper identity");
+    let mut target_operations = TargetOperationPlan::default();
+    target_operations
+        .code
+        .functions
+        .insert(TargetOperationFunction {
+            symbol: Arc::from("__omega_program_storage_entry"),
+            identity,
+            instructions: Default::default(),
+        });
+
+    let assigned_operations = build_assigned_target_operations(&target_operations);
+
+    let [function] = assigned_operations.code.functions.storage_slice() else {
+        panic!("one target function should produce one assigned function")
+    };
+    assert_eq!(function.identity, identity);
+    assert_eq!(function.identity.source_key(), None);
+    assert_eq!(
+        function.identity.program_storage_entry_continuation(),
+        Some(continuation)
+    );
+}
 
 #[test]
 fn copies_target_value_summary_to_assigned_plan() {

@@ -34,6 +34,7 @@ mod tests {
     use omega_calling_conventions::{
         MachineRegister, MachineStateSet, RegisterSet, StateFootprintEvidence,
     };
+    use omega_control_flow::{MachineFunctionIdentity, StateKey};
     use omega_machine_instructions::{
         AbstractBoundaryPolicyCheck, AbstractBoundaryPolicyVerdict, BoundaryFootprintFragment,
         BoundaryFootprintFragmentOrigin, MachineInstruction, MachineInstructionFunction,
@@ -41,10 +42,18 @@ mod tests {
     };
     use omega_target::NativeTarget;
     use psi_arena::HandleSpan;
+    use psi_symbols::SymbolHandle;
 
     #[test]
     fn copies_machine_semantic_summaries_to_encoded_plan() {
         let target = NativeTarget::host();
+        let continuation = StateKey {
+            machine: SymbolHandle::from_arena_index(1),
+            state: SymbolHandle::from_arena_index(2),
+            segment_index: 0,
+        };
+        let wrapper_identity = MachineFunctionIdentity::program_storage_entry_wrapper(continuation)
+            .expect("valid continuation should admit wrapper identity");
         let mut assigned_target_operations = AssignedTargetOperationPlan::default();
         assigned_target_operations
             .code
@@ -75,8 +84,16 @@ mod tests {
             .functions
             .insert(MachineInstructionFunction {
                 symbol: std::sync::Arc::from("test_entry"),
-                source_key: Default::default(),
+                identity: MachineFunctionIdentity::source(continuation),
                 instructions,
+            });
+        machine_instructions
+            .code
+            .functions
+            .insert(MachineInstructionFunction {
+                symbol: std::sync::Arc::from("__omega_program_storage_entry"),
+                identity: wrapper_identity,
+                instructions: HandleSpan::empty(),
             });
         machine_instructions
             .semantics
@@ -143,10 +160,29 @@ mod tests {
             .code
             .functions
             .iter()
-            .next()
+            .find(|(_, function)| function.symbol.as_ref() == "test_entry")
             .map(|(_, function)| function)
             .expect("encoded function");
         assert_eq!(encoded_function.symbol.as_ref(), "test_entry");
+        assert_eq!(
+            encoded_function.identity,
+            MachineFunctionIdentity::source(continuation)
+        );
+        let encoded_wrapper = encoded
+            .code
+            .functions
+            .iter()
+            .find(|(_, function)| function.symbol.as_ref() == "__omega_program_storage_entry")
+            .map(|(_, function)| function)
+            .expect("synthetic wrapper identity carrier");
+        assert_eq!(encoded_wrapper.identity, wrapper_identity);
+        assert_eq!(encoded_wrapper.byte_count, 0);
+        assert_eq!(
+            encoded_wrapper
+                .identity
+                .program_storage_entry_continuation(),
+            Some(continuation)
+        );
         assert_eq!(encoded_function.instructions.len(), 2);
         assert_eq!(
             encoded

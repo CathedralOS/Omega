@@ -6,18 +6,26 @@ use omega_abstract_operations::{
 use omega_assigned_target_operations::{
     AssignedTargetOperationFunction, AssignedTargetOperationPlan,
 };
+use omega_control_flow::{MachineFunctionIdentity, StateKey};
 use psi_symbols::SymbolHandle;
 use std::sync::Arc;
 
 #[test]
 fn preserves_private_function_identity_through_machine_lowering() {
     let mut assigned = AssignedTargetOperationPlan::default();
+    let continuation = StateKey {
+        machine: SymbolHandle::from_arena_index(1),
+        state: SymbolHandle::from_arena_index(2),
+        segment_index: 0,
+    };
+    let identity = MachineFunctionIdentity::program_storage_entry_wrapper(continuation)
+        .expect("valid continuation should admit wrapper identity");
     assigned
         .code
         .functions
         .insert(AssignedTargetOperationFunction {
             symbol: Arc::from("__omega_callback_test"),
-            source_key: Default::default(),
+            identity,
             instructions: Default::default(),
         });
 
@@ -26,6 +34,12 @@ fn preserves_private_function_identity_through_machine_lowering() {
         panic!("one assigned function should produce one machine function")
     };
     assert_eq!(function.symbol.as_ref(), "__omega_callback_test");
+    assert_eq!(function.identity, identity);
+    assert_eq!(function.identity.source_key(), None);
+    assert_eq!(
+        function.identity.program_storage_entry_continuation(),
+        Some(continuation)
+    );
 }
 
 #[test]

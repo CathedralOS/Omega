@@ -590,12 +590,12 @@ fn retain_callback_thunk_emission_blockers(
             continue;
         }
         let encoded = encoded_functions[0];
-        if encoded.source_key != thunk.entry_key {
+        if encoded.identity.source_key() != Some(thunk.entry_key) {
             emission.blockers.insert(omega_artifacts::emission_blocker(
                 "callback thunk emission",
                 &format!(
                     "planned private callback `{}` encoded function targets {:?}, not its selected entry {:?}",
-                    thunk.private_symbol, encoded.source_key, thunk.entry_key
+                    thunk.private_symbol, encoded.identity, thunk.entry_key
                 ),
             ));
             continue;
@@ -766,7 +766,7 @@ mod tests {
                 .functions
                 .insert(omega_machine_bytes::EncodedMachineFunction {
                     symbol: Arc::from(CALLBACK_SYMBOL),
-                    source_key: *key,
+                    identity: omega_control_flow::MachineFunctionIdentity::source(*key),
                     byte_offset: 7,
                     byte_count: 11,
                     instructions: Default::default(),

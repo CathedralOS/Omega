@@ -67,19 +67,23 @@ Remaining:
   explicit fixture seam. Sample refresh and native execution must use authored
   roots and never invent one, while targetless checking selects none.
 
-  The pending emitted-bridge evidence requires its object entry symbol to
-  globally name exactly one encoded function, then binds that function's exact
-  text interval and valid control-flow `StateKey`; a duplicate same-name
-  function, redirected key, or display-compatible machine/state name cannot
-  redirect that join. The retained bridge plan now owns a sealed platform
-  executor gate: only the exact selected physical-provider installation and
-  mapped, zeroed receiver activation can construct its borrowed continuation
-  handoff, and the executor runs before that activation is finished. This gate
-  intentionally does not claim that native bytes executed. The object entry is
-  still the source-continuation function rather than a distinct generated
-  wrapper, so emitted wrapper identity, carrier ABI/linkage, mapped receiver
-  addressing, the exact native call edge, and resulting native bridge evidence
-  remain before this slice is complete.
+  The function spine now retains a sealed compiler-private identity from
+  abstract operations through target/assigned operations, machine
+  instructions, encoded bytes, and object-entry selection. `Source(StateKey)`
+  and `ProgramStorageEntryWrapper(continuation StateKey)` are distinct: object
+  planning selects one exact symbol/identity pair, and synthetic wrapper gates
+  retain the source continuation's symbol and text interval separately rather
+  than relabeling it. Duplicate, redirected, missing-continuation, and
+  interval-drift claims reject. The retained bridge plan also owns a sealed
+  platform executor gate: only the exact selected physical-provider
+  installation and mapped, zeroed receiver activation can construct its
+  borrowed continuation handoff, and the executor runs before that activation
+  is finished. This gate intentionally does not claim that native bytes
+  executed. Production builds still emit and select `Source(entry StateKey)`
+  because no generated wrapper body or call exists yet; emitting that body,
+  defining its carrier ABI/linkage and mapped receiver address, adding the
+  exact native call edge, and retaining resulting native bridge evidence remain
+  before this slice is complete.
 
   The CLI corpus is rooted on all hosted targets except the four GUI samples,
   which currently select Windows x64 and macOS arm64. Linux needs an ordinary
@@ -108,8 +112,10 @@ Remaining:
   add ten more unchanged Unit-entry programs to that rooted native cohort.
   Eight linear ownership handoff, transfer, and transparent-record frontier
   fixtures now preserve their ownership and transition programs in direct Unit
-  entries with explicit exit providers. The tracked corpus audit leaves 177
-  legacy fixtures without an authored `build.omg` root.
+  entries with explicit exit providers. Ten named float provider and conversion
+  matrices now also use authored roots for native and cross-target differential
+  execution. The tracked corpus audit leaves 167 legacy fixtures without an
+  authored `build.omg` root.
   Continue migrating those fixtures through production entry
   selection; replace result-as-process-exit probes with ordinary Unit entries
   and explicit exit providers rather than preserving the legacy entry seam.
@@ -749,9 +755,12 @@ Remaining:
   total; proof expressions do not create crash sites. Finish the settled total-
   specification arithmetic slice: retain explicit fixed-
   integer/address embeddings into proof `Int` with their derived carrier-range
-  facts, and retain explicit same-carrier Exact coercions with their ordinary
-  formation obligations. Add the per-primitive Exact, Wrapping, Saturating, and
-  Trapping denotation bridges;
+  facts. Explicit same-carrier policy-erasure `as` coercions now retain the
+  ordinary Exact representability obligation in concrete machine/state Prop
+  and across the direct abstract signature form; only independently accepted
+  prior `requires` facts discharge it, so the proposition containing an
+  operation cannot justify that operation's own formation. Add the per-
+  primitive Exact, Wrapping, Saturating, and Trapping denotation bridges;
   compiler-derived Trapping guards remain executable crash-site facts rather
   than predicate effects. Imported crash capsules remain blocked on artifact
   identity and certificate binding.
@@ -1784,8 +1793,9 @@ Remaining N6/N8 work:
   require determination by the runtime projection or report the component.
 - Continue total specification arithmetic. Concrete and abstract Prop owners
   reject direct Trapping arithmetic and conversion while preserving total
-  comparison, bitwise, classification, Wrapping, and Saturating terms. Fixed-
-  width integer and address
+  comparison, bitwise, classification, Wrapping, and Saturating terms. Same-
+  carrier policy erasure retains Exact formation against prior facts without
+  self-justification. Fixed-width integer and address
   `embed` returns proof `Int` and contributes exact source-carrier range facts;
   proof `Int as Nat` requires nonnegativity. Make ordinary `Nat - Nat` Exact
   with `right <= left` discharged at formation, rename the bootstrap monus

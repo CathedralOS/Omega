@@ -18,4 +18,5 @@ omega-target = { path = "../../foundation/omega-target" }
 omega-target-operations = { path = "../../representations/omega-target-operations" }
 
 [dev-dependencies]
+omega-control-flow = { path = "../../representations/omega-control-flow" }
 psi-language-semantics = { path = "../../../psi-rs/foundation/psi-language-semantics" }

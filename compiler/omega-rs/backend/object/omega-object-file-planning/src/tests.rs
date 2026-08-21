@@ -2,6 +2,7 @@ use crate::{ObjectPlanningInput, build_object_plan};
 use omega_calling_conventions::{
     HostAbiPlan, HostBinding, HostBindingMechanism, HostOperationReference, build_host_abi_plan,
 };
+use omega_control_flow::{MachineFunctionIdentity, StateKey};
 use omega_layout::{DataLayout, FieldLayout, LayoutPlan, MachineLayout, TypeLayout, VariantLayout};
 use omega_machine_bytes::{EncodedMachineFunction, EncodedMachinePlan};
 use omega_object_file::{
@@ -18,6 +19,7 @@ use std::sync::Arc;
 fn builds_sections_and_symbols_for_runtime_frame_import_and_data() {
     let target = NativeTarget::host();
     let machine_symbol = SymbolHandle::invalid();
+    let entry_function_identity = MachineFunctionIdentity::source(valid_source_key(2));
     let mut layouts = LayoutPlan {
         data_layouts: Arena::<DataLayout>::new(),
         fields: Arena::<FieldLayout>::new(),
@@ -43,7 +45,7 @@ fn builds_sections_and_symbols_for_runtime_frame_import_and_data() {
         .functions
         .insert(EncodedMachineFunction {
             symbol: std::sync::Arc::from(omega_object_file::entry_symbol_name(target)),
-            source_key: Default::default(),
+            identity: entry_function_identity,
             byte_offset: 32,
             byte_count: 12,
             instructions: Default::default(),
@@ -85,7 +87,7 @@ fn builds_sections_and_symbols_for_runtime_frame_import_and_data() {
         layouts: &layouts,
         entry_machine_symbol: machine_symbol,
         entry_machine_name: "Main",
-        entry_state_key: Default::default(),
+        entry_function_identity,
         encoded_machine: &encoded_machine,
         data: &data,
         runtime_frame_size: 8,
@@ -156,6 +158,7 @@ fn builds_sections_and_symbols_for_runtime_frame_import_and_data() {
 #[test]
 fn reports_missing_entry_machine_layout() {
     let target = NativeTarget::host();
+    let entry_function_identity = MachineFunctionIdentity::source(valid_source_key(2));
     let host_abi = empty_host_abi(target);
     let layouts = empty_layouts();
     let mut encoded_machine = EncodedMachinePlan::with_capacity(target, 1, 0, 0);
@@ -164,7 +167,7 @@ fn reports_missing_entry_machine_layout() {
         .functions
         .insert(EncodedMachineFunction {
             symbol: std::sync::Arc::from(omega_object_file::entry_symbol_name(target)),
-            source_key: Default::default(),
+            identity: entry_function_identity,
             byte_offset: 0,
             byte_count: 4,
             instructions: Default::default(),
@@ -177,7 +180,7 @@ fn reports_missing_entry_machine_layout() {
         layouts: &layouts,
         entry_machine_symbol: SymbolHandle::invalid(),
         entry_machine_name: "Main",
-        entry_state_key: Default::default(),
+        entry_function_identity,
         encoded_machine: &encoded_machine,
         data: &data,
         runtime_frame_size: 0,
@@ -214,7 +217,7 @@ fn reports_missing_encoded_entry_function() {
         layouts: &layouts,
         entry_machine_symbol: machine_symbol,
         entry_machine_name: "Main",
-        entry_state_key: Default::default(),
+        entry_function_identity: MachineFunctionIdentity::source(valid_source_key(2)),
         encoded_machine: &encoded_machine,
         data: &data,
         runtime_frame_size: 0,
@@ -227,7 +230,153 @@ fn reports_missing_encoded_entry_function() {
             .message
             .starts_with("missing encoded entry function `")
     );
-    assert!(diagnostic.message.contains("for state key"));
+    assert!(diagnostic.message.contains("for identity"));
+}
+
+#[test]
+fn object_entry_can_name_generated_wrapper_without_relabeling_source_continuation() {
+    let target = NativeTarget::host();
+    let continuation_key = valid_source_key(2);
+    let source_identity = MachineFunctionIdentity::source(continuation_key);
+    let wrapper_identity = MachineFunctionIdentity::program_storage_entry_wrapper(continuation_key)
+        .expect("valid source continuation should admit its canonical wrapper identity");
+    let machine_symbol = SymbolHandle::invalid();
+    let host_abi = empty_host_abi(target);
+    let layouts = layouts_with_entry_machine(machine_symbol);
+    let mut encoded_machine = EncodedMachinePlan::with_capacity(target, 2, 0, 0);
+    encoded_machine.code.byte_count = 48;
+    encoded_machine
+        .code
+        .functions
+        .insert(EncodedMachineFunction {
+            symbol: Arc::from("__omega_source_continuation"),
+            identity: source_identity,
+            byte_offset: 8,
+            byte_count: 12,
+            instructions: Default::default(),
+        });
+    encoded_machine
+        .code
+        .functions
+        .insert(EncodedMachineFunction {
+            symbol: Arc::from(omega_object_file::entry_symbol_name(target)),
+            identity: wrapper_identity,
+            byte_offset: 32,
+            byte_count: 8,
+            instructions: Default::default(),
+        });
+    let data = TargetDataPlan::with_capacity(0, 0);
+
+    let object = build_object_plan(ObjectPlanningInput {
+        target,
+        host_abi: &host_abi,
+        layouts: &layouts,
+        entry_machine_symbol: machine_symbol,
+        entry_machine_name: "Main",
+        entry_function_identity: wrapper_identity,
+        encoded_machine: &encoded_machine,
+        data: &data,
+        runtime_frame_size: 0,
+        runtime_frame_alignment: 1,
+    })
+    .expect("object entry should select the generated wrapper by canonical identity");
+
+    let entry = object.layout.symbols.get(object.layout.entry_symbol);
+    assert_eq!((entry.offset, entry.size), (32, 8));
+    let source = encoded_machine
+        .code
+        .functions
+        .iter()
+        .find(|(_, function)| function.identity == source_identity)
+        .map(|(_, function)| function)
+        .expect("source continuation identity must remain retained separately");
+    assert_eq!(source.symbol.as_ref(), "__omega_source_continuation");
+    assert_eq!((source.byte_offset, source.byte_count), (8, 12));
+    assert_eq!(source.identity.source_key(), Some(continuation_key));
+}
+
+#[test]
+fn object_entry_rejects_wrapper_identity_for_another_continuation() {
+    let target = NativeTarget::host();
+    let selected_identity =
+        MachineFunctionIdentity::program_storage_entry_wrapper(valid_source_key(2))
+            .expect("valid continuation should admit wrapper identity");
+    let encoded_identity =
+        MachineFunctionIdentity::program_storage_entry_wrapper(valid_source_key(3))
+            .expect("valid continuation should admit wrapper identity");
+    let machine_symbol = SymbolHandle::invalid();
+    let host_abi = empty_host_abi(target);
+    let layouts = layouts_with_entry_machine(machine_symbol);
+    let mut encoded_machine = EncodedMachinePlan::with_capacity(target, 1, 0, 0);
+    encoded_machine
+        .code
+        .functions
+        .insert(EncodedMachineFunction {
+            symbol: Arc::from(omega_object_file::entry_symbol_name(target)),
+            identity: encoded_identity,
+            byte_offset: 0,
+            byte_count: 8,
+            instructions: Default::default(),
+        });
+    let data = TargetDataPlan::with_capacity(0, 0);
+
+    let diagnostic = build_object_plan(ObjectPlanningInput {
+        target,
+        host_abi: &host_abi,
+        layouts: &layouts,
+        entry_machine_symbol: machine_symbol,
+        entry_machine_name: "Main",
+        entry_function_identity: selected_identity,
+        encoded_machine: &encoded_machine,
+        data: &data,
+        runtime_frame_size: 0,
+        runtime_frame_alignment: 1,
+    })
+    .expect_err("object entry must not accept a wrapper for another continuation");
+
+    assert!(diagnostic.message.contains("has identity"));
+    assert!(diagnostic.message.contains("not selected identity"));
+}
+
+#[test]
+fn object_entry_rejects_duplicate_generated_wrapper_identity() {
+    let target = NativeTarget::host();
+    let wrapper_identity =
+        MachineFunctionIdentity::program_storage_entry_wrapper(valid_source_key(2))
+            .expect("valid continuation should admit wrapper identity");
+    let machine_symbol = SymbolHandle::invalid();
+    let host_abi = empty_host_abi(target);
+    let layouts = layouts_with_entry_machine(machine_symbol);
+    let mut encoded_machine = EncodedMachinePlan::with_capacity(target, 2, 0, 0);
+    for byte_offset in [0, 8] {
+        encoded_machine
+            .code
+            .functions
+            .insert(EncodedMachineFunction {
+                symbol: Arc::from(omega_object_file::entry_symbol_name(target)),
+                identity: wrapper_identity,
+                byte_offset,
+                byte_count: 8,
+                instructions: Default::default(),
+            });
+    }
+    let data = TargetDataPlan::with_capacity(0, 0);
+
+    let diagnostic = build_object_plan(ObjectPlanningInput {
+        target,
+        host_abi: &host_abi,
+        layouts: &layouts,
+        entry_machine_symbol: machine_symbol,
+        entry_machine_name: "Main",
+        entry_function_identity: wrapper_identity,
+        encoded_machine: &encoded_machine,
+        data: &data,
+        runtime_frame_size: 0,
+        runtime_frame_alignment: 1,
+    })
+    .expect_err("object entry must reject duplicate identity/symbol claims");
+
+    assert!(diagnostic.message.contains("is ambiguous for identity"));
 }
 
 fn empty_host_abi(target: NativeTarget) -> HostAbiPlan {
@@ -237,6 +386,14 @@ fn empty_host_abi(target: NativeTarget) -> HostAbiPlan {
         host_operations: Arena::<HostOperationReference>::new(),
         platform_call_lowerings: Arena::new(),
         boundary_policies: Arena::new(),
+    }
+}
+
+fn valid_source_key(state: u32) -> StateKey {
+    StateKey {
+        machine: SymbolHandle::from_arena_index(1),
+        state: SymbolHandle::from_arena_index(state),
+        segment_index: 0,
     }
 }
 
@@ -250,4 +407,17 @@ fn empty_layouts() -> LayoutPlan {
         machine_layouts: Arena::<MachineLayout>::new(),
         variants: Arena::<VariantLayout>::new(),
     }
+}
+
+fn layouts_with_entry_machine(machine_symbol: SymbolHandle) -> LayoutPlan {
+    let mut layouts = empty_layouts();
+    layouts.machine_layouts.insert(MachineLayout {
+        symbol: machine_symbol,
+        layout: TypeLayout {
+            size: 8,
+            alignment: 8,
+        },
+        ..MachineLayout::default()
+    });
+    layouts
 }

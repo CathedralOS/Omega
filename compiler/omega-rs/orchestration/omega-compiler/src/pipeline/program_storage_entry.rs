@@ -295,7 +295,11 @@ pub struct ProgramStorageEntryNativeBridgePlan {
     entry_symbol: String,
     entry_text_offset: usize,
     entry_text_size: usize,
+    entry_function_identity: omega_control_flow::MachineFunctionIdentity,
     continuation_key: omega_control_flow::StateKey,
+    continuation_symbol: String,
+    continuation_text_offset: usize,
+    continuation_text_size: usize,
     continuation_machine: String,
     continuation_state: String,
 }
@@ -327,10 +331,27 @@ impl ProgramStorageEntryNativeBridgePlan {
         self.entry_text_size
     }
 
-    /// Exact control-flow identity of the selected source continuation whose
-    /// encoded function owns the object entry symbol.
+    pub const fn entry_function_identity(&self) -> omega_control_flow::MachineFunctionIdentity {
+        self.entry_function_identity
+    }
+
+    /// Exact control-flow identity of the selected source continuation. A
+    /// generated entry wrapper retains this key without acquiring it as its
+    /// own function identity.
     pub const fn continuation_key(&self) -> omega_control_flow::StateKey {
         self.continuation_key
+    }
+
+    pub fn continuation_symbol(&self) -> &str {
+        &self.continuation_symbol
+    }
+
+    pub const fn continuation_text_offset(&self) -> usize {
+        self.continuation_text_offset
+    }
+
+    pub const fn continuation_text_size(&self) -> usize {
+        self.continuation_text_size
     }
 
     pub fn continuation_machine(&self) -> &str {
@@ -429,8 +450,24 @@ impl ProgramStorageEntrySourceContinuationHandoff<'_> {
         self.bridge.entry_text_size()
     }
 
+    pub const fn entry_function_identity(&self) -> omega_control_flow::MachineFunctionIdentity {
+        self.bridge.entry_function_identity()
+    }
+
     pub const fn continuation_key(&self) -> omega_control_flow::StateKey {
         self.bridge.continuation_key()
+    }
+
+    pub fn continuation_symbol(&self) -> &str {
+        self.bridge.continuation_symbol()
+    }
+
+    pub const fn continuation_text_offset(&self) -> usize {
+        self.bridge.continuation_text_offset()
+    }
+
+    pub const fn continuation_text_size(&self) -> usize {
+        self.bridge.continuation_text_size()
     }
 
     pub const fn provider_invocation(&self) -> ProgramStorageEntryProviderInvocation {
@@ -503,7 +540,8 @@ pub fn bind_emitted_program_storage_entry_native_bridge(
             "program-storage native bridge entry symbol is not a nonempty text function".into(),
         ));
     }
-    validate_encoded_program_storage_entry(entry, encoded_machine, continuation_key)?;
+    let encoded_entry =
+        validate_encoded_program_storage_entry(entry, encoded_machine, continuation_key)?;
     if boundary_contract_fingerprint != Some(binding.boundary_contract_fingerprint) {
         return Err(ProgramStorageEntryDiagnostic(
             "emitted entry footprint does not retain the program-storage boundary fingerprint"
@@ -525,17 +563,27 @@ pub fn bind_emitted_program_storage_entry_native_bridge(
         entry_symbol: entry.name.clone(),
         entry_text_offset: entry.offset,
         entry_text_size: entry.size,
+        entry_function_identity: encoded_entry.entry.identity,
         continuation_key,
+        continuation_symbol: encoded_entry.continuation.symbol.to_string(),
+        continuation_text_offset: encoded_entry.continuation.byte_offset,
+        continuation_text_size: encoded_entry.continuation.byte_count,
         continuation_machine,
         continuation_state,
     })
 }
 
-fn validate_encoded_program_storage_entry(
+#[derive(Debug)]
+struct ValidatedEncodedProgramStorageEntry<'a> {
+    entry: &'a omega_machine_bytes::EncodedMachineFunction,
+    continuation: &'a omega_machine_bytes::EncodedMachineFunction,
+}
+
+fn validate_encoded_program_storage_entry<'a>(
     entry: &omega_object_file::SymbolPlan,
-    encoded_machine: &omega_machine_bytes::EncodedMachinePlan,
+    encoded_machine: &'a omega_machine_bytes::EncodedMachinePlan,
     continuation_key: omega_control_flow::StateKey,
-) -> Result<(), ProgramStorageEntryDiagnostic> {
+) -> Result<ValidatedEncodedProgramStorageEntry<'a>, ProgramStorageEntryDiagnostic> {
     if !continuation_key.is_valid() {
         return Err(ProgramStorageEntryDiagnostic(
             "program-storage native bridge has no exact source-continuation key".into(),
@@ -558,19 +606,80 @@ fn validate_encoded_program_storage_entry(
             entry.name
         )));
     }
-    if encoded_entry.source_key != continuation_key {
+    if !encoded_entry.identity.is_valid() {
         return Err(ProgramStorageEntryDiagnostic(format!(
-            "program-storage native bridge object entry `{}` redirects source continuation {:?} to {:?}",
-            entry.name, continuation_key, encoded_entry.source_key
-        )));
-    }
-    if encoded_entry.byte_offset != entry.offset || encoded_entry.byte_count != entry.size {
-        return Err(ProgramStorageEntryDiagnostic(format!(
-            "program-storage native bridge object entry `{}` does not cover its exact encoded source-continuation function",
+            "program-storage native bridge object entry `{}` has an invalid function identity",
             entry.name
         )));
     }
-    Ok(())
+    let continuation = if encoded_entry.identity.source_key() == Some(continuation_key) {
+        encoded_entry
+    } else if encoded_entry.identity.program_storage_entry_continuation() == Some(continuation_key)
+    {
+        let source_identity = omega_control_flow::MachineFunctionIdentity::source(continuation_key);
+        let mut continuations = encoded_machine
+            .code
+            .functions
+            .iter()
+            .filter_map(|(_, function)| (function.identity == source_identity).then_some(function));
+        let Some(continuation) = continuations.next() else {
+            return Err(ProgramStorageEntryDiagnostic(format!(
+                "program-storage native bridge object entry `{}` has no encoded source continuation {:?}",
+                entry.name, continuation_key
+            )));
+        };
+        if continuations.next().is_some() {
+            return Err(ProgramStorageEntryDiagnostic(format!(
+                "program-storage native bridge source continuation {:?} names more than one encoded function",
+                continuation_key
+            )));
+        }
+        if continuation.byte_count == 0 {
+            return Err(ProgramStorageEntryDiagnostic(format!(
+                "program-storage native bridge source continuation {:?} is not a nonempty encoded function",
+                continuation_key
+            )));
+        }
+        let entry_end = encoded_entry
+            .byte_offset
+            .checked_add(encoded_entry.byte_count)
+            .ok_or_else(|| {
+                ProgramStorageEntryDiagnostic(
+                    "program-storage native bridge entry interval overflows encoded text".into(),
+                )
+            })?;
+        let continuation_end = continuation
+            .byte_offset
+            .checked_add(continuation.byte_count)
+            .ok_or_else(|| {
+                ProgramStorageEntryDiagnostic(
+                    "program-storage native bridge source-continuation interval overflows encoded text"
+                        .into(),
+                )
+            })?;
+        if encoded_entry.byte_offset < continuation_end && continuation.byte_offset < entry_end {
+            return Err(ProgramStorageEntryDiagnostic(format!(
+                "program-storage native bridge object entry `{}` overlaps its separately identified source continuation",
+                entry.name
+            )));
+        }
+        continuation
+    } else {
+        return Err(ProgramStorageEntryDiagnostic(format!(
+            "program-storage native bridge object entry `{}` redirects source continuation {:?} through identity {:?}",
+            entry.name, continuation_key, encoded_entry.identity
+        )));
+    };
+    if encoded_entry.byte_offset != entry.offset || encoded_entry.byte_count != entry.size {
+        return Err(ProgramStorageEntryDiagnostic(format!(
+            "program-storage native bridge object entry `{}` does not cover its exact encoded entry function",
+            entry.name
+        )));
+    }
+    Ok(ValidatedEncodedProgramStorageEntry {
+        entry: encoded_entry,
+        continuation,
+    })
 }
 
 impl ProgramStorageEntryProviderInvocation {
@@ -1905,7 +2014,7 @@ impl std::error::Error for ProgramStoragePartitionError {}
 #[cfg(test)]
 mod tests {
     use super::validate_encoded_program_storage_entry;
-    use omega_control_flow::StateKey;
+    use omega_control_flow::{MachineFunctionIdentity, StateKey};
     use omega_machine_bytes::{EncodedMachineFunction, EncodedMachinePlan};
     use omega_object_file::{SectionKind, SymbolKind, SymbolPlan, SymbolSection};
     use psi_arena::HandleSpan;
@@ -1934,7 +2043,7 @@ mod tests {
     fn encoded_entry(key: StateKey) -> EncodedMachineFunction {
         EncodedMachineFunction {
             symbol: Arc::from("_main"),
-            source_key: key,
+            identity: MachineFunctionIdentity::source(key),
             byte_offset: 32,
             byte_count: 8,
             instructions: HandleSpan::empty(),
@@ -2010,5 +2119,99 @@ mod tests {
         let error = validate_encoded_program_storage_entry(&object_entry(), &drifted, key)
             .expect_err("object and encoded intervals must match exactly");
         assert!(error.0.contains("does not cover"), "{error}");
+    }
+
+    #[test]
+    fn emitted_bridge_retains_generated_entry_and_source_continuation_separately() {
+        let key = continuation_key(2);
+        let wrapper_identity = MachineFunctionIdentity::program_storage_entry_wrapper(key)
+            .expect("valid continuation should admit wrapper identity");
+        let mut wrapper = encoded_entry(key);
+        wrapper.identity = wrapper_identity;
+        let mut source = encoded_entry(key);
+        source.symbol = Arc::from("__omega_source_continuation");
+        source.byte_offset = 8;
+        source.byte_count = 12;
+        let mut encoded = EncodedMachinePlan::default();
+        encoded.code.functions.insert(source);
+        encoded.code.functions.insert(wrapper);
+
+        let validated = validate_encoded_program_storage_entry(&object_entry(), &encoded, key)
+            .expect("generated entry and exact source continuation should bind separately");
+
+        assert_eq!(validated.entry.identity, wrapper_identity);
+        assert_eq!(validated.entry.symbol.as_ref(), "_main");
+        assert_eq!(
+            (validated.entry.byte_offset, validated.entry.byte_count),
+            (32, 8)
+        );
+        assert_eq!(
+            validated.continuation.identity,
+            MachineFunctionIdentity::source(key)
+        );
+        assert_eq!(
+            validated.continuation.symbol.as_ref(),
+            "__omega_source_continuation"
+        );
+        assert_eq!(
+            (
+                validated.continuation.byte_offset,
+                validated.continuation.byte_count
+            ),
+            (8, 12)
+        );
+    }
+
+    #[test]
+    fn emitted_bridge_rejects_generated_entry_without_exact_source_continuation() {
+        let key = continuation_key(2);
+        let mut wrapper = encoded_entry(key);
+        wrapper.identity = MachineFunctionIdentity::program_storage_entry_wrapper(key)
+            .expect("valid continuation should admit wrapper identity");
+        let mut encoded = EncodedMachinePlan::default();
+        encoded.code.functions.insert(wrapper);
+
+        let error = validate_encoded_program_storage_entry(&object_entry(), &encoded, key)
+            .expect_err("wrapper identity alone must not erase its source continuation");
+        assert!(
+            error.0.contains("has no encoded source continuation"),
+            "{error}"
+        );
+
+        let mut duplicate = EncodedMachinePlan::default();
+        let mut wrapper = encoded_entry(key);
+        wrapper.identity = MachineFunctionIdentity::program_storage_entry_wrapper(key)
+            .expect("valid continuation should admit wrapper identity");
+        duplicate.code.functions.insert(wrapper);
+        for symbol in ["source_a", "source_b"] {
+            let mut source = encoded_entry(key);
+            source.symbol = Arc::from(symbol);
+            source.byte_offset = 8;
+            duplicate.code.functions.insert(source);
+        }
+        let error = validate_encoded_program_storage_entry(&object_entry(), &duplicate, key)
+            .expect_err("duplicate source-continuation identities must reject");
+        assert!(
+            error.0.contains("source continuation")
+                && error.0.contains("more than one encoded function"),
+            "{error}"
+        );
+
+        let mut aliased = EncodedMachinePlan::default();
+        let mut wrapper = encoded_entry(key);
+        wrapper.identity = MachineFunctionIdentity::program_storage_entry_wrapper(key)
+            .expect("valid continuation should admit wrapper identity");
+        aliased.code.functions.insert(wrapper);
+        let mut source = encoded_entry(key);
+        source.symbol = Arc::from("source_alias");
+        aliased.code.functions.insert(source);
+        let error = validate_encoded_program_storage_entry(&object_entry(), &aliased, key)
+            .expect_err("distinct identities must not relabel the same encoded interval");
+        assert!(
+            error
+                .0
+                .contains("overlaps its separately identified source continuation"),
+            "{error}"
+        );
     }
 }

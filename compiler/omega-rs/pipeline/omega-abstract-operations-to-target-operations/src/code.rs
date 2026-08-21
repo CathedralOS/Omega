@@ -41,7 +41,7 @@ pub(crate) fn build_target_operation_code(
     for (_, function) in abstract_operations.code.functions.iter() {
         code.functions.insert(TargetOperationFunction {
             symbol: std::sync::Arc::clone(&function.symbol),
-            source_key: function.source_key,
+            identity: function.identity,
             instructions: remap::instruction_span(function.instructions),
         });
     }
