@@ -530,7 +530,7 @@ fn accepts_recursive_data_with_a_later_borrowing_payload() {
 
 /// Run a source program through the full frontend check, returning the borrow
 /// checker's verdict.
-fn check_program(source: &str) -> Result<(), Vec<psi_diagnostics::Diagnostic>> {
+pub(super) fn check_program(source: &str) -> Result<(), Vec<psi_diagnostics::Diagnostic>> {
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = lower_syntax_trees(&syntax).expect("resolve");
