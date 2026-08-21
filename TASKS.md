@@ -1514,9 +1514,14 @@ Remaining N6/N8 work:
   forwarded conformance application before the next fixed-point pass. Generic
   carriers retain their full instantiated subject identity (for example
   `Box<Card>`) while executable attached-row lookup uses the carrier's declared
-  base namespace. Remaining work is to resolve uniquely elided lifetimes instead
-  of requiring them explicitly and carry the closed application into Terminal
-  Psi verification.
+  base namespace. Terminal Psi now retains each used closed application under
+  its concrete terminal machine ID as one ordered, category-tagged telescope,
+  exact declaration/subject/trait identities, normalized row map, and canonical
+  application commitment. Format-13/vocabulary-18 codec round trips preserve the
+  table, and a dedicated verifier module rejects unknown owners, malformed or
+  duplicate applications, and redirected rows. Remaining work is to resolve
+  uniquely elided lifetimes from contextual ordinary borrow constraints instead
+  of requiring them explicitly.
 - Add `Respects` over compiler-derived positional call telescopes, deriving its
   dependent domain, pointwise input relations, and lifted result relation.
 - Add exact-pair-selected heterogeneous constructor lifts. Dependent records

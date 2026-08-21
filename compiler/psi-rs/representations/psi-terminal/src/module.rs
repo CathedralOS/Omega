@@ -26,7 +26,7 @@ impl VocabularyMarker {
     }
 
     pub const fn get(self) -> u16 {
-        17
+        18
     }
 }
 
@@ -110,7 +110,92 @@ pub struct TerminalModule {
     /// evidence from a generated output package. Runtime-value packages retain
     /// their exact ordinary scalar call operation.
     pub evidence_package_invocations: Vec<EvidencePackageInvocation>,
+    /// Exact source-handle-free generic conformance applications used by the
+    /// retained machine closure. Rows are owned by the concrete terminal
+    /// machine whose specialization selected the application.
+    pub closed_conformance_applications: Vec<ClosedConformanceApplication>,
     pub machines: Vec<TerminalMachine>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ClosedConformanceApplication {
+    pub owner: MachineId,
+    pub declaration_identity: String,
+    pub telescope: Vec<ClosedConformanceParameterBinding>,
+    pub subject_identity: Option<String>,
+    pub trait_identity: String,
+    pub trait_arguments: Vec<String>,
+    pub rows: Vec<ClosedConformanceRow>,
+    pub fingerprint: u64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum ClosedConformanceParameterKind {
+    Lifetime,
+    Type,
+    Const,
+    Machine,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ClosedConformanceParameterBinding {
+    pub parameter: String,
+    pub kind: ClosedConformanceParameterKind,
+    pub argument: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ClosedConformanceRow {
+    pub declaring_trait_identity: String,
+    pub requirement_identity: String,
+    pub realization_identity: String,
+}
+
+pub fn closed_conformance_application_fingerprint(
+    application: &ClosedConformanceApplication,
+) -> u64 {
+    const OFFSET: u64 = 0xcbf29ce484222325;
+    const PRIME: u64 = 0x100000001b3;
+
+    fn push(bytes: &mut Vec<u8>, value: &str) {
+        bytes.extend((value.len() as u64).to_le_bytes());
+        bytes.extend(value.as_bytes());
+    }
+
+    let mut bytes = Vec::new();
+    push(&mut bytes, &application.declaration_identity);
+    push(
+        &mut bytes,
+        application
+            .subject_identity
+            .as_deref()
+            .unwrap_or("<subjectless>"),
+    );
+    push(&mut bytes, &application.trait_identity);
+    bytes.extend((application.telescope.len() as u64).to_le_bytes());
+    for binding in &application.telescope {
+        push(&mut bytes, &binding.parameter);
+        bytes.push(match binding.kind {
+            ClosedConformanceParameterKind::Lifetime => 1,
+            ClosedConformanceParameterKind::Type => 2,
+            ClosedConformanceParameterKind::Const => 3,
+            ClosedConformanceParameterKind::Machine => 4,
+        });
+        push(&mut bytes, &binding.argument);
+    }
+    bytes.extend((application.trait_arguments.len() as u64).to_le_bytes());
+    for argument in &application.trait_arguments {
+        push(&mut bytes, argument);
+    }
+    bytes.extend((application.rows.len() as u64).to_le_bytes());
+    for row in &application.rows {
+        push(&mut bytes, &row.declaring_trait_identity);
+        push(&mut bytes, &row.requirement_identity);
+        push(&mut bytes, &row.realization_identity);
+    }
+    bytes.into_iter().fold(OFFSET, |hash, byte| {
+        (hash ^ u64::from(byte)).wrapping_mul(PRIME)
+    })
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]

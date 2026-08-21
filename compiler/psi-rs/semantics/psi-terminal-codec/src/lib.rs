@@ -41,29 +41,31 @@ use psi_core::{
 };
 use psi_terminal::{
     BindingRelevance, Block, BoundaryMachineDeclaration, ClaimContentProjection, ClaimTransfer,
-    CompletionReceipt, ContentEntryClaim, ContentIdentityReshuffle, ContentPartitionComposition,
-    ContentPlaceSubstitution, ContractClause, CrashCause, CrashPredicateTerm, CrashRouteBucket,
-    CrashRouteGuard, EntryClaim, EvidenceContractLane, EvidenceContractLaneKind,
-    EvidenceInterfaceIdentity, EvidencePackageInvocation, EvidencePackageOutputBinding,
-    EvidencePackageRuntimeCall, EvidenceTermDeclaration, MachineContract, NominalAffineCleanup,
-    Operation, OperationKind, OperationResult, PropositionApplicationIdentity,
-    PropositionBinderArgumentIdentity, PropositionBinderArgumentKind, PropositionBinderDeclaration,
-    PropositionBinderKind, PropositionDeclaration, PropositionEvidence,
-    ProviderCandidateConformance, ProviderParameterRefinement, ProviderSignatureParameter,
-    ProviderUnitRefinement, ProviderUnitSignature, ServiceDeclaration, StructuralAffineDiscard,
-    StructuralArgument, StructuralDomainDeclaration, StructuralDomainRequirement,
-    StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
-    StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
-    StructuralResultDeclaration, StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge,
-    TerminalAffineCleanupAction, TerminalMachine, TerminalMachineResult, TerminalModule,
-    Terminator, ValueDeclaration, VocabularyMarker,
+    ClosedConformanceApplication, ClosedConformanceParameterBinding,
+    ClosedConformanceParameterKind, ClosedConformanceRow, CompletionReceipt, ContentEntryClaim,
+    ContentIdentityReshuffle, ContentPartitionComposition, ContentPlaceSubstitution,
+    ContractClause, CrashCause, CrashPredicateTerm, CrashRouteBucket, CrashRouteGuard, EntryClaim,
+    EvidenceContractLane, EvidenceContractLaneKind, EvidenceInterfaceIdentity,
+    EvidencePackageInvocation, EvidencePackageOutputBinding, EvidencePackageRuntimeCall,
+    EvidenceTermDeclaration, MachineContract, NominalAffineCleanup, Operation, OperationKind,
+    OperationResult, PropositionApplicationIdentity, PropositionBinderArgumentIdentity,
+    PropositionBinderArgumentKind, PropositionBinderDeclaration, PropositionBinderKind,
+    PropositionDeclaration, PropositionEvidence, ProviderCandidateConformance,
+    ProviderParameterRefinement, ProviderSignatureParameter, ProviderUnitRefinement,
+    ProviderUnitSignature, ServiceDeclaration, StructuralAffineDiscard, StructuralArgument,
+    StructuralDomainDeclaration, StructuralDomainRequirement, StructuralFieldDeclaration,
+    StructuralFieldType, StructuralMultiplicity, StructuralParameterDeclaration,
+    StructuralPathSegment, StructuralPlaceDeclaration, StructuralResultDeclaration,
+    StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge, TerminalAffineCleanupAction,
+    TerminalMachine, TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration,
+    VocabularyMarker,
 };
 use psi_terminal_verifier::{ModuleError, validate_module_representation};
 use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
 
 const MAGIC: &[u8; 8] = b"PSITERM\0";
-const FORMAT_MARKER: u16 = 12;
+const FORMAT_MARKER: u16 = 13;
 const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 const MAX_PROPOSITION_DEPTH: usize = 256;
 const MAX_SCALAR_TERM_DEPTH: usize = 256;
@@ -140,6 +142,22 @@ fn validate_canonical_order(module: &TerminalModule) -> Result<(), CodecError> {
     ) {
         return Err(CodecError::NonCanonicalOrder(
             "evidence package invocations by caller and ordinal",
+        ));
+    }
+    if !strictly_increasing(
+        module
+            .closed_conformance_applications
+            .iter()
+            .map(|application| {
+                (
+                    application.owner,
+                    application.declaration_identity.as_str(),
+                    application.fingerprint,
+                )
+            }),
+    ) {
+        return Err(CodecError::NonCanonicalOrder(
+            "closed conformance applications by owner, declaration, and fingerprint",
         ));
     }
     for invocation in &module.evidence_package_invocations {
@@ -1471,6 +1489,56 @@ fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError> {
                 writer.id(output);
             }
         }
+    }
+    writer.len(
+        "closed conformance applications",
+        module.closed_conformance_applications.len(),
+    )?;
+    for application in &module.closed_conformance_applications {
+        writer.id(application.owner);
+        writer.string(
+            "closed conformance declaration identity",
+            &application.declaration_identity,
+        )?;
+        writer.len("closed conformance telescope", application.telescope.len())?;
+        for binding in &application.telescope {
+            writer.string("closed conformance parameter", &binding.parameter)?;
+            writer.u8(match binding.kind {
+                ClosedConformanceParameterKind::Lifetime => 1,
+                ClosedConformanceParameterKind::Type => 2,
+                ClosedConformanceParameterKind::Const => 3,
+                ClosedConformanceParameterKind::Machine => 4,
+            });
+            writer.string("closed conformance argument", &binding.argument)?;
+        }
+        writer.boolean(application.subject_identity.is_some());
+        if let Some(subject) = &application.subject_identity {
+            writer.string("closed conformance subject identity", subject)?;
+        }
+        writer.string(
+            "closed conformance trait identity",
+            &application.trait_identity,
+        )?;
+        writer.strings(
+            "closed conformance trait arguments",
+            &application.trait_arguments,
+        )?;
+        writer.len("closed conformance rows", application.rows.len())?;
+        for row in &application.rows {
+            writer.string(
+                "closed conformance row declaring trait identity",
+                &row.declaring_trait_identity,
+            )?;
+            writer.string(
+                "closed conformance row requirement identity",
+                &row.requirement_identity,
+            )?;
+            writer.string(
+                "closed conformance row realization identity",
+                &row.realization_identity,
+            )?;
+        }
+        writer.u64(application.fingerprint);
     }
     writer.len("machines", module.machines.len())?;
     for machine in &module.machines {
@@ -3131,6 +3199,47 @@ fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModule, CodecEr
             })?,
         })
     })?;
+    let closed_conformance_applications = decode_counted(reader, |reader| {
+        Ok(ClosedConformanceApplication {
+            owner: reader.id("MachineId")?,
+            declaration_identity: reader.string("closed conformance declaration identity")?,
+            telescope: decode_counted(reader, |reader| {
+                Ok(ClosedConformanceParameterBinding {
+                    parameter: reader.string("closed conformance parameter")?,
+                    kind: match reader.u8()? {
+                        1 => ClosedConformanceParameterKind::Lifetime,
+                        2 => ClosedConformanceParameterKind::Type,
+                        3 => ClosedConformanceParameterKind::Const,
+                        4 => ClosedConformanceParameterKind::Machine,
+                        tag => {
+                            return Err(CodecError::InvalidTag(
+                                "ClosedConformanceParameterKind",
+                                tag,
+                            ));
+                        }
+                    },
+                    argument: reader.string("closed conformance argument")?,
+                })
+            })?,
+            subject_identity: reader
+                .boolean()?
+                .then(|| reader.string("closed conformance subject identity"))
+                .transpose()?,
+            trait_identity: reader.string("closed conformance trait identity")?,
+            trait_arguments: reader.strings("closed conformance trait arguments")?,
+            rows: decode_counted(reader, |reader| {
+                Ok(ClosedConformanceRow {
+                    declaring_trait_identity: reader
+                        .string("closed conformance row declaring trait identity")?,
+                    requirement_identity: reader
+                        .string("closed conformance row requirement identity")?,
+                    realization_identity: reader
+                        .string("closed conformance row realization identity")?,
+                })
+            })?,
+            fingerprint: reader.u64()?,
+        })
+    })?;
     let machine_count = reader.count()?;
     let mut machines = Vec::new();
     for _ in 0..machine_count {
@@ -3149,6 +3258,7 @@ fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModule, CodecEr
         evidence_terms,
         evidence_contract_lanes,
         evidence_package_invocations,
+        closed_conformance_applications,
         machines,
     })
 }
@@ -4522,6 +4632,14 @@ impl Writer {
         self.bytes(value.as_bytes());
         Ok(())
     }
+
+    fn strings(&mut self, label: &'static str, values: &[String]) -> Result<(), CodecError> {
+        self.len(label, values.len())?;
+        for value in values {
+            self.string(label, value)?;
+        }
+        Ok(())
+    }
 }
 
 struct Reader<'bytes> {
@@ -4594,6 +4712,11 @@ impl<'bytes> Reader<'bytes> {
         std::str::from_utf8(bytes)
             .map(str::to_owned)
             .map_err(|_| CodecError::InvalidUtf8(label))
+    }
+
+    fn strings(&mut self, label: &'static str) -> Result<Vec<String>, CodecError> {
+        let count = self.count()?;
+        (0..count).map(|_| self.string(label)).collect()
     }
 
     fn id<T: PsiSemanticId>(&mut self, label: &'static str) -> Result<T, CodecError> {

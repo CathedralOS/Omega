@@ -235,6 +235,7 @@ pub(super) fn lower_boundary_scalar_return_machine(
             evidence_terms: Vec::new(),
             evidence_contract_lanes: Vec::new(),
             evidence_package_invocations: Vec::new(),
+            closed_conformance_applications: Vec::new(),
             machines: vec![machine],
         },
         proof_bundle: ProofBundle::default(),

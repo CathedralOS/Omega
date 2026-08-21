@@ -24,6 +24,7 @@ use crate::verification::{
 
 mod affine_cleanup;
 mod call_graph;
+mod conformance_applications;
 mod content;
 mod contracts;
 mod control_flow;
@@ -38,6 +39,7 @@ mod propositions;
 mod structural_operations;
 
 use call_graph::validate_call_graph;
+use conformance_applications::validate_closed_conformance_applications;
 pub use error::{ContractClauseKind, ModuleError};
 use evidence::{validate_evidence_contract_lanes, validate_proposition_vocabulary};
 pub use foundation::{ServiceCeilingOwner, StructuralSignatureOwner};
@@ -119,6 +121,7 @@ fn validate_module_with_policy(
     }
     validate_proposition_vocabulary(module)?;
     validate_structural_foundation(module)?;
+    validate_closed_conformance_applications(module)?;
 
     let mut registry = IdRegistry::default();
     for machine in &module.machines {

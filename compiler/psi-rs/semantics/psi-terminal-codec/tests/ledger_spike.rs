@@ -253,6 +253,7 @@ fn call_composition_ledger_fixture() -> TerminalModule {
         evidence_terms: Vec::new(),
         evidence_contract_lanes: Vec::new(),
         evidence_package_invocations: Vec::new(),
+        closed_conformance_applications: Vec::new(),
         machines: vec![caller, callee],
     }
 }
@@ -449,6 +450,7 @@ fn structural_effect_ledger_fixture() -> TerminalModule {
         evidence_terms: Vec::new(),
         evidence_contract_lanes: Vec::new(),
         evidence_package_invocations: Vec::new(),
+        closed_conformance_applications: Vec::new(),
         machines: vec![entry, establish, cleanup],
     }
 }
@@ -870,6 +872,7 @@ fn ledger_spike_fixture(asymmetric: bool) -> TerminalModule {
         evidence_terms: Vec::new(),
         evidence_contract_lanes: Vec::new(),
         evidence_package_invocations: Vec::new(),
+        closed_conformance_applications: Vec::new(),
         machines: vec![caller, callee],
     }
 }
