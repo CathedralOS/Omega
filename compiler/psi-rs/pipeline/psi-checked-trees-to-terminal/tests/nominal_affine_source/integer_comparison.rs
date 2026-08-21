@@ -1012,13 +1012,23 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
         runtime_exact_divide_obligation,
         runtime_exact_remainder_obligation,
     ] {
-        assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
-            evidence.obligation == obligation
-                && matches!(
-                    evidence.route,
-                    psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
-                )
-        }));
+        let evidence = lowered
+            .proof_bundle
+            .evidence
+            .iter()
+            .find(|evidence| evidence.obligation == obligation)
+            .expect("unsigned runtime-divisor exact operation has evidence");
+        let EvidenceRoute::CertificateDerived(certificate) = &evidence.route else {
+            panic!("unsigned runtime-divisor exact operation has a recursive certificate")
+        };
+        assert!(matches!(
+            certificate.proof.conclusion,
+            Proposition::LessOrEqual(_, _)
+        ));
+        assert!(matches!(
+            certificate.proof.rule,
+            ProofRule::Assumption { .. }
+        ));
     }
     let signed_divisor_parameter = entry.parameters[6].id;
     let runtime_signed_division_obligations = entry
@@ -1037,13 +1047,20 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
         .collect::<Vec<_>>();
     assert!(runtime_signed_division_obligations.len() >= 2);
     for obligation in &runtime_signed_division_obligations {
-        assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
-            evidence.obligation == *obligation
-                && matches!(
-                    evidence.route,
-                    psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
-                )
-        }));
+        let evidence = lowered
+            .proof_bundle
+            .evidence
+            .iter()
+            .find(|evidence| evidence.obligation == *obligation)
+            .expect("signed-positive runtime-divisor exact operation has evidence");
+        let EvidenceRoute::CertificateDerived(certificate) = &evidence.route else {
+            panic!("signed-positive runtime-divisor exact operation has a recursive certificate")
+        };
+        let ProofRule::DisjunctionIntroduction { disjunct, index } = &certificate.proof.rule else {
+            panic!("signed-positive runtime divisor selects its canonical arm")
+        };
+        assert_eq!(*index, 1);
+        assert!(matches!(disjunct.rule, ProofRule::Assumption { .. }));
     }
     let negative_divisor_parameter = entry.parameters[7].id;
     let runtime_negative_signed_division_obligations = entry
@@ -1062,13 +1079,20 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
         .collect::<Vec<_>>();
     assert!(runtime_negative_signed_division_obligations.len() >= 2);
     for obligation in &runtime_negative_signed_division_obligations {
-        assert!(lowered.proof_bundle.evidence.iter().any(|evidence| {
-            evidence.obligation == *obligation
-                && matches!(
-                    evidence.route,
-                    psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
-                )
-        }));
+        let evidence = lowered
+            .proof_bundle
+            .evidence
+            .iter()
+            .find(|evidence| evidence.obligation == *obligation)
+            .expect("signed-negative runtime-divisor exact operation has evidence");
+        let EvidenceRoute::CertificateDerived(certificate) = &evidence.route else {
+            panic!("signed-negative runtime-divisor exact operation has a recursive certificate")
+        };
+        let ProofRule::DisjunctionIntroduction { disjunct, index } = &certificate.proof.rule else {
+            panic!("signed-negative runtime divisor selects its canonical arm")
+        };
+        assert_eq!(*index, 0);
+        assert!(matches!(disjunct.rule, ProofRule::Assumption { .. }));
     }
     let bounded_negative_divisor_parameter = entry.parameters[8].id;
     let runtime_bounded_negative_signed_division_obligations = entry
@@ -4101,6 +4125,32 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
             obligation,
             ..
         }) if obligation == stale_transitive_obligation
+    ));
+    let stale_safe_divisor_obligation = runtime_signed_division_obligations[0];
+    let mut stale_safe_divisor =
+        decode_proof_bundle(&proof).expect("decode safe-divisor proof mutation");
+    let stale_evidence = stale_safe_divisor
+        .evidence
+        .iter_mut()
+        .find(|evidence| evidence.obligation == stale_safe_divisor_obligation)
+        .expect("safe runtime-divisor operation retains exact evidence");
+    let EvidenceRoute::CertificateDerived(certificate) = &mut stale_evidence.route else {
+        panic!("safe runtime-divisor operation retains a recursive certificate")
+    };
+    let ProofRule::DisjunctionIntroduction { disjunct, .. } = &mut certificate.proof.rule else {
+        panic!("safe runtime divisor retains its canonical disjunct")
+    };
+    disjunct.rule = ProofRule::Assumption { index: usize::MAX };
+    assert!(matches!(
+        psi_terminal_verifier::verify_module(
+            &decode_module(&semantics).expect("decode safe-divisor semantics"),
+            &stale_safe_divisor,
+            &AdmissionProfile::default(),
+        ),
+        Err(psi_terminal_verifier::VerificationError::RejectedEvidence {
+            obligation,
+            ..
+        }) if obligation == stale_safe_divisor_obligation
     ));
     // The canonical source-to-terminal path and interpreter remain part of
     // every test run. The exhaustive mutation matrix performs 92 independent

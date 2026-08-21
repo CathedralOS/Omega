@@ -373,6 +373,17 @@ mod tests {
             ScalarTerm::integer(unsigned, IntegerValue::Unsigned(1)).expect("u8 literal"),
             unsigned_divisor.clone(),
         );
+        let unsigned_direct = prove_canonical_integer_proposition(
+            &two_value_context(unsigned),
+            &unsigned_goal,
+            std::slice::from_ref(&unsigned_goal),
+            &[],
+        )
+        .expect("exact unsigned divisor floor is cited directly");
+        assert!(matches!(
+            unsigned_direct.rule,
+            ProofRule::Assumption { index: 0 }
+        ));
         let unsigned_literal =
             ScalarTerm::integer(unsigned, IntegerValue::Unsigned(5)).expect("u8 literal");
         let unsigned_proof = prove_canonical_integer_proposition(
@@ -398,6 +409,19 @@ mod tests {
                 Proposition::LessOrEqual(integer(signed, -127), signed_dividend),
             ]),
         ]);
+        let positive_divisor = Proposition::LessOrEqual(integer(signed, 1), signed_divisor.clone());
+        let positive_proof = prove_canonical_integer_proposition(
+            &two_value_context(signed),
+            &signed_goal,
+            std::slice::from_ref(&positive_divisor),
+            &[],
+        )
+        .expect("exact signed positive-divisor arm is cited directly");
+        let ProofRule::DisjunctionIntroduction { disjunct, index } = positive_proof.rule else {
+            panic!("signed positive divisor selects its canonical arm")
+        };
+        assert_eq!(index, 1);
+        assert!(matches!(disjunct.rule, ProofRule::Assumption { index: 0 }));
         let safe_fact = Proposition::Equal(signed_divisor.clone(), integer(signed, -3));
         let signed_proof = prove_canonical_integer_proposition(
             &two_value_context(signed),

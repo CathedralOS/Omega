@@ -353,8 +353,13 @@ interval is imported; missing, stale, or weaker bounds reject. One retained
 same-carrier literal lower bound `K <= dividend` may instead prove the floor
 when closed order establishes `MIN + 1 <= K`; the certificate binds the exact
 citation through `IntegerLessOrEqualTransitivity`. Reversed, mistyped, weaker,
-or wrong-dividend facts reject. Missing or excluded evidence rejects, and no
-result equation participates. The existing
+or wrong-dividend facts reject. Exact prior safe-divisor propositions are now
+canonical too: unsigned or signed `1 <= divisor`, and signed-width-at-least-two
+`divisor <= -2`. Unsigned certificates cite their whole goal; signed
+certificates cite and introduce the selected disjunct. A signed `i1` divisor
+fact alone cannot prove its two-premise conjunction. Missing, reversed,
+weakened, mistyped, or wrong-divisor facts reject. Missing or excluded evidence
+rejects, and no result equation participates. The existing
 proof rules and proof-bundle v15 codec need no vocabulary change.
 All other exact divide/remainder reconstruction remains on its trusted reducer
 until an untrusted producer can materialize kernel-checkable certificates for
