@@ -282,3 +282,140 @@ fn total_abstract_contract_operations_remain_legal() {
 
     checked(source).expect("abstract contracts retain their total selected operations");
 }
+
+#[test]
+fn prior_contract_facts_discharge_exact_arithmetic_after_policy_erasure() {
+    let source = r#"
+        machine add(left: i8 in Trapping, right: i8 in Trapping) -> bool
+        requires left >= 0
+        requires left <= 100
+        requires right >= 0
+        requires right <= 20
+        requires
+            (left as i8) + (right as i8) <= 120
+        {
+            true
+        }
+    "#;
+
+    checked(source).expect("prior facts prove the explicitly Exact sum representable");
+}
+
+#[test]
+fn unproved_exact_arithmetic_after_policy_erasure_is_rejected() {
+    let source = r#"
+        machine add(left: i8 in Trapping, right: i8 in Trapping) -> bool
+        requires
+            (left as i8) + (right as i8) >= 0
+        {
+            true
+        }
+    "#;
+
+    let diagnostics = checked(source).expect_err("policy erasure does not prove Exact formation");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("exact arithmetic in machine `add` requires contract may overflow `i8`")
+    }));
+}
+
+#[test]
+fn exact_operation_cannot_use_its_containing_fact_to_justify_formation() {
+    let source = r#"
+        machine add(left: i8 in Trapping, right: i8 in Trapping) -> bool
+        requires
+            (left as i8) + (right as i8) <= 127
+        {
+            true
+        }
+    "#;
+
+    let diagnostics = checked(source).expect_err("a proposition cannot form its own partial term");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("exact arithmetic in machine `add` requires contract may overflow `i8`")
+    }));
+}
+
+#[test]
+fn abstract_prior_facts_discharge_exact_arithmetic_after_policy_erasure() {
+    let source = r#"
+        trait ArithmeticRule {
+            machine add(left: i8 in Trapping, right: i8 in Trapping) -> bool
+            requires left >= 0
+            requires left <= 100
+            requires right >= 0
+            requires right <= 20
+            requires
+                (left as i8) + (right as i8) <= 120;
+        }
+    "#;
+
+    checked(source).expect("abstract prior facts prove the explicitly Exact sum representable");
+}
+
+#[test]
+fn abstract_unproved_policy_erasure_does_not_form_exact_arithmetic() {
+    let source = r#"
+        trait ArithmeticRule {
+            machine add(left: i8 in Trapping, right: i8 in Trapping) -> bool
+            requires
+                (left as i8) + (right as i8) >= 0;
+        }
+    "#;
+
+    let diagnostics = checked(source).expect_err("abstract policy erasure retains Exact formation");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("exact arithmetic in trait `ArithmeticRule` state `add` requires contract may overflow `i8`")
+    }));
+}
+
+#[test]
+fn abstract_exact_operation_cannot_justify_itself() {
+    let source = r#"
+        trait ArithmeticRule {
+            machine add(left: i8 in Trapping, right: i8 in Trapping) -> bool
+            requires
+                (left as i8) + (right as i8) <= 127;
+        }
+    "#;
+
+    let diagnostics = checked(source).expect_err("abstract facts cannot admit their own terms");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("exact arithmetic in trait `ArithmeticRule` state `add` requires contract may overflow `i8`")
+    }));
+}
+
+#[test]
+fn abstract_policy_erasure_with_a_literal_retains_exact_formation() {
+    let accepted = r#"
+        trait ArithmeticRule {
+            machine add(value: i8 in Trapping) -> bool
+            requires value <= 126
+            requires
+                (value as i8) + 1 <= 127;
+        }
+    "#;
+    checked(accepted).expect("a prior bound discharges cast-plus-literal formation");
+
+    let rejected = r#"
+        trait ArithmeticRule {
+            machine add(value: i8 in Trapping) -> bool
+            requires
+                (value as i8) + 127 >= 0;
+        }
+    "#;
+    let diagnostics =
+        checked(rejected).expect_err("a literal does not erase the cast operand's obligation");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("exact arithmetic in trait `ArithmeticRule` state `add` requires contract may overflow `i8`")
+    }));
+}

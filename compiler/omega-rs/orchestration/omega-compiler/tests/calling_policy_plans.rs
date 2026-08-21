@@ -1224,7 +1224,19 @@ fn program_storage_entry_publishes_both_core_owned_root_positions() {
                     (handoff.entry_text_offset(), handoff.entry_text_size()),
                     (32, 8)
                 );
+                assert_eq!(
+                    handoff.entry_function_identity().source_key(),
+                    Some(expected_continuation)
+                );
                 assert_eq!(handoff.continuation_key(), expected_continuation);
+                assert_eq!(handoff.continuation_symbol(), "program_storage_test_entry");
+                assert_eq!(
+                    (
+                        handoff.continuation_text_offset(),
+                        handoff.continuation_text_size()
+                    ),
+                    (32, 8)
+                );
                 assert_eq!(
                     (
                         handoff.receiver_placement().base(),
@@ -1415,7 +1427,7 @@ fn emitted_program_storage_bridge(
         .functions
         .insert(omega_machine_bytes::EncodedMachineFunction {
             symbol: std::sync::Arc::from("program_storage_test_entry"),
-            source_key: continuation_key,
+            identity: omega_control_flow::MachineFunctionIdentity::source(continuation_key),
             byte_offset: 32,
             byte_count: 8,
             instructions: psi_arena::HandleSpan::empty(),

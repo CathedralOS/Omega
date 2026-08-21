@@ -18,4 +18,5 @@ psi-diagnostics = { path = "../../../psi-rs/foundation/psi-diagnostics" }
 [dev-dependencies]
 omega-abstract-operations = { path = "../../representations/omega-abstract-operations" }
 omega-calling-conventions = { path = "../../foundation/omega-calling-conventions" }
+omega-control-flow = { path = "../../representations/omega-control-flow" }
 psi-language-semantics = { path = "../../../psi-rs/foundation/psi-language-semantics" }

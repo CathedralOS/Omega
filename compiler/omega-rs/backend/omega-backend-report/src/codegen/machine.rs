@@ -62,9 +62,9 @@ fn machine_function_symbol(
         .code
         .functions
         .iter()
-        .find(|(_, instruction_function)| instruction_function.source_key == function.source_key)
+        .find(|(_, instruction_function)| instruction_function.identity == function.identity)
         .map(|(_, instruction_function)| instruction_function.symbol.to_string())
-        .unwrap_or_else(|| format!("{:?}", function.source_key))
+        .unwrap_or_else(|| format!("{:?}", function.identity))
 }
 
 fn write_machine_instruction(

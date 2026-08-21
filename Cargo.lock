@@ -120,6 +120,7 @@ version = "0.1.0"
 dependencies = [
  "omega-abstract-operations",
  "omega-calling-conventions",
+ "omega-control-flow",
  "omega-platform-interface",
  "omega-target",
  "omega-target-operations",
@@ -188,6 +189,7 @@ dependencies = [
  "omega-abstract-operations",
  "omega-assigned-target-operations",
  "omega-calling-conventions",
+ "omega-control-flow",
  "omega-machine-instructions",
  "psi-arena",
  "psi-diagnostics",
@@ -740,6 +742,7 @@ dependencies = [
  "psi-diagnostics",
  "psi-language-core",
  "psi-numerics",
+ "psi-symbols",
 ]
 
 [[package]]
@@ -1119,6 +1122,7 @@ version = "0.1.0"
 dependencies = [
  "omega-abstract-operations",
  "omega-assigned-target-operations",
+ "omega-control-flow",
  "omega-target",
  "omega-target-operations",
  "psi-language-semantics",

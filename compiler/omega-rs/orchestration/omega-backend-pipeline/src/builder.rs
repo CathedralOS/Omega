@@ -476,7 +476,11 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
             layouts: &backend_plan.layouts,
             entry_machine_symbol: backend_plan.entry_key.machine,
             entry_machine_name: backend_plan.entry_machine_name(),
-            entry_state_key: backend_plan.entry_key,
+            // Until a compiler-generated wrapper has a real body, the physical
+            // object entry remains the exact selected source continuation.
+            entry_function_identity: omega_control_flow::MachineFunctionIdentity::source(
+                backend_plan.entry_key,
+            ),
             encoded_machine: &backend_plan.encoded_machine,
             data: &backend_plan.data,
             runtime_frame_size: runtime_frame_storage_size(&backend_plan.runtime_storage),

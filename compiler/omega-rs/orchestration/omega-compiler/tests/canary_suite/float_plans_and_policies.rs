@@ -603,7 +603,7 @@ fn named_float_format_conversion_requirements_execute_in_both_engines() {
         "binary32-to-binary64 exact widening",
         "binary64 infinity to binary32 infinity",
     ];
-    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0x12f4_bd01_ad92_cca3;
+    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0x9a04_5865_5eea_8c49;
 
     let canary = pass_canary("float/runtime_named_format_conversion_exit");
     let main_path = canary.join("main.omg");
@@ -729,13 +729,8 @@ fn named_float_format_conversion_requirements_execute_in_both_engines() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("public float-format conversions should compile natively");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("public float-format conversions should compile from their authored native root");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("public float-format conversion canary should run");
@@ -748,24 +743,11 @@ fn named_float_format_conversion_requirements_execute_in_both_engines() {
             std::process::id()
         ));
         let _ = fs::remove_dir_all(&scratch);
-        let source_dir = scratch.join("src");
-        fs::create_dir_all(&source_dir).expect("format-conversion cross-target source directory");
-        fs::copy(canary.join("main.omg"), source_dir.join("main.omg"))
-            .expect("copy format-conversion canary");
-        fs::write(
-            source_dir.join("build.omg"),
-            hosted_main_program_entry_build(target),
-        )
-        .expect("write format-conversion target manifest");
-        compile(CompileOptions {
-            root_path: source_dir.join("main.omg"),
-            build_dir: Some(scratch.join("out")),
-            target_name: Some(target.to_owned()),
-            write_output: true,
-        })
-        .unwrap_or_else(|diagnostics| {
-            panic!("format conversions should compile for {target}: {diagnostics:#?}")
-        });
+        compile_rooted_canary_for_target(&canary, scratch.join("out"), target).unwrap_or_else(
+            |diagnostics| {
+                panic!("format conversions should compile for {target}: {diagnostics:#?}")
+            },
+        );
         let _ = fs::remove_dir_all(&scratch);
     }
 
@@ -796,7 +778,7 @@ fn named_integer_to_float_requirements_execute_in_both_engines() {
         "maximum unsigned64 to binary32",
         "maximum unsigned64 to binary64",
     ];
-    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0x86a8_3192_a4b4_9cc5;
+    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0xa7ea_8f27_8639_c225;
 
     let canary = pass_canary("float/runtime_named_integer_to_float_conversion_exit");
     let main_path = canary.join("main.omg");
@@ -877,13 +859,9 @@ fn named_integer_to_float_requirements_execute_in_both_engines() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("public integer-to-float requirements should compile natively");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
+        "public integer-to-float requirements should compile from their authored native root",
+    );
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("public integer-to-float canary should run");
@@ -896,24 +874,11 @@ fn named_integer_to_float_requirements_execute_in_both_engines() {
             std::process::id()
         ));
         let _ = fs::remove_dir_all(&scratch);
-        let source_dir = scratch.join("src");
-        fs::create_dir_all(&source_dir).expect("integer-to-float cross-target source directory");
-        fs::copy(canary.join("main.omg"), source_dir.join("main.omg"))
-            .expect("copy integer-to-float canary");
-        fs::write(
-            source_dir.join("build.omg"),
-            hosted_main_program_entry_build(target),
-        )
-        .expect("write integer-to-float target manifest");
-        compile(CompileOptions {
-            root_path: source_dir.join("main.omg"),
-            build_dir: Some(scratch.join("out")),
-            target_name: Some(target.to_owned()),
-            write_output: true,
-        })
-        .unwrap_or_else(|diagnostics| {
-            panic!("integer-to-float conversions should compile for {target}: {diagnostics:#?}")
-        });
+        compile_rooted_canary_for_target(&canary, scratch.join("out"), target).unwrap_or_else(
+            |diagnostics| {
+                panic!("integer-to-float conversions should compile for {target}: {diagnostics:#?}")
+            },
+        );
         let _ = fs::remove_dir_all(&scratch);
     }
 
@@ -944,7 +909,7 @@ fn named_float_to_integer_requirements_execute_in_both_engines() {
         "unsigned negative-input saturation",
         "NaN saturation to zero",
     ];
-    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0xc61d_f241_e39d_6649;
+    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0x73d6_25b6_5430_7d1f;
 
     let canary = pass_canary("float/runtime_named_float_to_integer_conversion_exit");
     let main_path = canary.join("main.omg");
@@ -1056,13 +1021,9 @@ fn named_float_to_integer_requirements_execute_in_both_engines() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("public float-to-integer requirements should compile natively");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
+        "public float-to-integer requirements should compile from their authored native root",
+    );
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("public float-to-integer canary should run");
@@ -1075,24 +1036,11 @@ fn named_float_to_integer_requirements_execute_in_both_engines() {
             std::process::id()
         ));
         let _ = fs::remove_dir_all(&scratch);
-        let source_dir = scratch.join("src");
-        fs::create_dir_all(&source_dir).expect("float-to-integer cross-target source directory");
-        fs::copy(canary.join("main.omg"), source_dir.join("main.omg"))
-            .expect("copy float-to-integer canary");
-        fs::write(
-            source_dir.join("build.omg"),
-            hosted_main_program_entry_build(target),
-        )
-        .expect("write float-to-integer target manifest");
-        compile(CompileOptions {
-            root_path: source_dir.join("main.omg"),
-            build_dir: Some(scratch.join("out")),
-            target_name: Some(target.to_owned()),
-            write_output: true,
-        })
-        .unwrap_or_else(|diagnostics| {
-            panic!("float-to-integer conversions should compile for {target}: {diagnostics:#?}")
-        });
+        compile_rooted_canary_for_target(&canary, scratch.join("out"), target).unwrap_or_else(
+            |diagnostics| {
+                panic!("float-to-integer conversions should compile for {target}: {diagnostics:#?}")
+            },
+        );
         let _ = fs::remove_dir_all(&scratch);
     }
 
@@ -1400,13 +1348,8 @@ fn named_float_provider_calls_rewrite_to_selected_builtins() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-named-float-provider-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("named float provider calls should compile natively");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("named float provider calls should compile from their authored native root");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("named float provider canary should run");
@@ -1424,24 +1367,11 @@ fn named_float_provider_calls_rewrite_to_selected_builtins() {
             std::process::id()
         ));
         let _ = fs::remove_dir_all(&scratch);
-        let source_dir = scratch.join("src");
-        fs::create_dir_all(&source_dir).expect("cross-target source directory");
-        fs::copy(canary.join("main.omg"), source_dir.join("main.omg"))
-            .expect("copy named-float canary");
-        fs::write(
-            source_dir.join("build.omg"),
-            hosted_main_program_entry_build(target),
-        )
-        .expect("write cross-target build manifest");
-        compile(CompileOptions {
-            root_path: source_dir.join("main.omg"),
-            build_dir: Some(scratch.join("out")),
-            target_name: Some(target.to_owned()),
-            write_output: true,
-        })
-        .unwrap_or_else(|diagnostics| {
-            panic!("named float provider calls should compile for {target}: {diagnostics:#?}")
-        });
+        compile_rooted_canary_for_target(&canary, scratch.join("out"), target).unwrap_or_else(
+            |diagnostics| {
+                panic!("named float provider calls should compile for {target}: {diagnostics:#?}")
+            },
+        );
         let _ = fs::remove_dir_all(&scratch);
     }
 
@@ -1471,7 +1401,7 @@ fn named_float_negate_and_is_nan_preserve_selected_roots_and_execute() {
         "binary64 NaN/infinity/finite predicate separation",
         "selected-root unary evaluation shape",
     ];
-    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0xce3d_9038_6c9b_1b17;
+    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0x3823_0f08_d19f_8030;
 
     let canary = pass_canary("float/named_provider_negate_is_nan_exit");
     let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
@@ -1582,13 +1512,9 @@ fn named_float_negate_and_is_nan_preserve_selected_roots_and_execute() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("named negate/is_nan provider calls should compile natively");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
+        "named negate/is_nan provider calls should compile from their authored native root",
+    );
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("named negate/is_nan provider canary should run");
@@ -1606,26 +1532,13 @@ fn named_float_negate_and_is_nan_preserve_selected_roots_and_execute() {
             std::process::id()
         ));
         let _ = fs::remove_dir_all(&scratch);
-        let source_dir = scratch.join("src");
-        fs::create_dir_all(&source_dir).expect("cross-target source directory");
-        fs::copy(canary.join("main.omg"), source_dir.join("main.omg"))
-            .expect("copy named-float canary");
-        fs::write(
-            source_dir.join("build.omg"),
-            hosted_main_program_entry_build(target),
-        )
-        .expect("write cross-target build manifest");
-        compile(CompileOptions {
-            root_path: source_dir.join("main.omg"),
-            build_dir: Some(scratch.join("out")),
-            target_name: Some(target.to_owned()),
-            write_output: true,
-        })
-        .unwrap_or_else(|diagnostics| {
+        compile_rooted_canary_for_target(&canary, scratch.join("out"), target).unwrap_or_else(
+            |diagnostics| {
             panic!(
                 "named negate/is_nan provider calls should compile for {target}: {diagnostics:#?}"
             )
-        });
+            },
+        );
         let _ = fs::remove_dir_all(&scratch);
     }
 
@@ -1758,13 +1671,8 @@ fn named_float_classification_predicates_select_and_execute() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("named float classification calls should compile natively");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("named float classification calls should compile from their authored native root");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("named float classification canary should run");
@@ -1782,24 +1690,11 @@ fn named_float_classification_predicates_select_and_execute() {
             std::process::id()
         ));
         let _ = fs::remove_dir_all(&scratch);
-        let source_dir = scratch.join("src");
-        fs::create_dir_all(&source_dir).expect("cross-target source directory");
-        fs::copy(canary.join("main.omg"), source_dir.join("main.omg"))
-            .expect("copy classification canary");
-        fs::write(
-            source_dir.join("build.omg"),
-            hosted_main_program_entry_build(target),
-        )
-        .expect("write cross-target build manifest");
-        compile(CompileOptions {
-            root_path: source_dir.join("main.omg"),
-            build_dir: Some(scratch.join("out")),
-            target_name: Some(target.to_owned()),
-            write_output: true,
-        })
-        .unwrap_or_else(|diagnostics| {
-            panic!("classification calls should compile for {target}: {diagnostics:#?}")
-        });
+        compile_rooted_canary_for_target(&canary, scratch.join("out"), target).unwrap_or_else(
+            |diagnostics| {
+                panic!("classification calls should compile for {target}: {diagnostics:#?}")
+            },
+        );
         let _ = fs::remove_dir_all(&scratch);
     }
 
@@ -1940,13 +1835,8 @@ fn named_float_classify_preserves_enum_layout_and_executes() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-named-float-classify-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("named float classify calls should compile natively");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("named float classify calls should compile from their authored native root");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("named float classify canary should run");
@@ -1964,24 +1854,9 @@ fn named_float_classify_preserves_enum_layout_and_executes() {
             std::process::id()
         ));
         let _ = fs::remove_dir_all(&scratch);
-        let source_dir = scratch.join("src");
-        fs::create_dir_all(&source_dir).expect("cross-target source directory");
-        fs::copy(canary.join("main.omg"), source_dir.join("main.omg"))
-            .expect("copy classify canary");
-        fs::write(
-            source_dir.join("build.omg"),
-            hosted_main_program_entry_build(target),
-        )
-        .expect("write cross-target build manifest");
-        compile(CompileOptions {
-            root_path: source_dir.join("main.omg"),
-            build_dir: Some(scratch.join("out")),
-            target_name: Some(target.to_owned()),
-            write_output: true,
-        })
-        .unwrap_or_else(|diagnostics| {
-            panic!("classify calls should compile for {target}: {diagnostics:#?}")
-        });
+        compile_rooted_canary_for_target(&canary, scratch.join("out"), target).unwrap_or_else(
+            |diagnostics| panic!("classify calls should compile for {target}: {diagnostics:#?}"),
+        );
         let _ = fs::remove_dir_all(&scratch);
     }
 
@@ -2010,7 +1885,7 @@ fn named_float_multiply_then_add_preserves_two_roundings_and_executes() {
         "two distinct roundings",
         "binary32 finite-overflow saturation",
     ];
-    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0x19ab_9820_b098_4016;
+    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0x1837_e5ad_11a5_6c74;
 
     let canary = pass_canary("float/named_provider_multiply_then_add_exit");
     let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
@@ -2128,13 +2003,9 @@ fn named_float_multiply_then_add_preserves_two_roundings_and_executes() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("named multiply-then-add provider calls should compile natively");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
+        "named multiply-then-add provider calls should compile from their authored native root",
+    );
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("named multiply-then-add provider canary should run");
@@ -2152,26 +2023,13 @@ fn named_float_multiply_then_add_preserves_two_roundings_and_executes() {
             std::process::id()
         ));
         let _ = fs::remove_dir_all(&scratch);
-        let source_dir = scratch.join("src");
-        fs::create_dir_all(&source_dir).expect("cross-target source directory");
-        fs::copy(canary.join("main.omg"), source_dir.join("main.omg"))
-            .expect("copy named-float canary");
-        fs::write(
-            source_dir.join("build.omg"),
-            hosted_main_program_entry_build(target),
-        )
-        .expect("write cross-target build manifest");
-        compile(CompileOptions {
-            root_path: source_dir.join("main.omg"),
-            build_dir: Some(scratch.join("out")),
-            target_name: Some(target.to_owned()),
-            write_output: true,
-        })
-        .unwrap_or_else(|diagnostics| {
+        compile_rooted_canary_for_target(&canary, scratch.join("out"), target).unwrap_or_else(
+            |diagnostics| {
             panic!(
                 "named multiply-then-add provider calls should compile for {target}: {diagnostics:#?}"
             )
-        });
+            },
+        );
         let _ = fs::remove_dir_all(&scratch);
     }
 
@@ -2199,7 +2057,7 @@ fn named_float_fused_multiply_add_selects_aarch64_fmadd_and_executes() {
         "binary64 cancellation edge",
         "single fused rounding",
     ];
-    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0xa1b8_c9cb_1685_5a61;
+    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0x260f_423a_297c_70d5;
 
     let canary = pass_canary("float/named_provider_fused_multiply_add_exit");
     let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
@@ -2278,13 +2136,8 @@ fn named_float_fused_multiply_add_selects_aarch64_fmadd_and_executes() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-named-float-fma-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("named FMA provider calls should compile natively");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("named FMA provider calls should compile from their authored native root");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("named FMA provider canary should run");
@@ -2301,20 +2154,11 @@ fn named_float_fused_multiply_add_selects_aarch64_fmadd_and_executes() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&scratch);
-    let source_dir = scratch.join("src");
-    fs::create_dir_all(&source_dir).expect("cross-target source directory");
-    fs::copy(canary.join("main.omg"), source_dir.join("main.omg")).expect("copy named-FMA canary");
-    fs::write(source_dir.join("build.omg"), "target linux_arm64 {\n}\n")
-        .expect("write cross-target build manifest");
-    compile(CompileOptions {
-        root_path: source_dir.join("main.omg"),
-        build_dir: Some(scratch.join("out")),
-        target_name: Some("linux_arm64".to_owned()),
-        write_output: true,
-    })
-    .unwrap_or_else(|diagnostics| {
-        panic!("named FMA provider calls should compile for linux_arm64: {diagnostics:#?}")
-    });
+    compile_rooted_canary_for_target(&canary, scratch.join("out"), "linux_arm64").unwrap_or_else(
+        |diagnostics| {
+            panic!("named FMA provider calls should compile for linux_arm64: {diagnostics:#?}")
+        },
+    );
     let _ = fs::remove_dir_all(&scratch);
 
     let result_identity = retained_float_differential_result_identity(
@@ -2345,7 +2189,7 @@ fn named_float_directed_fused_multiply_add_selects_aarch64_fmadd_and_executes() 
         "single fused rounding",
         "floating-control restoration",
     ];
-    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0x75be_2c49_63f3_f15a;
+    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0x287d_411b_d6cd_76d1;
 
     let canary = pass_canary("float/named_provider_directed_fused_multiply_add_exit");
     let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
@@ -2420,13 +2264,8 @@ fn named_float_directed_fused_multiply_add_selects_aarch64_fmadd_and_executes() 
 
     let build_dir = std::env::temp_dir().join(format!("omega-directed-fma-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("directed-FMA providers should compile natively");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("directed-FMA providers should compile from their authored native root");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("directed-FMA provider canary should run");
@@ -2444,21 +2283,11 @@ fn named_float_directed_fused_multiply_add_selects_aarch64_fmadd_and_executes() 
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&scratch);
-    let source_dir = scratch.join("src");
-    fs::create_dir_all(&source_dir).expect("directed-FMA cross-target source directory");
-    fs::copy(canary.join("main.omg"), source_dir.join("main.omg"))
-        .expect("copy directed-FMA canary");
-    fs::write(source_dir.join("build.omg"), "target linux_arm64 {\n}\n")
-        .expect("write directed-FMA target manifest");
-    compile(CompileOptions {
-        root_path: source_dir.join("main.omg"),
-        build_dir: Some(scratch.join("out")),
-        target_name: Some("linux_arm64".to_owned()),
-        write_output: true,
-    })
-    .unwrap_or_else(|diagnostics| {
-        panic!("directed-FMA providers should compile for linux_arm64: {diagnostics:#?}")
-    });
+    compile_rooted_canary_for_target(&canary, scratch.join("out"), "linux_arm64").unwrap_or_else(
+        |diagnostics| {
+            panic!("directed-FMA providers should compile for linux_arm64: {diagnostics:#?}")
+        },
+    );
     let _ = fs::remove_dir_all(&scratch);
 
     let result_identity = retained_float_differential_result_identity(

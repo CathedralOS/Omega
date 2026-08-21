@@ -24,3 +24,4 @@ omega-target = { path = "../../foundation/omega-target" }
 omega-target-operations = { path = "../../representations/omega-target-operations" }
 
 [dev-dependencies]
+psi-symbols = { path = "../../../psi-rs/foundation/psi-symbols" }

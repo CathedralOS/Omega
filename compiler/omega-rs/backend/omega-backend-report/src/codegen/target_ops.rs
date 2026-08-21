@@ -38,7 +38,11 @@ fn write_function_instruction_plan(
     backend_plan: &BackendReportInput<'_>,
     function: &TargetOperationFunction,
 ) {
-    let source_name = backend_state_name(backend_plan, function.source_key);
+    let source_name = function
+        .identity
+        .source_key()
+        .map(|source_key| backend_state_name(backend_plan, source_key))
+        .unwrap_or_else(|| format!("{:?}", function.identity));
     output.push_str(&format!(
         "- function {} from {}\n",
         function.symbol, source_name

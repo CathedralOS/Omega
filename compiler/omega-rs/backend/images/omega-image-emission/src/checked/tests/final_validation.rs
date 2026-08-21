@@ -470,7 +470,7 @@ fn compiler_functions_retain_a_complete_final_instruction_partition() {
     });
     let function = plan.code.functions.insert(EncodedMachineFunction {
         symbol: std::sync::Arc::from("entry"),
-        source_key: Default::default(),
+        identity: Default::default(),
         byte_offset: 0,
         byte_count: final_bytes.len(),
         instructions: HandleSpan::from_parts(first, 5),

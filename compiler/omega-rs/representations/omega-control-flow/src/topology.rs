@@ -22,6 +22,98 @@ impl StateKey {
     }
 }
 
+/// Canonical compiler-private identity of one lowered native function.
+///
+/// Source functions retain their exact control-flow key. Generated functions
+/// instead name one closed compiler-owned role and the exact source
+/// continuation they adapt; they never acquire a fabricated source key.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MachineFunctionIdentity {
+    kind: MachineFunctionIdentityKind,
+    continuation: StateKey,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum MachineFunctionIdentityKind {
+    Source,
+    ProgramStorageEntryWrapper,
+}
+
+impl MachineFunctionIdentity {
+    pub const fn source(source_key: StateKey) -> Self {
+        Self {
+            kind: MachineFunctionIdentityKind::Source,
+            continuation: source_key,
+        }
+    }
+
+    pub fn program_storage_entry_wrapper(continuation: StateKey) -> Option<Self> {
+        continuation.is_valid().then_some(Self {
+            kind: MachineFunctionIdentityKind::ProgramStorageEntryWrapper,
+            continuation,
+        })
+    }
+
+    pub const fn source_key(self) -> Option<StateKey> {
+        match self.kind {
+            MachineFunctionIdentityKind::Source => Some(self.continuation),
+            MachineFunctionIdentityKind::ProgramStorageEntryWrapper => None,
+        }
+    }
+
+    pub const fn program_storage_entry_continuation(self) -> Option<StateKey> {
+        match self.kind {
+            MachineFunctionIdentityKind::Source => None,
+            MachineFunctionIdentityKind::ProgramStorageEntryWrapper => Some(self.continuation),
+        }
+    }
+
+    pub const fn associated_source_continuation(self) -> StateKey {
+        self.continuation
+    }
+
+    pub fn is_valid(self) -> bool {
+        self.continuation.is_valid()
+    }
+}
+
+impl Default for MachineFunctionIdentity {
+    fn default() -> Self {
+        Self::source(StateKey::default())
+    }
+}
+
+#[cfg(test)]
+mod machine_function_identity_tests {
+    use super::{MachineFunctionIdentity, StateKey};
+    use psi_symbols::SymbolHandle;
+
+    fn source_key(state: u32) -> StateKey {
+        StateKey {
+            machine: SymbolHandle::from_arena_index(1),
+            state: SymbolHandle::from_arena_index(state),
+            segment_index: 0,
+        }
+    }
+
+    #[test]
+    fn generated_program_entry_identity_cannot_impersonate_its_source_continuation() {
+        let key = source_key(2);
+        let source = MachineFunctionIdentity::source(key);
+        let wrapper = MachineFunctionIdentity::program_storage_entry_wrapper(key)
+            .expect("valid continuation should admit one canonical wrapper identity");
+
+        assert_ne!(source, wrapper);
+        assert_eq!(source.source_key(), Some(key));
+        assert_eq!(wrapper.source_key(), None);
+        assert_eq!(wrapper.program_storage_entry_continuation(), Some(key));
+        assert_eq!(wrapper.associated_source_continuation(), key);
+        assert!(
+            MachineFunctionIdentity::program_storage_entry_wrapper(StateKey::default()).is_none()
+        );
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MachineFlow {
     pub symbol: SymbolHandle,

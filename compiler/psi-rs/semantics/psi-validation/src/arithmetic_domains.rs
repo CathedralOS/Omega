@@ -1755,9 +1755,32 @@ pub(crate) fn validate_total_specification_arithmetic(
     machine: &Machine,
     state: Option<&State>,
     expression: ExpressionHandle,
+    env: &ValueEnv,
     owner: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    // Proposition terms retain the ordinary Exact formation judgment. Run it
+    // before admitting this fact into `env`: a bound written around the very
+    // operation being formed cannot prove that operation total.
+    let mut formation_diagnostics = Vec::new();
+    analyze(
+        program,
+        machine,
+        state,
+        expression,
+        env,
+        None,
+        ArithmeticDomain::Exact,
+        owner,
+        &mut formation_diagnostics,
+    );
+    // Runtime-only unconditional-Trapping warnings have no meaning in Prop;
+    // the totality walker below emits the directed hard error instead.
+    diagnostics.extend(
+        formation_diagnostics
+            .into_iter()
+            .filter(Diagnostic::is_error),
+    );
     let expression_domain = |candidate| {
         let mut ignored_diagnostics = Vec::new();
         analyze(
@@ -1765,7 +1788,7 @@ pub(crate) fn validate_total_specification_arithmetic(
             machine,
             state,
             candidate,
-            &ValueEnv::new(),
+            env,
             None,
             ArithmeticDomain::Exact,
             owner,
@@ -1975,6 +1998,7 @@ pub(crate) fn validate_machine_total_specification_arithmetic(
     }
 
     let entry_state = program.machine_states(machine).first();
+    let mut machine_env = ValueEnv::new();
     for contract in program.machine_contracts(machine) {
         let owner = format!(
             "machine `{}` {} contract",
@@ -1983,18 +2007,34 @@ pub(crate) fn validate_machine_total_specification_arithmetic(
         );
         for fact in program.proof_facts.span_or_empty(contract.facts) {
             if let ProofFact::Expression(expression) = fact {
+                let diagnostics_before = diagnostics.len();
                 validate_total_specification_arithmetic(
                     program,
                     machine,
                     entry_state,
                     *expression,
+                    &machine_env,
                     &owner,
                     diagnostics,
                 );
+                if contract.kind == SignatureContractKind::Requires
+                    && diagnostics.len() == diagnostics_before
+                    && let Some(entry_state) = entry_state
+                {
+                    narrow_env_by_condition(
+                        program,
+                        machine,
+                        Some(entry_state),
+                        &mut machine_env,
+                        *expression,
+                        true,
+                    );
+                }
             }
         }
     }
     for state in program.machine_states(machine) {
+        let mut state_env = machine_env.clone();
         for contract in program.state_contracts(state) {
             let owner = format!(
                 "machine `{}` state `{}` {} contract",
@@ -2004,14 +2044,28 @@ pub(crate) fn validate_machine_total_specification_arithmetic(
             );
             for fact in program.proof_facts.span_or_empty(contract.facts) {
                 if let ProofFact::Expression(expression) = fact {
+                    let diagnostics_before = diagnostics.len();
                     validate_total_specification_arithmetic(
                         program,
                         machine,
                         Some(state),
                         *expression,
+                        &state_env,
                         &owner,
                         diagnostics,
                     );
+                    if contract.kind == SignatureContractKind::Requires
+                        && diagnostics.len() == diagnostics_before
+                    {
+                        narrow_env_by_condition(
+                            program,
+                            machine,
+                            Some(state),
+                            &mut state_env,
+                            *expression,
+                            true,
+                        );
+                    }
                 }
             }
         }
@@ -2140,6 +2194,220 @@ fn abstract_specification_place_type(
     Some(type_reference)
 }
 
+/// The settled abstract slice is deliberately narrower than executable
+/// `analyze`: it recognizes only explicit same-carrier policy erasure, the
+/// surface which makes a formerly Trapping operand Exact in Prop. It shares
+/// `Interval` and the prior-fact `ValueEnv`, but does not guess call results or
+/// duplicate the executable expression analyzer.
+fn validate_abstract_exact_policy_erasure_formation(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    owner: &str,
+    bindings: AbstractSpecificationBindings<'_>,
+    env: &ValueEnv,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    fn direct_operand(
+        program: &TypedTrees,
+        bindings: AbstractSpecificationBindings<'_>,
+        env: &ValueEnv,
+        expression: ExpressionHandle,
+    ) -> Option<(Option<PrimitiveType>, Interval, bool)> {
+        if let Some(literal) = literal_i64(program, expression) {
+            return Some((None, Interval::constant(literal), false));
+        }
+        let (type_reference, place, erased) = match program.expression_table.expression(expression)
+        {
+            ExpressionNode::Cast(cast)
+                if !cast.form.is_recast()
+                    && cast.semantic_domain.is_empty()
+                    && cast.domain == ArithmeticDomain::Exact =>
+            {
+                let source_type = abstract_specification_place_type(program, bindings, cast.value)?;
+                if program.arithmetic_domain_for_type_reference(source_type)
+                    == ArithmeticDomain::Exact
+                {
+                    return None;
+                }
+                let source_primitive = program.primitive_type_reference(source_type)?;
+                let target_primitive = program.primitive_type_reference(cast.target_type)?;
+                if source_primitive != target_primitive {
+                    return None;
+                }
+                (source_type, cast.value, true)
+            }
+            _ => {
+                let type_reference =
+                    abstract_specification_place_type(program, bindings, expression)?;
+                if program.arithmetic_domain_for_type_reference(type_reference)
+                    != ArithmeticDomain::Exact
+                {
+                    return None;
+                }
+                (type_reference, expression, false)
+            }
+        };
+        let primitive = program.primitive_type_reference(type_reference)?;
+        let interval = place_path(program, place)
+            .and_then(|path| env.get(&path))
+            .or_else(|| range_constraint_interval(program, type_reference))
+            .or_else(|| primitive_range(primitive))?;
+        Some((Some(primitive), interval, erased))
+    }
+
+    fn walk(
+        program: &TypedTrees,
+        expression: ExpressionHandle,
+        owner: &str,
+        bindings: AbstractSpecificationBindings<'_>,
+        env: &ValueEnv,
+        diagnostics: &mut Vec<Diagnostic>,
+        visited: &mut Vec<ExpressionHandle>,
+    ) {
+        if !expression.is_valid() || visited.contains(&expression) {
+            return;
+        }
+        visited.push(expression);
+        let recurse = |child, diagnostics: &mut Vec<Diagnostic>, visited: &mut Vec<_>| {
+            walk(program, child, owner, bindings, env, diagnostics, visited);
+        };
+        match program.expression_table.expression(expression) {
+            ExpressionNode::Binary(binary) => {
+                recurse(binary.left, diagnostics, visited);
+                recurse(binary.right, diagnostics, visited);
+                if !matches!(
+                    binary.operator,
+                    BinaryOperator::Add
+                        | BinaryOperator::Subtract
+                        | BinaryOperator::Multiply
+                        | BinaryOperator::ShiftLeft
+                ) {
+                    return;
+                }
+                let Some((left_primitive, left, left_erased)) =
+                    direct_operand(program, bindings, env, binary.left)
+                else {
+                    return;
+                };
+                let Some((right_primitive, right, right_erased)) =
+                    direct_operand(program, bindings, env, binary.right)
+                else {
+                    return;
+                };
+                if !left_erased && !right_erased {
+                    return;
+                }
+                let primitive = match (left_primitive, right_primitive) {
+                    (Some(left), Some(right)) if left != right => return,
+                    (Some(primitive), _) | (_, Some(primitive)) => primitive,
+                    (None, None) => return,
+                };
+                let interval = match binary.operator {
+                    BinaryOperator::Add => left.add(right),
+                    BinaryOperator::Subtract => left.subtract(right),
+                    BinaryOperator::Multiply => left.multiply(right),
+                    BinaryOperator::ShiftLeft => left.shift_left(right),
+                    _ => return,
+                };
+                if let Some(range) = primitive_range(primitive)
+                    && !range.contains(interval)
+                {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "exact arithmetic in {owner} may overflow `{}`: explicit same-carrier policy erasure retains the ordinary representability obligation, which must be discharged by prior facts",
+                        primitive_name(primitive),
+                    )));
+                }
+            }
+            ExpressionNode::ArrayLiteral(values) => {
+                for child in program.expression_table.expression_handles(*values) {
+                    recurse(*child, diagnostics, visited);
+                }
+            }
+            ExpressionNode::Atomic(atomic) => {
+                recurse(atomic.value, diagnostics, visited);
+                recurse(atomic.result, diagnostics, visited);
+            }
+            ExpressionNode::Cast(cast) => recurse(cast.value, diagnostics, visited),
+            ExpressionNode::Call(call) => {
+                recurse(call.receiver, diagnostics, visited);
+                for argument in program.expression_table.expression_handles(call.arguments) {
+                    recurse(*argument, diagnostics, visited);
+                }
+            }
+            ExpressionNode::Indexed(indexed) => {
+                recurse(indexed.collection, diagnostics, visited);
+                recurse(indexed.index, diagnostics, visited);
+            }
+            ExpressionNode::Member(member) => recurse(member.receiver, diagnostics, visited),
+            ExpressionNode::Mutable(value) => recurse(*value, diagnostics, visited),
+            ExpressionNode::Unary(unary) => recurse(unary.operand, diagnostics, visited),
+            ExpressionNode::Range(range) => {
+                recurse(range.start, diagnostics, visited);
+                recurse(range.end, diagnostics, visited);
+            }
+            ExpressionNode::StructLiteral(literal) => {
+                for field in program.expression_table.struct_fields(literal.fields) {
+                    recurse(field.value, diagnostics, visited);
+                }
+            }
+            ExpressionNode::Boolean(_)
+            | ExpressionNode::Float(_)
+            | ExpressionNode::Integer(_)
+            | ExpressionNode::Name(_)
+            | ExpressionNode::String(_)
+            | ExpressionNode::ZeroValue(_) => {}
+        }
+    }
+
+    walk(
+        program,
+        expression,
+        owner,
+        bindings,
+        env,
+        diagnostics,
+        &mut Vec::new(),
+    );
+}
+
+fn narrow_abstract_specification_env(
+    program: &TypedTrees,
+    bindings: AbstractSpecificationBindings<'_>,
+    env: &mut ValueEnv,
+    expression: ExpressionHandle,
+) {
+    let ExpressionNode::Binary(comparison) = program.expression_table.expression(expression) else {
+        return;
+    };
+    if comparison.operator == BinaryOperator::And {
+        narrow_abstract_specification_env(program, bindings, env, comparison.left);
+        narrow_abstract_specification_env(program, bindings, env, comparison.right);
+        return;
+    }
+    let Some((path, low, high)) = comparison_bound(program, expression) else {
+        return;
+    };
+    let place = if literal_i64(program, comparison.right).is_some() {
+        comparison.left
+    } else {
+        comparison.right
+    };
+    let Some(type_reference) = abstract_specification_place_type(program, bindings, place) else {
+        return;
+    };
+    let mut interval = Interval { low, high };
+    if let Some(carrier) = program
+        .primitive_type_reference(type_reference)
+        .and_then(primitive_range)
+    {
+        interval = interval.intersect(carrier);
+    }
+    if let Some(declared) = range_constraint_interval(program, type_reference) {
+        interval = interval.intersect(declared);
+    }
+    env.narrow(path, interval);
+}
+
 /// Validate every abstract Prop-bearing owner exactly once. Concrete machine
 /// and state contracts are deliberately absent: their place environments and
 /// diagnostics remain owned by `validate_machine_total_specification_arithmetic`.
@@ -2164,6 +2432,8 @@ pub(crate) fn validate_abstract_total_specification_arithmetic(
         facts: &[ProofFact],
         owner: &str,
         bindings: AbstractSpecificationBindings<'_>,
+        admit_to_env: bool,
+        env: &mut ValueEnv,
         seen: &mut Vec<ExpressionHandle>,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
@@ -2175,6 +2445,15 @@ pub(crate) fn validate_abstract_total_specification_arithmetic(
                 continue;
             }
             seen.push(*expression);
+            let diagnostics_before = diagnostics.len();
+            validate_abstract_exact_policy_erasure_formation(
+                program,
+                *expression,
+                owner,
+                bindings,
+                env,
+                diagnostics,
+            );
             let expression_domain = |candidate| {
                 abstract_specification_place_type(program, bindings, candidate).map(
                     |type_reference| program.arithmetic_domain_for_type_reference(type_reference),
@@ -2187,6 +2466,9 @@ pub(crate) fn validate_abstract_total_specification_arithmetic(
                 &expression_domain,
                 diagnostics,
             );
+            if admit_to_env && diagnostics.len() == diagnostics_before {
+                narrow_abstract_specification_env(program, bindings, env, *expression);
+            }
         }
     }
 
@@ -2198,6 +2480,7 @@ pub(crate) fn validate_abstract_total_specification_arithmetic(
         seen: &mut Vec<ExpressionHandle>,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
+        let mut env = ValueEnv::new();
         for contract in contracts {
             let contract_owner = format!("{owner} {} contract", kind_label(&contract.kind));
             validate_facts(
@@ -2205,6 +2488,8 @@ pub(crate) fn validate_abstract_total_specification_arithmetic(
                 program.proof_facts.span_or_empty(contract.facts),
                 &contract_owner,
                 bindings,
+                contract.kind == SignatureContractKind::Requires,
+                &mut env,
                 seen,
                 diagnostics,
             );
@@ -2214,6 +2499,7 @@ pub(crate) fn validate_abstract_total_specification_arithmetic(
     let mut seen = Vec::new();
 
     for domain in program.domain_definitions() {
+        let mut env = ValueEnv::new();
         validate_facts(
             program,
             program.proof_facts(domain),
@@ -2222,12 +2508,15 @@ pub(crate) fn validate_abstract_total_specification_arithmetic(
                 self_type: Some(domain.target_type),
                 ..Default::default()
             },
+            true,
+            &mut env,
             &mut seen,
             diagnostics,
         );
     }
 
     for data in program.data_definitions() {
+        let mut env = ValueEnv::new();
         validate_facts(
             program,
             program.proof_facts.span_or_empty(data.where_facts),
@@ -2236,17 +2525,22 @@ pub(crate) fn validate_abstract_total_specification_arithmetic(
                 data: Some(data),
                 ..Default::default()
             },
+            true,
+            &mut env,
             &mut seen,
             diagnostics,
         );
     }
 
     for trait_definition in program.traits() {
+        let mut invariant_env = ValueEnv::new();
         validate_facts(
             program,
             program.trait_invariants(trait_definition),
             &format!("trait `{}` invariant", trait_definition.name),
             AbstractSpecificationBindings::default(),
+            true,
+            &mut invariant_env,
             &mut seen,
             diagnostics,
         );

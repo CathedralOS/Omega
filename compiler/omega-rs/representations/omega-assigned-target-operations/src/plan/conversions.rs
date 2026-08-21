@@ -12,7 +12,7 @@ impl From<omega_target_operations::TargetOperationPlan> for AssignedTargetOperat
         for (_, function) in plan.code.functions.iter() {
             functions.insert(AssignedTargetOperationFunction {
                 symbol: Arc::clone(&function.symbol),
-                source_key: function.source_key,
+                identity: function.identity,
                 instructions: assigned_operation_span_from_target(function.instructions),
             });
         }
@@ -63,7 +63,7 @@ impl From<AssignedTargetOperationPlan> for omega_target_operations::TargetOperat
         for (_, function) in plan.code.functions.iter() {
             functions.insert(omega_target_operations::TargetOperationFunction {
                 symbol: Arc::clone(&function.symbol),
-                source_key: function.source_key,
+                identity: function.identity,
                 instructions: target_operation_span_from_assigned(function.instructions),
             });
         }
