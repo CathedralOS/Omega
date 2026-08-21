@@ -2,8 +2,9 @@
 //!
 //! This leaf rebases relative paths through already-canonical alias origins
 //! and detects syntactic mutable reborrows or reference-shaped replacements of
-//! stable parameter/local aliases. It neither infers origins nor mutates alias
-//! bindings.
+//! stable parameter/local aliases. It also resolves direct place expressions
+//! through those established origins. It neither recursively infers origins,
+//! mutates alias bindings, nor resolves call frames.
 
 use super::place_paths::{
     FramePathPrecision, FramePlaceOrigin, append_place_suffix, frame_place_path, split_place_root,
@@ -31,6 +32,54 @@ pub(super) fn rebase_local_alias_path(
             })
         })
         .unwrap_or_else(|| relative.to_owned())
+}
+
+/// Resolve one direct typed place through already-established parameter,
+/// caller-isolated-local, or stable-alias origins. Exact aliases compose the
+/// authored suffix; a collection-coarse origin remains coarse and cannot be
+/// narrowed by a later member projection.
+pub(super) fn stable_alias_place_origin(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    parameters: &[StateParameter],
+    isolated_local_roots: &[String],
+    aliases: &[(String, FramePlaceOrigin)],
+    allow_isolated_local: bool,
+) -> Option<FramePlaceOrigin> {
+    let expression = match program.expression_table.expression(expression) {
+        ExpressionNode::Mutable(inner) => *inner,
+        _ => expression,
+    };
+    let origin = frame_place_path(program, expression)?;
+    let (root, suffix) = split_place_root(&origin.path);
+    if root == "self"
+        || parameters
+            .iter()
+            .any(|parameter| parameter.name.as_str() == root)
+        || (allow_isolated_local && isolated_local_roots.iter().any(|local| local == root))
+    {
+        return Some(origin);
+    }
+    let parent = aliases
+        .iter()
+        .find_map(|(alias, parent)| (alias == root).then_some(parent))?;
+    if !allow_isolated_local
+        && isolated_local_roots
+            .iter()
+            .any(|local| local == split_place_root(&parent.path).0)
+    {
+        return None;
+    }
+    Some(match parent.precision {
+        FramePathPrecision::Exact => FramePlaceOrigin {
+            path: append_place_suffix(&parent.path, suffix),
+            precision: origin.precision,
+        },
+        FramePathPrecision::CollectionCoarse => FramePlaceOrigin {
+            path: parent.path.clone(),
+            precision: FramePathPrecision::CollectionCoarse,
+        },
+    })
 }
 
 pub(super) fn expression_reborrows_local_alias_binding(

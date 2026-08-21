@@ -49,7 +49,7 @@ use isolation::{
 };
 use local_aliases::{
     expression_may_rebind_mutable_alias, expression_reborrows_local_alias_binding,
-    expression_reborrows_stable_alias_binding, rebase_local_alias_path,
+    expression_reborrows_stable_alias_binding, rebase_local_alias_path, stable_alias_place_origin,
 };
 use parameter_aliases::{
     ParameterRelativeFrameOrigin, expression_reborrows_transparent_alias_binding,
@@ -835,50 +835,6 @@ fn stable_alias_expression_origin(
             allow_isolated_local,
         ),
     }
-}
-
-fn stable_alias_place_origin(
-    program: &TypedTrees,
-    expression: ExpressionHandle,
-    parameters: &[StateParameter],
-    isolated_local_roots: &[String],
-    aliases: &[(String, FramePlaceOrigin)],
-    allow_isolated_local: bool,
-) -> Option<FramePlaceOrigin> {
-    let expression = match program.expression_table.expression(expression) {
-        ExpressionNode::Mutable(inner) => *inner,
-        _ => expression,
-    };
-    let origin = frame_place_path(program, expression)?;
-    let (root, suffix) = split_place_root(&origin.path);
-    if root == "self"
-        || parameters
-            .iter()
-            .any(|parameter| parameter.name.as_str() == root)
-        || (allow_isolated_local && isolated_local_roots.iter().any(|local| local == root))
-    {
-        return Some(origin);
-    }
-    let parent = aliases
-        .iter()
-        .find_map(|(alias, parent)| (alias == root).then_some(parent))?;
-    if !allow_isolated_local
-        && isolated_local_roots
-            .iter()
-            .any(|local| local == split_place_root(&parent.path).0)
-    {
-        return None;
-    }
-    Some(match parent.precision {
-        FramePathPrecision::Exact => FramePlaceOrigin {
-            path: append_place_suffix(&parent.path, suffix),
-            precision: origin.precision,
-        },
-        FramePathPrecision::CollectionCoarse => FramePlaceOrigin {
-            path: parent.path.clone(),
-            precision: FramePathPrecision::CollectionCoarse,
-        },
-    })
 }
 
 /// Resolve an assignment target using the established direct-place behavior,
