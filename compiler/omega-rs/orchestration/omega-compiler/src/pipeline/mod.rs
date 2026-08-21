@@ -39,6 +39,7 @@ pub use compiler::{
     compile, compile_with_artifact_policy, compile_with_policy, compile_with_test_entry,
     compile_with_test_entry_and_artifact_policy, compile_with_test_entry_and_worker_count,
     compile_with_test_entry_worker_count_and_artifact_policy,
+    compile_with_worker_count_and_artifact_policy,
 };
 pub use program_storage_entry::{
     InstalledImageSubextent, InstalledProgramStorageRoots, PartitionedProgramStorageRoots,

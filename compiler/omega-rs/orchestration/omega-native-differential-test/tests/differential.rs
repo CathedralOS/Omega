@@ -17,8 +17,9 @@
 
 use omega_compiler::{
     ArtifactEmissionPolicy, CheckedCompilation, CompileOptions, compile_to_checked,
-    compile_with_test_entry_and_artifact_policy,
+    compile_with_artifact_policy, compile_with_test_entry_and_artifact_policy,
     compile_with_test_entry_worker_count_and_artifact_policy,
+    compile_with_worker_count_and_artifact_policy,
 };
 use psi_checked_interpreter::{InterpretOutcome, interpret_entry};
 use std::fs;
@@ -33,7 +34,75 @@ use std::time::Instant;
 static NEXT_NATIVE_STAGE: AtomicU64 = AtomicU64::new(1);
 
 fn interpret(checked: &CheckedCompilation, stdin: &[u8]) -> InterpretOutcome {
-    interpret_entry(checked, "Main::main", stdin)
+    interpret_entry(
+        checked,
+        checked
+            .selected_program_entry_machine()
+            .unwrap_or("Main::main"),
+        stdin,
+    )
+}
+
+fn host_target_name() -> &'static str {
+    if cfg!(all(target_os = "macos", target_arch = "aarch64")) {
+        "macos_arm64"
+    } else if cfg!(all(target_os = "linux", target_arch = "aarch64")) {
+        "linux_arm64"
+    } else if cfg!(all(target_os = "linux", target_arch = "x86_64")) {
+        "linux_x64"
+    } else if cfg!(all(target_os = "windows", target_arch = "x86_64")) {
+        "windows_x64"
+    } else {
+        panic!("unsupported host profile for native differential execution")
+    }
+}
+
+fn host_program_entry_owner() -> &'static str {
+    match host_target_name() {
+        "windows_x64" => "windows_x86_64",
+        "linux_x64" => "linux_x86_64",
+        "linux_arm64" => "linux_arm64",
+        "macos_arm64" => "macos_arm64",
+        _ => unreachable!("host_target_name returns one hosted target"),
+    }
+}
+
+/// Whether this fixture has opted into production entry selection for the
+/// development host. A build file for some other target does not retire the
+/// local legacy seam.
+fn has_authored_host_program_entry(main_path: &Path) -> bool {
+    let Some(project) = main_path.parent() else {
+        return false;
+    };
+    fs::read_to_string(project.join("build.omg")).is_ok_and(|source| {
+        source.lines().any(|line| {
+            line.trim_start()
+                .starts_with(&format!("target {}", host_target_name()))
+        }) && source.lines().any(|line| {
+            line.contains(".roots.bind(")
+                && line.contains(&format!("{}::ProgramEntry", host_program_entry_owner()))
+        })
+    })
+}
+
+fn compile_differential_to_checked(
+    main_path: &Path,
+) -> Result<CheckedCompilation, Vec<psi_diagnostics::Diagnostic>> {
+    let target = has_authored_host_program_entry(main_path).then_some(host_target_name());
+    compile_to_checked(main_path, target)
+}
+
+#[test]
+fn authored_host_entries_select_the_production_root() {
+    let main_path = pass_canary("float/float_to_int_exact_proofs_exit").join("main.omg");
+    assert!(has_authored_host_program_entry(&main_path));
+
+    let checked = compile_differential_to_checked(&main_path)
+        .unwrap_or_else(|diagnostics| panic!("authored entry rejected: {diagnostics:#?}"));
+    assert_eq!(checked.selected_program_entry_machine(), Some("Main::main"));
+
+    let legacy = pass_canary("control_flow/runtime_entry_cast_result_exit").join("main.omg");
+    assert!(!has_authored_host_program_entry(&legacy));
 }
 
 /// The RUN canaries: `(relative path under canaries/pass, exit code the suite asserts)`.
@@ -1532,7 +1601,7 @@ fn first_numeric_some(text: &str) -> Option<i32> {
 #[test]
 fn interpreter_executes_mutable_scalar_recast_write_through() {
     let main_path = pass_canary("recast/runtime_scalar_pun_mutable_write_exit").join("main.omg");
-    let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
+    let checked = compile_differential_to_checked(&main_path).unwrap_or_else(|diagnostics| {
         panic!(
             "mutable scalar recast compile failed:\n{}",
             join_diagnostics(&diagnostics)
@@ -1551,7 +1620,7 @@ fn interpreter_executes_mutable_scalar_recast_write_through() {
 fn interpreter_executes_mutable_byte_region_recast_write_through() {
     let main_path =
         pass_canary("recast/runtime_offset_byte_recast_mutable_write_exit").join("main.omg");
-    let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
+    let checked = compile_differential_to_checked(&main_path).unwrap_or_else(|diagnostics| {
         panic!(
             "mutable byte-region recast compile failed:\n{}",
             join_diagnostics(&diagnostics)
@@ -1569,7 +1638,7 @@ fn interpreter_executes_mutable_byte_region_recast_write_through() {
 #[test]
 fn interpreter_executes_runtime_cast_into_indexed_carrier() {
     let main_path = pass_canary("text/runtime_number_to_decimal_exit").join("main.omg");
-    let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
+    let checked = compile_differential_to_checked(&main_path).unwrap_or_else(|diagnostics| {
         panic!(
             "runtime indexed cast compile failed:\n{}",
             join_diagnostics(&diagnostics)
@@ -1603,7 +1672,7 @@ fn run_differential_canary(
     let main_path = pass_canary(name).join("main.omg");
 
     let frontend_started = Instant::now();
-    let checked = match compile_to_checked(&main_path, None) {
+    let checked = match compile_differential_to_checked(&main_path) {
         Ok(checked) => checked,
         Err(diagnostics) => {
             return DifferentialCanaryResult::FrontendBlocked(
@@ -1860,7 +1929,7 @@ fn registered_run_canaries_pass_frontend() {
 
     for (name, _) in RUN_CANARIES {
         let main_path = pass_canary(name).join("main.omg");
-        if let Err(diagnostics) = compile_to_checked(&main_path, None) {
+        if let Err(diagnostics) = compile_differential_to_checked(&main_path) {
             rejected.push((name.to_string(), join_diagnostics(&diagnostics)));
         }
     }
@@ -1885,7 +1954,7 @@ fn registered_run_canaries_pass_frontend() {
 #[test]
 fn interpreter_establishes_wire_scalar_ranges() {
     let main_path = pass_canary("wire/runtime_wire_decode_ranged_field_exit").join("main.omg");
-    let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
+    let checked = compile_differential_to_checked(&main_path).unwrap_or_else(|diagnostics| {
         panic!(
             "ranged wire decode compile failed:\n{}",
             join_diagnostics(&diagnostics)
@@ -1903,7 +1972,7 @@ fn interpreter_establishes_wire_scalar_ranges() {
 #[test]
 fn interpreter_establishes_repeated_wire_element_ranges() {
     let main_path = pass_canary("wire/runtime_wire_decode_ranged_repeated_exit").join("main.omg");
-    let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
+    let checked = compile_differential_to_checked(&main_path).unwrap_or_else(|diagnostics| {
         panic!(
             "ranged repeated wire decode compile failed:\n{}",
             join_diagnostics(&diagnostics)
@@ -1921,7 +1990,7 @@ fn interpreter_establishes_repeated_wire_element_ranges() {
 #[test]
 fn interpreter_roundtrips_fixed_vec_wire_field() {
     let main_path = pass_canary("wire/runtime_wire_roundtrip_repeated_exit").join("main.omg");
-    let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
+    let checked = compile_differential_to_checked(&main_path).unwrap_or_else(|diagnostics| {
         panic!(
             "FixedVec wire roundtrip compile failed:\n{}",
             join_diagnostics(&diagnostics)
@@ -1940,7 +2009,7 @@ fn interpreter_roundtrips_fixed_vec_wire_field() {
 fn interpreter_rejects_noncanonical_wire_booleans() {
     let main_path =
         pass_canary("wire/runtime_wire_decode_rejects_noncanonical_bool_exit").join("main.omg");
-    let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
+    let checked = compile_differential_to_checked(&main_path).unwrap_or_else(|diagnostics| {
         panic!(
             "noncanonical bool wire decode compile failed:\n{}",
             join_diagnostics(&diagnostics)
@@ -1959,7 +2028,7 @@ fn interpreter_rejects_noncanonical_wire_booleans() {
 fn interpreter_rejects_noncanonical_wire_varints() {
     let main_path =
         pass_canary("wire/runtime_wire_decode_rejects_noncanonical_varint_exit").join("main.omg");
-    let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
+    let checked = compile_differential_to_checked(&main_path).unwrap_or_else(|diagnostics| {
         panic!(
             "noncanonical varint wire decode compile failed:\n{}",
             join_diagnostics(&diagnostics)
@@ -1978,7 +2047,7 @@ fn interpreter_rejects_noncanonical_wire_varints() {
 fn interpreter_rejects_wire_scalar_width_overflow() {
     let main_path =
         pass_canary("wire/runtime_wire_decode_rejects_scalar_width_overflow_exit").join("main.omg");
-    let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
+    let checked = compile_differential_to_checked(&main_path).unwrap_or_else(|diagnostics| {
         panic!(
             "scalar width overflow wire decode compile failed:\n{}",
             join_diagnostics(&diagnostics)
@@ -2006,7 +2075,7 @@ fn interpreter_preserves_atomic_instruction_results() {
         ("atomics/runtime_atomic_compare_exchange_exit", 70),
     ] {
         let main_path = pass_canary(name).join("main.omg");
-        let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
+        let checked = compile_differential_to_checked(&main_path).unwrap_or_else(|diagnostics| {
             panic!(
                 "{name}: atomic canary failed frontend checking:\n{}",
                 join_diagnostics(&diagnostics)
@@ -2025,7 +2094,7 @@ fn interpreter_preserves_atomic_instruction_results() {
 fn interpreter_runs_forwarded_const_data_array_length() {
     let main_path =
         pass_canary("generics/runtime_const_data_forwarded_length_exit").join("main.omg");
-    let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
+    let checked = compile_differential_to_checked(&main_path).unwrap_or_else(|diagnostics| {
         panic!(
             "forwarded const data canary failed frontend checking:\n{}",
             join_diagnostics(&diagnostics)
@@ -2043,7 +2112,7 @@ fn interpreter_runs_forwarded_const_data_array_length() {
 fn interpreter_runs_multiple_const_data_instances() {
     let main_path =
         pass_canary("generics/runtime_const_data_multiple_instances_exit").join("main.omg");
-    let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
+    let checked = compile_differential_to_checked(&main_path).unwrap_or_else(|diagnostics| {
         panic!(
             "multiple const data instances failed frontend checking:\n{}",
             join_diagnostics(&diagnostics)
@@ -2060,7 +2129,7 @@ fn interpreter_runs_multiple_const_data_instances() {
 #[test]
 fn interpreter_runs_named_const_data_arguments() {
     let main_path = pass_canary("generics/runtime_const_data_named_value_exit").join("main.omg");
-    let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
+    let checked = compile_differential_to_checked(&main_path).unwrap_or_else(|diagnostics| {
         panic!(
             "named const data arguments failed frontend checking:\n{}",
             join_diagnostics(&diagnostics)
@@ -2077,7 +2146,7 @@ fn interpreter_runs_named_const_data_arguments() {
 #[test]
 fn interpreter_runs_const_data_argument_expressions() {
     let main_path = pass_canary("generics/runtime_const_data_expression_exit").join("main.omg");
-    let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
+    let checked = compile_differential_to_checked(&main_path).unwrap_or_else(|diagnostics| {
         panic!(
             "const data argument expressions failed frontend checking:\n{}",
             join_diagnostics(&diagnostics)
@@ -2095,7 +2164,7 @@ fn interpreter_runs_const_data_argument_expressions() {
 fn interpreter_runs_symbolic_const_data_argument_expressions() {
     let main_path =
         pass_canary("generics/runtime_const_data_symbolic_expression_exit").join("main.omg");
-    let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
+    let checked = compile_differential_to_checked(&main_path).unwrap_or_else(|diagnostics| {
         panic!(
             "symbolic const data argument expressions failed frontend checking:\n{}",
             join_diagnostics(&diagnostics)
@@ -2112,7 +2181,7 @@ fn interpreter_runs_symbolic_const_data_argument_expressions() {
 #[test]
 fn interpreter_runs_const_data_machine_call_arguments() {
     let main_path = pass_canary("generics/runtime_const_data_machine_call_exit").join("main.omg");
-    let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
+    let checked = compile_differential_to_checked(&main_path).unwrap_or_else(|diagnostics| {
         panic!(
             "const data machine-call argument failed frontend checking:\n{}",
             join_diagnostics(&diagnostics)
@@ -2126,7 +2195,7 @@ fn interpreter_runs_const_data_machine_call_arguments() {
 #[test]
 fn interpreter_runs_const_data_where_facts() {
     let main_path = pass_canary("generics/runtime_const_data_where_fact_exit").join("main.omg");
-    let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
+    let checked = compile_differential_to_checked(&main_path).unwrap_or_else(|diagnostics| {
         panic!(
             "const data where facts failed frontend checking:\n{}",
             join_diagnostics(&diagnostics)
@@ -2140,7 +2209,7 @@ fn interpreter_runs_const_data_where_facts() {
 #[test]
 fn interpreter_runs_const_data_machine_fact() {
     let main_path = pass_canary("generics/runtime_const_data_machine_fact_exit").join("main.omg");
-    let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
+    let checked = compile_differential_to_checked(&main_path).unwrap_or_else(|diagnostics| {
         panic!(
             "machine-backed const domain fact failed frontend checking:\n{}",
             join_diagnostics(&diagnostics)
@@ -2154,7 +2223,7 @@ fn interpreter_runs_const_data_machine_fact() {
 #[test]
 fn interpreter_runs_signed_const_data() {
     let main_path = pass_canary("generics/runtime_signed_const_data_exit").join("main.omg");
-    let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
+    let checked = compile_differential_to_checked(&main_path).unwrap_or_else(|diagnostics| {
         panic!(
             "signed const data failed frontend checking:\n{}",
             join_diagnostics(&diagnostics)
@@ -2168,7 +2237,7 @@ fn interpreter_runs_signed_const_data() {
 #[test]
 fn interpreter_runs_trait_default_dispatch() {
     let main_path = pass_canary("traits/runtime_trait_default_dispatch_exit").join("main.omg");
-    let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
+    let checked = compile_differential_to_checked(&main_path).unwrap_or_else(|diagnostics| {
         panic!(
             "trait default dispatch failed frontend checking:\n{}",
             join_diagnostics(&diagnostics)
@@ -2182,7 +2251,7 @@ fn interpreter_runs_trait_default_dispatch() {
 #[test]
 fn interpreter_runs_inherited_trait_default() {
     let main_path = pass_canary("traits/runtime_inherited_trait_default_exit").join("main.omg");
-    let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
+    let checked = compile_differential_to_checked(&main_path).unwrap_or_else(|diagnostics| {
         panic!(
             "inherited trait default failed frontend checking:\n{}",
             join_diagnostics(&diagnostics)
@@ -2196,7 +2265,7 @@ fn interpreter_runs_inherited_trait_default() {
 #[test]
 fn interpreter_runs_generic_trait_default() {
     let main_path = pass_canary("traits/runtime_generic_trait_default_exit").join("main.omg");
-    let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
+    let checked = compile_differential_to_checked(&main_path).unwrap_or_else(|diagnostics| {
         panic!(
             "generic trait default failed frontend checking:\n{}",
             join_diagnostics(&diagnostics)
@@ -2210,7 +2279,7 @@ fn interpreter_runs_generic_trait_default() {
 #[test]
 fn interpreter_runs_callable_equatable_synthesis() {
     let main_path = pass_canary("traits/equatable_record_equality_exit").join("main.omg");
-    let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
+    let checked = compile_differential_to_checked(&main_path).unwrap_or_else(|diagnostics| {
         panic!(
             "callable Equatable synthesis failed frontend checking:\n{}",
             join_diagnostics(&diagnostics)
@@ -2224,7 +2293,7 @@ fn interpreter_runs_callable_equatable_synthesis() {
 #[test]
 fn interpreter_runs_callable_equatable_sum_synthesis() {
     let main_path = pass_canary("traits/equatable_sum_payload_equality_exit").join("main.omg");
-    let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
+    let checked = compile_differential_to_checked(&main_path).unwrap_or_else(|diagnostics| {
         panic!(
             "callable sum Equatable synthesis failed frontend checking:\n{}",
             join_diagnostics(&diagnostics)
@@ -2238,7 +2307,7 @@ fn interpreter_runs_callable_equatable_sum_synthesis() {
 #[test]
 fn interpreter_runs_const_container_methods() {
     let main_path = pass_canary("generics/runtime_const_container_methods_exit").join("main.omg");
-    let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
+    let checked = compile_differential_to_checked(&main_path).unwrap_or_else(|diagnostics| {
         panic!(
             "const container methods failed frontend checking:\n{}",
             join_diagnostics(&diagnostics)
@@ -2255,7 +2324,7 @@ fn interpreter_runs_const_container_methods() {
 #[test]
 fn interpreter_runs_dispatch_sibling_value_calls() {
     let main_path = pass_canary("calls/runtime_dispatch_sibling_value_calls_exit").join("main.omg");
-    let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
+    let checked = compile_differential_to_checked(&main_path).unwrap_or_else(|diagnostics| {
         panic!(
             "sibling dispatched value calls failed frontend checking:\n{}",
             join_diagnostics(&diagnostics)
@@ -2273,7 +2342,7 @@ fn interpreter_runs_dispatch_sibling_value_calls() {
 fn interpreter_runs_inline_repeated_receiver_value_calls() {
     let main_path =
         pass_canary("calls/runtime_inline_repeated_receiver_value_calls_exit").join("main.omg");
-    let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
+    let checked = compile_differential_to_checked(&main_path).unwrap_or_else(|diagnostics| {
         panic!(
             "repeated inline receiver calls failed frontend checking:\n{}",
             join_diagnostics(&diagnostics)
@@ -2294,7 +2363,7 @@ fn interpreter_runs_inline_repeated_receiver_value_calls() {
 #[test]
 fn interpreter_matches_native_on_cli_mvp_sample() {
     let main_path = cli_sample("basics/cli_mvp");
-    let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
+    let checked = compile_differential_to_checked(&main_path).unwrap_or_else(|diagnostics| {
         panic!(
             "cli_mvp compile failed:\n{}",
             join_diagnostics(&diagnostics)
@@ -2333,7 +2402,7 @@ fn interpreter_matches_native_on_cli_mvp_sample() {
 #[test]
 fn interpreter_matches_native_on_game_of_life_sample() {
     let main_path = cli_sample("simulation/game_of_life");
-    let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
+    let checked = compile_differential_to_checked(&main_path).unwrap_or_else(|diagnostics| {
         panic!(
             "game_of_life compile failed:\n{}",
             join_diagnostics(&diagnostics)
@@ -2366,7 +2435,7 @@ fn interpreter_matches_native_on_game_of_life_sample() {
 #[test]
 fn interpreter_matches_native_on_bouncing_ball_sample() {
     let main_path = cli_sample("rendering/bouncing_ball");
-    let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
+    let checked = compile_differential_to_checked(&main_path).unwrap_or_else(|diagnostics| {
         panic!(
             "bouncing_ball compile failed:\n{}",
             join_diagnostics(&diagnostics)
@@ -2399,7 +2468,7 @@ fn interpreter_matches_native_on_bouncing_ball_sample() {
 #[test]
 fn interpreter_matches_native_on_dual_accumulator_sample() {
     let main_path = cli_sample("probes/dual_accumulator_recursion");
-    let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
+    let checked = compile_differential_to_checked(&main_path).unwrap_or_else(|diagnostics| {
         panic!(
             "dual_accumulator_recursion compile failed:\n{}",
             join_diagnostics(&diagnostics)
@@ -2444,7 +2513,7 @@ fn interpreter_matches_native_on_dual_accumulator_sample() {
 #[test]
 fn interpreter_matches_native_on_stack_vm_sample() {
     let main_path = cli_sample("interpreters/stack_vm");
-    let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
+    let checked = compile_differential_to_checked(&main_path).unwrap_or_else(|diagnostics| {
         panic!(
             "stack_vm compile failed:\n{}",
             join_diagnostics(&diagnostics)
@@ -2508,7 +2577,7 @@ fn interpreter_matches_native_on_stack_vm_sample() {
 #[test]
 fn interpreter_matches_native_on_account_ledger_sample() {
     let main_path = cli_sample("systems/account_ledger");
-    let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
+    let checked = compile_differential_to_checked(&main_path).unwrap_or_else(|diagnostics| {
         panic!(
             "account_ledger compile failed:\n{}",
             join_diagnostics(&diagnostics)
@@ -2559,7 +2628,7 @@ fn interpreter_matches_native_on_account_ledger_sample() {
 #[test]
 fn interpreter_matches_native_on_insertion_sort_sample() {
     let main_path = cli_sample("algorithms/insertion_sort");
-    let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
+    let checked = compile_differential_to_checked(&main_path).unwrap_or_else(|diagnostics| {
         panic!(
             "insertion_sort compile failed:\n{}",
             join_diagnostics(&diagnostics)
@@ -2600,7 +2669,7 @@ const DUNGEON_SCRIPT: &[u8] = b"north\r\nnorth\r\nnorth\r\nnorth\r\nquit\r\n";
 #[test]
 fn interpreter_dungeon_renders_depth_correct_rooms() {
     let main_path = cli_sample("games/dungeon_crawler_cli");
-    let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
+    let checked = compile_differential_to_checked(&main_path).unwrap_or_else(|diagnostics| {
         panic!(
             "dungeon compile to checked failed:\n{}",
             join_diagnostics(&diagnostics)
@@ -2662,7 +2731,7 @@ fn interpreter_dungeon_renders_depth_correct_rooms() {
 #[test]
 fn interpreter_matches_native_on_dungeon_sample() {
     let main_path = cli_sample("games/dungeon_crawler_cli");
-    let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
+    let checked = compile_differential_to_checked(&main_path).unwrap_or_else(|diagnostics| {
         panic!(
             "dungeon compile to checked failed:\n{}",
             join_diagnostics(&diagnostics)
@@ -2777,17 +2846,27 @@ fn try_compile_and_run_native_with_stdin(
     let options = CompileOptions {
         root_path: main_path.to_owned(),
         build_dir: Some(build_dir.clone()),
-        target_name: None,
+        target_name: has_authored_host_program_entry(main_path)
+            .then(|| host_target_name().to_owned()),
         write_output: true,
     };
-    let compile_result = match native_worker_count {
-        Some(worker_count) => compile_with_test_entry_worker_count_and_artifact_policy(
+    let compile_result = match (
+        has_authored_host_program_entry(main_path),
+        native_worker_count,
+    ) {
+        (true, Some(worker_count)) => compile_with_worker_count_and_artifact_policy(
+            options,
+            worker_count,
+            ArtifactEmissionPolicy::OutputOnly,
+        ),
+        (true, None) => compile_with_artifact_policy(options, ArtifactEmissionPolicy::OutputOnly),
+        (false, Some(worker_count)) => compile_with_test_entry_worker_count_and_artifact_policy(
             options,
             "Main::main",
             worker_count,
             ArtifactEmissionPolicy::OutputOnly,
         ),
-        None => compile_with_test_entry_and_artifact_policy(
+        (false, None) => compile_with_test_entry_and_artifact_policy(
             options,
             "Main::main",
             ArtifactEmissionPolicy::OutputOnly,
@@ -2911,7 +2990,7 @@ fn pending_runtime_divergences_hold() {
             .join(name)
             .join("main.omg");
 
-        let checked = match compile_to_checked(&main_path, None) {
+        let checked = match compile_differential_to_checked(&main_path) {
             Ok(checked) => checked,
             Err(diagnostics) => {
                 drifted.push(format!(
@@ -2985,7 +3064,7 @@ fn interpreter_traps_on_trapping_guard_overflow() {
     let main_path = repo_root()
         .join("canaries/pass/arithmetic/runtime_trapping_guard_overflow_traps")
         .join("main.omg");
-    let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
+    let checked = compile_differential_to_checked(&main_path).unwrap_or_else(|diagnostics| {
         panic!(
             "trapping guard overflow repro should reach the interpreter:\n{}",
             join_diagnostics(&diagnostics)
@@ -3007,7 +3086,7 @@ fn interpreter_traps_on_out_of_range_shift_count() {
     let main_path = repo_root()
         .join("canaries/pass/arithmetic/runtime_trapping_shift_count_traps")
         .join("main.omg");
-    let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
+    let checked = compile_differential_to_checked(&main_path).unwrap_or_else(|diagnostics| {
         panic!(
             "Trapping shift-count repro should reach the interpreter:\n{}",
             join_diagnostics(&diagnostics)
@@ -3029,7 +3108,7 @@ fn interpreter_traps_on_constant_shifted_value_overflow() {
     let main_path = repo_root()
         .join("canaries/pass/arithmetic/constant_trapping_shift_value_overflow_traps")
         .join("main.omg");
-    let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
+    let checked = compile_differential_to_checked(&main_path).unwrap_or_else(|diagnostics| {
         panic!(
             "constant Trapping shift-overflow repro should reach the interpreter:\n{}",
             join_diagnostics(&diagnostics)
@@ -3067,7 +3146,7 @@ fn interpreter_honors_float_arithmetic_policies() {
         "float/float_trapping_propagated_infinity_traps",
     ] {
         let main_path = pass_canary(name).join("main.omg");
-        let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
+        let checked = compile_differential_to_checked(&main_path).unwrap_or_else(|diagnostics| {
             panic!(
                 "{name} should reach the interpreter:\n{}",
                 join_diagnostics(&diagnostics)
@@ -3131,7 +3210,7 @@ fn interpreter_matches_native_on_byte_input_programs() {
     ];
 
     for (name, main_path, stdin, expected_exit) in vectors {
-        let checked = compile_to_checked(main_path, None).unwrap_or_else(|diagnostics| {
+        let checked = compile_differential_to_checked(main_path).unwrap_or_else(|diagnostics| {
             panic!(
                 "{name}: compile to checked failed:\n{}",
                 join_diagnostics(&diagnostics)
@@ -3215,7 +3294,7 @@ fn interpreter_matches_native_on_bounded_line_input_programs() {
     ];
 
     for (name, main_path, stdin, expected_exit) in vectors {
-        let checked = compile_to_checked(main_path, None).unwrap_or_else(|diagnostics| {
+        let checked = compile_differential_to_checked(main_path).unwrap_or_else(|diagnostics| {
             panic!(
                 "{name}: compile to checked failed:\n{}",
                 join_diagnostics(&diagnostics)

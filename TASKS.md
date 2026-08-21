@@ -81,8 +81,11 @@ Remaining:
   deliberately trapping fixtures remain targetless. Final firmware composition
   of `ImageHandle`/`SystemTable` inputs with semantic roots is design-blocked on
   owner Q2; the remaining physical bridge and corpus work is not. The native
-  differential RUN corpus still has 287 legacy fixtures without an authored
-  `build.omg` root. Continue migrating those fixtures through production entry
+  differential RUN corpus now routes every host-authored fixture through
+  production entry selection (including bounded outer-job/single-worker native
+  compiles) instead of silently retaining the legacy test-entry seam. A live
+  corpus audit leaves 236 legacy fixtures without an authored `build.omg` root.
+  Continue migrating those fixtures through production entry
   selection; replace result-as-process-exit probes with ordinary Unit entries
   and explicit exit providers rather than preserving the legacy entry seam.
 - **CONSERVATION-CONTRACT / TERMINAL-CONTENT-CLAIMS.** Take one real

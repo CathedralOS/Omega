@@ -80,6 +80,25 @@ pub fn compile_with_test_entry_worker_count_and_artifact_policy(
     })
 }
 
+/// Production compilation with an explicit backend-worker ceiling.
+///
+/// Corpus runners use this when they parallelize independent authored builds:
+/// each compile still follows target-owned `ProgramEntry` selection, while the
+/// outer scheduler controls aggregate concurrency.
+#[doc(hidden)]
+pub fn compile_with_worker_count_and_artifact_policy(
+    options: CompileOptions,
+    worker_count: usize,
+    artifact_policy: ArtifactEmissionPolicy,
+) -> Result<CompileReport, Vec<Diagnostic>> {
+    run_on_compile_thread(move || {
+        Compiler::with_executable_tcb_policy(options, ExecutableTcbBuildPolicy::default())
+            .with_worker_count(worker_count)
+            .with_artifact_policy(artifact_policy)
+            .compile()
+    })
+}
+
 /// Legacy native-test seam while semantic fixtures migrate to target-owned
 /// `ProgramEntry` roots. Production callers must use [`compile`].
 #[doc(hidden)]
