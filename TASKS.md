@@ -166,7 +166,11 @@ Owners:
   Typed owned materialization
   derives complete bytes from the exact schema (or a checked zero-argument Psi
   evaluator) while Omega supplies byte order, zeroes padding, and validates
-  completely before mutation.
+  completely before mutation. Fully specialized generic records now participate
+  through their synthesized concrete `CheckedShape` symbol and substituted
+  member types, including specializations nested under fixed-array wrappers;
+  spelling is never layout authority, and distinct specializations retain
+  distinct symbols and widths.
   Erased terms remain semantically mandatory but add no bytes, including nested
   records and fixed arrays whose entire runtime shape is erased. Scalar
   placement/access semantics remain fenced for aggregates. Continue beyond
