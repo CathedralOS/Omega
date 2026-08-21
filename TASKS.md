@@ -197,8 +197,9 @@ Remaining:
   and the existing AArch64 opcode checks. Ten aggregate construction, nested-
   field, and value-copy probes now likewise run unchanged Unit entries through
   authored roots. Ten call-result, machine-owned storage, sum-payload, and
-  subslice-window probes now likewise use authored production roots. The
-  tracked corpus audit leaves 87
+  subslice-window probes now likewise use authored production roots. Ten text-
+  storage, string-reference, room-dispatch, and tuple-matrix probes now also
+  use authored production roots. The tracked corpus audit leaves 77
   legacy fixtures without an authored `build.omg` root.
   Continue migrating those fixtures through production entry
   selection; replace result-as-process-exit probes with ordinary Unit entries

@@ -2043,13 +2043,8 @@ fn runtime_tuple_matrix_exhaustive_exit_canary_runs() {
     let canary = pass_canary("control_flow/runtime_tuple_matrix_exhaustive_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-tuple-matrix-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("tuple-transition canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("tuple-transition canary should compile from its authored root");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("tuple-transition canary should run");

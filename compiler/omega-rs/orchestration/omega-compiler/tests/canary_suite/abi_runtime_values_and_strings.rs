@@ -1945,18 +1945,12 @@ fn runtime_stdin_line_buffering_carrier_canary_runs() {
 #[test]
 fn runtime_text_storage_carrier_canary_runs() {
     let canary = pass_canary("text/runtime_text_storage");
-    let main_path = canary.join("main.omg");
     let build_dir =
         std::env::temp_dir().join(format!("omega-runtime-text-storage-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_with_auxiliary_artifacts(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("carrier text storage canary should compile");
+    compile_rooted_canary_for_native_host_with_auxiliary_artifacts(&canary, build_dir.clone())
+        .expect("carrier text storage canary should compile from its authored root");
 
     let report = fs::read_to_string(build_dir.join("backend_report.txt"))
         .expect("carrier text storage backend report should exist");
@@ -2651,13 +2645,9 @@ fn runtime_large_room_lookup_struct_field_concat_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime large room lookup struct field concat canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
+        "runtime large room lookup struct field concat canary should compile from its authored root",
+    );
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -2677,20 +2667,15 @@ fn runtime_large_room_lookup_struct_field_concat_exit_canary_runs() {
 #[test]
 fn runtime_call_argument_struct_string_field_slice_alias_exit_canary_runs() {
     let canary = pass_canary("text/runtime_call_argument_struct_string_field_slice_alias_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-call-argument-struct-string-slice-alias-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime call argument struct string slice alias canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
+        "runtime call argument struct string slice alias canary should compile from its authored root",
+    );
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -2778,13 +2763,9 @@ fn runtime_mutable_struct_string_field_copy_concat_write_line_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime mutable struct carrier field copy concat write_line canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
+        "runtime mutable struct carrier field copy concat write_line canary should compile from its authored root",
+    );
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -3034,20 +3015,14 @@ fn runtime_ordered_room_dispatch_large_machine_exit_canary_runs() {
 #[test]
 fn runtime_ordered_room_dispatch_loop_exit_canary_runs() {
     let canary = pass_canary("dungeon/runtime_ordered_room_dispatch_loop_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-ordered-room-dispatch-loop-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime ordered room dispatch loop canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("runtime ordered room dispatch loop canary should compile from its authored root");
 
     let mut child = Command::new(build_dir.join(executable_name()))
         .stdin(Stdio::piped())

@@ -2857,20 +2857,15 @@ fn runtime_call_result_through_reference_field_exit_canary_runs() {
 #[test]
 fn runtime_string_call_result_through_reference_field_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_string_call_result_through_reference_field_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-string-call-result-through-reference-field-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime string call result through reference field canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
+        "runtime string call result through reference field canary should compile from its authored root",
+    );
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -2892,20 +2887,15 @@ fn runtime_string_call_result_through_reference_field_exit_canary_runs() {
 #[test]
 fn runtime_two_string_call_results_through_reference_fields_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_two_string_call_results_through_reference_fields_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-two-string-call-results-through-reference-fields-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime two string call results through reference fields canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
+        "runtime two string call results through reference fields canary should compile from its authored root",
+    );
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -2926,20 +2916,15 @@ fn runtime_two_string_call_results_through_reference_fields_exit_canary_runs() {
 fn runtime_offset_string_call_results_through_reference_fields_exit_canary_runs() {
     let canary =
         pass_canary("calls/runtime_offset_string_call_results_through_reference_fields_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-offset-string-call-results-through-reference-fields-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime offset string call results through reference fields canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
+        "runtime offset string call results through reference fields canary should compile from its authored root",
+    );
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
