@@ -2225,13 +2225,8 @@ fn runtime_requires_guarded_call_exit_canary_runs() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-requires-guarded-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("requires guarded-call canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("requires guarded-call canary should compile from its authored root");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("requires guarded-call canary should run");
@@ -2323,13 +2318,8 @@ fn runtime_core_roster_ops_exit_canary_runs() {
     let canary = pass_canary("proofs/runtime_core_roster_ops_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-core-roster-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("core roster ops canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("core roster ops canary should compile from its authored root");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("core roster ops canary should run");

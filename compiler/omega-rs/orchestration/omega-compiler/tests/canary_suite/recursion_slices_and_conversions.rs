@@ -9,13 +9,8 @@ fn runtime_nat_structural_recursion_exit_canary_runs() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-nat-structural-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("nat structural recursion canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("nat structural recursion canary should compile from its authored root");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("nat structural recursion canary should run");
@@ -36,13 +31,8 @@ fn runtime_core_nat_declared_exit_canary_runs() {
     let canary = pass_canary("proofs/runtime_core_nat_declared_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-core-nat-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("core Nat canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("core Nat canary should compile from its authored root");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("core Nat canary should run");
@@ -102,13 +92,8 @@ fn runtime_core_rat_declared_exit_canary_runs() {
     let canary = pass_canary("proofs/runtime_core_rat_declared_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-core-rat-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("core Rat canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("core Rat canary should compile from its authored root");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("core Rat canary should run");
@@ -344,13 +329,8 @@ fn runtime_proof_only_data_declared_exit_canary_runs() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-proof-only-declared-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("proof-only declaration canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("proof-only declaration canary should compile from its authored root");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("proof-only declaration canary should run");

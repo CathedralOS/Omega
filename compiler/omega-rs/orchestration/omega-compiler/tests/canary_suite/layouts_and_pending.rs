@@ -876,13 +876,8 @@ fn arithmetic_domain_saturating_const_fold_exit_canary_runs() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-sat-const-fold-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("saturating const-fold canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("saturating const-fold canary should compile from its authored root");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("saturating const-fold canary should run");

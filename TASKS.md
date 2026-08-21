@@ -223,7 +223,9 @@ Remaining:
   storage, string-reference, room-dispatch, and tuple-matrix probes now also
   use authored production roots. Ten domain-membership, address-value, finite-
   matrix, and static generic-dispatch probes now likewise consume authored
-  roots. The tracked corpus audit leaves 67
+  roots. Nine proof/runtime, dependent-call, saturating-arithmetic, storage-
+  alias, and case-membership probes now also consume authored roots. The
+  tracked corpus audit leaves 58
   legacy fixtures without an authored `build.omg` root.
   Continue migrating those fixtures through production entry
   selection; replace result-as-process-exit probes with ordinary Unit entries
