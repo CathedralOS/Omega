@@ -320,6 +320,8 @@ pub struct ProgramStorageEntryNativeBridgePlan {
     >,
     wrapper_body_template:
         Option<super::program_storage_wrapper_body::ProgramStorageEntryWrapperBodyTemplatePlan>,
+    emitted_wrapper_evidence:
+        Option<super::program_storage_wrapper_evidence::ProgramStorageEntryEmittedWrapperEvidence>,
     selected_provider: Option<super::provider_plans::SelectedExternalRootProviderPlan>,
     target_profile: String,
     entry_symbol: String,
@@ -382,6 +384,29 @@ impl ProgramStorageEntryNativeBridgePlan {
     ) -> Option<&super::program_storage_wrapper_body::ProgramStorageEntryWrapperBodyTemplatePlan>
     {
         self.wrapper_body_template.as_ref()
+    }
+
+    /// Exact placed-region and relocated-call evidence retained only after the
+    /// checked executable image has been emitted. This proves image content,
+    /// not platform invocation or runtime root installation.
+    pub const fn emitted_wrapper_evidence(
+        &self,
+    ) -> Option<&super::program_storage_wrapper_evidence::ProgramStorageEntryEmittedWrapperEvidence>
+    {
+        self.emitted_wrapper_evidence.as_ref()
+    }
+
+    pub(super) fn retain_emitted_wrapper_evidence(
+        &mut self,
+        evidence: super::program_storage_wrapper_evidence::ProgramStorageEntryEmittedWrapperEvidence,
+    ) -> Result<(), ProgramStorageEntryDiagnostic> {
+        if self.emitted_wrapper_evidence.is_some() {
+            return Err(ProgramStorageEntryDiagnostic(
+                "program-storage bridge already retained final wrapper evidence".into(),
+            ));
+        }
+        self.emitted_wrapper_evidence = Some(evidence);
+        Ok(())
     }
 
     pub const fn selected_provider(
@@ -772,6 +797,7 @@ pub fn bind_emitted_program_storage_entry_native_bridge(
         continuation_abi,
         continuation_inbound,
         wrapper_body_template,
+        emitted_wrapper_evidence: None,
         selected_provider,
         target_profile,
         entry_symbol: entry.name.clone(),

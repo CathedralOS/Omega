@@ -593,8 +593,6 @@ mod tests {
                 target: template.wrapper_identity,
             };
         assert!(validate_emitted_rows(&template, &target_tamper, &exact_bytes).is_err());
-        assert!(
-            validate_emitted_rows(&template, &exact_kinds[..10], &exact_bytes).is_err()
-        );
+        assert!(validate_emitted_rows(&template, &exact_kinds[..10], &exact_bytes).is_err());
     }
 }

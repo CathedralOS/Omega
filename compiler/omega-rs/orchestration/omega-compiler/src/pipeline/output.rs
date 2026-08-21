@@ -14,6 +14,9 @@ pub(super) fn write_output(
     emitted: EmittedProgram,
     footprints: &omega_target_operations::BoundaryFootprintPlan,
     emit_auxiliary_artifacts: bool,
+    validate_before_publication: impl FnOnce(
+        Option<&omega_image::EmittedImageOutput>,
+    ) -> Result<(), Vec<Diagnostic>>,
 ) -> Result<std::path::PathBuf, Vec<Diagnostic>> {
     executable_tcb_authorization.authorize_installation();
     let build_dir = options.build_dir();
@@ -43,6 +46,11 @@ pub(super) fn write_output(
             )
             .map_err(|diagnostic| vec![diagnostic])?;
         }
+
+        // Entry-specific evidence must join the exact relocated image before
+        // any executable, bundle, or auxiliary final-image artifact becomes
+        // externally visible.
+        validate_before_publication(Some(&image))?;
 
         let compiler_text_validation = image.compiler_text_validation.ok_or_else(|| {
             vec![Diagnostic::error(
@@ -88,6 +96,7 @@ pub(super) fn write_output(
         text_bytes: &emitted.text_bytes,
         data_bytes: &emitted.data_bytes,
     });
+    validate_before_publication(None)?;
     let output_path = build_dir.join(&object_container.file_name);
     write_output_file(&output_path, &object_container.bytes, false)
         .map_err(|diagnostic| vec![diagnostic])?;

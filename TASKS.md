@@ -259,6 +259,15 @@ Remaining:
   `ProgramStorageEntryWrapper(StateKey)` as entry while retaining Source as its
   continuation, and the rebuilt plan proceeds through checked final-image
   validation. Candidate failure leaves the original backend unchanged.
+  Written receiver-free builds now bind one sealed emitted-wrapper evidence
+  carrier after checked relocation but before any executable, bundle, or final-
+  image artifact is published. It joins exact wrapper and Source object
+  identities to their placed executable regions, retains offsets, addresses,
+  sizes, byte fingerprints, compiler text/function validation, and executable-
+  inventory identity, and independently replays the single final `call rel32`
+  bytes against the Source interval. The compile report and optional manifest
+  retain that carrier; non-writing builds retain none. This proves final image
+  content only, not firmware invocation, installed roots, or native execution.
   Production builds still lack a source-compatible attached-root
   value/authority carrier (or separate hidden supply), final firmware
   composition, and native-execution evidence; those remain before this slice

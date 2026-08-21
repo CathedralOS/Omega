@@ -1635,6 +1635,49 @@ machine build(builder: &mut Build) {
     );
     assert_eq!(bridge.entry_function_identity(), wrapper_identity);
     assert_ne!(bridge.entry_function_identity(), source_identity);
+    let emitted = bridge
+        .emitted_wrapper_evidence()
+        .expect("written receiver-free bridge must retain checked final-image evidence");
+    assert_eq!(emitted.wrapper_identity(), wrapper_identity);
+    assert_eq!(emitted.continuation_identity(), source_identity);
+    assert_eq!(emitted.wrapper_symbol(), bridge.entry_symbol());
+    assert_eq!(emitted.wrapper_section_offset(), bridge.entry_text_offset());
+    assert_eq!(emitted.wrapper_byte_count(), bridge.entry_text_size());
+    assert_eq!(
+        emitted.continuation_symbol(),
+        bridge.continuation_link_symbol()
+    );
+    assert_eq!(
+        emitted.continuation_section_offset(),
+        bridge.continuation_text_offset()
+    );
+    assert_eq!(
+        emitted.continuation_byte_count(),
+        bridge.continuation_text_size()
+    );
+    assert_eq!(emitted.final_call_bytes()[0], 0xe8);
+    let expected_displacement = i32::try_from(emitted.continuation_section_offset()).unwrap()
+        - i32::try_from(emitted.call_section_offset() + emitted.final_call_bytes().len()).unwrap();
+    assert_eq!(
+        &emitted.final_call_bytes()[1..],
+        &expected_displacement.to_le_bytes()
+    );
+    assert!(emitted.wrapper_address() > emitted.continuation_address());
+    assert_ne!(emitted.wrapper_byte_fingerprint(), 0);
+    assert_ne!(emitted.continuation_byte_fingerprint(), 0);
+    assert_ne!(emitted.compiler_text_validation().derivation_fingerprint, 0);
+    assert_ne!(
+        emitted
+            .compiler_function_validation()
+            .evidence_fingerprint(),
+        0
+    );
+    assert_ne!(emitted.executable_inventory_fingerprint(), 0);
+    let entry_manifest = fs::read_to_string(build_dir.join("10_program_storage_entry.json"))
+        .expect("written bridge manifest");
+    assert!(entry_manifest.contains("\"emitted_wrapper_evidence\": {"));
+    assert!(entry_manifest.contains("\"final_call_bytes\": [232,"));
+    assert!(entry_manifest.contains("\"status\": \"pending_runtime_installation\""));
     let installation = install_program_storage_entry_roots(
         &build_dir,
         bridge.binding().clone(),
@@ -1661,6 +1704,10 @@ machine build(builder: &mut Build) {
     .expect("alternate receiver-free UEFI entry should compile")
     .program_storage_entry_bridge
     .expect("alternate receiver-free UEFI entry bridge");
+    assert!(
+        other_bridge.emitted_wrapper_evidence().is_none(),
+        "an unwritten build must not claim final-image wrapper evidence"
+    );
     let wrong_bridge =
         bind_recorded_program_storage_entry_whole_root_arguments(installation, &other_bridge)
             .expect_err("a recorded installation cannot bind another selected entry");

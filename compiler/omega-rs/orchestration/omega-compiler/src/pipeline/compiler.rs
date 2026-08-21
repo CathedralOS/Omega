@@ -948,7 +948,7 @@ impl Compiler {
             )
             .map_err(|diagnostic| vec![Diagnostic::error(diagnostic.to_string())])?;
         }
-        let program_storage_entry_bridge = if let Some(binding) = program_storage_entry {
+        let mut program_storage_entry_bridge = if let Some(binding) = program_storage_entry {
             Some(bind_bridge(
                 binding,
                 &backend,
@@ -958,9 +958,6 @@ impl Compiler {
             None
         };
         if self.options.write_output && emit_auxiliary_artifacts {
-            if let Some(bridge) = &program_storage_entry_bridge {
-                write_program_storage_entry_snapshot(&self.options, bridge)?;
-            }
             write_backend_report(
                 &self.options,
                 backend_surface
@@ -980,8 +977,30 @@ impl Compiler {
                 emitted,
                 &backend.plan.encoded_machine.semantics.boundaries.footprints,
                 emit_auxiliary_artifacts,
+                |checked_image| {
+                    let Some(bridge) = &mut program_storage_entry_bridge else {
+                        return Ok(());
+                    };
+                    let checked_image = checked_image.ok_or_else(|| {
+                        vec![Diagnostic::error(
+                            "program-storage entry target emitted no checked executable image",
+                        )]
+                    })?;
+                    let evidence = crate::pipeline::program_storage_wrapper_evidence::bind_final_program_storage_entry_wrapper_evidence(
+                        bridge,
+                        &backend.plan,
+                        checked_image,
+                    )
+                    .map_err(|diagnostic| vec![Diagnostic::error(diagnostic.to_string())])?;
+                    bridge
+                        .retain_emitted_wrapper_evidence(evidence)
+                        .map_err(|diagnostic| vec![Diagnostic::error(diagnostic.to_string())])
+                },
             )?;
             if emit_auxiliary_artifacts {
+                if let Some(bridge) = &program_storage_entry_bridge {
+                    write_program_storage_entry_snapshot(&self.options, bridge)?;
+                }
                 write_emission_plan(
                     &self.options,
                     &backend.plan,
