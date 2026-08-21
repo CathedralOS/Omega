@@ -18,6 +18,7 @@ use psi_typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 mod assignment_targets;
 mod boundary_calls;
+mod call_targets;
 mod demand;
 mod isolation;
 mod local_aliases;
@@ -35,6 +36,8 @@ use assignment_targets::{
 };
 use boundary_calls::known_boundary_call_written_paths_for_parts;
 pub(crate) use boundary_calls::{boundary_trait_signature, known_boundary_call_written_paths};
+pub(crate) use call_targets::free_machine_entry_state;
+pub(super) use call_targets::machine_state_by_symbol;
 pub use demand::{CallFrameResolver, frame_paths_overlap};
 use demand::{collect_expression_call_written_paths, syntactic_call_written_paths};
 pub(crate) use demand::{conservative_call_written_paths, statement_value_expression_roots};
@@ -70,42 +73,6 @@ use transparent_effects::{
 use type_capabilities::{
     parameter_may_carry_write, type_may_carry_write, type_reference_is_reference,
 };
-
-/// The FREE top-level machine named `target` and its entry state (`machine
-/// compute(item: &Item) -> i32 { ... }`), or None. The parser names a free
-/// machine's implicit entry state `entry`; explicit entry states matching the
-/// call target name win first.
-pub(crate) fn free_machine_entry_state<'program>(
-    program: &'program TypedTrees,
-    symbols: &TopLevelSymbols<'program>,
-    target: &str,
-) -> Option<(&'program Machine, &'program State)> {
-    let machine = symbols.machine(target)?;
-    if machine.attached_data.is_some() {
-        return None;
-    }
-
-    let states = program.machine_states(machine);
-    states
-        .iter()
-        .find(|state| state.name.as_str() == target)
-        .or_else(|| states.iter().find(|state| state.name.as_str() == "entry"))
-        .or_else(|| states.first())
-        .map(|state| (machine, state))
-}
-
-pub(super) fn machine_state_by_symbol(
-    program: &TypedTrees,
-    symbol: SymbolHandle,
-) -> Option<(&Machine, &State)> {
-    program.machines().iter().find_map(|machine| {
-        program
-            .machine_states(machine)
-            .iter()
-            .find(|state| state.symbol == symbol)
-            .map(|state| (machine, state))
-    })
-}
 
 /// Instantiate the conservative may-write set of a resolved internal call in
 /// the caller's place namespace. `None` means the summary is not complete and
