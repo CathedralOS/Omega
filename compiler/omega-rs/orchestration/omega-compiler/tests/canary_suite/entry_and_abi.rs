@@ -199,6 +199,7 @@ fn uefi_program_entry_retains_exact_storage_root_binding() {
     assert_eq!(bridge.target_profile(), "uefi_x64");
     assert!(!bridge.entry_symbol().is_empty());
     assert!(bridge.entry_text_size() > 0);
+    assert!(bridge.continuation_key().is_valid());
     assert_eq!(bridge.continuation_machine(), "Boot::launch");
     assert!(!bridge.continuation_state().is_empty());
     assert!(
