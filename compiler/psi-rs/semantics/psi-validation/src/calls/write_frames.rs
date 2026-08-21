@@ -24,6 +24,7 @@ mod local_aliases;
 mod parameter_aliases;
 mod place_paths;
 mod state_paths;
+mod transition_equations;
 mod transition_topology;
 mod transparent_effects;
 mod type_capabilities;
@@ -57,6 +58,9 @@ use place_paths::{
 use state_paths::{
     expression_forwards_exact_symbol, normalize_state_relative_path, push_visible_frame_path,
     relative_state_path_is_visible,
+};
+use transition_equations::{
+    PermutedCycleFrameEquation, append_permuted_cycle_frame_edge, transition_state_reaches,
 };
 use transition_topology::{named_transition_subgraph_is_acyclic, named_transition_target_state};
 use transparent_effects::{
@@ -2623,21 +2627,6 @@ fn stable_local_mutable_alias_rebinding_is_representable(
         .is_some()
 }
 
-#[derive(Debug, Clone)]
-struct PermutedCycleFrameEdge {
-    target: SymbolHandle,
-    arguments: Vec<ExpressionHandle>,
-}
-
-#[derive(Debug)]
-struct PermutedCycleFrameEquation<'program> {
-    state: &'program State,
-    locals: Vec<String>,
-    local_alias_origins: Vec<(String, FramePlaceOrigin)>,
-    direct_writes: Vec<String>,
-    edges: Vec<PermutedCycleFrameEdge>,
-}
-
 /// Recover an exact finite frame for transition SCCs whose write-capable state
 /// parameters are only permuted around each cycle.
 ///
@@ -2976,69 +2965,6 @@ fn build_permuted_cycle_frame_equation<'program>(
         direct_writes,
         edges,
     })
-}
-
-fn append_permuted_cycle_frame_edge(
-    program: &TypedTrees,
-    machine: &Machine,
-    source: &State,
-    target: psi_typed_trees::statement::TransitionTargetHandle,
-    edges: &mut Vec<PermutedCycleFrameEdge>,
-) -> Option<()> {
-    if !target.is_valid() {
-        return Some(());
-    }
-    match program.statement_table.transition_target(target) {
-        TransitionTargetNode::Terminal
-        | TransitionTargetNode::Value(_)
-        | TransitionTargetNode::SelfTarget => Some(()),
-        TransitionTargetNode::Named {
-            path, arguments, ..
-        } => {
-            let target = program
-                .machine_states(machine)
-                .iter()
-                .find(|candidate| candidate.symbol == path.symbol)
-                .or_else(|| {
-                    let members = program.statement_table.name_path_members(path.members);
-                    matches!(members, [member] if member.as_str() == "self").then_some(source)
-                })?;
-            edges.push(PermutedCycleFrameEdge {
-                target: target.symbol,
-                arguments: program
-                    .statement_table
-                    .expression_handles(*arguments)
-                    .to_vec(),
-            });
-            Some(())
-        }
-    }
-}
-
-fn transition_state_reaches(
-    equations: &[PermutedCycleFrameEquation<'_>],
-    start: SymbolHandle,
-    sought: SymbolHandle,
-) -> bool {
-    let mut pending = vec![start];
-    let mut visited = Vec::new();
-    while let Some(symbol) = pending.pop() {
-        if symbol == sought {
-            return true;
-        }
-        if visited.contains(&symbol) {
-            continue;
-        }
-        visited.push(symbol);
-        let Some(equation) = equations
-            .iter()
-            .find(|equation| equation.state.symbol == symbol)
-        else {
-            return false;
-        };
-        pending.extend(equation.edges.iter().map(|edge| edge.target));
-    }
-    false
 }
 
 fn transition_is_exact_write_parameter_permutation(
