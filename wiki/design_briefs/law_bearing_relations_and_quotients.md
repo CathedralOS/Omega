@@ -1,6 +1,6 @@
 # Law-Bearing Relations, Evidence, And Quotients
 
-Current design as of 2026-08-08. This brief resolves the former law-bearing
+Current design as of 2026-08-20. This brief resolves the former law-bearing
 relations and quotients owner question. It
 supersedes the current quotient pilot's executable-`bool` relation and
 suffix-based discovery of `_reflexive`, `_symmetric`, `_transitive`, and
@@ -193,8 +193,11 @@ result_evidence: local_evidence) = produce();`). The proof group is linked to
 that exact checked call site and canonical terminal call operation; its runtime
 effects, crashes, and fuel are only those of the ordinary call. No source-level
 aggregate combines Type and Prop, and no generated output-package identity,
-projection, lifetime, or partial-move rule exists. Generic conformance
-application remains design-blocked on `OWNER_QUESTIONS.md` Q6.
+projection, lifetime, or partial-move rule exists. A generic producer
+conformance is selected as a nested static application in the enclosing machine
+telescope, for example `TogetherEvidence<Left, Right>`. Its type, `const`, and
+static-machine arguments are explicit; ordinary lifetime elision alone may
+omit a region, whose resolved identity remains checked and erased.
 
 A transparent logical definition uses `=`:
 
@@ -538,8 +541,11 @@ output lanes. Each selected public selector and callee term declaration binds
 one distinct caller-local term with the same exact proposition and interface;
 omitted lanes bind none. Repeated calls reuse callee declarations and their
 producer provenance while minting distinct caller terms. A display spelling is
-never an identity oracle. Generic application is blocked on
-`OWNER_QUESTIONS.md` Q6.
+never an identity oracle. A generic conformance application retains its exact
+declared name, complete normalized telescope including resolved elided
+lifetimes, subject, trait application, and normalized row map. Expected
+subject/trait shape validates this closed selection but does not infer its
+non-lifetime arguments; visibility and ambient uniqueness never participate.
 
 Proof-only evaluation, when a transparent body is actually
 needed, uses the ordinary gated build-time evaluator: semantic eligibility
@@ -581,6 +587,9 @@ Acceptance requires:
 9. a total respecting operation lifts;
 10. a partial operation rejects unless equivalent representatives agree on its
    precondition;
-11. an operation whose result depends on representative choice rejects; and
-12. no compiler rule mentions `Rat`, `Real`, Cauchy sequences, moduli, or
-   convergence.
+11. an operation whose result depends on representative choice rejects;
+12. a generic conformance is selected through one nested application with all
+    type, `const`, and static-machine arguments explicit, only ordinary
+    lifetime elision, and no expected-shape or visibility inference; and
+13. no compiler rule mentions `Rat`, `Real`, Cauchy sequences, moduli, or
+    convergence.

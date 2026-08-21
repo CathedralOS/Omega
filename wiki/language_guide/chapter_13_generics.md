@@ -412,6 +412,38 @@ machine sort<Element, Order: Element satisfies Ranked>(
 sort<Card, PowerOrder>(&mut cards);
 ```
 
+When the selected conformance owns a telescope, its application nests inside
+that evidence argument:
+
+```omega
+machine send_all<
+    Element,
+    Message,
+    Encoding: Vec<Element> satisfies WireEncodable<Message>
+>(values: &Vec<Element>);
+
+send_all<
+    u8,
+    PlayerMessage,
+    SequenceEncoding<u8, PlayerMessage>
+>(&items);
+```
+
+The outer arguments specialize `send_all`; the inner arguments select one
+member of the `SequenceEncoding` conformance family. Every type, `const`, and
+static-machine argument owned by that conformance is written explicitly. The
+expected subject and trait application validate the resulting closed
+conformance but never supply those arguments. A bare generic conformance name,
+an `_` hole, or an unsupplied non-lifetime argument rejects. An already-closed
+evidence binder such as `Encoding` forwards bare.
+
+Lifetime arguments alone follow the ordinary lifetime-elision rules. An elided
+lifetime must resolve uniquely from the ordinary borrow constraints; otherwise
+the application rejects or writes the lifetime explicitly. Elision removes
+only source ceremony: the resolved normalized region remains in checked
+semantic identity even though it contributes no runtime generic argument or
+code specialization.
+
 The body uses requirements from that one passed conformance. It never searches
 visible declarations or mixes machines from several conformances. A generic
 and a concrete specialization may overlap freely because neither is selected

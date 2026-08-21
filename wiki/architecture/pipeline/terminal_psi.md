@@ -207,9 +207,14 @@ in the declared caller, produce the declared scalar type, and call the linked
 callee; a missing, spurious, unknown, wrong-kind, wrong-caller, or
 mismatched-callee link rejects. The proof row adds no operation or fuel beyond
 that ordinary call. Outcome guards expose selectors only in applicable arms.
-Generic conformance application is blocked on `OWNER_QUESTIONS.md` Q6. Runtime
-Type results retain their ordinary multiplicity independently of the proof
-lane.
+A selected generic conformance is already closed before Terminal Psi: its
+identity retains the declared package-scoped name, complete normalized
+telescope including any resolved elided lifetimes, instantiated subject and
+trait application, and complete normalized row map. The terminal verifier
+replays that exact application and rejects an open telescope, missing argument,
+shape mismatch, or redirected row. Runtime Type results retain their ordinary
+multiplicity independently of the proof lane; conformance selection adds no
+runtime value, operation, or fuel.
 
 Relation applications retain their independently bound left and right carrier
 index packs; no global carrier-parameter role is serialized. Selected

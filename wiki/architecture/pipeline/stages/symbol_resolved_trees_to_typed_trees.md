@@ -47,6 +47,11 @@ Must own:
 - Typed machine contracts retain the optional named evidence binding separately
   from the proposition fact it names; this stage does not infer or select the
   evidence producer.
+- Typed call telescopes retain a nested conformance application's own
+  lifetime/type/const/static-machine argument kinds. Every non-lifetime slot is
+  present explicitly; ordinary lifetime constraints remain available for the
+  checker to resolve. The expected evidence binder supplies a compatibility
+  target, never omitted conformance arguments.
 - Typed named transitions retain their erased evidence-identifier lane without
   assigning it a runtime argument type or storage position.
 

@@ -47,6 +47,10 @@ Must own:
 - Preserving an explicit named `requires`/`ensures` evidence binding while its
   proposition references acquire ordinary resolved identity. Selection of a
   producer conformance remains a checked proof concern.
+- Resolving the declared package-scoped conformance symbol in a nested generic
+  application while preserving that application's own argument pack separately
+  from the enclosing machine telescope. This stage does not infer missing
+  arguments or decide that the application satisfies an evidence binder.
 - Preserving named-transition evidence identifiers separately from runtime
   transition arguments while the target state acquires symbol identity.
 

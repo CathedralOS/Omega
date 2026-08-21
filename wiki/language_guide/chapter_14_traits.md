@@ -1096,6 +1096,33 @@ SequenceEncoding<Element, Message>:
 }
 ```
 
+One concrete family member is selected by applying that name inside the
+enclosing machine's static telescope:
+
+```omega
+send_all<
+    u8,
+    PlayerMessage,
+    SequenceEncoding<u8, PlayerMessage>
+>(&items);
+```
+
+This is a nested static-symbol application, not a runtime dictionary and not a
+Prop argument in the `;` lane. Its own angle brackets delimit the conformance's
+telescope from the enclosing machine's arguments. Type, `const`, and
+static-machine arguments are complete and explicit even when the expected
+subject and trait application could reconstruct them. The expected shape only
+checks the resulting closed conformance. Ordinary lifetime elision remains
+available; the resolved lifetime is retained in semantic identity and an
+ambiguous lifetime rejects. A bare name denotes a conformance argument only
+when it is already closed, including a forwarded evidence binder.
+
+The conformance telescope is public semantic identity. Adding, removing, or
+reordering a type, `const`, or static-machine binder breaks every concrete
+application. A lifetime-telescope change likewise changes semantic identity
+and may turn a formerly valid elision ambiguous; compatibility reporting must
+surface both consequences at the declaration.
+
 Those arguments specialize authored default signatures and bodies. They also
 compose through header parents, so a non-generic `trait IntSink: Sink<i32>`
 passes `i32` into defaults inherited from `Sink<T>`.
@@ -1222,10 +1249,12 @@ Closed implementations use the name-first declaration above. Bodyless carrier
 declarations remain static-only and cannot license local dynamic dispatch.
 Generic name-owned telescopes, package-scoped conformance symbols, and explicit
 evidence-binder declarations are retained by typed Psi. A concrete binder
-argument selects exactly one named closed map; specialization validates its
-subject and instantiated trait arguments, substitutes direct and inherited
-requirement rows, and retains that map in semantic identity. Instantiation of a
-generic conformance declaration's own telescope remains tracked in `TASKS.md`;
+argument selects exactly one named closed map. Nested conformance application
+supplies every non-lifetime argument, ordinary lifetime elision resolves and
+retains the exact region, and specialization validates the subject and
+instantiated trait arguments rather than inferring the application from them.
+Direct and inherited requirement rows are substituted and the resulting map is
+retained in semantic identity. Implementation remains tracked in `TASKS.md`;
 synthesis and its eligibility rules are independent of declaration syntax.
 Without a conformance, `==` on a structural type stays a compile error
 suggesting the one-line conformance; payload-less sums keep `==` as the

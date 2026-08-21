@@ -67,6 +67,11 @@ Must own:
 - Exact positional binding from each named-transition evidence identifier to
   the target state's witness-bearing arrival requirement after ordinary
   transition-argument substitution; enclosing machine evidence stays live.
+- Closed generic-conformance applications keyed by their declared
+  package-scoped symbol, with the complete normalized telescope, instantiated
+  subject and trait application, and selected row map. Non-lifetime arguments
+  are explicit; ordinary lifetime elision is resolved before the fact is
+  published.
 
 Must not own:
 
@@ -434,9 +439,11 @@ Current ownership is:
   identity is deliberately separate from proposition identity and producer
   provenance. Bare-name forwarding retains the exact incoming term. A concrete
   subjectless producer assignment instead retains the exact conformance,
-  evidence-trait symbol, canonical instantiated type-argument identities, and
-  complete normalized realization rows. Wrong arguments and unresolved open
-  evidence endpoints reject. The terminal producer consumes forwarded checked
+  evidence-trait symbol, complete normalized lifetime/type/const/static-machine
+  telescope, and complete normalized realization rows. Expected subject/trait
+  shape validates rather than fills non-lifetime arguments; wrong arguments,
+  ambiguous lifetimes, and unresolved open evidence endpoints reject. The
+  terminal producer consumes forwarded checked
   terms into dense source-handle-free vocabulary identities with an exact
   proposition application and structured interface; the verifier requires the
   application and term rows to agree, and forwarding contributes one row.

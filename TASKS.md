@@ -1360,7 +1360,7 @@ compiler concept is introduced.
   umbrella. The published checked operational root is retired; its plan remains
   only as a transient validation and independent-fact construction input.
   Continue removing umbrella carriers after their remaining consumers migrate.
-- **TPR4/TPR6 — design blocked on owner Q7.** Choose how an ordinary domain or
+- **TPR4/TPR6 — design blocked on owner Q6.** Choose how an ordinary domain or
   routed requirement is classified and attached as a progress premise before
   connecting progress-profile grants and receipts. Generic routed/domain
   requirements must not be treated as progress merely because they are
@@ -1456,9 +1456,10 @@ Remaining N6/N8 work:
   generated package identity. Proposition terms remain copyable and add no
   runtime work, cleanup, or fuel.
 
-  Generic conformance application is design-blocked on
-  `OWNER_QUESTIONS.md` Q6. Runtime Type results retain their own multiplicity
-  independently of the proof lane.
+  Generic producer conformances use the same nested static application form as
+  other name-owned telescopes. Type, const, and static-machine arguments are
+  explicit; only ordinary lifetime elision applies. Runtime Type results retain
+  their own multiplicity independently of the proof lane.
   Keep proposition, evidence-term, and provenance identities separate; neither
   provenance nor display spelling is a term identity oracle.
 - Finish generic conformance instantiation and explicit binders. The declaration
@@ -1471,13 +1472,17 @@ Remaining N6/N8 work:
   closed conformance, validates its instantiated subject/trait shape, exposes
   direct and inherited requirements in the binder scope, substitutes the
   selected normalized rows, and commits the map identity separately from
-  callable static-machine arguments. Still instantiate generic conformance
-  declarations over their own telescopes; the call-site application form and
-  permitted inference are design-blocked on `OWNER_QUESTIONS.md` Q6. Nested
-  generic calls already forward the exact evidence selection through
-  specialization. Identity retains declared name, telescope, optional subject,
-  instantiated trait, and normalized rows. No visibility-, priority-, or
-  specificity-based selection.
+  callable static-machine arguments. Implement nested call-site applications
+  such as `SequenceEncoding<u8, Message>` inside the enclosing machine
+  telescope. Require every type, const, and static-machine argument owned by
+  the conformance; apply only the ordinary lifetime-elision rules, rejecting an
+  ambiguous or otherwise unresolved lifetime. Expected subject/trait shape
+  validates the closed application but never fills its non-lifetime arguments.
+  Nested generic calls already forward an exact closed evidence binder bare
+  through specialization. Identity retains declared name, complete normalized
+  telescope including resolved elided lifetimes, optional subject, instantiated
+  trait, and normalized rows. No visibility-, priority-, specificity-, or
+  expected-shape-based selection.
 - Add `Respects` over compiler-derived positional call telescopes, deriving its
   dependent domain, pointwise input relations, and lifted result relation.
 - Add exact-pair-selected heterogeneous constructor lifts. Dependent records
@@ -1594,8 +1599,7 @@ specifications:
 - **IMPORTED-CRASH-CAPSULES:** realization/import/certificate identity in
   `wiki/language_guide/appendix_open_questions.md`.
 - **NATIVE-LOGICAL-FUEL-METERING:** owner Q3.
-- **GENERIC-CONFORMANCE-APPLICATION:** owner Q6.
-- **PROGRESS-PROFILE-CLASSIFICATION:** owner Q7.
+- **PROGRESS-PROFILE-CLASSIFICATION:** owner Q6.
 
 ## Platform-gated verification
 
