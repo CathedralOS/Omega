@@ -415,18 +415,7 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
             )?)
         }
 
-        fn whole_parameter_position(
-            program: &TypedTrees,
-            parameters: &[StateParameter],
-            expression: ExpressionHandle,
-        ) -> Option<u32> {
-            let mut path = Vec::new();
-            let position =
-                structural_parameter_field_path(program, parameters, expression, &mut path)?;
-            path.is_empty().then_some(position)
-        }
-
-        fn structural_record_data<'program>(
+        fn structural_data<'program>(
             program: &'program TypedTrees,
             mut type_reference: TypeReferenceHandle,
         ) -> Option<&'program psi_typed_trees::data::DataDefinition> {
@@ -455,7 +444,7 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
             program: &'program TypedTrees,
             type_reference: TypeReferenceHandle,
         ) -> Option<Vec<&'program psi_typed_trees::data::DataField>> {
-            let data = structural_record_data(program, type_reference)?;
+            let data = structural_data(program, type_reference)?;
             let mut fields = Vec::new();
             for member in program.data_members(data) {
                 let psi_typed_trees::data::DataMember::Field(field) = member else {
@@ -469,7 +458,35 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
             Some(fields)
         }
 
-        fn lower_whole_record_equality(
+        fn payloadless_sum_cases(
+            program: &TypedTrees,
+            type_reference: TypeReferenceHandle,
+        ) -> Option<Vec<String>> {
+            let data = structural_data(program, type_reference)?;
+            let members = program.data_members(data);
+            if !matches!(
+                psi_typed_trees::data::DataDefinition::shape_kind_from_members(members),
+                psi_typed_trees::data::DataShapeKind::Enum
+            ) {
+                return None;
+            }
+            members
+                .iter()
+                .map(|member| {
+                    let psi_typed_trees::data::DataMember::Variant(variant) = member else {
+                        return None;
+                    };
+                    program.data_payload_fields(variant).is_empty().then(|| {
+                        variant
+                            .identity
+                            .map(|identity| format!("#{identity}"))
+                            .unwrap_or_else(|| variant.name.as_str().to_owned())
+                    })
+                })
+                .collect()
+        }
+
+        fn lower_structural_equality(
             program: &TypedTrees,
             parameters: &[StateParameter],
             left: ExpressionHandle,
@@ -485,7 +502,21 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
                 output: &mut Vec<CheckedBooleanExpression>,
                 visiting: &mut Vec<psi_symbols::SymbolHandle>,
             ) -> Option<()> {
-                let data = structural_record_data(program, type_reference)?;
+                if let Some(cases) = payloadless_sum_cases(program, type_reference) {
+                    output.push(CheckedBooleanExpression::PayloadlessSumEqual {
+                        left: CheckedStructuralParameterField {
+                            parameter_position: left_parameter,
+                            path: left_path.clone(),
+                        },
+                        right: CheckedStructuralParameterField {
+                            parameter_position: right_parameter,
+                            path: right_path.clone(),
+                        },
+                        cases,
+                    });
+                    return Some(());
+                }
+                let data = structural_data(program, type_reference)?;
                 if !data.symbol.is_valid() || visiting.contains(&data.symbol) {
                     return None;
                 }
@@ -594,16 +625,17 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
                 Some(())
             }
 
-            let left_parameter = whole_parameter_position(program, parameters, left)?;
-            let right_parameter = whole_parameter_position(program, parameters, right)?;
-            let left_type = parameters
-                .get(usize::try_from(left_parameter).ok()?)?
-                .type_reference;
-            let right_type = parameters
-                .get(usize::try_from(right_parameter).ok()?)?
-                .type_reference;
-            let left_data = structural_record_data(program, left_type)?;
-            let right_data = structural_record_data(program, right_type)?;
+            let mut left_path = Vec::new();
+            let mut right_path = Vec::new();
+            let left_parameter =
+                structural_parameter_field_path(program, parameters, left, &mut left_path)?;
+            let right_parameter =
+                structural_parameter_field_path(program, parameters, right, &mut right_path)?;
+            let left_type = path_type_reference(program, parameters, left_parameter, &left_path)?;
+            let right_type =
+                path_type_reference(program, parameters, right_parameter, &right_path)?;
+            let left_data = structural_data(program, left_type)?;
+            let right_data = structural_data(program, right_type)?;
             if left_data.symbol != right_data.symbol || left_data.name != right_data.name {
                 return None;
             }
@@ -613,8 +645,8 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
                 left_parameter,
                 right_parameter,
                 left_type,
-                &mut Vec::new(),
-                &mut Vec::new(),
+                &mut left_path,
+                &mut right_path,
                 &mut comparisons,
                 &mut Vec::new(),
             )?;
@@ -873,7 +905,7 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
                 BinaryOperator::Equal | BinaryOperator::NotEqual
             )
             && let Some(equality) =
-                lower_whole_record_equality(program, parameters, binary.left, binary.right)
+                lower_structural_equality(program, parameters, binary.left, binary.right)
         {
             return Some(if binary.operator == BinaryOperator::NotEqual {
                 CheckedBooleanExpression::Not(Box::new(equality))
@@ -1897,7 +1929,8 @@ fn contains_short_circuit(expression: &CheckedBooleanExpression) -> bool {
         | CheckedBooleanExpression::StructuralParameterField { .. }
         | CheckedBooleanExpression::IntegerComparison { .. }
         | CheckedBooleanExpression::IeeeFloatComparison { .. }
-        | CheckedBooleanExpression::ByteSequenceEqual { .. } => false,
+        | CheckedBooleanExpression::ByteSequenceEqual { .. }
+        | CheckedBooleanExpression::PayloadlessSumEqual { .. } => false,
         CheckedBooleanExpression::Not(operand) => contains_short_circuit(operand),
         CheckedBooleanExpression::Equal { left, right } => {
             contains_short_circuit(left) || contains_short_circuit(right)

@@ -1,6 +1,13 @@
-data Main { }
+use omega::language::std::console;
 
-machine Main::main(&mut self) -> i32 {
+data Main { console: Console; }
+
+machine terminal_local() -> i32 {
     let exit_code: i32 = 70;
     exit_code
+}
+
+machine Main::main(&mut self) {
+    let result: i32 = terminal_local();
+    self.console.exit_process(result);
 }

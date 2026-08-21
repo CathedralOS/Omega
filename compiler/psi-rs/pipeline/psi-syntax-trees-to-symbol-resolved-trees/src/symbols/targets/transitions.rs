@@ -76,6 +76,27 @@ pub(in crate::symbols) fn assign_transition_target_symbols(
 
     let path = statement_path_members.span_or_empty(named.path);
     let target_name = path.last().cloned();
+
+    // A transition target is a state coordinate, even when an attached-data
+    // field has the same spelling. Ordinary scoped lookup includes fields and
+    // would otherwise bind `-> next()` to `self.next` before the state-only
+    // fallback below had a chance to run.
+    if (path.len() == 1 || named.path_starts_at_self)
+        && let Some(target_name) = target_name.as_ref()
+    {
+        let target_symbol = child_symbol_by_kinds(
+            symbols,
+            machine.symbol,
+            &[SymbolKind::State],
+            target_name.as_str(),
+        );
+        if target_symbol.is_valid() {
+            named.head_symbol = target_symbol;
+            named.symbol = target_symbol;
+            return;
+        }
+    }
+
     let (head_symbol, symbol) = resolve_state_scoped_members(
         symbols,
         machine.symbol,

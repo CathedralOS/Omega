@@ -19,7 +19,8 @@ pub(super) fn proposition_contains_content(proposition: &Proposition) -> bool {
         | Proposition::LessThan(_, _)
         | Proposition::LessOrEqual(_, _)
         | Proposition::IeeeFloatComparison { .. }
-        | Proposition::ByteSequenceEqual { .. } => false,
+        | Proposition::ByteSequenceEqual { .. }
+        | Proposition::StructuralCaseMembership { .. } => false,
     }
 }
 
@@ -85,6 +86,9 @@ pub(super) fn proposition_boolean_field_roots(proposition: &Proposition) -> BTre
                 roots.insert(left.root());
                 roots.insert(right.root());
             }
+            Proposition::StructuralCaseMembership { subject, .. } => {
+                roots.insert(subject.root());
+            }
             Proposition::Conjunction(propositions) | Proposition::Disjunction(propositions) => {
                 for proposition in propositions {
                     collect(proposition, roots);
@@ -148,7 +152,8 @@ pub(super) fn proposition_content_roots(proposition: &Proposition) -> BTreeSet<P
             | Proposition::LessThan(_, _)
             | Proposition::LessOrEqual(_, _)
             | Proposition::IeeeFloatComparison { .. }
-            | Proposition::ByteSequenceEqual { .. } => {}
+            | Proposition::ByteSequenceEqual { .. }
+            | Proposition::StructuralCaseMembership { .. } => {}
         }
     }
 

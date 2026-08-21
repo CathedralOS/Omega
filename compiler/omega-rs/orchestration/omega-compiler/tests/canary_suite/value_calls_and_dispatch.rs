@@ -122,20 +122,14 @@ fn runtime_value_call_single_execution_exit_canary_runs() {
 #[test]
 fn runtime_explicit_discard_executes_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_explicit_discard_executes_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-explicit-discard-executes-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("explicit-discard canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("explicit-discard canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()

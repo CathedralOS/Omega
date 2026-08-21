@@ -2391,6 +2391,7 @@ fn replay_structural_shape(
                 .and_then(|size| u16::try_from(size).ok())?;
             ValueShape::integer(byte_size, element.alignment)
         }
+        psi_terminal::StructuralTypeShape::Sum { .. } => return None,
     };
     active.remove(&structural_type);
     cache.insert(structural_type, shape);

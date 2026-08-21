@@ -2840,6 +2840,9 @@ fn structural_shape(
                     .ok_or(LoweringError::StructuralTypeTooLarge(structural_type))?;
                 Ok(ValueShape::integer(byte_size, element.alignment))
             }
+            StructuralTypeShape::Sum { .. } => {
+                Err(LoweringError::UnsupportedStructuralSum(structural_type))
+            }
         }
     })();
     active.remove(&structural_type);
@@ -5439,6 +5442,7 @@ pub enum LoweringError {
     RecursiveStructuralType(StructuralTypeId),
     EmptyStructuralType(StructuralTypeId),
     RelevantOpaqueStructuralField(StructuralTypeId),
+    UnsupportedStructuralSum(StructuralTypeId),
     StructuralTypeTooLarge(StructuralTypeId),
     ConditionalControlFlowRequiresBlockLowering(MachineId),
     ConditionalConditionMustBeBoolean(ValueId),

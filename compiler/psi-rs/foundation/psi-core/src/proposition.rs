@@ -2,7 +2,7 @@ use std::{cmp::Ordering, collections::BTreeMap};
 
 use crate::{
     ContentConservation, ContentPlaceVersion, ContentTerm, PlaceId, PropositionId,
-    StructuralFieldId, StructuralPlaceKind, ValueId,
+    StructuralCaseId, StructuralFieldId, StructuralPlaceKind, ValueId,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -893,6 +893,35 @@ impl IeeeFloatStructuralField {
 pub struct ByteSequenceStructuralField {
     root: PlaceId,
     path: Vec<CanonicalStructuralPathSegment>,
+}
+
+/// One structural subject whose active payload-less sum case can be observed.
+/// The path may be empty when the subject is the structural root itself.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct StructuralCaseSubject {
+    root: PlaceId,
+    path: Vec<CanonicalStructuralPathSegment>,
+}
+
+impl StructuralCaseSubject {
+    pub fn new(root: PlaceId, path: Vec<CanonicalStructuralPathSegment>) -> Self {
+        Self { root, path }
+    }
+
+    pub const fn root(&self) -> PlaceId {
+        self.root
+    }
+
+    pub fn path(&self) -> &[CanonicalStructuralPathSegment] {
+        &self.path
+    }
+
+    pub fn rebase(&self, root: PlaceId, prefix: &[CanonicalStructuralPathSegment]) -> Self {
+        let mut path = Vec::with_capacity(prefix.len() + self.path.len());
+        path.extend_from_slice(prefix);
+        path.extend_from_slice(&self.path);
+        Self { root, path }
+    }
 }
 
 impl ByteSequenceStructuralField {
@@ -2369,6 +2398,11 @@ pub enum Proposition {
         left: ByteSequenceStructuralField,
         right: ByteSequenceStructuralField,
     },
+    /// Exact membership in one declared case of a payload-less structural sum.
+    StructuralCaseMembership {
+        subject: StructuralCaseSubject,
+        case: StructuralCaseId,
+    },
     Conjunction(Vec<Proposition>),
     Disjunction(Vec<Proposition>),
     Implication {
@@ -2408,6 +2442,7 @@ impl Proposition {
                 }
                 Ok(())
             }
+            Self::StructuralCaseMembership { .. } => Ok(()),
             Self::Conjunction(conjuncts) => {
                 if conjuncts.len() < 2 {
                     return Err(PropositionError::NonCanonicalConjunctionArity(
@@ -2518,6 +2553,12 @@ impl PropositionContext {
                     if !self.structural_places.contains_key(&field.root) {
                         return Err(PropositionError::UnknownStructuralPlace(field.root));
                     }
+                }
+                Ok(())
+            }
+            Proposition::StructuralCaseMembership { subject, .. } => {
+                if !self.structural_places.contains_key(&subject.root) {
+                    return Err(PropositionError::UnknownStructuralPlace(subject.root));
                 }
                 Ok(())
             }

@@ -2237,6 +2237,44 @@ fn lowers_attached_main_state_name_as_main() {
 }
 
 #[test]
+fn transition_target_prefers_state_over_same_named_attached_field() {
+    let source = r#"
+    data Main { next: bool; }
+
+    machine Main::main(&mut self) {
+        transition { _ -> next() }
+
+        state next(&mut self) {}
+    }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let program = lower_syntax_trees(&syntax_trees).expect("lowering should succeed");
+    let machine = program.machines.first().expect("main machine");
+    let states = program.machine_state_handles(machine.states);
+    let entry = program.machine_state(states[0]);
+    let next = program.machine_state(states[1]);
+    let psi_symbol_resolved_trees::statement::Statement::Transition(transition) =
+        &program.state_statements(entry.statements)[0]
+    else {
+        panic!("main should transition to next");
+    };
+    let psi_symbol_resolved_trees::statement::TransitionTarget::Named(target) = &transition.target
+    else {
+        panic!("next should remain a named transition target");
+    };
+
+    assert_eq!(target.symbol, next.symbol);
+    assert_eq!(
+        program.symbols.get(target.symbol).kind,
+        psi_symbols::SymbolKind::State
+    );
+}
+
+#[test]
 fn resolves_qualified_attached_machine_tail_transition() {
     let source = r#"
     data Main {}

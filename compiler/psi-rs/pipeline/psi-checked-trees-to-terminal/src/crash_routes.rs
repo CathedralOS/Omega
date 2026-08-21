@@ -275,6 +275,57 @@ fn lower_byte_sequence_field(
     ByteSequenceStructuralField::new(root, path).map_err(LoweringError::InvalidCrashPredicate)
 }
 
+fn lower_structural_sum_subject(
+    subject: &psi_checked_trees::CheckedStructuralParameterField,
+    parameters: &[StructuralParameterDeclaration],
+    structural_types: &[StructuralTypeDeclaration],
+) -> Result<(StructuralCaseSubject, StructuralTypeId), LoweringError> {
+    let parameter = parameters
+        .iter()
+        .find(|parameter| parameter.position == subject.parameter_position)
+        .ok_or(LoweringError::Unsupported(
+            "structural sum predicate names a non-structural parameter",
+        ))?;
+    let mut structural_type = parameter.structural_type;
+    let mut terminal_path = Vec::with_capacity(subject.path.len());
+    for identity in &subject.path {
+        let declaration = structural_types
+            .iter()
+            .find(|declaration| declaration.id == structural_type)
+            .ok_or(LoweringError::Unsupported(
+                "structural sum predicate path type is absent",
+            ))?;
+        let StructuralTypeShape::Record { fields } = &declaration.shape else {
+            return unsupported("structural sum predicate path receiver is not a record");
+        };
+        let field = fields
+            .iter()
+            .find(|candidate| candidate.identity == *identity)
+            .filter(|field| !field.relevance.is_erased())
+            .ok_or(LoweringError::Unsupported(
+                "structural sum predicate path field is absent or erased",
+            ))?;
+        let StructuralFieldType::Structural(next) = field.field_type else {
+            return unsupported("structural sum predicate path does not reach a structural value");
+        };
+        terminal_path.push(CanonicalStructuralPathSegment::Field(field.id));
+        structural_type = next;
+    }
+    if !matches!(
+        structural_types
+            .iter()
+            .find(|declaration| declaration.id == structural_type)
+            .map(|declaration| &declaration.shape),
+        Some(StructuralTypeShape::Sum { .. })
+    ) {
+        return unsupported("structural sum predicate subject is not a payload-less sum");
+    }
+    Ok((
+        StructuralCaseSubject::new(parameter.place, terminal_path),
+        structural_type,
+    ))
+}
+
 pub(super) fn lower_structural_runtime_requirement(
     expression: &CheckedBooleanExpression,
     parameters: &[StructuralParameterDeclaration],
@@ -970,6 +1021,9 @@ pub(super) fn lower_structural_crash_route_buckets(
             CheckedBooleanExpression::ByteSequenceEqual { .. } => {
                 unsupported("byte-sequence equality lowers as an atomic proposition")
             }
+            CheckedBooleanExpression::PayloadlessSumEqual { .. } => {
+                unsupported("payload-less sum equality lowers through case-membership propositions")
+            }
             CheckedBooleanExpression::Parameter { .. }
             | CheckedBooleanExpression::Local { .. }
             | CheckedBooleanExpression::And { .. }
@@ -985,26 +1039,30 @@ pub(super) fn lower_structural_crash_route_buckets(
         structural_types: &[StructuralTypeDeclaration],
         runtime_requirements: &[Proposition],
     ) -> Result<Proposition, LoweringError> {
-        fn contains_ieee_float_comparison(expression: &CheckedBooleanExpression) -> bool {
+        fn contains_structural_atomic_proposition(expression: &CheckedBooleanExpression) -> bool {
             match expression {
-                CheckedBooleanExpression::IeeeFloatComparison { .. } => true,
-                CheckedBooleanExpression::Not(operand) => contains_ieee_float_comparison(operand),
+                CheckedBooleanExpression::IeeeFloatComparison { .. }
+                | CheckedBooleanExpression::ByteSequenceEqual { .. }
+                | CheckedBooleanExpression::PayloadlessSumEqual { .. } => true,
+                CheckedBooleanExpression::Not(operand) => {
+                    contains_structural_atomic_proposition(operand)
+                }
                 CheckedBooleanExpression::Equal { left, right }
                 | CheckedBooleanExpression::And { left, right }
                 | CheckedBooleanExpression::Or { left, right } => {
-                    contains_ieee_float_comparison(left) || contains_ieee_float_comparison(right)
+                    contains_structural_atomic_proposition(left)
+                        || contains_structural_atomic_proposition(right)
                 }
                 CheckedBooleanExpression::Constant(_)
                 | CheckedBooleanExpression::Parameter { .. }
                 | CheckedBooleanExpression::Local { .. }
                 | CheckedBooleanExpression::StructuralParameterField { .. }
-                | CheckedBooleanExpression::IntegerComparison { .. }
-                | CheckedBooleanExpression::ByteSequenceEqual { .. } => false,
+                | CheckedBooleanExpression::IntegerComparison { .. } => false,
             }
         }
 
         if let CheckedBooleanExpression::Not(operand) = expression
-            && contains_ieee_float_comparison(operand)
+            && contains_structural_atomic_proposition(operand)
         {
             return Ok(Proposition::Implication {
                 premise: Box::new(lower_proposition(
@@ -1055,6 +1113,78 @@ pub(super) fn lower_structural_crash_route_buckets(
             }
             return Ok(Proposition::ByteSequenceEqual { left, right });
         }
+        if let CheckedBooleanExpression::PayloadlessSumEqual { left, right, cases } = expression {
+            let (left, left_type) =
+                lower_structural_sum_subject(left, parameters, structural_types)?;
+            let (right, right_type) =
+                lower_structural_sum_subject(right, parameters, structural_types)?;
+            if left_type != right_type {
+                return unsupported("payload-less sum equality operands have different types");
+            }
+            if left == right {
+                return Ok(Proposition::Truth);
+            }
+            let StructuralTypeShape::Sum {
+                cases: declared_cases,
+            } = &structural_types
+                .iter()
+                .find(|declaration| declaration.id == left_type)
+                .expect("sum subject type was resolved")
+                .shape
+            else {
+                unreachable!("sum subject resolver returned a sum")
+            };
+            if cases.len() != declared_cases.len()
+                || cases
+                    .iter()
+                    .zip(declared_cases)
+                    .any(|(checked, declared)| checked != &declared.identity)
+            {
+                return unsupported("payload-less sum equality case roster was redirected");
+            }
+            let mut propositions = Vec::with_capacity(cases.len().saturating_mul(2));
+            for declared in declared_cases {
+                let left_membership = Proposition::StructuralCaseMembership {
+                    subject: left.clone(),
+                    case: declared.id,
+                };
+                let right_membership = Proposition::StructuralCaseMembership {
+                    subject: right.clone(),
+                    case: declared.id,
+                };
+                propositions.push(Proposition::Implication {
+                    premise: Box::new(left_membership.clone()),
+                    conclusion: Box::new(right_membership.clone()),
+                });
+                propositions.push(Proposition::Implication {
+                    premise: Box::new(right_membership),
+                    conclusion: Box::new(left_membership),
+                });
+            }
+            let mut keyed = propositions
+                .into_iter()
+                .map(|proposition| {
+                    psi_terminal_codec::canonical_proposition_order_key(&proposition)
+                        .map(|key| (key, proposition))
+                        .map_err(|_| {
+                            LoweringError::Unsupported(
+                                "payload-less sum equality is not canonically encodable",
+                            )
+                        })
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            keyed.sort_by(|left, right| left.0.cmp(&right.0));
+            keyed.dedup_by(|left, right| left.0 == right.0);
+            let mut propositions = keyed
+                .into_iter()
+                .map(|(_, proposition)| proposition)
+                .collect::<Vec<_>>();
+            return Ok(match propositions.len() {
+                0 => Proposition::Truth,
+                1 => propositions.pop().expect("one proposition"),
+                _ => Proposition::Conjunction(propositions),
+            });
+        }
         if let CheckedBooleanExpression::And { left, right }
         | CheckedBooleanExpression::Or { left, right } = expression
         {
@@ -1068,7 +1198,15 @@ pub(super) fn lower_structural_crash_route_buckets(
                     lower_proposition(leaf, parameters, structural_types, runtime_requirements)
                 })
                 .collect::<Result<Vec<_>, _>>()?;
-            let mut keyed = propositions
+            let mut flattened = Vec::new();
+            for proposition in propositions {
+                match proposition {
+                    Proposition::Conjunction(nested) if conjunction => flattened.extend(nested),
+                    Proposition::Disjunction(nested) if !conjunction => flattened.extend(nested),
+                    proposition => flattened.push(proposition),
+                }
+            }
+            let mut keyed = flattened
                 .into_iter()
                 .map(|proposition| {
                     psi_terminal_codec::canonical_proposition_order_key(&proposition)
@@ -1262,6 +1400,11 @@ pub(super) fn substitute_structural_crash_route_roots(
                     }
                 }
             }
+            Proposition::StructuralCaseMembership { subject, .. } => {
+                if let Some((root, prefix)) = substitutions.get(&subject.root()) {
+                    *subject = subject.rebase(*root, prefix);
+                }
+            }
             _ => {}
         }
         Ok(())
@@ -1363,6 +1506,11 @@ pub(super) fn substitute_structural_requirement_roots(
                 if let Some((root, prefix)) = substitutions.get(&field.root()) {
                     *field = field.rebase(*root, prefix);
                 }
+            }
+        }
+        Proposition::StructuralCaseMembership { subject, .. } => {
+            if let Some((root, prefix)) = substitutions.get(&subject.root()) {
+                *subject = subject.rebase(*root, prefix);
             }
         }
         Proposition::Conjunction(propositions) | Proposition::Disjunction(propositions) => {
@@ -1587,7 +1735,8 @@ fn checked_boolean_scalar_term(
             .map_err(LoweringError::InvalidCrashPredicate)?
         }
         CheckedBooleanExpression::IeeeFloatComparison { .. }
-        | CheckedBooleanExpression::ByteSequenceEqual { .. } => {
+        | CheckedBooleanExpression::ByteSequenceEqual { .. }
+        | CheckedBooleanExpression::PayloadlessSumEqual { .. } => {
             return unsupported("structural equality requires structural signature lowering");
         }
         CheckedBooleanExpression::And { .. } | CheckedBooleanExpression::Or { .. } => {

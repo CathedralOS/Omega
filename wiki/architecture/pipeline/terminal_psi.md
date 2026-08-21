@@ -1302,13 +1302,18 @@ verifier independently requires both resolved leaves to have byte-sequence
 carrier types, and call substitution rebases both roots. The bounded slice
 admits field-to-field whole-record equality for `&[u8] in Domain` and
 `[u8; N] in Domain`; text literals and direct text `!=` remain fenced. Semantic
-codec v16, proof-bundle v10, and installation-record v22 encode this vocabulary.
+codec v17, proof-bundle v11, and installation-record v23 encode this vocabulary.
 A
 genuinely zero-member record instead normalizes equality to the
 existing Boolean `true` term; inequality uses the existing negation, and calls,
 codecs, verification, fixed fuel, and interpretation reuse that carrier. An
-all-erased record is not empty and remains fenced. Sum/case, erased-field, and
-written `equals` bodies remain
+all-erased record is not empty and remains fenced. Payload-less sums retain
+their closed case roster as exact Terminal structural case identities. Equality
+is the canonical flat conjunction of both case-membership implications for
+each case; inequality is that complete equality proposition implying
+falsehood. The verifier resolves each subject and case independently. Case
+payload paths, payload-bearing-sum equality, erased-field equality, and written
+`equals` bodies remain
 outside this bounded terminal slice. Arithmetic over
 same-typed relevant fixed-integer members accepts Exact addition, subtraction,
 and multiplication: each member or fixed-integer-literal operand retains its
@@ -1902,7 +1907,7 @@ and each call trust node binds both the shared policy table and that focused
 consumer.
 
 The bounded Gamma feasibility spike now starts from four exact current
-`PSITERM\0` v16 byte fixtures and reconstructs a typed 54-row scalar ledger plus
+`PSITERM\0` v17 byte fixtures and reconstructs a typed 54-row scalar ledger plus
 a separate 3-row structural/effect ledger. It covers constants, Boolean
 not/equality, integer equality/order, bitwise operations, strict widening,
 partial exact cast, exact/wrapping shifts with independently typed counts, and
@@ -1925,7 +1930,7 @@ carriers with exact equality and canonical unsigned order,
 the complete Boolean/
 fixed-signed/fixed-unsigned/address type grammar with widths `1..=128`, exact
 signed/unsigned 128-bit integer-value payloads, and length-prefixed UTF-8
-decoding with malformed-encoding rejection. Its separate v16 structural-leaf
+decoding with malformed-encoding rejection. Its separate v17 structural-leaf
 module owns exact IEEE kind/format, byte-sequence carriers, full-width canonical
 structural fields, and atomic proposition tags `11`/`12`; nonempty paths and
 root-then-lexicographic operand order are checked at the atom boundary. All

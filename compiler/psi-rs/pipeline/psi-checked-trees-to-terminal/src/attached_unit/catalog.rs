@@ -55,6 +55,7 @@ pub(super) fn lower_unit_structural_types(
             } => {
                 collect(plans, element_type_identity, active, selected)?;
             }
+            CheckedUnitStructuralTypeShape::Sum { .. } => {}
         }
         active.pop();
         selected.push(identity.to_owned());
@@ -95,6 +96,7 @@ pub(super) fn lower_unit_structural_types(
         .map(|(index, identity)| Ok((identity.clone(), structural_type_id(dense_identity(index)?))))
         .collect::<Result<Vec<_>, LoweringError>>()?;
     let mut next_field = 1_u64;
+    let mut next_case = 1_u64;
     let mut declarations = Vec::with_capacity(selected.len());
     for identity in selected {
         let plan = plans
@@ -143,6 +145,27 @@ pub(super) fn lower_unit_structural_types(
                 element: lookup_type_id(&type_ids, element_type_identity)?,
                 length: *length,
             },
+            CheckedUnitStructuralTypeShape::Sum { cases } => {
+                let mut case_identities = BTreeSet::new();
+                let cases = cases
+                    .iter()
+                    .map(|case| {
+                        if case.identity.is_empty()
+                            || !case_identities.insert(case.identity.as_str())
+                        {
+                            return Err(LoweringError::Unsupported(
+                                "Unit structural type contains an empty or duplicate case identity",
+                            ));
+                        }
+                        Ok(StructuralCaseDeclaration {
+                            id: StructuralCaseId::new(allocate_dense(&mut next_case)?)
+                                .expect("allocated structural case identity is nonzero"),
+                            identity: case.identity.clone(),
+                        })
+                    })
+                    .collect::<Result<Vec<_>, LoweringError>>()?;
+                StructuralTypeShape::Sum { cases }
+            }
         };
         declarations.push(StructuralTypeDeclaration {
             id: lookup_type_id(&type_ids, &identity)?,

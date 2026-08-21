@@ -4453,7 +4453,7 @@ fn byte_sequence_aggregate_equality_is_content_atomic_end_to_end() {
             StructuralTypeShape::Record { fields } => fields
                 .iter_mut()
                 .find(|field| matches!(field.field_type, StructuralFieldType::ByteSequence(_))),
-            StructuralTypeShape::FixedArray { .. } => None,
+            StructuralTypeShape::FixedArray { .. } | StructuralTypeShape::Sum { .. } => None,
         })
         .expect("borrowed byte-sequence field");
     field.field_type = StructuralFieldType::Scalar(psi_core::ScalarType::Boolean);

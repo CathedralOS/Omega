@@ -1,4 +1,5 @@
-; Exact v16 grammar for structural IEEE/byte-sequence proposition leaves.
+; Exact v17 grammar for structural IEEE/byte-sequence and payload-less sum
+; case-membership proposition leaves.
 ; It preserves full-width identities and indices and checks only byte-level
 ; canonical form.  Declared structural types and semantic leaf meaning remain
 ; responsibilities of the eventual complete ledger generator.
@@ -235,4 +236,14 @@
                     (RTerminalStructuralLeafProposition
                       (TerminalByteSequenceEqual left right) tail)
                     RTerminalStructuralLeafPropositionBad)))))
-          RTerminalStructuralLeafPropositionBad)))))
+          (if (eq tag 13)
+            (match (read_terminal_canonical_structural_field rest)
+              (RTerminalCanonicalStructuralFieldBad
+                RTerminalStructuralLeafPropositionBad)
+              ((RTerminalCanonicalStructuralField subject r1)
+                (match (read_terminal_semantic_id r1)
+                  (RTerminalSemanticIdBad RTerminalStructuralLeafPropositionBad)
+                  ((RTerminalSemanticId case-id tail)
+                    (RTerminalStructuralLeafProposition
+                      (TerminalStructuralCaseMembership subject case-id) tail)))))
+            RTerminalStructuralLeafPropositionBad))))))

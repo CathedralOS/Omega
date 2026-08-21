@@ -2,8 +2,8 @@ use psi_core::{
     BlockId, BoundaryMachineId, ClaimId, ContentAlgebra, ContentConservation,
     ContentProjectionIdentity, ContentStructuralPlace, ContentTerm, ContractId, EdgeId,
     EvidenceTermId, IeeeFloatFormat, IntegerValue, MachineId, ObligationId, OperationId, PlaceId,
-    Proposition, ScalarType, ServiceId, StructuralDomainId, StructuralFieldId, StructuralPlaceKind,
-    StructuralTypeId, ValueId,
+    Proposition, ScalarType, ServiceId, StructuralCaseId, StructuralDomainId, StructuralFieldId,
+    StructuralPlaceKind, StructuralTypeId, ValueId,
 };
 use psi_language_core::BindingRelevance;
 
@@ -216,6 +216,17 @@ pub enum StructuralTypeShape {
         element: StructuralTypeId,
         length: u64,
     },
+    /// A closed sum whose cases carry no payload. Case declaration order is
+    /// semantic and IDs are strictly increasing in the canonical encoding.
+    Sum {
+        cases: Vec<StructuralCaseDeclaration>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct StructuralCaseDeclaration {
+    pub id: StructuralCaseId,
+    pub identity: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]

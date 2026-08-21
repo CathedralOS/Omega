@@ -47,14 +47,14 @@
   (rheader_exact_one
     (read_terminal_header
       (B 80 (B 83 (B 73 (B 84 (B 69 (B 82 (B 77 (B 0
-        (B 16 (B 0 (B 20 (B 0 (B 9 BNil))))))))))))))
+        (B 17 (B 0 (B 20 (B 0 (B 9 BNil))))))))))))))
     9))
 
 (def terminal_header_negative_test () Int
   (if (rheader_bad
         (read_terminal_header
           (B 81 (B 83 (B 73 (B 84 (B 69 (B 82 (B 77 (B 0
-            (B 16 (B 0 (B 20 (B 0 BNil))))))))))))))
+            (B 17 (B 0 (B 20 (B 0 BNil))))))))))))))
     (if (rheader_bad
           (read_terminal_header
             (B 80 (B 83 (B 73 (B 84 (B 69 (B 82 (B 77 (B 0
@@ -62,11 +62,11 @@
       (if (rheader_bad
             (read_terminal_header
               (B 80 (B 83 (B 73 (B 84 (B 69 (B 82 (B 77 (B 0
-                (B 16 (B 0 (B 19 (B 0 BNil))))))))))))))
+                (B 17 (B 0 (B 19 (B 0 BNil))))))))))))))
         (if (rheader_bad
               (read_terminal_header
                 (B 80 (B 83 (B 73 (B 84 (B 69 (B 82 (B 77 (B 0
-                  (B 16 BNil)))))))))))
+                  (B 17 BNil)))))))))))
           1 0)
         0)
       0)
@@ -385,6 +385,7 @@
     ((RTerminalStructuralLeafProposition proposition rest)
       (match proposition
         ((TerminalByteSequenceEqual left right) 0)
+        ((TerminalStructuralCaseMembership subject case-id) 0)
         ((TerminalIeeeFloatComparison kind format left right)
           (if (terminal_canonical_structural_field_equal left want-left)
             (if (terminal_canonical_structural_field_equal right want-right)
@@ -417,9 +418,27 @@
     ((RTerminalStructuralLeafProposition proposition rest)
       (match proposition
         ((TerminalIeeeFloatComparison kind format left right) 0)
+        ((TerminalStructuralCaseMembership subject case-id) 0)
         ((TerminalByteSequenceEqual left right)
           (if (terminal_canonical_structural_field_equal left want-left)
             (if (terminal_canonical_structural_field_equal right want-right)
+              (structural_leaf_tail_one rest tail)
+              0)
+            0))))))
+
+(def structural_leaf_case_exact_one
+  ((result RTerminalStructuralLeafProposition)
+   (want-subject TerminalCanonicalStructuralField)
+   (want-case TerminalSemanticId) (tail Int)) Int
+  (match result
+    (RTerminalStructuralLeafPropositionBad 0)
+    ((RTerminalStructuralLeafProposition proposition rest)
+      (match proposition
+        ((TerminalIeeeFloatComparison kind format left right) 0)
+        ((TerminalByteSequenceEqual left right) 0)
+        ((TerminalStructuralCaseMembership subject case-id)
+          (if (terminal_canonical_structural_field_equal subject want-subject)
+            (if (terminal_semantic_id_equal case-id want-case)
               (structural_leaf_tail_one rest tail)
               0)
             0))))))
@@ -484,7 +503,10 @@
         (let index-two (structural_leaf_expected_index_one 1 0 0 1)
           (let field-one (structural_leaf_expected_field_one 1 0 1 0)
             (let index-zero (structural_leaf_expected_index_one 1 0 0 0)
-              (if (structural_leaf_ieee_exact_one
+              (let root-subject
+                (TerminalCanonicalStructuralField
+                  (TerminalSemanticId (U64 1 0)) TerminalStructuralPathNil)
+                (if (structural_leaf_ieee_exact_one
                     (read_terminal_structural_leaf_proposition
                       (B 11 (B 1 (B 1
                         (structural_leaf_test_mixed_max 1 0
@@ -498,15 +520,23 @@
                             (structural_leaf_test_index_one 1 0 0 1
                               (B 9 BNil)))))))
                       index-one index-two 1 1 9)
-                  (structural_leaf_bytes_exact_one
-                    (read_terminal_structural_leaf_proposition
-                      (B 12
-                        (structural_leaf_test_field_one 1 0 1 0
-                          (structural_leaf_test_index_one 1 0 0 0
-                            (B 9 BNil)))))
-                    field-one index-zero 9)
+                  (if (structural_leaf_bytes_exact_one
+                        (read_terminal_structural_leaf_proposition
+                          (B 12
+                            (structural_leaf_test_field_one 1 0 1 0
+                              (structural_leaf_test_index_one 1 0 0 0
+                                (B 9 BNil)))))
+                        field-one index-zero 9)
+                    (structural_leaf_case_exact_one
+                      (read_terminal_structural_leaf_proposition
+                        (B 13
+                          (structural_leaf_test_u64 1 0
+                            (small_u32_codec_test_bytes 0
+                              (structural_leaf_test_u64 2 0 (B 9 BNil))))))
+                      root-subject (TerminalSemanticId (U64 2 0)) 9)
+                    0)
                   0)
-                0))))))))
+                0)))))))))
 
 (def structural_leaf_invalid_tag_test () Int
   (structural_leaf_bad
@@ -568,6 +598,14 @@
     (read_terminal_structural_leaf_proposition
       (B 12 (structural_leaf_test_field_one 1 0 1 0 BNil)))))
 
+(def structural_leaf_zero_case_test () Int
+  (structural_leaf_bad
+    (read_terminal_structural_leaf_proposition
+      (B 13
+        (structural_leaf_test_u64 1 0
+          (small_u32_codec_test_bytes 0
+            (structural_leaf_test_u64 0 0 BNil)))))))
+
 (def structural_leaf_carrier_negative_test () Int
   (if (match (read_terminal_byte_sequence_carrier (B 3 BNil))
         (RTerminalByteSequenceCarrierBad 1)
@@ -587,7 +625,9 @@
             (if (structural_leaf_invalid_segment_test)
               (if (structural_leaf_reversed_operands_test)
                 (if (structural_leaf_truncation_test)
-                  (structural_leaf_carrier_negative_test)
+                  (if (structural_leaf_zero_case_test)
+                    (structural_leaf_carrier_negative_test)
+                    0)
                   0)
                 0)
               0)

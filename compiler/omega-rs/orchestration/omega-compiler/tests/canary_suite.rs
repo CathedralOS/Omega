@@ -2,7 +2,8 @@ use omega_compiler::{
     ArtifactEmissionPolicy, CheckedCompilation, CompileOptions, CompileReport,
     PROGRAM_STORAGE_INSTALLATION_ARTIFACT, compile as production_compile, compile_to_checked,
     compile_with_artifact_policy, compile_with_test_entry,
-    compile_with_test_entry_and_artifact_policy,
+    compile_with_test_entry_worker_count_and_artifact_policy,
+    compile_with_worker_count_and_artifact_policy,
 };
 
 fn compile(options: CompileOptions) -> Result<CompileReport, Vec<Diagnostic>> {
@@ -1220,7 +1221,7 @@ fn compile_canary_without_output_for_target(
     target: &str,
 ) -> Result<CompileReport, Vec<Diagnostic>> {
     let build_dir = unique_no_output_build_dir();
-    let result = compile_with_test_entry_and_artifact_policy(
+    let result = compile_with_test_entry_worker_count_and_artifact_policy(
         CompileOptions {
             root_path: canary_dir.join("main.omg"),
             build_dir: Some(build_dir.clone()),
@@ -1228,6 +1229,7 @@ fn compile_canary_without_output_for_target(
             write_output: false,
         },
         "Main::main",
+        canary_backend_worker_count(),
         ArtifactEmissionPolicy::OutputOnly,
     );
     let _ = fs::remove_dir_all(&build_dir);
@@ -1243,13 +1245,14 @@ fn compile_canary_without_output(canary_dir: &Path) -> Result<CompileReport, Vec
     // `pass_canaries_compile` vs `capability_pass_canaries_compile_in_isolation`
     // full-suite flake. Give every no-output compile its own temp dir instead.
     let build_dir = unique_no_output_build_dir();
-    let result = compile_with_artifact_policy(
+    let result = compile_with_worker_count_and_artifact_policy(
         CompileOptions {
             root_path: canary_dir.join("main.omg"),
             build_dir: Some(build_dir.clone()),
             target_name: None,
             write_output: false,
         },
+        canary_backend_worker_count(),
         ArtifactEmissionPolicy::OutputOnly,
     );
     let _ = fs::remove_dir_all(&build_dir);
@@ -1263,7 +1266,7 @@ fn compile_legacy_backend_canary_without_output(
     // Name the fixture entry explicitly until each deployable/artifact fixture
     // authors a target-owned ProgramEntry; never rediscover Main::main by name.
     let build_dir = unique_no_output_build_dir();
-    let result = compile_with_test_entry_and_artifact_policy(
+    let result = compile_with_test_entry_worker_count_and_artifact_policy(
         CompileOptions {
             root_path: canary_dir.join("main.omg"),
             build_dir: Some(build_dir.clone()),
@@ -1271,6 +1274,7 @@ fn compile_legacy_backend_canary_without_output(
             write_output: false,
         },
         "Main::main",
+        canary_backend_worker_count(),
         ArtifactEmissionPolicy::OutputOnly,
     );
     let _ = fs::remove_dir_all(&build_dir);
@@ -1291,13 +1295,14 @@ fn compile_rooted_backend_canary_without_output_for_target(
     // Deliberately do not pass the legacy entry override: a missing or drifted
     // ProgramEntry row must fail instead of being masked by `Main::main`.
     let build_dir = unique_no_output_build_dir();
-    let result = compile_with_artifact_policy(
+    let result = compile_with_worker_count_and_artifact_policy(
         CompileOptions {
             root_path: canary_dir.join("main.omg"),
             build_dir: Some(build_dir.clone()),
             target_name: Some(target.into()),
             write_output: false,
         },
+        canary_backend_worker_count(),
         ArtifactEmissionPolicy::OutputOnly,
     );
     let _ = fs::remove_dir_all(&build_dir);
@@ -1338,6 +1343,20 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "control_flow/runtime_entry_nested_binary_result_exit",
     "control_flow/runtime_entry_return_field_exit",
     "control_flow/runtime_entry_unary_result_exit",
+    "calls/runtime_explicit_discard_executes_exit",
+    "collections/record_array_field_access",
+    "control_flow/guarded_transition_dispatch",
+    "control_flow/runtime_straight_line_terminal_local_exit",
+    "control_flow/runtime_straight_line_terminal_field_readback_exit",
+    "slices/runtime_mutable_slice_element_write_straight_line_exit",
+    "slices/runtime_array_indexed_read_exit",
+    "slices/runtime_array_indexed_loop_exit",
+    "slices/runtime_decreasing_index_exit",
+    "slices/runtime_slice_indexed_read_exit",
+    "slices/runtime_array_adjacent_index_exit",
+    "slices/runtime_nested_decreasing_index_exit",
+    "slices/runtime_narrow_widen_cast_exit",
+    "slices/runtime_signed_index_guarded_exit",
     "calls/runtime_reference_returned_slice_element_through_param_exit",
     "calls/runtime_nested_guarded_reference_returned_slice_element_exit",
     "calls/runtime_mutable_local_indexed_parameter_write_exit",
@@ -1990,9 +2009,28 @@ fn check_canary(canary_dir: &Path) -> Result<(), Vec<Diagnostic>> {
 
 static CANARY_UMBRELLA_LOCK: Mutex<()> = Mutex::new(());
 
-/// Run independent corpus members with bounded outer parallelism while each
-/// checked-only compile remains internally single-threaded. Results return in
-/// source order so diagnostics are deterministic.
+/// Keep independent corpus compiles narrowly parallel by default. The override
+/// is an explicit profiling seam, not a CI tuning requirement; combining large
+/// inner and outer counts can oversubscribe the host severely.
+fn canary_backend_worker_count() -> usize {
+    std::env::var("OMEGA_CANARY_INNER_WORKERS")
+        .ok()
+        .map(|value| {
+            value
+                .parse::<usize>()
+                .ok()
+                .filter(|count| *count > 0)
+                .unwrap_or_else(|| {
+                    panic!("OMEGA_CANARY_INNER_WORKERS must be a positive integer, got {value:?}")
+                })
+        })
+        .unwrap_or(2)
+}
+
+/// Run independent corpus members with bounded outer parallelism. Backend
+/// corpus helpers use two inner workers by default, preventing unbounded nested
+/// oversubscription; results return in source order so diagnostics remain
+/// deterministic.
 fn run_bounded_canary_jobs<T, R>(items: &[T], worker: impl Fn(&T) -> R + Sync) -> Vec<R>
 where
     T: Sync,

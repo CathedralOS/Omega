@@ -374,7 +374,8 @@ fn shared_boolean_runtime_inputs(
             Some(inputs)
         }
         psi_checked_trees::CheckedBooleanExpression::IeeeFloatComparison { .. }
-        | psi_checked_trees::CheckedBooleanExpression::ByteSequenceEqual { .. } => None,
+        | psi_checked_trees::CheckedBooleanExpression::ByteSequenceEqual { .. }
+        | psi_checked_trees::CheckedBooleanExpression::PayloadlessSumEqual { .. } => None,
         psi_checked_trees::CheckedBooleanExpression::Parameter { .. }
         | psi_checked_trees::CheckedBooleanExpression::Local { .. }
         | psi_checked_trees::CheckedBooleanExpression::StructuralParameterField { .. } => None,

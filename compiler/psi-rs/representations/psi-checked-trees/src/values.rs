@@ -257,6 +257,13 @@ pub enum CheckedBooleanExpression {
         left: CheckedStructuralParameterField,
         right: CheckedStructuralParameterField,
     },
+    /// Equality of two payload-less structural sums. Terminal lowering expands
+    /// this closed case roster into canonical per-case membership equivalence.
+    PayloadlessSumEqual {
+        left: CheckedStructuralParameterField,
+        right: CheckedStructuralParameterField,
+        cases: Vec<String>,
+    },
     And {
         left: Box<CheckedBooleanExpression>,
         right: Box<CheckedBooleanExpression>,

@@ -622,28 +622,21 @@ fn runtime_local_boolean_or_value_exit_canary_runs() {
     let _ = fs::remove_dir_all(&scratch);
 }
 
-// Straight-line `main` with NO transitions whose terminal expression is a
-// LOCAL read. Pre-fix, only a bare literal terminal delivered as the exit
-// code; a local terminal silently fell through to the default exit path
-// (exit 1). Guards the terminal-value constant fold through local
-// initializers.
+// Straight-line value helper with NO transitions whose terminal expression is
+// a LOCAL read. Pre-fix, only a bare literal terminal delivered to its caller;
+// a local terminal silently fell through to the default value. Guards the
+// terminal-value constant fold through local initializers.
 #[test]
 fn runtime_straight_line_terminal_local_exit_canary_runs() {
     let canary = pass_canary("control_flow/runtime_straight_line_terminal_local_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-straight-line-terminal-local-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("straight-line terminal local canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("straight-line terminal local canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -660,26 +653,20 @@ fn runtime_straight_line_terminal_local_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
-// The runtime half of the straight-line terminal shape: a field WRITE followed
-// by a terminal field READ-BACK. Unlike the local variant this cannot constant
-// fold — it exercises the CopyRuntimeStorageToReturnRegister load.
+// The runtime half of the straight-line helper-result shape: a field WRITE
+// followed by a terminal field READ-BACK. Unlike the local variant this cannot
+// constant fold — it exercises the ordinary result-register load.
 #[test]
 fn runtime_straight_line_terminal_field_readback_exit_canary_runs() {
     let canary = pass_canary("control_flow/runtime_straight_line_terminal_field_readback_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-straight-line-terminal-field-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("straight-line terminal field read-back canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("straight-line terminal field read-back canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -694,6 +681,35 @@ fn runtime_straight_line_terminal_field_readback_exit_canary_runs() {
     );
 
     let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn rooted_residual_scalar_entry_cohort_runs() {
+    for (name, expected) in [
+        ("control_flow/guarded_transition_dispatch", 0),
+        ("collections/record_array_field_access", 0),
+    ] {
+        let canary = pass_canary(name);
+        let build_dir = std::env::temp_dir().join(format!(
+            "omega-rooted-residual-scalar-{}-{}",
+            name.replace('/', "-"),
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&build_dir);
+        compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+            .unwrap_or_else(|diagnostics| panic!("{name} should compile: {diagnostics:?}"));
+        let output = Command::new(build_dir.join(executable_name()))
+            .output()
+            .unwrap_or_else(|error| panic!("{name} should run: {error}"));
+        assert_eq!(
+            output.status.code(),
+            Some(expected),
+            "unexpected rooted exit for {name}: {:?}\nstderr:\n{}",
+            output.status.code(),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let _ = fs::remove_dir_all(&build_dir);
+    }
 }
 
 #[test]
@@ -1592,26 +1608,19 @@ fn runtime_mutable_slice_element_write_exit_canary_runs() {
 }
 
 // The promoted straight-line sibling: same mutable-slice-view write, but the
-// machine body has NO transitions and delivers a field READ-BACK as its
-// terminal value. Guards the straight-line terminal-value path (the
-// CopyRuntimeStorageToReturnRegister load) end to end through a slice write.
+// ordinary value helper has NO transitions and delivers a field READ-BACK as
+// its terminal value. Guards result delivery end to end through a slice write.
 #[test]
 fn runtime_mutable_slice_element_write_straight_line_exit_canary_runs() {
     let canary = pass_canary("slices/runtime_mutable_slice_element_write_straight_line_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-mutable-slice-write-straight-line-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime mutable slice write straight-line canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("runtime mutable slice write straight-line canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -1656,14 +1665,15 @@ fn runtime_dispatch_mutable_slice_element_write_exit_canary_runs() {
 #[test]
 fn runtime_array_indexed_read_exit_canary_runs() {
     let canary = pass_canary("slices/runtime_array_indexed_read_exit");
-    let scratch = std::env::temp_dir().join(format!(
+    let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-array-indexed-read-{}",
         std::process::id()
     ));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    let _ = fs::remove_dir_all(&build_dir);
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("runtime array indexed read canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("runtime array indexed read canary should run");
 
@@ -1675,7 +1685,7 @@ fn runtime_array_indexed_read_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let _ = fs::remove_dir_all(&scratch);
+    let _ = fs::remove_dir_all(&build_dir);
 }
 
 #[test]

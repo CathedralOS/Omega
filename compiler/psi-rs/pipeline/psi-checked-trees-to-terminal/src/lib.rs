@@ -35,8 +35,8 @@ use psi_core::{
     ContentTerm, ContractId, EdgeId, EvidenceIdentity, EvidenceTermId, IeeeFloatFormat,
     IeeeFloatStructuralField, IntegerSign, IntegerType, IntegerValue, MachineId, ObligationId,
     OperationId, PlaceId, Proposition, PropositionContext, PropositionError, PropositionId,
-    ScalarTerm, ScalarType, ServiceId, StructuralDomainId, StructuralFieldId, StructuralPlaceKind,
-    StructuralTypeId, ValueId,
+    ScalarTerm, ScalarType, ServiceId, StructuralCaseId, StructuralCaseSubject, StructuralDomainId,
+    StructuralFieldId, StructuralPlaceKind, StructuralTypeId, ValueId,
 };
 use psi_language_semantics::content::{
     ContentAlgebraIdentity as CheckedContentAlgebraIdentity, ContentConservationEquation,
@@ -66,12 +66,12 @@ use psi_terminal::{
     PropositionDeclaration, PropositionEvidence, ProviderCandidateConformance,
     ProviderParameterRefinement, ProviderSignatureParameter, ProviderUnitRefinement,
     ProviderUnitSignature, ServiceDeclaration, StructuralAffineDiscard, StructuralArgument,
-    StructuralDomainDeclaration, StructuralDomainRequirement, StructuralFieldDeclaration,
-    StructuralFieldType, StructuralMultiplicity, StructuralParameterDeclaration,
-    StructuralPathSegment, StructuralPlaceDeclaration, StructuralResultDeclaration,
-    StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge, TerminalAffineCleanupAction,
-    TerminalMachine, TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration,
-    VocabularyMarker,
+    StructuralCaseDeclaration, StructuralDomainDeclaration, StructuralDomainRequirement,
+    StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
+    StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
+    StructuralResultDeclaration, StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge,
+    TerminalAffineCleanupAction, TerminalMachine, TerminalMachineResult, TerminalModule,
+    Terminator, ValueDeclaration, VocabularyMarker,
 };
 use psi_terminal_codec::{
     DebugFileId, DebugSite, DebugSourceFile, DebugSourceOrigin, DebugSourceSpan, DebugSubject,

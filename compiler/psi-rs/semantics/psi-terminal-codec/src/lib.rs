@@ -38,8 +38,8 @@ use psi_core::{
     ContentPlaceVersion, ContentProjectionIdentity, ContentStructuralPlace, ContentTerm,
     IeeeFloatComparisonKind, IeeeFloatFormat, IeeeFloatStructuralField, IntegerCarrier,
     IntegerSign, IntegerType, IntegerValue, ObligationId, PlaceId, Proposition, PropositionError,
-    PropositionId, PsiSemanticId, ScalarTerm, ScalarType, ServiceId, StructuralPlaceKind,
-    StructuralTypeId,
+    PropositionId, PsiSemanticId, ScalarTerm, ScalarType, ServiceId, StructuralCaseSubject,
+    StructuralPlaceKind, StructuralTypeId,
 };
 use psi_terminal::{
     BindingRelevance, Block, BoundaryMachineDeclaration, ByteSequenceCarrier,
@@ -55,19 +55,19 @@ use psi_terminal::{
     PropositionBinderKind, PropositionDeclaration, PropositionEvidence,
     ProviderCandidateConformance, ProviderParameterRefinement, ProviderSignatureParameter,
     ProviderUnitRefinement, ProviderUnitSignature, ServiceDeclaration, StructuralAffineDiscard,
-    StructuralArgument, StructuralDomainDeclaration, StructuralDomainRequirement,
-    StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
-    StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
-    StructuralResultDeclaration, StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge,
-    TerminalAffineCleanupAction, TerminalMachine, TerminalMachineResult, TerminalModule,
-    Terminator, ValueDeclaration, VocabularyMarker,
+    StructuralArgument, StructuralCaseDeclaration, StructuralDomainDeclaration,
+    StructuralDomainRequirement, StructuralFieldDeclaration, StructuralFieldType,
+    StructuralMultiplicity, StructuralParameterDeclaration, StructuralPathSegment,
+    StructuralPlaceDeclaration, StructuralResultDeclaration, StructuralTypeDeclaration,
+    StructuralTypeShape, SuccessorEdge, TerminalAffineCleanupAction, TerminalMachine,
+    TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
 };
 use psi_terminal_verifier::{ModuleError, validate_module_representation};
 use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
 
 const MAGIC: &[u8; 8] = b"PSITERM\0";
-const FORMAT_MARKER: u16 = 16;
+const FORMAT_MARKER: u16 = 17;
 const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 const MAX_PROPOSITION_DEPTH: usize = 256;
 const MAX_SCALAR_TERM_DEPTH: usize = 256;
@@ -175,12 +175,22 @@ fn validate_canonical_order(module: &TerminalModule) -> Result<(), CodecError> {
         }
     }
     for declaration in &module.structural_types {
-        if let StructuralTypeShape::Record { fields } = &declaration.shape {
-            if !strictly_increasing(fields.iter().map(|field| field.id)) {
+        match &declaration.shape {
+            StructuralTypeShape::Record { fields }
+                if !strictly_increasing(fields.iter().map(|field| field.id)) =>
+            {
                 return Err(CodecError::NonCanonicalOrder(
                     "structural fields by StructuralFieldId",
                 ));
             }
+            StructuralTypeShape::Sum { cases }
+                if !strictly_increasing(cases.iter().map(|case| case.id)) =>
+            {
+                return Err(CodecError::NonCanonicalOrder(
+                    "structural cases by StructuralCaseId",
+                ));
+            }
+            _ => {}
         }
     }
     if !strictly_increasing(
@@ -579,6 +589,15 @@ fn validate_structural_foundation(module: &TerminalModule) -> Result<(), CodecEr
                     return malformed("fixed array references an unknown structural element type");
                 }
             }
+            StructuralTypeShape::Sum { cases } => {
+                require_unique_nonempty_identities(
+                    cases.iter().map(|case| case.identity.as_str()),
+                    "structural case identity",
+                )?;
+                if cases.is_empty() {
+                    return malformed("structural sum must declare at least one case");
+                }
+            }
         }
     }
     validate_structural_type_graph(module)?;
@@ -841,6 +860,9 @@ fn validate_structural_path(
             (StructuralPathSegment::FixedIndex(_), StructuralTypeShape::Record { .. }) => {
                 return malformed("structural path fixed index requires a fixed-array type");
             }
+            (_, StructuralTypeShape::Sum { .. }) => {
+                return malformed("structural path cannot traverse a payload-less sum");
+            }
         };
     }
     Ok(structural_type)
@@ -1089,6 +1111,7 @@ fn validate_structural_type_graph(module: &TerminalModule) -> Result<(), CodecEr
             StructuralTypeShape::FixedArray { element, .. } => {
                 visit(module, *element, active, complete)?;
             }
+            StructuralTypeShape::Sum { .. } => {}
         }
         active.remove(&id);
         complete.insert(id);
@@ -1252,6 +1275,7 @@ fn validate_canonical_proposition(
             }
             Ok(())
         }
+        Proposition::StructuralCaseMembership { .. } => Ok(()),
         Proposition::Conjunction(conjuncts) => {
             if conjuncts
                 .iter()
@@ -1741,6 +1765,14 @@ fn encode_structural_type(
             writer.u8(2);
             writer.id(*element);
             writer.u64(*length);
+        }
+        StructuralTypeShape::Sum { cases } => {
+            writer.u8(3);
+            writer.len("structural cases", cases.len())?;
+            for case in cases {
+                writer.id(case.id);
+                writer.string("structural case identity", &case.identity)?;
+            }
         }
     }
     Ok(())
@@ -2799,6 +2831,16 @@ fn encode_proposition(
             encode_byte_sequence_field(writer, left)?;
             encode_byte_sequence_field(writer, right)?;
         }
+        Proposition::StructuralCaseMembership { subject, case } => {
+            writer.u8(13);
+            encode_canonical_structural_field(
+                writer,
+                subject.root(),
+                subject.path(),
+                "structural case subject path",
+            )?;
+            writer.id(*case);
+        }
     }
     Ok(())
 }
@@ -3526,6 +3568,14 @@ fn decode_structural_type(
         2 => StructuralTypeShape::FixedArray {
             element: reader.id("StructuralTypeId")?,
             length: reader.u64()?,
+        },
+        3 => StructuralTypeShape::Sum {
+            cases: decode_counted(reader, |reader| {
+                Ok(StructuralCaseDeclaration {
+                    id: reader.id("StructuralCaseId")?,
+                    identity: reader.string("structural case identity")?,
+                })
+            })?,
         },
         tag => return Err(CodecError::InvalidTag("StructuralTypeShape", tag)),
     };
@@ -4395,6 +4445,13 @@ fn decode_proposition(reader: &mut Reader<'_>, depth: usize) -> Result<Propositi
             left: decode_byte_sequence_field(reader)?,
             right: decode_byte_sequence_field(reader)?,
         },
+        13 => {
+            let (root, path) = decode_canonical_structural_field(reader)?;
+            Proposition::StructuralCaseMembership {
+                subject: StructuralCaseSubject::new(root, path),
+                case: reader.id("StructuralCaseId")?,
+            }
+        }
         tag => return Err(CodecError::InvalidTag("Proposition", tag)),
     })
 }

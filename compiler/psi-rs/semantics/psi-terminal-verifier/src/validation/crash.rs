@@ -212,6 +212,46 @@ fn validate_boolean_field_terms(
         None
     }
 
+    fn structural_subject_type(
+        module: &TerminalModule,
+        machine: &TerminalMachine,
+        root: PlaceId,
+        path: &[CanonicalStructuralPathSegment],
+    ) -> Option<StructuralTypeId> {
+        let mut structural_type = machine
+            .structural_parameters
+            .iter()
+            .find(|parameter| parameter.place == root)?
+            .structural_type;
+        for segment in path {
+            let declaration = module
+                .structural_types
+                .iter()
+                .find(|declaration| declaration.id == structural_type)?;
+            structural_type = match (segment, &declaration.shape) {
+                (
+                    CanonicalStructuralPathSegment::Field(field_id),
+                    StructuralTypeShape::Record { fields },
+                ) => {
+                    let field = fields
+                        .iter()
+                        .find(|candidate| candidate.id == *field_id)
+                        .filter(|field| !field.relevance.is_erased())?;
+                    let StructuralFieldType::Structural(next) = field.field_type else {
+                        return None;
+                    };
+                    next
+                }
+                (
+                    CanonicalStructuralPathSegment::FixedIndex(index),
+                    StructuralTypeShape::FixedArray { element, length },
+                ) if *index < *length => *element,
+                _ => return None,
+            };
+        }
+        Some(structural_type)
+    }
+
     fn validate_term(
         module: &TerminalModule,
         machine: &TerminalMachine,
@@ -612,6 +652,27 @@ fn validate_boolean_field_terms(
                 }
             }
         }
+        Proposition::StructuralCaseMembership { subject, case } => {
+            let valid = structural_subject_type(module, machine, subject.root(), subject.path())
+                .and_then(|structural_type| {
+                    module
+                        .structural_types
+                        .iter()
+                        .find(|declaration| declaration.id == structural_type)
+                })
+                .is_some_and(|declaration| {
+                    matches!(&declaration.shape, StructuralTypeShape::Sum { cases }
+                        if cases.iter().any(|candidate| candidate.id == *case))
+                });
+            if !valid {
+                return Err(ModuleError::InvalidStructuralCaseMembership {
+                    machine: machine.id,
+                    root: subject.root(),
+                    path: subject.path().to_vec(),
+                    case: *case,
+                });
+            }
+        }
         Proposition::Conjunction(propositions) | Proposition::Disjunction(propositions) => {
             for proposition in propositions {
                 validate_boolean_field_terms(module, machine, proposition, runtime_requirements)?;
@@ -628,6 +689,89 @@ fn validate_boolean_field_terms(
         | Proposition::Falsehood
         | Proposition::Atom(_)
         | Proposition::ContentConservation(_) => {}
+    }
+    Ok(())
+}
+
+pub(super) fn validate_structural_case_memberships(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    proposition: &Proposition,
+) -> Result<(), ModuleError> {
+    fn subject_type(
+        module: &TerminalModule,
+        machine: &TerminalMachine,
+        subject: &psi_core::StructuralCaseSubject,
+    ) -> Option<StructuralTypeId> {
+        let mut structural_type = machine
+            .structural_parameters
+            .iter()
+            .find(|parameter| parameter.place == subject.root())?
+            .structural_type;
+        for segment in subject.path() {
+            let declaration = module
+                .structural_types
+                .iter()
+                .find(|declaration| declaration.id == structural_type)?;
+            structural_type = match (segment, &declaration.shape) {
+                (
+                    CanonicalStructuralPathSegment::Field(field_id),
+                    StructuralTypeShape::Record { fields },
+                ) => {
+                    let field = fields
+                        .iter()
+                        .find(|field| field.id == *field_id)
+                        .filter(|field| !field.relevance.is_erased())?;
+                    let StructuralFieldType::Structural(next) = field.field_type else {
+                        return None;
+                    };
+                    next
+                }
+                (
+                    CanonicalStructuralPathSegment::FixedIndex(index),
+                    StructuralTypeShape::FixedArray { element, length },
+                ) if *index < *length => *element,
+                _ => return None,
+            };
+        }
+        Some(structural_type)
+    }
+
+    match proposition {
+        Proposition::StructuralCaseMembership { subject, case } => {
+            let valid = subject_type(module, machine, subject)
+                .and_then(|structural_type| {
+                    module
+                        .structural_types
+                        .iter()
+                        .find(|declaration| declaration.id == structural_type)
+                })
+                .is_some_and(|declaration| {
+                    matches!(&declaration.shape, StructuralTypeShape::Sum { cases }
+                        if cases.iter().any(|candidate| candidate.id == *case))
+                });
+            if !valid {
+                return Err(ModuleError::InvalidStructuralCaseMembership {
+                    machine: machine.id,
+                    root: subject.root(),
+                    path: subject.path().to_vec(),
+                    case: *case,
+                });
+            }
+        }
+        Proposition::Conjunction(propositions) | Proposition::Disjunction(propositions) => {
+            for proposition in propositions {
+                validate_structural_case_memberships(module, machine, proposition)?;
+            }
+        }
+        Proposition::Implication {
+            premise,
+            conclusion,
+        } => {
+            validate_structural_case_memberships(module, machine, premise)?;
+            validate_structural_case_memberships(module, machine, conclusion)?;
+        }
+        _ => {}
     }
     Ok(())
 }

@@ -1161,7 +1161,8 @@ pub(super) fn checked_boolean_contains_short_circuit(
         | psi_checked_trees::CheckedBooleanExpression::StructuralParameterField { .. }
         | psi_checked_trees::CheckedBooleanExpression::IntegerComparison { .. }
         | psi_checked_trees::CheckedBooleanExpression::IeeeFloatComparison { .. }
-        | psi_checked_trees::CheckedBooleanExpression::ByteSequenceEqual { .. } => false,
+        | psi_checked_trees::CheckedBooleanExpression::ByteSequenceEqual { .. }
+        | psi_checked_trees::CheckedBooleanExpression::PayloadlessSumEqual { .. } => false,
     }
 }
 
@@ -1199,7 +1200,8 @@ pub(super) fn checked_boolean_local_reference_count(
         | psi_checked_trees::CheckedBooleanExpression::StructuralParameterField { .. }
         | psi_checked_trees::CheckedBooleanExpression::IntegerComparison { .. }
         | psi_checked_trees::CheckedBooleanExpression::IeeeFloatComparison { .. }
-        | psi_checked_trees::CheckedBooleanExpression::ByteSequenceEqual { .. } => 0,
+        | psi_checked_trees::CheckedBooleanExpression::ByteSequenceEqual { .. }
+        | psi_checked_trees::CheckedBooleanExpression::PayloadlessSumEqual { .. } => 0,
     }
 }
 
@@ -1259,7 +1261,8 @@ pub(super) fn is_structural_boolean_return_expression(
             path.len() == 1
         }
         psi_checked_trees::CheckedBooleanExpression::IeeeFloatComparison { .. }
-        | psi_checked_trees::CheckedBooleanExpression::ByteSequenceEqual { .. } => false,
+        | psi_checked_trees::CheckedBooleanExpression::ByteSequenceEqual { .. }
+        | psi_checked_trees::CheckedBooleanExpression::PayloadlessSumEqual { .. } => false,
     }
 }
 
@@ -1357,7 +1360,8 @@ pub(super) fn is_branch_free_structural_boolean_expression(
         }
         psi_checked_trees::CheckedBooleanExpression::StructuralParameterField { .. } => false,
         psi_checked_trees::CheckedBooleanExpression::IeeeFloatComparison { .. }
-        | psi_checked_trees::CheckedBooleanExpression::ByteSequenceEqual { .. } => false,
+        | psi_checked_trees::CheckedBooleanExpression::ByteSequenceEqual { .. }
+        | psi_checked_trees::CheckedBooleanExpression::PayloadlessSumEqual { .. } => false,
         psi_checked_trees::CheckedBooleanExpression::And { .. }
         | psi_checked_trees::CheckedBooleanExpression::Or { .. } => false,
     }

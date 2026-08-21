@@ -159,6 +159,124 @@ fn scalar_crash_disjunction_lowers_to_canonical_terminal_propositions() {
         .expect("scalar disjunction is well typed");
 }
 
+#[test]
+fn payloadless_sum_equality_lowers_to_case_membership_equivalence() {
+    let source = r#"
+        data Mode {
+            case Off;
+            case On;
+        }
+
+        data Root {}
+        machine Root::enter(left: Mode, right: Mode)
+        crashes Abort
+            left == right
+        {}
+
+        machine Root::different(left: Mode, right: Mode)
+        crashes Abort
+            left != right
+        {}
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("check");
+    let lowered = lower_machine(&checked, "Root::enter").expect("lower terminal");
+    let cases = lowered
+        .semantic_module
+        .structural_types
+        .iter()
+        .find_map(|declaration| match &declaration.shape {
+            StructuralTypeShape::Sum { cases } => Some(cases),
+            _ => None,
+        })
+        .expect("payload-less sum retains a sum shape");
+    assert_eq!(
+        cases
+            .iter()
+            .map(|case| case.identity.as_str())
+            .collect::<Vec<_>>(),
+        ["Off", "On"]
+    );
+    let [bucket] = lowered.semantic_module.machines[0]
+        .contract
+        .crash_routes
+        .as_slice()
+    else {
+        panic!("one crash bucket")
+    };
+    let [psi_terminal::CrashRouteGuard::Predicate(predicate)] = bucket.alternatives.as_slice()
+    else {
+        panic!("one predicate")
+    };
+    let Proposition::Conjunction(equivalences) = predicate.proposition() else {
+        panic!("sum equality is one canonical conjunction")
+    };
+    assert_eq!(equivalences.len(), 4);
+    assert!(equivalences.iter().all(|equivalence| matches!(
+        equivalence,
+        Proposition::Implication { premise, conclusion }
+            if matches!(premise.as_ref(), Proposition::StructuralCaseMembership { .. })
+                && matches!(conclusion.as_ref(), Proposition::StructuralCaseMembership { .. })
+    )));
+    psi_terminal_verifier::validate_module(&lowered.semantic_module)
+        .expect("case-membership equality validates");
+    let bytes = psi_terminal_codec::encode_module(&lowered.semantic_module)
+        .expect("case-membership module encodes");
+    assert_eq!(&bytes[8..10], &17_u16.to_le_bytes());
+    assert_eq!(
+        psi_terminal_codec::decode_module(&bytes),
+        Ok(lowered.semantic_module)
+    );
+
+    let different = lower_machine(&checked, "Root::different").expect("lower inequality");
+    let [psi_terminal::CrashRouteGuard::Predicate(predicate)] =
+        different.semantic_module.machines[0].contract.crash_routes[0]
+            .alternatives
+            .as_slice()
+    else {
+        panic!("one inequality predicate")
+    };
+    assert!(matches!(
+        predicate.proposition(),
+        Proposition::Implication { premise, conclusion }
+            if matches!(premise.as_ref(), Proposition::Conjunction(_))
+                && matches!(conclusion.as_ref(), Proposition::Falsehood)
+    ));
+}
+
+#[test]
+fn payload_bearing_sum_equality_remains_fenced_from_terminal_psi() {
+    let source = r#"
+        trait Equatable {
+            machine equals(&self, rhs: &Self) -> bool;
+        }
+
+        data Message {
+            case Empty;
+            case Data(value: i32);
+        }
+        MessageEquatable: Message satisfies Equatable;
+
+        data Root {}
+        machine Root::enter(left: Message, right: Message)
+        crashes Abort
+            left == right
+        {}
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("check");
+    assert!(
+        lower_machine(&checked, "Root::enter").is_err(),
+        "payload-bearing sums require a Terminal case-payload path model before lowering"
+    );
+}
+
 fn unit_claim_at(
     machine: SymbolHandle,
     state: SymbolHandle,

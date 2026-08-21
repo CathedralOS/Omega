@@ -20,11 +20,12 @@ pub use content::{
 pub use identity::{
     AdmissionSiteId, BlockId, BoundaryMachineId, ClaimId, ContentDomainId, ContractId, EdgeId,
     EvidenceIdentity, EvidenceTermId, FuelScheduleIdentity, MachineId, ObligationId, OperationId,
-    PlaceId, ProfileDecisionId, PropositionId, PsiSemanticId, ServiceId, StructuralDomainId,
-    StructuralFieldId, StructuralTypeId, ValueId,
+    PlaceId, ProfileDecisionId, PropositionId, PsiSemanticId, ServiceId, StructuralCaseId,
+    StructuralDomainId, StructuralFieldId, StructuralTypeId, ValueId,
 };
 pub use proposition::{
     ByteSequenceStructuralField, CanonicalStructuralPathSegment, IeeeFloatComparisonKind,
     IeeeFloatFormat, IeeeFloatStructuralField, IntegerCarrier, IntegerSign, IntegerType,
     IntegerValue, Proposition, PropositionContext, PropositionError, ScalarTerm, ScalarType,
+    StructuralCaseSubject,
 };

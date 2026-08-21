@@ -746,7 +746,7 @@ impl<'program> LayoutBuilder<'program> {
                     .iter()
                     .any(|constraint| match constraint {
                         TypeConstraintNode::Domain(name) => {
-                            !psi_checked_trees::wire::is_layout_domain_name(name.as_str())
+                            !psi_checked_trees::wire::is_layout_domain_constraint(name)
                                 && psi_language_semantics::CarryPermission::from_name(name.as_str())
                                     .is_none()
                         }
@@ -1127,7 +1127,7 @@ impl<'program> LayoutBuilder<'program> {
                 // family stays a PLAIN array (see the TypeLayout arm above).
                 let has_named_domain = constraint_list.iter().any(|constraint| match constraint {
                     TypeConstraintNode::Domain(name) => {
-                        !psi_checked_trees::wire::is_layout_domain_name(name.as_str())
+                        !psi_checked_trees::wire::is_layout_domain_constraint(name)
                             && psi_language_semantics::CarryPermission::from_name(name.as_str())
                                 .is_none()
                     }

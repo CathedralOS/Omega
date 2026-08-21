@@ -507,20 +507,14 @@ fn runtime_write_first_loop_index_exit_canary_runs() {
 #[test]
 fn runtime_array_indexed_loop_exit_canary_runs() {
     let canary = pass_canary("slices/runtime_array_indexed_loop_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-array-indexed-loop-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime array indexed loop canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("runtime array indexed loop canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -547,20 +541,14 @@ fn runtime_decreasing_index_exit_canary_runs() {
     // loop-invariant fact discharges the index obligation. Sums [1,2,3,4]
     // backwards to 10 and self-checks (exit 70).
     let canary = pass_canary("slices/runtime_decreasing_index_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-decreasing-index-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime decreasing index canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("runtime decreasing index canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -581,20 +569,14 @@ fn runtime_decreasing_index_exit_canary_runs() {
 #[test]
 fn runtime_slice_indexed_read_exit_canary_runs() {
     let canary = pass_canary("slices/runtime_slice_indexed_read_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-slice-indexed-read-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime slice indexed read canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("runtime slice indexed read canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -614,20 +596,14 @@ fn runtime_slice_indexed_read_exit_canary_runs() {
 #[test]
 fn runtime_array_adjacent_index_exit_canary_runs() {
     let canary = pass_canary("slices/runtime_array_adjacent_index_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-adjacent-index-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime adjacent-index canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("runtime adjacent-index canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -647,20 +623,14 @@ fn runtime_array_adjacent_index_exit_canary_runs() {
 #[test]
 fn runtime_nested_decreasing_index_exit_canary_runs() {
     let canary = pass_canary("slices/runtime_nested_decreasing_index_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-nested-decreasing-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime nested-decreasing-index canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("runtime nested-decreasing-index canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -680,18 +650,12 @@ fn runtime_nested_decreasing_index_exit_canary_runs() {
 #[test]
 fn runtime_narrow_widen_cast_exit_canary_runs() {
     let canary = pass_canary("slices/runtime_narrow_widen_cast_exit");
-    let main_path = canary.join("main.omg");
     let build_dir =
         std::env::temp_dir().join(format!("omega-runtime-narrow-widen-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime narrow-widen-cast canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("runtime narrow-widen-cast canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -711,20 +675,14 @@ fn runtime_narrow_widen_cast_exit_canary_runs() {
 #[test]
 fn runtime_signed_index_guarded_exit_canary_runs() {
     let canary = pass_canary("slices/runtime_signed_index_guarded_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-signed-index-guarded-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime signed-index-guarded canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("runtime signed-index-guarded canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()

@@ -521,6 +521,15 @@ pub enum CheckedUnitStructuralTypeShape {
         element_type_identity: String,
         length: u64,
     },
+    /// A closed sum whose cases all carry no payload.
+    Sum {
+        cases: Vec<CheckedUnitStructuralCasePlan>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedUnitStructuralCasePlan {
+    pub identity: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

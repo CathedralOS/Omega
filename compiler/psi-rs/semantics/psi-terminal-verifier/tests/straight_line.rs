@@ -3,7 +3,8 @@ use psi_core::{
     ContentPlaceSegment, ContentPlaceVersion, ContentProjectionIdentity, ContentStructuralPlace,
     ContentTerm, ContractId, EdgeId, EvidenceIdentity, IntegerSign, IntegerType, IntegerValue,
     MachineId, ObligationId, OperationId, PlaceId, Proposition, PropositionError, ScalarTerm,
-    ScalarType, StructuralPlaceKind, StructuralTypeId, ValueId, content_conservation_fingerprint,
+    ScalarType, StructuralCaseId, StructuralCaseSubject, StructuralPlaceKind, StructuralTypeId,
+    ValueId, content_conservation_fingerprint,
 };
 use psi_proof_kernel::{
     AdmissionProfile, CertificateEnvelope, EvidenceError, EvidenceRoute, PrimitiveJudgment,
@@ -12,11 +13,11 @@ use psi_proof_kernel::{
 use psi_terminal::{
     Block, ClaimContentProjection, ContentEntryClaim, ContentIdentityReshuffle,
     ContentPartitionComposition, ContentPlaceSubstitution, ContractClause, CrashCause, EntryClaim,
-    MachineContract, Operation, OperationKind, OperationResult, StructuralFieldDeclaration,
-    StructuralFieldType, StructuralMultiplicity, StructuralParameterDeclaration,
-    StructuralPlaceDeclaration, StructuralResultDeclaration, StructuralTypeDeclaration,
-    StructuralTypeShape, TerminalMachine, TerminalMachineResult, TerminalModule, Terminator,
-    ValueDeclaration, VocabularyMarker,
+    MachineContract, Operation, OperationKind, OperationResult, StructuralCaseDeclaration,
+    StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
+    StructuralParameterDeclaration, StructuralPlaceDeclaration, StructuralResultDeclaration,
+    StructuralTypeDeclaration, StructuralTypeShape, TerminalMachine, TerminalMachineResult,
+    TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
 };
 use psi_terminal_verifier::{
     ContractClauseKind, ModuleError, ObligationEvidence, ProofBundle, VerificationError,
@@ -2700,6 +2701,50 @@ fn sum_case_identity_reshuffle_reconstructs_content_equality() {
 
     verify_module(&module, &bundle, &AdmissionProfile::default())
         .expect("a case-plus-field reshuffle should establish its content equality");
+}
+
+#[test]
+fn payloadless_sum_case_membership_resolves_exact_case_identity() {
+    let (mut module, _, _) = identity_reshuffle_module();
+    let root = module.machines[0].structural_parameters[0].place;
+    let case = StructuralCaseId::new(90).expect("case");
+    module.structural_types[0].shape = StructuralTypeShape::Sum {
+        cases: vec![StructuralCaseDeclaration {
+            id: case,
+            identity: "Present".to_owned(),
+        }],
+    };
+    module.machines[0]
+        .contract
+        .requires
+        .push(Proposition::StructuralCaseMembership {
+            subject: StructuralCaseSubject::new(root, Vec::new()),
+            case,
+        });
+    validate_module(&module).expect("declared payload-less case membership validates");
+
+    let mut redirected = module.clone();
+    let Proposition::StructuralCaseMembership { case, .. } =
+        &mut redirected.machines[0].contract.requires[0]
+    else {
+        unreachable!()
+    };
+    *case = StructuralCaseId::new(91).expect("redirected case");
+    let redirected_error = validate_module(&redirected);
+    assert!(
+        matches!(
+            redirected_error,
+            Err(ModuleError::InvalidStructuralCaseMembership { .. })
+        ),
+        "unexpected redirected-case result: {redirected_error:?}"
+    );
+
+    let mut empty = module;
+    empty.structural_types[0].shape = StructuralTypeShape::Sum { cases: Vec::new() };
+    assert!(matches!(
+        validate_module(&empty),
+        Err(ModuleError::EmptyStructuralSum(_))
+    ));
 }
 
 #[test]
