@@ -4,16 +4,17 @@
 // "proves" it for n), so the refutation must come from the BASE arm: under
 // n == 0 the goal collapses to 0 == 1 with `result := acc`, and the engine
 // disproves it on that arm. Pins that induction cannot launder a false
-// theorem past its base case.
+// theorem past its base case. Wrapping keeps this the exact negative twin of
+// the universal residue-ring theorem instead of adding overflow obligations.
 
 data Main {
 }
 
 machine Main::main(&mut self) {
-    let total: u64 = self.gauss_sum(4, 0);
+    let total: u64 in Wrapping = self.gauss_sum(4, 0);
 }
 
-machine Main::gauss_sum(&mut self, n: u64, acc: u64) -> u64
+machine Main::gauss_sum(&mut self, n: u64 in Wrapping, acc: u64 in Wrapping) -> u64 in Wrapping
 terminates by n;
 ensures
     result * 2 == acc * 2 + n * (n + 1) + 1
