@@ -776,16 +776,18 @@ pass only when already canonically identical. Contract propositions and owner
 static correspondence remain unresolved, and no such plan can feed execution.
 
 For a direct `define` with exact runtime correspondence, the non-authoritative
-plan now also partitions the representative machine and entry-state `requires`
-facts by semantic value dependency. A fact enters the retained `P` surface when
-any expression position depends on a quotient-bearing representative parameter;
-facts depending only on ordinary equal-by-`RA` positions or ambient values stay
-in the fixed contract surface. Expression, proposition-argument, membership,
-receiver, aggregate, indexing, and nested-call positions are traversed without
+plan now also partitions both sides of the faithful-definition contract. The
+quotient-facing machine and entry state contribute `Q`; the representative
+machine and selected entry contribute `P`. A fact enters its dependent surface
+when any expression position depends on a quotient-bearing public or
+representative parameter at the corresponding runtime position. Facts depending
+only on ordinary equal-by-`RA` positions or ambient values stay in that side's
+fixed contract surface. Expression, proposition-argument, membership, receiver,
+aggregate, indexing, and nested-call positions are traversed without
 short-circuiting validation, and an unresolved value identity rejects the plan
-rather than being classified as ambient. Exact contract/fact coordinates are
-retained, but proposition substitution, implication/equivalence checking, and
-the selected `Respects` clauses remain later obligations.
+rather than being classified as ambient. Exact side/owner/contract/fact
+coordinates are retained, but proposition substitution, `Q <-> P` checking,
+and the selected `Respects` clauses remain later obligations.
 
 Acceptance requires:
 
