@@ -373,14 +373,25 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
                     fields.push(CheckedStructuralPredicatePathSegment::Case(case));
                     fields.push(CheckedStructuralPredicatePathSegment::Field(field));
                 } else {
-                    let identity = program.data_definitions().iter().find_map(|data| {
-                        program.data_members(data).iter().find_map(|candidate| {
-                            let psi_typed_trees::data::DataMember::Field(field) = candidate else {
-                                return None;
-                            };
-                            (field.symbol == member.member_symbol).then(|| field_identity(field))
-                        })
-                    })?;
+                    let identity = if member.member_symbol.is_valid() {
+                        program.data_definitions().iter().find_map(|data| {
+                            program.data_members(data).iter().find_map(|candidate| {
+                                let psi_typed_trees::data::DataMember::Field(field) = candidate
+                                else {
+                                    return None;
+                                };
+                                (field.symbol == member.member_symbol)
+                                    .then(|| field_identity(field))
+                            })
+                        })?
+                    } else {
+                        // Contract member expressions can reach this carrier
+                        // before their field symbol is retained. Keep the
+                        // authored segment in that case: path_type_reference
+                        // resolves it against the exact receiver type below,
+                        // so this does not perform global name-based selection.
+                        member.member.as_str().to_owned()
+                    };
                     fields.push(CheckedStructuralPredicatePathSegment::Field(identity));
                 }
                 Some(parameter)

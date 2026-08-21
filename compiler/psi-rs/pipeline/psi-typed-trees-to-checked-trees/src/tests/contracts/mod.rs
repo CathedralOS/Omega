@@ -6,6 +6,7 @@ mod instantiation;
 mod proof_obligations;
 mod propositions;
 mod qualification_evidence;
+mod total_specification_arithmetic;
 
 fn parse_typed_trees(source: &str) -> psi_typed_trees::TypedTrees {
     // The source loader supplies these canonical core declarations in real

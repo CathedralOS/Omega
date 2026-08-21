@@ -33,6 +33,52 @@ use psi_typed_trees::types::{
 
 use crate::places::declared_place_type_raw;
 
+/// Resolve only the reserved named-float arithmetic surface. Contract
+/// expressions can reach validation before their static namespace receiver has
+/// a symbol, so use the retained one-segment `F32`/`F64` spelling as a strict
+/// fallback. The shared resolver still enforces exact path, arity, and
+/// uniqueness; arbitrary float-returning operators do not enter this lane.
+fn resolve_named_float_arithmetic<'program>(
+    program: &'program TypedTrees,
+    call: &TableCallExpression,
+) -> Option<(
+    &'program psi_typed_trees::operator::OperatorDefinition,
+    PrimitiveType,
+)> {
+    let operator = psi_typed_trees::operator::resolve_named_expression_call(program, call)
+        .or_else(|| {
+            let ExpressionNode::Name(path) = program.expression_table.expression(call.receiver)
+            else {
+                return None;
+            };
+            let [namespace] = program.expression_table.name_path_members(path.members) else {
+                return None;
+            };
+            if !matches!(namespace.as_str(), "F32" | "F64") {
+                return None;
+            }
+            let static_receiver = [namespace.as_str()];
+            psi_typed_trees::operator::resolve_named_call(
+                program,
+                call.target_symbol,
+                Some(&static_receiver),
+                call.target.as_str(),
+                program
+                    .expression_table
+                    .expression_handles(call.arguments)
+                    .len(),
+                false,
+            )
+        })?;
+    let primitive = program.primitive_type_reference(operator.return_type)?;
+    let namespace = program.operator_path_members(operator.name).first()?;
+    matches!(
+        (namespace.as_str(), primitive),
+        ("F32", PrimitiveType::F32) | ("F64", PrimitiveType::F64)
+    )
+    .then_some((operator, primitive))
+}
+
 /// S4: build a value environment pre-seeded with the integer bounds a machine's
 /// `requires` clause places on its parameters (`requires amount <= 100`). Used to
 /// seed the ENTRY state's env so param arithmetic with a declared bound stays
@@ -1699,6 +1745,228 @@ pub(crate) fn validate_arithmetic_domains(
     .0
 }
 
+/// Reject runtime-control arithmetic from proof positions. A contract is a
+/// total proposition: it may compare or bitwise-inspect a Trapping-qualified
+/// value, but an arithmetic operation selected by that qualification cannot
+/// become a proposition term. Explicit Exact casts remove the qualification
+/// before this check; Wrapping and Saturating retain their total denotations.
+pub(crate) fn validate_total_specification_arithmetic(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: Option<&State>,
+    expression: ExpressionHandle,
+    owner: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    fn walk(
+        program: &TypedTrees,
+        machine: &Machine,
+        state: Option<&State>,
+        expression: ExpressionHandle,
+        owner: &str,
+        diagnostics: &mut Vec<Diagnostic>,
+        visited: &mut Vec<ExpressionHandle>,
+    ) {
+        if !expression.is_valid() || visited.contains(&expression) {
+            return;
+        }
+        visited.push(expression);
+
+        let recurse = |child, diagnostics: &mut Vec<Diagnostic>, visited: &mut Vec<_>| {
+            walk(program, machine, state, child, owner, diagnostics, visited);
+        };
+        match program.expression_table.expression(expression) {
+            ExpressionNode::ArrayLiteral(values) => {
+                for child in program.expression_table.expression_handles(*values) {
+                    recurse(*child, diagnostics, visited);
+                }
+            }
+            ExpressionNode::Atomic(atomic) => {
+                recurse(atomic.value, diagnostics, visited);
+                recurse(atomic.result, diagnostics, visited);
+            }
+            ExpressionNode::Binary(binary) => {
+                recurse(binary.left, diagnostics, visited);
+                recurse(binary.right, diagnostics, visited);
+                if !is_arithmetic(binary.operator) {
+                    return;
+                }
+
+                let env = ValueEnv::new();
+                let mut ignored = Vec::new();
+                let left = analyze(
+                    program,
+                    machine,
+                    state,
+                    binary.left,
+                    &env,
+                    None,
+                    ArithmeticDomain::Exact,
+                    owner,
+                    &mut ignored,
+                );
+                let right = analyze(
+                    program,
+                    machine,
+                    state,
+                    binary.right,
+                    &env,
+                    None,
+                    ArithmeticDomain::Exact,
+                    owner,
+                    &mut ignored,
+                );
+                let selected = if matches!(
+                    binary.operator,
+                    BinaryOperator::ShiftLeft | BinaryOperator::ShiftRight
+                ) {
+                    left.domain
+                } else {
+                    match (left.domain, right.domain) {
+                        (Some(left), Some(right)) if left == ArithmeticDomain::Exact => Some(right),
+                        (Some(left), Some(_)) => Some(left),
+                        (Some(domain), None) | (None, Some(domain)) => Some(domain),
+                        (None, None) => None,
+                    }
+                };
+                if selected == Some(ArithmeticDomain::Trapping) {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "direct Trapping arithmetic `{}` is illegal in {owner}: specification terms are total and cannot transfer runtime control. Use `embed(..)` for unbounded proof `Int` mathematics, or explicitly cast the operands to the same unqualified carrier and discharge the resulting Exact formation obligations",
+                        arithmetic_operator_spelling(binary.operator),
+                    )));
+                }
+            }
+            ExpressionNode::Cast(cast) => {
+                recurse(cast.value, diagnostics, visited);
+                if !cast.form.is_recast() && cast.domain == ArithmeticDomain::Trapping {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "direct Trapping conversion is illegal in {owner}: specification terms are total and cannot transfer runtime control. Use a total Exact or Saturating conversion and discharge its formation obligations",
+                    )));
+                }
+            }
+            ExpressionNode::Call(call) => {
+                recurse(call.receiver, diagnostics, visited);
+                for argument in program.expression_table.expression_handles(call.arguments) {
+                    recurse(*argument, diagnostics, visited);
+                }
+                if resolve_named_float_arithmetic(program, call).is_some() {
+                    let env = ValueEnv::new();
+                    let mut ignored = Vec::new();
+                    if analyze(
+                        program,
+                        machine,
+                        state,
+                        expression,
+                        &env,
+                        None,
+                        ArithmeticDomain::Exact,
+                        owner,
+                        &mut ignored,
+                    )
+                    .domain
+                        == Some(ArithmeticDomain::Trapping)
+                    {
+                        diagnostics.push(Diagnostic::error(format!(
+                            "direct Trapping named float operation `{}` is illegal in {owner}: specification terms are total and cannot transfer runtime control. Use `Float::meaning32`/`Float::meaning64` or an explicitly total policy",
+                            call.target,
+                        )));
+                    }
+                }
+            }
+            ExpressionNode::Indexed(indexed) => {
+                recurse(indexed.collection, diagnostics, visited);
+                recurse(indexed.index, diagnostics, visited);
+            }
+            ExpressionNode::Member(member) => recurse(member.receiver, diagnostics, visited),
+            ExpressionNode::Mutable(value) => recurse(*value, diagnostics, visited),
+            ExpressionNode::Unary(unary) => recurse(unary.operand, diagnostics, visited),
+            ExpressionNode::Range(range) => {
+                recurse(range.start, diagnostics, visited);
+                recurse(range.end, diagnostics, visited);
+            }
+            ExpressionNode::StructLiteral(literal) => {
+                for field in program.expression_table.struct_fields(literal.fields) {
+                    recurse(field.value, diagnostics, visited);
+                }
+            }
+            ExpressionNode::Boolean(_)
+            | ExpressionNode::Float(_)
+            | ExpressionNode::Integer(_)
+            | ExpressionNode::Name(_)
+            | ExpressionNode::String(_)
+            | ExpressionNode::ZeroValue(_) => {}
+        }
+    }
+
+    walk(
+        program,
+        machine,
+        state,
+        expression,
+        owner,
+        diagnostics,
+        &mut Vec::new(),
+    );
+}
+
+pub(crate) fn validate_machine_total_specification_arithmetic(
+    program: &TypedTrees,
+    machine: &Machine,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    fn kind_label(kind: &SignatureContractKind) -> &'static str {
+        match kind {
+            SignatureContractKind::Requires => "requires",
+            SignatureContractKind::Ensures => "ensures",
+            SignatureContractKind::Boundary => "boundary",
+            SignatureContractKind::Crashes { .. } => "crashes",
+        }
+    }
+
+    let entry_state = program.machine_states(machine).first();
+    for contract in program.machine_contracts(machine) {
+        let owner = format!(
+            "machine `{}` {} contract",
+            machine.name,
+            kind_label(&contract.kind),
+        );
+        for fact in program.proof_facts.span_or_empty(contract.facts) {
+            if let ProofFact::Expression(expression) = fact {
+                validate_total_specification_arithmetic(
+                    program,
+                    machine,
+                    entry_state,
+                    *expression,
+                    &owner,
+                    diagnostics,
+                );
+            }
+        }
+    }
+    for state in program.machine_states(machine) {
+        for contract in program.state_contracts(state) {
+            let owner = format!(
+                "machine `{}` state `{}` {} contract",
+                machine.name,
+                state.name,
+                kind_label(&contract.kind),
+            );
+            for fact in program.proof_facts.span_or_empty(contract.facts) {
+                if let ProofFact::Expression(expression) = fact {
+                    validate_total_specification_arithmetic(
+                        program,
+                        machine,
+                        Some(state),
+                        *expression,
+                        &owner,
+                        diagnostics,
+                    );
+                }
+            }
+        }
+    }
+}
+
 /// Like [`validate_arithmetic_domains`] but also returns the expression's source
 /// integer primitive (the `None`-for-unknown result). The narrowing check needs
 /// it: a value produced by a typed source is ALWAYS within that type's range (a
@@ -3249,20 +3517,8 @@ fn analyze(
             // enclosing expression and reject two different explicit policies
             // before checked evidence is built. Classification calls return a
             // non-float and therefore carry no float result policy.
-            if let Some(operator) =
-                psi_typed_trees::operator::resolve_named_expression_call(program, call)
-                && let Some(return_primitive) =
-                    program.primitive_type_reference(operator.return_type)
-                && matches!(return_primitive, PrimitiveType::F32 | PrimitiveType::F64)
-                && program
-                    .operator_path_members(operator.name)
-                    .first()
-                    .is_some_and(|namespace| {
-                        matches!(
-                            (namespace.as_str(), return_primitive),
-                            ("F32", PrimitiveType::F32) | ("F64", PrimitiveType::F64)
-                        )
-                    })
+            if let Some((_operator, return_primitive)) =
+                resolve_named_float_arithmetic(program, call)
             {
                 let mut selected_domain: Option<ArithmeticDomain> = None;
                 for argument in program.expression_table.expression_handles(call.arguments) {

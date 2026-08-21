@@ -880,7 +880,7 @@ fn transferred_affine_parameter_is_not_also_discarded_on_return() {
 }
 
 #[test]
-fn omits_nonconstant_port_and_unsupported_nested_shape_without_placeholder() {
+fn omits_nonconstant_port_and_retains_supported_payloadless_sum() {
     let checked = checked(
         r#"
         data DynamicPort { port: u16; }
@@ -890,10 +890,10 @@ fn omits_nonconstant_port_and_unsupported_nested_shape_without_placeholder() {
             asm { out self.port, 7 }
         }
 
-        data Unsupported {
+        data SupportedSum {
             case Empty;
         }
-        data NestedRoot { value: Unsupported; }
+        data NestedRoot { value: SupportedSum; }
         machine NestedRoot::run() {}
         "#,
     );
@@ -904,14 +904,30 @@ fn omits_nonconstant_port_and_unsupported_nested_shape_without_placeholder() {
             .for_machine(machine_named(&checked, "write"))
             .is_none()
     );
-    assert!(plans.for_machine(machine_named(&checked, "run")).is_none());
+    assert!(plans.for_machine(machine_named(&checked, "run")).is_some());
+    let sum = plans
+        .structural_types
+        .iter()
+        .find(|shape| shape.identity.contains("SupportedSum"))
+        .expect("the closed payload-less sum has an exact structural declaration");
+    let CheckedUnitStructuralTypeShape::Sum { cases } = &sum.shape else {
+        panic!("payload-less sum must not be represented as an empty record")
+    };
     assert!(
-        plans
-            .structural_types
-            .iter()
-            .all(|shape| !shape.identity.contains("NestedRoot")),
-        "unsupported nested construction must not leave an accepted empty placeholder"
+        matches!(cases.as_slice(), [case] if case.identity == "Empty" && case.fields.is_empty())
     );
+    let root = plans
+        .structural_types
+        .iter()
+        .find(|shape| shape.identity.contains("NestedRoot"))
+        .expect("the enclosing record has an exact structural declaration");
+    assert!(matches!(
+        record_fields(root),
+        [field]
+            if matches!(&field.field_type,
+                CheckedUnitStructuralFieldType::Structural { type_identity }
+                    if type_identity == &sum.identity)
+    ));
 }
 
 #[test]

@@ -243,6 +243,11 @@ fn validate_program_internal(
         validate_owned_data(program, machine, &symbols, &mut diagnostics);
         validate_generic_conformance_bounds(program, machine, &mut diagnostics);
         validate_machine_contracts(program, machine, &mut diagnostics);
+        arithmetic_domains::validate_machine_total_specification_arithmetic(
+            program,
+            machine,
+            &mut diagnostics,
+        );
         let generic_contract_was_prevalidated = generic_contract_entailment_prevalidated
             && (program
                 .machine_type_parameters(machine)

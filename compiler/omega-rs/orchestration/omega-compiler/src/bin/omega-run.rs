@@ -6,11 +6,18 @@
 //!
 //!   cargo run -q -p omega-compiler --bin omega-run -- path/to/main.omg
 //!   cargo run -q -p omega-compiler --bin omega-run -- --both path/to/main.omg
+//!   cargo run -q -p omega-compiler --bin omega-run -- --keep path/to/main.omg
+//!
+//! Ordinary probes emit only the executable because their temporary build
+//! directory is deleted immediately. `--keep` retains the full compiler report
+//! and visualization set for inspection.
 //!
 //! Exit code: the PROBE's native exit code (so shell `$?` composes), 200 on
 //! compile failure, 201 on native/interp disagreement under `--both`.
 
-use omega_compiler::{CompileOptions, compile, compile_to_checked};
+use omega_compiler::{
+    ArtifactEmissionPolicy, CompileOptions, compile_to_checked, compile_with_artifact_policy,
+};
 use std::process::Command;
 
 fn main() {
@@ -38,12 +45,16 @@ fn main() {
     let build_dir = std::env::temp_dir().join(format!("omega-run-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
 
-    if let Err(diagnostics) = compile(CompileOptions {
-        root_path: main_path.clone(),
-        build_dir: Some(build_dir.clone()),
-        target_name: target_name.clone(),
-        write_output: true,
-    }) {
+    let artifact_policy = probe_artifact_policy(keep);
+    if let Err(diagnostics) = compile_with_artifact_policy(
+        CompileOptions {
+            root_path: main_path.clone(),
+            build_dir: Some(build_dir.clone()),
+            target_name: target_name.clone(),
+            write_output: true,
+        },
+        artifact_policy,
+    ) {
         eprintln!("native compile FAILED:");
         for diagnostic in diagnostics {
             eprintln!("  {diagnostic}");
@@ -120,4 +131,30 @@ fn main() {
         let _ = std::fs::remove_dir_all(&build_dir);
     }
     std::process::exit(native_code);
+}
+
+fn probe_artifact_policy(keep: bool) -> ArtifactEmissionPolicy {
+    if keep {
+        ArtifactEmissionPolicy::Full
+    } else {
+        ArtifactEmissionPolicy::OutputOnly
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn disposable_probe_skips_auxiliary_artifacts() {
+        assert_eq!(
+            probe_artifact_policy(false),
+            ArtifactEmissionPolicy::OutputOnly
+        );
+    }
+
+    #[test]
+    fn kept_probe_retains_full_artifacts() {
+        assert_eq!(probe_artifact_policy(true), ArtifactEmissionPolicy::Full);
+    }
 }
