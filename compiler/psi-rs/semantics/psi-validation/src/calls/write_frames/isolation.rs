@@ -3,14 +3,52 @@
 //!
 //! These queries decide whether an ordinary value is structurally incapable
 //! of carrying caller-visible aliasing. They inspect only checked typed shapes;
-//! frame traversal and complete-or-opaque fallback remain in the parent.
+//! the initializer query additionally admits only a bounded direct-call tree.
+//! Frame traversal and complete-or-opaque fallback remain in the parent.
 
+use super::transparent_effects::expression_is_effectful_for_transparent_result;
 use crate::struct_literals::construction_field_type;
 use psi_symbols::SymbolHandle;
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::data::DataMember;
-use psi_typed_trees::expression::TableStructLiteral;
+use psi_typed_trees::expression::{ExpressionHandle, ExpressionNode, TableStructLiteral};
 use psi_typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+
+/// Count only direct calls along initializer receiver/argument edges. Pure
+/// leaves are neutral; calls hidden under operators, aggregates, or other
+/// computed expressions remain outside this deliberately small relation.
+pub(super) fn isolated_local_initializer_call_tree_is_bounded(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    remaining_call_depth: usize,
+) -> bool {
+    if !expression_is_effectful_for_transparent_result(program, expression) {
+        return true;
+    }
+    if remaining_call_depth == 0 {
+        return false;
+    }
+    let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
+        return false;
+    };
+    (!call.receiver.is_valid()
+        || isolated_local_initializer_call_tree_is_bounded(
+            program,
+            call.receiver,
+            remaining_call_depth - 1,
+        ))
+        && program
+            .expression_table
+            .expression_handles(call.arguments)
+            .iter()
+            .all(|argument| {
+                isolated_local_initializer_call_tree_is_bounded(
+                    program,
+                    *argument,
+                    remaining_call_depth - 1,
+                )
+            })
+}
 
 pub(super) fn struct_literal_field_is_primitive(
     program: &TypedTrees,
