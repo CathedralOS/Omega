@@ -295,6 +295,7 @@ pub struct ProgramStorageEntryNativeBridgePlan {
     entry_symbol: String,
     entry_text_offset: usize,
     entry_text_size: usize,
+    continuation_key: omega_control_flow::StateKey,
     continuation_machine: String,
     continuation_state: String,
 }
@@ -326,6 +327,12 @@ impl ProgramStorageEntryNativeBridgePlan {
         self.entry_text_size
     }
 
+    /// Exact control-flow identity of the selected source continuation whose
+    /// encoded function owns the object entry symbol.
+    pub const fn continuation_key(&self) -> omega_control_flow::StateKey {
+        self.continuation_key
+    }
+
     pub fn continuation_machine(&self) -> &str {
         &self.continuation_machine
     }
@@ -343,6 +350,8 @@ pub fn bind_emitted_program_storage_entry_native_bridge(
     selected_provider: Option<super::provider_plans::SelectedExternalRootProviderPlan>,
     target_profile: String,
     object: &omega_object_file::ObjectPlan,
+    encoded_machine: &omega_machine_bytes::EncodedMachinePlan,
+    continuation_key: omega_control_flow::StateKey,
     boundary_contract_fingerprint: Option<u64>,
     continuation_machine: String,
     continuation_state: String,
@@ -368,6 +377,7 @@ pub fn bind_emitted_program_storage_entry_native_bridge(
             "program-storage native bridge entry symbol is not a nonempty text function".into(),
         ));
     }
+    validate_encoded_program_storage_entry(entry, encoded_machine, continuation_key)?;
     if boundary_contract_fingerprint != Some(binding.boundary_contract_fingerprint) {
         return Err(ProgramStorageEntryDiagnostic(
             "emitted entry footprint does not retain the program-storage boundary fingerprint"
@@ -389,9 +399,49 @@ pub fn bind_emitted_program_storage_entry_native_bridge(
         entry_symbol: entry.name.clone(),
         entry_text_offset: entry.offset,
         entry_text_size: entry.size,
+        continuation_key,
         continuation_machine,
         continuation_state,
     })
+}
+
+fn validate_encoded_program_storage_entry(
+    entry: &omega_object_file::SymbolPlan,
+    encoded_machine: &omega_machine_bytes::EncodedMachinePlan,
+    continuation_key: omega_control_flow::StateKey,
+) -> Result<(), ProgramStorageEntryDiagnostic> {
+    if !continuation_key.is_valid() {
+        return Err(ProgramStorageEntryDiagnostic(
+            "program-storage native bridge has no exact source-continuation key".into(),
+        ));
+    }
+    let mut encoded_entries = encoded_machine
+        .code
+        .functions
+        .iter()
+        .filter_map(|(_, function)| {
+            (function.source_key == continuation_key && function.symbol.as_ref() == entry.name)
+                .then_some(function)
+        });
+    let Some(encoded_entry) = encoded_entries.next() else {
+        return Err(ProgramStorageEntryDiagnostic(format!(
+            "program-storage native bridge object entry `{}` has no exact encoded function for source continuation {:?}",
+            entry.name, continuation_key
+        )));
+    };
+    if encoded_entries.next().is_some() {
+        return Err(ProgramStorageEntryDiagnostic(format!(
+            "program-storage native bridge object entry `{}` has duplicate encoded functions for source continuation {:?}",
+            entry.name, continuation_key
+        )));
+    }
+    if encoded_entry.byte_offset != entry.offset || encoded_entry.byte_count != entry.size {
+        return Err(ProgramStorageEntryDiagnostic(format!(
+            "program-storage native bridge object entry `{}` does not cover its exact encoded source-continuation function",
+            entry.name
+        )));
+    }
+    Ok(())
 }
 
 impl ProgramStorageEntryProviderInvocation {
@@ -1722,3 +1772,77 @@ impl std::fmt::Display for ProgramStoragePartitionError {
 }
 
 impl std::error::Error for ProgramStoragePartitionError {}
+
+#[cfg(test)]
+mod tests {
+    use super::validate_encoded_program_storage_entry;
+    use omega_control_flow::StateKey;
+    use omega_machine_bytes::{EncodedMachineFunction, EncodedMachinePlan};
+    use omega_object_file::{SectionKind, SymbolKind, SymbolPlan, SymbolSection};
+    use psi_arena::HandleSpan;
+    use psi_symbols::SymbolHandle;
+    use std::sync::Arc;
+
+    fn continuation_key(state: u32) -> StateKey {
+        StateKey {
+            machine: SymbolHandle::from_arena_index(1),
+            state: SymbolHandle::from_arena_index(state),
+            segment_index: 0,
+        }
+    }
+
+    fn object_entry() -> SymbolPlan {
+        SymbolPlan {
+            name: "_main".into(),
+            section: SymbolSection::Section(SectionKind::Text),
+            offset: 32,
+            size: 8,
+            kind: SymbolKind::Function,
+            import_library: String::new(),
+        }
+    }
+
+    fn encoded_entry(key: StateKey) -> EncodedMachineFunction {
+        EncodedMachineFunction {
+            symbol: Arc::from("_main"),
+            source_key: key,
+            byte_offset: 32,
+            byte_count: 8,
+            instructions: HandleSpan::empty(),
+        }
+    }
+
+    #[test]
+    fn emitted_bridge_requires_the_exact_encoded_continuation() {
+        let key = continuation_key(2);
+        let mut encoded = EncodedMachinePlan::default();
+        encoded.code.functions.insert(encoded_entry(key));
+
+        validate_encoded_program_storage_entry(&object_entry(), &encoded, key)
+            .expect("exact entry symbol, interval, and StateKey should bind");
+
+        let error =
+            validate_encoded_program_storage_entry(&object_entry(), &encoded, continuation_key(3))
+                .expect_err("a display-compatible but differently keyed continuation must reject");
+        assert!(error.0.contains("no exact encoded function"), "{error}");
+    }
+
+    #[test]
+    fn emitted_bridge_rejects_interval_drift_and_duplicate_functions() {
+        let key = continuation_key(2);
+        let mut drifted = EncodedMachinePlan::default();
+        let mut function = encoded_entry(key);
+        function.byte_count = 7;
+        drifted.code.functions.insert(function);
+        let error = validate_encoded_program_storage_entry(&object_entry(), &drifted, key)
+            .expect_err("object and encoded intervals must match exactly");
+        assert!(error.0.contains("does not cover"), "{error}");
+
+        let mut duplicate = EncodedMachinePlan::default();
+        duplicate.code.functions.insert(encoded_entry(key));
+        duplicate.code.functions.insert(encoded_entry(key));
+        let error = validate_encoded_program_storage_entry(&object_entry(), &duplicate, key)
+            .expect_err("duplicate exact entry identities must reject");
+        assert!(error.0.contains("duplicate encoded functions"), "{error}");
+    }
+}

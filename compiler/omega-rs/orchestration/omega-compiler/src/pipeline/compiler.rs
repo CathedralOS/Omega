@@ -880,6 +880,8 @@ impl Compiler {
                         .clone()
                         .unwrap_or_else(|| "host".to_owned()),
                     &backend.plan.object,
+                    &backend.plan.encoded_machine,
+                    backend.plan.entry_key,
                     backend
                         .plan
                         .encoded_machine
