@@ -3,20 +3,22 @@ use super::*;
 #[test]
 fn runtime_referenced_local_outlives_sibling_guard_call_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_referenced_local_outlives_sibling_guard_call_exit");
-    let main_path = canary.join("main.omg");
+    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+        .expect("referenced-local sibling-guard canary should compile to checked trees");
+    let interpreted = interpret(&checked, &[]);
+    assert_eq!(interpreted.error, None, "should interpret cleanly");
+    assert_eq!(
+        interpreted.exit_code, 70,
+        "interpreter must observe the nested hall mutation before the outer result guard"
+    );
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-referenced-local-outlives-sibling-guard-call-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("referenced-local-outlives-sibling-guard-call canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("referenced-local-outlives-sibling-guard-call canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()

@@ -1396,6 +1396,8 @@ fn compile_rooted_canary_for_target_with_artifact_policy(
 // exercise production entry selection and may not substitute the legacy entry
 // seam.
 const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
+    "calls/runtime_referenced_local_outlives_sibling_guard_call_exit",
+    "control_flow/runtime_tuple_transition_exit",
     "errors/runtime_result_match_exit",
     "expressions/runtime_enum_match_breadth_exit",
     "expressions/runtime_f64_state_arg_exit",
@@ -2708,6 +2710,8 @@ fn task_runtime_machine_selection_builds_omega_activation_sidecar() {
 }
 
 const ACTIVE_PASS_CANARIES: &[&str] = &[
+    "calls/runtime_referenced_local_outlives_sibling_guard_call_exit",
+    "control_flow/runtime_tuple_transition_exit",
     "errors/runtime_result_match_exit",
     "expressions/runtime_enum_match_breadth_exit",
     "expressions/runtime_f64_state_arg_exit",

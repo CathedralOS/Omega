@@ -128,7 +128,7 @@ data Main {
     dungeon: Dungeon;
 }
 
-machine Main::main(&mut self) -> i32 {
+machine Main::run(&mut self) -> i32 {
     self.dungeon.initialize(7);
 
     transition {
@@ -137,7 +137,12 @@ machine Main::main(&mut self) -> i32 {
         _ -> probe_other()
     }
 
-    state probe_correct(&mut self) { self.console.exit_process(70); }
-    state probe_stalled(&mut self) { self.console.exit_process(2); }
-    state probe_other(&mut self) { self.console.exit_process(77); }
+    state probe_correct(&mut self) -> i32 { 70 }
+    state probe_stalled(&mut self) -> i32 { 2 }
+    state probe_other(&mut self) -> i32 { 77 }
+}
+
+machine Main::main(&mut self) {
+    let result: i32 = self.run();
+    self.console.exit_process(result);
 }

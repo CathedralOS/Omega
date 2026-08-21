@@ -1,7 +1,10 @@
+use omega::language::std::console;
+
 data Main {
+    console: Console;
 }
 
-machine Main::main(&mut self) -> i32 {
+machine Main::run(&mut self) -> i32 {
     transition {
         _ -> classify(false, true)
     }
@@ -28,4 +31,9 @@ machine Main::main(&mut self) -> i32 {
     state done_33(&mut self) -> i32 {
         33
     }
+}
+
+machine Main::main(&mut self) {
+    let result: i32 = self.run();
+    self.console.exit_process(result);
 }

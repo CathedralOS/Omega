@@ -343,15 +343,22 @@ Remaining:
   final broad portable cohort adds twenty-four expression, slice/index, Result,
   text-domain, storage, and closed trait-dispatch fixtures without changing
   their direct Unit programs; the frame-indexed footprint consumer now uses
-  that checked-in root as well. The
+  that checked-in root as well. The tuple-transition and referenced-local
+  sibling-guard result probes now keep their value-returning dispatch in
+  ordinary helpers while rooted Unit entries route the exact results through
+  the console exit provider. The referenced-local migration exposed and fixed
+  native nested-splice ordering: a deferred branch prelude, straight-line arm,
+  and leaf expansion now fire as one inner-first bundle after every local,
+  host-call, or mutation effect in the contiguous callee splice, matching the
+  interpreter instead of letting the parent entry mutation overwrite a nested
+  leaf mutation. The
   local-named dynamic devirtualization fixture remains rootless because
   production entry selection currently rejects its state-graph source
   declaration as missing or ambiguous. The bounded-product index fixture has a
-  production-root proof gap; the referenced-local sibling-guard and tuple-
-  transition fixtures still expose legacy result-returning entry seams; raw
+  production-root proof gap; raw
   Windows and GUI fixtures remain platform-bound. A registry-derived inventory
-  now pins 890 `RUN_CANARIES`, 879 with authored roots, and 11 rootless. The
-  tracked backlog is 7 after separately excluding the exact four GUI fixtures
+  now pins 890 `RUN_CANARIES`, 881 with authored roots, and 9 rootless. The
+  tracked backlog is 5 after separately excluding the exact four GUI fixtures
   that still lack a general Linux `Gui`/`Input` provider. The earlier reported
   backlog of 18 was incorrect: its baseline parser omitted 39 multiline-form
   RUN rows, then
@@ -1184,12 +1191,31 @@ Remaining:
   cross-carrier, non-value-root, target-drifted, or overflowing witnesses. This
   is a common prerequisite for direct definition chains and both affine
   branches used by same-root/correlated analysis, not an order proof or a
-  serialized proof rule. The remaining work is checked affine-bound
-  conversion plus cast/shift and correlated forbidden-root witnesses; no
-  trusted reducer proposition is imported as proof authority and no partial
-  exact row migrated. No schema, reducer, semantic-operation, or other trust
-  status is promoted; terminal `PSITERM\0` codec v18, proof-bundle v15,
-  installation record v24, and `fully-derived false` remain unchanged.
+  serialized proof rule. A companion producer-visible checker now maps one
+  independently established canonical root `<=` proposition through that
+  checked affine form. It preserves order for positive coefficients, reverses
+  it for negative coefficients, deterministically maps zero coefficients to
+  the constant offset, and rejects wrong shapes, checked-arithmetic overflow,
+  or an out-of-carrier endpoint. This API accepts no proof authority and is not
+  a certificate rule. The remaining work is an intentional versioned proof
+  integration that binds the root citation and normalization equalities. A
+  second non-serialized common checker now normalizes the contiguous pure
+  fixed-integer cast spine used by the accepted one-cast and multi-cast
+  sandwiches. It binds strictly ordered canonical semantic equalities to exact
+  root/target SSA values, validates every adjacent partial 8/16/32/64
+  `IntegerExactCast`, retains all selected indices and carriers, and computes
+  their exact surviving root-range intersection. Identity, widening-shaped,
+  address, non-native, reversed, stale, reordered, discontinuous, cyclic, and
+  target-drifted words reject; narrowing and cross-sign edges claim only their
+  representable intersection, never total or lossy conversion. The checker
+  accepts no proof authority, does not establish machine-parameter custody or
+  surrounding prefix/suffix algebra, and leaves heterogeneous widening/cast
+  words separate. Proof integration plus shift and correlated forbidden-root
+  witnesses remain; no trusted reducer proposition is imported as proof
+  authority and no partial exact row migrated. No schema, reducer,
+  semantic-operation, or other trust status is promoted; terminal `PSITERM\0`
+  codec v18, proof-bundle v15, installation record v24, and `fully-derived
+  false` remain unchanged.
   The bounded Gamma spike is complete. It canonical-decodes four exact current
   `PSITERM\0` v18 fixtures and audits a 54-row scalar ledger covering constants,
   Boolean not/equality, integer equality/order, bitwise operations, strict
@@ -1370,6 +1396,13 @@ Remaining:
   child responsibility exceeds 1,408 lines. This is a semantics-preserving
   split; exact host-service grant custody remains a separate authority task
   rather than being hidden inside the refactor.
+  Target-neutral call validation has begun the same responsibility split. Its
+  9,103-line `calls.rs` parent is now 7,973 lines, while runtime recursive-call
+  position checking and proof-machine structural/cited decrease validation live
+  in one 1,154-line `calls/recursion.rs` child. The parent exposes only the two
+  existing crate-private validators; decrease, citation, sub-state provenance,
+  expression walking, and diagnostic construction helpers remain private to
+  the child, and validation order and public API are unchanged.
   Profiling the differential corpus also ruled out a wholesale Arena-to-
   `PagedArena` migration as a concurrency fix: `PagedArena` provides stable
   paged storage, not concurrent mutation, and the existing sound parallel
