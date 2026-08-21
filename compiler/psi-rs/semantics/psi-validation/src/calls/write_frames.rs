@@ -16,6 +16,7 @@ use psi_typed_trees::state::State;
 use psi_typed_trees::statement::{StatementNode, TableCall, TransitionTargetNode};
 use psi_typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
+mod assignment_targets;
 mod boundary_calls;
 mod demand;
 mod isolation;
@@ -26,6 +27,10 @@ mod transition_topology;
 mod transparent_effects;
 mod type_capabilities;
 
+use assignment_targets::{
+    assignment_target_type, expression_is_effectful_indexed_place,
+    transparent_assignment_target_effect_is_structural,
+};
 use boundary_calls::known_boundary_call_written_paths_for_parts;
 pub(crate) use boundary_calls::{boundary_trait_signature, known_boundary_call_written_paths};
 pub use demand::{CallFrameResolver, frame_paths_overlap};
@@ -1659,17 +1664,6 @@ fn value_expression_assignment_preserves_transparent_result(
     }
 }
 
-fn assignment_target_type(
-    program: &TypedTrees,
-    machine: &Machine,
-    state: &State,
-    target: ExpressionHandle,
-) -> Option<TypeReferenceHandle> {
-    crate::places::declared_place_type(program, machine, Some(state), target).or_else(|| {
-        crate::places::declared_indexed_projection_type(program, machine, Some(state), target)
-    })
-}
-
 /// Apply the concrete aggregate-value rail to one fixed-array literal. The
 /// assignment target supplies the exact contextual element type that an array
 /// literal does not carry itself. Only literal-length, caller-isolated arrays
@@ -2403,24 +2397,6 @@ fn statement_call_argument_preserves_transparent_result(
     .is_some()
 }
 
-fn expression_is_effectful_indexed_place(
-    program: &TypedTrees,
-    expression: ExpressionHandle,
-) -> bool {
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Mutable(inner) => expression_is_effectful_indexed_place(program, *inner),
-        ExpressionNode::Member(member) => {
-            expression_is_effectful_indexed_place(program, member.receiver)
-        }
-        ExpressionNode::Indexed(indexed)
-            if expression_is_effectful_for_transparent_result(program, indexed.index) =>
-        {
-            true
-        }
-        _ => false,
-    }
-}
-
 fn expression_reborrows_transparent_alias_binding(
     program: &TypedTrees,
     expression: ExpressionHandle,
@@ -2520,26 +2496,6 @@ fn parameter_relative_alias_position(
 struct ParameterRelativeFrameOrigin {
     place: FramePlaceOrigin,
     parameter_symbol: SymbolHandle,
-}
-
-/// Effects are permitted only along the place-producing call spine or inside a
-/// separately validated index expression. `parameter_relative_place_origin`
-/// owns the bounded-call and non-rebinding proof for the latter.
-fn transparent_assignment_target_effect_is_structural(
-    program: &TypedTrees,
-    expression: ExpressionHandle,
-) -> bool {
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Mutable(inner) => {
-            transparent_assignment_target_effect_is_structural(program, *inner)
-        }
-        ExpressionNode::Indexed(_) => true,
-        ExpressionNode::Member(member) => {
-            transparent_assignment_target_effect_is_structural(program, member.receiver)
-        }
-        ExpressionNode::Call(_) => true,
-        _ => false,
-    }
 }
 
 fn parameter_relative_place_origin(
