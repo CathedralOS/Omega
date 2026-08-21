@@ -735,6 +735,14 @@ even a complete direct-terminal relation plan is rejected until operation
 correspondence, the selected `Respects` contract, and normalized result flow
 are independently checked and retained in checked/terminal identity.
 
+The same non-authoritative plan resolves the selected representative entry by
+its exact state symbol and retains its ordered runtime telescope, including an
+attached receiver and excluding proof-static `const` binders, together with its
+exact result and machine/state contract spans. Open generic/static applications
+wait for exact substitution rather than using the declaration telescope. This
+does not discharge static/`const` argument correspondence, assert runtime
+positional correspondence, or validate `Respects`.
+
 Acceptance requires:
 
 1. primitive and witness-bearing proposition declarations retain their exact
