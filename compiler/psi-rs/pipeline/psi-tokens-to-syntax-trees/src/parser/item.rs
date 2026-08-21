@@ -781,7 +781,7 @@ fn take_optional_semicolon<'tokens, 'source>(
     }
 }
 
-/// Parses `provider <QualifiedName> : <Category>;` (frozen Wave 0 decision #4).
+/// Parses the legacy bootstrap `provider <QualifiedName> : <Category>;` item.
 fn parse_provider_declaration<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,

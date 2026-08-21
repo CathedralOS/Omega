@@ -546,9 +546,10 @@ impl ServiceReachTable {
     }
 }
 
-/// PRV4 step 1: the deterministic EXTERNAL-BINDING interner -- normalized
-/// rendered `via` bindings, minted in declaration order. `NULL`/0 stays
-/// "not computed"; ids start at 1.
+/// Legacy deterministic EXTERNAL-BINDING text interner. The destination table
+/// interns structured nominal binding identities and exact realization symbols,
+/// never normalized display renderings. `NULL`/0 stays "not computed"; ids
+/// start at 1 during the compatibility interval.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ExternalBindingTable {
     renderings: Vec<String>,

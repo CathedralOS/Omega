@@ -248,6 +248,23 @@ dependency injection, not row construction: conformances and `via` bindings
 declare the provider, the toolchain derives its normalized `ProviderPlan`, and
 configuration selects the already-declared candidate.
 
+Requirement declarations never select their own provider. In particular, a
+`boundary operator` carries no provider clause: checked satisfiers and
+`satisfies ... via <Binding>` leaves declare candidates, and this build/target
+slot mechanism chooses among them. The retired top-level
+`provider Name : Category;` declaration and operator-local `provider Name`
+clause are bootstrap syntax from a parallel primitive registry and must not be
+preserved as a second selection path.
+
+Selection and binding identities are nominal. `Binding::CompilerIntrinsic`
+uses the exact resolved realization-machine symbol, normalized signature, and
+target as its sealed catalog key rather than accepting an authored string.
+Foreign library, symbol, calling-plan, firmware, and similar inputs are typed
+IDs; raw object-format spellings remain sealed target/link metadata and never
+act as Omega symbols or provider-slot keys. The metadata is fingerprinted, so
+changing those foreign bytes changes target/artifact identity and triggers
+fresh admission rather than silently retargeting the nominal ID.
+
 The exact `Build` library method names remain ordinary API design. Conceptually
 the operations are target-profile selection plus type-per-slot override; users
 do not repeat every default and cannot append or mutate derived plan rows.

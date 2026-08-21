@@ -82,7 +82,9 @@ impl OperatorSpelling {
     }
 }
 
-/// Boundary primitive provider categories (frozen Wave 0 decision #4).
+/// Legacy boundary-primitive registry categories, retained only until the
+/// parallel provider item/clause pipeline migrates to ordinary satisfiers and
+/// nominal binding kinds.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ProviderCategory {
     SliceIndexing,

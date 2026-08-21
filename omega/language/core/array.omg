@@ -10,10 +10,10 @@
 // runtime concern; only the proof-facing length/view contracts and the boundary
 // provider binding live in this module.
 
-// Boundary primitive provider for constructing borrowed slice views over an
-// owned fixed array (Wave 0 decision #4). `as_slice` / `as_mut_slice` lower
-// through this descriptor-construction edge, consistent with the Vec view and
-// slice/pointer provider bindings already in core.
+// Legacy boundary-primitive registry syntax retained until these requirements
+// gain ordinary selected satisfiers. `as_slice` / `as_mut_slice` still lower
+// through descriptor construction, but the requirement declaration will no
+// longer choose that implementation.
 provider omega::language::core::array_views : DescriptorConstruction;
 
 // Length in elements: the static extent of the array. Cheap O(1) measure.

@@ -137,6 +137,15 @@ The expression after `via` must be compile-time evaluable to a normalized
 plan derivation validates it structurally, and admission assigns trust from
 the binding kind and evidence. Merely writing `via` asserts no trust class.
 
+The realization machine already supplies the canonical Omega symbol.
+`Binding::CompilerIntrinsic` therefore has no textual name payload: the
+resolved realization symbol, normalized signature, and selected target key the
+sealed intrinsic catalog. Other binding operands are nominal `LibraryId`,
+`SymbolId`, `CallingPlanId`, or mechanism-specific typed values. Native linker
+bytes may occur only in sealed target metadata and are never semantic identity.
+That metadata is fingerprinted; changing its foreign bytes changes the selected
+target/artifact identity and forces fresh admission.
+
 `satisfies` identifies the requirement and inherits its contract. The
 requirement's service-reach row, `suspends`/`blocks` fields, and guarded
 `crashes` buckets are public ceilings. The realization's checked provider behavior is derived from its

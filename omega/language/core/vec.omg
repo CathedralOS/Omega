@@ -14,10 +14,10 @@
 // remains deliberately absent until `Allocation<T>` can borrow an explicit
 // `Arena` through the lifetime model; there is no ambient allocator shortcut.
 
-// Boundary primitive provider for constructing borrowed slice views over an
-// owned vector buffer (Wave 0 decision #4). `as_slice` / `as_mut_slice` lower
-// through this descriptor-construction edge, the same category the slice and
-// pointer surfaces bind their view/offset boundaries to.
+// Legacy boundary-primitive registry syntax retained until these requirements
+// gain ordinary selected satisfiers. The implementation remains a descriptor
+// construction boundary, but the requirement declaration will no longer choose
+// its provider or carry a registry category.
 provider omega::language::core::vec_views : DescriptorConstruction;
 
 // Source-visible owned vector type. The compiler/runtime own its concrete

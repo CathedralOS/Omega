@@ -2469,9 +2469,9 @@ pub struct BoundaryReport {
     pub providers: Arena<BoundaryProviderEntry>,
 }
 
-/// One registered boundary primitive provider (frozen Wave 0 decision #4):
-/// the governing contract, its categorical host-authority requirement, and the targets
-/// it applies to, sourced from the boundary operator(s) bound to it.
+/// One legacy registered boundary primitive provider. This compatibility row
+/// is replaced by the selected-realization report: exact requirement,
+/// realization symbol, nominal binding, target, admission, and receipt.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct BoundaryProviderEntry {
     pub name: String,

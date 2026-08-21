@@ -1,4 +1,6 @@
 // Linux/x86-64 realizations for F7's primitive spelling provider-plan slice.
+// String intrinsic names are bootstrap syntax; the destination payload-free
+// binding keys the sealed catalog by realization symbol, signature, and target.
 linux_x64 machine FloatNativeProvider::add32(left: f32, right: f32) -> f32
     satisfies Float::add
     via Binding::CompilerIntrinsic("Float::add.f32");

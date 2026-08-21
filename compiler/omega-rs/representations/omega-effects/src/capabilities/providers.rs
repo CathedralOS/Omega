@@ -1,9 +1,12 @@
-//! Boundary primitive provider registry (frozen Wave 0 decision #4).
+//! Legacy boundary primitive provider registry.
 //!
 //! A [`BoundaryProvider`] is declared by a `provider <QualifiedName> :
 //! <Category>;` item. Core primitives bind a named provider via the `provider`
 //! clause on a boundary `operator`. Only whitelisted packages may declare
 //! providers; every boundary binding must resolve to a registered provider.
+//! This entire parallel registry is bootstrap compatibility machinery pending
+//! migration to exact satisfiers, nominal `Binding` values, selected
+//! `ProviderPlan` rows, and build/installation-owned slot selection.
 
 use psi_diagnostics::Diagnostic;
 use psi_language_core::ProviderCategory;

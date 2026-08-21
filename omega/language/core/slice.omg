@@ -15,7 +15,9 @@
 // `operator`. The `spelling` clauses below are bootstrap compatibility syntax
 // pending the mechanical parser/corpus migration, not accepted final syntax.
 
-// Boundary primitive provider for slice indexing/subslicing (Wave 0 #4).
+// Legacy boundary-primitive registry syntax retained until the ordinary
+// satisfier/ProviderPlan migration lands. The destination declaration carries
+// no provider choice; a target-selected realization supplies this requirement.
 provider omega::language::core::slice_indexing : SliceIndexing;
 
 boundary operator Slice::Length<T>(items: &[T]) -> u64;
