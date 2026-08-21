@@ -18,7 +18,7 @@ use sha2::{Digest, Sha256};
 
 const MAGIC: &[u8; 8] = b"PSIPRF\0\0";
 /// Single current pre-release proof vocabulary marker.
-const FORMAT_MARKER: u16 = 13;
+const FORMAT_MARKER: u16 = 14;
 const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-proof-bundle-fingerprint\0";
 const MAX_PROPOSITION_DEPTH: usize = 256;
 const MAX_SCALAR_TERM_DEPTH: usize = 256;
@@ -284,6 +284,10 @@ fn validate_proof_node(node: &ProofNode, depth: usize) -> Result<(), ProofCodecE
         ProofRule::EqualityTransitivity {
             left_equals_middle,
             middle_equals_right,
+        }
+        | ProofRule::IntegerLessOrEqualTransitivity {
+            left_less_or_equal_middle: left_equals_middle,
+            middle_less_or_equal_right: middle_equals_right,
         } => {
             validate_proof_node(left_equals_middle, depth + 1)?;
             validate_proof_node(middle_equals_right, depth + 1)
@@ -582,6 +586,14 @@ fn encode_proof_node(
             writer.u8(8);
             encode_proof_node(writer, left_equals_middle, depth + 1, format_marker)?;
             encode_proof_node(writer, middle_equals_right, depth + 1, format_marker)?;
+        }
+        ProofRule::IntegerLessOrEqualTransitivity {
+            left_less_or_equal_middle,
+            middle_less_or_equal_right,
+        } => {
+            writer.u8(10);
+            encode_proof_node(writer, left_less_or_equal_middle, depth + 1, format_marker)?;
+            encode_proof_node(writer, middle_less_or_equal_right, depth + 1, format_marker)?;
         }
     }
     Ok(())
@@ -1339,6 +1351,18 @@ fn decode_proof_node(
         9 => ProofRule::DisjunctionIntroduction {
             disjunct: Box::new(decode_proof_node(reader, depth + 1, format_marker)?),
             index: reader.index()?,
+        },
+        10 => ProofRule::IntegerLessOrEqualTransitivity {
+            left_less_or_equal_middle: Box::new(decode_proof_node(
+                reader,
+                depth + 1,
+                format_marker,
+            )?),
+            middle_less_or_equal_right: Box::new(decode_proof_node(
+                reader,
+                depth + 1,
+                format_marker,
+            )?),
         },
         tag => return Err(ProofCodecError::InvalidTag("ProofRule", tag)),
     };
