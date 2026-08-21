@@ -98,9 +98,21 @@ Remaining:
   width, and opcode-tampered call claims fail closed. No production builder
   emits that operation yet, and it deliberately carries no invented argument
   or receiver placement. Production builds still emit and select
-  `Source(entry StateKey)` because no generated wrapper body or source-call ABI
-  exists yet; emitting that body,
-  retaining a distinct outbound source-call ABI and mapped receiver address,
+  `Source(entry StateKey)`. The native bridge now retains only a non-
+  authoritative continuation staging plan, distinct from the physical arrival
+  `BoundaryEntryPlan`. It does not claim an independently checked source
+  signature, root-value carrier, root authority, or complete `CallPlan`. For an
+  attached entry it stages the first compiler-private ABI position as a hidden
+  receiver-pointer candidate, and the production executor gate binds that
+  candidate to the exact mapped address and live activation loan; identity,
+  shape, alignment, and loan-length drift reject. The free form is recorded but
+  has no production executor traversal because the current gate requires
+  receiver activation. Attached receiver storage partitions `InitialStorage`,
+  and its potentially noncontiguous conserved remainders cannot be invented as
+  one outbound `Extent`. Production builds therefore still lack an exact
+  source-call signature/authority carrier, generated wrapper body, and source-
+  function inbound realization; defining the conserved residual argument (or
+  separate hidden supply), emitting the body, realizing its placements,
   defining the installation-carrier linkage, adding the
   exact native call edge to the retained operation, and retaining resulting
   native bridge evidence remain before this slice is complete.
@@ -140,9 +152,11 @@ Remaining:
   parameter, copied-struct, and lookup-driven text probes now use authored
   roots in their native and cross-target artifact coverage. Ten array
   reduction, indexed-write, indexed-guard, and stack-algorithm probes now also
-  run their unchanged Unit entries through authored four-host roots. The
-  tracked corpus audit leaves 137 legacy fixtures without an authored
-  `build.omg` root.
+  run their unchanged Unit entries through authored four-host roots. Four
+  nested-loop/index probes and six dependent range, ordering, subtraction, and
+  product-index probes likewise retain their exact programs under authored
+  four-host roots. The tracked corpus audit leaves 127 legacy fixtures without
+  an authored `build.omg` root.
   Continue migrating those fixtures through production entry
   selection; replace result-as-process-exit probes with ordinary Unit entries
   and explicit exit providers rather than preserving the legacy entry seam.

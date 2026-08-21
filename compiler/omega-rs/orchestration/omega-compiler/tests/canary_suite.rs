@@ -10,6 +10,20 @@ fn compile(options: CompileOptions) -> Result<CompileReport, Vec<Diagnostic>> {
         options,
         "Main::main",
         canary_backend_worker_count(),
+        ArtifactEmissionPolicy::OutputOnly,
+    )
+}
+
+/// Compile a canary that explicitly asserts an auxiliary compiler artifact.
+/// Disposable native/runtime canaries must use [`compile`] so their temporary
+/// build directories contain only the certified executable they consume.
+fn compile_with_auxiliary_artifacts(
+    options: CompileOptions,
+) -> Result<CompileReport, Vec<Diagnostic>> {
+    compile_with_test_entry_worker_count_and_artifact_policy(
+        options,
+        "Main::main",
+        canary_backend_worker_count(),
         ArtifactEmissionPolicy::Full,
     )
 }
@@ -1459,6 +1473,16 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "collections/runtime_dual_indexed_comparison_guard_exit",
     "collections/runtime_hoisted_index_write_exit",
     "collections/runtime_indexed_guard_subject_exit",
+    "collections/runtime_loop_counter_init_hoisted_exit",
+    "collections/runtime_nested_const_product_index_exit",
+    "collections/runtime_nested_loop_fill_exit",
+    "collections/runtime_palindrome_two_pointer_exit",
+    "dependent/runtime_dependent_ordering_chain_exit",
+    "dependent/runtime_dependent_param_range_exit",
+    "dependent/runtime_dependent_product_index_exit",
+    "dependent/runtime_dependent_subtract_exit",
+    "dependent/runtime_requires_subtract_exit",
+    "dependent/runtime_sibling_len_index_exit",
     "calls/recursive_result_bind_first_arg",
     "calls/guarded_value_call_arm_exit",
     "calls/nested_machine_continuation",

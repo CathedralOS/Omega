@@ -84,6 +84,35 @@ fn output_only_backend_compile_keeps_primary_image_and_certification() {
 }
 
 #[test]
+fn disposable_native_canary_helper_emits_only_the_primary_image() {
+    let build_dir = unique_no_output_build_dir();
+    let report = compile(CompileOptions {
+        root_path: pass_canary("calls/free_standing_machine_helper_compile").join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("disposable native canary should compile through the shared helper");
+
+    assert!(report.wrote_output);
+    assert!(build_dir.join(executable_name()).is_file());
+    let entries = fs::read_dir(&build_dir)
+        .expect("read disposable native canary build directory")
+        .map(|entry| {
+            entry
+                .expect("read disposable native canary entry")
+                .file_name()
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        entries,
+        [std::ffi::OsString::from(executable_name())],
+        "the shared disposable helper must not emit auxiliary reports or viewers"
+    );
+    let _ = fs::remove_dir_all(build_dir);
+}
+
+#[test]
 fn boundary_trait_canary_reports_capability_use() {
     let canary = pass_canary("traits/boundary_trait_effects_host_call");
     let main_path = canary.join("main.omg");
@@ -661,7 +690,7 @@ fn backend_report_realizes_linear_boundary_entry_from_prologue() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
+    compile_with_auxiliary_artifacts(CompileOptions {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
