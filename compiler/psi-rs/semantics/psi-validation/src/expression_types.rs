@@ -1522,7 +1522,7 @@ fn binary_operator_spelling(
 /// Reject an arithmetic / ordering operator on a STRUCT operand for which no
 /// operator with that spelling is DECLARED (`self.a + self.b` for a plain
 /// `data P {}` lowered to a garbage byte op). A struct's only such operators are
-/// DOMAIN operators (`operator Quantity::Additive::add ... spelling +`),
+/// DOMAIN operators (`operator + Quantity::Additive::add ...`),
 /// so we ask the use-site authority `resolve_spelling`: an EMPTY candidate set for
 /// a concrete-data receiver means the operator is undeclared. Scalars (intrinsic
 /// builtins) and arrays are not concrete-data receivers, so they are untouched;

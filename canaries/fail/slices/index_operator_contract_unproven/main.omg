@@ -1,5 +1,5 @@
 // Operator-contract bounds attribution for scalar indexing: with the core
-// slice surface imported, `Slice::index ... spelling [] ... requires
+// slice surface imported, `operator [] Slice::index ... requires
 // index < items.len` governs the access. The out-of-range literal index must
 // name the operator and its `requires` clause.
 

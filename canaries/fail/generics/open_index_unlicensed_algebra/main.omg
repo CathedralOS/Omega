@@ -2,7 +2,7 @@ data IndexSpace {}
 
 domain<T, const I: i32> T::Indexed<I>;
 
-operator IndexAlgebra::plus(left: i32, right: i32) -> i32 spelling +;
+operator + IndexAlgebra::plus(left: i32, right: i32) -> i32;
 
 machine plus_index(a: i32, b: i32) -> i32
 satisfies IndexAlgebra::plus

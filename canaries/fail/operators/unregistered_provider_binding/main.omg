@@ -2,8 +2,7 @@
 // missing or ambiguous selected satisfiers reject during provider-plan
 // composition instead.
 
-boundary operator Slice::index<T>(items: &[T], index: u64) -> T
-spelling []
+boundary operator [] Slice::index<T>(items: &[T], index: u64) -> T
 provider omega::language::core::missing_provider
 requires
     index < items.len;

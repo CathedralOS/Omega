@@ -1257,8 +1257,13 @@ Remaining:
   signed `divisor <= K` plus `K <= -2`. Reconstruction requires the exact shared
   middle term and operand identity; the producer cites both facts in deterministic
   ledger order under one checked transitivity node. Missing, disconnected,
-  reversed, or redirected pairs reject. The operation result is not available
-  as proof authority. The current
+  reversed, or redirected pairs reject. An exact retained canonical goal is now
+  cited directly, and an exact retained canonical arm is introduced at its
+  ordered disjunct index. Reconstruction uses the same recursive
+  `LessOrEqual`/conjunction/disjunction shape as the producer instead of separate
+  safe-divisor and exceptional branches; redirected goals, reordered joint
+  conjunctions, or wrong operand identities reject. The operation result is not
+  available as proof authority. The current
   proof rules and proof-bundle v15 codec carry the certificates without a
   vocabulary change. All remaining
   exact divide/remainder families stay on trusted sufficient reduction, so
@@ -1543,7 +1548,7 @@ Remaining:
   unchanged; only type-shell normalization and unresolved-call reporting are
   shared privately back to per-call validation.
   Complete-or-opaque caller write-frame inference, alias-origin propagation,
-  and transition-cycle frame equations now form a 3,299-line
+  and transition-cycle frame equations now form a 3,225-line
   `calls/write_frames.rs` child. Its 459-line `write_frames/demand.rs` child
   owns the public resolver facade plus expression/statement demand collection
   and conservative fallback; a separate 123-line
@@ -1575,7 +1580,11 @@ Remaining:
   analysis remain in the parent. An 85-line
   `write_frames/transition_topology.rs` leaf owns named-edge target resolution
   and acyclicity checking within one machine, without constructing or solving
-  frame equations. A 61-line `write_frames/assignment_targets.rs` leaf owns
+  frame equations. A 91-line `write_frames/transition_equations.rs` leaf owns
+  the private equation/edge carriers, exact named-edge capture, and read-only
+  equation-graph reachability; construction, permutation validation, and
+  fixed-point solving remain in the parent. A 61-line
+  `write_frames/assignment_targets.rs` leaf owns
   declared target-type lookup and structural/effectful assignment-place shape
   classification; it depends only on typed-place and syntactic-effect queries,
   not alias mutation or frame resolution. The parent
@@ -2399,8 +2408,15 @@ Remaining N6/N8 work:
   `self`, excluding proof-static `const` binders), parameter symbols/types/
   mutability, result type, and machine/state contract spans. Missing or
   duplicate state identities, open generic/static applications, and unresolved
-  results reject; static/const and positional correspondence remain explicitly
-  unresolved. Every request still rejects as non-executable until exact
+  results reject. A direct monomorphic `define` request now also requires exact
+  positional runtime correspondence: public parameter symbols in order,
+  one-to-one unique runtime identities, quotient-carrier/representative-type or
+  ordinary exact-type agreement, mutable/borrow mode and multiplicity
+  preservation, and an exact representative-result carrier match. Attached
+  representative `self` participates positionally without requiring a public
+  parameter spelled `self`; reorder, duplication, locals/literals, arity,
+  borrowed-shell, type, and result drift reject. Static/const correspondence
+  remains explicitly unresolved. Every request still rejects as non-executable until exact
   correspondence, the selected `Respects` contract, and normalized result flow
   are checked and retained in checked/terminal identity.
 - Suppress every synthesized representation observer on quotient formation.
@@ -2449,17 +2465,17 @@ boundary without its corresponding checked law.
 
 ### Fixed operator surface
 
-- Parse one optional compiler-owned literal token immediately after `operator`
-  and before the descriptive path. Retain the token binding through resolved,
-  typed, checked, and public compatibility identity while calls continue to
-  carry the exact resolved declaration rather than a bare token. Reject a token
-  list, unknown punctuation, and duplicate participating declarations for one
-  normalized operand/domain shape.
-- Remove the provisional `spelling` clause from the grammar and migrate its
-  bootstrap core, standard-library, and canary sites mechanically to the
-  declaration head. Keep tokenless named operators valid. Preserve the closed
-  compiler-owned precedence, associativity, fixity, arity, and argument-position
-  table; add no custom-operator or token-alias facility.
+- The fixed declaration-head syntax is implemented for ordinary and boundary
+  operators. One optional compiler-owned token is parsed immediately after
+  `operator`, retained by the existing syntax/resolved/typed/checked and public
+  compatibility carriers, and calls continue to retain the exact resolved
+  declaration. The provisional trailing `spelling` clause is rejected. Core,
+  standard-library, canary, architecture, and embedded pipeline fixtures now use
+  the declaration head; tokenless named operators remain valid. Parser coverage
+  pins `+`, `[]`, `[..]`, unknown punctuation, token lists, and the retired
+  clause, while checked and canary coverage pins exact selection and duplicate
+  normalized operand rejection. The compiler-owned token/fixity table remains
+  closed; no custom-token or alias facility was added.
 - Normalize an attached receiver as operand position zero and an explicit first
   parameter as position zero otherwise. Trait-owned operator requirements bind
   their token once; conformances implement without rebinding. A trait-backed

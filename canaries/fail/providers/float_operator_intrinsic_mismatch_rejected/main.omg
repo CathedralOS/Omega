@@ -1,7 +1,6 @@
 // Exact boundary-operator ProviderPlans select compiler-known lowerings; a
 // provider cannot relabel subtraction as the realization of Float::add.
-boundary operator Float::add(left: f32, right: f32) -> f32
-spelling +;
+boundary operator + Float::add(left: f32, right: f32) -> f32;
 
 data BadFloatProvider { }
 

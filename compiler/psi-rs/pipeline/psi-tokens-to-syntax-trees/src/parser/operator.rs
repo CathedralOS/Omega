@@ -16,6 +16,16 @@ pub(super) fn parse_operator_definition<'tokens, 'source>(
     is_boundary: bool,
 ) -> ParseResult<'tokens, 'source, OperatorDefinition> {
     let body_start_tokens = input.tokens.len();
+    let (spelling, input) = if input
+        .tokens
+        .first()
+        .is_some_and(|token| token.punctuation().is_some())
+    {
+        let (spelling, input) = parse_operator_spelling(input)?;
+        (Some(spelling), input)
+    } else {
+        (None, input)
+    };
     let (name, input) = parse_path_handle_span(input, |member| {
         syntax_trees.items.append_identifier_path_member(member)
     })?;
@@ -24,11 +34,10 @@ pub(super) fn parse_operator_definition<'tokens, 'source>(
     let (parameters, input) = parse_optional_state_parameters(syntax_trees, input)?;
     let (return_type, mut input) = parse_optional_return_type(syntax_trees, input)?;
 
-    // Legacy `spelling` and `provider` clauses may appear before or after the
-    // `requires`/`ensures` contracts. Both are bootstrap compatibility syntax:
-    // fixed tokens migrate into the declaration head, while provider selection
-    // migrates to ordinary satisfiers and provider-plan slots.
-    let mut spelling = None;
+    // The optional fixed token is part of the declaration head. `provider`
+    // remains a legacy trailing clause pending migration to ordinary satisfiers
+    // and provider-plan slots. Contracts stay contiguous in the arena because
+    // provider is stored on the operator itself.
     let mut provider = None;
     let mut contract_start = Handle::invalid();
     let mut contract_count = 0u32;
@@ -42,16 +51,6 @@ pub(super) fn parse_operator_definition<'tokens, 'source>(
             contract_count = contract_count
                 .checked_add(1)
                 .expect("operator contract span count overflow");
-            continue;
-        }
-        if input.at_contextual("spelling") {
-            let after_keyword = input.take_contextual("spelling")?;
-            let (parsed, rest) = parse_operator_spelling(after_keyword)?;
-            if spelling.is_some() {
-                return Err(rest.error_here("duplicate `spelling` clause on operator"));
-            }
-            spelling = Some(parsed);
-            input = rest;
             continue;
         }
         if input.at_contextual("provider") {
@@ -95,9 +94,9 @@ pub(super) fn parse_operator_definition<'tokens, 'source>(
     ))
 }
 
-/// Parses a `spelling` clause body, e.g. `+`, `[]`, `[..]`. Spelling symbols are
-/// sequences of punctuation tokens; this assembles the lexemes and validates
-/// against the legal set in [`OperatorSpelling`].
+/// Parses the optional fixed-token declaration head, e.g. `+`, `[]`, `[..]`.
+/// Fixed tokens are sequences of punctuation tokens; this assembles the
+/// lexemes and validates against the closed [`OperatorSpelling`] set.
 fn parse_operator_spelling<'tokens, 'source>(
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, OperatorSpelling> {
@@ -204,7 +203,6 @@ fn operator_contract_terminator(input: Input<'_, '_>) -> bool {
         || is_operator_contract_start(&input)
         || input.at_contextual("operator")
         || input.at_contextual("boundary")
-        || input.at_contextual("spelling")
         || input.at_contextual("provider")
         || input.tokens.is_empty()
 }

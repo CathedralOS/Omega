@@ -1582,7 +1582,7 @@ fn infers_top_level_operator_home_from_qualified_operands() {
     let source = r#"
     domain i32::Degrees;
 
-    operator add(left: i32 in Degrees, right: i32 in Degrees) -> i32 in Degrees spelling +;
+    operator + add(left: i32 in Degrees, right: i32 in Degrees) -> i32 in Degrees;
     "#;
 
     let tokens = Lexer::new(source)
@@ -1621,7 +1621,7 @@ fn rejects_ambiguous_inferred_domain_operator_home() {
     domain i32::Degrees;
     domain i32::Radians;
 
-    operator add(left: i32 in Degrees, right: i32 in Radians) -> i32 spelling +;
+    operator + add(left: i32 in Degrees, right: i32 in Radians) -> i32;
     "#;
 
     let tokens = Lexer::new(source)

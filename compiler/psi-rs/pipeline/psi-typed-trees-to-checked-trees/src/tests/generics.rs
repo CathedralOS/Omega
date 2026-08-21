@@ -2804,7 +2804,7 @@ fn generic_template_identity_pins_selected_open_index_operation_authority() {
                     ensures add(add(a, b), c) == add(a, add(b, c));
                 }}
 
-                operator {operator_namespace}::plus(left: u64, right: u64) -> u64 spelling +;
+                operator + {operator_namespace}::plus(left: u64, right: u64) -> u64;
 
                 machine plus_index(a: u64, b: u64) -> u64
                 satisfies {operator_namespace}::plus, IndexAdd::add as Canonical
