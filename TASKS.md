@@ -1275,10 +1275,16 @@ Owners:
   runtime code address. Both check-only and native orchestration immediately
   consume that key, revalidate the retained target plan, and reject missing,
   duplicate, invalid, or fingerprint-drifted realizations before backend
-  lowering. The
+  lowering. That join now materializes one target-owned callback-placement row
+  containing the exact nominal-use site and ordinal, selected machine/entry,
+  satisfaction identity, fingerprint, and validated `BoundaryEntryPlan`.
+  Checked-only compilation exposes those rows and native compilation retains
+  them on `BackendPlan`, so no later thunk pass may replace the recipe with a
+  convention oracle or silently discard it. The
   remaining envelope slice must aggregate those per-axis published/actual rows
   without relabeling a declared fingerprint as inferred behavior. Also
-  remaining are emission of that joined target thunk and private relocation,
+  remaining are consumption of that joined row to emit the target thunk and
+  private relocation,
   registration leases/unregister,
   and cross-target registered-callback canaries.
 - Implement the narrow Windows `user32` canary without exposing a raw code

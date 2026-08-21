@@ -267,6 +267,8 @@ dependencies = [
  "omega-target",
  "omega-target-operations",
  "psi-arena",
+ "psi-checked-trees",
+ "psi-symbols",
 ]
 
 [[package]]

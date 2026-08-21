@@ -1,4 +1,4 @@
-use crate::{BackendArtifactRoots, BackendPlanPhaseTiming};
+use crate::{BackendArtifactRoots, BackendPlanPhaseTiming, BoundNominalCallbackPlacement};
 use omega_abstract_operations::{AbstractDataPlan, AbstractOperationPlan};
 use omega_assigned_target_operations::AssignedTargetOperationPlan;
 use omega_calling_conventions::{BoundaryEntryPlan, HostAbiPlan};
@@ -52,6 +52,10 @@ pub struct BackendPlan {
     /// slot. Legacy name-discovered entries retain `None` until corpus
     /// migration removes that compatibility path.
     pub entry_boundary_plan: Option<BoundaryEntryPlan>,
+    /// Exact target-owned recipes for callback thunks, already joined to the
+    /// checked nominal-use sites that require them. Later lowering consumes
+    /// these rows directly and must not reconstruct ABI placement.
+    pub callback_placements: Arc<[BoundNominalCallbackPlacement]>,
     /// Per-DISPATCH-INDEX receiver storage base (indexed by the runtime-flow
     /// state's arena index): `Some(base)` when the dispatch case's clone
     /// context was minted by a call through a CONTAINED receiver whose true

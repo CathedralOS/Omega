@@ -225,8 +225,9 @@ pub(crate) struct BoundaryCallingPlanRealization {
 pub(crate) fn validate_nominal_callback_placement_bindings(
     checked: &psi_checked_trees::CheckedTrees,
     realizations: &[BoundaryCallingPlanRealization],
-) -> Result<(), Vec<Diagnostic>> {
+) -> Result<Vec<omega_backend_plan::BoundNominalCallbackPlacement>, Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
+    let mut bound = Vec::new();
     for nominal_use in &checked.facts.nominal_machine_uses.uses {
         let matching = realizations
             .iter()
@@ -289,11 +290,24 @@ pub(crate) fn validate_nominal_callback_placement_bindings(
                 "nominal callback use for `{}` does not bind its exact evaluated target calling plan",
                 nominal_use.canonical_requirement_overload
             )));
+            continue;
         }
+        bound.push(omega_backend_plan::BoundNominalCallbackPlacement {
+            site: nominal_use.site,
+            registration_operation: nominal_use.registration_operation,
+            static_machine_ordinal: nominal_use.static_machine_ordinal,
+            selected_machine: nominal_use.selected_machine,
+            selected_entry: nominal_use.selected_entry,
+            satisfaction_trait: nominal_use.satisfaction_trait,
+            satisfaction_requirement: nominal_use.satisfaction_requirement,
+            canonical_requirement_overload: nominal_use.canonical_requirement_overload.clone(),
+            boundary_calling_plan_fingerprint: realized_fingerprint,
+            boundary_entry_plan: validated.plan().clone(),
+        });
     }
 
     if diagnostics.is_empty() {
-        Ok(())
+        Ok(bound)
     } else {
         Err(diagnostics)
     }
@@ -2017,8 +2031,27 @@ mod tests {
     fn nominal_callback_placement_binds_one_exact_evaluated_plan() {
         let (checked, realizations) = nominal_callback_fixture();
 
-        validate_nominal_callback_placement_bindings(&checked, &realizations)
+        let bound = validate_nominal_callback_placement_bindings(&checked, &realizations)
             .expect("exact checked and target plan identities should bind");
+        let [bound] = bound.as_slice() else {
+            panic!("one checked callback must produce one durable target plan");
+        };
+        let nominal_use = &checked.facts.nominal_machine_uses.uses[0];
+        assert_eq!(bound.site, nominal_use.site);
+        assert_eq!(
+            bound.static_machine_ordinal,
+            nominal_use.static_machine_ordinal
+        );
+        assert_eq!(bound.selected_machine, nominal_use.selected_machine);
+        assert_eq!(bound.selected_entry, nominal_use.selected_entry);
+        assert_eq!(
+            bound.boundary_calling_plan_fingerprint,
+            realizations[0].fingerprint
+        );
+        assert_eq!(
+            bound.boundary_entry_plan,
+            realizations[0].boundary_entry_plan
+        );
     }
 
     #[test]

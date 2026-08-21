@@ -698,10 +698,12 @@ impl Compiler {
         )?;
 
         let mut checked = typed_trees_to_checked_trees(typed, &mut timings)?;
-        crate::pipeline::calling_policy_plans::validate_nominal_callback_placement_bindings(
-            &checked.program,
-            &boundary_calling_plan_realizations,
-        )?;
+        checked.callback_placements = Arc::from(
+            crate::pipeline::calling_policy_plans::validate_nominal_callback_placement_bindings(
+                &checked.program,
+                &boundary_calling_plan_realizations,
+            )?,
+        );
         crate::pipeline::trust_lockfile::enforce_trust_lockfile(
             prepared_trust_lock,
             checked.program.as_ref(),

@@ -36,6 +36,7 @@ pub(super) struct CheckedProgramSurface {
     pub(super) program: Arc<CheckedProgram>,
     pub(super) selected_provider_plans: Arc<omega_effects::SelectedProviderPlanFacts>,
     pub(super) task_activations: Arc<omega_task_plans::TaskActivationPlanSet>,
+    pub(super) callback_placements: Arc<[omega_backend_plan::BoundNominalCallbackPlacement]>,
 }
 
 pub(super) struct BackendPlanningSurface {
@@ -428,6 +429,7 @@ pub(super) fn typed_trees_to_checked_trees(
             program: Arc::new(program),
             selected_provider_plans: Arc::new(omega_effects::SelectedProviderPlanFacts::default()),
             task_activations: Arc::new(omega_task_plans::TaskActivationPlanSet::default()),
+            callback_placements: Arc::from([]),
         })
     })
 }
@@ -475,6 +477,7 @@ pub(super) fn control_flow_to_backend_plan(
         checked.selected_provider_plans,
         entry_machine_name,
         entry_boundary_plan,
+        checked.callback_placements,
         target,
         freestanding,
         external_binding_rows,
