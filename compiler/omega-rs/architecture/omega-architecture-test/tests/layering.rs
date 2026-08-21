@@ -702,6 +702,46 @@ fn admitted_external_root_entry_fact_cannot_detach_before_body_dispatch() {
 }
 
 #[test]
+fn program_storage_entry_activation_cannot_detach_before_executor_dispatch() {
+    let root = workspace_root();
+    let path = root.join(
+        "compiler/omega-rs/orchestration/omega-compiler/src/pipeline/program_storage_entry.rs",
+    );
+    let source = std::fs::read_to_string(&path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", path.display()));
+
+    assert!(
+        source.contains("pub fn dispatch_source_continuation_executor"),
+        "the program-storage bridge must expose its checked executor gate"
+    );
+    assert!(
+        source.contains("execute: impl for<'handoff> FnOnce("),
+        "executor output must be lifetime-independent from the borrowed handoff"
+    );
+    assert!(
+        !source.contains("pub fn into_receiver(")
+            && !source.contains("pub fn into_handoff(")
+            && !source.contains("pub fn prepare_source_continuation_handoff("),
+        "the receiver activation and source-continuation handoff must not detach from dispatch"
+    );
+    let activation = source
+        .find("let mut activation = install_and_activate_program_storage_entry_receiver")
+        .expect("dispatch must first construct the checked receiver activation");
+    let execute = source[activation..]
+        .find("let output = execute(ProgramStorageEntrySourceContinuationHandoff")
+        .map(|offset| activation + offset)
+        .expect("dispatch must invoke the executor with its sealed borrowed handoff");
+    let finish = source[execute..]
+        .find("let roots = activation.finish()")
+        .map(|offset| execute + offset)
+        .expect("dispatch must finish the activation after the executor returns");
+    assert!(
+        activation < execute && execute < finish,
+        "executor dispatch must remain inside the checked activation lifetime"
+    );
+}
+
+#[test]
 fn typed_frontend_does_not_retain_concrete_calling_conventions() {
     let root = workspace_root();
     let manifest = root.join("compiler/psi-rs/representations/psi-typed-trees/Cargo.toml");

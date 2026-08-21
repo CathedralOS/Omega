@@ -1,17 +1,19 @@
 // PASS canary (decision 21): one established linear obligation transfers
 // through multiple bindings and is terminally consumed by an ordinary
 // by-value-self machine. There is no terminal-consumer annotation.
+use omega::language::std::console;
+
 data Receipt [linear] {
     code: i32;
 }
 
 machine Receipt::ack(self) {}
 
-data Main {}
+data Main { console: Console; }
 
-machine Main::main() -> i32 {
+machine Main::main(&mut self) {
     let issued: Receipt = Receipt { code: 7 };
     let forwarded: Receipt = issued;
     Receipt::ack(forwarded);
-    0
+    self.console.exit_process(0);
 }

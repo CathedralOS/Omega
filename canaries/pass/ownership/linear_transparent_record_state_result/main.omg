@@ -1,5 +1,7 @@
 // A path-aligned state result maps each transparent-record claim from the
 // callee's outgoing frontier to the caller's receiving frontier independently.
+use omega::language::std::console;
+
 data Receipt [linear] {
     code: i32;
 }
@@ -11,7 +13,7 @@ data Pair {
     right: Receipt;
 }
 
-data Main {}
+data Main { console: Console; }
 
 machine Main::issue(&mut self) -> Pair {
     let left: Receipt = Receipt { code: 1 };
@@ -20,11 +22,11 @@ machine Main::issue(&mut self) -> Pair {
     transition { _ -> pair }
 }
 
-machine Main::main(&mut self) -> i32 {
+machine Main::main(&mut self) {
     let returned: Pair = self.issue();
     let left: Receipt = returned.left;
     let right: Receipt = returned.right;
     Receipt::ack(left);
     Receipt::ack(right);
-    0
+    self.console.exit_process(0);
 }

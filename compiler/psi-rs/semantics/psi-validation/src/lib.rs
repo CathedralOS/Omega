@@ -178,6 +178,7 @@ fn validate_program_internal(
     validate_domain_definitions(program, &symbols, &fact_plan, &mut diagnostics);
     validate_invariant_definitions(program, &fact_plan, &mut diagnostics);
     validate_callable_state_signatures(program, &symbols, &mut diagnostics);
+    arithmetic_domains::validate_abstract_total_specification_arithmetic(program, &mut diagnostics);
     cleanup::validate_cleanup_machine_declarations(program, &mut diagnostics);
     validate_trait_requirements(program, &symbols, &mut diagnostics);
     for trait_definition in program.traits() {

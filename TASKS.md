@@ -67,12 +67,19 @@ Remaining:
   explicit fixture seam. Sample refresh and native execution must use authored
   roots and never invent one, while targetless checking selects none.
 
-  The pending emitted-bridge evidence now requires its object entry symbol to
+  The pending emitted-bridge evidence requires its object entry symbol to
   globally name exactly one encoded function, then binds that function's exact
   text interval and valid control-flow `StateKey`; a duplicate same-name
   function, redirected key, or display-compatible machine/state name cannot
-  redirect that join. The physical bridge still must consume the activation
-  loan while invoking that retained continuation before this slice is complete.
+  redirect that join. The retained bridge plan now owns a sealed platform
+  executor gate: only the exact selected physical-provider installation and
+  mapped, zeroed receiver activation can construct its borrowed continuation
+  handoff, and the executor runs before that activation is finished. This gate
+  intentionally does not claim that native bytes executed. The object entry is
+  still the source-continuation function rather than a distinct generated
+  wrapper, so emitted wrapper identity, carrier ABI/linkage, mapped receiver
+  addressing, the exact native call edge, and resulting native bridge evidence
+  remain before this slice is complete.
 
   The CLI corpus is rooted on all hosted targets except the four GUI samples,
   which currently select Windows x64 and macOS arm64. Linux needs an ordinary
@@ -98,8 +105,10 @@ Remaining:
   element copies, frame aliases, and bounded or dynamic subslice probes now
   likewise compile and run only through authored production roots. The tracked
   nested-window, parameter-subslice, runtime-end, and descriptor-pointer probes
-  add ten more unchanged Unit-entry programs to that rooted native cohort. The
-  tracked corpus audit leaves 185
+  add ten more unchanged Unit-entry programs to that rooted native cohort.
+  Eight linear ownership handoff, transfer, and transparent-record frontier
+  fixtures now preserve their ownership and transition programs in direct Unit
+  entries with explicit exit providers. The tracked corpus audit leaves 177
   legacy fixtures without an authored `build.omg` root.
   Continue migrating those fixtures through production entry
   selection; replace result-as-process-exit probes with ordinary Unit entries
@@ -731,17 +740,18 @@ Remaining:
   erased payload equality, and runtime sum layout remain fenced. Semantic codec
   v18, proof-bundle v12, and installation-record v24 retain the structural
   shapes, case-payload paths, and proposition. Continue with the fenced mixed,
-  nested, recursive, and erased aggregate cases. Concrete machine and state
-  expression contracts now reject direct binary and named-float `Trapping`
-  arithmetic plus direct Trapping conversions. Comparisons, bitwise inspection,
-  float classification, Wrapping/Saturating operations, and non-reserved custom
-  float calls remain total; proof expressions do not create crash sites. Finish
-  the settled total-specification arithmetic slice: retain explicit fixed-
+  nested, recursive, and erased aggregate cases. Concrete machine/state
+  contracts plus domain/data predicates, trait invariants and signatures,
+  machine-parameter requirements, and root/domain operator contracts now reject
+  direct binary and named-float `Trapping` arithmetic plus direct Trapping
+  conversions. Comparisons, bitwise inspection, float classification,
+  Wrapping/Saturating operations, and non-reserved custom float calls remain
+  total; proof expressions do not create crash sites. Finish the settled total-
+  specification arithmetic slice: retain explicit fixed-
   integer/address embeddings into proof `Int` with their derived carrier-range
   facts, and retain explicit same-carrier Exact coercions with their ordinary
-  formation obligations. Extend the same totality boundary to abstract
-  predicate/signature facts. Add the per-primitive Exact, Wrapping, Saturating,
-  and Trapping denotation bridges;
+  formation obligations. Add the per-primitive Exact, Wrapping, Saturating, and
+  Trapping denotation bridges;
   compiler-derived Trapping guards remain executable crash-site facts rather
   than predicate effects. Imported crash capsules remain blocked on artifact
   identity and certificate binding.
@@ -1772,10 +1782,10 @@ Remaining N6/N8 work:
   relators; add no global carrier role or default relator.
 - Gate runtime deciders whose lifted relation depends on erased `Type` content;
   require determination by the runtime projection or report the component.
-- Continue total specification arithmetic. The concrete machine/state contract
-  boundary rejects direct Trapping arithmetic and conversion while preserving
-  total comparison, bitwise, classification, Wrapping, and Saturating terms.
-  Fixed-width integer and address
+- Continue total specification arithmetic. Concrete and abstract Prop owners
+  reject direct Trapping arithmetic and conversion while preserving total
+  comparison, bitwise, classification, Wrapping, and Saturating terms. Fixed-
+  width integer and address
   `embed` returns proof `Int` and contributes exact source-carrier range facts;
   proof `Int as Nat` requires nonnegativity. Make ordinary `Nat - Nat` Exact
   with `right <= left` discharged at formation, rename the bootstrap monus

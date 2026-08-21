@@ -1,5 +1,7 @@
 // A direct aggregate result is an explicit structural outcome map: each
 // source claim is nested under its named result field.
+use omega::language::std::console;
+
 data Receipt [linear] {
     code: i32;
 }
@@ -11,7 +13,7 @@ data Pair {
     right: Receipt;
 }
 
-data Main {}
+data Main { console: Console; }
 
 machine Main::issue(&mut self) -> Pair {
     let left: Receipt = Receipt { code: 1 };
@@ -19,11 +21,11 @@ machine Main::issue(&mut self) -> Pair {
     transition { _ -> Pair { left: left, right: right } }
 }
 
-machine Main::main(&mut self) -> i32 {
+machine Main::main(&mut self) {
     let returned: Pair = self.issue();
     let left: Receipt = returned.left;
     let right: Receipt = returned.right;
     Receipt::ack(left);
     Receipt::ack(right);
-    0
+    self.console.exit_process(0);
 }

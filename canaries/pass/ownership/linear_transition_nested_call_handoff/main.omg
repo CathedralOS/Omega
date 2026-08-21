@@ -3,23 +3,25 @@
 // Backend realization must keep their call ordinals separate and join both
 // target-state entry establishments to the correct handoff site.
 
+use omega::language::std::console;
+
 data Receipt [linear] { code: i32; }
 machine Receipt::ack(self) {}
 
-data Main {}
+data Main { console: Console; }
 
 machine Main::forward(&mut self, receipt: Receipt) -> Receipt { receipt }
 
-machine Main::main(&mut self) -> i32 {
+machine Main::main(&mut self) {
     let first: Receipt = Receipt { code: 7 };
     let second: Receipt = Receipt { code: 9 };
     transition {
         _ -> consume(first, self.forward(second))
     }
 
-    state consume(&mut self, first: Receipt, second: Receipt) -> i32 {
+    state consume(&mut self, first: Receipt, second: Receipt) {
         Receipt::ack(first);
         Receipt::ack(second);
-        0
+        self.console.exit_process(0);
     }
 }
