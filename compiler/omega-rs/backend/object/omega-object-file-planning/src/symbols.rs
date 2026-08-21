@@ -3,9 +3,10 @@ use omega_calling_conventions::HostBindingMechanism;
 use omega_layout::MachineLayout;
 use omega_machine_bytes::EncodedMachineFunction;
 use omega_object_file::{
-    ObjectPlan, SectionKind, SymbolKind, SymbolPlan, SymbolSection, entry_symbol_name,
-    machine_storage_symbol_name, runtime_frame_storage_symbol_name,
+    FunctionSymbolPlan, ObjectPlan, SectionKind, SymbolKind, SymbolPlan, SymbolSection,
+    machine_storage_symbol_name, private_function_symbol_name, runtime_frame_storage_symbol_name,
 };
+use psi_diagnostics::Diagnostic;
 
 pub(super) fn object_symbol_capacity(input: &ObjectPlanningInput<'_>) -> usize {
     let host_import_count = input
@@ -16,8 +17,9 @@ pub(super) fn object_symbol_capacity(input: &ObjectPlanningInput<'_>) -> usize {
         .count();
     let runtime_frame_symbol_count = usize::from(input.runtime_frame_size > 0);
 
-    2usize
-        .checked_add(runtime_frame_symbol_count)
+    1usize
+        .checked_add(input.encoded_machine.code.functions.len())
+        .and_then(|count| count.checked_add(runtime_frame_symbol_count))
         .and_then(|count| count.checked_add(host_import_count))
         .and_then(|count| count.checked_add(input.data.objects.len()))
         .expect("object symbol capacity overflow")
@@ -29,15 +31,25 @@ pub(super) fn insert_object_symbols(
     entry_function: &EncodedMachineFunction,
     runtime_frame_offset: usize,
     object_plan: &mut ObjectPlan,
-) {
-    object_plan.layout.entry_symbol = object_plan.layout.symbols.insert(SymbolPlan {
-        name: entry_symbol_name(input.target),
-        section: SymbolSection::Section(SectionKind::Text),
-        offset: entry_function.byte_offset,
-        size: entry_function.byte_count,
-        kind: SymbolKind::Function,
-        import_library: String::new(),
-    });
+) -> Result<(), Diagnostic> {
+    validate_encoded_function_linkage(input)?;
+    object_plan.layout.entry_symbol = insert_function_symbol(
+        entry_function,
+        entry_function.symbol.to_string(),
+        object_plan,
+    );
+    for (_, function) in input.encoded_machine.code.functions.iter() {
+        if function.identity != entry_function.identity {
+            let private_symbol =
+                private_function_symbol_name(function.identity).ok_or_else(|| {
+                    Diagnostic::error(format!(
+                        "encoded function `{}` has no canonical private linkage name",
+                        function.symbol
+                    ))
+                })?;
+            insert_function_symbol(function, private_symbol, object_plan);
+        }
+    }
     object_plan.layout.symbols.insert(SymbolPlan {
         name: machine_storage_symbol_name(&main_layout.name),
         section: SymbolSection::Section(SectionKind::Bss),
@@ -95,4 +107,106 @@ pub(super) fn insert_object_symbols(
                 import_library: String::new(),
             })
         }));
+
+    validate_function_object_symbol_names(object_plan)
+}
+
+fn insert_function_symbol(
+    function: &EncodedMachineFunction,
+    symbol_name: String,
+    object_plan: &mut ObjectPlan,
+) -> omega_object_file::ObjectSymbolHandle {
+    let symbol = object_plan.layout.symbols.insert(SymbolPlan {
+        name: symbol_name,
+        section: SymbolSection::Section(SectionKind::Text),
+        offset: function.byte_offset,
+        size: function.byte_count,
+        kind: SymbolKind::Function,
+        import_library: String::new(),
+    });
+    object_plan
+        .layout
+        .function_symbols
+        .insert(FunctionSymbolPlan {
+            identity: function.identity,
+            symbol,
+        });
+    symbol
+}
+
+fn validate_encoded_function_linkage(input: &ObjectPlanningInput<'_>) -> Result<(), Diagnostic> {
+    let functions = input.encoded_machine.code.functions.storage_slice();
+    for (index, function) in functions.iter().enumerate() {
+        if !function.identity.is_valid() {
+            return Err(Diagnostic::error(format!(
+                "encoded function `{}` has invalid compiler-private identity {:?}",
+                function.symbol, function.identity
+            )));
+        }
+        if function.symbol.is_empty() || function.byte_count == 0 {
+            return Err(Diagnostic::error(format!(
+                "encoded function identity {:?} has no nonempty text symbol",
+                function.identity
+            )));
+        }
+        let end = function
+            .byte_offset
+            .checked_add(function.byte_count)
+            .ok_or_else(|| {
+                Diagnostic::error(format!(
+                    "encoded function `{}` text interval overflows",
+                    function.symbol
+                ))
+            })?;
+        if end > input.encoded_machine.code.byte_count {
+            return Err(Diagnostic::error(format!(
+                "encoded function `{}` text interval exceeds the encoded program",
+                function.symbol
+            )));
+        }
+        for earlier in &functions[..index] {
+            if earlier.identity == function.identity {
+                return Err(Diagnostic::error(format!(
+                    "encoded function identity {:?} names more than one text function",
+                    function.identity
+                )));
+            }
+            let earlier_end = earlier
+                .byte_offset
+                .checked_add(earlier.byte_count)
+                .ok_or_else(|| {
+                    Diagnostic::error(format!(
+                        "encoded function `{}` text interval overflows",
+                        earlier.symbol
+                    ))
+                })?;
+            if function.byte_offset < earlier_end && earlier.byte_offset < end {
+                return Err(Diagnostic::error(format!(
+                    "encoded functions `{}` and `{}` have overlapping text intervals",
+                    earlier.symbol, function.symbol
+                )));
+            }
+        }
+    }
+    Ok(())
+}
+
+fn validate_function_object_symbol_names(object_plan: &ObjectPlan) -> Result<(), Diagnostic> {
+    for (_, binding) in object_plan.layout.function_symbols.iter() {
+        let symbol = object_plan.layout.symbols.get(binding.symbol);
+        if object_plan
+            .layout
+            .symbols
+            .iter()
+            .filter(|(_, candidate)| candidate.name == symbol.name)
+            .count()
+            != 1
+        {
+            return Err(Diagnostic::error(format!(
+                "function object symbol `{}` is declared more than once",
+                symbol.name
+            )));
+        }
+    }
+    Ok(())
 }

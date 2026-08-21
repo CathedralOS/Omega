@@ -2143,20 +2143,15 @@ fn runtime_stdin_crlf_line_read_canary_runs() {
 #[test]
 fn runtime_slice_alias_indexed_string_field_concat_exit_canary_runs() {
     let canary = pass_canary("text/runtime_slice_alias_indexed_string_field_concat_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-slice-alias-indexed-string-field-concat-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime slice alias indexed string field concat canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
+        "runtime slice alias indexed string field concat canary should compile from its authored root",
+    );
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -2181,20 +2176,14 @@ fn runtime_slice_indexed_string_guard_exit_canary_runs() {
     // takes the false arm. Exit 70 only when all three behave (the lying-guard
     // regression took the true arm unconditionally, exiting 71).
     let canary = pass_canary("text/runtime_slice_indexed_string_guard_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-slice-indexed-string-guard-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime slice indexed string guard canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("runtime slice indexed string guard canary should compile from its authored root");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -2214,20 +2203,15 @@ fn runtime_slice_indexed_string_guard_exit_canary_runs() {
 #[test]
 fn runtime_slice_machine_indexed_string_guard_exit_canary_runs() {
     let canary = pass_canary("text/runtime_slice_machine_indexed_string_guard_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-slice-machine-indexed-string-guard-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime slice machine-indexed string guard canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
+        "runtime slice machine-indexed string guard canary should compile from its authored root",
+    );
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -2288,20 +2272,15 @@ fn runtime_local_array_indexed_string_guard_exit_canary_runs() {
     // takes true, same-length-differing takes false; the lying-guard
     // regression selected no compare and took the true arm unconditionally).
     let canary = pass_canary("text/runtime_local_array_indexed_string_guard_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-local-array-indexed-string-guard-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime local array indexed string guard canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
+        "runtime local array indexed string guard canary should compile from its authored root",
+    );
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()

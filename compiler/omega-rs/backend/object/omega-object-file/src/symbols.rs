@@ -1,4 +1,5 @@
 use crate::SectionKind;
+use omega_control_flow::MachineFunctionIdentity;
 use psi_arena::Handle;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -16,6 +17,25 @@ pub struct SymbolPlan {
 }
 
 pub type ObjectSymbolHandle = Handle<SymbolPlan>;
+
+/// Canonical linkage from one lowered function identity to its object symbol.
+///
+/// This side table keeps compiler-private identity out of the serialized
+/// symbol vocabulary while still giving relocation planning an exact target.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FunctionSymbolPlan {
+    pub identity: MachineFunctionIdentity,
+    pub symbol: ObjectSymbolHandle,
+}
+
+impl Default for FunctionSymbolPlan {
+    fn default() -> Self {
+        Self {
+            identity: MachineFunctionIdentity::default(),
+            symbol: ObjectSymbolHandle::invalid(),
+        }
+    }
+}
 
 impl Default for SymbolPlan {
     fn default() -> Self {

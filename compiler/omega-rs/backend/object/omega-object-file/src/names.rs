@@ -1,4 +1,5 @@
-use crate::{ObjectPlan, ObjectSymbolHandle, SectionKind, SymbolSection};
+use crate::{ObjectPlan, ObjectSymbolHandle, SectionKind, SymbolPlan, SymbolSection};
+use omega_control_flow::MachineFunctionIdentity;
 use omega_core::runtime_storage::RuntimeStorageRegion;
 use omega_target::{NativeTarget, ObjectFormat};
 
@@ -20,8 +21,57 @@ pub fn object_symbol_name(object: &ObjectPlan, symbol: ObjectSymbolHandle) -> &s
     }
 }
 
+/// Resolve one exact compiler-private function identity to its validated text
+/// symbol. Missing, duplicate, invalid, or non-function bindings fail closed.
+pub fn object_function_symbol(
+    object: &ObjectPlan,
+    identity: MachineFunctionIdentity,
+) -> Option<(ObjectSymbolHandle, &SymbolPlan)> {
+    if !identity.is_valid() {
+        return None;
+    }
+    let mut matches = object
+        .layout
+        .function_symbols
+        .iter()
+        .filter(|(_, binding)| binding.identity == identity);
+    let (_, binding) = matches.next()?;
+    if matches.next().is_some() || !object.layout.symbols.is_valid(binding.symbol) {
+        return None;
+    }
+    let symbol = object.layout.symbols.get(binding.symbol);
+    (symbol.kind == crate::SymbolKind::Function
+        && symbol.section == SymbolSection::Section(SectionKind::Text)
+        && symbol.size > 0)
+        .then_some((binding.symbol, symbol))
+}
+
 pub fn object_entry_symbol_name(object: &ObjectPlan) -> &str {
     object_symbol_name(object, object.layout.entry_symbol)
+}
+
+/// Stable object-local symbol for a non-entry lowered function.
+///
+/// Source spelling is deliberately absent: independently selected source and
+/// import names may coincide, while compiler-private identity cannot.
+pub fn private_function_symbol_name(identity: MachineFunctionIdentity) -> Option<String> {
+    if !identity.is_valid() {
+        return None;
+    }
+    let continuation = identity.associated_source_continuation();
+    let role = if identity.source_key().is_some() {
+        "source"
+    } else if identity.program_storage_entry_continuation().is_some() {
+        "program_storage_entry_wrapper"
+    } else {
+        return None;
+    };
+    Some(format!(
+        "__omega_function_{role}_m{}_s{}_g{}",
+        continuation.machine.arena_index(),
+        continuation.state.arena_index(),
+        continuation.segment_index,
+    ))
 }
 
 pub fn entry_symbol_name(target: NativeTarget) -> String {
