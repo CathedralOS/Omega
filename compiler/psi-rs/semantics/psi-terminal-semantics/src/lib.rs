@@ -239,6 +239,12 @@ pub enum OperationSemanticError {
         declared: IntegerType,
         actual: ScalarType,
     },
+    ExactDivisionRequiresFixedInteger(IntegerType),
+    ExactDivisionOperandTypeMismatch {
+        declared: IntegerType,
+        left: ScalarType,
+        right: ScalarType,
+    },
     InvalidProposition(PropositionError),
 }
 
