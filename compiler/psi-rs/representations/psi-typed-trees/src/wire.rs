@@ -1,5 +1,5 @@
 use crate::name::Identifier;
-use crate::types::TypeReferenceHandle;
+use crate::types::{DomainConstraint, TypeReferenceHandle};
 use psi_arena::HandleSpan;
 use psi_symbols::SymbolHandle;
 
@@ -490,10 +490,9 @@ impl WireRepeatedEncoding {
 
 /// The Omega-native LAYOUT-POLICY domain family on byte carriers
 /// (`[u8; N] in OmegaLayout<Save>`; ch20 "grammars are layout policies").
-/// Returns `(schema_name, optional grammar argument)` when `name` spells an
-/// `OmegaLayout` instance. The flat instance name is produced by the parser's
-/// parameterized-domain flattening (monomorphization-by-instantiation -- the
-/// name IS the identity, no unification).
+/// Returns `(schema_name, optional grammar argument)` when a legacy flattened
+/// name spells an `OmegaLayout` instance. Current typed trees retain family
+/// arguments separately; this parser remains for older in-memory producers.
 pub fn layout_domain_arguments(name: &str) -> Option<(&str, Option<&str>)> {
     let rest = name.strip_prefix("OmegaLayout<")?;
     let rest = rest.strip_suffix('>')?;
@@ -511,6 +510,35 @@ pub fn layout_domain_arguments(name: &str) -> Option<(&str, Option<&str>)> {
 /// the carrier stays a plain byte array the wire codec addresses directly.
 pub fn is_layout_domain_name(name: &str) -> bool {
     layout_domain_arguments(name).is_some()
+}
+
+/// Recognize the normalized carrier for an `OmegaLayout<Schema[, Grammar]>`
+/// constraint. Domain arguments have their own typed handles now; accepting
+/// only the old parser-flattened name would misclassify the layout family as a
+/// user value domain after domain normalization.
+pub fn is_layout_domain_constraint(domain: &DomainConstraint) -> bool {
+    (domain.name.as_str() == "OmegaLayout" && matches!(domain.arguments.len(), 1 | 2))
+        || is_layout_domain_name(domain.name.as_str())
+}
+
+/// Recover the authored schema and optional grammar labels from either the
+/// normalized argument vector or a legacy flattened family name.
+pub fn layout_domain_constraint_arguments(
+    program: &crate::TypedTrees,
+    domain: &DomainConstraint,
+) -> Option<(String, Option<String>)> {
+    if let Some((schema, grammar)) = layout_domain_arguments(domain.name.as_str()) {
+        return Some((schema.to_owned(), grammar.map(str::to_owned)));
+    }
+    if domain.name.as_str() != "OmegaLayout" || !matches!(domain.arguments.len(), 1 | 2) {
+        return None;
+    }
+    let schema = program.display_type_reference_with_constraints(domain.arguments[0]);
+    let grammar = domain
+        .arguments
+        .get(1)
+        .map(|argument| program.display_type_reference_with_constraints(*argument));
+    Some((schema, grammar))
 }
 
 /// The unsigned LEB128 byte sequence for a compile-time value (era

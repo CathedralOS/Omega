@@ -43,6 +43,23 @@ pub(super) fn validate_structural_foundation(module: &TerminalModule) -> Result<
                     _ => {}
                 }
             }
+        } else if let StructuralTypeShape::Sum { cases } = &declaration.shape {
+            if cases.is_empty() {
+                return Err(ModuleError::EmptyStructuralSum(declaration.id));
+            }
+            let mut case_ids = BTreeSet::new();
+            let mut case_names = BTreeSet::new();
+            for case in cases {
+                if !case_ids.insert(case.id)
+                    || case.identity.is_empty()
+                    || !case_names.insert(case.identity.as_str())
+                {
+                    return Err(ModuleError::InvalidStructuralCaseIdentity {
+                        structural_type: declaration.id,
+                        case: case.id,
+                    });
+                }
+            }
         } else if matches!(
             declaration.shape,
             StructuralTypeShape::FixedArray { length: 0, .. }
@@ -66,6 +83,7 @@ pub(super) fn validate_structural_foundation(module: &TerminalModule) -> Result<
                     return Err(ModuleError::UnknownStructuralType(*element));
                 }
             }
+            StructuralTypeShape::Sum { .. } => {}
         }
     }
     validate_structural_type_graph(&types)?;
@@ -499,6 +517,7 @@ fn validate_structural_type_graph(
             StructuralTypeShape::FixedArray { element, .. } => {
                 visit(*element, types, active, complete)?;
             }
+            StructuralTypeShape::Sum { .. } => {}
         }
         active.remove(&id);
         complete.insert(id);

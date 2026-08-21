@@ -103,12 +103,14 @@ enum Direction {
 }
 
 /// Collect every sound monotone-counter invariant for `machine`. Computed once
-/// per machine; `seed_loop_invariant_facts` then seeds the matching states.
+/// per machine with the checked-fact pass's shared call-frame resolver;
+/// `seed_loop_invariant_facts` then seeds the matching states.
 pub(super) fn collect_loop_invariant_facts(
     program: &psi_typed_trees::TypedTrees,
     machine: &Machine,
+    call_frames: Option<&psi_validation::CallFrameResolver<'_>>,
 ) -> Vec<LoopInvariant> {
-    let Some(call_frames) = psi_validation::CallFrameResolver::new(program) else {
+    let Some(call_frames) = call_frames else {
         return Vec::new();
     };
     let states = program.machine_states(machine);

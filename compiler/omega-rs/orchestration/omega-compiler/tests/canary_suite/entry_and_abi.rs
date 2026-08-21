@@ -1300,85 +1300,118 @@ fn pass_canaries_compile() {
         .flatten(),
     );
 
-    for (canary_name, target) in CROSS_TARGET_PASS_CANARIES
+    let cross_target = CROSS_TARGET_PASS_CANARIES
         .iter()
         .copied()
         .filter(|(canary_name, _)| selected(canary_name))
-    {
-        selected_count += 1;
-        let canary = pass_canary(canary_name);
-        if let Err(diagnostics) = compile_canary_without_output_for_target(&canary, target) {
-            failures.push(format!(
-                "cross-target {target} {}:\n{}",
-                canary.display(),
-                diagnostics
-                    .iter()
-                    .map(ToString::to_string)
-                    .collect::<Vec<_>>()
-                    .join("\n")
-            ));
-        }
-    }
+        .collect::<Vec<_>>();
+    selected_count += cross_target.len();
+    failures.extend(
+        run_bounded_canary_jobs(&cross_target, |(canary_name, target)| {
+            let canary = pass_canary(canary_name);
+            compile_canary_without_output_for_target(&canary, target)
+                .err()
+                .map(|diagnostics| {
+                    format!(
+                        "cross-target {target} {}:\n{}",
+                        canary.display(),
+                        diagnostics
+                            .iter()
+                            .map(ToString::to_string)
+                            .collect::<Vec<_>>()
+                            .join("\n")
+                    )
+                })
+        })
+        .into_iter()
+        .flatten(),
+    );
 
-    for (canary_name, target) in ROOTED_TARGET_BACKEND_PASS_CANARIES
+    let rooted_target = ROOTED_TARGET_BACKEND_PASS_CANARIES
         .iter()
         .copied()
         .filter(|(canary_name, _)| selected(canary_name))
-    {
-        selected_count += 1;
-        let canary = pass_canary(canary_name);
-        if let Err(diagnostics) =
+        .collect::<Vec<_>>();
+    selected_count += rooted_target.len();
+    failures.extend(
+        run_bounded_canary_jobs(&rooted_target, |(canary_name, target)| {
+            let canary = pass_canary(canary_name);
             compile_rooted_backend_canary_without_output_for_target(&canary, target)
-        {
-            failures.push(format!(
-                "rooted target {target} {}:\n{}",
-                canary.display(),
-                diagnostics
-                    .iter()
-                    .map(ToString::to_string)
-                    .collect::<Vec<_>>()
-                    .join("\n")
-            ));
-        }
-    }
+                .err()
+                .map(|diagnostics| {
+                    format!(
+                        "rooted target {target} {}:\n{}",
+                        canary.display(),
+                        diagnostics
+                            .iter()
+                            .map(ToString::to_string)
+                            .collect::<Vec<_>>()
+                            .join("\n")
+                    )
+                })
+        })
+        .into_iter()
+        .flatten(),
+    );
 
     #[cfg(windows)]
-    for canary_name in WINDOWS_HOST_PASS_CANARIES.iter().copied().filter(selected) {
-        selected_count += 1;
-        let canary = pass_canary(canary_name);
-        if let Err(diagnostics) = compile_legacy_backend_canary_without_output(&canary) {
-            failures.push(format!(
-                "windows-host {}:\n{}",
-                canary.display(),
-                diagnostics
-                    .iter()
-                    .map(ToString::to_string)
-                    .collect::<Vec<_>>()
-                    .join("\n")
-            ));
-        }
+    {
+        let windows_host = WINDOWS_HOST_PASS_CANARIES
+            .iter()
+            .copied()
+            .filter(selected)
+            .collect::<Vec<_>>();
+        selected_count += windows_host.len();
+        failures.extend(
+            run_bounded_canary_jobs(&windows_host, |canary_name| {
+                let canary = pass_canary(canary_name);
+                compile_legacy_backend_canary_without_output(&canary)
+                    .err()
+                    .map(|diagnostics| {
+                        format!(
+                            "windows-host {}:\n{}",
+                            canary.display(),
+                            diagnostics
+                                .iter()
+                                .map(ToString::to_string)
+                                .collect::<Vec<_>>()
+                                .join("\n")
+                        )
+                    })
+            })
+            .into_iter()
+            .flatten(),
+        );
     }
-    for canary_name in ACTIVE_PASS_CANARIES.iter().copied().filter(selected) {
-        selected_count += 1;
-        let canary = pass_canary(canary_name);
-
-        let result = if ROOTED_BACKEND_PASS_CANARIES.contains(&canary_name) {
-            compile_rooted_backend_canary_without_output(&canary)
-        } else {
-            compile_legacy_backend_canary_without_output(&canary)
-        };
-        if let Err(diagnostics) = result {
-            failures.push(format!(
-                "{}:\n{}",
-                canary.display(),
-                diagnostics
-                    .iter()
-                    .map(ToString::to_string)
-                    .collect::<Vec<_>>()
-                    .join("\n")
-            ));
-        }
-    }
+    let active = ACTIVE_PASS_CANARIES
+        .iter()
+        .copied()
+        .filter(selected)
+        .collect::<Vec<_>>();
+    selected_count += active.len();
+    failures.extend(
+        run_bounded_canary_jobs(&active, |canary_name| {
+            let canary = pass_canary(canary_name);
+            let result = if ROOTED_BACKEND_PASS_CANARIES.contains(canary_name) {
+                compile_rooted_backend_canary_without_output(&canary)
+            } else {
+                compile_legacy_backend_canary_without_output(&canary)
+            };
+            result.err().map(|diagnostics| {
+                format!(
+                    "{}:\n{}",
+                    canary.display(),
+                    diagnostics
+                        .iter()
+                        .map(ToString::to_string)
+                        .collect::<Vec<_>>()
+                        .join("\n")
+                )
+            })
+        })
+        .into_iter()
+        .flatten(),
+    );
 
     assert!(
         filter.is_none() || selected_count > 0,

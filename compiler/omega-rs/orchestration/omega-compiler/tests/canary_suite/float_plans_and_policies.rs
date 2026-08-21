@@ -1656,7 +1656,7 @@ fn named_float_classification_predicates_select_and_execute() {
         "binary32/binary64 subnormal versus zero",
         "exactly-once unary evaluation shape",
     ];
-    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0x45dc_d595_8533_3a66;
+    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0x53ea_2a59_770b_10da;
 
     let canary = pass_canary("float/named_provider_classification_predicates_exit");
     let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
@@ -1829,7 +1829,7 @@ fn named_float_classify_preserves_enum_layout_and_executes() {
         "binary64 all class tags and signed payloads",
         "exactly-once unary evaluation shape",
     ];
-    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0x3966_57c8_fc8f_38ec;
+    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0x524b_2eef_9263_22b4;
 
     let canary = pass_canary("float/named_provider_classify_exit");
     let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)

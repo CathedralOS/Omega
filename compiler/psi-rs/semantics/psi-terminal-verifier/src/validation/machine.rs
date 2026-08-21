@@ -684,6 +684,7 @@ pub(super) fn validate_machine(
             machine.contract.id,
             ContractClauseKind::Requires,
         )?;
+        crash::validate_structural_case_memberships(module, machine, proposition)?;
     }
     for clause in &machine.contract.ensures {
         insert_unique(
@@ -705,6 +706,7 @@ pub(super) fn validate_machine(
             machine.contract.id,
             ContractClauseKind::Ensures,
         )?;
+        crash::validate_structural_case_memberships(module, machine, &clause.proposition)?;
     }
     if machine
         .contract

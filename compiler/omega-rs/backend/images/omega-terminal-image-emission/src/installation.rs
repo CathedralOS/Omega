@@ -16,7 +16,8 @@ use omega_terminal_target_operations::{
 };
 use psi_core::{
     BoundaryMachineId, ClaimId, EdgeId, FuelScheduleIdentity, MachineId, OperationId, PlaceId,
-    ProfileDecisionId, ServiceId, StructuralDomainId, StructuralFieldId, StructuralTypeId,
+    ProfileDecisionId, ServiceId, StructuralCaseId, StructuralDomainId, StructuralFieldId,
+    StructuralTypeId,
 };
 use psi_terminal::{
     CompletionReceipt, SemanticFingerprint, StructuralAffineDiscard, StructuralArgument,
@@ -32,7 +33,7 @@ use crate::{
     TerminalObjectPortEffect, can_emit_terminal_executable_image,
 };
 
-pub const TERMINAL_INSTALLATION_FORMAT_MARKER: u16 = 22;
+pub const TERMINAL_INSTALLATION_FORMAT_MARKER: u16 = 23;
 const MAGIC: &[u8; 8] = b"PSIINST\0";
 const IMAGE_DOMAIN: &[u8] = b"omega-terminal-installed-image\0";
 const RECORD_DOMAIN: &[u8] = b"omega-terminal-installation-record\0";
@@ -3578,6 +3579,18 @@ fn encode_structural_types(
                 push_u64(bytes, element.get());
                 push_u64(bytes, *length);
             }
+            psi_terminal::StructuralTypeShape::Sum { cases } => {
+                bytes.extend_from_slice(&[3, 0, 0, 0]);
+                push_u32(
+                    bytes,
+                    u32::try_from(cases.len())
+                        .map_err(|_| TerminalInstallationError::TooManyStructuralCases)?,
+                );
+                for case in cases {
+                    push_u64(bytes, case.id.get());
+                    encode_identity(bytes, &case.identity)?;
+                }
+            }
         }
     }
     Ok(())
@@ -4071,6 +4084,25 @@ fn decode_structural_types(
                 )?,
                 length: reader.u64()?,
             },
+            3 => {
+                let case_count = usize::try_from(reader.u32()?)
+                    .map_err(|_| TerminalInstallationError::TooManyStructuralCases)?;
+                if case_count > reader.remaining() {
+                    return Err(TerminalInstallationError::UnexpectedEnd);
+                }
+                let mut cases = Vec::with_capacity(case_count);
+                for _ in 0..case_count {
+                    cases.push(psi_terminal::StructuralCaseDeclaration {
+                        id: StructuralCaseId::new(reader.u64()?).ok_or(
+                            TerminalInstallationError::ZeroStructuralReturnIdentity(
+                                "structural case",
+                            ),
+                        )?,
+                        identity: decode_identity(reader)?,
+                    });
+                }
+                psi_terminal::StructuralTypeShape::Sum { cases }
+            }
             tag => {
                 return Err(TerminalInstallationError::InvalidStructuralTypeShapeTag(
                     tag,
@@ -4494,6 +4526,7 @@ pub enum TerminalInstallationError {
     TooManyStructuralReturnCleanups,
     TooManyStructuralTypes,
     TooManyStructuralFields,
+    TooManyStructuralCases,
     TooManyStructuralQualifications,
     TooManyFuelAttributions,
     TooManyPortEffects,
@@ -4915,6 +4948,31 @@ mod resource_tests {
         }];
         let mut bytes = Vec::new();
         encode_structural_types(&mut bytes, &declarations).expect("encode structural types");
+        let mut reader = Reader::new(&bytes);
+        assert_eq!(decode_structural_types(&mut reader), Ok(declarations));
+        assert_eq!(reader.remaining(), 0);
+    }
+
+    #[test]
+    fn payloadless_sum_cases_round_trip_in_installations() {
+        let declarations = vec![psi_terminal::StructuralTypeDeclaration {
+            id: StructuralTypeId::new(1).expect("structural type"),
+            identity: "Mode".into(),
+            shape: psi_terminal::StructuralTypeShape::Sum {
+                cases: vec![
+                    psi_terminal::StructuralCaseDeclaration {
+                        id: StructuralCaseId::new(1).expect("off case"),
+                        identity: "Off".into(),
+                    },
+                    psi_terminal::StructuralCaseDeclaration {
+                        id: StructuralCaseId::new(2).expect("on case"),
+                        identity: "On".into(),
+                    },
+                ],
+            },
+        }];
+        let mut bytes = Vec::new();
+        encode_structural_types(&mut bytes, &declarations).expect("encode structural sum");
         let mut reader = Reader::new(&bytes);
         assert_eq!(decode_structural_types(&mut reader), Ok(declarations));
         assert_eq!(reader.remaining(), 0);

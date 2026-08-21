@@ -38,7 +38,7 @@ fn fail_canaries_reject_with_expected_diagnostic_fragment() {
                 .find_map(|(candidate, target)| (*candidate == canary_name).then_some(*target));
             match cross_target {
                 Some(target) => compile_canary_without_output_for_target(&canary, target),
-                None => compile_canary_without_output(&canary),
+                None => compile_legacy_backend_canary_without_output(&canary),
             }
             .map(|report| report.summary())
         };
@@ -81,16 +81,17 @@ fn fail_canaries_reject_with_expected_diagnostic_fragment() {
             .into_iter()
             .flatten(),
     );
-    for canary_name in ACTIVE_FAIL_CANARIES
+    let active = ACTIVE_FAIL_CANARIES
         .iter()
         .copied()
         .filter(selected_by_filter)
-    {
-        selected += 1;
-        if let Some(failure) = evaluate(canary_name, false) {
-            failures.push(failure);
-        }
-    }
+        .collect::<Vec<_>>();
+    selected += active.len();
+    failures.extend(
+        run_bounded_canary_jobs(&active, |canary_name| evaluate(canary_name, false))
+            .into_iter()
+            .flatten(),
+    );
 
     assert!(
         filter.is_none() || selected > 0,

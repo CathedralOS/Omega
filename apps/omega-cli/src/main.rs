@@ -200,6 +200,9 @@ fn terminal_summary(
                         element.get()
                     )
                 }
+                psi_terminal::StructuralTypeShape::Sum { cases } => {
+                    format!("sum(cases={})", cases.len())
+                }
             }
         )
         .expect("writing to a String cannot fail");

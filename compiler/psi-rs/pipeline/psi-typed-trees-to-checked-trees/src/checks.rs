@@ -76,7 +76,9 @@ pub(crate) fn check_checked_facts_recording(
         diagnostics.append(&mut operator_diagnostics);
     }
 
-    if let Err(mut range_diagnostics) = ranges::check_indexed_accesses(program, &incoming_guards) {
+    if let Err(mut range_diagnostics) =
+        ranges::check_indexed_accesses(program, call_frames.as_ref(), &incoming_guards)
+    {
         diagnostics.append(&mut range_diagnostics);
     }
 

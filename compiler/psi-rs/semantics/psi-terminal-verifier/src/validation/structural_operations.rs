@@ -707,7 +707,8 @@ pub(crate) fn structural_argument_canonical_prefix(
                         StructuralTypeShape::Record { fields } => fields.iter().find(|field| {
                             field.identity == *identity && !field.relevance.is_erased()
                         }),
-                        StructuralTypeShape::FixedArray { .. } => None,
+                        StructuralTypeShape::FixedArray { .. }
+                        | StructuralTypeShape::Sum { .. } => None,
                     })?;
                 let StructuralFieldType::Structural(next) = field.field_type else {
                     return None;

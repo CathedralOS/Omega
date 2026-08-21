@@ -64,6 +64,7 @@ pub(super) fn retain_additional_structural_types(
                 element_type_identity,
                 ..
             } => collect(plans, element_type_identity, active, selected)?,
+            CheckedUnitStructuralTypeShape::Sum { .. } => {}
         }
         active.pop();
         selected.push(identity.to_owned());
@@ -113,7 +114,7 @@ pub(super) fn retain_additional_structural_types(
         .iter()
         .flat_map(|declaration| match &declaration.shape {
             StructuralTypeShape::Record { fields } => fields.as_slice(),
-            StructuralTypeShape::FixedArray { .. } => &[],
+            StructuralTypeShape::FixedArray { .. } | StructuralTypeShape::Sum { .. } => &[],
         })
         .map(|field| field.id.get())
         .max()
@@ -121,6 +122,20 @@ pub(super) fn retain_additional_structural_types(
         .checked_add(1)
         .ok_or(LoweringError::Unsupported(
             "scalar cleanup structural field identity space is exhausted",
+        ))?;
+    let mut next_case = module
+        .structural_types
+        .iter()
+        .flat_map(|declaration| match &declaration.shape {
+            StructuralTypeShape::Sum { cases } => cases.as_slice(),
+            StructuralTypeShape::Record { .. } | StructuralTypeShape::FixedArray { .. } => &[],
+        })
+        .map(|case| case.id.get())
+        .max()
+        .unwrap_or(0)
+        .checked_add(1)
+        .ok_or(LoweringError::Unsupported(
+            "scalar cleanup structural case identity space is exhausted",
         ))?;
     for identity in selected {
         let plan = plans
@@ -176,6 +191,25 @@ pub(super) fn retain_additional_structural_types(
                 element: lookup_type_id(&type_ids, element_type_identity)?,
                 length: *length,
             },
+            CheckedUnitStructuralTypeShape::Sum { cases } => {
+                let mut identities = BTreeSet::new();
+                let cases = cases
+                    .iter()
+                    .map(|case| {
+                        if case.identity.is_empty() || !identities.insert(&case.identity) {
+                            return Err(LoweringError::Unsupported(
+                                "scalar cleanup structural cases are invalid",
+                            ));
+                        }
+                        Ok(StructuralCaseDeclaration {
+                            id: StructuralCaseId::new(allocate_dense(&mut next_case)?)
+                                .expect("allocated structural case identity is nonzero"),
+                            identity: case.identity.clone(),
+                        })
+                    })
+                    .collect::<Result<Vec<_>, LoweringError>>()?;
+                StructuralTypeShape::Sum { cases }
+            }
         };
         module.structural_types.push(StructuralTypeDeclaration {
             id: lookup_type_id(&type_ids, &identity)?,
@@ -217,57 +251,81 @@ pub(super) fn lower_structural_type_plans(
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
     let mut next_field = 1_u64;
+    let mut next_case = 1_u64;
     let declarations = ordered
         .into_iter()
         .map(|plan| {
-            let shape =
-                match &plan.shape {
-                    CheckedUnitStructuralTypeShape::Record { fields } => {
-                        let mut identities = BTreeSet::new();
-                        let fields = fields.iter().map(|field| {
-                    if field.identity.is_empty() || !identities.insert(field.identity.as_str()) {
-                        return Err(LoweringError::Unsupported(
-                            "structural Unit control type has duplicate field identities",
-                        ));
-                    }
-                    let field_type = match &field.field_type {
-                        CheckedUnitStructuralFieldType::Scalar(primitive) => {
-                            terminal_structural_field_type(*primitive)?
-                        }
-                        CheckedUnitStructuralFieldType::ByteSequence(carrier) => {
-                            StructuralFieldType::ByteSequence(terminal_byte_sequence_carrier(
-                                *carrier,
-                            ))
-                        }
-                        CheckedUnitStructuralFieldType::Structural { type_identity } => {
-                            StructuralFieldType::Structural(lookup_type_id(
-                                &type_ids,
-                                type_identity,
-                            )?)
-                        }
-                        CheckedUnitStructuralFieldType::Erased { type_identity } => {
-                            StructuralFieldType::Erased {
-                                type_identity: type_identity.clone(),
+            let shape = match &plan.shape {
+                CheckedUnitStructuralTypeShape::Record { fields } => {
+                    let mut identities = BTreeSet::new();
+                    let fields = fields
+                        .iter()
+                        .map(|field| {
+                            if field.identity.is_empty()
+                                || !identities.insert(field.identity.as_str())
+                            {
+                                return Err(LoweringError::Unsupported(
+                                    "structural Unit control type has duplicate field identities",
+                                ));
                             }
-                        }
-                    };
-                    Ok(StructuralFieldDeclaration {
-                        id: structural_field_id(allocate_dense(&mut next_field)?),
-                        identity: field.identity.clone(),
-                        relevance: field.relevance,
-                        field_type,
-                    })
-                    }).collect::<Result<Vec<_>, LoweringError>>()?;
-                        StructuralTypeShape::Record { fields }
-                    }
-                    CheckedUnitStructuralTypeShape::FixedArray {
-                        element_type_identity,
-                        length,
-                    } => StructuralTypeShape::FixedArray {
-                        element: lookup_type_id(&type_ids, element_type_identity)?,
-                        length: *length,
-                    },
-                };
+                            let field_type = match &field.field_type {
+                                CheckedUnitStructuralFieldType::Scalar(primitive) => {
+                                    terminal_structural_field_type(*primitive)?
+                                }
+                                CheckedUnitStructuralFieldType::ByteSequence(carrier) => {
+                                    StructuralFieldType::ByteSequence(
+                                        terminal_byte_sequence_carrier(*carrier),
+                                    )
+                                }
+                                CheckedUnitStructuralFieldType::Structural { type_identity } => {
+                                    StructuralFieldType::Structural(lookup_type_id(
+                                        &type_ids,
+                                        type_identity,
+                                    )?)
+                                }
+                                CheckedUnitStructuralFieldType::Erased { type_identity } => {
+                                    StructuralFieldType::Erased {
+                                        type_identity: type_identity.clone(),
+                                    }
+                                }
+                            };
+                            Ok(StructuralFieldDeclaration {
+                                id: structural_field_id(allocate_dense(&mut next_field)?),
+                                identity: field.identity.clone(),
+                                relevance: field.relevance,
+                                field_type,
+                            })
+                        })
+                        .collect::<Result<Vec<_>, LoweringError>>()?;
+                    StructuralTypeShape::Record { fields }
+                }
+                CheckedUnitStructuralTypeShape::FixedArray {
+                    element_type_identity,
+                    length,
+                } => StructuralTypeShape::FixedArray {
+                    element: lookup_type_id(&type_ids, element_type_identity)?,
+                    length: *length,
+                },
+                CheckedUnitStructuralTypeShape::Sum { cases } => {
+                    let mut identities = BTreeSet::new();
+                    let cases = cases
+                        .iter()
+                        .map(|case| {
+                            if case.identity.is_empty() || !identities.insert(&case.identity) {
+                                return Err(LoweringError::Unsupported(
+                                    "structural Unit control type has duplicate case identities",
+                                ));
+                            }
+                            Ok(StructuralCaseDeclaration {
+                                id: StructuralCaseId::new(allocate_dense(&mut next_case)?)
+                                    .expect("allocated structural case identity is nonzero"),
+                                identity: case.identity.clone(),
+                            })
+                        })
+                        .collect::<Result<Vec<_>, LoweringError>>()?;
+                    StructuralTypeShape::Sum { cases }
+                }
+            };
             Ok(StructuralTypeDeclaration {
                 id: lookup_type_id(&type_ids, &plan.identity)?,
                 identity: plan.identity.clone(),

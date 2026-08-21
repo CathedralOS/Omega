@@ -165,6 +165,10 @@ fn resolve_operator_adapter_call(
         )));
     }
 
+    let ProviderBinding::CheckedAdapter { machine } = &row.binding else {
+        return Ok(None);
+    };
+
     let ExpressionNode::Call(call) = checked
         .typed
         .expression_table
@@ -185,9 +189,6 @@ fn resolve_operator_adapter_call(
         )));
     }
 
-    let ProviderBinding::CheckedAdapter { machine } = &row.binding else {
-        return Ok(None);
-    };
     if plan.provider_type.is_empty() {
         return Err(Diagnostic::error(format!(
             "selected checked-operator ProviderPlan `{}` has no nominal provider type",

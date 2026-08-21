@@ -136,10 +136,11 @@ scalar-type grammar retains carrier/sign/
 width, integer values retain their exact raw two's-complement or unsigned bits,
 and strings retain raw bytes without assigning identity or path meaning.
 An independently gated structural-leaf module in the same directory owns the
-exact v16 IEEE kind/format, byte-sequence carrier, full-width canonical
-structural-field path, and atomic proposition-tag grammar. It checks nonempty
-paths and canonical operand order but is intentionally not imported by the
-bounded ledger spike, which still rejects those tags.
+exact v17 IEEE kind/format, byte-sequence carrier, full-width canonical
+structural path, and atomic IEEE/byte/case-membership proposition-tag grammar.
+It checks the leaf-specific nonempty-path and canonical operand constraints but
+is intentionally not imported by the bounded ledger spike, which still rejects
+those tags.
 The bounded fixture narrows IDs and types only in explicit consumer adapters.
 If the complete closed vocabulary cannot remain auditable after those
 extractions, that is the point for an explicit Gamma rung-design correction.

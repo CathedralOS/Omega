@@ -1663,15 +1663,9 @@ fn validate_type_constraints_node(
             // The refinement records what the bytes hold -- the carrier stays a
             // plain byte array (see the layout builder's carrier exclusion).
             TypeConstraintNode::Domain(name)
-                if psi_typed_trees::wire::is_layout_domain_name(name.as_str()) =>
+                if psi_typed_trees::wire::is_layout_domain_constraint(name) =>
             {
-                validate_layout_domain_constraint(
-                    program,
-                    base_type,
-                    name.as_str(),
-                    diagnostics,
-                    &owner,
-                );
+                validate_layout_domain_constraint(program, base_type, name, diagnostics, &owner);
             }
             // A declared encoding domain on a carrier (`[u8] in Utf8`; ch8). It
             // must reference a `domain ...::Name` declaration -- this rejects
@@ -1867,31 +1861,32 @@ fn validate_semantic_role_composition(
 fn validate_layout_domain_constraint(
     program: &TypedTrees,
     base_type: TypeReferenceHandle,
-    name: &str,
+    domain: &psi_typed_trees::types::DomainConstraint,
     diagnostics: &mut Vec<Diagnostic>,
     owner: &TypeReferenceOwner<'_>,
 ) {
-    let Some((schema_name, grammar)) = psi_typed_trees::wire::layout_domain_arguments(name) else {
+    let Some((schema_name, grammar)) =
+        psi_typed_trees::wire::layout_domain_constraint_arguments(program, domain)
+    else {
         return;
     };
-
     // Owned stored bytes: rejected outright (mints-only). Borrowed views
     // (`&[u8]`, `&[u8; N]`) are the legal carrier.
     match program.type_reference_table.type_reference(base_type) {
         TypeReferenceNode::FixedArray { .. } => {
             diagnostics.push(Diagnostic::error(format!(
-                "{owner} declares `in {name}` on owned stored bytes; a layout domain is a \
+                "{owner} declares `in OmegaLayout<{schema_name}>` on owned stored bytes; a layout domain is a \
                  fact about bytes ESTABLISHED by validate/encode, never declared on storage \
                  (a zeroed buffer holds no valid encoding). Hold the value (`{schema_name}`) \
                  and encode at the edge, or carry the fact on a borrowed view \
-                 (`&[u8] in {name}`)"
+                 (`&[u8] in OmegaLayout<{schema_name}>`)"
             )));
             return;
         }
         TypeReferenceNode::Reference { .. } | TypeReferenceNode::Slice { .. } => {}
         _ => {
             diagnostics.push(Diagnostic::error(format!(
-                "{owner} uses `in {name}` on `{}`, but a layout domain lives on a borrowed \
+                "{owner} uses `in OmegaLayout<{schema_name}>` on `{}`, but a layout domain lives on a borrowed \
                  byte view (`&[u8] in OmegaLayout<{schema_name}>`)",
                 type_reference_label(program, base_type)
             )));
@@ -1909,12 +1904,12 @@ fn validate_layout_domain_constraint(
     if !program
         .wire_schemas()
         .iter()
-        .any(|schema| schema.name.as_str() == schema_name)
+        .any(|schema| schema.name.as_str() == schema_name.as_str())
     {
         let is_plain_data = program
             .data_definitions()
             .iter()
-            .any(|data| data.name.as_str() == schema_name);
+            .any(|data| data.name.as_str() == schema_name.as_str());
         if is_plain_data {
             diagnostics.push(Diagnostic::error(format!(
                 "{owner} uses `in OmegaLayout<{schema_name}>`, but data `{schema_name}` has \

@@ -29,6 +29,7 @@ pub(in crate::checks) use types::expression_enforced_declared_range;
 
 pub(crate) fn check_indexed_accesses(
     program: &psi_typed_trees::TypedTrees,
+    call_frames: Option<&psi_validation::CallFrameResolver<'_>>,
     incoming_guards: &IncomingGuardIndex,
 ) -> Result<(), Vec<Diagnostic>> {
     let field_lengths = fixed_array_field_lengths(program);
@@ -37,7 +38,7 @@ pub(crate) fn check_indexed_accesses(
     for machine in program.machines() {
         let state_argument_facts = collect_state_argument_facts(program, &field_lengths, machine);
         let incoming_guard_facts = incoming_guards.for_machine(machine.symbol);
-        let loop_invariant_facts = collect_loop_invariant_facts(program, machine);
+        let loop_invariant_facts = collect_loop_invariant_facts(program, machine, call_frames);
         for state in program.machine_states(machine) {
             let mut facts = RangeFacts::new(&field_lengths);
             seed_field_integer_facts(program, &mut facts, machine);

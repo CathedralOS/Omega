@@ -72,6 +72,10 @@ semantic_id!(
     "Stable identity of one ordered field in a terminal-Psi structural type."
 );
 semantic_id!(
+    StructuralCaseId,
+    "Stable identity of one ordered case in a terminal-Psi structural sum type."
+);
+semantic_id!(
     StructuralDomainId,
     "Stable identity of one structural qualification domain in terminal Psi."
 );

@@ -1984,6 +1984,22 @@ fn clone_specialized_machine(
     let source_machine = &source.machines()[candidate.machine_index];
     let source_states = source.machine_states(source_machine).to_vec();
     let source_owned = source.machine_owned_data(source_machine).to_vec();
+    let specialized_attached_data = specialized_attached_data(source, candidate, source_machine);
+    let inherited_field_names = specialized_attached_data
+        .as_ref()
+        .into_iter()
+        .flat_map(|attached_data| {
+            source
+                .data_definitions()
+                .iter()
+                .filter(move |data| data.name == *attached_data)
+        })
+        .flat_map(|data| source.data_members(data))
+        .filter_map(|member| match member {
+            psi_typed_trees::data::DataMember::Field(field) => Some(field.name.as_str().to_owned()),
+            psi_typed_trees::data::DataMember::Variant(_) => None,
+        })
+        .collect::<Vec<_>>();
     let type_start = program.type_reference_table.type_reference_count();
     let expression_start = program.expression_table.iter_expressions().count();
 
@@ -2056,9 +2072,14 @@ fn clone_specialized_machine(
 
     let machine_children = program.symbols.insert_generated_children(
         machine_symbol,
-        source_owned
+        inherited_field_names
             .iter()
-            .map(|item| (SymbolKind::Field, item.name.as_str()))
+            .map(|name| (SymbolKind::Field, name.as_str()))
+            .chain(
+                source_owned
+                    .iter()
+                    .map(|item| (SymbolKind::Field, item.name.as_str())),
+            )
             .chain(
                 source_states
                     .iter()
@@ -2069,6 +2090,28 @@ fn clone_specialized_machine(
         psi_symbols::SymbolTableBuilder::child_handles(machine_children).collect();
     let mut next_child = machine_children.into_iter();
     let mut symbol_map = vec![(source_machine.symbol, machine_symbol)];
+    let source_machine_children = source_machine
+        .symbol
+        .is_valid()
+        .then(|| source.symbols.child_handles(source_machine.symbol))
+        .flatten()
+        .into_iter()
+        .flatten()
+        .collect::<Vec<_>>();
+    for field_name in &inherited_field_names {
+        let cloned_field = next_child.next().expect("inherited-field clone symbol");
+        let source_fields = source_machine_children
+            .iter()
+            .copied()
+            .filter(|symbol| {
+                source.symbols.get(*symbol).kind == SymbolKind::Field
+                    && source.symbols.name(*symbol) == field_name
+            })
+            .collect::<Vec<_>>();
+        if let [source_field] = source_fields.as_slice() {
+            symbol_map.push((*source_field, cloned_field));
+        }
+    }
     for item in &source_owned {
         symbol_map.push((
             item.symbol,
@@ -2118,7 +2161,7 @@ fn clone_specialized_machine(
     let mut cloned = source_machine.clone();
     cloned.symbol = machine_symbol;
     cloned.name = psi_typed_trees::name::Identifier::generated(generated_name);
-    cloned.attached_data = specialized_attached_data(source, candidate, source_machine);
+    cloned.attached_data = specialized_attached_data;
     cloned.type_parameters = HandleSpan::empty();
     cloned.conformance_bounds.clear();
     cloned.owned_data = HandleSpan::empty();

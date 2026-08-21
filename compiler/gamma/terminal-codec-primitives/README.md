@@ -4,7 +4,7 @@ This directory layers exact terminal-codec grammar over the semantics-neutral
 `../canonical-bytes/` cursor. It owns the current envelope prefix:
 
 - exact `PSITERM\0` magic;
-- exact format marker 16; and
+- exact format marker 17; and
 - exact current vocabulary marker 20, retained in the typed result.
 
 It also owns the codec's length-prefixed UTF-8 string rule:
@@ -32,7 +32,7 @@ width in `1..=128`. The bounded spike now retains this exact type in every
 declaration; only its operation-row policy remains intentionally limited to
 Boolean, signed i8, and signed i16.
 
-The separately gated structural-leaf layer owns the exact v16 byte grammar for:
+The separately gated structural-leaf layer owns the exact v17 byte grammar for:
 
 - IEEE binary32/binary64 format and equality/inequality comparison kinds;
 - borrowed-view and exact-full-width-capacity bounded-owned byte-sequence
@@ -40,10 +40,11 @@ The separately gated structural-leaf layer owns the exact v16 byte grammar for:
 - canonical structural fields with one full-width nonzero root identity and an
   ordered path of full-width nonzero field identities or full-width fixed
   indices; and
-- atomic IEEE comparison and byte-sequence equality proposition tags `11` and
-  `12`.
+- atomic IEEE comparison, byte-sequence equality, and structural
+  case-membership proposition tags `11`, `12`, and `13`. Case membership
+  deliberately permits an empty subject path for a whole structural root.
 
-It enforces the proposition constructors' nonempty paths and exact canonical
+It enforces nonempty IEEE/byte-sequence leaf paths and their exact canonical
 operand order: root first, then lexicographic path, with field segments before
 fixed-index segments and every numeric component ordered as unsigned `u64`.
 The layer retains the unread input tail and rejects invalid tags, zero semantic

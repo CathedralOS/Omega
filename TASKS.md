@@ -87,8 +87,13 @@ Remaining:
   result-as-process-exit probes now keep their value-returning logic in ordinary
   helpers while target-rooted Unit entries consume those results through the
   explicit exit provider; that migration also closed named unsigned-conversion
-  signedness and logical-NOT helper-result lowering gaps. A live corpus audit
-  leaves 228 legacy fixtures without an authored `build.omg` root.
+  signedness and logical-NOT helper-result lowering gaps. Six additional
+  residual scalar-result and host-deployable probes now use the same authored
+  four-host root and Unit-entry discipline. Eight indexed-array and slice-loop
+  native probes now also route their existing Unit entries through authored
+  four-host roots without weakening their bounds, mutation, or conversion
+  regression shapes. The tracked corpus audit leaves 214
+  legacy fixtures without an authored `build.omg` root.
   Continue migrating those fixtures through production entry
   selection; replace result-as-process-exit probes with ordinary Unit entries
   and explicit exit providers rather than preserving the legacy entry seam.
@@ -704,10 +709,15 @@ Remaining:
   independently resolved and rebased through structural calls. Borrowed
   `&[u8] in Domain` and bounded `[u8; N] in Domain` fields participate in
   synthesized `Equatable` record equality, while literals and direct text `!=`
-  remain outside this slice. Semantic codec v16, proof-bundle v10, and
-  installation-record v22 retain the new carrier and proposition.
-  Continue with case-payload paths and aggregate equality over sums and erased
-  fields. Trapping predicate
+  remain outside this slice. Payload-less sums now retain a closed structural
+  sum shape with exact case identities. Intrinsic `==` lowers to the flat
+  canonical conjunction of both membership implications for every declared
+  case; `!=` is that equality proposition implying falsehood. The verifier
+  independently resolves both structural subjects and every case identity,
+  while payload-bearing sums remain fenced. Semantic codec v17, proof-bundle
+  v11, and installation-record v23 retain the structural shapes and
+  proposition. Continue with case-payload paths and aggregate equality over
+  payload-bearing sums and erased fields. Trapping predicate
   arithmetic is design-blocked on owner Q4; imported crash capsules remain
   blocked on artifact identity and certificate binding.
 - **PROOF-CERTIFICATION-BRIDGE.** Emit kernel-checkable certificates from source
@@ -793,7 +803,7 @@ Remaining:
   trust graph binds the table to exactly those twelve denotation nodes and the
   dispatcher to every affected reducer.
   The bounded Gamma spike is complete. It canonical-decodes four exact current
-  `PSITERM\0` v16 fixtures and audits a 54-row scalar ledger covering constants,
+  `PSITERM\0` v17 fixtures and audits a 54-row scalar ledger covering constants,
   Boolean not/equality, integer equality/order, bitwise operations, strict
   i8-to-i16 widening, partial i16-to-i8 exact cast, exact/wrapping shifts with
   independently typed counts, and the complete
@@ -826,7 +836,7 @@ Remaining:
   fixed-unsigned/address scalar-type grammar and exact widths `1..=128`, plus
   exact signed/unsigned 128-bit integer-value payloads; it
   rejects header/scalar/type/value drift plus overlong, surrogate, out-of-range,
-  isolated-continuation, and truncated encodings. Its separate v16 structural-
+  isolated-continuation, and truncated encodings. Its separate v17 structural-
   leaf module additionally owns exact IEEE kind/format, byte-sequence carrier,
   full-width canonical path, and atomic proposition tags `11`/`12`, including
   nonempty paths and canonical operand order. All three bounded decoders consume
@@ -1012,6 +1022,11 @@ Remaining:
   with direct entry-symbol lookup; operator and trait semantics are unchanged
   and the index is not retained. On the same canary that reduced Stage 05 again
   to 4.743–4.817s and full compile wall time to 5.51–5.64s.
+  Checked-fact loop-invariant analysis now also reuses that pass's existing
+  immutable call-frame resolver instead of rebuilding it below indexed-access
+  checking. On a fresh exact profile this removed the former 1,056-sample
+  construction stack and reduced warmed Mandelbrot Stage 05 from 4.810s to
+  3.421s, with byte-identical output and native/interpreter exit 70.
   Corpus-level bounded parallelism is viable at the harness boundary: the
   differential runner now defaults to four independent jobs with one native
   backend worker each, retains deterministic corpus-order reporting, and
@@ -1028,6 +1043,22 @@ Remaining:
   and the bounded legacy `Main::main` seam only for the remaining unrooted
   corpus; the former generated target wrapper discarded value-returning entry
   codes and produced false mismatches.
+  The compiler pass/fail corpus umbrellas now use the same deterministic outer
+  scheduler for checked-only, cross-target, rooted-target, Windows-host, and
+  active backend members instead of leaving the large backend registries
+  serial. Each no-output backend compile defaults to two inner workers, with
+  `OMEGA_CANARY_JOBS` and `OMEGA_CANARY_INNER_WORKERS` retained as explicit
+  profiling controls. On an eight-program heavyweight probe, four outer jobs
+  and two inner workers reduced wall time from the one-outer/one-inner 65.42s
+  to 31.12s. The dominating float total-order canary fell from 58.61s with one
+  inner worker to 29.63s with two; four and fourteen inner workers provided no
+  material wall improvement (29.11s and 29.28s) while increasing aggregate CPU
+  from 78.29s to 112.16s and 226.53s. This measured ceiling is why the harness
+  does not inherit unrestricted host parallelism inside every outer job. After
+  repairing the corpus drift this broader gate exposed, the complete active
+  pass umbrella finishes in 234.92s and the complete active fail umbrella in
+  21.05s on the same host; both collect the whole registry rather than stopping
+  at the first failure.
   The compiler canary integration suite is no longer a 48,301-line permutation
   file. Its shared compile helpers, exact corpus registries, and umbrella
   orchestration now form a 3,277-line root over twenty-one responsibility

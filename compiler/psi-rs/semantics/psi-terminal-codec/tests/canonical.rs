@@ -3,8 +3,8 @@ use psi_core::{
     ContentDomainId, ContentPlaceSegment, ContentPlaceVersion, ContentProjectionIdentity,
     ContentStructuralPlace, ContentTerm, ContractId, EdgeId, IntegerSign, IntegerType,
     IntegerValue, MachineId, ObligationId, OperationId, PlaceId, Proposition, PropositionId,
-    ScalarTerm, ScalarType, ServiceId, StructuralDomainId, StructuralFieldId, StructuralPlaceKind,
-    StructuralTypeId, ValueId,
+    ScalarTerm, ScalarType, ServiceId, StructuralCaseId, StructuralDomainId, StructuralFieldId,
+    StructuralPlaceKind, StructuralTypeId, ValueId,
 };
 use psi_terminal::{
     BindingRelevance, Block, BoundaryMachineDeclaration, ClaimContentProjection, ClaimTransfer,
@@ -14,12 +14,12 @@ use psi_terminal::{
     PropositionApplicationIdentity, PropositionBinderArgumentIdentity,
     PropositionBinderArgumentKind, PropositionBinderDeclaration, PropositionBinderKind,
     PropositionDeclaration, PropositionEvidence, ServiceDeclaration, StructuralAffineDiscard,
-    StructuralArgument, StructuralDomainDeclaration, StructuralDomainRequirement,
-    StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
-    StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
-    StructuralResultDeclaration, StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge,
-    TerminalAffineCleanupAction, TerminalMachine, TerminalMachineResult, TerminalModule,
-    Terminator, ValueDeclaration, VocabularyMarker,
+    StructuralArgument, StructuralCaseDeclaration, StructuralDomainDeclaration,
+    StructuralDomainRequirement, StructuralFieldDeclaration, StructuralFieldType,
+    StructuralMultiplicity, StructuralParameterDeclaration, StructuralPathSegment,
+    StructuralPlaceDeclaration, StructuralResultDeclaration, StructuralTypeDeclaration,
+    StructuralTypeShape, SuccessorEdge, TerminalAffineCleanupAction, TerminalMachine,
+    TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
 };
 use psi_terminal_codec::{
     CodecError, decode_module, encode_module, semantic_fingerprint, terminal_psi_identity,
@@ -31,7 +31,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     let bytes = encode_module(&module).expect("fixture should encode");
 
     assert_eq!(&bytes[..8], b"PSITERM\0");
-    assert_eq!(&bytes[8..10], 16_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 17_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 
@@ -39,7 +39,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     assert_eq!(identity.vocabulary_marker, VocabularyMarker::CURRENT);
     assert_eq!(
         identity.program_fingerprint.to_string(),
-        "4b3f7cc401bf9c6c67a2cb57ea54157271aebe031625a5784073385cd7815da7"
+        "f2ff485768e2dd8274f6fa5b34933fa76f7655dce6abcffe5f438750ff4f0250"
     );
     assert_eq!(
         identity.program_fingerprint,
@@ -48,10 +48,67 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
 }
 
 #[test]
+fn payloadless_sum_shape_requires_canonical_nonempty_cases() {
+    let mut valid = fixture();
+    valid.structural_types.push(StructuralTypeDeclaration {
+        id: structural_type_id(99),
+        identity: "Mode".to_owned(),
+        shape: StructuralTypeShape::Sum {
+            cases: vec![
+                StructuralCaseDeclaration {
+                    id: structural_case_id(1),
+                    identity: "Off".to_owned(),
+                },
+                StructuralCaseDeclaration {
+                    id: structural_case_id(2),
+                    identity: "On".to_owned(),
+                },
+            ],
+        },
+    });
+    valid
+        .structural_types
+        .sort_by_key(|declaration| declaration.id);
+    let bytes = encode_module(&valid).expect("canonical payload-less sum encodes");
+    assert_eq!(decode_module(&bytes), Ok(valid.clone()));
+
+    let mut reordered = valid.clone();
+    let StructuralTypeShape::Sum { cases } = &mut reordered
+        .structural_types
+        .iter_mut()
+        .find(|declaration| declaration.identity == "Mode")
+        .expect("sum")
+        .shape
+    else {
+        unreachable!()
+    };
+    cases.reverse();
+    assert_eq!(
+        encode_module(&reordered),
+        Err(CodecError::NonCanonicalOrder(
+            "structural cases by StructuralCaseId"
+        ))
+    );
+
+    let mut empty = valid;
+    let StructuralTypeShape::Sum { cases } = &mut empty
+        .structural_types
+        .iter_mut()
+        .find(|declaration| declaration.identity == "Mode")
+        .expect("sum")
+        .shape
+    else {
+        unreachable!()
+    };
+    cases.clear();
+    assert!(encode_module(&empty).is_err());
+}
+
+#[test]
 fn partial_affine_unit_return_round_trips_exact_path_and_leaf_type() {
     let module = partial_affine_fixture();
     let bytes = encode_module(&module).expect("partial affine return should encode");
-    assert_eq!(&bytes[8..10], 16_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 17_u16.to_le_bytes());
     assert_eq!(&bytes[10..12], 20_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
@@ -61,7 +118,7 @@ fn partial_affine_unit_return_round_trips_exact_path_and_leaf_type() {
 fn nominal_affine_unit_return_round_trips_exact_root_type_and_cleanup_machine() {
     let module = nominal_affine_fixture();
     let bytes = encode_module(&module).expect("nominal affine return should encode");
-    assert_eq!(&bytes[8..10], 16_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 17_u16.to_le_bytes());
     assert_eq!(&bytes[10..12], 20_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
@@ -93,7 +150,7 @@ fn scalar_return_round_trips_nominal_affine_cleanup_action() {
     };
 
     let bytes = encode_module(&module).expect("scalar nominal cleanup should encode");
-    assert_eq!(&bytes[8..10], 16_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 17_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 }
@@ -1523,10 +1580,10 @@ fn decoder_rejects_noncanonical_or_ambiguous_bytes() {
     assert_eq!(decode_module(&trailing), Err(CodecError::TrailingBytes(1)));
 
     let mut future_format = bytes.clone();
-    future_format[8..10].copy_from_slice(&17_u16.to_le_bytes());
+    future_format[8..10].copy_from_slice(&18_u16.to_le_bytes());
     assert_eq!(
         decode_module(&future_format),
-        Err(CodecError::UnsupportedFormatMarker(17))
+        Err(CodecError::UnsupportedFormatMarker(18))
     );
 
     let mut stale_format = bytes.clone();
@@ -2817,6 +2874,7 @@ id_constructor!(claim_id, ClaimId);
 id_constructor!(operation_id, OperationId);
 id_constructor!(structural_type_id, StructuralTypeId);
 id_constructor!(structural_field_id, StructuralFieldId);
+id_constructor!(structural_case_id, StructuralCaseId);
 id_constructor!(structural_domain_id, StructuralDomainId);
 id_constructor!(service_id, ServiceId);
 id_constructor!(boundary_machine_id, BoundaryMachineId);

@@ -432,6 +432,63 @@ fn byte_sequence_fields_retain_atomic_content_equality() {
 }
 
 #[test]
+fn payloadless_sum_equality_retains_closed_case_roster() {
+    let source = r#"
+    data Mode {
+        case Off;
+        case On;
+    }
+
+    machine equal(left: Mode, right: Mode)
+    crashes Abort
+        left == right
+    {}
+
+    machine not_equal(left: Mode, right: Mode)
+    crashes Abort
+        left != right
+    {}
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let checked = lower_typed_trees(typed).expect("checked lowering should succeed");
+    let expression = |name: &str| {
+        let contract = checked
+            .facts
+            .contract_plans
+            .for_machine(symbol_of_checked(&checked, name))
+            .expect("contract plan");
+        let [bucket] = contract.crash.published() else {
+            panic!("{name} should publish one crash bucket")
+        };
+        let [psi_checked_trees::CrashRouteGuard::Predicate(predicate)] =
+            bucket.alternative_guards()
+        else {
+            panic!("{name} should publish one predicate")
+        };
+        predicate.scalar_expression().cloned().expect("scalar term")
+    };
+
+    assert!(matches!(
+        expression("equal"),
+        psi_checked_trees::CheckedBooleanExpression::PayloadlessSumEqual { cases, .. }
+            if cases == ["Off", "On"]
+    ));
+    assert!(matches!(
+        expression("not_equal"),
+        psi_checked_trees::CheckedBooleanExpression::Not(operand)
+            if matches!(operand.as_ref(),
+                psi_checked_trees::CheckedBooleanExpression::PayloadlessSumEqual { cases, .. }
+                    if cases.len() == 2 && cases[0] == "Off" && cases[1] == "On")
+    ));
+}
+
+#[test]
 fn checked_crash_sites_are_body_evidence_not_contract_identity() {
     let source = r#"
     machine clear_body() -> i32

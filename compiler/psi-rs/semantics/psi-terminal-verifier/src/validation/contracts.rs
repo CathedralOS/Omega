@@ -37,7 +37,8 @@ pub(super) fn validate_contract_scope(
         | Proposition::Falsehood
         | Proposition::Atom(_)
         | Proposition::IeeeFloatComparison { .. }
-        | Proposition::ByteSequenceEqual { .. } => Ok(()),
+        | Proposition::ByteSequenceEqual { .. }
+        | Proposition::StructuralCaseMembership { .. } => Ok(()),
         Proposition::Equal(left, right)
         | Proposition::LessThan(left, right)
         | Proposition::LessOrEqual(left, right) => {

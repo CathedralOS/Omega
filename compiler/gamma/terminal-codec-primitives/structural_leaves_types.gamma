@@ -1,4 +1,4 @@
-; Exact current v16 structural-leaf codec vocabulary.  These are byte grammar
+; Exact current v17 structural-leaf codec vocabulary.  These are byte grammar
 ; carriers only: the bounded ledger spike does not import them and gains no new
 ; semantic authority from this shared layer.
 
@@ -46,7 +46,9 @@
     TerminalIeeeFloatComparisonKind TerminalIeeeFloatFormat
     TerminalCanonicalStructuralField TerminalCanonicalStructuralField)
   (TerminalByteSequenceEqual
-    TerminalCanonicalStructuralField TerminalCanonicalStructuralField))
+    TerminalCanonicalStructuralField TerminalCanonicalStructuralField)
+  (TerminalStructuralCaseMembership
+    TerminalCanonicalStructuralField TerminalSemanticId))
 (data RTerminalStructuralLeafProposition
   (RTerminalStructuralLeafProposition TerminalStructuralLeafProposition Bytes)
   (RTerminalStructuralLeafPropositionBad))

@@ -42,6 +42,12 @@ pub(crate) fn substitute_proposition_values(
             left: left.clone(),
             right: right.clone(),
         },
+        Proposition::StructuralCaseMembership { subject, case } => {
+            Proposition::StructuralCaseMembership {
+                subject: subject.clone(),
+                case: *case,
+            }
+        }
         Proposition::Conjunction(conjuncts) => Proposition::Conjunction(
             conjuncts
                 .iter()
@@ -127,6 +133,15 @@ pub(crate) fn substitute_proposition_structural_places(
             Proposition::ByteSequenceEqual {
                 left: rebase(left),
                 right: rebase(right),
+            }
+        }
+        Proposition::StructuralCaseMembership { subject, case } => {
+            Proposition::StructuralCaseMembership {
+                subject: substitutions
+                    .get(&subject.root())
+                    .map(|(root, prefix)| subject.rebase(*root, prefix))
+                    .unwrap_or_else(|| subject.clone()),
+                case: *case,
             }
         }
         Proposition::Conjunction(conjuncts) => Proposition::Conjunction(

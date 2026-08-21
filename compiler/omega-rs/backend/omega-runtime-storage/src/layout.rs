@@ -97,7 +97,7 @@ pub(super) fn bounded_byte_buffer_shape(
         matches!(
             constraint,
             TypeConstraintNode::Domain(name)
-                if !psi_checked_trees::wire::is_layout_domain_name(name.as_str())
+                if !psi_checked_trees::wire::is_layout_domain_constraint(name)
                     && psi_language_semantics::CarryPermission::from_name(name.as_str()).is_none()
         )
     });

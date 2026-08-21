@@ -26,7 +26,7 @@ data Main {
     selected_exit: Exit;
 }
 
-machine Main::main(&mut self) -> i32 {
+machine Main::result_code(&mut self) -> i32 {
     self.room.cell = CellId::A1;
     self.room.label = "A1";
     self.room.description = "A1: a stone entry.";
@@ -37,6 +37,10 @@ machine Main::main(&mut self) -> i32 {
     self.console.write_line(self.room.label);
     self.console.write_line(self.room.description);
     self.console.write_line(self.selected_exit.command);
-    self.console.exit_process(0);
     0
+}
+
+machine Main::main(&mut self) {
+    let result: i32 = self.result_code();
+    self.console.exit_process(result);
 }

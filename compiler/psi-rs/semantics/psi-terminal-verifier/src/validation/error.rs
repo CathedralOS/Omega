@@ -115,6 +115,11 @@ pub enum ModuleError {
         structural_type: StructuralTypeId,
         field: psi_core::StructuralFieldId,
     },
+    InvalidStructuralCaseIdentity {
+        structural_type: StructuralTypeId,
+        case: psi_core::StructuralCaseId,
+    },
+    EmptyStructuralSum(StructuralTypeId),
     InvalidErasedStructuralField {
         structural_type: StructuralTypeId,
         field: psi_core::StructuralFieldId,
@@ -479,6 +484,12 @@ pub enum ModuleError {
         machine: MachineId,
         root: PlaceId,
         path: Vec<CanonicalStructuralPathSegment>,
+    },
+    InvalidStructuralCaseMembership {
+        machine: MachineId,
+        root: PlaceId,
+        path: Vec<CanonicalStructuralPathSegment>,
+        case: psi_core::StructuralCaseId,
     },
     UnsafeStructuralCrashExactDivisor {
         machine: MachineId,

@@ -1,8 +1,16 @@
+use omega::language::std::console;
+
 data Main {
+    console: Console;
     count: i32;
 }
 
-machine Main::main(&mut self) -> i32 {
+machine Main::terminal_field(&mut self) -> i32 {
     self.count = 70;
     self.count
+}
+
+machine Main::main(&mut self) {
+    let result: i32 = self.terminal_field();
+    self.console.exit_process(result);
 }

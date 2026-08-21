@@ -731,7 +731,7 @@ impl<'program> ShapeCollector<'program> {
         if data.supply_mode != psi_language_semantics::DataSupplyMode::CheckedShape
             || !matches!(
                 psi_typed_trees::data::DataDefinition::shape_kind_from_members(members),
-                DataShapeKind::Empty | DataShapeKind::Record
+                DataShapeKind::Empty | DataShapeKind::Record | DataShapeKind::Enum
             )
         {
             return None;
@@ -767,12 +767,43 @@ impl<'program> ShapeCollector<'program> {
         if data.supply_mode != psi_language_semantics::DataSupplyMode::CheckedShape
             || !matches!(
                 psi_typed_trees::data::DataDefinition::shape_kind_from_members(&members),
-                DataShapeKind::Empty | DataShapeKind::Record
+                DataShapeKind::Empty | DataShapeKind::Record | DataShapeKind::Enum
             )
         {
             self.in_progress.remove(&identity);
             return None;
         }
+        if matches!(
+            psi_typed_trees::data::DataDefinition::shape_kind_from_members(&members),
+            DataShapeKind::Enum
+        ) {
+            let mut cases = Vec::with_capacity(members.len());
+            for member in &members {
+                let DataMember::Variant(variant) = member else {
+                    unreachable!("enum shape contains only cases")
+                };
+                if !self.program.data_payload_fields(variant).is_empty() {
+                    self.in_progress.remove(&identity);
+                    return None;
+                }
+                cases.push(psi_checked_trees::CheckedUnitStructuralCasePlan {
+                    identity: variant
+                        .identity
+                        .map(|identity| format!("#{identity}"))
+                        .unwrap_or_else(|| variant.name.as_str().to_owned()),
+                });
+            }
+            self.types.insert(
+                identity.clone(),
+                CheckedUnitStructuralTypePlan {
+                    identity: identity.clone(),
+                    shape: CheckedUnitStructuralTypeShape::Sum { cases },
+                },
+            );
+            self.in_progress.remove(&identity);
+            return Some(identity);
+        }
+
         let mut fields = Vec::new();
         for member in &members {
             let DataMember::Field(field) = member else {
@@ -861,6 +892,7 @@ impl<'program> ShapeCollector<'program> {
                     } => {
                         retained.insert(element_type_identity.clone());
                     }
+                    CheckedUnitStructuralTypeShape::Sum { .. } => {}
                 }
             }
             if retained.len() == old_len {

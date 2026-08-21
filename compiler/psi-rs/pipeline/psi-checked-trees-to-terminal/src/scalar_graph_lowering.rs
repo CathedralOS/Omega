@@ -705,7 +705,8 @@ fn lower_checked_boolean_expression(
             }
         }
         CheckedBooleanExpression::IeeeFloatComparison { .. }
-        | CheckedBooleanExpression::ByteSequenceEqual { .. } => {
+        | CheckedBooleanExpression::ByteSequenceEqual { .. }
+        | CheckedBooleanExpression::PayloadlessSumEqual { .. } => {
             return unsupported("structural equality is contract-only terminal vocabulary");
         }
         CheckedBooleanExpression::And { left, right } => LoweredBooleanReturnExpression::And {

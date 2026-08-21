@@ -4,7 +4,7 @@ use psi_core::{
     ContentPlaceVersion, ContentProjectionIdentity, ContentStructuralPlace, ContentTerm,
     EvidenceIdentity, IeeeFloatComparisonKind, IeeeFloatFormat, IeeeFloatStructuralField,
     IntegerCarrier, IntegerSign, IntegerType, IntegerValue, Proposition, PropositionError,
-    PropositionId, PsiSemanticId, ScalarTerm, ScalarType,
+    PropositionId, PsiSemanticId, ScalarTerm, ScalarType, StructuralCaseSubject,
 };
 use psi_proof_kernel::{
     AcceptedFactRoute, AdmissionEvidence, AdmissionKind, CertificateEnvelope, EvidenceRoute,
@@ -18,7 +18,7 @@ use sha2::{Digest, Sha256};
 
 const MAGIC: &[u8; 8] = b"PSIPRF\0\0";
 /// Single current pre-release proof vocabulary marker.
-const FORMAT_MARKER: u16 = 10;
+const FORMAT_MARKER: u16 = 11;
 const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-proof-bundle-fingerprint\0";
 const MAX_PROPOSITION_DEPTH: usize = 256;
 const MAX_SCALAR_TERM_DEPTH: usize = 256;
@@ -300,7 +300,9 @@ fn validate_proposition(proposition: &Proposition, depth: usize) -> Result<(), P
             validate_scalar_term_depth(left, 0)?;
             validate_scalar_term_depth(right, 0)?;
         }
-        Proposition::IeeeFloatComparison { .. } | Proposition::ByteSequenceEqual { .. } => {}
+        Proposition::IeeeFloatComparison { .. }
+        | Proposition::ByteSequenceEqual { .. }
+        | Proposition::StructuralCaseMembership { .. } => {}
         Proposition::Conjunction(propositions) | Proposition::Disjunction(propositions) => {
             for proposition in propositions {
                 validate_proposition(proposition, depth + 1)?;
@@ -761,6 +763,16 @@ fn encode_proposition(
             writer.u8(12);
             encode_byte_sequence_field(writer, left)?;
             encode_byte_sequence_field(writer, right)?;
+        }
+        Proposition::StructuralCaseMembership { subject, case } => {
+            writer.u8(13);
+            encode_canonical_structural_field(
+                writer,
+                subject.root(),
+                subject.path(),
+                "structural case subject path",
+            )?;
+            writer.id(*case);
         }
     }
     Ok(())
@@ -1368,6 +1380,13 @@ fn decode_proposition(
             left: decode_byte_sequence_field(reader)?,
             right: decode_byte_sequence_field(reader)?,
         },
+        13 => {
+            let (root, path) = decode_canonical_structural_field(reader)?;
+            Proposition::StructuralCaseMembership {
+                subject: StructuralCaseSubject::new(root, path),
+                case: reader.id("StructuralCaseId")?,
+            }
+        }
         tag => return Err(ProofCodecError::InvalidTag("Proposition", tag)),
     })
 }

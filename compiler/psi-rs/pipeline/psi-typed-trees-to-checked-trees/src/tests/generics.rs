@@ -1166,6 +1166,58 @@ fn distinct_static_machine_specializations_clone_the_template() {
 }
 
 #[test]
+fn attached_machine_specialization_clones_inherited_field_symbols() {
+    let source = r#"
+        data Console {}
+        data Light [copy] { weight: i32; }
+        data Main { console: Console; light: Light; number: i32; }
+
+        machine Main::pick<T [copy]>(&self, value: &T) -> i32 { 7 }
+        machine Main::run(&mut self) {
+            let from_light: i32 = self.pick(&self.light);
+            let from_number: i32 = self.pick(&self.number);
+        }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let checked = lower_typed_trees(typed)
+        .expect("each attached specialization should retain its inherited field coordinates");
+
+    let pick = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Main::pick")
+        .expect("pick template instance");
+    let instances = checked
+        .machine_specializations
+        .iter()
+        .filter(|specialization| specialization.template == pick.symbol)
+        .map(|specialization| specialization.instance)
+        .collect::<Vec<_>>();
+    assert_eq!(instances.len(), 2);
+    for instance in instances {
+        let machine = checked
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == instance)
+            .expect("specialized pick machine");
+        let fields = checked
+            .symbols
+            .child_handles(machine.symbol)
+            .into_iter()
+            .flatten()
+            .filter(|symbol| checked.symbols.get(*symbol).kind == psi_symbols::SymbolKind::Field)
+            .map(|symbol| checked.symbols.name(symbol))
+            .collect::<Vec<_>>();
+        assert_eq!(fields, ["console", "light", "number"]);
+    }
+}
+
+#[test]
 fn forwarded_generic_calls_specialize_after_their_caller() {
     let source = r#"
         data Light [copy] { weight: i32; }
