@@ -7,7 +7,8 @@ use omega_compiler::{
     ProgramStorageEntryInitialStorageAuthorityKind,
     ProgramStorageEntryRecordedWholeRootArgumentRecovery, ProgramStorageInstallationHandoffError,
     ProgramStorageRootInput, SelectedExternalRootProviderPlan, SelectedProgramStorageEntryPlan,
-    bind_emitted_program_storage_entry_native_bridge, bind_program_storage_entry_plan,
+    bind_emitted_program_storage_entry_native_bridge,
+    bind_program_storage_entry_emitted_whole_root_arguments, bind_program_storage_entry_plan,
     bind_program_storage_entry_whole_root_arguments,
     bind_program_storage_entry_whole_root_logical_values,
     bind_program_storage_entry_whole_root_operands,
@@ -1548,6 +1549,17 @@ machine build(builder: &mut Build) {
     let bridge = report
         .program_storage_entry_bridge
         .expect("receiver-free UEFI entry bridge");
+    let unwritten_bridge = compile(CompileOptions {
+        root_path: directory.join("main.omg"),
+        build_dir: Some(directory.join("unwritten-build")),
+        target_name: Some("uefi_x64".into()),
+        write_output: false,
+    })
+    .expect("the same receiver-free entry should compile without publishing an image")
+    .program_storage_entry_bridge
+    .expect("unwritten receiver-free UEFI entry bridge");
+    assert_eq!(unwritten_bridge.binding(), bridge.binding());
+    assert!(unwritten_bridge.emitted_wrapper_evidence().is_none());
     assert!(matches!(
         bridge.continuation_abi().expect("source ABI").receiver(),
         omega_compiler::ProgramStorageEntryContinuationReceiverAbiPlan::Free
@@ -1803,6 +1815,31 @@ machine build(builder: &mut Build) {
         ),
         (0x1000, 0x2000)
     );
+    let missing_emitted =
+        bind_program_storage_entry_emitted_whole_root_arguments(carrier, &unwritten_bridge)
+            .expect_err("an unwritten bridge cannot bind installed roots to final wrapper bytes");
+    assert!(
+        missing_emitted
+            .diagnostic()
+            .0
+            .contains("without final emitted-wrapper evidence")
+    );
+    let carrier = missing_emitted.into_arguments();
+    let emitted_arguments =
+        bind_program_storage_entry_emitted_whole_root_arguments(carrier, &bridge)
+            .expect("installed roots should bind their exact final emitted wrapper");
+    assert_eq!(
+        emitted_arguments.emitted_wrapper().wrapper_identity(),
+        bridge.entry_function_identity()
+    );
+    assert_eq!(
+        emitted_arguments
+            .emitted_wrapper()
+            .arrival()
+            .boundary_contract_fingerprint(),
+        bridge.binding().boundary_contract_fingerprint()
+    );
+    let carrier = emitted_arguments.into_arguments();
     let values = bind_program_storage_entry_whole_root_logical_values(carrier)
         .expect("exact whole-root authorities should bind their logical Extent values");
     let [image_value, storage_value] = values.values();

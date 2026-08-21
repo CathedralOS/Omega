@@ -14,6 +14,7 @@ mod operator_adapter_dispatch;
 mod output;
 mod program_entry_source_signature;
 mod program_storage_continuation_inbound;
+mod program_storage_emitted_argument_binding;
 mod program_storage_entry;
 mod program_storage_extent_operand;
 mod program_storage_extent_value;
@@ -62,6 +63,11 @@ pub use program_entry_source_signature::{
 };
 pub use program_storage_continuation_inbound::{
     ProgramStorageEntryContinuationInboundArgument, ProgramStorageEntryContinuationInboundPlan,
+};
+pub use program_storage_emitted_argument_binding::{
+    ProgramStorageEntryEmittedWholeRootArgumentCarrier,
+    ProgramStorageEntryEmittedWholeRootArgumentError,
+    bind_program_storage_entry_emitted_whole_root_arguments,
 };
 pub use program_storage_entry::{
     InstalledImageSubextent, InstalledProgramStorageRoots, PartitionedProgramStorageRoots,
