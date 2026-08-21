@@ -1396,6 +1396,16 @@ fn compile_rooted_canary_for_target_with_artifact_policy(
 // exercise production entry selection and may not substitute the legacy entry
 // seam.
 const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
+    "calls/runtime_dispatch_sibling_value_calls_exit",
+    "calls/runtime_inline_repeated_receiver_value_calls_exit",
+    "calls/runtime_value_call_struct_literal_arms_exit",
+    "calls/runtime_value_call_struct_result_to_target_exit",
+    "collections/runtime_case_array_element_write_exit",
+    "collections/runtime_indexed_field_local_operand_exit",
+    "collections/runtime_indexed_guard_true_false_pair_exit",
+    "collections/runtime_indexed_local_bitwise_exit",
+    "collections/runtime_indexed_local_compare_exit",
+    "domains/runtime_result_domain_machine_overload_exit",
     "filesystem/windows_hard_link_exit",
     "filesystem/windows_positioned_io_exit",
     "filesystem/windows_read_dir_nth_exit",
@@ -2614,6 +2624,16 @@ fn task_runtime_machine_selection_builds_omega_activation_sidecar() {
 }
 
 const ACTIVE_PASS_CANARIES: &[&str] = &[
+    "calls/runtime_dispatch_sibling_value_calls_exit",
+    "calls/runtime_inline_repeated_receiver_value_calls_exit",
+    "calls/runtime_value_call_struct_literal_arms_exit",
+    "calls/runtime_value_call_struct_result_to_target_exit",
+    "collections/runtime_case_array_element_write_exit",
+    "collections/runtime_indexed_field_local_operand_exit",
+    "collections/runtime_indexed_guard_true_false_pair_exit",
+    "collections/runtime_indexed_local_bitwise_exit",
+    "collections/runtime_indexed_local_compare_exit",
+    "domains/runtime_result_domain_machine_overload_exit",
     "ownership/linear_state_call_handoff",
     "ownership/linear_transition_nested_call_handoff",
     "ownership/linear_repeated_transition_call_handoff",
