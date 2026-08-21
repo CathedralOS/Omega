@@ -5,6 +5,7 @@ mod crash_routes;
 mod data_facts;
 mod operational_contracts;
 mod ranking;
+mod write_frame_array_literal_projection;
 mod write_frame_assignment_values;
 mod write_frame_cycles;
 mod write_frame_indexed_calls;

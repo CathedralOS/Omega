@@ -3115,6 +3115,11 @@ fn primitive_computed_value_preserves_transparent_result(
             program.expression_table.expression(expression),
             ExpressionNode::Member(_)
         );
+    let direct_array_literal_index = require_caller_isolated_call_result
+        && matches!(
+            program.expression_table.expression(expression),
+            ExpressionNode::Indexed(_)
+        );
     let operands = match program.expression_table.expression(expression) {
         ExpressionNode::Binary(binary) => [Some(binary.left), Some(binary.right)],
         ExpressionNode::Cast(cast)
@@ -3165,6 +3170,18 @@ fn primitive_computed_value_preserves_transparent_result(
                     remaining_computed_depth - 1,
                 )
             }
+            ExpressionNode::ArrayLiteral(_) if direct_array_literal_index => {
+                concrete_array_literal_index_operand_preserves_transparent_result(
+                    program,
+                    current_machine,
+                    operand,
+                    symbols,
+                    active_states,
+                    parameters,
+                    aliases,
+                    remaining_computed_depth - 1,
+                )
+            }
             ExpressionNode::Binary(_)
             | ExpressionNode::Cast(_)
             | ExpressionNode::Indexed(_)
@@ -3187,6 +3204,70 @@ fn primitive_computed_value_preserves_transparent_result(
             _ => false,
         }
     })
+}
+
+/// Admit one fixed-array literal directly below a primitive index projection.
+/// Typing has already established one primitive element type from the indexed
+/// result. Every eagerly evaluated element publishes its complete call frame;
+/// primitive computation shells share the same depth budget consumed by the
+/// index projection. Nested aggregate literals remain outside this cohort
+/// because this expression site carries no independent contextual aggregate
+/// type for validating them.
+#[allow(clippy::too_many_arguments)]
+fn concrete_array_literal_index_operand_preserves_transparent_result(
+    program: &TypedTrees,
+    current_machine: &Machine,
+    expression: ExpressionHandle,
+    symbols: &TopLevelSymbols<'_>,
+    active_states: &mut Vec<SymbolHandle>,
+    parameters: &[StateParameter],
+    aliases: &[(String, SymbolHandle, ParameterRelativeFrameOrigin)],
+    remaining_computed_depth: usize,
+) -> bool {
+    let ExpressionNode::ArrayLiteral(elements) = program.expression_table.expression(expression)
+    else {
+        return false;
+    };
+    program
+        .expression_table
+        .expression_handles(*elements)
+        .iter()
+        .all(|element| {
+            if !expression_is_effectful_for_transparent_result(program, *element) {
+                return true;
+            }
+            match program.expression_table.expression(*element) {
+                ExpressionNode::Call(_) => value_call_assignment_preserves_transparent_result(
+                    program,
+                    current_machine,
+                    *element,
+                    symbols,
+                    active_states,
+                    parameters,
+                    aliases,
+                ),
+                ExpressionNode::Binary(_)
+                | ExpressionNode::Cast(_)
+                | ExpressionNode::Indexed(_)
+                | ExpressionNode::Member(_)
+                | ExpressionNode::Unary(_)
+                    if remaining_computed_depth > 0 =>
+                {
+                    primitive_computed_value_preserves_transparent_result(
+                        program,
+                        current_machine,
+                        *element,
+                        symbols,
+                        active_states,
+                        parameters,
+                        aliases,
+                        remaining_computed_depth,
+                        false,
+                    )
+                }
+                _ => false,
+            }
+        })
 }
 
 /// Admit one named concrete literal directly below a primitive member
