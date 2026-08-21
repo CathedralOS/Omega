@@ -32,6 +32,11 @@ fn outgoing_stack_address_is_compiler_function_boundary_mechanics() {
             stack_byte_offset: 32,
             value: 1,
         },
+        TargetOperationKind::CopyEntryIndirectU64ToOutgoingStack {
+            source_register: omega_calling_conventions::MachineRegister::X86Rcx,
+            source_byte_offset: 0,
+            stack_byte_offset: 32,
+        },
         TargetOperationKind::LoadOutgoingStackAddress {
             register: omega_calling_conventions::MachineRegister::X86Rdx,
             stack_byte_offset: 48,
