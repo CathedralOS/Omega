@@ -1781,7 +1781,11 @@ constructs their conjunction, and introduces that ordered disjunct; either
 missing premise or redirected operand identity rejects. A retained
 `divisor <= -1` may also pair with an independently landed nonminimum dividend
 literal; closed order and exact equality substitution prove its dividend-floor
-premise. A minimum or wrong-identity landing rejects. A signed `i1` divisor
+premise. A minimum or wrong-identity landing rejects. Exact literal equalities
+retained as machine requirements use the same complete substitution path and
+are cited as assumptions rather than semantic axioms. The selector checks every
+same-carrier equality; zero-only, minimum-dividend, mistyped, or redirected
+premises reject. A signed `i1` divisor
 fact alone remains
 insufficient because the canonical conjunction also needs its dividend premise.
 The complete retained-bound `i1` family selects that conjunction when exact

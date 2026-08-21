@@ -364,7 +364,11 @@ two premises with conjunction introduction before disjunction introduction;
 missing or redirected operands reject. A retained `divisor <= -1` may also pair
 with an independently landed nonminimum dividend literal: closed integer order
 and exact equality substitution prove the dividend floor. A minimum or
-wrong-identity landing rejects. A signed `i1` divisor
+wrong-identity landing rejects. Exact literal equalities retained as machine
+requirements use the same complete substitution path and are cited as
+assumptions rather than semantic axioms. The selector examines every exact
+same-carrier equality; zero-only, minimum-dividend, mistyped, or redirected
+premises reject. A signed `i1` divisor
 fact alone cannot prove its two-premise conjunction. When exact prior
 `divisor <= -1` and `0 <= dividend` propositions are both independently
 retained, the complete `i1` family cites them and constructs that conjunction;

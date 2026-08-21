@@ -505,6 +505,116 @@ mod tests {
     }
 
     #[test]
+    fn exact_division_goal_composes_literal_equality_requirements() {
+        let unsigned = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        let unsigned_divisor = value(2, unsigned);
+        let unsigned_goal = Proposition::LessOrEqual(
+            ScalarTerm::integer(unsigned, IntegerValue::Unsigned(1)).expect("u8 one"),
+            unsigned_divisor.clone(),
+        );
+        let unsigned_proof = prove_canonical_integer_proposition(
+            &two_value_context(unsigned),
+            &unsigned_goal,
+            &[Proposition::Equal(
+                unsigned_divisor,
+                ScalarTerm::integer(unsigned, IntegerValue::Unsigned(5)).expect("safe u8 divisor"),
+            )],
+            &[],
+        )
+        .expect("literal equality requirement proves unsigned definedness");
+        let ProofRule::IntegerLessOrEqualSubstitution {
+            equality, endpoint, ..
+        } = unsigned_proof.rule
+        else {
+            panic!("unsigned literal requirement uses equality substitution")
+        };
+        assert_eq!(endpoint, 1);
+        assert!(matches!(equality.rule, ProofRule::Assumption { index: 0 }));
+        assert!(
+            prove_canonical_integer_proposition(
+                &two_value_context(unsigned),
+                &unsigned_goal,
+                &[Proposition::Equal(
+                    value(2, unsigned),
+                    ScalarTerm::integer(unsigned, IntegerValue::Unsigned(0))
+                        .expect("zero u8 divisor"),
+                )],
+                &[],
+            )
+            .is_none(),
+            "zero equality requirement cannot prove unsigned definedness",
+        );
+        assert!(
+            prove_canonical_integer_proposition(
+                &two_value_context(unsigned),
+                &unsigned_goal,
+                &[Proposition::Equal(
+                    value(1, unsigned),
+                    ScalarTerm::integer(unsigned, IntegerValue::Unsigned(5))
+                        .expect("redirected u8 divisor"),
+                )],
+                &[],
+            )
+            .is_none(),
+            "wrong-operand equality requirement cannot prove unsigned definedness",
+        );
+
+        let signed = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+        let signed_dividend = value(1, signed);
+        let signed_divisor = value(2, signed);
+        let signed_goal = Proposition::Disjunction(vec![
+            Proposition::LessOrEqual(signed_divisor.clone(), integer(signed, -2)),
+            Proposition::LessOrEqual(integer(signed, 1), signed_divisor.clone()),
+            Proposition::Conjunction(vec![
+                Proposition::LessOrEqual(signed_divisor.clone(), integer(signed, -1)),
+                Proposition::LessOrEqual(integer(signed, -127), signed_dividend.clone()),
+            ]),
+        ]);
+        let signed_proof = prove_canonical_integer_proposition(
+            &two_value_context(signed),
+            &signed_goal,
+            &[
+                Proposition::LessOrEqual(signed_divisor, integer(signed, -1)),
+                Proposition::Equal(signed_dividend, integer(signed, -7)),
+            ],
+            &[],
+        )
+        .expect("runtime negative bound and dividend requirement prove the joint arm");
+        let ProofRule::DisjunctionIntroduction { disjunct, index } = signed_proof.rule else {
+            panic!("mixed requirement evidence selects the canonical joint arm")
+        };
+        assert_eq!(index, 2);
+        let ProofRule::ConjunctionIntroduction(conjuncts) = disjunct.rule else {
+            panic!("mixed requirement evidence proves both joint premises")
+        };
+        assert!(matches!(
+            conjuncts[0].rule,
+            ProofRule::Assumption { index: 0 }
+        ));
+        let ProofRule::IntegerLessOrEqualSubstitution { equality, .. } = &conjuncts[1].rule else {
+            panic!("dividend requirement proves its floor by substitution")
+        };
+        assert!(matches!(equality.rule, ProofRule::Assumption { index: 1 }));
+        assert!(
+            prove_canonical_integer_proposition(
+                &two_value_context(signed),
+                &signed_goal,
+                &[
+                    Proposition::LessOrEqual(value(2, signed), integer(signed, -1)),
+                    Proposition::Equal(
+                        value(1, signed),
+                        ScalarTerm::integer(signed, signed.minimum_value())
+                            .expect("minimum i8 dividend"),
+                    ),
+                ],
+                &[],
+            )
+            .is_none(),
+            "minimum dividend equality cannot prove the joint arm",
+        );
+    }
+
+    #[test]
     fn exact_division_goal_composes_complete_prior_fact_proofs() {
         let unsigned = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
         let unsigned_divisor = value(2, unsigned);
