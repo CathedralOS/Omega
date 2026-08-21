@@ -23,6 +23,7 @@ mod program_storage_root_authority;
 mod program_storage_source_call;
 mod program_storage_wrapper;
 mod program_storage_wrapper_body;
+mod program_storage_wrapper_evidence;
 mod program_storage_wrapper_frame;
 mod project;
 mod provider_approval;
@@ -116,6 +117,7 @@ pub use program_storage_wrapper::{
 pub use program_storage_wrapper_body::{
     ProgramStorageEntryWrapperBodyTemplatePlan, ProgramStorageEntryWrapperBodyTemplateStep,
 };
+pub use program_storage_wrapper_evidence::ProgramStorageEntryEmittedWrapperEvidence;
 pub use program_storage_wrapper_frame::{
     ProgramStorageEntryWrapperCallerFrameError, ProgramStorageEntryWrapperCallerFramePlan,
     ProgramStorageEntryWrapperCallerFrameStep, plan_program_storage_entry_wrapper_caller_frame,

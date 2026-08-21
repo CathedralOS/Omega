@@ -604,6 +604,55 @@ fn program_storage_entry_manifest_json(
     } else {
         output.push_str("null");
     }
+    output.push_str(",\n    \"emitted_wrapper_evidence\": ");
+    if let Some(evidence) = bridge.emitted_wrapper_evidence() {
+        output.push_str("{\"wrapper_symbol\": ");
+        push_json_string(&mut output, evidence.wrapper_symbol());
+        output.push_str(", \"wrapper_section_offset\": ");
+        output.push_str(&evidence.wrapper_section_offset().to_string());
+        output.push_str(", \"wrapper_address\": \"");
+        push_normalized_identity(&mut output, evidence.wrapper_address());
+        output.push_str("\", \"wrapper_byte_count\": ");
+        output.push_str(&evidence.wrapper_byte_count().to_string());
+        output.push_str(", \"wrapper_byte_fingerprint\": \"");
+        push_normalized_identity(&mut output, evidence.wrapper_byte_fingerprint());
+        output.push_str("\", \"continuation_symbol\": ");
+        push_json_string(&mut output, evidence.continuation_symbol());
+        output.push_str(", \"continuation_section_offset\": ");
+        output.push_str(&evidence.continuation_section_offset().to_string());
+        output.push_str(", \"continuation_address\": \"");
+        push_normalized_identity(&mut output, evidence.continuation_address());
+        output.push_str("\", \"continuation_byte_count\": ");
+        output.push_str(&evidence.continuation_byte_count().to_string());
+        output.push_str(", \"continuation_byte_fingerprint\": \"");
+        push_normalized_identity(&mut output, evidence.continuation_byte_fingerprint());
+        output.push_str("\", \"call_section_offset\": ");
+        output.push_str(&evidence.call_section_offset().to_string());
+        output.push_str(", \"final_call_bytes\": [");
+        for (index, byte) in evidence.final_call_bytes().iter().enumerate() {
+            if index > 0 {
+                output.push_str(", ");
+            }
+            output.push_str(&byte.to_string());
+        }
+        output.push_str("], \"compiler_text_derivation_fingerprint\": \"");
+        push_normalized_identity(
+            &mut output,
+            evidence.compiler_text_validation().derivation_fingerprint,
+        );
+        output.push_str("\", \"compiler_function_validation_fingerprint\": \"");
+        push_normalized_identity(
+            &mut output,
+            evidence
+                .compiler_function_validation()
+                .evidence_fingerprint(),
+        );
+        output.push_str("\", \"executable_inventory_fingerprint\": \"");
+        push_normalized_identity(&mut output, evidence.executable_inventory_fingerprint());
+        output.push_str("\"}");
+    } else {
+        output.push_str("null");
+    }
     output.push_str("\n  }");
     output.push_str(
         ",\n  \"runtime_installation\": {\n    \"status\": \"required\",\n    \"geometry_source\": \"selected_entry_provider\",\n    \"predicate\": \"no_wrap\",\n    \"admission_order\": \"validate_geometry_and_receiver_reservation_before_consuming_either_grant\"\n  }\n}\n",
