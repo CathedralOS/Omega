@@ -19,6 +19,14 @@ pub struct CheckedMachineContractRefinement {
     pub selected_actual_fingerprint: u64,
 }
 
+/// Exact evaluated boundary-entry plan selected for a nominal callback use.
+/// The target-owned plan remains outside Psi; this identity is the fail-closed
+/// join key used by later thunk placement.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CheckedCallbackPlacementIdentity {
+    pub boundary_calling_plan_fingerprint: u64,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedNominalMachineUse {
     pub site: NominalMachineUseSite,
@@ -31,6 +39,9 @@ pub struct CheckedNominalMachineUse {
     pub canonical_requirement_overload: String,
     pub published_requirement_envelope: CheckedMachineContractEnvelopeIdentity,
     pub selected_actual_envelope: CheckedMachineContractEnvelopeIdentity,
+    /// Present only when the nominal requirement owns an evaluated boundary
+    /// calling plan. Ordinary nominal machine parameters are not callbacks.
+    pub callback_placement: Option<CheckedCallbackPlacementIdentity>,
     /// Receipt for the callable-refinement judgment already discharged by
     /// static-machine admission. The endpoints remain explicit so consumers
     /// never infer the relationship merely from two nearby identities.
@@ -55,6 +66,15 @@ impl NominalMachineUseFacts {
                 || nominal_use.selected_actual_envelope.contract_fingerprint == 0
             {
                 return Err("nominal machine use retained an empty envelope identity".to_owned());
+            }
+            if nominal_use
+                .callback_placement
+                .is_some_and(|placement| placement.boundary_calling_plan_fingerprint == 0)
+            {
+                return Err(
+                    "nominal callback use retained an empty boundary calling-plan identity"
+                        .to_owned(),
+                );
             }
             if nominal_use.refinement.published_requirement_fingerprint
                 != nominal_use
@@ -119,6 +139,7 @@ mod tests {
             selected_actual_envelope: CheckedMachineContractEnvelopeIdentity {
                 contract_fingerprint: 8,
             },
+            callback_placement: None,
             refinement: CheckedMachineContractRefinement {
                 published_requirement_fingerprint: 7,
                 selected_actual_fingerprint: 8,
@@ -157,5 +178,18 @@ mod tests {
             .expect_err("a refinement receipt cannot cite a different endpoint");
 
         assert!(message.contains("does not bind its envelope identities"));
+    }
+
+    #[test]
+    fn callback_placement_identity_must_be_nonzero() {
+        let mut row = nominal_use(3);
+        row.callback_placement = Some(CheckedCallbackPlacementIdentity {
+            boundary_calling_plan_fingerprint: 0,
+        });
+
+        let message = NominalMachineUseFacts::try_with_uses([row])
+            .expect_err("an empty target-plan join key must fail closed");
+
+        assert!(message.contains("empty boundary calling-plan identity"));
     }
 }

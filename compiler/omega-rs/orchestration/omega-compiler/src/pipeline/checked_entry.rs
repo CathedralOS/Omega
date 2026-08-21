@@ -120,7 +120,7 @@ fn compile_to_checked_inner(
         &plan_laid_records,
         &placed_view_records,
     )?;
-    let _boundary_calling_plan_realizations =
+    let boundary_calling_plan_realizations =
         crate::pipeline::calling_policy_plans::compute_boundary_calling_plans(&mut typed)?;
     let computed_build_config =
         crate::pipeline::build_config::compute_build_config(&typed, &build_file_machine_names)?;
@@ -171,6 +171,10 @@ fn compile_to_checked_inner(
     )
     .map_err(|reason| vec![Diagnostic::error(reason)])?;
     let mut checked = typed_trees_to_checked_trees(typed, &mut timings)?;
+    crate::pipeline::calling_policy_plans::validate_nominal_callback_placement_bindings(
+        &checked.program,
+        &boundary_calling_plan_realizations,
+    )?;
     let checked_program = Arc::get_mut(&mut checked.program)
         .expect("checked program must be uniquely owned before engine handoff");
     let selected_provider_plan_facts =

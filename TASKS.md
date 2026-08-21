@@ -1268,9 +1268,18 @@ Owners:
   yet the narrower realized actual envelope: effective service reach and
   invocation, transitive suspension/blocking, checked termination/crash, and
   later mutation/capability/resource ceilings remain independent facts. The
+  checked row now also retains an optional nonzero evaluated boundary-calling
+  plan fingerprint. Ordinary nominal binders retain no callback placement;
+  boundary callback uses gain the exact join key that target lowering must use
+  to recover its already-evaluated `BoundaryEntryPlan`, without exposing a
+  runtime code address. Both check-only and native orchestration immediately
+  consume that key, revalidate the retained target plan, and reject missing,
+  duplicate, invalid, or fingerprint-drifted realizations before backend
+  lowering. The
   remaining envelope slice must aggregate those per-axis published/actual rows
   without relabeling a declared fingerprint as inferred behavior. Also
-  remaining are target thunk placement, registration leases/unregister,
+  remaining are emission of that joined target thunk and private relocation,
+  registration leases/unregister,
   and cross-target registered-callback canaries.
 - Implement the narrow Windows `user32` canary without exposing a raw code
   address. Derive `Atomic::interruption_fence` same-context evidence from the

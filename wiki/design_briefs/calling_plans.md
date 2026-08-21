@@ -580,7 +580,13 @@ fixed point repeats admission after cloning so a forwarded generic selection
 receives its own durable call-site row. Exact repeated observations collapse;
 conflicting identities for one site and ordinal reject. Structural machine
 parameters deliberately produce no nominal-use row. Published/actual envelope
-projection, refinement evidence, and target placement remain later slices.
+projection and refinement evidence are described below. Callback uses now also
+retain the nonzero fingerprint of their exact evaluated boundary calling plan;
+ordinary nominal uses retain no callback placement. This is the target-owned
+plan join key, not a source-visible address. Check-only and native orchestration
+consume it before handoff, revalidate the retained plan, and require one exact
+trait/requirement/fingerprint realization. Emitting the validated thunk and
+its private relocation remains a later lowering slice.
 
 The identity row additionally pins two separate normalized public-contract
 endpoints: the callback requirement capsule and the selected machine's declared

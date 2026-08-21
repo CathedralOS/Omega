@@ -447,8 +447,10 @@ Current ownership is:
   The monomorphization fixed point captures newly concrete forwarded uses after
   each cloning round. Exact duplicate observations collapse, a conflicting row
   at one key rejects, and structural selections do not enter this nominal
-  table. Callback envelope/refinement and thunk-placement plans are not yet
-  fields of this identity slice.
+  table. When the exact nominal requirement owns an evaluated boundary calling
+  plan, the row also retains its nonzero fingerprint as the target-placement
+  join key. Ordinary nominal selections retain no callback placement; the
+  target-owned plan and emitted thunk remain outside checked Psi.
   The row now also joins the requirement capsule's normalized contract
   fingerprint to the selected machine's normalized declared contract
   fingerprint and retains an explicit admission-refinement receipt over those
