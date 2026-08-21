@@ -6,10 +6,11 @@
 //! populate registers or stack, emit a call edge, or claim native execution.
 
 use super::{
-    ProgramEntrySourceReceiverSignature, ProgramStorageEntryContinuationReceiverAbiPlan,
-    ProgramStorageEntryDiagnostic, ProgramStorageEntryNativeBridgePlan,
+    InstalledProgramStorageRoots, ProgramEntrySourceReceiverSignature,
+    ProgramStorageEntryContinuationReceiverAbiPlan, ProgramStorageEntryDiagnostic,
+    ProgramStorageEntryNativeBridgePlan, ProgramStorageEntryRootAuthorityDisposition,
     ProgramStorageEntryRootRole, ProgramStorageEntryWholeRootAuthority,
-    ProgramStorageEntryWrapperReceiverTransfer,
+    ProgramStorageEntryWrapperReceiverTransfer, RecordedProgramStorageInstallation,
 };
 use omega_calling_conventions::{ValuePlacement, ValueShape};
 use psi_extents::Extent;
@@ -118,17 +119,104 @@ pub fn bind_program_storage_entry_whole_root_arguments(
     }
 }
 
+/// Join one completed installation directly to its exact receiver-free
+/// continuation ABI without allowing callers to bypass any ownership stage.
+///
+/// Every check that can reject an ordinary input runs against a borrow first,
+/// so that rejection returns the intact recorded installation. The staged
+/// recovery carrier exists for fail-closed invariant failures after ownership
+/// begins moving; it always retains the highest successfully constructed
+/// authority carrier.
+pub fn bind_recorded_program_storage_entry_whole_root_arguments(
+    installation: RecordedProgramStorageInstallation,
+    bridge: &ProgramStorageEntryNativeBridgePlan,
+) -> Result<
+    ProgramStorageEntryWholeRootArgumentCarrier,
+    ProgramStorageEntryRecordedWholeRootArgumentError,
+> {
+    if let Err(diagnostic) = validate_recorded_whole_root_arguments(&installation, bridge) {
+        return Err(ProgramStorageEntryRecordedWholeRootArgumentError {
+            diagnostic,
+            recovery: ProgramStorageEntryRecordedWholeRootArgumentRecovery::RecordedInstallation(
+                installation,
+            ),
+        });
+    }
+
+    let roots = installation.into_roots().map_err(|error| {
+        let diagnostic = error.diagnostic().clone();
+        ProgramStorageEntryRecordedWholeRootArgumentError {
+            diagnostic,
+            recovery: ProgramStorageEntryRecordedWholeRootArgumentRecovery::RecordedInstallation(
+                error.into_installation(),
+            ),
+        }
+    })?;
+    let disposition = roots.into_root_authority_disposition().map_err(|error| {
+        let diagnostic = error.diagnostic().clone();
+        ProgramStorageEntryRecordedWholeRootArgumentError {
+            diagnostic,
+            recovery: ProgramStorageEntryRecordedWholeRootArgumentRecovery::InstalledRoots(
+                error.into_roots(),
+            ),
+        }
+    })?;
+    let authority = disposition
+        .try_into_receiver_free_whole_roots()
+        .map_err(|error| {
+            let diagnostic = error.diagnostic().clone();
+            ProgramStorageEntryRecordedWholeRootArgumentError {
+                diagnostic,
+                recovery:
+                    ProgramStorageEntryRecordedWholeRootArgumentRecovery::RootAuthorityDisposition(
+                        error.into_disposition(),
+                    ),
+            }
+        })?;
+    bind_program_storage_entry_whole_root_arguments(authority, bridge).map_err(|error| {
+        let diagnostic = error.diagnostic().clone();
+        ProgramStorageEntryRecordedWholeRootArgumentError {
+            diagnostic,
+            recovery: ProgramStorageEntryRecordedWholeRootArgumentRecovery::WholeRootAuthority(
+                error.into_authority(),
+            ),
+        }
+    })
+}
+
+fn validate_recorded_whole_root_arguments(
+    installation: &RecordedProgramStorageInstallation,
+    bridge: &ProgramStorageEntryNativeBridgePlan,
+) -> Result<(), ProgramStorageEntryDiagnostic> {
+    let roots = installation.roots();
+    super::program_storage_root_authority::validate_root_authority_disposition(roots)?;
+    if roots.receiver_storage().is_some() || roots.initial_storage().is_none() {
+        return Err(ProgramStorageEntryDiagnostic(
+            "attached program storage cannot bind the receiver-free whole-root argument carrier"
+                .into(),
+        ));
+    }
+    validate_whole_root_binding(roots.binding(), bridge).map(|_| ())
+}
+
 fn validate_whole_root_arguments(
     authority: &ProgramStorageEntryWholeRootAuthority,
     bridge: &ProgramStorageEntryNativeBridgePlan,
 ) -> Result<[ProgramStorageEntryWholeRootArgumentBinding; 2], ProgramStorageEntryDiagnostic> {
-    if authority.binding() != bridge.binding() {
+    validate_whole_root_binding(authority.binding(), bridge)
+}
+
+fn validate_whole_root_binding(
+    binding: &super::ProgramStorageEntryPlanBinding,
+    bridge: &ProgramStorageEntryNativeBridgePlan,
+) -> Result<[ProgramStorageEntryWholeRootArgumentBinding; 2], ProgramStorageEntryDiagnostic> {
+    if binding != bridge.binding() {
         return Err(ProgramStorageEntryDiagnostic(
             "whole root authority does not belong to this exact program-storage bridge binding"
                 .into(),
         ));
     }
-    if authority.binding().receiver().is_some() {
+    if binding.receiver().is_some() {
         return Err(ProgramStorageEntryDiagnostic(
             "attached program storage cannot bind the receiver-free whole-root argument carrier"
                 .into(),
@@ -192,17 +280,14 @@ fn validate_whole_root_arguments(
     let rows = [
         (
             ProgramStorageEntryRootRole::Image,
-            authority.binding().image().parameter_type_identity(),
+            binding.image().parameter_type_identity(),
             image_source,
             image_abi,
             image_transfer,
         ),
         (
             ProgramStorageEntryRootRole::InitialStorage,
-            authority
-                .binding()
-                .initial_storage()
-                .parameter_type_identity(),
+            binding.initial_storage().parameter_type_identity(),
             storage_source,
             storage_abi,
             storage_transfer,
@@ -267,3 +352,37 @@ impl std::fmt::Display for ProgramStorageEntryWholeRootArgumentError {
 }
 
 impl std::error::Error for ProgramStorageEntryWholeRootArgumentError {}
+
+/// Highest valid owned carrier retained by a failed recorded-installation
+/// transition.
+#[derive(Debug)]
+pub enum ProgramStorageEntryRecordedWholeRootArgumentRecovery {
+    RecordedInstallation(RecordedProgramStorageInstallation),
+    InstalledRoots(InstalledProgramStorageRoots),
+    RootAuthorityDisposition(ProgramStorageEntryRootAuthorityDisposition),
+    WholeRootAuthority(ProgramStorageEntryWholeRootAuthority),
+}
+
+#[derive(Debug)]
+pub struct ProgramStorageEntryRecordedWholeRootArgumentError {
+    diagnostic: ProgramStorageEntryDiagnostic,
+    recovery: ProgramStorageEntryRecordedWholeRootArgumentRecovery,
+}
+
+impl ProgramStorageEntryRecordedWholeRootArgumentError {
+    pub const fn diagnostic(&self) -> &ProgramStorageEntryDiagnostic {
+        &self.diagnostic
+    }
+
+    pub fn into_recovery(self) -> ProgramStorageEntryRecordedWholeRootArgumentRecovery {
+        self.recovery
+    }
+}
+
+impl std::fmt::Display for ProgramStorageEntryRecordedWholeRootArgumentError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Display::fmt(&self.diagnostic, formatter)
+    }
+}
+
+impl std::error::Error for ProgramStorageEntryRecordedWholeRootArgumentError {}

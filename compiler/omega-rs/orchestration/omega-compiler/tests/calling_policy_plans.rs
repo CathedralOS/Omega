@@ -4,10 +4,12 @@ use omega_calling_conventions::{
 };
 use omega_compiler::{
     CompileOptions, PROGRAM_STORAGE_INSTALLATION_ARTIFACT, ProgramStorageEntryBridgeError,
-    ProgramStorageEntryInitialStorageAuthorityKind, ProgramStorageInstallationHandoffError,
+    ProgramStorageEntryInitialStorageAuthorityKind,
+    ProgramStorageEntryRecordedWholeRootArgumentRecovery, ProgramStorageInstallationHandoffError,
     ProgramStorageRootInput, SelectedExternalRootProviderPlan, SelectedProgramStorageEntryPlan,
     bind_emitted_program_storage_entry_native_bridge, bind_program_storage_entry_plan,
-    bind_program_storage_entry_whole_root_arguments, compile, compile_to_checked,
+    bind_program_storage_entry_whole_root_arguments,
+    bind_recorded_program_storage_entry_whole_root_arguments, compile, compile_to_checked,
     evaluate_calling_policy_plan, install_program_storage_entry_provider_invocation,
     install_program_storage_entry_roots, program_storage_installation_record_json,
     selected_external_root_entry_fact_bindings, selected_external_root_provider_plan,
@@ -1205,7 +1207,20 @@ fn program_storage_entry_publishes_both_core_owned_root_positions() {
     };
     assert!(bad_mapping.diagnostic().0.contains("exactly cover"));
     assert_eq!(bad_mapping_receiver, [0xa5; 8]);
-    let _retained_installation = bad_mapping.into_installation();
+    let retained_installation = bad_mapping.into_installation();
+    let attached = bind_recorded_program_storage_entry_whole_root_arguments(
+        retained_installation,
+        &physical_bridge,
+    )
+    .expect_err("an attached installation cannot enter the receiver-free argument carrier");
+    assert!(attached.diagnostic().0.contains("attached program storage"));
+    let ProgramStorageEntryRecordedWholeRootArgumentRecovery::RecordedInstallation(
+        retained_installation,
+    ) = attached.into_recovery()
+    else {
+        panic!("borrowed attached preflight must return the intact recorded installation")
+    };
+    assert!(retained_installation.roots().receiver_storage().is_some());
 
     let mut physical_receiver = [0xa5; 8];
     let expected_continuation = physical_bridge.continuation_key();
@@ -1533,22 +1548,49 @@ machine build(builder: &mut Build) {
         bridge.continuation_abi().expect("source ABI").receiver(),
         omega_compiler::ProgramStorageEntryContinuationReceiverAbiPlan::Free
     ));
-    let installed = install_program_storage_entry_roots(
+    let installation = install_program_storage_entry_roots(
         &build_dir,
         bridge.binding().clone(),
         compiler_root_input(701, 0x1000, 0x800),
         compiler_root_input(702, 0x8000, 0x2000),
     )
-    .expect("install exact receiver-free roots")
-    .into_roots()
-    .expect("receiver-free roots require no activation");
-    let authority = installed
-        .into_root_authority_disposition()
-        .expect("exact whole-root disposition")
-        .try_into_receiver_free_whole_roots()
-        .expect("receiver-free whole roots");
-    let carrier = bind_program_storage_entry_whole_root_arguments(authority, &bridge)
-        .expect("exact authority/ABI join");
+    .expect("install exact receiver-free roots");
+    let alternate_source = fs::read_to_string(directory.join("main.omg"))
+        .expect("read receiver-free source")
+        .replace("Boot::launch(", "Boot::alternate(");
+    fs::write(directory.join("main.omg"), alternate_source)
+        .expect("write alternate receiver-free source");
+    let alternate_build = fs::read_to_string(directory.join("build.omg"))
+        .expect("read receiver-free build root")
+        .replace("Boot::launch", "Boot::alternate");
+    fs::write(directory.join("build.omg"), alternate_build)
+        .expect("write alternate receiver-free build root");
+    let other_bridge = compile(CompileOptions {
+        root_path: directory.join("main.omg"),
+        build_dir: Some(directory.join("alternate-build")),
+        target_name: Some("uefi_x64".into()),
+        write_output: false,
+    })
+    .expect("alternate receiver-free UEFI entry should compile")
+    .program_storage_entry_bridge
+    .expect("alternate receiver-free UEFI entry bridge");
+    let wrong_bridge =
+        bind_recorded_program_storage_entry_whole_root_arguments(installation, &other_bridge)
+            .expect_err("a recorded installation cannot bind another selected entry");
+    assert!(
+        wrong_bridge
+            .diagnostic()
+            .0
+            .contains("exact program-storage bridge binding")
+    );
+    let ProgramStorageEntryRecordedWholeRootArgumentRecovery::RecordedInstallation(installation) =
+        wrong_bridge.into_recovery()
+    else {
+        panic!("borrowed ABI preflight must return the intact recorded installation")
+    };
+    assert_eq!(installation.installation_record().image().base(), 0x1000);
+    let carrier = bind_recorded_program_storage_entry_whole_root_arguments(installation, &bridge)
+        .expect("the same recorded installation should retry against its exact bridge");
     let [image, initial_storage] = carrier.arguments();
     assert_eq!(
         image.role(),
