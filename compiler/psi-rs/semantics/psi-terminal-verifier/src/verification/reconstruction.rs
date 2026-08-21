@@ -1446,5 +1446,39 @@ mod tests {
                 Proposition::Equal(value(3, signed), value(2, signed)),
             ],
         ));
+        let signed_divisor_bound = Proposition::LessOrEqual(
+            value(2, signed),
+            ScalarTerm::integer(signed, IntegerValue::Signed(-1)).expect("i8 -1"),
+        );
+        let intermediate_dividend_bound = Proposition::LessOrEqual(
+            ScalarTerm::integer(signed, IntegerValue::Signed(-127)).expect("i8 minimum + 1"),
+            value(3, signed),
+        );
+        assert!(exact_division_has_closed_prior_certificate(
+            &signed_goal,
+            &[],
+            &[
+                signed_divisor_bound.clone(),
+                intermediate_dividend_bound.clone(),
+                Proposition::Equal(value(3, signed), value(1, signed)),
+            ],
+        ));
+        assert!(!exact_division_has_closed_prior_certificate(
+            &signed_goal,
+            &[],
+            &[
+                intermediate_dividend_bound.clone(),
+                Proposition::Equal(value(3, signed), value(1, signed)),
+            ],
+        ));
+        assert!(!exact_division_has_closed_prior_certificate(
+            &signed_goal,
+            &[],
+            &[
+                signed_divisor_bound,
+                intermediate_dividend_bound,
+                Proposition::Equal(value(3, signed), value(2, signed)),
+            ],
+        ));
     }
 }

@@ -715,6 +715,55 @@ mod tests {
         assert_eq!(endpoint, 0);
         assert!(matches!(relation.rule, ProofRule::Assumption { index: 0 }));
         assert!(matches!(equality.rule, ProofRule::Assumption { index: 1 }));
+
+        let dividend_transport_proof = prove_canonical_integer_proposition(
+            &signed_context,
+            &signed_goal,
+            &[
+                Proposition::LessOrEqual(value(2, signed), integer(signed, -1)),
+                Proposition::LessOrEqual(integer(signed, -127), value(3, signed)),
+                Proposition::Equal(value(3, signed), value(1, signed)),
+            ],
+            &[],
+        )
+        .expect("exact intermediate floor transports to the signed dividend");
+        let ProofRule::DisjunctionIntroduction { disjunct, index } = dividend_transport_proof.rule
+        else {
+            panic!("dividend endpoint transport selects the canonical joint arm")
+        };
+        assert_eq!(index, 2);
+        let ProofRule::ConjunctionIntroduction(conjuncts) = disjunct.rule else {
+            panic!("dividend endpoint transport proves both joint premises")
+        };
+        assert!(matches!(
+            conjuncts[0].rule,
+            ProofRule::Assumption { index: 0 }
+        ));
+        let ProofRule::IntegerLessOrEqualSubstitution {
+            relation,
+            equality,
+            endpoint,
+        } = &conjuncts[1].rule
+        else {
+            panic!("dividend floor uses integer-order substitution")
+        };
+        assert_eq!(*endpoint, 1);
+        assert!(matches!(relation.rule, ProofRule::Assumption { index: 1 }));
+        assert!(matches!(equality.rule, ProofRule::Assumption { index: 2 }));
+        assert!(
+            prove_canonical_integer_proposition(
+                &signed_context,
+                &signed_goal,
+                &[
+                    Proposition::LessOrEqual(value(2, signed), integer(signed, -1)),
+                    Proposition::LessOrEqual(integer(signed, -127), value(3, signed)),
+                    Proposition::Equal(value(3, signed), value(2, signed)),
+                ],
+                &[],
+            )
+            .is_none(),
+            "redirected equality cannot transport the dividend floor",
+        );
     }
 
     #[test]
