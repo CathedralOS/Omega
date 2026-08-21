@@ -113,7 +113,7 @@ pub(super) fn lower_unit_structural_types(
                 }
                 let field_type = match &field.field_type {
                     CheckedUnitStructuralFieldType::Scalar(primitive) => {
-                        StructuralFieldType::Scalar(terminal_scalar_type(*primitive)?)
+                        terminal_structural_field_type(*primitive)?
                     }
                     CheckedUnitStructuralFieldType::Structural { type_identity } => {
                         StructuralFieldType::Structural(lookup_type_id(&type_ids, type_identity)?)

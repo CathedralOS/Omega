@@ -2,6 +2,16 @@
 
 use super::*;
 
+pub(super) fn terminal_structural_field_type(
+    primitive: PrimitiveType,
+) -> Result<StructuralFieldType, LoweringError> {
+    Ok(match primitive {
+        PrimitiveType::F32 => StructuralFieldType::IeeeFloat(IeeeFloatFormat::Binary32),
+        PrimitiveType::F64 => StructuralFieldType::IeeeFloat(IeeeFloatFormat::Binary64),
+        primitive => StructuralFieldType::Scalar(terminal_scalar_type(primitive)?),
+    })
+}
+
 pub(super) fn retain_additional_structural_types(
     module: &mut TerminalModule,
     plans: &[CheckedUnitStructuralTypePlan],
@@ -117,7 +127,7 @@ pub(super) fn retain_additional_structural_types(
                         }
                         let field_type = match &field.field_type {
                             CheckedUnitStructuralFieldType::Scalar(primitive) => {
-                                StructuralFieldType::Scalar(terminal_scalar_type(*primitive)?)
+                                terminal_structural_field_type(*primitive)?
                             }
                             CheckedUnitStructuralFieldType::Structural { type_identity } => {
                                 StructuralFieldType::Structural(lookup_type_id(
@@ -204,7 +214,7 @@ pub(super) fn lower_structural_type_plans(
                     }
                     let field_type = match &field.field_type {
                         CheckedUnitStructuralFieldType::Scalar(primitive) => {
-                            StructuralFieldType::Scalar(terminal_scalar_type(*primitive)?)
+                            terminal_structural_field_type(*primitive)?
                         }
                         CheckedUnitStructuralFieldType::Structural { type_identity } => {
                             StructuralFieldType::Structural(lookup_type_id(

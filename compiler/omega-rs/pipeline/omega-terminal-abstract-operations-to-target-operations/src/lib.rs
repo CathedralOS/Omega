@@ -24,8 +24,8 @@ use omega_terminal_target_operations::{
     TerminalTargetStructuralParameter, TerminalTargetUnitBody, TerminalTargetUnitOperation,
 };
 use psi_core::{
-    BlockId, BoundaryMachineId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId,
-    OperationId, PlaceId, ScalarType, StructuralFieldId, StructuralTypeId, ValueId,
+    BlockId, BoundaryMachineId, EdgeId, IeeeFloatFormat, IntegerSign, IntegerType, IntegerValue,
+    MachineId, OperationId, PlaceId, ScalarType, StructuralFieldId, StructuralTypeId, ValueId,
 };
 use psi_terminal::{
     StructuralFieldType, StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
@@ -2790,6 +2790,12 @@ fn structural_shape(
                             let field_alignment = size.next_power_of_two().min(16);
                             ValueShape::integer(size, field_alignment)
                         }
+                        StructuralFieldType::IeeeFloat(IeeeFloatFormat::Binary32) => {
+                            ValueShape::float(4)
+                        }
+                        StructuralFieldType::IeeeFloat(IeeeFloatFormat::Binary64) => {
+                            ValueShape::float(8)
+                        }
                         StructuralFieldType::Structural(nested) => {
                             structural_shape(*nested, declarations, cache, active)?
                         }
@@ -2864,6 +2870,8 @@ fn direct_boolean_field_offset(
                 let size = integer.bits().div_ceil(8);
                 ValueShape::integer(size, size.next_power_of_two().min(16))
             }
+            StructuralFieldType::IeeeFloat(IeeeFloatFormat::Binary32) => ValueShape::float(4),
+            StructuralFieldType::IeeeFloat(IeeeFloatFormat::Binary64) => ValueShape::float(8),
             StructuralFieldType::Structural(nested) => {
                 structural_shape(nested, declarations, &mut cache, &mut active)?
             }
@@ -2917,6 +2925,8 @@ fn resolve_structural_field_path(
                     let size = integer.bits().div_ceil(8);
                     ValueShape::integer(size, size.next_power_of_two().min(16))
                 }
+                StructuralFieldType::IeeeFloat(IeeeFloatFormat::Binary32) => ValueShape::float(4),
+                StructuralFieldType::IeeeFloat(IeeeFloatFormat::Binary64) => ValueShape::float(8),
                 StructuralFieldType::Structural(nested) => {
                     structural_shape(nested, declarations, cache, active)?
                 }

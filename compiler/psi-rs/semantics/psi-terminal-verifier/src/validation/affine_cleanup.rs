@@ -366,7 +366,9 @@ pub(super) fn bounded_nominal_cleanup_receiver_shape(shape: &StructuralTypeShape
                     matches!(integer.bits(), 8 | 16 | 32 | 64)
                         && (!integer.is_address() || integer.bits() == 64)
                 }
-                StructuralFieldType::Structural(_) | StructuralFieldType::Erased { .. } => false,
+                StructuralFieldType::IeeeFloat(_)
+                | StructuralFieldType::Structural(_)
+                | StructuralFieldType::Erased { .. } => false,
             }
     })
 }

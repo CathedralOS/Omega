@@ -527,7 +527,7 @@
   ((schemas SESchemas) (module SEModule)) RLedger
   (match module
     ((SEModule vocabulary entry types services machines)
-      (if (if (eq vocabulary 18) (eq entry 1) 0)
+      (if (if (eq vocabulary 19) (eq entry 1) 0)
         (if (if (se_exact_type_shape types) (se_exact_service_shape services) 0)
           (build_structural_effect_machine_rows schemas machines)
           RLedgerBad)

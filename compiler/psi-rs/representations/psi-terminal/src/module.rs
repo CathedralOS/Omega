@@ -1,8 +1,8 @@
 use psi_core::{
     BlockId, BoundaryMachineId, ClaimId, ContentAlgebra, ContentConservation,
     ContentProjectionIdentity, ContentStructuralPlace, ContentTerm, ContractId, EdgeId,
-    EvidenceTermId, IntegerValue, MachineId, ObligationId, OperationId, PlaceId, Proposition,
-    ScalarType, ServiceId, StructuralDomainId, StructuralFieldId, StructuralPlaceKind,
+    EvidenceTermId, IeeeFloatFormat, IntegerValue, MachineId, ObligationId, OperationId, PlaceId,
+    Proposition, ScalarType, ServiceId, StructuralDomainId, StructuralFieldId, StructuralPlaceKind,
     StructuralTypeId, ValueId,
 };
 use psi_language_core::BindingRelevance;
@@ -26,7 +26,7 @@ impl VocabularyMarker {
     }
 
     pub const fn get(self) -> u16 {
-        18
+        19
     }
 }
 
@@ -231,6 +231,9 @@ pub struct StructuralFieldDeclaration {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum StructuralFieldType {
     Scalar(ScalarType),
+    /// Relevant IEEE leaf retained for structural identity and predicates,
+    /// without claiming general Terminal scalar execution support.
+    IeeeFloat(IeeeFloatFormat),
     Structural(StructuralTypeId),
     /// Exact semantic type identity for an erased field whose carrier need not
     /// belong to the executable structural/layout vocabulary.

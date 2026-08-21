@@ -33,7 +33,10 @@ pub(super) fn validate_contract_scope(
     clause: ContractClauseKind,
 ) -> Result<(), ModuleError> {
     match proposition {
-        Proposition::Truth | Proposition::Falsehood | Proposition::Atom(_) => Ok(()),
+        Proposition::Truth
+        | Proposition::Falsehood
+        | Proposition::Atom(_)
+        | Proposition::IeeeFloatEqual { .. } => Ok(()),
         Proposition::Equal(left, right)
         | Proposition::LessThan(left, right)
         | Proposition::LessOrEqual(left, right) => {

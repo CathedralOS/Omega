@@ -2414,6 +2414,12 @@ fn replay_structural_field_shape(
             let size = integer.bits().div_ceil(8);
             Some(ValueShape::integer(size, size.next_power_of_two().min(16)))
         }
+        psi_terminal::StructuralFieldType::IeeeFloat(psi_core::IeeeFloatFormat::Binary32) => {
+            Some(ValueShape::float(4))
+        }
+        psi_terminal::StructuralFieldType::IeeeFloat(psi_core::IeeeFloatFormat::Binary64) => {
+            Some(ValueShape::float(8))
+        }
         psi_terminal::StructuralFieldType::Structural(nested) => {
             replay_structural_shape(*nested, declarations, cache, active)
         }

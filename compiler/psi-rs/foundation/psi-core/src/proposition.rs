@@ -834,6 +834,51 @@ pub enum CanonicalStructuralPathSegment {
     FixedIndex(u64),
 }
 
+/// Exact IEEE interchange format retained by target-neutral structural
+/// predicates. This is deliberately separate from [`ScalarType`]: the current
+/// Terminal execution vocabulary does not claim general floating-point scalar
+/// evaluation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum IeeeFloatFormat {
+    Binary32,
+    Binary64,
+}
+
+/// One nonempty canonical path to a relevant IEEE floating-point field below
+/// a Terminal structural root.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct IeeeFloatStructuralField {
+    root: PlaceId,
+    path: Vec<CanonicalStructuralPathSegment>,
+}
+
+impl IeeeFloatStructuralField {
+    pub fn new(
+        root: PlaceId,
+        path: Vec<CanonicalStructuralPathSegment>,
+    ) -> Result<Self, PropositionError> {
+        if path.is_empty() {
+            return Err(PropositionError::EmptyIeeeFloatStructuralFieldPath);
+        }
+        Ok(Self { root, path })
+    }
+
+    pub const fn root(&self) -> PlaceId {
+        self.root
+    }
+
+    pub fn path(&self) -> &[CanonicalStructuralPathSegment] {
+        &self.path
+    }
+
+    pub fn rebase(&self, root: PlaceId, prefix: &[CanonicalStructuralPathSegment]) -> Self {
+        let mut path = Vec::with_capacity(prefix.len() + self.path.len());
+        path.extend_from_slice(prefix);
+        path.extend_from_slice(&self.path);
+        Self { root, path }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ScalarTerm {
     Value {
@@ -2267,6 +2312,14 @@ pub enum Proposition {
     Equal(ScalarTerm, ScalarTerm),
     LessThan(ScalarTerm, ScalarTerm),
     LessOrEqual(ScalarTerm, ScalarTerm),
+    /// IEEE `==` over two exact structural leaves. This remains atomic rather
+    /// than using mathematical equality: NaNs are non-reflexive while signed
+    /// zeroes compare equal under the source operator.
+    IeeeFloatEqual {
+        format: IeeeFloatFormat,
+        left: IeeeFloatStructuralField,
+        right: IeeeFloatStructuralField,
+    },
     Conjunction(Vec<Proposition>),
     Disjunction(Vec<Proposition>),
     Implication {
@@ -2287,6 +2340,15 @@ impl Proposition {
             Self::Equal(left, right) => require_same_type(left, right),
             Self::LessThan(left, right) | Self::LessOrEqual(left, right) => {
                 require_same_integer_type(left, right)
+            }
+            Self::IeeeFloatEqual { left, right, .. } => {
+                if left.path.is_empty() || right.path.is_empty() {
+                    return Err(PropositionError::EmptyIeeeFloatStructuralFieldPath);
+                }
+                if left > right {
+                    return Err(PropositionError::NonCanonicalIeeeFloatEqualityOperands);
+                }
+                Ok(())
             }
             Self::Conjunction(conjuncts) => {
                 if conjuncts.len() < 2 {
@@ -2384,6 +2446,14 @@ impl PropositionContext {
             | Proposition::LessOrEqual(left, right) => {
                 self.validate_term(left)?;
                 self.validate_term(right)
+            }
+            Proposition::IeeeFloatEqual { left, right, .. } => {
+                for field in [left, right] {
+                    if !self.structural_places.contains_key(&field.root) {
+                        return Err(PropositionError::UnknownStructuralPlace(field.root));
+                    }
+                }
+                Ok(())
             }
             Proposition::Conjunction(propositions) | Proposition::Disjunction(propositions) => {
                 for proposition in propositions {
@@ -2632,6 +2702,8 @@ pub enum PropositionError {
     OrderedComparisonRequiresIntegers(ScalarType),
     NonCanonicalConjunctionArity(usize),
     NonCanonicalDisjunctionArity(usize),
+    EmptyIeeeFloatStructuralFieldPath,
+    NonCanonicalIeeeFloatEqualityOperands,
     EmptyContentAlgebraParameter,
     EmptyContentCaseName,
     EmptyContentFieldName,

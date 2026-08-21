@@ -27,6 +27,15 @@ pub(crate) fn substitute_proposition_values(
             substitute_scalar_term_values(left, substitutions),
             substitute_scalar_term_values(right, substitutions),
         ),
+        Proposition::IeeeFloatEqual {
+            format,
+            left,
+            right,
+        } => Proposition::IeeeFloatEqual {
+            format: *format,
+            left: left.clone(),
+            right: right.clone(),
+        },
         Proposition::Conjunction(conjuncts) => Proposition::Conjunction(
             conjuncts
                 .iter()
@@ -83,6 +92,23 @@ pub(crate) fn substitute_proposition_structural_places(
             substitute_scalar_term_places(left, substitutions),
             substitute_scalar_term_places(right, substitutions),
         ),
+        Proposition::IeeeFloatEqual {
+            format,
+            left,
+            right,
+        } => {
+            let rebase = |field: &psi_core::IeeeFloatStructuralField| {
+                substitutions
+                    .get(&field.root())
+                    .map(|(root, prefix)| field.rebase(*root, prefix))
+                    .unwrap_or_else(|| field.clone())
+            };
+            Proposition::IeeeFloatEqual {
+                format: *format,
+                left: rebase(left),
+                right: rebase(right),
+            }
+        }
         Proposition::Conjunction(conjuncts) => Proposition::Conjunction(
             conjuncts
                 .iter()

@@ -165,6 +165,53 @@ fn validate_boolean_field_terms(
     proposition: &Proposition,
     runtime_requirements: &[Proposition],
 ) -> Result<(), ModuleError> {
+    fn structural_leaf_type<'module>(
+        module: &'module TerminalModule,
+        machine: &TerminalMachine,
+        root: PlaceId,
+        path: &[CanonicalStructuralPathSegment],
+    ) -> Option<&'module StructuralFieldType> {
+        let mut structural_type = machine
+            .structural_parameters
+            .iter()
+            .find(|parameter| parameter.place == root)?
+            .structural_type;
+        if path.is_empty() {
+            return None;
+        }
+        for (index, segment) in path.iter().enumerate() {
+            let declaration = module
+                .structural_types
+                .iter()
+                .find(|declaration| declaration.id == structural_type)?;
+            let is_last = index + 1 == path.len();
+            match (segment, &declaration.shape) {
+                (
+                    CanonicalStructuralPathSegment::Field(field_id),
+                    StructuralTypeShape::Record { fields },
+                ) => {
+                    let field = fields
+                        .iter()
+                        .find(|candidate| candidate.id == *field_id)
+                        .filter(|field| !field.relevance.is_erased())?;
+                    if is_last {
+                        return Some(&field.field_type);
+                    }
+                    let StructuralFieldType::Structural(next) = field.field_type else {
+                        return None;
+                    };
+                    structural_type = next;
+                }
+                (
+                    CanonicalStructuralPathSegment::FixedIndex(fixed_index),
+                    StructuralTypeShape::FixedArray { element, length },
+                ) if !is_last && *fixed_index < *length => structural_type = *element,
+                _ => return None,
+            }
+        }
+        None
+    }
+
     fn validate_term(
         module: &TerminalModule,
         machine: &TerminalMachine,
@@ -381,70 +428,10 @@ fn validate_boolean_field_terms(
 
         match term {
             ScalarTerm::BooleanField { root, path } => {
-                let mut structural_type = machine
-                    .structural_parameters
-                    .iter()
-                    .find(|parameter| parameter.place == *root)
-                    .map(|parameter| parameter.structural_type);
-                let mut valid = !path.is_empty();
-                for (index, segment) in path.iter().enumerate() {
-                    let Some(current_type) = structural_type else {
-                        valid = false;
-                        break;
-                    };
-                    let is_last = index + 1 == path.len();
-                    match segment {
-                        CanonicalStructuralPathSegment::Field(field_id) => {
-                            let field = module
-                                .structural_types
-                                .iter()
-                                .find(|declaration| declaration.id == current_type)
-                                .and_then(|declaration| match &declaration.shape {
-                                    StructuralTypeShape::Record { fields } => {
-                                        fields.iter().find(|candidate| candidate.id == *field_id)
-                                    }
-                                    StructuralTypeShape::FixedArray { .. } => None,
-                                });
-                            let Some(field) = field.filter(|field| !field.relevance.is_erased())
-                            else {
-                                valid = false;
-                                break;
-                            };
-                            match (&field.field_type, is_last) {
-                                (StructuralFieldType::Structural(next), false) => {
-                                    structural_type = Some(*next);
-                                }
-                                (StructuralFieldType::Scalar(ScalarType::Boolean), true) => {
-                                    structural_type = None;
-                                }
-                                _ => {
-                                    valid = false;
-                                    break;
-                                }
-                            }
-                        }
-                        CanonicalStructuralPathSegment::FixedIndex(fixed_index) => {
-                            let element = module
-                                .structural_types
-                                .iter()
-                                .find(|declaration| declaration.id == current_type)
-                                .and_then(|declaration| match declaration.shape {
-                                    StructuralTypeShape::FixedArray { element, length }
-                                        if *fixed_index < length =>
-                                    {
-                                        Some(element)
-                                    }
-                                    _ => None,
-                                });
-                            let Some(element) = element.filter(|_| !is_last) else {
-                                valid = false;
-                                break;
-                            };
-                            structural_type = Some(element);
-                        }
-                    }
-                }
-                if !valid {
+                if !matches!(
+                    structural_leaf_type(module, machine, *root, path),
+                    Some(StructuralFieldType::Scalar(ScalarType::Boolean))
+                ) {
                     return Err(ModuleError::InvalidBooleanFieldTerm {
                         machine: machine.id,
                         root: *root,
@@ -457,73 +444,11 @@ fn validate_boolean_field_terms(
                 path,
                 scalar_type,
             } => {
-                let mut structural_type = machine
-                    .structural_parameters
-                    .iter()
-                    .find(|parameter| parameter.place == *root)
-                    .map(|parameter| parameter.structural_type);
-                let mut valid = !path.is_empty();
-                for (index, segment) in path.iter().enumerate() {
-                    let Some(current_type) = structural_type else {
-                        valid = false;
-                        break;
-                    };
-                    let is_last = index + 1 == path.len();
-                    match segment {
-                        CanonicalStructuralPathSegment::Field(field_id) => {
-                            let field = module
-                                .structural_types
-                                .iter()
-                                .find(|declaration| declaration.id == current_type)
-                                .and_then(|declaration| match &declaration.shape {
-                                    StructuralTypeShape::Record { fields } => {
-                                        fields.iter().find(|candidate| candidate.id == *field_id)
-                                    }
-                                    StructuralTypeShape::FixedArray { .. } => None,
-                                });
-                            let Some(field) = field.filter(|field| !field.relevance.is_erased())
-                            else {
-                                valid = false;
-                                break;
-                            };
-                            match (&field.field_type, is_last) {
-                                (StructuralFieldType::Structural(next), false) => {
-                                    structural_type = Some(*next);
-                                }
-                                (
-                                    StructuralFieldType::Scalar(ScalarType::Integer(actual)),
-                                    true,
-                                ) if actual == scalar_type => {
-                                    structural_type = None;
-                                }
-                                _ => {
-                                    valid = false;
-                                    break;
-                                }
-                            }
-                        }
-                        CanonicalStructuralPathSegment::FixedIndex(fixed_index) => {
-                            let element = module
-                                .structural_types
-                                .iter()
-                                .find(|declaration| declaration.id == current_type)
-                                .and_then(|declaration| match declaration.shape {
-                                    StructuralTypeShape::FixedArray { element, length }
-                                        if *fixed_index < length =>
-                                    {
-                                        Some(element)
-                                    }
-                                    _ => None,
-                                });
-                            let Some(element) = element.filter(|_| !is_last) else {
-                                valid = false;
-                                break;
-                            };
-                            structural_type = Some(element);
-                        }
-                    }
-                }
-                if !valid {
+                if !matches!(
+                    structural_leaf_type(module, machine, *root, path),
+                    Some(StructuralFieldType::Scalar(ScalarType::Integer(actual)))
+                        if actual == scalar_type
+                ) {
                     return Err(ModuleError::InvalidIntegerFieldTerm {
                         machine: machine.id,
                         root: *root,
@@ -652,6 +577,25 @@ fn validate_boolean_field_terms(
         | Proposition::LessOrEqual(left, right) => {
             validate_term(module, machine, left, runtime_requirements)?;
             validate_term(module, machine, right, runtime_requirements)?;
+        }
+        Proposition::IeeeFloatEqual {
+            format,
+            left,
+            right,
+        } => {
+            for field in [left, right] {
+                if !matches!(
+                    structural_leaf_type(module, machine, field.root(), field.path()),
+                    Some(StructuralFieldType::IeeeFloat(actual)) if actual == format
+                ) {
+                    return Err(ModuleError::InvalidIeeeFloatFieldTerm {
+                        machine: machine.id,
+                        root: field.root(),
+                        path: field.path().to_vec(),
+                        format: *format,
+                    });
+                }
+            }
         }
         Proposition::Conjunction(propositions) | Proposition::Disjunction(propositions) => {
             for proposition in propositions {
