@@ -1230,15 +1230,35 @@ Remaining:
   `divisor <= -2` for signed widths of at least two. Unsigned certificates cite
   the goal directly; signed
   certificates cite the selected first or second disjunct and wrap it with
-  disjunction introduction. A signed `i1` divisor fact alone remains
+  disjunction introduction. The complete signed-width-at-least-two joint family
+  now selects the third canonical arm when both `divisor <= -1` and
+  `MIN + 1 <= dividend` are independently available through the supported exact
+  citation or checked transitivity paths. The producer proves each conjunct,
+  constructs their conjunction, and introduces only that ordered disjunct;
+  either missing premise or wrong operand identity rejects. The mixed member of
+  that family also accepts a retained `divisor <= -1` bound with an independently
+  landed nonminimum dividend literal. The producer derives the dividend floor
+  only by closed integer order plus substitution of that exact landing equality;
+  a minimum or wrong-identity landing rejects. A signed `i1`
+  divisor fact alone remains
   insufficient because its canonical conjunction also requires the dividend
-  premise. One-hop stronger retained safe-divisor facts are now complete too:
+  premise. The complete retained-bound `i1` family now selects that conjunction
+  when both exact prior propositions `divisor <= -1` and `0 <= dividend` are
+  independently present; the untrusted producer cites both and composes them
+  through conjunction introduction. A missing premise or wrong operand identity
+  rejects. One-hop stronger retained safe-divisor facts are now complete too:
   `K <= divisor` is accepted when closed same-carrier order proves `1 <= K`,
   and signed `divisor <= K` is accepted when it proves `K <= -2`. The verifier
   selects only the exact operand identity and the untrusted producer composes
   the canonical arm by integer-order transitivity before disjunction
   introduction. Missing, reversed, weakened, mistyped, or wrong-divisor facts
-  reject. The operation result is not available as proof authority. The current
+  reject. The next complete transitive family replaces the closed side of that
+  step with a second exact prior citation: `1 <= K` plus `K <= divisor`, or
+  signed `divisor <= K` plus `K <= -2`. Reconstruction requires the exact shared
+  middle term and operand identity; the producer cites both facts in deterministic
+  ledger order under one checked transitivity node. Missing, disconnected,
+  reversed, or redirected pairs reject. The operation result is not available
+  as proof authority. The current
   proof rules and proof-bundle v15 codec carry the certificates without a
   vocabulary change. All remaining
   exact divide/remainder families stay on trusted sufficient reduction, so
@@ -1497,12 +1517,17 @@ Remaining:
   split; exact host-service grant custody remains a separate authority task
   rather than being hidden inside the refactor.
   Target-neutral call validation has begun the same responsibility split. Its
-  former 9,103-line `calls.rs` parent is now 1,215 lines. Its 137-line
+  former 9,103-line `calls.rs` parent is now 1,065 lines. Its 137-line
   `calls/inline_assembly.rs` child owns shared-catalog lookup, source operand
   constraints, and value-producing intrinsic destination checks; the existing
   crate destination query and two parent-private validation seams are
-  unchanged. Runtime recursive-call
-  position checking lives in a 222-line `calls/recursion.rs` child; its
+  unchanged. A 112-line `calls/generic_bounds.rs` child owns bodyless-boundary
+  executable admission and positional machine type-parameter bound checking.
+  A separate 53-line `calls/result_use.rs` leaf owns strict non-Unit result
+  consumption and the proof-citation exemption. Both expose one parent-private
+  validation entry point and preserve existing diagnostics. Runtime
+  recursive-call position checking lives in a 222-line `calls/recursion.rs`
+  child; its
   943-line `recursion/proof_machines.rs` child owns proof-machine
   structural/cited decrease validation, substitution matching, guard
   provenance, and sub-state descent closure. The proof validator is its only
@@ -1518,7 +1543,7 @@ Remaining:
   unchanged; only type-shell normalization and unresolved-call reporting are
   shared privately back to per-call validation.
   Complete-or-opaque caller write-frame inference, alias-origin propagation,
-  and transition-cycle frame equations now form a 3,714-line
+  and transition-cycle frame equations now form a 3,299-line
   `calls/write_frames.rs` child. Its 459-line `write_frames/demand.rs` child
   owns the public resolver facade plus expression/statement demand collection
   and conservative fallback; a separate 123-line
@@ -1537,7 +1562,23 @@ Remaining:
   dependency. An 87-line `write_frames/state_paths.rs` leaf owns state-relative
   visibility, positional parameter-root normalization, exact symbol forwarding,
   and duplicate-free visible-path collection; it has no call- or
-  frame-resolution callback. The parent
+  frame-resolution callback. A 50-line `write_frames/type_capabilities.rs` leaf
+  owns constrained-reference recognition and the type/parameter classification
+  for carrying caller-visible writes, with no expression traversal or
+  resolution callback. A 194-line `write_frames/local_aliases.rs` leaf owns
+  canonical local-alias path rebasing, syntactic mutable-reborrow detection for
+  stable parameter/local bindings, and read-only reference-shaped replacement
+  classification; it neither infers origins nor mutates bindings or resolves
+  frames. A 114-line `write_frames/parameter_aliases.rs` leaf owns the narrow
+  parameter-relative origin carrier, exact symbol/name alias lookup, and
+  syntax-only transparent mutable-reborrow detection; recursive origin and call
+  analysis remain in the parent. An 85-line
+  `write_frames/transition_topology.rs` leaf owns named-edge target resolution
+  and acyclicity checking within one machine, without constructing or solving
+  frame equations. A 61-line `write_frames/assignment_targets.rs` leaf owns
+  declared target-type lookup and structural/effectful assignment-place shape
+  classification; it depends only on typed-place and syntactic-effect queries,
+  not alias mutation or frame resolution. The parent
   preserves the existing public and crate-private query surface;
   receiver-member-chain and resolved-state lookup remain the only top-level
   sibling seams. The frame engine privately reuses two demand collection
@@ -2345,6 +2386,17 @@ Remaining N6/N8 work:
   retained lift/define request remains deliberately non-executable until
   compiler-derived `RA`/`RR`, contract correspondence, positional arguments,
   and normalized result flow are independently certified.
+  The first relation-planning prerequisite is now implemented without granting
+  admission. A monomorphic request at the root of one state's result expression
+  derives a non-authoritative plan whose `RA` retains every operand: exact
+  quotient type and relation identity for quotient positions, and exact typed
+  equality for ordinary positions. `RR` retains the exact quotient result type
+  and relation. Untyped or adapted arguments and nonquotient results reject;
+  indexed relation applications wait for the fully instantiated representative
+  operation telescope rather than guessing binder applications from the
+  quotient type. Every request still rejects as non-executable until exact
+  correspondence, the selected `Respects` contract, and normalized result flow
+  are checked and retained in checked/terminal identity.
 - Suppress every synthesized representation observer on quotient formation.
   Add quotient-owned executable equality through an ordinary lifted operation
   with `DecidesEquivalence`; derive its `Respects` proof, and bind its optional
