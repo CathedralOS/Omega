@@ -316,6 +316,38 @@ fn checked_source_wrapping_divide_uses_known_nonzero_divisor() {
             .any(|evidence| evidence.obligation == obligation)
     );
 
+    let reconstructed =
+        psi_terminal_verifier::reconstruct_operation_obligations(&lowered.semantic_module)
+            .expect("wrapping-divide obligation reconstructs");
+    let site = reconstructed
+        .iter()
+        .find(|site| site.obligation.id == obligation)
+        .expect("wrapping-divide obligation is reconstructed");
+    let OperationKind::WrappingIntegerDivide { right, .. } = divide_operation.kind else {
+        unreachable!()
+    };
+    let u32_type = IntegerType::new(IntegerSign::Unsigned, 32).expect("u32");
+    assert_eq!(
+        site.obligation.proposition,
+        psi_core::Proposition::LessOrEqual(
+            psi_core::ScalarTerm::integer(u32_type, IntegerValue::Unsigned(1)).unwrap(),
+            psi_core::ScalarTerm::value(right, ScalarType::Integer(u32_type)),
+        )
+    );
+    let evidence = lowered
+        .proof_bundle
+        .evidence
+        .iter()
+        .find(|evidence| evidence.obligation == obligation)
+        .expect("wrapping-divide certificate exists");
+    let psi_proof_kernel::EvidenceRoute::CertificateDerived(certificate) = &evidence.route else {
+        panic!("wrapping divide must use a checked certificate")
+    };
+    assert!(matches!(
+        certificate.proof.rule,
+        psi_proof_kernel::ProofRule::IntegerLessOrEqualSubstitution { endpoint: 1, .. }
+    ));
+
     let semantic = encode_module(&lowered.semantic_module).expect("wrapping-divide semantics");
     let proof = encode_proof_bundle(&lowered.proof_bundle).expect("wrapping-divide proof");
     let module = decode_module(&semantic).expect("decode wrapping-divide semantics");
@@ -335,7 +367,34 @@ fn checked_source_wrapping_divide_uses_known_nonzero_divisor() {
             if missing == obligation
     ));
 
-    let u32_type = IntegerType::new(IntegerSign::Unsigned, 32).expect("u32");
+    let mut corrupt_divide_proof = decode_proof_bundle(&proof).expect("decode wrapping proof");
+    let corrupt = corrupt_divide_proof
+        .evidence
+        .iter_mut()
+        .find(|evidence| evidence.obligation == obligation)
+        .expect("wrapping-divide certificate exists");
+    let psi_proof_kernel::EvidenceRoute::CertificateDerived(certificate) = &mut corrupt.route
+    else {
+        panic!("wrapping divide must use a checked certificate")
+    };
+    let psi_proof_kernel::ProofRule::IntegerLessOrEqualSubstitution { endpoint, .. } =
+        &mut certificate.proof.rule
+    else {
+        panic!("known divisor uses literal equality substitution")
+    };
+    *endpoint = 0;
+    assert!(matches!(
+        verify_module(
+            &module,
+            &corrupt_divide_proof,
+            &AdmissionProfile::default()
+        ),
+        Err(psi_terminal_verifier::VerificationError::RejectedEvidence {
+            obligation: rejected,
+            ..
+        }) if rejected == obligation
+    ));
+
     let argument = |value| TerminalScalarValue::Integer {
         scalar_type: u32_type,
         value: IntegerValue::Unsigned(value),
@@ -383,6 +442,48 @@ fn checked_source_wrapping_divide_uses_known_nonzero_divisor() {
             build_terminal_object_artifact(&machine_code).expect("wrapping-divide host object");
         let entry = object.entry_function().bytes(&object);
         assert!(host_machine_code_with_two_u64_matches(entry, 505, 0, 101));
+    }
+}
+
+#[test]
+fn only_wrapping_divide_bypasses_legacy_divisor_reduction() {
+    let checked = compile_to_checked(&source_canary(), None)
+        .expect("known-divisor source canaries should compile");
+    for machine in [
+        "terminal_exact_divide_known_right",
+        "terminal_exact_remainder_known_right",
+        "terminal_wrapping_remainder_known_right",
+        "terminal_saturating_divide_known_right",
+        "terminal_saturating_remainder_known_right",
+    ] {
+        let lowered = lower_machine(&checked, machine)
+            .unwrap_or_else(|error| panic!("{machine} should lower: {error:?}"));
+        let obligation = lowered.semantic_module.machines[0]
+            .blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+            .find_map(|operation| match operation.kind {
+                OperationKind::ExactIntegerDivide { obligation, .. }
+                | OperationKind::ExactIntegerRemainder { obligation, .. }
+                | OperationKind::WrappingIntegerRemainder { obligation, .. }
+                | OperationKind::SaturatingIntegerDivide { obligation, .. }
+                | OperationKind::SaturatingIntegerRemainder { obligation, .. } => Some(obligation),
+                _ => None,
+            })
+            .expect("controlled operation owns an obligation");
+        let reconstructed =
+            psi_terminal_verifier::reconstruct_operation_obligations(&lowered.semantic_module)
+                .unwrap_or_else(|error| panic!("{machine} should reconstruct: {error:?}"));
+        assert_eq!(
+            reconstructed
+                .iter()
+                .find(|site| site.obligation.id == obligation)
+                .expect("operation obligation is reconstructed")
+                .obligation
+                .proposition,
+            psi_core::Proposition::Truth,
+            "{machine} remains on its literal-aware legacy reducer"
+        );
     }
 }
 
