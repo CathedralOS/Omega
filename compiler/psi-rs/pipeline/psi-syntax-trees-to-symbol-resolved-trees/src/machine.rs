@@ -67,12 +67,17 @@ pub(crate) fn lower_machine_into(
     // item parser refuses every other bodyless shape). Computed before the
     // push so the interner borrow does not overlap the machines borrow.
     let supply_mode = {
-        let via_rendering = syntax_trees
+        let via_binding = syntax_trees
             .items
             .satisfies_clauses(machine.satisfies)
             .iter()
             .find_map(|clause| clause.via.as_ref())
-            .map(|binding| binding.normalized_rendering());
+            .map(|binding| {
+                (
+                    binding.normalized_rendering(),
+                    external_binding_mechanism(binding),
+                )
+            });
         if machine.bodyless && machine.boundary {
             // A bodyless boundary declaration is ACCEPTED only when it
             // actually authors a fact. Claim-free symbols such as the
@@ -93,12 +98,13 @@ pub(crate) fn lower_machine_into(
             } else {
                 psi_language_semantics::MachineSupplyMode::Boundary
             }
-        } else if let (true, Some(rendering)) = (machine.bodyless, &via_rendering) {
+        } else if let (true, Some((rendering, mechanism))) = (machine.bodyless, &via_binding) {
             psi_language_semantics::MachineSupplyMode::ExternalRealization {
                 binding: lowerer
                     .symbol_resolved_trees
                     .external_bindings
                     .intern(rendering),
+                mechanism: *mechanism,
             }
         } else if machine.boundary {
             psi_language_semantics::MachineSupplyMode::Boundary
@@ -140,6 +146,22 @@ pub(crate) fn lower_machine_into(
         },
     });
     Ok(())
+}
+
+fn external_binding_mechanism(
+    binding: &syntax::item::ExternalBinding,
+) -> psi_language_semantics::ExternalBindingMechanism {
+    use psi_language_semantics::ExternalBindingMechanism;
+    use syntax::item::ExternalBinding;
+
+    match binding {
+        ExternalBinding::Syscall { .. } => ExternalBindingMechanism::Syscall,
+        ExternalBinding::DllImport { .. } => ExternalBindingMechanism::Import,
+        ExternalBinding::CompilerIntrinsic { .. } => ExternalBindingMechanism::CompilerIntrinsic,
+        ExternalBinding::VtableSlot { .. } => ExternalBindingMechanism::VtableSlot,
+        ExternalBinding::VtableField { .. } => ExternalBindingMechanism::VtableField,
+        ExternalBinding::TableFunction { .. } => ExternalBindingMechanism::TableFunction,
+    }
 }
 
 pub(crate) fn lower_generic_conformance_bounds(

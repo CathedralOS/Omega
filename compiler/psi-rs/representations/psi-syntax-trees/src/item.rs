@@ -54,39 +54,8 @@ pub struct ConstDefinition {
 }
 
 impl ExternalBinding {
-    /// Legacy bootstrap normalized rendering. This text currently crosses an
-    /// internal merge seam, but it is not destination semantic identity.
-    /// Nominal binding IDs and resolved realization symbols must replace both
-    /// rendering-based interning and reparsing.
-    /// The exact inverse of `normalized_rendering` (round-trip pinned):
-    /// the merge seam re-materializes a leaf's structured binding from the
-    /// interned rendering. `None` = unrecognized (refuses at extraction).
-    pub fn from_normalized_rendering(rendering: &str) -> Option<Self> {
-        let (case, rest) = rendering.split_once('(')?;
-        let payload = rest.strip_suffix(')')?;
-        match case {
-            "Syscall" => payload.parse().ok().map(|number| Self::Syscall { number }),
-            "VtableSlot" => payload.parse().ok().map(|index| Self::VtableSlot { index }),
-            "CompilerIntrinsic" => Some(Self::CompilerIntrinsic {
-                name: payload.to_owned(),
-            }),
-            "DllImport" => {
-                let (module, symbol) = payload.split_once(',')?;
-                Some(Self::DllImport {
-                    module: module.into(),
-                    symbol: symbol.into(),
-                })
-            }
-            "VtableField" => Some(Self::VtableField {
-                field: Identifier::generated(payload.to_owned()),
-            }),
-            "TableFunction" => Some(Self::TableFunction {
-                field: Identifier::generated(payload.to_owned()),
-            }),
-            _ => None,
-        }
-    }
-
+    /// Transitional normalized rendering used only while symbol resolution
+    /// interns the structured binding. No semantic consumer reparses this text.
     pub fn normalized_rendering(&self) -> String {
         match self {
             Self::Syscall { number } => format!("Syscall({number})"),
@@ -138,24 +107,6 @@ pub enum ExternalBinding {
 impl Default for ExternalBinding {
     fn default() -> Self {
         Self::Syscall { number: 0 }
-    }
-}
-
-#[cfg(test)]
-mod external_binding_tests {
-    use super::ExternalBinding;
-
-    #[test]
-    fn compiler_intrinsic_normalized_rendering_round_trips() {
-        let binding = ExternalBinding::CompilerIntrinsic {
-            name: "Console::write_byte".to_owned(),
-        };
-        let rendering = binding.normalized_rendering();
-        assert_eq!(rendering, "CompilerIntrinsic(Console::write_byte)");
-        assert_eq!(
-            ExternalBinding::from_normalized_rendering(&rendering),
-            Some(binding)
-        );
     }
 }
 

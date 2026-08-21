@@ -153,6 +153,7 @@ fn snapshots_normalized_machine_supply_including_external_binding_identity() {
         name: Identifier::generated("leaf"),
         supply_mode: psi_language_semantics::MachineSupplyMode::ExternalRealization {
             binding: psi_language_semantics::ExternalBindingId(17),
+            mechanism: psi_language_semantics::ExternalBindingMechanism::CompilerIntrinsic,
         },
         ..Machine::default()
     });
@@ -164,7 +165,10 @@ fn snapshots_normalized_machine_supply_including_external_binding_identity() {
     );
     assert_eq!(
         snapshot.roots.machines[1].supply,
-        MachineSupplySnapshot::ExternalRealization { binding: 17 }
+        MachineSupplySnapshot::ExternalRealization {
+            binding: 17,
+            mechanism: "compiler_intrinsic"
+        }
     );
     let json = snapshot.to_json_pretty().expect("snapshot JSON");
     assert!(json.contains("\"kind\": \"external_realization\""));

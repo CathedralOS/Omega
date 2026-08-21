@@ -182,19 +182,19 @@ pub(crate) fn validate_external_leaf_native_shapes(
         .iter()
         .filter(|conformance| conformance.via.is_some())
     {
-        // Bootstrap text classification only. Compiler intrinsics are not
+        // Compiler intrinsics are not
         // foreign ABI leaves: they select a
         // compiler-owned lowering whose safe carrier semantics are already
         // part of the target plan. In particular, Console::read_line may
         // retain its checked mutable-slice surface while the lowering derives
         // the concrete owned destination's capacity and live-length write.
-        // The nominal-binding migration replaces this prefix check with the
-        // structured binding kind retained beside the exact realization.
-        if conformance
-            .via
-            .as_deref()
-            .is_some_and(|binding| binding.starts_with("CompilerIntrinsic("))
-        {
+        if matches!(
+            machine.supply_mode,
+            psi_language_semantics::MachineSupplyMode::ExternalRealization {
+                mechanism: psi_language_semantics::ExternalBindingMechanism::CompilerIntrinsic,
+                ..
+            }
+        ) {
             continue;
         }
         let Some(trait_definition) = trait_definition_by_symbol(program, conformance.symbol) else {

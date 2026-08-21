@@ -1161,7 +1161,8 @@ pub fn contract_fingerprint(
         // below so two leaves with different bindings differ.
         MachineSupplyMode::ExternalRealization { .. } => 5,
     });
-    if let MachineSupplyMode::ExternalRealization { binding } = supply_mode {
+    if let MachineSupplyMode::ExternalRealization { binding, mechanism } = supply_mode {
+        fold(mechanism.identity_tag());
         for byte in binding.0.to_le_bytes() {
             fold(byte);
         }
@@ -1503,6 +1504,32 @@ mod tests {
         assert_ne!(neither, suspending);
         assert_ne!(neither, blocking);
         assert_ne!(suspending, blocking);
+    }
+
+    #[test]
+    fn external_binding_mechanism_participates_in_contract_identity() {
+        let fingerprint = |mechanism| {
+            contract_fingerprint(
+                MachineSupplyMode::ExternalRealization {
+                    binding: psi_language_semantics::ExternalBindingId(1),
+                    mechanism,
+                },
+                &[],
+                SynchronousInvocationInterface::PublishedCeiling,
+                &[],
+                SuspensionInterface::PublishedMaySuspend(false),
+                BlockingInterface::PublishedMayBlock(false),
+                &CrashPlan::default(),
+                &TerminationInterface::Published(TerminationGuarantee::NoGuarantee),
+                &[],
+            )
+        };
+
+        assert_ne!(
+            fingerprint(psi_language_semantics::ExternalBindingMechanism::CompilerIntrinsic),
+            fingerprint(psi_language_semantics::ExternalBindingMechanism::Import),
+            "one per-program binding ordinal must not collapse distinct mechanisms"
+        );
     }
 
     #[test]
