@@ -129,11 +129,14 @@ fn reject_quotient_operation_requests(program: &TypedTrees, diagnostics: &mut Ve
                     direct_terminal_requests.push(*expression);
                 }
                 let operation = operation_name(request.kind);
-                match relation_plan::derive_direct_terminal_plan(program, machine, state, call) {
+                match relation_plan::derive_direct_terminal_plan(
+                    program, machine, state, call, request,
+                ) {
                     Ok(plan) => diagnostics.push(Diagnostic::error(format!(
-                        "`Quotient::{operation}` has compiler-derived direct-terminal relations {} and {}, but executable quotient operations are not admitted until representative correspondence, the selected `Respects` contract, and normalized result flow are independently checked",
+                        "`Quotient::{operation}` has compiler-derived direct-terminal relations {} and {} plus exact representative telescope {}, but executable quotient operations are not admitted until positional correspondence, the selected `Respects` contract, and normalized result flow are independently checked",
                         plan.render_ra(program),
                         plan.render_rr(program),
+                        plan.render_representative_telescope(program),
                     ))),
                     Err(reason) => diagnostics.push(Diagnostic::error(format!(
                         "`Quotient::{operation}` retains its exact representative operation and named conformance, but its direct-terminal relation plan is unresolved ({reason}); executable quotient operations are not admitted",

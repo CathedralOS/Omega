@@ -4,10 +4,12 @@
 //! two quotients over one carrier cannot collapse. It grants no execution
 //! authority and deliberately refuses nested/adapted result flow.
 
+use psi_arena::HandleSpan;
 use psi_symbols::SymbolHandle;
 use psi_typed_trees::TypedTrees;
-use psi_typed_trees::expression::TableCallExpression;
+use psi_typed_trees::expression::{QuotientOperationRequest, TableCallExpression};
 use psi_typed_trees::machine::Machine;
+use psi_typed_trees::signature::SignatureContract;
 use psi_typed_trees::state::State;
 use psi_typed_trees::types::TypeReferenceHandle;
 use std::fmt;
@@ -33,6 +35,25 @@ pub(super) struct DirectTerminalRelationPlan {
     /// exact selected relation; ordinary positions use exact typed equality.
     pub(super) input_relations: Vec<InputRelation>,
     pub(super) result_relation: ExactQuotientRelation,
+    pub(super) representative: RepresentativeTelescope,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) struct RepresentativeRuntimeParameter {
+    pub(super) symbol: SymbolHandle,
+    pub(super) type_reference: TypeReferenceHandle,
+    pub(super) is_mutable: bool,
+    pub(super) is_self: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct RepresentativeTelescope {
+    pub(super) machine_symbol: SymbolHandle,
+    pub(super) state_symbol: SymbolHandle,
+    pub(super) parameters: Vec<RepresentativeRuntimeParameter>,
+    pub(super) return_type: TypeReferenceHandle,
+    pub(super) machine_contracts: HandleSpan<SignatureContract>,
+    pub(super) state_contracts: HandleSpan<SignatureContract>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -41,6 +62,9 @@ pub(super) enum RelationPlanError {
     UnresolvedInputRelationApplication(usize),
     ResultIsNotQuotient,
     UnresolvedResultRelationApplication,
+    RepresentativeEntryDoesNotResolveExactly,
+    RepresentativeApplicationRequiresSubstitution,
+    RepresentativeResultTypeIsUnresolved,
 }
 
 impl fmt::Display for RelationPlanError {
@@ -59,6 +83,15 @@ impl fmt::Display for RelationPlanError {
             Self::UnresolvedResultRelationApplication => formatter.write_str(
                 "the result quotient relation has an open binder application that requires the representative-operation result telescope",
             ),
+            Self::RepresentativeEntryDoesNotResolveExactly => formatter.write_str(
+                "the retained representative entry symbol does not resolve to exactly one machine state",
+            ),
+            Self::RepresentativeApplicationRequiresSubstitution => formatter.write_str(
+                "the representative operation has a generic/static application that requires exact telescope substitution",
+            ),
+            Self::RepresentativeResultTypeIsUnresolved => formatter.write_str(
+                "the representative operation has no exact result type",
+            ),
         }
     }
 }
@@ -68,6 +101,7 @@ pub(super) fn derive_direct_terminal_plan(
     machine: &Machine,
     state: &State,
     call: &TableCallExpression,
+    request: &QuotientOperationRequest,
 ) -> Result<DirectTerminalRelationPlan, RelationPlanError> {
     let mut input_relations = Vec::new();
     for (position, argument) in program
@@ -96,9 +130,61 @@ pub(super) fn derive_direct_terminal_plan(
             return Err(RelationPlanError::UnresolvedResultRelationApplication);
         }
     };
+    let representative = derive_representative_telescope(program, request)?;
     Ok(DirectTerminalRelationPlan {
         input_relations,
         result_relation,
+        representative,
+    })
+}
+
+fn derive_representative_telescope(
+    program: &TypedTrees,
+    request: &QuotientOperationRequest,
+) -> Result<RepresentativeTelescope, RelationPlanError> {
+    if request.representative_operation.application.is_some() {
+        return Err(RelationPlanError::RepresentativeApplicationRequiresSubstitution);
+    }
+    let mut matches = program.machines().iter().flat_map(|machine| {
+        program
+            .machine_states(machine)
+            .iter()
+            .filter(|state| state.symbol == request.representative_operation.symbol)
+            .map(move |state| (machine, state))
+    });
+    let Some((machine, state)) = matches.next() else {
+        return Err(RelationPlanError::RepresentativeEntryDoesNotResolveExactly);
+    };
+    if matches.next().is_some() {
+        return Err(RelationPlanError::RepresentativeEntryDoesNotResolveExactly);
+    }
+    if !program.machine_type_parameters(machine).is_empty() {
+        return Err(RelationPlanError::RepresentativeApplicationRequiresSubstitution);
+    }
+    if !state.return_type.is_valid() {
+        return Err(RelationPlanError::RepresentativeResultTypeIsUnresolved);
+    }
+    let parameters = program
+        .state_parameters(state)
+        .iter()
+        // This is only the RUNTIME telescope. Exact static/const argument
+        // correspondence remains a later obligation over the retained static
+        // application; filtering here does not discharge it.
+        .filter(|parameter| !parameter.is_const)
+        .map(|parameter| RepresentativeRuntimeParameter {
+            symbol: parameter.symbol,
+            type_reference: parameter.type_reference,
+            is_mutable: parameter.is_mutable,
+            is_self: parameter.is_self,
+        })
+        .collect();
+    Ok(RepresentativeTelescope {
+        machine_symbol: machine.symbol,
+        state_symbol: state.symbol,
+        parameters,
+        return_type: state.return_type,
+        machine_contracts: machine.contracts,
+        state_contracts: state.contracts,
     })
 }
 
@@ -168,6 +254,27 @@ impl DirectTerminalRelationPlan {
             relation_name(program, self.result_relation.relation_symbol)
         )
     }
+
+    pub(super) fn render_representative_telescope(&self, program: &TypedTrees) -> String {
+        let parameters = self
+            .representative
+            .parameters
+            .iter()
+            .map(|parameter| {
+                let receiver = if parameter.is_self { "self:" } else { "" };
+                format!(
+                    "{receiver}{}",
+                    program.display_type_reference_with_constraints(parameter.type_reference)
+                )
+            })
+            .collect::<Vec<_>>()
+            .join(", ");
+        format!(
+            "F#{}({parameters})->{}",
+            self.representative.state_symbol.arena_index(),
+            program.display_type_reference_with_constraints(self.representative.return_type),
+        )
+    }
 }
 
 fn relation_name(program: &TypedTrees, symbol: SymbolHandle) -> String {
@@ -181,14 +288,17 @@ fn relation_name(program: &TypedTrees, symbol: SymbolHandle) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{InputRelation, RelationPlanError, derive_direct_terminal_plan};
+    use super::{
+        InputRelation, RelationPlanError, derive_direct_terminal_plan,
+        derive_representative_telescope,
+    };
     use psi_arena::HandleSpan;
     use psi_symbols::SymbolHandle;
     use psi_typed_trees::TypedTrees;
     use psi_typed_trees::data::{DataDefinition, QuotientDefinition};
     use psi_typed_trees::expression::{
         ExpressionHandle, ExpressionNode, QuotientOperationKind, QuotientOperationRequest,
-        StaticMachineArgument, TableCallExpression, TableNamePath,
+        StaticMachineArgument, StaticSymbolApplication, TableCallExpression, TableNamePath,
     };
     use psi_typed_trees::machine::Machine;
     use psi_typed_trees::name::Identifier;
@@ -286,6 +396,52 @@ mod tests {
         }
     }
 
+    fn request_with_representative(symbol: SymbolHandle) -> QuotientOperationRequest {
+        let mut representative_operation = static_argument("representative");
+        representative_operation.symbol = symbol;
+        QuotientOperationRequest {
+            kind: QuotientOperationKind::Lift,
+            representative_operation,
+            respect_conformance: static_argument("ExactRespect"),
+        }
+    }
+
+    fn push_representative(
+        program: &mut TypedTrees,
+        parameters: &[(TypeReferenceHandle, bool, bool)],
+        return_type: TypeReferenceHandle,
+    ) -> QuotientOperationRequest {
+        let mut machine = Machine {
+            symbol: symbol(90),
+            name: Identifier::generated_static("representative"),
+            ..Default::default()
+        };
+        let mut state = State {
+            symbol: symbol(91),
+            name: Identifier::generated_static("entry"),
+            return_type,
+            ..Default::default()
+        };
+        for (position, (type_reference, is_self, is_const)) in parameters.iter().enumerate() {
+            program.push_state_parameter(
+                &mut state,
+                StateParameter {
+                    symbol: symbol(100 + u32::try_from(position).expect("test position")),
+                    name: Identifier::generated(format!("p{position}")),
+                    type_reference: *type_reference,
+                    is_self: *is_self,
+                    is_const: *is_const,
+                    ..Default::default()
+                },
+            );
+        }
+        program.push_machine_contract(&mut machine, Default::default());
+        program.push_state_contract(&mut state, Default::default());
+        program.push_machine_state(&mut machine, state);
+        program.push_machine(machine);
+        request_with_representative(symbol(91))
+    }
+
     #[test]
     fn direct_plan_retains_exact_input_and_result_quotient_identities() {
         let mut program = TypedTrees::default();
@@ -323,8 +479,17 @@ mod tests {
                 ..Default::default()
             },
         );
+        let request = push_representative(
+            &mut program,
+            &[
+                (ordinary_type, true, false),
+                (ordinary_type, false, false),
+                (ordinary_type, false, true),
+            ],
+            ordinary_type,
+        );
 
-        let plan = derive_direct_terminal_plan(&program, &machine, &state, &call)
+        let plan = derive_direct_terminal_plan(&program, &machine, &state, &call, &request)
             .expect("direct named operands and quotient result derive an exact plan");
 
         assert_eq!(plan.input_relations.len(), 2);
@@ -341,6 +506,14 @@ mod tests {
         assert_eq!(plan.result_relation.quotient_type, right_type);
         assert_eq!(plan.result_relation.quotient_symbol, symbol(3));
         assert_eq!(plan.result_relation.relation_symbol, symbol(4));
+        assert_eq!(plan.representative.machine_symbol, symbol(90));
+        assert_eq!(plan.representative.state_symbol, symbol(91));
+        assert_eq!(plan.representative.parameters.len(), 2);
+        assert!(plan.representative.parameters[0].is_self);
+        assert!(!plan.representative.parameters[1].is_self);
+        assert_eq!(plan.representative.return_type, ordinary_type);
+        assert_eq!(plan.representative.machine_contracts.count(), 1);
+        assert_eq!(plan.representative.state_contracts.count(), 1);
     }
 
     #[test]
@@ -360,7 +533,13 @@ mod tests {
         };
 
         assert_eq!(
-            derive_direct_terminal_plan(&program, &Machine::default(), &state, &call),
+            derive_direct_terminal_plan(
+                &program,
+                &Machine::default(),
+                &state,
+                &call,
+                &request_with_representative(SymbolHandle::invalid()),
+            ),
             Err(RelationPlanError::UnresolvedArgumentType(0))
         );
     }
@@ -379,7 +558,13 @@ mod tests {
         };
 
         assert_eq!(
-            derive_direct_terminal_plan(&program, &Machine::default(), &state, &call),
+            derive_direct_terminal_plan(
+                &program,
+                &Machine::default(),
+                &state,
+                &call,
+                &request_with_representative(SymbolHandle::invalid()),
+            ),
             Err(RelationPlanError::ResultIsNotQuotient)
         );
     }
@@ -423,8 +608,56 @@ mod tests {
         );
 
         assert_eq!(
-            derive_direct_terminal_plan(&program, &Machine::default(), &state, &call),
+            derive_direct_terminal_plan(
+                &program,
+                &Machine::default(),
+                &state,
+                &call,
+                &request_with_representative(SymbolHandle::invalid()),
+            ),
             Err(RelationPlanError::UnresolvedInputRelationApplication(0))
+        );
+    }
+
+    #[test]
+    fn representative_telescope_rejects_duplicate_state_identity_within_one_machine() {
+        let mut program = TypedTrees::default();
+        let result_type = program.type_reference_table.insert(TypeReferenceNode::Unit);
+        let mut machine = Machine {
+            symbol: symbol(90),
+            ..Default::default()
+        };
+        for _ in 0..2 {
+            program.push_machine_state(
+                &mut machine,
+                State {
+                    symbol: symbol(91),
+                    return_type: result_type,
+                    ..Default::default()
+                },
+            );
+        }
+        program.push_machine(machine);
+        let request = request_with_representative(symbol(91));
+
+        assert_eq!(
+            derive_representative_telescope(&program, &request),
+            Err(RelationPlanError::RepresentativeEntryDoesNotResolveExactly)
+        );
+    }
+
+    #[test]
+    fn representative_telescope_rejects_unsubstituted_static_application() {
+        let program = TypedTrees::default();
+        let mut request = request_with_representative(symbol(91));
+        request.representative_operation.application = Some(Box::new(StaticSymbolApplication {
+            lifetime_arguments: Box::default(),
+            arguments: Box::default(),
+        }));
+
+        assert_eq!(
+            derive_representative_telescope(&program, &request),
+            Err(RelationPlanError::RepresentativeApplicationRequiresSubstitution)
         );
     }
 
@@ -436,11 +669,11 @@ mod tests {
         let value = named_argument(&mut program, "value", value_symbol);
         let arguments = program.expression_table.insert_expression_handles([value]);
         let mut call = call_with_arguments(arguments);
-        call.quotient_operation = Some(QuotientOperationRequest {
-            kind: QuotientOperationKind::Define,
-            representative_operation: static_argument("representative"),
-            respect_conformance: static_argument("ExactRespect"),
-        });
+        let carrier_type = program.type_reference_table.insert(TypeReferenceNode::Unit);
+        let mut request =
+            push_representative(&mut program, &[(carrier_type, false, false)], carrier_type);
+        request.kind = QuotientOperationKind::Define;
+        call.quotient_operation = Some(request);
         let call = program.expression_table.insert(ExpressionNode::Call(call));
         let mut state = State {
             return_type: quotient_type,
