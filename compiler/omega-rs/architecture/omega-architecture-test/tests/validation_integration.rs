@@ -4844,17 +4844,19 @@ fn proves_inductive_theorem_via_recursive_contract_and_decrease() {
     // Ladder rung L7: the accumulator Gauss sum. The recursive arm assumes
     // the machine's own ensures for (n - 1, acc + n) -- justified by the
     // discharged strict decrease of `n` under the n > 0 guard -- and the base
-    // arm grounds `result := acc` under n == 0.
+    // arm grounds `result := acc` under n == 0. Wrapping is intentional: this
+    // is a polynomial ring identity over every u64 input, whereas the same
+    // universal Exact contract would make false global no-overflow claims.
     validate_contract_source(
         r#"
     data Main {
     }
 
     machine Main::main(&mut self) {
-        let total: u64 = self.gauss_sum(4, 0);
+        let total: u64 in Wrapping = self.gauss_sum(4, 0);
     }
 
-    machine Main::gauss_sum(&mut self, n: u64, acc: u64) -> u64
+    machine Main::gauss_sum(&mut self, n: u64 in Wrapping, acc: u64 in Wrapping) -> u64 in Wrapping
     terminates by n;
     ensures
         result * 2 == acc * 2 + n * (n + 1)
@@ -4879,10 +4881,10 @@ fn refutes_inductive_false_twin_on_the_base_arm() {
     }
 
     machine Main::main(&mut self) {
-        let total: u64 = self.gauss_sum(4, 0);
+        let total: u64 in Wrapping = self.gauss_sum(4, 0);
     }
 
-    machine Main::gauss_sum(&mut self, n: u64, acc: u64) -> u64
+    machine Main::gauss_sum(&mut self, n: u64 in Wrapping, acc: u64 in Wrapping) -> u64 in Wrapping
     terminates by n;
     ensures
         result * 2 == acc * 2 + n * (n + 1) + 1
@@ -4914,10 +4916,10 @@ fn rejects_inductive_step_false_twin_on_the_recursive_arm() {
     }
 
     machine Main::main(&mut self) {
-        let total: u64 = self.gauss_sum(4, 0);
+        let total: u64 in Wrapping = self.gauss_sum(4, 0);
     }
 
-    machine Main::gauss_sum(&mut self, n: u64, acc: u64) -> u64
+    machine Main::gauss_sum(&mut self, n: u64 in Wrapping, acc: u64 in Wrapping) -> u64 in Wrapping
     terminates by n;
     ensures
         result * 2 == acc * 2 + n * (n + 3)
@@ -4952,10 +4954,10 @@ fn no_induction_hypothesis_without_a_decreases_claim() {
     }
 
     machine Main::main(&mut self) {
-        let total: u64 = self.gauss_sum(4, 0);
+        let total: u64 in Wrapping = self.gauss_sum(4, 0);
     }
 
-    machine Main::gauss_sum(&mut self, n: u64, acc: u64) -> u64
+    machine Main::gauss_sum(&mut self, n: u64 in Wrapping, acc: u64 in Wrapping) -> u64 in Wrapping
     ensures
         result * 2 == acc * 2 + n * (n + 1)
     {
@@ -4982,10 +4984,10 @@ fn no_induction_hypothesis_when_the_call_site_decrease_is_undischarged() {
     }
 
     machine Main::main(&mut self) {
-        let total: u64 = self.gauss_sum(4, 0);
+        let total: u64 in Wrapping = self.gauss_sum(4, 0);
     }
 
-    machine Main::gauss_sum(&mut self, n: u64, acc: u64) -> u64
+    machine Main::gauss_sum(&mut self, n: u64 in Wrapping, acc: u64 in Wrapping) -> u64 in Wrapping
     terminates by n;
     ensures
         result * 2 == acc * 2 + n * (n + 1)
