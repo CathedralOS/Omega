@@ -861,6 +861,13 @@ fn selected_instruction_name(
             stack_byte_offset,
             value,
         } => format!("write outgoing stack u64 {value:#x} at rsp+{stack_byte_offset}"),
+        SelectedInstructionKind::CopyEntryIndirectU64ToOutgoingStack {
+            source_register,
+            source_byte_offset,
+            stack_byte_offset,
+        } => format!(
+            "copy entry indirect u64 {source_register:?}+{source_byte_offset} to rsp+{stack_byte_offset}"
+        ),
         SelectedInstructionKind::ReleaseOutgoingStackFrame { byte_count } => {
             format!("release outgoing stack frame ({byte_count} bytes)")
         }

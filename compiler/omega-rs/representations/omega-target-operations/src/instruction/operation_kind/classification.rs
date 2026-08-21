@@ -13,6 +13,7 @@ impl OperationSemanticQuery for TargetOperationKind {
             | Self::LoadOutgoingStackAddress { .. }
             | Self::ReserveOutgoingStackFrame { .. }
             | Self::WriteOutgoingStackU64 { .. }
+            | Self::CopyEntryIndirectU64ToOutgoingStack { .. }
             | Self::ReleaseOutgoingStackFrame { .. } => TargetOperationDomain::FunctionBoundary,
 
             Self::EnterDispatchLoop { .. }

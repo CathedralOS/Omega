@@ -216,6 +216,16 @@ Remaining:
   production builder consumes this authority; no physical stack mutation,
   wrapper insertion, call edge, object-entry switch, or native execution is
   claimed.
+  The main backend now also retains a compiler-private launch-value copy
+  operation across abstract, target, assigned, machine, encoded-byte, and
+  final-image replay. For the receiver-free UEFI/Microsoft x64 shape, exact
+  indirect `{base,length}` fields arriving through RCX/RDX can be copied into
+  the live 72-byte outgoing frame at `rsp+32/+40/+48/+56` before the retained
+  address loads. Canonical x86 bytes, RAX/StackPointer footprint, zero
+  relocation, exact tuple ordering, and immediate-versus-dynamic write-mode
+  separation fail closed. No production builder emits this sequence yet; no
+  generated wrapper body, source-continuation call, object-entry selection, or
+  native execution is claimed.
   The receiver-free UEFI/Microsoft bridge now also retains sealed source-
   continuation inbound-realization evidence. It joins the independently
   derived free Unit `CallPlan` to the exact encoded `Source(StateKey)` function,

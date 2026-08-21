@@ -822,6 +822,15 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
                 stack_byte_offset: *stack_byte_offset,
                 value: *value,
             },
+            omega_abstract_operations::AbstractOperationKind::CopyEntryIndirectU64ToOutgoingStack {
+                source_register,
+                source_byte_offset,
+                stack_byte_offset,
+            } => Self::CopyEntryIndirectU64ToOutgoingStack {
+                source_register: *source_register,
+                source_byte_offset: *source_byte_offset,
+                stack_byte_offset: *stack_byte_offset,
+            },
             omega_abstract_operations::AbstractOperationKind::ReleaseOutgoingStackFrame {
                 byte_count,
             } => Self::ReleaseOutgoingStackFrame {

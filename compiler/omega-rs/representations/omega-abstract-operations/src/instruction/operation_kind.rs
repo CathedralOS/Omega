@@ -703,6 +703,13 @@ pub enum AbstractOperationKind {
         stack_byte_offset: u32,
         value: u64,
     },
+    /// Copy one launch-time u64 field through an incoming indirect argument
+    /// pointer into the live compiler-private outgoing caller frame.
+    CopyEntryIndirectU64ToOutgoingStack {
+        source_register: omega_calling_conventions::MachineRegister,
+        source_byte_offset: u32,
+        stack_byte_offset: u32,
+    },
     ReleaseOutgoingStackFrame {
         byte_count: u32,
     },

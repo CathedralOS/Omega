@@ -130,6 +130,9 @@ pub(super) fn lower_machine_instruction_kind(
         SelectedInstructionKind::WriteOutgoingStackU64 { .. } => {
             MachineInstructionKind::OutgoingStackU64Write
         }
+        SelectedInstructionKind::CopyEntryIndirectU64ToOutgoingStack { .. } => {
+            MachineInstructionKind::EntryIndirectU64ToOutgoingStackCopy
+        }
         SelectedInstructionKind::ReleaseOutgoingStackFrame { .. } => {
             MachineInstructionKind::OutgoingStackFrameRelease
         }

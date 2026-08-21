@@ -15,6 +15,10 @@ pub const fn outgoing_stack_u64_write_width() -> usize {
     18
 }
 
+pub const fn entry_indirect_u64_to_outgoing_stack_copy_width() -> usize {
+    15
+}
+
 fn validate_outgoing_stack_frame_byte_count(byte_count: u32) -> Result<(), Diagnostic> {
     if byte_count < 32 {
         return Err(Diagnostic::error(
@@ -117,6 +121,51 @@ pub fn outgoing_stack_u64_write_register_writes() -> RegisterSet {
 }
 
 pub fn outgoing_stack_u64_write_additional_machine_state() -> MachineStateSet {
+    MachineStateSet::new([MachineState::StackPointer])
+}
+
+/// Encode `mov rax,[source+disp32]; mov [rsp+disp32],rax` for one exact
+/// launch-time indirect Extent field. The source registers remain unchanged.
+pub fn encode_entry_indirect_u64_to_outgoing_stack_copy_bytes(
+    source_register: MachineRegister,
+    source_byte_offset: u32,
+    stack_byte_offset: u32,
+) -> Result<[u8; 15], Diagnostic> {
+    let source_modrm = match source_register {
+        MachineRegister::X86Rcx => 0x81,
+        MachineRegister::X86Rdx => 0x82,
+        _ => {
+            return Err(Diagnostic::error(format!(
+                "Microsoft x64 launch-value copy uses unsupported source register {source_register:?}"
+            )));
+        }
+    };
+    if source_byte_offset % 8 != 0 || source_byte_offset > i32::MAX as u32 {
+        return Err(Diagnostic::error(
+            "Microsoft x64 launch-value source offset must be aligned nonnegative disp32",
+        ));
+    }
+    if stack_byte_offset < 32 || stack_byte_offset % 8 != 0 {
+        return Err(Diagnostic::error(
+            "Microsoft x64 launch-value target must be aligned beyond shadow space",
+        ));
+    }
+    let source_displacement = i32::try_from(source_byte_offset)
+        .map_err(|_| Diagnostic::error("Microsoft x64 launch-value source exceeds disp32"))?;
+    let mut bytes = Vec::with_capacity(entry_indirect_u64_to_outgoing_stack_copy_width());
+    bytes.extend([0x48, 0x8b, source_modrm]);
+    bytes.extend(source_displacement.to_le_bytes());
+    append_store_rax_to_rsp_disp32(&mut bytes, stack_byte_offset)?;
+    bytes
+        .try_into()
+        .map_err(|_| Diagnostic::error("Microsoft x64 launch-value copy lost its canonical width"))
+}
+
+pub fn entry_indirect_u64_to_outgoing_stack_copy_register_writes() -> RegisterSet {
+    RegisterSet::new([MachineRegister::X86Rax])
+}
+
+pub fn entry_indirect_u64_to_outgoing_stack_copy_additional_machine_state() -> MachineStateSet {
     MachineStateSet::new([MachineState::StackPointer])
 }
 
@@ -223,5 +272,27 @@ mod tests {
         assert!(encode_outgoing_stack_u64_write_bytes(24, 1).is_err());
         assert!(encode_outgoing_stack_u64_write_bytes(33, 1).is_err());
         assert!(encode_outgoing_stack_u64_write_bytes(u32::MAX - 7, 1).is_err());
+    }
+
+    #[test]
+    fn encodes_exact_launch_value_copies_without_changing_source_registers() {
+        assert_eq!(
+            encode_entry_indirect_u64_to_outgoing_stack_copy_bytes(MachineRegister::X86Rcx, 0, 32,)
+                .unwrap(),
+            [
+                0x48, 0x8b, 0x81, 0, 0, 0, 0, 0x48, 0x89, 0x84, 0x24, 32, 0, 0, 0,
+            ]
+        );
+        assert_eq!(
+            encode_entry_indirect_u64_to_outgoing_stack_copy_bytes(MachineRegister::X86Rdx, 8, 56,)
+                .unwrap(),
+            [
+                0x48, 0x8b, 0x82, 8, 0, 0, 0, 0x48, 0x89, 0x84, 0x24, 56, 0, 0, 0,
+            ]
+        );
+        assert!(
+            encode_entry_indirect_u64_to_outgoing_stack_copy_bytes(MachineRegister::X86R8, 0, 32,)
+                .is_err()
+        );
     }
 }

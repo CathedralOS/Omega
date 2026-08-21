@@ -121,6 +121,11 @@ pub enum CompilerInstructionValidationKind {
         stack_byte_offset: u32,
         value: u64,
     },
+    EntryIndirectU64ToOutgoingStackCopy {
+        source_register: omega_calling_conventions::MachineRegister,
+        source_byte_offset: u32,
+        stack_byte_offset: u32,
+    },
     OutgoingStackFrameRelease {
         byte_count: u32,
     },

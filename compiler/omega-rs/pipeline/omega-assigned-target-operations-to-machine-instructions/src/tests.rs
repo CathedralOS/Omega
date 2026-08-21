@@ -157,6 +157,89 @@ fn lowers_outgoing_stack_address_to_exact_machine_kind() {
 }
 
 #[test]
+fn lowers_exact_entry_indirect_copies_to_machine_kinds() {
+    use omega_assigned_target_operations::{AssignedOperation, AssignedOperationKind};
+    use omega_calling_conventions::MachineRegister;
+    use omega_machine_instructions::MachineInstructionKind;
+
+    let mut assigned = AssignedTargetOperationPlan::default();
+    assigned.target = omega_target::NativeTarget::uefi_x64();
+    let mut rows = vec![AssignedOperation {
+        kind: AssignedOperationKind::ReserveOutgoingStackFrame { byte_count: 72 },
+        ..Default::default()
+    }];
+    rows.extend(
+        [
+            (MachineRegister::X86Rcx, 0, 32),
+            (MachineRegister::X86Rcx, 8, 40),
+            (MachineRegister::X86Rdx, 0, 48),
+            (MachineRegister::X86Rdx, 8, 56),
+        ]
+        .into_iter()
+        .map(
+            |(source_register, source_byte_offset, stack_byte_offset)| AssignedOperation {
+                kind: AssignedOperationKind::CopyEntryIndirectU64ToOutgoingStack {
+                    source_register,
+                    source_byte_offset,
+                    stack_byte_offset,
+                },
+                ..Default::default()
+            },
+        ),
+    );
+    rows.extend([
+        AssignedOperation {
+            kind: AssignedOperationKind::LoadOutgoingStackAddress {
+                register: MachineRegister::X86Rcx,
+                stack_byte_offset: 32,
+            },
+            ..Default::default()
+        },
+        AssignedOperation {
+            kind: AssignedOperationKind::LoadOutgoingStackAddress {
+                register: MachineRegister::X86Rdx,
+                stack_byte_offset: 48,
+            },
+            ..Default::default()
+        },
+        AssignedOperation {
+            kind: AssignedOperationKind::ReleaseOutgoingStackFrame { byte_count: 72 },
+            ..Default::default()
+        },
+    ]);
+    let instructions = assigned.code.instructions.insert_many(rows);
+    assigned
+        .code
+        .functions
+        .insert(AssignedTargetOperationFunction {
+            symbol: Arc::from("synthetic_launch_copy"),
+            identity: MachineFunctionIdentity::default(),
+            instructions,
+        });
+
+    let machine = build_machine_instructions(&assigned).expect("launch-copy lowering");
+    let kinds = machine
+        .code
+        .instructions
+        .iter()
+        .map(|(_, instruction)| instruction.kind)
+        .collect::<Vec<_>>();
+    assert_eq!(
+        kinds,
+        [
+            MachineInstructionKind::OutgoingStackFrameReserve,
+            MachineInstructionKind::EntryIndirectU64ToOutgoingStackCopy,
+            MachineInstructionKind::EntryIndirectU64ToOutgoingStackCopy,
+            MachineInstructionKind::EntryIndirectU64ToOutgoingStackCopy,
+            MachineInstructionKind::EntryIndirectU64ToOutgoingStackCopy,
+            MachineInstructionKind::OutgoingStackAddressLoad,
+            MachineInstructionKind::OutgoingStackAddressLoad,
+            MachineInstructionKind::OutgoingStackFrameRelease,
+        ]
+    );
+}
+
+#[test]
 fn copies_assigned_value_summary_to_machine_instruction_plan() {
     let mut assigned_operations = AssignedTargetOperationPlan::default();
     let machine_symbol = SymbolHandle::from_arena_index(1);

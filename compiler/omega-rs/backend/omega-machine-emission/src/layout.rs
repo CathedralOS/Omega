@@ -1080,6 +1080,14 @@ fn machine_instruction_width(
             }
             omega_isa_x86_64::outgoing_stack_u64_write_width()
         }
+        SelectedInstructionKind::CopyEntryIndirectU64ToOutgoingStack { .. } => {
+            if input.target.architecture != omega_target::Architecture::X86_64 {
+                return Err(Diagnostic::error(
+                    "entry-indirect outgoing stack copies are supported only on x86-64",
+                ));
+            }
+            omega_isa_x86_64::entry_indirect_u64_to_outgoing_stack_copy_width()
+        }
         SelectedInstructionKind::LeaveFunction => return_width(input.target.architecture),
         SelectedInstructionKind::EvaluateDispatchGuard { .. }
         | SelectedInstructionKind::LeaveDispatchLoop

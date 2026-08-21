@@ -320,6 +320,122 @@ mod tests {
     }
 
     #[test]
+    fn emits_exact_launch_value_copies_for_receiver_free_caller_frame() {
+        let target = NativeTarget::uefi_x64();
+        let assigned_target_operations = AssignedTargetOperationPlan::default();
+        let host_abi = build_host_abi_plan(target);
+        let data = omega_target_operations::TargetDataPlan::default();
+        let mut machine_instructions = MachineInstructionPlan::with_capacity(target, 1, 8);
+        let sources = [
+            (MachineRegister::X86Rcx, 0, 32),
+            (MachineRegister::X86Rcx, 8, 40),
+            (MachineRegister::X86Rdx, 0, 48),
+            (MachineRegister::X86Rdx, 8, 56),
+        ];
+        let mut rows = vec![MachineInstruction {
+            selected_instruction_index: 0,
+            source_kind: SelectedInstructionKind::ReserveOutgoingStackFrame { byte_count: 72 },
+            kind: MachineInstructionKind::OutgoingStackFrameReserve,
+        }];
+        rows.extend(sources.into_iter().enumerate().map(
+            |(index, (source_register, source_byte_offset, stack_byte_offset))| {
+                MachineInstruction {
+                    selected_instruction_index: index as u32 + 1,
+                    source_kind: SelectedInstructionKind::CopyEntryIndirectU64ToOutgoingStack {
+                        source_register,
+                        source_byte_offset,
+                        stack_byte_offset,
+                    },
+                    kind: MachineInstructionKind::EntryIndirectU64ToOutgoingStackCopy,
+                }
+            },
+        ));
+        rows.extend([
+            MachineInstruction {
+                selected_instruction_index: 5,
+                source_kind: SelectedInstructionKind::LoadOutgoingStackAddress {
+                    register: MachineRegister::X86Rcx,
+                    stack_byte_offset: 32,
+                },
+                kind: MachineInstructionKind::OutgoingStackAddressLoad,
+            },
+            MachineInstruction {
+                selected_instruction_index: 6,
+                source_kind: SelectedInstructionKind::LoadOutgoingStackAddress {
+                    register: MachineRegister::X86Rdx,
+                    stack_byte_offset: 48,
+                },
+                kind: MachineInstructionKind::OutgoingStackAddressLoad,
+            },
+            MachineInstruction {
+                selected_instruction_index: 7,
+                source_kind: SelectedInstructionKind::ReleaseOutgoingStackFrame { byte_count: 72 },
+                kind: MachineInstructionKind::OutgoingStackFrameRelease,
+            },
+        ]);
+        let instructions = machine_instructions.code.instructions.insert_many(rows);
+        machine_instructions
+            .code
+            .functions
+            .insert(MachineInstructionFunction {
+                symbol: "synthetic_launch_copy".into(),
+                identity: MachineFunctionIdentity::default(),
+                instructions,
+            });
+
+        let encoded = emit_machine_bytes(MachineEmissionInput {
+            target,
+            assigned_target_operations: &assigned_target_operations,
+            machine_instructions: &machine_instructions,
+            host_abi: &host_abi,
+            data: &data,
+            terminal_dispatch_index: 0,
+        })
+        .expect("exact launch-value copy emission");
+        let mut expected =
+            omega_isa_x86_64::encode_outgoing_stack_frame_reserve_bytes(72).expect("reserve");
+        for (source_register, source_byte_offset, stack_byte_offset) in sources {
+            expected.extend(
+                omega_isa_x86_64::encode_entry_indirect_u64_to_outgoing_stack_copy_bytes(
+                    source_register,
+                    source_byte_offset,
+                    stack_byte_offset,
+                )
+                .expect("launch copy"),
+            );
+        }
+        expected.extend(
+            omega_isa_x86_64::encode_outgoing_stack_address_load_bytes(MachineRegister::X86Rcx, 32)
+                .expect("image address"),
+        );
+        expected.extend(
+            omega_isa_x86_64::encode_outgoing_stack_address_load_bytes(MachineRegister::X86Rdx, 48)
+                .expect("storage address"),
+        );
+        expected.extend(
+            omega_isa_x86_64::encode_outgoing_stack_frame_release_bytes(72).expect("release"),
+        );
+        assert_eq!(encoded.code.bytes.storage_slice(), expected);
+        let kinds = encoded
+            .code
+            .instructions
+            .iter()
+            .map(|(_, instruction)| instruction.compiler_validation_kind.clone())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            kinds[1],
+            Some(
+                omega_machine_bytes::CompilerInstructionValidationKind::EntryIndirectU64ToOutgoingStackCopy {
+                    source_register: MachineRegister::X86Rcx,
+                    source_byte_offset: 0,
+                    stack_byte_offset: 32,
+                }
+            )
+        );
+        assert_eq!(kinds.len(), 8);
+    }
+
+    #[test]
     fn copies_machine_semantic_summaries_to_encoded_plan() {
         let target = NativeTarget::host();
         let continuation = StateKey {
