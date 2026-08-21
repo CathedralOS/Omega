@@ -661,18 +661,12 @@ fn console_byte_field_target_rejected_canary_is_rejected() {
 #[test]
 fn runtime_dutch_flag_partition_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_dutch_flag_partition_exit");
-    let main_path = canary.join("main.omg");
     let build_dir =
         std::env::temp_dir().join(format!("omega-dutch-flag-partition-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("dutch flag partition canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("dutch flag partition canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()

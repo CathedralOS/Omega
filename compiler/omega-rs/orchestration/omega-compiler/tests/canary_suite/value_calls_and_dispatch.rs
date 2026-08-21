@@ -611,20 +611,14 @@ fn runtime_looping_cast_return_exit_canary_runs() {
 #[test]
 fn runtime_value_call_slice_len_guard_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_value_call_slice_len_guard_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-value-call-slice-len-guard-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("runtime value call slice len guard canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("runtime value call slice len guard canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()
@@ -1573,19 +1567,13 @@ fn runtime_trailing_state_mut_param_phase_exit_canary_runs() {
 #[test]
 fn runtime_same_type_second_receiver_mutation_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_same_type_second_receiver_mutation_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-same-type-second-receiver-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("second-receiver mutation canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("second-receiver mutation canary should compile");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("second-receiver mutation canary should run");
@@ -1605,19 +1593,13 @@ fn runtime_same_type_second_receiver_mutation_exit_canary_runs() {
 #[test]
 fn runtime_dispatch_float_terminal_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_dispatch_float_terminal_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-dispatch-float-terminal-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("dispatch float terminal canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("dispatch float terminal canary should compile");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("dispatch float terminal canary should run");
@@ -1672,19 +1654,13 @@ fn runtime_value_machine_receiver_field_postentry_exit_canary_runs() {
 #[test]
 fn runtime_nested_receiver_same_type_exit_canary_runs() {
     let canary = pass_canary("references/runtime_nested_receiver_same_type_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-nested-receiver-same-type-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("nested same-type receiver canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("nested same-type receiver canary should compile");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("nested same-type receiver canary should run");
@@ -1833,19 +1809,13 @@ fn runtime_selfcall_chain_second_receiver_exit_canary_runs() {
 #[test]
 fn runtime_nested_inline_chain_result_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_nested_inline_chain_result_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-nested-inline-chain-result-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("nested inline chain result canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("nested inline chain result canary should compile");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("nested inline chain result canary should run");
@@ -1865,19 +1835,13 @@ fn runtime_nested_inline_chain_result_exit_canary_runs() {
 #[test]
 fn runtime_nonentry_inline_second_receiver_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_nonentry_inline_second_receiver_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-nonentry-inline-second-receiver-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("non-entry inline second-receiver canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("non-entry inline second-receiver canary should compile");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("non-entry inline second-receiver canary should run");
@@ -2003,13 +1967,8 @@ fn runtime_multiarm_texteq_local_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("multi-arm texteq locals canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("multi-arm texteq locals canary should compile");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("multi-arm texteq locals canary should run");
@@ -2043,13 +2002,8 @@ fn runtime_pre_guard_texteq_local_guard_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("pre-guard texteq local guard canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("pre-guard texteq local guard canary should compile");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("pre-guard texteq local guard canary should run");
@@ -2082,13 +2036,8 @@ fn runtime_pre_guard_texteq_local_arg_forward_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("pre-guard texteq local argument canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("pre-guard texteq local argument canary should compile");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("pre-guard texteq local argument canary should run");
@@ -2108,19 +2057,13 @@ fn runtime_pre_guard_texteq_local_arg_forward_exit_canary_runs() {
 #[test]
 fn runtime_param_receiver_second_instance_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_param_receiver_second_instance_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-param-receiver-second-instance-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("second-instance param receiver canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("second-instance param receiver canary should compile");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("second-instance param receiver canary should run");
@@ -2141,17 +2084,11 @@ fn runtime_param_receiver_second_instance_exit_canary_runs() {
 #[test]
 fn runtime_param_forward_chain_second_receiver_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_param_forward_chain_second_receiver_exit");
-    let main_path = canary.join("main.omg");
     let build_dir =
         std::env::temp_dir().join(format!("omega-param-forward-chain-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("param forward-chain canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("param forward-chain canary should compile");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("param forward-chain canary should run");
@@ -2303,19 +2240,13 @@ fn runtime_u64_literal_let_guard_exit_canary_runs() {
 #[test]
 fn runtime_param_receiver_single_instance_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_param_receiver_single_instance_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-param-receiver-single-instance-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("single-instance param receiver canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("single-instance param receiver canary should compile");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("single-instance param receiver canary should run");
@@ -2368,20 +2299,14 @@ fn runtime_dispatch_result_alias_read_exit_canary_runs() {
 #[test]
 fn runtime_dispatch_slice_element_terminal_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_dispatch_slice_element_terminal_exit");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-dispatch-slice-element-terminal-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("dispatch slice-element terminal canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("dispatch slice-element terminal canary should compile");
 
     let output = Command::new(build_dir.join(executable_name()))
         .output()

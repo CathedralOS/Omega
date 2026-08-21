@@ -1396,6 +1396,21 @@ fn compile_rooted_canary_for_target_with_artifact_policy(
 // exercise production entry selection and may not substitute the legacy entry
 // seam.
 const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
+    "calls/runtime_dispatch_float_terminal_exit",
+    "calls/runtime_dispatch_slice_element_terminal_exit",
+    "calls/runtime_let_local_nested_state_arg_exit",
+    "calls/runtime_multiarm_texteq_local_exit",
+    "calls/runtime_nested_inline_chain_result_exit",
+    "calls/runtime_nonentry_inline_second_receiver_exit",
+    "calls/runtime_param_forward_chain_second_receiver_exit",
+    "calls/runtime_param_receiver_second_instance_exit",
+    "calls/runtime_param_receiver_single_instance_exit",
+    "calls/runtime_pre_guard_texteq_local_arg_forward_exit",
+    "calls/runtime_pre_guard_texteq_local_guard_exit",
+    "calls/runtime_same_type_second_receiver_mutation_exit",
+    "calls/runtime_value_call_slice_len_guard_exit",
+    "collections/runtime_dutch_flag_partition_exit",
+    "references/runtime_nested_receiver_same_type_exit",
     "calls/runtime_called_machine_loop_search_exit",
     "calls/runtime_computed_transition_args_exit",
     "calls/runtime_cross_machine_substate_name_exit",
@@ -2654,6 +2669,21 @@ fn task_runtime_machine_selection_builds_omega_activation_sidecar() {
 }
 
 const ACTIVE_PASS_CANARIES: &[&str] = &[
+    "calls/runtime_dispatch_float_terminal_exit",
+    "calls/runtime_dispatch_slice_element_terminal_exit",
+    "calls/runtime_let_local_nested_state_arg_exit",
+    "calls/runtime_multiarm_texteq_local_exit",
+    "calls/runtime_nested_inline_chain_result_exit",
+    "calls/runtime_nonentry_inline_second_receiver_exit",
+    "calls/runtime_param_forward_chain_second_receiver_exit",
+    "calls/runtime_param_receiver_second_instance_exit",
+    "calls/runtime_param_receiver_single_instance_exit",
+    "calls/runtime_pre_guard_texteq_local_arg_forward_exit",
+    "calls/runtime_pre_guard_texteq_local_guard_exit",
+    "calls/runtime_same_type_second_receiver_mutation_exit",
+    "calls/runtime_value_call_slice_len_guard_exit",
+    "collections/runtime_dutch_flag_partition_exit",
+    "references/runtime_nested_receiver_same_type_exit",
     "calls/runtime_called_machine_loop_search_exit",
     "calls/runtime_computed_transition_args_exit",
     "calls/runtime_cross_machine_substate_name_exit",
