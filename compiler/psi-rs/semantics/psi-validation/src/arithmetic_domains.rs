@@ -3465,6 +3465,55 @@ fn integer_bit_width(primitive: PrimitiveType) -> Option<i64> {
     }
 }
 
+/// Prove an Exact multiplication total when both operands are value-preserving
+/// unsigned widenings and the sum of their source widths fits the common target
+/// carrier. The ordinary interval lattice is i64-backed, so it cannot express
+/// the complete u64 upper endpoint even though `u32::MAX * u32::MAX` is
+/// representable by u64. This structural proof closes only that representation
+/// gap; arbitrary casts and mixed targets fail closed.
+fn exact_unsigned_widened_multiply_fits(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: Option<&State>,
+    left: ExpressionHandle,
+    right: ExpressionHandle,
+) -> bool {
+    let operand = |expression| -> Option<(i64, PrimitiveType)> {
+        let ExpressionNode::Cast(cast) = program.expression_table.expression(expression) else {
+            return None;
+        };
+        if cast.form.is_recast()
+            || !cast.semantic_domain.is_empty()
+            || cast.domain != ArithmeticDomain::Exact
+        {
+            return None;
+        }
+        let source_type = declared_place_type_raw(program, machine, state, cast.value)?;
+        let source = program.primitive_type_reference(source_type)?;
+        let target = program.primitive_type_reference(cast.target_type)?;
+        if !matches!(
+            source,
+            PrimitiveType::U8 | PrimitiveType::U16 | PrimitiveType::U32
+        ) || !matches!(
+            target,
+            PrimitiveType::U16 | PrimitiveType::U32 | PrimitiveType::U64
+        ) {
+            return None;
+        }
+        let source_width = integer_bit_width(source)?;
+        let target_width = integer_bit_width(target)?;
+        (source_width < target_width).then_some((source_width, target))
+    };
+    let Some((left_width, left_target)) = operand(left) else {
+        return false;
+    };
+    let Some((right_width, right_target)) = operand(right) else {
+        return false;
+    };
+    left_target == right_target
+        && integer_bit_width(left_target).is_some_and(|width| left_width + right_width <= width)
+}
+
 fn u64_exact_shift_left_fits(value: Interval, count: Interval) -> bool {
     let (Some(value_low), Some(value_high), Some(count_low), Some(count_high)) =
         (value.low, value.high, count.low, count.high)
@@ -3967,6 +4016,13 @@ fn analyze(
                     || env.proves_signed_joint_multiply_bounds(program, binary.left, binary.right)
                     || env.proves_signed_joint_multiply_negation_bound(
                         program,
+                        binary.left,
+                        binary.right,
+                    )
+                    || exact_unsigned_widened_multiply_fits(
+                        program,
+                        machine,
+                        state,
                         binary.left,
                         binary.right,
                     ))
@@ -5678,7 +5734,9 @@ fn requires_product_coupling(
             let psi_typed_trees::domain::ProofFact::Expression(expression) = fact else {
                 continue;
             };
-            if let Some(k) = product_coupling_conjunct(program, *expression, &fa_label, &fb_label) {
+            if let Some(k) =
+                product_coupling_conjunct(program, machine, *expression, &fa_label, &fb_label)
+            {
                 return Some(k);
             }
         }
@@ -5688,6 +5746,7 @@ fn requires_product_coupling(
 
 fn product_coupling_conjunct(
     program: &TypedTrees,
+    machine: &Machine,
     guard: ExpressionHandle,
     fa_label: &str,
     fb_label: &str,
@@ -5696,8 +5755,11 @@ fn product_coupling_conjunct(
         return None;
     };
     match binary.operator {
-        BinaryOperator::And => product_coupling_conjunct(program, binary.left, fa_label, fb_label)
-            .or_else(|| product_coupling_conjunct(program, binary.right, fa_label, fb_label)),
+        BinaryOperator::And => {
+            product_coupling_conjunct(program, machine, binary.left, fa_label, fb_label).or_else(
+                || product_coupling_conjunct(program, machine, binary.right, fa_label, fb_label),
+            )
+        }
         BinaryOperator::LessOrEqual | BinaryOperator::Less => {
             let ExpressionNode::Binary(product) = program.expression_table.expression(binary.left)
             else {
@@ -5706,8 +5768,8 @@ fn product_coupling_conjunct(
             if product.operator != BinaryOperator::Multiply {
                 return None;
             }
-            let lhs = program.expression_table.display_name(product.left);
-            let rhs = program.expression_table.display_name(product.right);
+            let lhs = product_coupling_operand(program, machine, product.left)?;
+            let rhs = product_coupling_operand(program, machine, product.right)?;
             let matches =
                 (lhs == fa_label && rhs == fb_label) || (lhs == fb_label && rhs == fa_label);
             if !matches {
@@ -5722,6 +5784,44 @@ fn product_coupling_conjunct(
         }
         _ => None,
     }
+}
+
+/// Return the source place spelling admitted by the bounded-product rule.
+/// A direct place is unchanged. An Exact integer widening is transparent
+/// because it preserves every source-carrier value while making the
+/// specification product total. Narrowing, signedness-changing, semantic,
+/// address, recast, and policy-bearing conversions remain visible and reject.
+fn product_coupling_operand(
+    program: &TypedTrees,
+    machine: &Machine,
+    expression: ExpressionHandle,
+) -> Option<String> {
+    let ExpressionNode::Cast(cast) = program.expression_table.expression(expression) else {
+        return Some(program.expression_table.display_name(expression));
+    };
+    if cast.form.is_recast() || !cast.semantic_domain.is_empty() {
+        return None;
+    }
+    let source_type = declared_place_type_raw(
+        program,
+        machine,
+        program.machine_states(machine).first(),
+        cast.value,
+    )?;
+    let source = program.primitive_type_reference(source_type)?;
+    let target = program.primitive_type_reference(cast.target_type)?;
+    if source == PrimitiveType::Addr || target == PrimitiveType::Addr {
+        return None;
+    }
+    let source_range = primitive_range(source)?;
+    let target_range = primitive_range(target)?;
+    if cast.domain != ArithmeticDomain::Exact
+        || source == target
+        || !target_range.contains(source_range)
+    {
+        return None;
+    }
+    Some(program.expression_table.display_name(cast.value))
 }
 
 /// The MULTIPLY half of R3's rule: `a * self.Fb` (either order) with

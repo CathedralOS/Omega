@@ -664,6 +664,39 @@ fn exact_operation_cannot_use_its_containing_fact_to_justify_formation() {
 }
 
 #[test]
+fn unsigned_widened_product_contract_is_total_by_carrier_width() {
+    let source = r#"
+        machine bounded(left: u32, right: u32) -> bool
+        requires
+            (left as u64) * (right as u64) <= 12
+        {
+            true
+        }
+    "#;
+
+    checked(source).expect("two u32 factors are exactly representable in one u64 product");
+}
+
+#[test]
+fn signed_product_contract_does_not_inherit_unsigned_width_proof() {
+    let source = r#"
+        machine bounded(left: i64, right: i64) -> bool
+        requires
+            left * right <= 12
+        {
+            true
+        }
+    "#;
+
+    let diagnostics = checked(source).expect_err("signed multiplication may overflow");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("exact arithmetic in machine `bounded` requires contract may overflow `i64`")
+    }));
+}
+
+#[test]
 fn abstract_prior_facts_discharge_exact_arithmetic_after_policy_erasure() {
     let source = r#"
         trait ArithmeticRule {

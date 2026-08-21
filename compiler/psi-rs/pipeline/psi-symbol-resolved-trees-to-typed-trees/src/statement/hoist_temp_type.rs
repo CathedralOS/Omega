@@ -1037,7 +1037,6 @@ fn resolved_product_coupling(
     fa: &str,
     fb: &str,
 ) -> Option<i64> {
-    let expressions = &lowerer.source_trees.tables.bodies.expressions;
     for contract in lowerer.source_trees.machine_contracts(machine) {
         if contract.kind != resolved::signature::SignatureContractKind::Requires {
             continue;
@@ -1046,7 +1045,7 @@ fn resolved_product_coupling(
             let resolved::domain::ProofFact::Expression(expression) = fact else {
                 continue;
             };
-            if let Some(k) = resolved_product_conjunct(expressions, *expression, fa, fb) {
+            if let Some(k) = resolved_product_conjunct(lowerer, machine, *expression, fa, fb) {
                 return Some(k);
             }
         }
@@ -1055,18 +1054,20 @@ fn resolved_product_coupling(
 }
 
 fn resolved_product_conjunct(
-    expressions: &resolved::expression::ExpressionTable,
+    lowerer: &Lowerer,
+    machine: &resolved::machine::Machine,
     guard: ExpressionHandle,
     fa: &str,
     fb: &str,
 ) -> Option<i64> {
+    let expressions = &lowerer.source_trees.tables.bodies.expressions;
     let ExpressionNode::Binary(binary) = expressions.expression(guard) else {
         return None;
     };
     use resolved::expression::BinaryOperator;
     match binary.operator {
-        BinaryOperator::And => resolved_product_conjunct(expressions, binary.left, fa, fb)
-            .or_else(|| resolved_product_conjunct(expressions, binary.right, fa, fb)),
+        BinaryOperator::And => resolved_product_conjunct(lowerer, machine, binary.left, fa, fb)
+            .or_else(|| resolved_product_conjunct(lowerer, machine, binary.right, fa, fb)),
         BinaryOperator::LessOrEqual | BinaryOperator::Less => {
             let ExpressionNode::Binary(product) = expressions.expression(binary.left) else {
                 return None;
@@ -1074,12 +1075,8 @@ fn resolved_product_conjunct(
             if product.operator != BinaryOperator::Multiply {
                 return None;
             }
-            let lhs = resolved_symbolic_max_bound(expressions, product.left)
-                .filter(|(_, offset)| *offset == 0)?
-                .0;
-            let rhs = resolved_symbolic_max_bound(expressions, product.right)
-                .filter(|(_, offset)| *offset == 0)?
-                .0;
+            let lhs = resolved_product_coupling_operand(lowerer, machine, product.left)?;
+            let rhs = resolved_product_coupling_operand(lowerer, machine, product.right)?;
             let matches = (lhs == fa && rhs == fb) || (lhs == fb && rhs == fa);
             if !matches {
                 return None;
@@ -1095,5 +1092,68 @@ fn resolved_product_conjunct(
             }
         }
         _ => None,
+    }
+}
+
+/// Resolved-tree twin of psi-validation's bounded-product operand projection.
+/// The direct field spelling remains canonical. An Exact widening cast is
+/// transparent because validation independently proves it preserves the
+/// source value and makes the specification product total.
+fn resolved_product_coupling_operand(
+    lowerer: &Lowerer,
+    machine: &resolved::machine::Machine,
+    expression: ExpressionHandle,
+) -> Option<String> {
+    let expressions = &lowerer.source_trees.tables.bodies.expressions;
+    if let Some((field, 0)) = resolved_symbolic_max_bound(expressions, expression) {
+        return Some(field);
+    }
+    let ExpressionNode::Cast(cast) = expressions.expression(expression) else {
+        return None;
+    };
+    if cast.form.is_recast()
+        || !cast.semantic_domain.is_empty()
+        || cast.domain != psi_numerics::arithmetic::ArithmeticDomain::Exact
+    {
+        return None;
+    }
+    let (field, 0) = resolved_symbolic_max_bound(expressions, cast.value)? else {
+        return None;
+    };
+    let target = lowerer
+        .source_trees
+        .child_type_reference(cast.target_type)
+        .primitive_type()?;
+    let source = resolved_primitive_type(
+        lowerer.source_trees,
+        &attached_field_type(
+            lowerer.source_trees,
+            machine.attached_data.as_ref()?,
+            &field,
+        )?,
+    )?;
+    let width = |primitive| match primitive {
+        resolved::types::PrimitiveType::U8 => Some(8),
+        resolved::types::PrimitiveType::U16 => Some(16),
+        resolved::types::PrimitiveType::U32 => Some(32),
+        resolved::types::PrimitiveType::U64 => Some(64),
+        _ => None,
+    };
+    if width(source)? >= width(target)? {
+        return None;
+    }
+    Some(field)
+}
+
+fn resolved_primitive_type(
+    source_trees: &resolved::SymbolResolvedTrees,
+    type_reference: &TypeReference,
+) -> Option<resolved::types::PrimitiveType> {
+    match type_reference {
+        TypeReference::Constrained(constrained) => resolved_primitive_type(
+            source_trees,
+            source_trees.child_type_reference(constrained.base_type),
+        ),
+        other => other.primitive_type(),
     }
 }

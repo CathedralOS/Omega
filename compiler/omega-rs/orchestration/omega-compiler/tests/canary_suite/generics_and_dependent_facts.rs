@@ -2242,16 +2242,19 @@ fn runtime_bounded_product_index_exit_canary_runs() {
     // R3: runtime dims coupled only by `requires rows * cols <= 12`; the
     // product rule store-proves the ranged temp and the index rides it.
     let canary = pass_canary("dependent/runtime_bounded_product_index_exit");
+    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+        .expect("bounded-product canary should compile to checked trees");
+    let interpreted = interpret(&checked, &[]);
+    assert_eq!(interpreted.error, None, "should interpret cleanly");
+    assert_eq!(
+        interpreted.exit_code, 7,
+        "interpreter must preserve the bounded-product index result"
+    );
     let build_dir =
         std::env::temp_dir().join(format!("omega-bounded-product-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("bounded-product canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("bounded-product canary should compile from its authored root");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("bounded-product canary should run");
