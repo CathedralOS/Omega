@@ -1407,6 +1407,32 @@ impl InstalledProgramStorageRoots {
         }
     }
 
+    pub(super) fn into_root_authority_parts(
+        self,
+    ) -> (
+        ProgramStorageEntryPlanBinding,
+        Option<ProgramStorageEntryProviderInvocation>,
+        Extent,
+        Option<Extent>,
+        Option<ReservedProgramEntryReceiverStorage>,
+    ) {
+        let Self {
+            binding,
+            provider_invocation,
+            image,
+            initial_storage,
+            receiver_storage,
+            initial_storage_record: _,
+        } = self;
+        (
+            binding,
+            provider_invocation,
+            image,
+            initial_storage,
+            receiver_storage,
+        )
+    }
+
     /// Derive a section/static view without splitting the installed image's
     /// ownership. Several disjoint or overlapping compiler views may coexist
     /// under the same one admitted image root.

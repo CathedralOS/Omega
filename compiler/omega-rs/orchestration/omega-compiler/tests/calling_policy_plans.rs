@@ -4,8 +4,8 @@ use omega_calling_conventions::{
 };
 use omega_compiler::{
     PROGRAM_STORAGE_INSTALLATION_ARTIFACT, ProgramStorageEntryBridgeError,
-    ProgramStorageInstallationHandoffError, ProgramStorageRootInput,
-    SelectedExternalRootProviderPlan, SelectedProgramStorageEntryPlan,
+    ProgramStorageEntryInitialStorageAuthorityKind, ProgramStorageInstallationHandoffError,
+    ProgramStorageRootInput, SelectedExternalRootProviderPlan, SelectedProgramStorageEntryPlan,
     bind_emitted_program_storage_entry_native_bridge, bind_program_storage_entry_plan,
     compile_to_checked, evaluate_calling_policy_plan,
     install_program_storage_entry_provider_invocation, install_program_storage_entry_roots,
@@ -1331,6 +1331,49 @@ fn program_storage_entry_publishes_both_core_owned_root_positions() {
             .map(|extent| (extent.base(), extent.length())),
         Some((0x9010, 0x13))
     );
+    let attached_disposition = physical_roots
+        .into_root_authority_disposition()
+        .expect("installed receiver partition should retain an exact authority disposition");
+    assert_eq!(
+        attached_disposition.initial_storage_kind(),
+        ProgramStorageEntryInitialStorageAuthorityKind::ReceiverPartitioned
+    );
+    assert!(attached_disposition.whole_initial_storage().is_none());
+    assert_eq!(
+        attached_disposition
+            .residual_before()
+            .map(|extent| (extent.base(), extent.length())),
+        Some((0x9003, 5))
+    );
+    assert_eq!(
+        attached_disposition
+            .receiver_storage()
+            .and_then(|receiver| receiver.storage())
+            .map(|extent| (extent.base(), extent.length())),
+        Some((0x9008, 8))
+    );
+    assert_eq!(
+        attached_disposition
+            .residual_after()
+            .map(|extent| (extent.base(), extent.length())),
+        Some((0x9010, 0x13))
+    );
+    let attached_error = attached_disposition
+        .try_into_receiver_free_whole_roots()
+        .expect_err("separated receiver residuals cannot become one whole Extent authority");
+    assert!(
+        attached_error
+            .diagnostic()
+            .0
+            .contains("attached program storage")
+    );
+    let attached_disposition = attached_error.into_disposition();
+    assert_eq!(
+        attached_disposition
+            .residual_before()
+            .map(|extent| extent.length()),
+        Some(5)
+    );
 
     let static_view = installed
         .image_subextent(0x100, 0x80)
@@ -1383,6 +1426,28 @@ fn program_storage_entry_publishes_both_core_owned_root_positions() {
                 .initial_storage()
                 .expect("rejoined allocation restores whole initial storage")
                 .length()
+        ),
+        (0x8000, 0x2000)
+    );
+    let free_disposition = restored
+        .into_root_authority_disposition()
+        .expect("rejoined receiver-free roots should retain whole authority");
+    assert_eq!(
+        free_disposition.initial_storage_kind(),
+        ProgramStorageEntryInitialStorageAuthorityKind::Whole
+    );
+    assert!(free_disposition.receiver_storage().is_none());
+    let free_roots = free_disposition
+        .try_into_receiver_free_whole_roots()
+        .expect("receiver-free installation owns two whole roots");
+    assert_eq!(
+        (free_roots.image().base(), free_roots.image().length()),
+        (0x1000, 0x800)
+    );
+    assert_eq!(
+        (
+            free_roots.initial_storage().base(),
+            free_roots.initial_storage().length()
         ),
         (0x8000, 0x2000)
     );

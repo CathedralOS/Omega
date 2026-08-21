@@ -117,13 +117,22 @@ Remaining:
   The free form has a complete layout but no production executor traversal
   because the current gate requires receiver activation. The ABI plan carries
   no runtime root value, `Extent`, root authority, wrapper body, emitted call,
-  or callee inbound realization. Attached receiver storage partitions
-  `InitialStorage`, and its potentially noncontiguous conserved remainders
-  cannot be invented as one outbound `Extent`. Production builds therefore still lack an exact
-  source root-value/authority carrier, generated wrapper body, and source-
-  function inbound realization; defining the conserved residual argument (or
-  separate hidden supply), emitting the body, realizing its runtime values,
-  defining the installation-carrier linkage, adding the
+  or callee inbound realization. After activation ends, installed roots can now
+  move into a sealed authority-disposition carrier that revalidates the exact
+  initial-storage geometry, lineage, rights, provenance, mapping era, origin,
+  receiver selection, and complete partition coverage. A receiver-free
+  disposition may release Image and whole InitialStorage as two owned root
+  authorities. An attached disposition keeps the receiver's
+  `OwnedExtentPartition` intact, exposes its potentially noncontiguous before
+  and after residuals only by borrow, and fails closed while returning the
+  intact carrier if asked for two whole roots. This is not an outbound source
+  argument: it cannot move residual authority during the live receiver loan or
+  make two separated remainders satisfy one `Extent in Granted` formal.
+  Production builds therefore still lack a source-compatible attached-root
+  value/authority carrier (or separate hidden supply), generated wrapper body,
+  and source-function inbound realization; defining that disposition at the
+  source schema, emitting the body, realizing its runtime values, defining the
+  installation-carrier linkage, adding the
   exact native call edge to the retained operation, and retaining resulting
   native bridge evidence remain before this slice is complete.
 
