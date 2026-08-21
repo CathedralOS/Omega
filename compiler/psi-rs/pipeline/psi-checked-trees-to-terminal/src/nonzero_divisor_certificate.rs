@@ -152,9 +152,6 @@ fn prove_integer_bound(
             (equality_left, equality_right),
             (equality_right, equality_left),
         ] {
-            if replacement.integer_value().is_none() {
-                continue;
-            }
             let (endpoint, relation) = if old == goal_left {
                 (
                     0,
@@ -168,6 +165,21 @@ fn prove_integer_bound(
             } else {
                 continue;
             };
+            if let Some((relation_citation, relation_fact)) =
+                cited_facts(assumptions, semantic_axioms).find(|(_, fact)| *fact == &relation)
+            {
+                return Some(ProofNode {
+                    conclusion: goal.clone(),
+                    rule: ProofRule::IntegerLessOrEqualSubstitution {
+                        relation: Box::new(relation_citation.proof(relation_fact)),
+                        equality: Box::new(citation.proof(fact)),
+                        endpoint,
+                    },
+                });
+            }
+            if replacement.integer_value().is_none() {
+                continue;
+            }
             if let Some(relation) = closed_integer_relation(relation) {
                 return Some(ProofNode {
                     conclusion: goal.clone(),
@@ -612,6 +624,97 @@ mod tests {
             .is_none(),
             "minimum dividend equality cannot prove the joint arm",
         );
+    }
+
+    #[test]
+    fn exact_division_goal_transports_exact_bound_across_endpoint_equality() {
+        let unsigned = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        let unsigned_context = PropositionContext::from_value_types([
+            (ValueId::new(1).unwrap(), ScalarType::Integer(unsigned)),
+            (ValueId::new(2).unwrap(), ScalarType::Integer(unsigned)),
+            (ValueId::new(3).unwrap(), ScalarType::Integer(unsigned)),
+        ])
+        .expect("three u8 values");
+        let unsigned_goal = Proposition::LessOrEqual(
+            ScalarTerm::integer(unsigned, IntegerValue::Unsigned(1)).expect("u8 one"),
+            value(2, unsigned),
+        );
+        let unsigned_proof = prove_canonical_integer_proposition(
+            &unsigned_context,
+            &unsigned_goal,
+            &[
+                Proposition::LessOrEqual(
+                    ScalarTerm::integer(unsigned, IntegerValue::Unsigned(1)).expect("u8 one"),
+                    value(3, unsigned),
+                ),
+                Proposition::Equal(value(3, unsigned), value(2, unsigned)),
+            ],
+            &[],
+        )
+        .expect("exact intermediate bound transports to the unsigned divisor");
+        let ProofRule::IntegerLessOrEqualSubstitution {
+            relation,
+            equality,
+            endpoint,
+        } = unsigned_proof.rule
+        else {
+            panic!("unsigned endpoint transport uses integer-order substitution")
+        };
+        assert_eq!(endpoint, 1);
+        assert!(matches!(relation.rule, ProofRule::Assumption { index: 0 }));
+        assert!(matches!(equality.rule, ProofRule::Assumption { index: 1 }));
+        assert!(
+            prove_canonical_integer_proposition(
+                &unsigned_context,
+                &unsigned_goal,
+                &[Proposition::Equal(value(3, unsigned), value(2, unsigned),)],
+                &[],
+            )
+            .is_none(),
+            "endpoint equality without its bound cannot prove definedness",
+        );
+
+        let signed = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+        let signed_context = PropositionContext::from_value_types([
+            (ValueId::new(1).unwrap(), ScalarType::Integer(signed)),
+            (ValueId::new(2).unwrap(), ScalarType::Integer(signed)),
+            (ValueId::new(3).unwrap(), ScalarType::Integer(signed)),
+        ])
+        .expect("three i8 values");
+        let signed_divisor = value(2, signed);
+        let signed_goal = Proposition::Disjunction(vec![
+            Proposition::LessOrEqual(signed_divisor.clone(), integer(signed, -2)),
+            Proposition::LessOrEqual(integer(signed, 1), signed_divisor.clone()),
+            Proposition::Conjunction(vec![
+                Proposition::LessOrEqual(signed_divisor, integer(signed, -1)),
+                Proposition::LessOrEqual(integer(signed, -127), value(1, signed)),
+            ]),
+        ]);
+        let signed_proof = prove_canonical_integer_proposition(
+            &signed_context,
+            &signed_goal,
+            &[
+                Proposition::LessOrEqual(value(3, signed), integer(signed, -2)),
+                Proposition::Equal(value(3, signed), value(2, signed)),
+            ],
+            &[],
+        )
+        .expect("exact intermediate bound transports to the signed divisor");
+        let ProofRule::DisjunctionIntroduction { disjunct, index } = signed_proof.rule else {
+            panic!("signed endpoint transport selects its canonical arm")
+        };
+        assert_eq!(index, 0);
+        let ProofRule::IntegerLessOrEqualSubstitution {
+            relation,
+            equality,
+            endpoint,
+        } = disjunct.rule
+        else {
+            panic!("signed endpoint transport uses integer-order substitution")
+        };
+        assert_eq!(endpoint, 0);
+        assert!(matches!(relation.rule, ProofRule::Assumption { index: 0 }));
+        assert!(matches!(equality.rule, ProofRule::Assumption { index: 1 }));
     }
 
     #[test]

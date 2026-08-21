@@ -1785,7 +1785,11 @@ premise. A minimum or wrong-identity landing rejects. Exact literal equalities
 retained as machine requirements use the same complete substitution path and
 are cited as assumptions rather than semantic axioms. The selector checks every
 same-carrier equality; zero-only, minimum-dividend, mistyped, or redirected
-premises reject. A signed `i1` divisor
+premises reject. The complete endpoint-transport family pairs an exact retained
+bound on `K` with an independently retained `K == divisor` equality in either
+orientation. The producer cites both through integer-order substitution and
+changes only the canonical endpoint; a missing bound, unrelated equality, weak
+bound, or changed untouched endpoint rejects. A signed `i1` divisor
 fact alone remains
 insufficient because the canonical conjunction also needs its dividend premise.
 The complete retained-bound `i1` family selects that conjunction when exact
