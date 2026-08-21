@@ -10,15 +10,9 @@
 // their `requires`/`ensures`, including byte vectors refined by text domains
 // and how `Slice`/`Array` surface their length and view contracts. The actual
 // runtime storage mechanics are OUT OF SCOPE here; only the proof-facing
-// contracts and the boundary provider binding live in this layer. Construction
+// contracts and provider-agnostic boundary requirements live in this layer. Construction
 // remains deliberately absent until `Allocation<T>` can borrow an explicit
 // `Arena` through the lifetime model; there is no ambient allocator shortcut.
-
-// Legacy boundary-primitive registry syntax retained until these requirements
-// gain ordinary selected satisfiers. The implementation remains a descriptor
-// construction boundary, but the requirement declaration will no longer choose
-// its provider or carry a registry category.
-provider omega::language::core::vec_views : DescriptorConstruction;
 
 // Source-visible owned vector type. The compiler/runtime own its concrete
 // buffer descriptor; core exposes the nominal type so user code, contracts, and
@@ -53,12 +47,10 @@ requires
 
 // Borrow the elements as a slice view; the view length matches the vector.
 boundary operator Vec::as_slice<T>(items: &Vec<T>) -> &[T]
-provider omega::language::core::vec_views
 ensures
     result.len == items.len;
 
 boundary operator Vec::as_mut_slice<T>(items: &mut Vec<T>) -> &mut [T]
-provider omega::language::core::vec_views
 ensures
     result.len == items.len;
 

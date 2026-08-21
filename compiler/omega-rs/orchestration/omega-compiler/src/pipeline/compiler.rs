@@ -165,24 +165,6 @@ where
         .unwrap_or_else(|panic| std::panic::resume_unwind(panic))
 }
 
-/// Runs the legacy boundary-provider registry checks while bootstrap source
-/// still contains `provider` items and operator clauses. The destination model
-/// derives candidates from exact satisfiers and selects `ProviderPlan` rows
-/// through target/build/installation-owned slots.
-fn validate_boundary_providers(
-    syntax: &psi_syntax_trees::SyntaxTrees,
-) -> Result<(), Vec<Diagnostic>> {
-    let mut diagnostics = Vec::new();
-    let registry = omega_effects::build_provider_registry(syntax, &mut diagnostics);
-    omega_effects::validate_provider_bindings(syntax, &registry, &mut diagnostics);
-
-    if diagnostics.is_empty() {
-        Ok(())
-    } else {
-        Err(diagnostics)
-    }
-}
-
 /// Extract bodyless external leaves into the calling-convention rows consumed
 /// by the freestanding ABI builder.
 fn extract_external_binding_rows(
@@ -578,7 +560,6 @@ impl Compiler {
             &syntax.syntax_trees,
             emit_auxiliary_artifacts,
         )?;
-        validate_boundary_providers(&syntax.syntax_trees)?;
         let syntax_trees = syntax.syntax_trees.clone();
 
         let resolved = syntax_trees_to_symbol_resolved_trees(syntax, &mut timings)?;

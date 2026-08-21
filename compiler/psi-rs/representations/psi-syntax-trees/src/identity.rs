@@ -248,10 +248,6 @@ fn count_item(syntax_trees: &SyntaxTrees, item: &Item, counts: &mut AstIdentityS
                 }
             }
         }
-        Item::Provider(provider) => count_identifier_members(
-            syntax_trees.items.identifier_path_members(provider.name),
-            counts,
-        ),
         Item::Use(use_item) => count_identifier_members(
             syntax_trees.items.identifier_path_members(use_item.path),
             counts,
@@ -400,9 +396,6 @@ fn count_operator(
     }
     for contract in syntax_trees.items.capability_contracts(operator.contracts) {
         count_contract(syntax_trees, contract, counts);
-    }
-    if let Some(provider) = operator.provider {
-        count_identifier_members(syntax_trees.items.identifier_path_members(provider), counts);
     }
 }
 

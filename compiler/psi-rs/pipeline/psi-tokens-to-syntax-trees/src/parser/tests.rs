@@ -1530,6 +1530,31 @@ fn rejects_retired_operator_spelling_clause() {
 }
 
 #[test]
+fn rejects_retired_provider_item_and_operator_clause() {
+    let tokens = Lexer::new("provider omega::host::WriteBytes : HostAbiCall;")
+        .tokenize()
+        .expect("tokenize should succeed");
+    let error = parse_syntax_trees(&tokens).expect_err("provider items must reject");
+    assert!(
+        error.message.contains("expected one of"),
+        "got: {}",
+        error.message
+    );
+
+    let tokens = Lexer::new(
+        "boundary operator [] Slice::index(items: &[u8], index: u64) -> u8 provider Slice;",
+    )
+    .tokenize()
+    .expect("tokenize should succeed");
+    let error = parse_syntax_trees(&tokens).expect_err("operator provider clauses must reject");
+    assert!(
+        error.message.contains("expected `;`"),
+        "got: {}",
+        error.message
+    );
+}
+
+#[test]
 fn rejects_unknown_or_multiple_fixed_operator_tokens() {
     for source in [
         "operator && both(left: bool, right: bool) -> bool;",

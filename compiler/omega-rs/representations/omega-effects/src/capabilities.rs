@@ -3,4 +3,3 @@
 pub mod analysis;
 pub mod provider_approval;
 pub mod provider_plan;
-pub mod providers;

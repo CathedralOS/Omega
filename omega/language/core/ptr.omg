@@ -14,13 +14,6 @@
 boundary data Ptr<T>;
 boundary data PtrRange<T>;
 
-// Legacy boundary-primitive registry syntax retained until these exact
-// requirements gain ordinary target-selected satisfiers. The requirement
-// declarations will carry no provider selection.
-provider omega::language::core::ptr_offset : PointerOffset;
+boundary operator Ptr::offset<T>(ptr: Ptr<T>, count: u64) -> Ptr<T>;
 
-boundary operator Ptr::offset<T>(ptr: Ptr<T>, count: u64) -> Ptr<T>
-provider omega::language::core::ptr_offset;
-
-boundary operator Ptr::range<T>(ptr: Ptr<T>, len: u64) -> PtrRange<T>
-provider omega::language::core::ptr_offset;
+boundary operator Ptr::range<T>(ptr: Ptr<T>, len: u64) -> PtrRange<T>;

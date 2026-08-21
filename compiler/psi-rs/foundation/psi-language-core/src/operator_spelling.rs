@@ -1,4 +1,4 @@
-//! Fixed operator-token identities and boundary provider categories.
+//! Fixed operator-token identities.
 //!
 //! The token set and operand-directed semantics are settled. The source head
 //! writes the literal token immediately after `operator`.
@@ -77,53 +77,6 @@ impl OperatorSpelling {
             Self::GreaterEqual => ">=",
             Self::Index => "[]",
             Self::Range => "[..]",
-        }
-    }
-}
-
-/// Legacy boundary-primitive registry categories, retained only until the
-/// parallel provider item/clause pipeline migrates to ordinary satisfiers and
-/// nominal binding kinds.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum ProviderCategory {
-    SliceIndexing,
-    PointerOffset,
-    PointerAccess,
-    DescriptorConstruction,
-    Allocation,
-    HostAbiCall,
-}
-
-impl ProviderCategory {
-    pub const ALL: [Self; 6] = [
-        Self::SliceIndexing,
-        Self::PointerOffset,
-        Self::PointerAccess,
-        Self::DescriptorConstruction,
-        Self::Allocation,
-        Self::HostAbiCall,
-    ];
-
-    pub fn from_name(name: &str) -> Option<Self> {
-        Some(match name {
-            "SliceIndexing" => Self::SliceIndexing,
-            "PointerOffset" => Self::PointerOffset,
-            "PointerAccess" => Self::PointerAccess,
-            "DescriptorConstruction" => Self::DescriptorConstruction,
-            "Allocation" => Self::Allocation,
-            "HostAbiCall" => Self::HostAbiCall,
-            _ => return None,
-        })
-    }
-
-    pub const fn name(self) -> &'static str {
-        match self {
-            Self::SliceIndexing => "SliceIndexing",
-            Self::PointerOffset => "PointerOffset",
-            Self::PointerAccess => "PointerAccess",
-            Self::DescriptorConstruction => "DescriptorConstruction",
-            Self::Allocation => "Allocation",
-            Self::HostAbiCall => "HostAbiCall",
         }
     }
 }

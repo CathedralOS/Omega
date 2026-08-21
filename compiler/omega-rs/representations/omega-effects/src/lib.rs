@@ -15,9 +15,6 @@ pub use capabilities::provider_approval::{
     BoundaryCallApproval, BoundaryProviderApproval, BoundaryProviderApprovalRegistry,
 };
 pub use capabilities::provider_plan;
-pub use capabilities::providers::{
-    BoundaryProvider, BoundaryProviderRegistry, build_provider_registry, validate_provider_bindings,
-};
 pub use coexisting_executable_eras::{
     AdmittedExecutableEra, AttributedContainmentEvidence, AttributedManifestCompleteness,
     CoexistingExecutableTcbEntry, CoexistingExecutableTcbReport, CoexistingExecutableTcbSet,

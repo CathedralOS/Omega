@@ -1129,8 +1129,8 @@ fn capability_manifest_reports_authority_flow_verbs() {
             "boundary report for {canary_name} must not render service names as authority\n{boundary}"
         );
         assert!(
-            boundary.contains("Boundary Providers"),
-            "boundary report for {canary_name} should surface the provider registry\n{boundary}"
+            !boundary.contains("Boundary Providers") && !boundary.contains("boundary providers:"),
+            "boundary report for {canary_name} must not resurrect the retired primitive-provider registry\n{boundary}"
         );
 
         let _ = fs::remove_dir_all(&build_dir);

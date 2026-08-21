@@ -7,14 +7,8 @@
 // counterpart to `Vec::as_slice` and mirror the borrowed `Slice` surface.
 //
 // The element layout is backend-owned and the borrowed-view descriptors are a
-// runtime concern; only the proof-facing length/view contracts and the boundary
-// provider binding live in this module.
-
-// Legacy boundary-primitive registry syntax retained until these requirements
-// gain ordinary selected satisfiers. `as_slice` / `as_mut_slice` still lower
-// through descriptor construction, but the requirement declaration will no
-// longer choose that implementation.
-provider omega::language::core::array_views : DescriptorConstruction;
+// runtime concern; only the proof-facing length/view contracts and
+// provider-agnostic boundary requirements live in this module.
 
 // Length in elements: the static extent of the array. Cheap O(1) measure.
 // `N` stays in the semantic type; there is no length-erasing `Array<T>`
@@ -31,11 +25,9 @@ requires
 
 // Borrow the elements as a slice view; the view length matches the array.
 boundary operator Array::as_slice<T, const N: u64>(items: &[T; N]) -> &[T]
-provider omega::language::core::array_views
 ensures
     result.len == items.len;
 
 boundary operator Array::as_mut_slice<T, const N: u64>(items: &mut [T; N]) -> &mut [T]
-provider omega::language::core::array_views
 ensures
     result.len == items.len;

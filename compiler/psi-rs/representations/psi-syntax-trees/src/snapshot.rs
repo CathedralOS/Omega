@@ -142,10 +142,6 @@ pub enum ItemSnapshot {
         parameters: Vec<StateParameterSnapshot>,
         body: PropositionBodySnapshot,
     },
-    Provider {
-        name: Vec<IdentifierSnapshot>,
-        category: &'static str,
-    },
     Export {
         path: Vec<IdentifierSnapshot>,
         alias: Option<IdentifierSnapshot>,
@@ -300,7 +296,6 @@ pub struct OperatorSnapshot {
     pub return_type: TypeReferenceSnapshot,
     pub contracts: Vec<CapabilityContractSnapshot>,
     pub spelling: Option<&'static str>,
-    pub provider: Option<Vec<IdentifierSnapshot>>,
     pub token_count: usize,
 }
 
@@ -989,10 +984,6 @@ fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnapshot {
                 }
             },
         },
-        Item::Provider(value) => ItemSnapshot::Provider {
-            name: snapshot_identifier_slice(syntax_trees.items.identifier_path_members(value.name)),
-            category: value.category.name(),
-        },
         Item::Export(value) => ItemSnapshot::Export {
             path: snapshot_identifier_slice(syntax_trees.items.identifier_path_members(value.path)),
             alias: value.alias.as_ref().map(snapshot_identifier),
@@ -1187,9 +1178,6 @@ fn snapshot_operator(
         return_type: snapshot_type_reference_handle(syntax_trees, operator.return_type),
         contracts: snapshot_capability_contracts(syntax_trees, operator.contracts),
         spelling: operator.spelling.map(|spelling| spelling.symbol()),
-        provider: operator.provider.map(|provider| {
-            snapshot_identifier_slice(syntax_trees.items.identifier_path_members(provider))
-        }),
         token_count: operator.token_count,
     }
 }

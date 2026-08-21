@@ -13,15 +13,9 @@
 //
 // Fixed operator tokens are written directly in the declaration head.
 
-// Legacy boundary-primitive registry syntax retained until the ordinary
-// satisfier/ProviderPlan migration lands. The destination declaration carries
-// no provider choice; a target-selected realization supplies this requirement.
-provider omega::language::core::slice_indexing : SliceIndexing;
-
 boundary operator Slice::Length<T>(items: &[T]) -> u64;
 
 boundary operator [] Slice::index<T>(items: &[T], index: u64) -> T
-provider omega::language::core::slice_indexing
 requires
     index < items.len;
 
@@ -54,7 +48,6 @@ requires
     end <= items.len;
 
 boundary operator [..] Slice::range<T>(items: &[T], start: u64, end: u64) -> &[T]
-provider omega::language::core::slice_indexing
 requires
     start <= end && end <= items.len;
 
