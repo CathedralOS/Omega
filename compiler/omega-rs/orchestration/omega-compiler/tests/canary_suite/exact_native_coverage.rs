@@ -2,8 +2,8 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-pub(super) const EXPECTED_UNIQUE_ROOTED_ACTIVE_COVERAGE: usize = 671;
-pub(super) const EXPECTED_UNIQUE_LEGACY_ACTIVE_COVERAGE: usize = 17;
+pub(super) const EXPECTED_UNIQUE_ROOTED_ACTIVE_COVERAGE: usize = 681;
+pub(super) const EXPECTED_UNIQUE_LEGACY_ACTIVE_COVERAGE: usize = 13;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct ExactNativeCanaryOwner {
