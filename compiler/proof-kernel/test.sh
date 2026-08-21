@@ -105,6 +105,7 @@ chk "s congruence"    "(All (All (-> (= (v 1) (v 0)) (= (s (v 1)) (s (v 0)))))) 
 chk "+ cong left"     "(All (All (All (-> (= (v 2) (v 1)) (= (p (v 2) (v 0)) (p (v 1) (v 0))))))) (gen (gen (gen (lam (= (v 2) (v 1)) (eqelim (= (p (v 3) (v 1)) (p (v 0) (v 1))) (hyp 0) (refl (p (v 2) (v 0))))))))" accept
 chk "+ cong right"    "(All (All (All (-> (= (v 1) (v 0)) (= (p (v 2) (v 1)) (p (v 2) (v 0))))))) (gen (gen (gen (lam (= (v 1) (v 0)) (eqelim (= (p (v 3) (v 2)) (p (v 3) (v 0))) (hyp 0) (refl (p (v 2) (v 1))))))))" accept
 chk "Leibniz P transport" "(All (All (-> (= (v 1) (v 0)) (-> (Pred 0 (v 1)) (Pred 0 (v 0)))))) (gen (gen (lam (= (v 1) (v 0)) (lam (Pred 0 (v 1)) (eqelim (Pred 0 (v 0)) (hyp 1) (hyp 0))))))" accept
+chk "Leibniz Rel right transport" "(All (All (All (-> (= (v 1) (v 0)) (-> (Rel 0 (v 2) (v 1)) (Rel 0 (v 2) (v 0))))))) (gen (gen (gen (lam (= (v 1) (v 0)) (lam (Rel 0 (v 2) (v 1)) (eqelim (Rel 0 (v 3) (v 0)) (hyp 1) (hyp 0)))))))" accept
 chk "bogus s-cong"    "(All (All (-> (= (v 1) (v 0)) (= (s (v 1)) (v 0))))) (gen (gen (lam (= (v 1) (v 0)) (eqelim (= (s (v 2)) (s (v 0))) (hyp 0) (refl (s (v 1)))))))" reject
 # binary relations (Rel id t1 t2) — ordered args, conversion in each
 chk "rel tautology"   "(All (All (-> (Rel 0 (v 1) (v 0)) (Rel 0 (v 1) (v 0))))) (gen (gen (lam (Rel 0 (v 1) (v 0)) (hyp 0))))" accept

@@ -512,11 +512,11 @@ fn registered_roots() -> Vec<TrustDependencyNode> {
             &[("psi-terminal/module.rs", TERMINAL_MODEL_SOURCE)],
         ),
         TrustDependencyNode::new(
-            "root:canonical-proof-calculus-v11",
+            "root:canonical-proof-calculus-v12",
             TrustDependencyKind::RegisteredRoot,
             TrustDependencyStatus::Registered,
             "terminal-Psi proof bundle and primitive calculus",
-            "proof-bundle-format-14",
+            "proof-bundle-format-15",
             "Psi proof-kernel architecture",
             "portable terminal-Psi proof checking",
             "The current small proof calculus is an explicit registered semantic root.",
@@ -569,13 +569,13 @@ fn proof_kernel_node() -> TrustDependencyNode {
         TrustDependencyKind::TrustedImplementation,
         TrustDependencyStatus::TrustedJudgment,
         "Rust implementation of the current terminal proof calculus",
-        "rust-proof-kernel-v3",
+        "rust-proof-kernel-v4",
         "psi-proof-kernel",
         "portable proof bundle acceptance",
         "The current Rust kernel remains trusted until the independent low-rung checker closes the diamond.",
         TrustAcceptingPolicy::ExplicitMigrationTrust,
         dependencies(&[
-            "root:canonical-proof-calculus-v11",
+            "root:canonical-proof-calculus-v12",
             "root:explicit-rust-migration-policy",
         ]),
         &[
@@ -1119,19 +1119,19 @@ mod tests {
         let proof_calculus = graph
             .nodes()
             .iter()
-            .find(|node| node.identity() == "root:canonical-proof-calculus-v11")
+            .find(|node| node.identity() == "root:canonical-proof-calculus-v12")
             .expect("current proof-calculus root");
-        assert_eq!(proof_calculus.version(), "proof-bundle-format-14");
+        assert_eq!(proof_calculus.version(), "proof-bundle-format-15");
         let rust_kernel = graph
             .nodes()
             .iter()
             .find(|node| node.identity() == "implementation:rust-proof-kernel")
             .expect("current Rust proof kernel");
-        assert_eq!(rust_kernel.version(), "rust-proof-kernel-v3");
+        assert_eq!(rust_kernel.version(), "rust-proof-kernel-v4");
         assert!(
             rust_kernel
                 .dependencies()
-                .contains(&"root:canonical-proof-calculus-v11".to_owned())
+                .contains(&"root:canonical-proof-calculus-v12".to_owned())
         );
         assert_eq!(
             graph

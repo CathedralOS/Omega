@@ -18,7 +18,7 @@ use sha2::{Digest, Sha256};
 
 const MAGIC: &[u8; 8] = b"PSIPRF\0\0";
 /// Single current pre-release proof vocabulary marker.
-const FORMAT_MARKER: u16 = 14;
+const FORMAT_MARKER: u16 = 15;
 const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-proof-bundle-fingerprint\0";
 const MAX_PROPOSITION_DEPTH: usize = 256;
 const MAX_SCALAR_TERM_DEPTH: usize = 256;
@@ -288,6 +288,11 @@ fn validate_proof_node(node: &ProofNode, depth: usize) -> Result<(), ProofCodecE
         | ProofRule::IntegerLessOrEqualTransitivity {
             left_less_or_equal_middle: left_equals_middle,
             middle_less_or_equal_right: middle_equals_right,
+        }
+        | ProofRule::IntegerLessOrEqualSubstitution {
+            relation: left_equals_middle,
+            equality: middle_equals_right,
+            ..
         } => {
             validate_proof_node(left_equals_middle, depth + 1)?;
             validate_proof_node(middle_equals_right, depth + 1)
@@ -594,6 +599,16 @@ fn encode_proof_node(
             writer.u8(10);
             encode_proof_node(writer, left_less_or_equal_middle, depth + 1, format_marker)?;
             encode_proof_node(writer, middle_less_or_equal_right, depth + 1, format_marker)?;
+        }
+        ProofRule::IntegerLessOrEqualSubstitution {
+            relation,
+            equality,
+            endpoint,
+        } => {
+            writer.u8(11);
+            encode_proof_node(writer, relation, depth + 1, format_marker)?;
+            encode_proof_node(writer, equality, depth + 1, format_marker)?;
+            writer.index("integer <= substitution endpoint", *endpoint)?;
         }
     }
     Ok(())
@@ -1363,6 +1378,11 @@ fn decode_proof_node(
                 depth + 1,
                 format_marker,
             )?),
+        },
+        11 => ProofRule::IntegerLessOrEqualSubstitution {
+            relation: Box::new(decode_proof_node(reader, depth + 1, format_marker)?),
+            equality: Box::new(decode_proof_node(reader, depth + 1, format_marker)?),
+            endpoint: reader.index()?,
         },
         tag => return Err(ProofCodecError::InvalidTag("ProofRule", tag)),
     };
