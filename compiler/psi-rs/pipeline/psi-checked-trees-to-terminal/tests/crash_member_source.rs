@@ -577,6 +577,21 @@ const EMPTY_RECORD_EQUALITY_SOURCE: &str = r#"
     }
 "#;
 
+const ADDRESS_RECORD_EQUALITY_SOURCE: &str = r#"
+    trait Equatable {
+        machine equals(&self, rhs: &Self) -> bool;
+    }
+
+    data Addressed { pointer: addr; }
+    AddressedEquatable: Addressed satisfies Equatable;
+
+    data Root {}
+    machine Root::enter(left: Addressed, right: Addressed)
+    crashes Abort
+        left == right
+    {}
+"#;
+
 #[test]
 fn direct_boolean_member_crash_route_survives_source_call_codec_and_interpretation() {
     struct Accept;
@@ -4012,6 +4027,28 @@ fn empty_record_equality_reuses_boolean_constants_end_to_end() {
             Err(psi_terminal_verifier::ModuleError::CallCrashContinuationsMismatch { .. })
         ),
         "unexpected empty-record continuation result: {invalid_result:?}"
+    );
+}
+
+#[test]
+fn address_record_equality_remains_fenced_before_terminal_lowering() {
+    let tokens = Lexer::new(ADDRESS_RECORD_EQUALITY_SOURCE)
+        .tokenize()
+        .expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("check");
+
+    let result = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::enter");
+    assert!(
+        matches!(
+            &result,
+            Err(psi_checked_trees_to_terminal::LoweringError::Unsupported(
+                "structural crash route is outside checked Boolean member lowering"
+            ))
+        ),
+        "unexpected lowering result: {result:?}"
     );
 }
 

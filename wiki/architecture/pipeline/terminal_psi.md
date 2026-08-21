@@ -1262,6 +1262,9 @@ the exact integer type, and the verifier checks that annotation against the
 declared leaf. Built-in fixed-integer `&`, `|`, `^`, and `~` compose the same
 typed member terms without an arithmetic proof obligation; overloaded forms and
 the distinct address carrier remain outside this bounded structural slice.
+Checked production applies that address fence both to direct member predicates
+and to whole-record leaf expansion; the source contract may remain in checked
+identity, but Terminal lowering receives no portable scalar term and rejects it.
 Whole-root and all-field-projected structural calls reconstruct those predicates
 across the callee boundary by prepending the caller's canonical argument path to
 every callee-relative integer-member path, including operands nested beneath
