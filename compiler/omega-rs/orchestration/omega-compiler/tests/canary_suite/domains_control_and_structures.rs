@@ -1452,8 +1452,9 @@ fn runtime_room_use_reentry_exit_canary_runs() {
     let canary = pass_canary("dungeon/runtime_room_use_reentry_exit");
     let scratch =
         std::env::temp_dir().join(format!("omega-runtime-room-reentry-{}", std::process::id()));
-    compile_hosted_main(&canary, &scratch, native_hosted_target())
-        .expect("runtime room use reentry canary should compile");
+    let _ = fs::remove_dir_all(&scratch);
+    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+        .expect("runtime room use reentry canary should compile from its authored root");
 
     let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
