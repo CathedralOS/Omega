@@ -1778,7 +1778,10 @@ selects the third canonical disjunct when both `divisor <= -1` and
 `MIN + 1 <= dividend` are independently available through the supported exact
 citation or checked transitivity paths. The producer proves both conjuncts,
 constructs their conjunction, and introduces that ordered disjunct; either
-missing premise or redirected operand identity rejects. A signed `i1` divisor
+missing premise or redirected operand identity rejects. A retained
+`divisor <= -1` may also pair with an independently landed nonminimum dividend
+literal; closed order and exact equality substitution prove its dividend-floor
+premise. A minimum or wrong-identity landing rejects. A signed `i1` divisor
 fact alone remains
 insufficient because the canonical conjunction also needs its dividend premise.
 The complete retained-bound `i1` family selects that conjunction when exact
