@@ -489,6 +489,9 @@ fn exact_division_has_closed_prior_certificate(
     else {
         return false;
     };
+    if retained_exact_division_safe_divisor_bound(goal, semantic_axioms, requirements) {
+        return true;
+    }
     let Some(value) = super::known_integer_term_value(*integer_type, right, semantic_axioms) else {
         return false;
     };
@@ -500,6 +503,35 @@ fn exact_division_has_closed_prior_certificate(
                 || retained_exact_division_exception_bound(goal, semantic_axioms, requirements)
         }
         (psi_core::IntegerSign::Signed, psi_core::IntegerValue::Signed(value)) => value != 0,
+        _ => false,
+    }
+}
+
+fn retained_exact_division_safe_divisor_bound(
+    goal: &CanonicalScalarGoal,
+    semantic_axioms: &[Proposition],
+    requirements: &[Proposition],
+) -> bool {
+    let Ok(Some(proposition)) = goal.kernel_proposition() else {
+        return false;
+    };
+    let retained = |candidate: &Proposition| {
+        requirements
+            .iter()
+            .chain(semantic_axioms)
+            .any(|fact| fact == candidate)
+    };
+    match &proposition {
+        Proposition::LessOrEqual(_, _) => retained(&proposition),
+        Proposition::Disjunction(disjuncts) => {
+            disjuncts
+                .first()
+                .is_some_and(|candidate| retained(candidate))
+                || disjuncts
+                    .get(1)
+                    .is_some_and(|candidate| retained(candidate))
+        }
+        Proposition::Conjunction(_) => false,
         _ => false,
     }
 }
@@ -680,6 +712,14 @@ mod tests {
         };
         assert!(exact_division_has_closed_prior_certificate(
             &unsigned_goal,
+            &[],
+            &[Proposition::LessOrEqual(
+                ScalarTerm::integer(unsigned, IntegerValue::Unsigned(1)).expect("u8 one"),
+                unsigned_right.clone(),
+            )],
+        ));
+        assert!(exact_division_has_closed_prior_certificate(
+            &unsigned_goal,
             &[Proposition::Equal(
                 unsigned_right.clone(),
                 ScalarTerm::integer(unsigned, IntegerValue::Unsigned(5)).expect("u8 literal"),
@@ -734,6 +774,30 @@ mod tests {
             value(6, signed),
             ScalarTerm::integer(signed, IntegerValue::Signed(-1)).expect("i8 literal"),
         );
+        assert!(exact_division_has_closed_prior_certificate(
+            &negative_one_goal,
+            &[],
+            &[Proposition::LessOrEqual(
+                ScalarTerm::integer(signed, IntegerValue::Signed(1)).expect("i8 one"),
+                value(6, signed),
+            )],
+        ));
+        assert!(exact_division_has_closed_prior_certificate(
+            &negative_one_goal,
+            &[Proposition::LessOrEqual(
+                value(6, signed),
+                ScalarTerm::integer(signed, IntegerValue::Signed(-2)).expect("i8 -2"),
+            )],
+            &[],
+        ));
+        assert!(!exact_division_has_closed_prior_certificate(
+            &negative_one_goal,
+            &[],
+            &[Proposition::LessOrEqual(
+                ScalarTerm::integer(signed, IntegerValue::Signed(0)).expect("i8 zero"),
+                value(6, signed),
+            )],
+        ));
         assert!(exact_division_has_closed_prior_certificate(
             &negative_one_goal,
             &[
@@ -826,6 +890,14 @@ mod tests {
             left: value(7, i1),
             right: value(8, i1),
         };
+        assert!(!exact_division_has_closed_prior_certificate(
+            &i1_goal,
+            &[],
+            &[Proposition::LessOrEqual(
+                value(8, i1),
+                ScalarTerm::integer(i1, IntegerValue::Signed(-1)).expect("i1 -1"),
+            )],
+        ));
         assert!(exact_division_has_closed_prior_certificate(
             &i1_goal,
             &[
