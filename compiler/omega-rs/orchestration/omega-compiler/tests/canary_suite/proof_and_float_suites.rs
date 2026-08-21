@@ -7,6 +7,9 @@ fn fail_canaries_reject_with_expected_diagnostic_fragment() {
     // pattern -- every conversion so far has found something hiding). Local
     // iteration may select a focused subset with OMEGA_FAIL_CANARY_FILTER;
     // CI's unset default still checks the complete corpus.
+    let _umbrella = CANARY_UMBRELLA_LOCK
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     let mut failures: Vec<String> = Vec::new();
     let filter = std::env::var("OMEGA_FAIL_CANARY_FILTER").ok();
     let mut selected = 0usize;
@@ -19,8 +22,7 @@ fn fail_canaries_reject_with_expected_diagnostic_fragment() {
                 .any(|candidate| !candidate.is_empty() && canary_name.contains(candidate))
         })
     };
-    let mut evaluate = |canary_name: &str, checked_only: bool| {
-        selected += 1;
+    let evaluate = |canary_name: &str, checked_only: bool| {
         let canary = fail_canary(canary_name);
         let expected_path = canary.join("expected.txt");
         let expected_fragment = fs::read_to_string(&expected_path)
@@ -42,12 +44,11 @@ fn fail_canaries_reject_with_expected_diagnostic_fragment() {
         };
         let diagnostics = match result {
             Ok(summary) => {
-                failures.push(format!(
+                return Some(format!(
                     "{} compiled successfully (expected a rejection): {}",
                     canary.display(),
                     summary
                 ));
-                return;
             }
             Err(diagnostics) => diagnostics,
         };
@@ -58,28 +59,37 @@ fn fail_canaries_reject_with_expected_diagnostic_fragment() {
             .join("\n");
 
         if !combined.contains(&expected_fragment) {
-            failures.push(format!(
+            Some(format!(
                 "{} missing expected fragment {:?}\nactual diagnostics:\n{}",
                 canary.display(),
                 expected_fragment,
                 combined
-            ));
+            ))
+        } else {
+            None
         }
     };
 
-    for canary_name in CHECKED_ONLY_FAIL_CANARIES
+    let checked_only = CHECKED_ONLY_FAIL_CANARIES
         .iter()
         .copied()
         .filter(selected_by_filter)
-    {
-        evaluate(canary_name, true);
-    }
+        .collect::<Vec<_>>();
+    selected += checked_only.len();
+    failures.extend(
+        run_bounded_canary_jobs(&checked_only, |canary_name| evaluate(canary_name, true))
+            .into_iter()
+            .flatten(),
+    );
     for canary_name in ACTIVE_FAIL_CANARIES
         .iter()
         .copied()
         .filter(selected_by_filter)
     {
-        evaluate(canary_name, false);
+        selected += 1;
+        if let Some(failure) = evaluate(canary_name, false) {
+            failures.push(failure);
+        }
     }
 
     assert!(
