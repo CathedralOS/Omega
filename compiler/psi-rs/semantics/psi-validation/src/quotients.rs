@@ -20,6 +20,8 @@ use psi_typed_trees::state::State;
 use psi_typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 use std::collections::HashSet;
 
+mod relation_plan;
+
 const CORE_EQUIVALENCE_SOURCE: &str = "relation.omg";
 
 pub(crate) fn validate_quotients(
@@ -27,20 +29,7 @@ pub(crate) fn validate_quotients(
     proof_only: &ProofOnlyClassification,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    for (_, expression) in program.expression_table.iter_expressions() {
-        let ExpressionNode::Call(call) = expression else {
-            continue;
-        };
-        if let Some(request) = &call.quotient_operation {
-            let operation = match request.kind {
-                psi_typed_trees::expression::QuotientOperationKind::Lift => "lift",
-                psi_typed_trees::expression::QuotientOperationKind::Define => "define",
-            };
-            diagnostics.push(Diagnostic::error(format!(
-                "`Quotient::{operation}` retains its exact representative operation and named conformance, but executable quotient operations are not admitted until quotient formation, correspondence, and result-flow obligations are independently checked",
-            )));
-        }
-    }
+    reject_quotient_operation_requests(program, diagnostics);
 
     for definition in program.data_definitions() {
         let Some(quotient) = &definition.quotient else {
@@ -112,6 +101,71 @@ pub(crate) fn validate_quotients(
             carrier_symbol,
             diagnostics,
         );
+    }
+}
+
+/// Reject every retained sealed request while deriving the exact relation plan
+/// for the one shape whose owner/result context is already unambiguous: a
+/// direct state-terminal request. This is a non-authoritative prerequisite;
+/// deriving `RA`/`RR` here does not admit execution or create a checked-tree
+/// operation.
+fn reject_quotient_operation_requests(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>) {
+    let mut direct_terminal_requests = Vec::new();
+    for machine in program.machines() {
+        for state in program.machine_states(machine) {
+            for statement in program.statement_table.statements(state.statement_nodes) {
+                let psi_typed_trees::statement::StatementNode::Expression(expression) = statement
+                else {
+                    continue;
+                };
+                let ExpressionNode::Call(call) = program.expression_table.expression(*expression)
+                else {
+                    continue;
+                };
+                let Some(request) = &call.quotient_operation else {
+                    continue;
+                };
+                if !direct_terminal_requests.contains(expression) {
+                    direct_terminal_requests.push(*expression);
+                }
+                let operation = operation_name(request.kind);
+                match relation_plan::derive_direct_terminal_plan(program, machine, state, call) {
+                    Ok(plan) => diagnostics.push(Diagnostic::error(format!(
+                        "`Quotient::{operation}` has compiler-derived direct-terminal relations {} and {}, but executable quotient operations are not admitted until representative correspondence, the selected `Respects` contract, and normalized result flow are independently checked",
+                        plan.render_ra(program),
+                        plan.render_rr(program),
+                    ))),
+                    Err(reason) => diagnostics.push(Diagnostic::error(format!(
+                        "`Quotient::{operation}` retains its exact representative operation and named conformance, but its direct-terminal relation plan is unresolved ({reason}); executable quotient operations are not admitted",
+                    ))),
+                }
+            }
+        }
+    }
+
+    // Preserve the global fail-closed fence for nested, contract-only, or
+    // otherwise ownerless table expressions. Their context is deliberately not
+    // guessed from arena proximity.
+    for (handle, expression) in program.expression_table.iter_expressions() {
+        let ExpressionNode::Call(call) = expression else {
+            continue;
+        };
+        let Some(request) = &call.quotient_operation else {
+            continue;
+        };
+        if !direct_terminal_requests.contains(&handle) {
+            let operation = operation_name(request.kind);
+            diagnostics.push(Diagnostic::error(format!(
+                "`Quotient::{operation}` retains its exact representative operation and named conformance, but executable quotient operations are not admitted until quotient formation, correspondence, and result-flow obligations are independently checked",
+            )));
+        }
+    }
+}
+
+fn operation_name(kind: psi_typed_trees::expression::QuotientOperationKind) -> &'static str {
+    match kind {
+        psi_typed_trees::expression::QuotientOperationKind::Lift => "lift",
+        psi_typed_trees::expression::QuotientOperationKind::Define => "define",
     }
 }
 
