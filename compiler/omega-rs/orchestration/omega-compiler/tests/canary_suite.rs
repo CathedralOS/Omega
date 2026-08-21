@@ -1342,7 +1342,15 @@ fn compile_rooted_canary_for_target(
 // exercise production entry selection and may not substitute the legacy entry
 // seam.
 const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
+    "ownership/linear_state_call_handoff",
+    "ownership/linear_transition_nested_call_handoff",
+    "ownership/linear_repeated_transition_call_handoff",
     "ownership/linear_live_across_call_continuation",
+    "ownership/linear_fresh_state_call_result_handoff",
+    "ownership/linear_transfer_and_consume",
+    "ownership/linear_transparent_record_frontier",
+    "ownership/linear_transparent_record_state_result",
+    "ownership/linear_aggregate_state_result",
     "arithmetic/runtime_unsigned_modulo_call_argument_exit",
     "arithmetic/runtime_unsigned_modulo_cast_operand_exit",
     "calls/free_standing_machine_helper_compile",

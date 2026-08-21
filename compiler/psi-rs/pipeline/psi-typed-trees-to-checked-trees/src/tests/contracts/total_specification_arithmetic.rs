@@ -166,3 +166,119 @@ fn custom_float_returning_operator_is_not_mistaken_for_float_arithmetic() {
 
     checked(source).expect("a custom float-returning operator is not a primitive arithmetic row");
 }
+
+#[test]
+fn trapping_arithmetic_is_illegal_in_trait_and_machine_parameter_signatures() {
+    let source = r#"
+        trait ArithmeticRule {
+            machine accepts(value: i32 in Trapping) -> bool
+            requires
+                value + 1 > 0;
+        }
+
+        machine apply<machine Selected>()
+        where machine Selected(value: i32 in Trapping) -> bool
+            requires value - 1 > 0;
+        {}
+    "#;
+
+    let diagnostics = checked(source).expect_err("abstract callable contracts inhabit Prop");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("trait `ArithmeticRule` state `accepts` requires contract")
+            && diagnostic
+                .message
+                .contains("direct Trapping arithmetic `+`")
+    }));
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("machine-parameter requirement `Selected` requires contract")
+            && diagnostic
+                .message
+                .contains("direct Trapping arithmetic `-`")
+    }));
+}
+
+#[test]
+fn trapping_arithmetic_is_illegal_in_operator_contracts() {
+    let source = r#"
+        data Arithmetic {}
+        boundary operator Arithmetic::increment(value: i32 in Trapping) -> i32
+        ensures
+            result == value + 1;
+    "#;
+
+    let diagnostics = checked(source).expect_err("operator contracts inhabit Prop");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("operator `Arithmetic::increment` ensures contract")
+            && diagnostic
+                .message
+                .contains("direct Trapping arithmetic `+`")
+    }));
+}
+
+#[test]
+fn trapping_arithmetic_is_illegal_in_domain_data_and_trait_predicates() {
+    let source = r#"
+        domain i32::Risky
+        requires
+            (self as i32 in Trapping) + 1 > 0;
+
+        data Ledger
+        where
+            count + 1 > 0,
+        {
+            count: i32 in Trapping;
+        }
+
+        trait InvariantRule {
+            invariant (1 as i32 in Trapping) + 1 > 0;
+        }
+    "#;
+
+    let diagnostics = checked(source).expect_err("predicate facts inhabit Prop");
+    for owner in [
+        "domain `i32::Risky` predicate",
+        "data `Ledger` default-domain predicate",
+        "trait `InvariantRule` invariant",
+    ] {
+        assert!(
+            diagnostics.iter().any(|diagnostic| {
+                diagnostic.message.contains(owner)
+                    && diagnostic
+                        .message
+                        .contains("direct Trapping arithmetic `+`")
+            }),
+            "missing totality diagnostic for {owner}: {diagnostics:?}"
+        );
+    }
+}
+
+#[test]
+fn total_abstract_contract_operations_remain_legal() {
+    let source = r#"
+        trait ClassificationRule {
+            machine accepts(left: i32 in Trapping, right: i32 in Trapping) -> bool
+            requires
+                left == right
+            requires
+                (left & right) == 0;
+        }
+
+        data Arithmetic {}
+        boundary operator Arithmetic::wrapped(value: i32 in Wrapping) -> i32
+        ensures
+            result == value + 1;
+
+        machine apply<machine Selected>()
+        where machine Selected(value: i32 in Saturating) -> bool
+            requires value * 2 == value;
+        {}
+    "#;
+
+    checked(source).expect("abstract contracts retain their total selected operations");
+}

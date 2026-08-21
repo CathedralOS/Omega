@@ -340,6 +340,132 @@ impl ProgramStorageEntryNativeBridgePlan {
     pub fn continuation_state(&self) -> &str {
         &self.continuation_state
     }
+
+    /// Run one platform executor only while this bridge's exact receiver
+    /// activation remains live.
+    ///
+    /// This joins the retained emitted-entry identity to the production
+    /// provider installer and mapped receiver carrier. The executor receives a
+    /// sealed borrowed handoff only after installation and ZII construction
+    /// succeed; it cannot detach either the handoff or receiver loan from this
+    /// call. Successful return records only that this supplied executor ran
+    /// through the checked bridge gate. It is not evidence that native bytes
+    /// were invoked.
+    pub fn dispatch_source_continuation_executor<Output>(
+        &self,
+        artifact_directory: &Path,
+        provider_issuance: psi_extents::ExtentProviderIssuance,
+        image: ProgramStorageRootInput,
+        initial_storage: ProgramStorageRootInput,
+        mapped_base: u64,
+        mapped_storage: &mut [u8],
+        execute: impl for<'handoff> FnOnce(
+            ProgramStorageEntrySourceContinuationHandoff<'handoff>,
+        ) -> Output,
+    ) -> Result<ProgramStorageEntryExecutorDispatch<Output>, ProgramStorageEntryBridgeError> {
+        let Some(selected_provider) = self.selected_provider.as_ref() else {
+            return Err(ProgramStorageEntryBridgeError::Installation(
+                ProgramStorageInstallationHandoffError::Rejected(Box::new(
+                    ProgramStorageRootInstallationError {
+                        binding: self.binding.clone(),
+                        image,
+                        initial_storage,
+                        diagnostic: ProgramStorageEntryDiagnostic(
+                            "program-storage native bridge has no retained selected physical provider"
+                                .into(),
+                        ),
+                    },
+                )),
+            ));
+        };
+        let mut activation = install_and_activate_program_storage_entry_receiver(
+            artifact_directory,
+            self.binding.clone(),
+            selected_provider,
+            provider_issuance,
+            image,
+            initial_storage,
+            mapped_base,
+            mapped_storage,
+        )?;
+        let provider_invocation = activation
+            .provider_invocation()
+            .expect("physical bridge activation retains its selected provider invocation");
+        let receiver_placement = activation.placement().clone();
+        let output = execute(ProgramStorageEntrySourceContinuationHandoff {
+            bridge: self,
+            provider_invocation,
+            receiver_placement,
+            receiver: activation.receiver(),
+        });
+        let roots = activation.finish();
+        Ok(ProgramStorageEntryExecutorDispatch { roots, output })
+    }
+}
+
+/// Non-constructible borrowed input to one platform-owned source-continuation
+/// executor.
+///
+/// The exact emitted identity and provider occurrence are observations. The
+/// mutable bytes are the one live activation loan and can only be reborrowed
+/// while this handoff is executing.
+pub struct ProgramStorageEntrySourceContinuationHandoff<'a> {
+    bridge: &'a ProgramStorageEntryNativeBridgePlan,
+    provider_invocation: ProgramStorageEntryProviderInvocation,
+    receiver_placement: ProgramEntryReceiverPlacementRecord,
+    receiver: &'a mut [u8],
+}
+
+impl ProgramStorageEntrySourceContinuationHandoff<'_> {
+    pub fn entry_symbol(&self) -> &str {
+        self.bridge.entry_symbol()
+    }
+
+    pub const fn entry_text_offset(&self) -> usize {
+        self.bridge.entry_text_offset()
+    }
+
+    pub const fn entry_text_size(&self) -> usize {
+        self.bridge.entry_text_size()
+    }
+
+    pub const fn continuation_key(&self) -> omega_control_flow::StateKey {
+        self.bridge.continuation_key()
+    }
+
+    pub const fn provider_invocation(&self) -> ProgramStorageEntryProviderInvocation {
+        self.provider_invocation
+    }
+
+    pub const fn receiver_placement(&self) -> &ProgramEntryReceiverPlacementRecord {
+        &self.receiver_placement
+    }
+
+    pub fn receiver(&mut self) -> &mut [u8] {
+        self.receiver
+    }
+}
+
+/// Conserved authority and ordinary output returned after a checked platform
+/// executor finishes. This is not a native-execution receipt.
+#[derive(Debug)]
+pub struct ProgramStorageEntryExecutorDispatch<Output> {
+    roots: InstalledProgramStorageRoots,
+    output: Output,
+}
+
+impl<Output> ProgramStorageEntryExecutorDispatch<Output> {
+    pub const fn roots(&self) -> &InstalledProgramStorageRoots {
+        &self.roots
+    }
+
+    pub const fn output(&self) -> &Output {
+        &self.output
+    }
+
+    pub fn into_parts(self) -> (InstalledProgramStorageRoots, Output) {
+        (self.roots, self.output)
+    }
 }
 
 /// Bind the pending physical bridge to the actual emitted entry function.

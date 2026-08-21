@@ -1,5 +1,18 @@
 use super::*;
 
+fn assert_native_exit_code(build_dir: &Path, expected: i32, fixture: &str) {
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .unwrap_or_else(|error| panic!("{fixture} should run: {error}"));
+    assert_eq!(
+        output.status.code(),
+        Some(expected),
+        "{fixture} should exit {expected}, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
 #[test]
 fn output_only_checks_suppress_artifacts_without_suppressing_wire_validation() {
     let success_build_dir = unique_no_output_build_dir();
@@ -331,30 +344,25 @@ fn wire_compatibility_demand_reports_directional_facts_and_migration_route() {
 #[test]
 fn backend_report_renders_ownership_summary_events() {
     let canary = pass_canary("ownership/linear_transfer_and_consume");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-ownership-spine-canary-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("linear transfer and consume canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("linear transfer and consume canary should compile from its authored root");
+    assert_native_exit_code(&build_dir, 0, "linear transfer and consume canary");
 
     let report = fs::read_to_string(build_dir.join("backend_report.txt"))
         .expect("backend report should be written");
     assert!(
-        report.contains("permissions: 4"),
+        report.contains("permissions: 10"),
         "spine should retain the complete permission ledger\n{}",
         report
     );
     assert!(
-        report.contains("permission realizations: 4 (complete)"),
+        report.contains("permission realizations: 10 (complete)"),
         "every permission event should have a normalized realization\n{}",
         report
     );
@@ -420,19 +428,15 @@ fn backend_report_renders_transparent_record_claim_paths() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("transparent record frontier canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("transparent record frontier canary should compile from its authored root");
+    assert_native_exit_code(&build_dir, 0, "transparent record frontier canary");
 
     let report = fs::read_to_string(build_dir.join("backend_report.txt"))
         .expect("backend report should be written");
     assert!(
-        report.contains("permissions: 16")
-            && report.contains("permission realizations: 16 (complete)"),
+        report.contains("permissions: 22")
+            && report.contains("permission realizations: 22 (complete)"),
         "both contained claims must retain complete event realizations\n{report}"
     );
     for place in ["<unnamed>.left", "<unnamed>.right"] {
@@ -477,25 +481,20 @@ fn backend_report_renders_transparent_record_claim_paths() {
 #[test]
 fn backend_report_realizes_state_call_entry_at_call_site() {
     let canary = pass_canary("ownership/linear_state_call_handoff");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-ownership-state-call-canary-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("linear state-call handoff canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("linear state-call handoff canary should compile from its authored root");
+    assert_native_exit_code(&build_dir, 0, "linear state-call handoff canary");
 
     let report = fs::read_to_string(build_dir.join("backend_report.txt"))
         .expect("backend report should be written");
     assert!(
-        report.contains("permission realizations: 4 (complete)"),
+        report.contains("permission realizations: 10 (complete)"),
         "the state-call permission ledger should be complete\n{}",
         report
     );
@@ -524,25 +523,25 @@ fn backend_report_realizes_state_call_entry_at_call_site() {
 #[test]
 fn backend_report_separates_transition_and_nested_call_ordinals() {
     let canary = pass_canary("ownership/linear_transition_nested_call_handoff");
-    let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-ownership-transition-multicall-canary-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("linear nested-call transition handoff canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
+        "linear nested-call transition handoff canary should compile from its authored root",
+    );
+    assert_native_exit_code(
+        &build_dir,
+        0,
+        "linear nested-call transition handoff canary",
+    );
 
     let report = fs::read_to_string(build_dir.join("backend_report.txt"))
         .expect("backend report should be written");
     assert!(
-        report.contains("permission realizations: 10 (complete)"),
+        report.contains("permission realizations: 16 (complete)"),
         "the multi-call transition permission ledger should be complete\n{}",
         report
     );
@@ -592,18 +591,19 @@ fn backend_report_separates_repeated_transition_call_ordinals() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("repeated-target linear transition-call canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
+        "repeated-target linear transition-call canary should compile from its authored root",
+    );
+    assert_native_exit_code(
+        &build_dir,
+        0,
+        "repeated-target linear transition-call canary",
+    );
 
     let report = fs::read_to_string(build_dir.join("backend_report.txt"))
         .expect("backend report should be written");
     assert!(
-        report.contains("permission realizations: 10 (complete)"),
+        report.contains("permission realizations: 16 (complete)"),
         "the repeated-target permission ledger should be complete\n{}",
         report
     );
@@ -797,18 +797,14 @@ fn backend_report_preserves_fresh_state_call_result_origin() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("fresh linear state-call result canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("fresh linear state-call result canary should compile from its authored root");
+    assert_native_exit_code(&build_dir, 0, "fresh linear state-call result canary");
 
     let report = fs::read_to_string(build_dir.join("backend_report.txt"))
         .expect("backend report should be written");
     assert!(
-        report.contains("permission realizations: 4 (complete)")
+        report.contains("permission realizations: 10 (complete)")
             && !report.contains("UNLINKED")
             && !report.contains("INCOMPLETE"),
         "the fresh state-call result ledger must remain complete\n{}",
@@ -843,19 +839,20 @@ fn backend_report_preserves_path_aligned_multi_claim_state_result() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("path-aligned multi-claim state result canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
+        "path-aligned multi-claim state result canary should compile from its authored root",
+    );
+    assert_native_exit_code(
+        &build_dir,
+        0,
+        "path-aligned multi-claim state result canary",
+    );
 
     let report = fs::read_to_string(build_dir.join("backend_report.txt"))
         .expect("backend report should be written");
     assert!(
-        report.contains("permissions: 16")
-            && report.contains("permission realizations: 16 (complete)")
+        report.contains("permissions: 22")
+            && report.contains("permission realizations: 22 (complete)")
             && !report.contains("UNLINKED")
             && !report.contains("INCOMPLETE"),
         "the multi-claim result ledger must remain complete\n{report}"
@@ -883,19 +880,15 @@ fn backend_report_preserves_direct_aggregate_state_result_mapping() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("direct aggregate state result canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("direct aggregate state result canary should compile from its authored root");
+    assert_native_exit_code(&build_dir, 0, "direct aggregate state result canary");
 
     let report = fs::read_to_string(build_dir.join("backend_report.txt"))
         .expect("backend report should be written");
     assert!(
-        report.contains("permissions: 12")
-            && report.contains("permission realizations: 12 (complete)")
+        report.contains("permissions: 18")
+            && report.contains("permission realizations: 18 (complete)")
             && !report.contains("UNLINKED")
             && !report.contains("INCOMPLETE"),
         "the aggregate-result permission ledger must remain complete\n{report}"

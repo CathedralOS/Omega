@@ -6,8 +6,8 @@ use omega_compiler::{
     PROGRAM_STORAGE_INSTALLATION_ARTIFACT, ProgramStorageEntryBridgeError,
     ProgramStorageInstallationHandoffError, ProgramStorageRootInput,
     SelectedExternalRootProviderPlan, SelectedProgramStorageEntryPlan,
-    bind_program_storage_entry_plan, compile_to_checked, evaluate_calling_policy_plan,
-    install_and_activate_program_storage_entry_receiver,
+    bind_emitted_program_storage_entry_native_bridge, bind_program_storage_entry_plan,
+    compile_to_checked, evaluate_calling_policy_plan,
     install_program_storage_entry_provider_invocation, install_program_storage_entry_roots,
     program_storage_installation_record_json, selected_external_root_entry_fact_bindings,
     selected_external_root_provider_plan, selected_external_root_provider_plan_id,
@@ -1115,35 +1115,145 @@ fn program_storage_entry_publishes_both_core_owned_root_positions() {
     let (physical_image, provider_issuance) =
         root_input_for_provider_invocation(503, 0x5000, 0x400, 90, 901);
     let (physical_storage, _) = root_input_for_provider_invocation(504, 0x9003, 0x20, 90, 901);
+    let bridge_without_provider = emitted_program_storage_bridge(physical_binding.clone(), None);
+    let (unbound_image, unbound_issuance) =
+        root_input_for_provider_invocation(511, 0x5000, 0x400, 90, 905);
+    let (unbound_storage, _) = root_input_for_provider_invocation(512, 0x9003, 0x20, 90, 905);
+    let mut unbound_receiver = [0xa5; 8];
+    let unbound_executor_count = std::cell::Cell::new(0);
+    let unbound = bridge_without_provider
+        .dispatch_source_continuation_executor(
+            &physical_artifact_directory,
+            unbound_issuance,
+            unbound_image,
+            unbound_storage,
+            0x9008,
+            &mut unbound_receiver,
+            |_| unbound_executor_count.set(unbound_executor_count.get() + 1),
+        )
+        .expect_err("a bridge without its selected provider cannot dispatch");
+    assert_eq!(unbound_executor_count.get(), 0);
+    let ProgramStorageEntryBridgeError::Installation(
+        ProgramStorageInstallationHandoffError::Rejected(unbound),
+    ) = unbound
+    else {
+        panic!("missing selected provider must reject before installation")
+    };
+    assert!(
+        unbound
+            .diagnostic()
+            .0
+            .contains("no retained selected physical provider")
+    );
+    let (_, unbound_image, unbound_storage) = unbound.into_parts();
+    let _ = (unbound_image.into_grant(), unbound_storage.into_grant());
+    assert_eq!(unbound_receiver, [0xa5; 8]);
+
+    let physical_bridge =
+        emitted_program_storage_bridge(physical_binding.clone(), Some(selected_provider.clone()));
+    let (bad_geometry_image, bad_geometry_issuance) =
+        root_input_for_provider_invocation(515, 0x5000, 0x400, 90, 907);
+    let (bad_geometry_storage, _) = root_input_for_provider_invocation(516, u64::MAX, 2, 90, 907);
+    let mut bad_geometry_receiver = [0xa5; 8];
+    let bad_geometry_executor_count = std::cell::Cell::new(0);
+    let bad_geometry = physical_bridge
+        .dispatch_source_continuation_executor(
+            &physical_artifact_directory,
+            bad_geometry_issuance,
+            bad_geometry_image,
+            bad_geometry_storage,
+            0x9008,
+            &mut bad_geometry_receiver,
+            |_| bad_geometry_executor_count.set(bad_geometry_executor_count.get() + 1),
+        )
+        .expect_err("invalid root geometry cannot dispatch");
+    assert_eq!(bad_geometry_executor_count.get(), 0);
+    let ProgramStorageEntryBridgeError::Installation(
+        ProgramStorageInstallationHandoffError::Rejected(bad_geometry),
+    ) = bad_geometry
+    else {
+        panic!("invalid geometry must reject before activation")
+    };
+    assert!(bad_geometry.diagnostic().0.contains("initial-storage"));
+    let (_, bad_geometry_image, bad_geometry_storage) = bad_geometry.into_parts();
+    let _ = (
+        bad_geometry_image.into_grant(),
+        bad_geometry_storage.into_grant(),
+    );
+    assert_eq!(bad_geometry_receiver, [0xa5; 8]);
+
+    let (bad_mapping_image, bad_mapping_issuance) =
+        root_input_for_provider_invocation(513, 0x5000, 0x400, 90, 906);
+    let (bad_mapping_storage, _) = root_input_for_provider_invocation(514, 0x9003, 0x20, 90, 906);
+    let mut bad_mapping_receiver = [0xa5; 8];
+    let bad_mapping_executor_count = std::cell::Cell::new(0);
+    let bad_mapping = physical_bridge
+        .dispatch_source_continuation_executor(
+            &physical_artifact_directory,
+            bad_mapping_issuance,
+            bad_mapping_image,
+            bad_mapping_storage,
+            0x9007,
+            &mut bad_mapping_receiver,
+            |_| bad_mapping_executor_count.set(bad_mapping_executor_count.get() + 1),
+        )
+        .expect_err("an inexact receiver mapping cannot dispatch");
+    assert_eq!(bad_mapping_executor_count.get(), 0);
+    let ProgramStorageEntryBridgeError::Activation(bad_mapping) = bad_mapping else {
+        panic!("inexact mapped receiver must reject after recorded installation")
+    };
+    assert!(bad_mapping.diagnostic().0.contains("exactly cover"));
+    assert_eq!(bad_mapping_receiver, [0xa5; 8]);
+    let _retained_installation = bad_mapping.into_installation();
+
     let mut physical_receiver = [0xa5; 8];
-    let mut physical_activation = install_and_activate_program_storage_entry_receiver(
-        &physical_artifact_directory,
-        physical_binding,
-        &selected_provider,
-        provider_issuance,
-        physical_image,
-        physical_storage,
-        0x9008,
-        &mut physical_receiver,
-    )
-    .unwrap_or_else(|error| match error {
-        ProgramStorageEntryBridgeError::Installation(error) => {
-            panic!("physical provider installation should succeed: {error}")
-        }
-        ProgramStorageEntryBridgeError::Activation(error) => {
-            panic!("physical receiver activation should succeed: {error}")
-        }
-    });
-    let retained_invocation = physical_activation
-        .provider_invocation()
-        .expect("physical activation retains selected provider occurrence");
+    let expected_continuation = physical_bridge.continuation_key();
+    let executor_count = std::cell::Cell::new(0);
+    let dispatched = physical_bridge
+        .dispatch_source_continuation_executor(
+            &physical_artifact_directory,
+            provider_issuance,
+            physical_image,
+            physical_storage,
+            0x9008,
+            &mut physical_receiver,
+            |mut handoff| {
+                executor_count.set(executor_count.get() + 1);
+                assert_eq!(handoff.entry_symbol(), "program_storage_test_entry");
+                assert_eq!(
+                    (handoff.entry_text_offset(), handoff.entry_text_size()),
+                    (32, 8)
+                );
+                assert_eq!(handoff.continuation_key(), expected_continuation);
+                assert_eq!(
+                    (
+                        handoff.receiver_placement().base(),
+                        handoff.receiver_placement().length(),
+                    ),
+                    (0x9008, 8)
+                );
+                assert_eq!(handoff.receiver(), &[0; 8]);
+                handoff.receiver()[3] = 70;
+                handoff.provider_invocation()
+            },
+        )
+        .unwrap_or_else(|error| match error {
+            ProgramStorageEntryBridgeError::Installation(error) => {
+                panic!("physical provider installation should succeed: {error}")
+            }
+            ProgramStorageEntryBridgeError::Activation(error) => {
+                panic!("physical receiver activation should succeed: {error}")
+            }
+        });
+    assert_eq!(executor_count.get(), 1);
+    assert_eq!(physical_receiver[3], 70);
+    let (physical_roots, retained_invocation) = dispatched.into_parts();
     assert_eq!(retained_invocation.provider().normalized_identity(), 1090);
     assert_eq!(
         retained_invocation.provider_plan().normalized_identity(),
         90
     );
     assert_eq!(retained_invocation.invocation().normalized_identity(), 901);
-    assert_eq!(physical_activation.receiver(), &[0; 8]);
     let physical_record =
         fs::read_to_string(physical_artifact_directory.join(PROGRAM_STORAGE_INSTALLATION_ARTIFACT))
             .expect("read physical-provider installation record");
@@ -1151,10 +1261,30 @@ fn program_storage_entry_publishes_both_core_owned_root_positions() {
     assert!(physical_record.contains("\"provider\": \"0x0000000000000442\""));
     assert!(physical_record.contains("\"provider_plan\": \"0x000000000000005a\""));
     assert!(physical_record.contains("\"invocation\": \"0x0000000000000385\""));
-    let physical_roots = physical_activation.finish();
     assert_eq!(
         physical_roots.provider_invocation(),
         Some(retained_invocation)
+    );
+    let physical_receiver_storage = physical_roots
+        .receiver_storage()
+        .expect("executor dispatch returns the conserved receiver partition");
+    assert_eq!(
+        physical_receiver_storage
+            .before()
+            .map(|extent| (extent.base(), extent.length())),
+        Some((0x9003, 5))
+    );
+    assert_eq!(
+        physical_receiver_storage
+            .storage()
+            .map(|extent| (extent.base(), extent.length())),
+        Some((0x9008, 8))
+    );
+    assert_eq!(
+        physical_receiver_storage
+            .after()
+            .map(|extent| (extent.base(), extent.length())),
+        Some((0x9010, 0x13))
     );
 
     let static_view = installed
@@ -1257,6 +1387,52 @@ fn root_input_for_provider_invocation(
         ),
         provider_issuance,
     )
+}
+
+fn emitted_program_storage_bridge(
+    binding: omega_compiler::ProgramStorageEntryPlanBinding,
+    selected_provider: Option<SelectedExternalRootProviderPlan>,
+) -> omega_compiler::ProgramStorageEntryNativeBridgePlan {
+    let continuation_key = omega_control_flow::StateKey {
+        machine: psi_symbols::SymbolHandle::from_arena_index(1),
+        state: psi_symbols::SymbolHandle::from_arena_index(2),
+        segment_index: 0,
+    };
+    let mut object =
+        omega_object_file::ObjectPlan::with_capacity(omega_target::NativeTarget::host(), 0, 1);
+    let entry = object.layout.symbols.insert(omega_object_file::SymbolPlan {
+        name: "program_storage_test_entry".into(),
+        section: omega_object_file::SymbolSection::Section(omega_object_file::SectionKind::Text),
+        offset: 32,
+        size: 8,
+        kind: omega_object_file::SymbolKind::Function,
+        import_library: String::new(),
+    });
+    object.layout.entry_symbol = entry;
+    let mut encoded = omega_machine_bytes::EncodedMachinePlan::default();
+    encoded
+        .code
+        .functions
+        .insert(omega_machine_bytes::EncodedMachineFunction {
+            symbol: std::sync::Arc::from("program_storage_test_entry"),
+            source_key: continuation_key,
+            byte_offset: 32,
+            byte_count: 8,
+            instructions: psi_arena::HandleSpan::empty(),
+        });
+    let boundary_fingerprint = binding.boundary_contract_fingerprint();
+    bind_emitted_program_storage_entry_native_bridge(
+        binding,
+        selected_provider,
+        "synthetic_physical_entry".into(),
+        &object,
+        &encoded,
+        continuation_key,
+        Some(boundary_fingerprint),
+        "Boot::launch".into(),
+        "launch".into(),
+    )
+    .expect("synthetic emitted bridge should retain exact continuation identity")
 }
 
 fn compiler_root_input(lineage: u64, base: u64, length: u64) -> ProgramStorageRootInput {
