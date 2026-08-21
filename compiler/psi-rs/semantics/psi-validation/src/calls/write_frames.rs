@@ -43,9 +43,9 @@ pub use demand::{CallFrameResolver, frame_paths_overlap};
 use demand::{collect_expression_call_written_paths, syntactic_call_written_paths};
 pub(crate) use demand::{conservative_call_written_paths, statement_value_expression_roots};
 use isolation::{
-    struct_literal_field_is_primitive, struct_literal_field_type,
-    struct_literal_matches_expected_type, struct_literal_type_is_caller_isolated,
-    type_is_caller_isolated_local,
+    isolated_local_initializer_call_tree_is_bounded, struct_literal_field_is_primitive,
+    struct_literal_field_type, struct_literal_matches_expected_type,
+    struct_literal_type_is_caller_isolated, type_is_caller_isolated_local,
 };
 use local_aliases::{
     expression_may_rebind_mutable_alias, expression_reborrows_local_alias_binding,
@@ -1270,42 +1270,6 @@ fn isolated_local_initializer_preserves_transparent_result(
             let (root, _) = split_place_root(path);
             isolated_local_roots.iter().any(|local| local == root)
         })
-}
-
-/// Count only direct calls along initializer receiver/argument edges. Pure
-/// leaves are neutral; calls hidden under operators, aggregates, or other
-/// computed expressions remain outside this deliberately small relation.
-fn isolated_local_initializer_call_tree_is_bounded(
-    program: &TypedTrees,
-    expression: ExpressionHandle,
-    remaining_call_depth: usize,
-) -> bool {
-    if !expression_is_effectful_for_transparent_result(program, expression) {
-        return true;
-    }
-    if remaining_call_depth == 0 {
-        return false;
-    }
-    let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
-        return false;
-    };
-    (!call.receiver.is_valid()
-        || isolated_local_initializer_call_tree_is_bounded(
-            program,
-            call.receiver,
-            remaining_call_depth - 1,
-        ))
-        && program
-            .expression_table
-            .expression_handles(call.arguments)
-            .iter()
-            .all(|argument| {
-                isolated_local_initializer_call_tree_is_bounded(
-                    program,
-                    *argument,
-                    remaining_call_depth - 1,
-                )
-            })
 }
 
 /// One direct Unit statement call is neutral to a returned-place relation when
