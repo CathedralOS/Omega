@@ -4,8 +4,8 @@ This directory layers exact terminal-codec grammar over the semantics-neutral
 `../canonical-bytes/` cursor. It owns the current envelope prefix:
 
 - exact `PSITERM\0` magic;
-- exact format marker 11; and
-- exact current vocabulary marker 16, retained in the typed result.
+- exact format marker 13; and
+- exact current vocabulary marker 18, retained in the typed result.
 
 It also owns the codec's length-prefixed UTF-8 string rule:
 

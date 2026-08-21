@@ -3,7 +3,7 @@
 ; These three leaves deliberately do not inhabit LeafSchema.  Scalar rows own
 ; mathematical result terms; these rows instead own exact place custody, live
 ; affine-frontier transitions, and an externally observable effect.  One small
-; PSITERM v12 fixture exercises the closed vocabulary without duplicating the
+; PSITERM v13 fixture exercises the closed vocabulary without duplicating the
 ; scalar interpreter or making target layout part of terminal semantics.  The
 ; closed data declarations live beside the shared ledger vocabulary in
 ; types.gamma; this file owns byte decoding only.
@@ -412,7 +412,7 @@
 (def finish_structural_effect_module
   ((vocabulary Int) (entry Int) (types SETypes)
    (services SEServices) (bs Bytes)) RSEModule
-  (match (expect_zero_sections bs 7)
+  (match (expect_zero_sections bs 8)
     (RBytesBad RSEModuleBad)
     ((RBytes r1)
       (match (read_u32 r1)

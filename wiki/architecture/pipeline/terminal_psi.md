@@ -1881,7 +1881,7 @@ and each call trust node binds both the shared policy table and that focused
 consumer.
 
 The bounded Gamma feasibility spike now starts from four exact current
-`PSITERM\0` v12 byte fixtures and reconstructs a typed 54-row scalar ledger plus
+`PSITERM\0` v13 byte fixtures and reconstructs a typed 54-row scalar ledger plus
 a separate 3-row structural/effect ledger. It covers constants, Boolean
 not/equality, integer equality/order, bitwise operations, strict widening,
 partial exact cast, exact/wrapping shifts with independently typed counts, and
