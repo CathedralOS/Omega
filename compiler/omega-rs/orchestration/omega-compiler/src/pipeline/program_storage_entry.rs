@@ -290,6 +290,7 @@ pub struct ProgramStorageEntryProviderInvocation {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProgramStorageEntryNativeBridgePlan {
     binding: ProgramStorageEntryPlanBinding,
+    wrapper_transfer: super::program_storage_wrapper::ProgramStorageEntryWrapperTransferPlan,
     selected_provider: Option<super::provider_plans::SelectedExternalRootProviderPlan>,
     target_profile: String,
     entry_symbol: String,
@@ -308,6 +309,14 @@ pub struct ProgramStorageEntryNativeBridgePlan {
 impl ProgramStorageEntryNativeBridgePlan {
     pub const fn binding(&self) -> &ProgramStorageEntryPlanBinding {
         &self.binding
+    }
+
+    /// Address-free semantic root/receiver handoff retained for the future
+    /// generated wrapper. This does not claim an outbound call ABI or body.
+    pub const fn wrapper_transfer(
+        &self,
+    ) -> &super::program_storage_wrapper::ProgramStorageEntryWrapperTransferPlan {
+        &self.wrapper_transfer
     }
 
     pub const fn selected_provider(
@@ -461,6 +470,12 @@ impl ProgramStorageEntrySourceContinuationHandoff<'_> {
         self.bridge.entry_function_identity()
     }
 
+    pub const fn wrapper_transfer(
+        &self,
+    ) -> &super::program_storage_wrapper::ProgramStorageEntryWrapperTransferPlan {
+        self.bridge.wrapper_transfer()
+    }
+
     pub const fn continuation_key(&self) -> omega_control_flow::StateKey {
         self.bridge.continuation_key()
     }
@@ -586,8 +601,14 @@ pub fn bind_emitted_program_storage_entry_native_bridge(
             "program-storage native bridge lost its selected source continuation".into(),
         ));
     }
+    let wrapper_transfer =
+        super::program_storage_wrapper::plan_program_storage_entry_wrapper_transfer(
+            &binding,
+            continuation_key,
+        )?;
     Ok(ProgramStorageEntryNativeBridgePlan {
         binding,
+        wrapper_transfer,
         selected_provider,
         target_profile,
         entry_symbol: entry.name.clone(),

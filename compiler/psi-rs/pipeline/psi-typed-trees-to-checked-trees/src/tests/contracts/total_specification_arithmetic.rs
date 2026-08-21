@@ -193,6 +193,74 @@ fn abstract_division_definedness_uses_only_prior_contract_facts() {
 }
 
 #[test]
+fn abstract_exact_and_saturating_shifts_require_a_prior_valid_count() {
+    let accepted = r#"
+        trait ShiftRule {
+            machine exact(value: u8, count: u8) -> bool
+            requires count < 8
+            requires
+                value >> count == value;
+
+            machine saturating(value: u8 in Saturating, count: u8) -> bool
+            requires count < 8
+            requires
+                value << count == value;
+
+            machine wrapping(value: u8 in Wrapping, count: u8) -> bool
+            requires
+                value << count == value;
+        }
+    "#;
+    checked(accepted)
+        .expect("prior bounds form Exact/Saturating shifts while Wrapping defines every count");
+
+    let rejected = r#"
+        trait ShiftRule {
+            machine exact(value: u8, count: u8) -> bool
+            requires
+                value >> count == value;
+
+            machine saturating(value: u8 in Saturating, count: u8) -> bool
+            requires
+                value << count == value;
+        }
+    "#;
+    let diagnostics =
+        checked(rejected).expect_err("Exact and Saturating abstract shifts retain count validity");
+    for state in ["exact", "saturating"] {
+        assert!(
+            diagnostics.iter().any(|diagnostic| {
+                diagnostic.message.contains(&format!(
+                    "trait `ShiftRule` state `{state}` requires contract"
+                )) && diagnostic.message.contains("shift count")
+                    && diagnostic.message.contains("not provably below")
+            }),
+            "missing abstract shift-count diagnostic for {state}: {diagnostics:?}",
+        );
+    }
+}
+
+#[test]
+fn abstract_shift_cannot_use_its_containing_fact_as_count_evidence() {
+    let source = r#"
+        trait ShiftRule {
+            machine shift(value: u8 in Saturating, count: u8) -> bool
+            requires
+                count < 8 && value << count == value;
+        }
+    "#;
+
+    let diagnostics = checked(source).expect_err("a partial shift cannot justify its own count");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("trait `ShiftRule` state `shift` requires contract")
+            && diagnostic.message.contains("shift count")
+            && diagnostic.message.contains("not provably below")
+    }));
+}
+
+#[test]
 fn direct_trapping_arithmetic_is_illegal_in_state_arrival_contracts() {
     let source = r#"
         machine staged(value: i32 in Trapping) -> bool {

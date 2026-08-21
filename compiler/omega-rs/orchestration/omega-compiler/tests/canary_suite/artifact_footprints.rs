@@ -1536,23 +1536,8 @@ fn compiler_body_frame_base_indexed_text_assembly_footprints_reach_aarch64_artif
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&scratch);
-    let source = scratch.join("src");
     let output = scratch.join("out");
-    fs::create_dir_all(&source)
-        .expect("create compiler-body frame-base-indexed text-assembly source directory");
-    fs::copy(canary.join("main.omg"), source.join("main.omg"))
-        .expect("copy compiler-body frame-base-indexed text-assembly canary");
-    fs::write(
-        source.join("build.omg"),
-        hosted_main_program_entry_build("linux_arm64"),
-    )
-    .expect("write compiler-body frame-base-indexed text-assembly target");
-    compile(CompileOptions {
-        root_path: source.join("main.omg"),
-        build_dir: Some(output.clone()),
-        target_name: Some("linux_arm64".into()),
-        write_output: true,
-    })
+    compile_rooted_canary_for_target(&canary, output.clone(), "linux_arm64")
     .unwrap_or_else(|diagnostics| {
         panic!(
             "compiler-body frame-base-indexed text assembly should compile for linux_arm64: {diagnostics:?}"
@@ -3054,26 +3039,12 @@ fn runtime_value_guard_footprints_reach_x86_and_aarch64_artifacts() {
             std::process::id()
         ));
         let _ = fs::remove_dir_all(&scratch);
-        let source = scratch.join("src");
         let output = scratch.join("out");
-        fs::create_dir_all(&source).expect("create runtime-value guard source directory");
-        fs::copy(canary.join("main.omg"), source.join("main.omg"))
-            .expect("copy runtime-value guard canary");
-        fs::write(
-            source.join("build.omg"),
-            hosted_main_program_entry_build(target),
-        )
-        .expect("write runtime-value guard target");
-
-        compile(CompileOptions {
-            root_path: source.join("main.omg"),
-            build_dir: Some(output.clone()),
-            target_name: Some(target.into()),
-            write_output: true,
-        })
-        .unwrap_or_else(|diagnostics| {
-            panic!("runtime-value guard should compile for {target}: {diagnostics:?}")
-        });
+        compile_rooted_canary_for_target(&canary, output.clone(), target).unwrap_or_else(
+            |diagnostics| {
+                panic!("runtime-value guard should compile for {target}: {diagnostics:?}")
+            },
+        );
         let abstract_operations = fs::read_to_string(output.join("08_abstract_operations.html"))
             .expect("runtime-value guard abstract operations should be written");
         let footprints = fs::read_to_string(output.join("08_boundary_footprints.json"))

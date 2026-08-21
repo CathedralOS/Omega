@@ -139,6 +139,14 @@ Float adapters use their separately defined finite/special-value and policy
 rules. The verifier must not replace this catalog with one convenient generic
 "outside the range" approximation.
 
+Shift-count definedness follows the settled primitive catalog from chapter 5:
+Wrapping reduces every signed or unsigned count by Euclidean modulo of the
+shifted value's width, so it has no invalid-count input; Exact and Saturating
+require the count in `[0, width)` before the term forms; Trapping retains an
+out-of-range count as an executable trap condition. Thus the invalid-count
+condition named above is policy-sensitive, not a common partiality of all four
+shift denotations.
+
 `Float::meaning32` and `Float::meaning64` are the corresponding explicit total
 projections for floats. They produce `FloatMeaning`, retaining signed zero,
 infinity, and NaN as distinct cases and representing each finite nonzero value

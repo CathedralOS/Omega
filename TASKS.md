@@ -79,14 +79,21 @@ Remaining:
   duplicate identities, canonical link-name collisions, overlapping or out-of-
   bounds intervals, and tampered table bindings fail closed. A future wrapper
   call relocation can therefore target the exact retained source continuation
-  without rediscovering it by name. The retained bridge plan also owns a
-  sealed platform executor gate: only the exact selected physical-provider
+  without rediscovering it by name. For the currently admitted
+  `ProgramStorageApplication`/`ImageAndInitialStorage` schema, the bridge also
+  retains an address-free wrapper transfer plan that maps both physical root
+  ordinals to their exact source-visible parameter, frame byte range, and
+  disjoint capture-instruction rows, plus free-versus-borrowed activation-loan
+  receiver behavior. It deliberately does not call the physical arrival plan a
+  source-call ABI. The retained bridge plan also owns a sealed platform
+  executor gate: only the exact selected physical-provider
   installation and mapped, zeroed receiver activation can construct its
   borrowed continuation handoff, and the executor runs before that activation
   is finished. This gate intentionally does not claim that native bytes
   executed. Production builds still emit and select `Source(entry StateKey)`
   because no generated wrapper body or call exists yet; emitting that body,
-  defining its carrier ABI and mapped receiver address, adding the
+  retaining a distinct outbound source-call ABI and mapped receiver address,
+  defining the installation-carrier linkage, adding the
   exact native call edge, and retaining resulting native bridge evidence remain
   before this slice is complete.
 
@@ -121,8 +128,10 @@ Remaining:
   matrices now also use authored roots for native and cross-target differential
   execution. Ten indexed string-concat, bounded-carrier, slice-alias, and guard
   probes now consume the same checked-in four-host roots in their native and
-  cross-target artifact tests. The tracked corpus audit leaves 157 legacy
-  fixtures without an authored `build.omg` root.
+  cross-target artifact tests. Ten further fixed-index, pointee, mutable-
+  parameter, copied-struct, and lookup-driven text probes now use authored
+  roots in their native and cross-target artifact coverage. The tracked corpus
+  audit leaves 147 legacy fixtures without an authored `build.omg` root.
   Continue migrating those fixtures through production entry
   selection; replace result-as-process-exit probes with ordinary Unit entries
   and explicit exit providers rather than preserving the legacy entry seam.
@@ -764,6 +773,12 @@ Remaining:
   when an independently accepted prior fact proves the divisor interval
   nonzero; carrier-overflow policy does not define division by zero, and the
   fact containing a partial term cannot justify that term's own formation.
+  Exact and Saturating shifts in direct abstract Prop now retain the same
+  independently-prior `[0, operand_width)` count obligation already enforced
+  for concrete machine/state contracts; `Saturating` defines value overflow,
+  not an invalid count, while `Wrapping` continues to define every count by
+  modulo reduction. A count bound inside the proposition containing the shift
+  cannot authorize that shift's formation.
   Finish the settled total-specification arithmetic slice: retain explicit
   fixed-integer/address embeddings into proof `Int` with their derived carrier-
   range facts. This remains blocked on a real vocabulary dependency: the

@@ -33,6 +33,8 @@ use psi_typed_trees::types::{
 
 use crate::places::declared_place_type_raw;
 
+mod abstract_shift_count;
+
 /// Resolve only the reserved named-float arithmetic surface. Contract
 /// expressions can reach validation before their static namespace receiver has
 /// a symbol, so use the retained one-segment `F32`/`F64` spelling as a strict
@@ -2517,6 +2519,7 @@ pub(crate) fn validate_abstract_total_specification_arithmetic(
             }
             seen.push(*expression);
             let diagnostics_before = diagnostics.len();
+            abstract_shift_count::validate(program, *expression, owner, bindings, env, diagnostics);
             validate_abstract_exact_policy_erasure_formation(
                 program,
                 *expression,
