@@ -2,17 +2,20 @@
 //!
 //! This leaf rebases relative paths through already-canonical alias origins
 //! and detects syntactic mutable reborrows or reference-shaped replacements of
-//! known local aliases. It neither infers origins nor mutates alias bindings.
+//! stable parameter/local aliases. It neither infers origins nor mutates alias
+//! bindings.
 
 use super::place_paths::{
-    FramePathPrecision, FramePlaceOrigin, append_place_suffix, split_place_root,
+    FramePathPrecision, FramePlaceOrigin, append_place_suffix, frame_place_path, split_place_root,
 };
 use super::type_capabilities::type_reference_is_reference;
 use crate::arithmetic_domains;
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use psi_typed_trees::machine::Machine;
+use psi_typed_trees::signature::StateParameter;
 use psi_typed_trees::state::State;
+use psi_typed_trees::types::TypeReferenceNode;
 
 pub(super) fn rebase_local_alias_path(
     relative: &str,
@@ -47,6 +50,74 @@ pub(super) fn expression_reborrows_local_alias_binding(
             ) && arithmetic_domains::place_path(program, *inner)
                 .is_some_and(|path| aliases.iter().any(|(alias, _)| path == *alias));
             borrows_binding || visit(*inner)
+        }
+        ExpressionNode::Atomic(atomic) => visit(atomic.value) || visit(atomic.result),
+        ExpressionNode::Call(call) => {
+            (call.receiver.is_valid() && visit(call.receiver))
+                || program
+                    .expression_table
+                    .expression_handles(call.arguments)
+                    .iter()
+                    .any(|argument| visit(*argument))
+        }
+        ExpressionNode::Binary(binary) => visit(binary.left) || visit(binary.right),
+        ExpressionNode::Unary(unary) => visit(unary.operand),
+        ExpressionNode::Cast(cast) => visit(cast.value),
+        ExpressionNode::Indexed(indexed) => visit(indexed.collection) || visit(indexed.index),
+        ExpressionNode::Member(member) => visit(member.receiver),
+        ExpressionNode::ArrayLiteral(elements) => program
+            .expression_table
+            .expression_handles(*elements)
+            .iter()
+            .any(|element| visit(*element)),
+        ExpressionNode::StructLiteral(literal) => program
+            .expression_table
+            .struct_fields(literal.fields)
+            .iter()
+            .any(|field| visit(field.value)),
+        ExpressionNode::Range(range) => visit(range.start) || visit(range.end),
+        ExpressionNode::Boolean(_)
+        | ExpressionNode::Float(_)
+        | ExpressionNode::Integer(_)
+        | ExpressionNode::Name(_)
+        | ExpressionNode::String(_)
+        | ExpressionNode::ZeroValue(_) => false,
+    }
+}
+
+pub(super) fn expression_reborrows_stable_alias_binding(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    parameters: &[StateParameter],
+    aliases: &[(String, FramePlaceOrigin)],
+) -> bool {
+    if !expression.is_valid() {
+        return false;
+    }
+    let visit =
+        |child| expression_reborrows_stable_alias_binding(program, child, parameters, aliases);
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Mutable(inner) => {
+            let reborrows_binding = matches!(
+                program.expression_table.expression(*inner),
+                ExpressionNode::Name(_)
+            ) && frame_place_path(program, *inner).is_some_and(|place| {
+                let (root, suffix) = split_place_root(&place.path);
+                suffix.is_empty()
+                    && (parameters.iter().any(|parameter| {
+                        matches!(
+                            program
+                                .type_reference_table
+                                .type_reference(parameter.type_reference),
+                            TypeReferenceNode::Reference {
+                                is_mutable: true,
+                                ..
+                            }
+                        ) && (parameter.is_self && root == "self"
+                            || root == parameter.name.as_str())
+                    }) || aliases.iter().any(|(name, _)| root == name))
+            });
+            reborrows_binding || visit(*inner)
         }
         ExpressionNode::Atomic(atomic) => visit(atomic.value) || visit(atomic.result),
         ExpressionNode::Call(call) => {

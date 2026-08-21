@@ -43,7 +43,7 @@ use isolation::{
 };
 use local_aliases::{
     expression_may_rebind_mutable_alias, expression_reborrows_local_alias_binding,
-    rebase_local_alias_path,
+    expression_reborrows_stable_alias_binding, rebase_local_alias_path,
 };
 use place_paths::{
     FramePathPrecision, FramePlaceOrigin, append_place_suffix, coarse_place_path, frame_place_path,
@@ -753,74 +753,6 @@ fn stable_alias_index_expression_preserves_origin(
         )
     })
     .is_some()
-}
-
-fn expression_reborrows_stable_alias_binding(
-    program: &TypedTrees,
-    expression: ExpressionHandle,
-    parameters: &[StateParameter],
-    aliases: &[(String, FramePlaceOrigin)],
-) -> bool {
-    if !expression.is_valid() {
-        return false;
-    }
-    let visit =
-        |child| expression_reborrows_stable_alias_binding(program, child, parameters, aliases);
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Mutable(inner) => {
-            let reborrows_binding = matches!(
-                program.expression_table.expression(*inner),
-                ExpressionNode::Name(_)
-            ) && frame_place_path(program, *inner).is_some_and(|place| {
-                let (root, suffix) = split_place_root(&place.path);
-                suffix.is_empty()
-                    && (parameters.iter().any(|parameter| {
-                        matches!(
-                            program
-                                .type_reference_table
-                                .type_reference(parameter.type_reference),
-                            TypeReferenceNode::Reference {
-                                is_mutable: true,
-                                ..
-                            }
-                        ) && (parameter.is_self && root == "self"
-                            || root == parameter.name.as_str())
-                    }) || aliases.iter().any(|(name, _)| root == name))
-            });
-            reborrows_binding || visit(*inner)
-        }
-        ExpressionNode::Atomic(atomic) => visit(atomic.value) || visit(atomic.result),
-        ExpressionNode::Call(call) => {
-            (call.receiver.is_valid() && visit(call.receiver))
-                || program
-                    .expression_table
-                    .expression_handles(call.arguments)
-                    .iter()
-                    .any(|argument| visit(*argument))
-        }
-        ExpressionNode::Binary(binary) => visit(binary.left) || visit(binary.right),
-        ExpressionNode::Unary(unary) => visit(unary.operand),
-        ExpressionNode::Cast(cast) => visit(cast.value),
-        ExpressionNode::Indexed(indexed) => visit(indexed.collection) || visit(indexed.index),
-        ExpressionNode::Member(member) => visit(member.receiver),
-        ExpressionNode::ArrayLiteral(elements) => program
-            .expression_table
-            .expression_handles(*elements)
-            .iter()
-            .any(|element| visit(*element)),
-        ExpressionNode::StructLiteral(literal) => program
-            .expression_table
-            .struct_fields(literal.fields)
-            .iter()
-            .any(|field| visit(field.value)),
-        ExpressionNode::Range(range) => visit(range.start) || visit(range.end),
-        ExpressionNode::Boolean(_)
-        | ExpressionNode::Float(_)
-        | ExpressionNode::Integer(_)
-        | ExpressionNode::Name(_)
-        | ExpressionNode::String(_)
-        | ExpressionNode::ZeroValue(_) => false,
-    }
 }
 
 #[allow(clippy::too_many_arguments)]
