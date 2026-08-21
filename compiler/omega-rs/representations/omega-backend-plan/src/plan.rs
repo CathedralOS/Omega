@@ -1,4 +1,6 @@
-use crate::{BackendArtifactRoots, BackendPlanPhaseTiming, BoundNominalCallbackPlacement};
+use crate::{
+    BackendArtifactRoots, BackendPlanPhaseTiming, BoundNominalCallbackPlacement, CallbackThunkPlan,
+};
 use omega_abstract_operations::{AbstractDataPlan, AbstractOperationPlan};
 use omega_assigned_target_operations::AssignedTargetOperationPlan;
 use omega_calling_conventions::{BoundaryEntryPlan, HostAbiPlan};
@@ -56,6 +58,10 @@ pub struct BackendPlan {
     /// checked nominal-use sites that require them. Later lowering consumes
     /// these rows directly and must not reconstruct ABI placement.
     pub callback_placements: Arc<[BoundNominalCallbackPlacement]>,
+    /// Private inbound-function identities resolved to exact control-flow
+    /// entries. This is the address-free input to future multi-entry target
+    /// instruction and object-symbol lowering.
+    pub callback_thunks: Arc<[CallbackThunkPlan]>,
     /// Per-DISPATCH-INDEX receiver storage base (indexed by the runtime-flow
     /// state's arena index): `Some(base)` when the dispatch case's clone
     /// context was minted by a call through a CONTAINED receiver whose true

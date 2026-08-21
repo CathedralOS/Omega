@@ -1,0 +1,120 @@
+use omega_backend_plan::{BoundNominalCallbackPlacement, CallbackThunkPlan};
+use omega_control_flow::ControlFlowPlan;
+use psi_checked_trees::NominalMachineUseSite;
+use psi_diagnostics::Diagnostic;
+use std::sync::Arc;
+
+pub(super) fn plan_callback_thunks(
+    control_flow: &ControlFlowPlan,
+    placements: &[BoundNominalCallbackPlacement],
+) -> Result<Arc<[CallbackThunkPlan]>, Diagnostic> {
+    placements
+        .iter()
+        .enumerate()
+        .map(|(placement_index, placement)| {
+            let entry_key = control_flow
+                .state_key_by_symbols(placement.selected_machine, placement.selected_entry)
+                .ok_or_else(|| {
+                    Diagnostic::error(format!(
+                        "nominal callback use for `{}` selected an entry absent from the control-flow plan",
+                        placement.canonical_requirement_overload
+                    ))
+                })?;
+            Ok(CallbackThunkPlan {
+                placement_index,
+                entry_key,
+                private_symbol: private_callback_symbol(placement),
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()
+        .map(Arc::from)
+}
+
+fn private_callback_symbol(placement: &BoundNominalCallbackPlacement) -> Arc<str> {
+    let (site_kind, site_index) = match placement.site {
+        NominalMachineUseSite::Statement(handle) => ('s', handle.arena_index()),
+        NominalMachineUseSite::Expression(handle) => ('e', handle.arena_index()),
+    };
+    Arc::from(format!(
+        "__omega_callback_{site_kind}{site_index:08x}_a{:08x}_m{:08x}_e{:08x}_f{:016x}",
+        placement.static_machine_ordinal,
+        placement.selected_machine.arena_index(),
+        placement.selected_entry.arena_index(),
+        placement.boundary_calling_plan_fingerprint,
+    ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use omega_calling_conventions::{CallSignature, CallingPolicy};
+    use omega_control_flow::{MachineFlow, StateFlow, StateKey};
+    use psi_symbols::SymbolHandle;
+
+    fn symbol(index: u32) -> SymbolHandle {
+        SymbolHandle::from_arena_index(index)
+    }
+
+    fn fixture() -> (ControlFlowPlan, BoundNominalCallbackPlacement) {
+        let selected_machine = symbol(4);
+        let selected_entry = symbol(5);
+        let validated = omega_calling_conventions::evaluate_ordinary_boundary_entry_plan(
+            CallingPolicy::MicrosoftX64,
+            &CallSignature::default(),
+        )
+        .expect("empty callback entry plan");
+        let mut control_flow = ControlFlowPlan::default();
+        let states = control_flow.states.insert_many([StateFlow {
+            key: StateKey {
+                machine: selected_machine,
+                state: selected_entry,
+                segment_index: 0,
+            },
+            ..Default::default()
+        }]);
+        control_flow.machines.insert(MachineFlow {
+            symbol: selected_machine,
+            states,
+            ..Default::default()
+        });
+        let placement = BoundNominalCallbackPlacement {
+            site: NominalMachineUseSite::Expression(
+                psi_checked_trees::expression::ExpressionHandle::from_arena_index(9),
+            ),
+            registration_operation: symbol(3),
+            static_machine_ordinal: 0,
+            selected_machine,
+            selected_entry,
+            satisfaction_trait: symbol(1),
+            satisfaction_requirement: symbol(2),
+            canonical_requirement_overload: "Handler::call".to_owned(),
+            boundary_calling_plan_fingerprint: validated.contract_fingerprint(),
+            boundary_entry_plan: validated.plan().clone(),
+        };
+        (control_flow, placement)
+    }
+
+    #[test]
+    fn callback_thunk_binds_exact_control_flow_entry_and_private_symbol() {
+        let (control_flow, placement) = fixture();
+
+        let plans = plan_callback_thunks(&control_flow, &[placement])
+            .expect("selected callback entry should resolve");
+
+        assert_eq!(plans.len(), 1);
+        assert_eq!(plans[0].placement_index, 0);
+        assert_eq!(plans[0].entry_key.machine, symbol(4));
+        assert_eq!(plans[0].entry_key.state, symbol(5));
+        assert!(plans[0].private_symbol.starts_with("__omega_callback_e"));
+    }
+
+    #[test]
+    fn callback_thunk_rejects_selected_entry_lost_before_backend() {
+        let (_, placement) = fixture();
+
+        let error = plan_callback_thunks(&ControlFlowPlan::default(), &[placement])
+            .expect_err("missing selected callback entry must reject");
+
+        assert!(error.message.contains("absent from the control-flow plan"));
+    }
+}

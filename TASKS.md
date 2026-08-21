@@ -1280,11 +1280,16 @@ Owners:
   satisfaction identity, fingerprint, and validated `BoundaryEntryPlan`.
   Checked-only compilation exposes those rows and native compilation retains
   them on `BackendPlan`, so no later thunk pass may replace the recipe with a
-  convention oracle or silently discard it. The
+  convention oracle or silently discard it. Native backend planning now also
+  resolves each selected machine/entry pair to one exact `ControlFlow`
+  `StateKey`, rejects a lost entry before instruction selection, and assigns a
+  deterministic compiler-private thunk symbol joined by placement-row index.
+  The symbol is planned object identity only and never an Omega value. The
   remaining envelope slice must aggregate those per-axis published/actual rows
   without relabeling a declared fingerprint as inferred behavior. Also
-  remaining are consumption of that joined row to emit the target thunk and
-  private relocation,
+  remaining are multi-entry/re-entrant target instruction lowering and the
+  private registration relocation (whose binding placement is design-blocked
+  on `OWNER_QUESTIONS.md` Q8),
   registration leases/unregister,
   and cross-target registered-callback canaries.
 - Implement the narrow Windows `user32` canary without exposing a raw code
