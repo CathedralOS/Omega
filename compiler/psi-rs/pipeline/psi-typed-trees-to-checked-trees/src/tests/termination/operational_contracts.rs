@@ -217,6 +217,86 @@ fn operational_plans_are_independent_from_service_reach_rows() {
 }
 
 #[test]
+fn checked_machine_operational_facts_keep_suspension_and_blocking_independent() {
+    use psi_language_semantics::{BlockingInterface, SuspensionInterface};
+
+    let source = r#"
+    boundary trait Sleeper {
+        machine sleep() suspends;
+    }
+
+    boundary trait Waiter {
+        machine wait() blocks;
+    }
+
+    data Harness { sleeper: Sleeper; waiter: Waiter; }
+
+    machine Harness::suspend_only(&mut self) suspends; {
+        suspend self.sleeper.sleep();
+    }
+
+    machine Harness::block_only(&mut self) blocks; {
+        block self.waiter.wait();
+    }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let symbol_of = |name: &str| {
+        typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == name)
+            .unwrap_or_else(|| panic!("machine {name}"))
+            .symbol
+    };
+    let suspend_only = symbol_of("Harness::suspend_only");
+    let block_only = symbol_of("Harness::block_only");
+    let checked = lower_typed_trees(typed).expect("checked lowering should succeed");
+
+    let suspension = |machine| {
+        checked
+            .facts
+            .suspensions
+            .for_machine(machine)
+            .expect("machine suspension fact")
+    };
+    let blocking = |machine| {
+        checked
+            .facts
+            .blocking
+            .for_machine(machine)
+            .expect("machine blocking fact")
+    };
+
+    assert_eq!(
+        suspension(suspend_only).interface,
+        SuspensionInterface::PublishedMaySuspend(true)
+    );
+    assert_eq!(
+        blocking(suspend_only).interface,
+        BlockingInterface::InternalInferred
+    );
+    assert!(suspension(suspend_only).checked_may_suspend);
+    assert!(!blocking(suspend_only).checked_may_block);
+
+    assert_eq!(
+        suspension(block_only).interface,
+        SuspensionInterface::InternalInferred
+    );
+    assert_eq!(
+        blocking(block_only).interface,
+        BlockingInterface::PublishedMayBlock(true)
+    );
+    assert!(!suspension(block_only).checked_may_suspend);
+    assert!(blocking(block_only).checked_may_block);
+}
+
+#[test]
 fn qualification_facts_record_policy_commitments() {
     // STR4 checked plans, slice 2: a machine whose body casts under an
     // arithmetic policy COMMITS to that policy's fixed semantic identity;

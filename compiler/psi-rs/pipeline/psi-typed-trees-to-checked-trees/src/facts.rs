@@ -9,11 +9,46 @@ use crate::values::build_value_facts;
 use psi_checked_trees::CheckFacts;
 use psi_effects::OperationalPlan;
 use psi_proof::obligations::ProofPlan;
+use psi_symbols::SymbolHandle;
 use psi_typed_trees::TypedTrees;
 
 mod carry;
 mod crash_calls;
 mod index_compatibility;
+
+#[derive(Clone, Copy)]
+struct MachineSuspensionRow {
+    symbol: SymbolHandle,
+    transitive_may_suspend: bool,
+}
+
+#[derive(Clone, Copy)]
+struct MachineBlockingRow {
+    symbol: SymbolHandle,
+    transitive_may_block: bool,
+}
+
+fn project_operational_rows(
+    operational: &OperationalPlan,
+) -> (Vec<MachineSuspensionRow>, Vec<MachineBlockingRow>) {
+    let suspensions = operational
+        .machines()
+        .iter()
+        .map(|summary| MachineSuspensionRow {
+            symbol: summary.symbol,
+            transitive_may_suspend: summary.transitive_may_suspend,
+        })
+        .collect();
+    let blocking = operational
+        .machines()
+        .iter()
+        .map(|summary| MachineBlockingRow {
+            symbol: summary.symbol,
+            transitive_may_block: summary.transitive_may_block,
+        })
+        .collect();
+    (suspensions, blocking)
+}
 
 pub(crate) fn build_check_facts(
     program: &TypedTrees,
@@ -57,6 +92,7 @@ pub(crate) fn build_check_facts(
     flow.terminal_machines = crate::flow::build_checked_terminal_machine_selections(program);
     flow.terminal_debug = crate::flow::build_checked_terminal_debug_plans(program);
     let capabilities = build_capability_facts(program, &service_reach_inference, &flow);
+    let (machine_suspensions, machine_blocking) = project_operational_rows(&operational);
     // EFX: the durable service-reach fixed point is built independently from
     // resolved boundary-trait identities and stored as a first-class checked
     // root with grouped machine/state/call arenas.
@@ -68,10 +104,10 @@ pub(crate) fn build_check_facts(
     let synchronous_invocations = build_synchronous_invocation_facts(program);
     // EFX: suspension is published independently from worker blocking and
     // retains public negative guarantees separately from private inference.
-    let suspensions = build_suspension_facts(program, &operational);
+    let suspensions = build_suspension_facts(program, &machine_suspensions);
     // EFX: worker blocking is published independently from suspension and
     // retains public negative guarantees separately from private inference.
-    let blocking = build_blocking_facts(program, &operational);
+    let blocking = build_blocking_facts(program, &machine_blocking);
     // TPR/EFX: termination is published as an independent exact-machine root.
     let termination = build_termination_facts(program);
     // R5/STR: body-derived mutation frames are an independent checked axis,
@@ -133,16 +169,13 @@ fn build_termination_facts(program: &TypedTrees) -> psi_checked_trees::Terminati
 
 fn build_blocking_facts(
     program: &TypedTrees,
-    operational: &OperationalPlan,
+    blocking: &[MachineBlockingRow],
 ) -> psi_checked_trees::BlockingFacts {
     let machines = program
         .machines()
         .iter()
         .map(|machine| {
-            let operational_summary = operational
-                .machines()
-                .iter()
-                .find(|summary| summary.symbol == machine.symbol);
+            let blocking_row = blocking.iter().find(|row| row.symbol == machine.symbol);
             let publishes_operational_contract =
                 machine.supply_mode != psi_language_semantics::MachineSupplyMode::CheckedBody;
             psi_checked_trees::MachineBlockingFact {
@@ -153,8 +186,7 @@ fn build_blocking_facts(
                     } else {
                         psi_language_semantics::BlockingInterface::InternalInferred
                     },
-                    checked_may_block: operational_summary
-                        .is_some_and(|summary| summary.transitive_may_block),
+                    checked_may_block: blocking_row.is_some_and(|row| row.transitive_may_block),
                 },
             }
         })
@@ -164,16 +196,13 @@ fn build_blocking_facts(
 
 fn build_suspension_facts(
     program: &TypedTrees,
-    operational: &OperationalPlan,
+    suspensions: &[MachineSuspensionRow],
 ) -> psi_checked_trees::SuspensionFacts {
     let machines = program
         .machines()
         .iter()
         .map(|machine| {
-            let operational_summary = operational
-                .machines()
-                .iter()
-                .find(|summary| summary.symbol == machine.symbol);
+            let suspension_row = suspensions.iter().find(|row| row.symbol == machine.symbol);
             let publishes_operational_contract =
                 machine.supply_mode != psi_language_semantics::MachineSupplyMode::CheckedBody;
             psi_checked_trees::MachineSuspensionFact {
@@ -186,8 +215,8 @@ fn build_suspension_facts(
                     } else {
                         psi_language_semantics::SuspensionInterface::InternalInferred
                     },
-                    checked_may_suspend: operational_summary
-                        .is_some_and(|summary| summary.transitive_may_suspend),
+                    checked_may_suspend: suspension_row
+                        .is_some_and(|row| row.transitive_may_suspend),
                 },
             }
         })
