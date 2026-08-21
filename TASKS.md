@@ -67,11 +67,12 @@ Remaining:
   explicit fixture seam. Sample refresh and native execution must use authored
   roots and never invent one, while targetless checking selects none.
 
-  The pending emitted-bridge evidence now binds its object entry symbol and
-  exact text interval to the unique encoded function for the selected
-  control-flow `StateKey`; display machine/state names cannot redirect that
-  join. The physical bridge still must consume the activation loan while
-  invoking that retained continuation before this slice is complete.
+  The pending emitted-bridge evidence now requires its object entry symbol to
+  globally name exactly one encoded function, then binds that function's exact
+  text interval and valid control-flow `StateKey`; a duplicate same-name
+  function, redirected key, or display-compatible machine/state name cannot
+  redirect that join. The physical bridge still must consume the activation
+  loan while invoking that retained continuation before this slice is complete.
 
   The CLI corpus is rooted on all hosted targets except the four GUI samples,
   which currently select Windows x64 and macOS arm64. Linux needs an ordinary

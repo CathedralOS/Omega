@@ -419,20 +419,23 @@ fn validate_encoded_program_storage_entry(
         .code
         .functions
         .iter()
-        .filter_map(|(_, function)| {
-            (function.source_key == continuation_key && function.symbol.as_ref() == entry.name)
-                .then_some(function)
-        });
+        .filter_map(|(_, function)| (function.symbol.as_ref() == entry.name).then_some(function));
     let Some(encoded_entry) = encoded_entries.next() else {
         return Err(ProgramStorageEntryDiagnostic(format!(
-            "program-storage native bridge object entry `{}` has no exact encoded function for source continuation {:?}",
-            entry.name, continuation_key
+            "program-storage native bridge object entry `{}` has no encoded function",
+            entry.name
         )));
     };
     if encoded_entries.next().is_some() {
         return Err(ProgramStorageEntryDiagnostic(format!(
-            "program-storage native bridge object entry `{}` has duplicate encoded functions for source continuation {:?}",
-            entry.name, continuation_key
+            "program-storage native bridge object entry `{}` names more than one encoded function",
+            entry.name
+        )));
+    }
+    if encoded_entry.source_key != continuation_key {
+        return Err(ProgramStorageEntryDiagnostic(format!(
+            "program-storage native bridge object entry `{}` redirects source continuation {:?} to {:?}",
+            entry.name, continuation_key, encoded_entry.source_key
         )));
     }
     if encoded_entry.byte_offset != entry.offset || encoded_entry.byte_count != entry.size {
@@ -1824,11 +1827,55 @@ mod tests {
         let error =
             validate_encoded_program_storage_entry(&object_entry(), &encoded, continuation_key(3))
                 .expect_err("a display-compatible but differently keyed continuation must reject");
-        assert!(error.0.contains("no exact encoded function"), "{error}");
+        assert!(error.0.contains("redirects source continuation"), "{error}");
     }
 
     #[test]
-    fn emitted_bridge_rejects_interval_drift_and_duplicate_functions() {
+    fn emitted_bridge_requires_one_global_encoded_symbol_identity() {
+        let key = continuation_key(2);
+        let empty = EncodedMachinePlan::default();
+        let error = validate_encoded_program_storage_entry(&object_entry(), &empty, key)
+            .expect_err("the object entry symbol must name an encoded function");
+        assert!(error.0.contains("has no encoded function"), "{error}");
+
+        let mut duplicate = EncodedMachinePlan::default();
+        duplicate.code.functions.insert(encoded_entry(key));
+        duplicate.code.functions.insert(encoded_entry(key));
+        let error = validate_encoded_program_storage_entry(&object_entry(), &duplicate, key)
+            .expect_err("duplicate exact entry identities must reject");
+        assert!(
+            error.0.contains("more than one encoded function"),
+            "{error}"
+        );
+
+        let mut redirected_duplicate = EncodedMachinePlan::default();
+        redirected_duplicate
+            .code
+            .functions
+            .insert(encoded_entry(key));
+        redirected_duplicate
+            .code
+            .functions
+            .insert(encoded_entry(continuation_key(3)));
+        let error =
+            validate_encoded_program_storage_entry(&object_entry(), &redirected_duplicate, key)
+                .expect_err("a same-symbol function redirected to another key is still ambiguous");
+        assert!(
+            error.0.contains("more than one encoded function"),
+            "{error}"
+        );
+
+        let mut unrelated = EncodedMachinePlan::default();
+        unrelated.code.functions.insert(encoded_entry(key));
+        let mut helper = encoded_entry(continuation_key(3));
+        helper.symbol = Arc::from("helper");
+        unrelated.code.functions.insert(helper);
+        validate_encoded_program_storage_entry(&object_entry(), &unrelated, key)
+            .expect("a differently named encoded function must not create entry ambiguity");
+    }
+
+    #[test]
+    fn emitted_bridge_rejects_interval_drift() {
         let key = continuation_key(2);
         let mut drifted = EncodedMachinePlan::default();
         let mut function = encoded_entry(key);
@@ -1837,12 +1884,5 @@ mod tests {
         let error = validate_encoded_program_storage_entry(&object_entry(), &drifted, key)
             .expect_err("object and encoded intervals must match exactly");
         assert!(error.0.contains("does not cover"), "{error}");
-
-        let mut duplicate = EncodedMachinePlan::default();
-        duplicate.code.functions.insert(encoded_entry(key));
-        duplicate.code.functions.insert(encoded_entry(key));
-        let error = validate_encoded_program_storage_entry(&object_entry(), &duplicate, key)
-            .expect_err("duplicate exact entry identities must reject");
-        assert!(error.0.contains("duplicate encoded functions"), "{error}");
     }
 }
