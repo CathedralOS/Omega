@@ -69,6 +69,9 @@ pub(super) fn assign_machine_symbols(
         let mut machine_children = symbols.child_handles(machine_symbol).into_iter().flatten();
 
         for type_parameter in data_type_parameters.span_mut_or_empty(machine.type_parameters) {
+            if type_parameter.symbol.is_valid() {
+                continue;
+            }
             let kind = match type_parameter.kind {
                 psi_symbol_resolved_trees::data::TypeParameterKind::Machine { .. } => {
                     SymbolKind::MachineParameter

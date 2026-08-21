@@ -167,6 +167,34 @@ pub fn lower_symbol_resolved_trees(
                 .typed_trees
                 .push_conformance_type_parameter(&mut conformance, parameter);
         }
+        // Inline/default realization machines close over the conformance
+        // name's telescope. Publish that telescope as the machine template's
+        // own generic surface as well, so ordinary specialization can clone
+        // and substitute the selected row instead of leaving family symbols
+        // such as `Element` in executable checked code. Referenced external
+        // machines keep their independently declared telescope.
+        let realization_machines = match &conformance.implementation {
+            psi_typed_trees::trait_definition::ConformanceImplementation::Closed { rows } => rows
+                .iter()
+                .filter(|row| {
+                    matches!(
+                        row.source,
+                        psi_typed_trees::trait_definition::ConformanceRowSource::Inline
+                            | psi_typed_trees::trait_definition::ConformanceRowSource::TraitDefault
+                    )
+                })
+                .map(|row| row.realization_machine)
+                .collect::<Vec<_>>(),
+            psi_typed_trees::trait_definition::ConformanceImplementation::AttachedRequirementMachines => {
+                Vec::new()
+            }
+        };
+        for machine in lowerer.typed_trees.machines_mut() {
+            if realization_machines.contains(&machine.symbol) {
+                machine.lifetime_parameters = conformance.lifetime_parameters.clone();
+                machine.type_parameters = conformance.type_parameters;
+            }
+        }
         lowerer.typed_trees.push_conformance(conformance);
     }
 

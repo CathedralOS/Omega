@@ -49,6 +49,7 @@ pub(super) fn assign_top_level_symbols(program: &mut SymbolResolvedTrees, symbol
         }
     });
     assign_conformance_parameter_symbols(program, symbols);
+    attach_conformance_parameter_scopes(program);
     assign_machine_symbols(program, symbols, &mut root_children);
     assign_proposition_symbols(program, symbols, &mut root_children);
     assign_root_operator_symbols(program, symbols, &mut root_children);
@@ -57,6 +58,46 @@ pub(super) fn assign_top_level_symbols(program: &mut SymbolResolvedTrees, symbol
     program.wire_schemas.for_each_mut(|wire_schema| {
         wire_schema.symbol =
             next_child_of_kind(&mut root_children, symbols, SymbolKind::WireSchema);
+    });
+}
+
+fn attach_conformance_parameter_scopes(program: &mut SymbolResolvedTrees) {
+    let scopes = program
+        .conformances
+        .iter()
+        .filter_map(|conformance| {
+            let psi_symbol_resolved_trees::trait_definition::ConformanceImplementation::Closed {
+                rows,
+            } = &conformance.implementation
+            else {
+                return None;
+            };
+            Some((
+                rows.iter()
+                    .filter(|row| {
+                        matches!(
+                            row.source,
+                            psi_symbol_resolved_trees::trait_definition::ConformanceRowSource::Inline
+                                | psi_symbol_resolved_trees::trait_definition::ConformanceRowSource::TraitDefault
+                        )
+                    })
+                    .filter_map(|row| row.provisional_realization_ordinal)
+                    .collect::<Vec<_>>(),
+                conformance.lifetime_parameters.clone(),
+                conformance.type_parameters,
+            ))
+        })
+        .collect::<Vec<_>>();
+    let mut ordinal = 0usize;
+    program.machines.for_each_mut(|machine| {
+        if let Some((_, lifetimes, parameters)) = scopes
+            .iter()
+            .find(|(realizations, _, _)| realizations.contains(&ordinal))
+        {
+            machine.lifetime_parameters = lifetimes.clone();
+            machine.type_parameters = *parameters;
+        }
+        ordinal += 1;
     });
 }
 

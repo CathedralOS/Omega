@@ -1353,6 +1353,115 @@ fn members_of_one_generic_conformance_family_have_distinct_identity() {
 }
 
 #[test]
+fn nested_generic_conformance_application_specializes_its_selected_row() {
+    let source = r#"
+        trait Ranked {
+            machine Self::before(&self, other: &Self) -> bool;
+        }
+        data Card {}
+
+        FieldOrder<Element>: Element satisfies Ranked {
+            machine before(&self, other: &Element) -> bool { true }
+        }
+
+        machine choose<Element, Order: Element satisfies Ranked>(
+            left: &Element,
+            right: &Element
+        ) -> bool {
+            Order::before(left, right)
+        }
+
+        machine caller(left: &Card, right: &Card) -> bool {
+            choose<Card, FieldOrder<Card>>(left, right)
+        }
+    "#;
+
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("instantiated selected row");
+    let application = checked
+        .machine_specializations
+        .iter()
+        .find_map(|specialization| specialization.conformance_applications.first())
+        .expect("closed conformance application");
+    assert_eq!(application.subject_identity.as_deref(), Some("Card"));
+    assert_eq!(application.rows.len(), 1);
+    assert!(
+        checked
+            .machine_specializations
+            .iter()
+            .any(|specialization| {
+                checked
+                    .machines()
+                    .iter()
+                    .find(|machine| machine.symbol == specialization.template)
+                    .is_some_and(|machine| machine.name.as_str().contains("FieldOrder::before"))
+                    && specialization.type_arguments == ["Card"]
+            })
+    );
+}
+
+#[test]
+fn distinct_generic_conformance_applications_specialize_distinct_selected_rows() {
+    let source = r#"
+        trait Ranked {
+            machine Self::before(&self, other: &Self) -> bool;
+        }
+        data Card {}
+        data Token {}
+
+        FieldOrder<Element>: Element satisfies Ranked {
+            machine before(&self, other: &Element) -> bool { true }
+        }
+
+        machine choose<Element, Order: Element satisfies Ranked>(
+            left: &Element,
+            right: &Element
+        ) -> bool {
+            Order::before(left, right)
+        }
+
+        machine cards(left: &Card, right: &Card) -> bool {
+            choose<Card, FieldOrder<Card>>(left, right)
+        }
+
+        machine tokens(left: &Token, right: &Token) -> bool {
+            choose<Token, FieldOrder<Token>>(left, right)
+        }
+    "#;
+
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("two instantiated selected rows");
+    let mut row_instances = checked
+        .machine_specializations
+        .iter()
+        .filter(|specialization| {
+            checked
+                .machines()
+                .iter()
+                .find(|machine| machine.symbol == specialization.template)
+                .is_some_and(|machine| machine.name.as_str().contains("FieldOrder::before"))
+        })
+        .map(|specialization| {
+            (
+                specialization.instance,
+                specialization.type_arguments.as_slice(),
+            )
+        })
+        .collect::<Vec<_>>();
+    row_instances.sort_by_key(|(_, arguments)| arguments[0].as_str());
+    assert_eq!(row_instances.len(), 2);
+    assert_eq!(row_instances[0].1, ["Card"]);
+    assert_eq!(row_instances[1].1, ["Token"]);
+    assert_ne!(row_instances[0].0, row_instances[1].0);
+}
+
+#[test]
 fn explicit_conformance_binder_rejects_a_map_for_the_wrong_subject() {
     let source = r#"
         trait Ranked {
