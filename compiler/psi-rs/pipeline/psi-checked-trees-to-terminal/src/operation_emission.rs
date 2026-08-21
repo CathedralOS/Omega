@@ -26,10 +26,10 @@ pub(super) fn finalize_operation_proofs(
         let owner = lowered.semantic_module.machines.iter().find_map(|machine| {
             machine.blocks.iter().find_map(|block| {
                 block.operations.iter().find_map(|operation| {
-                    let (obligation, is_canonical_nonzero_pilot) =
+                    let (obligation, is_canonical_nonzero_row) =
                         proof_bearing_operation_obligation(&operation.kind)?;
                     (obligation == site.obligation.id)
-                        .then_some((machine, is_canonical_nonzero_pilot))
+                        .then_some((machine, is_canonical_nonzero_row))
                 })
             })
         });
@@ -72,7 +72,7 @@ pub(super) fn finalize_operation_proofs(
 }
 
 fn proof_bearing_operation_obligation(kind: &OperationKind) -> Option<(ObligationId, bool)> {
-    let (obligation, is_canonical_nonzero_pilot) = match kind {
+    let (obligation, is_canonical_nonzero_row) = match kind {
         OperationKind::IntegerExactCast { obligation, .. }
         | OperationKind::ExactIntegerAdd { obligation, .. }
         | OperationKind::ExactIntegerSubtract { obligation, .. }
@@ -81,13 +81,13 @@ fn proof_bearing_operation_obligation(kind: &OperationKind) -> Option<(Obligatio
         | OperationKind::ExactIntegerShiftLeft { obligation, .. }
         | OperationKind::ExactIntegerDivide { obligation, .. }
         | OperationKind::ExactIntegerRemainder { obligation, .. }
-        | OperationKind::WrappingIntegerRemainder { obligation, .. }
         | OperationKind::SaturatingIntegerDivide { obligation, .. }
         | OperationKind::SaturatingIntegerRemainder { obligation, .. } => (*obligation, false),
-        OperationKind::WrappingIntegerDivide { obligation, .. } => (*obligation, true),
+        OperationKind::WrappingIntegerDivide { obligation, .. }
+        | OperationKind::WrappingIntegerRemainder { obligation, .. } => (*obligation, true),
         _ => return None,
     };
-    Some((obligation, is_canonical_nonzero_pilot))
+    Some((obligation, is_canonical_nonzero_row))
 }
 
 fn proof_from_available_facts(
