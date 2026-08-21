@@ -117,3 +117,11 @@ resolver = "3"
 edition = "2024"
 license = "MIT"
 version = "0.1.0"
+
+# The workspace's test binaries are enormous and short-lived. Full DWARF made
+# a three-test, zero-runtime frontend regression spend over a minute in codegen
+# on a 14-core development host. Compiler diagnostics remain unchanged; panic
+# backtraces retain symbol names, while line-level debugger metadata can still
+# be requested explicitly with `CARGO_PROFILE_TEST_DEBUG=2` when needed.
+[profile.test]
+debug = 0
