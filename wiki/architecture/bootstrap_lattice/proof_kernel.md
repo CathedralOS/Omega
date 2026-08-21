@@ -369,10 +369,12 @@ requirements use the same complete substitution path and are cited as
 assumptions rather than semantic axioms. The selector examines every exact
 same-carrier equality; zero-only, minimum-dividend, mistyped, or redirected
 premises reject. The complete endpoint-transport family also pairs an exact
-retained bound on `K` with an independently retained `K == divisor` equality in
-either orientation. `IntegerLessOrEqualSubstitution` cites both premises and
-changes only the canonical endpoint; a missing bound, unrelated equality, weak
-bound, or changed untouched endpoint rejects. A signed `i1` divisor
+retained bound on `K` with an independently retained equality connecting `K` to
+the canonical divisor or dividend endpoint in either orientation.
+`IntegerLessOrEqualSubstitution` cites both premises and changes only that
+endpoint. Dividend transport remains in the joint arm and requires its separate
+`divisor <= -1` proof. A missing companion bound, unrelated equality, weak bound,
+or changed untouched endpoint rejects. A signed `i1` divisor
 fact alone cannot prove its two-premise conjunction. When exact prior
 `divisor <= -1` and `0 <= dividend` propositions are both independently
 retained, the complete `i1` family cites them and constructs that conjunction;
