@@ -357,7 +357,10 @@ or wrong-dividend facts reject. Exact prior safe-divisor propositions are now
 canonical too: unsigned or signed `1 <= divisor`, and signed-width-at-least-two
 `divisor <= -2`. Unsigned certificates cite their whole goal; signed
 certificates cite and introduce the selected disjunct. A signed `i1` divisor
-fact alone cannot prove its two-premise conjunction. Missing, reversed,
+fact alone cannot prove its two-premise conjunction. When exact prior
+`divisor <= -1` and `0 <= dividend` propositions are both independently
+retained, the complete `i1` family cites them and constructs that conjunction;
+a missing premise or wrong operand identity rejects. Missing, reversed,
 weakened, mistyped, or wrong-divisor facts reject. Missing or excluded evidence
 rejects, and no result equation participates. The existing
 proof rules and proof-bundle v15 codec need no vocabulary change.

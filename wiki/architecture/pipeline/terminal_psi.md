@@ -1775,7 +1775,11 @@ carriers, or `divisor <= -2` for signed widths of at least two. Unsigned
 certificates cite the goal directly; signed certificates cite and introduce
 the selected first or second disjunct. A signed `i1` divisor fact alone remains
 insufficient because the canonical conjunction also needs its dividend premise.
-Missing, reversed, weakened, mistyped, or wrong-divisor facts reject. Missing
+The complete retained-bound `i1` family selects that conjunction when exact
+prior `divisor <= -1` and `0 <= dividend` propositions are both present; the
+untrusted producer cites both through conjunction introduction. A missing
+premise or wrong operand identity rejects. Missing, reversed, weakened,
+mistyped, or wrong-divisor facts reject. Missing
 or excluded evidence rejects these paths; no
 operation-result equation is available as proof authority. The existing proof
 rules and proof-bundle v15 codec carry these certificates without a vocabulary

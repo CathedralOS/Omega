@@ -531,7 +531,9 @@ fn retained_exact_division_safe_divisor_bound(
                     .get(1)
                     .is_some_and(|candidate| retained(candidate))
         }
-        Proposition::Conjunction(_) => false,
+        Proposition::Conjunction(conjuncts) => {
+            !conjuncts.is_empty() && conjuncts.iter().all(retained)
+        }
         _ => false,
     }
 }
@@ -952,6 +954,41 @@ mod tests {
                 value(8, i1),
                 ScalarTerm::integer(i1, IntegerValue::Signed(-1)).expect("i1 -1"),
             )],
+        ));
+        let i1_divisor_bound = Proposition::LessOrEqual(
+            value(8, i1),
+            ScalarTerm::integer(i1, IntegerValue::Signed(-1)).expect("i1 -1"),
+        );
+        let i1_dividend_bound = Proposition::LessOrEqual(
+            ScalarTerm::integer(i1, IntegerValue::Signed(0)).expect("i1 zero"),
+            value(7, i1),
+        );
+        assert!(exact_division_has_closed_prior_certificate(
+            &i1_goal,
+            &[],
+            &[i1_divisor_bound.clone(), i1_dividend_bound.clone()],
+        ));
+        assert!(!exact_division_has_closed_prior_certificate(
+            &i1_goal,
+            &[],
+            &[
+                i1_divisor_bound,
+                Proposition::LessOrEqual(
+                    ScalarTerm::integer(i1, IntegerValue::Signed(0)).expect("i1 zero"),
+                    value(9, i1),
+                ),
+            ],
+        ));
+        assert!(!exact_division_has_closed_prior_certificate(
+            &i1_goal,
+            &[],
+            &[
+                Proposition::LessOrEqual(
+                    value(9, i1),
+                    ScalarTerm::integer(i1, IntegerValue::Signed(-1)).expect("i1 -1"),
+                ),
+                i1_dividend_bound,
+            ],
         ));
         assert!(exact_division_has_closed_prior_certificate(
             &i1_goal,
