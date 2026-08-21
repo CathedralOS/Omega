@@ -531,6 +531,13 @@ fn retained_exact_division_safe_divisor_bound(
                 || disjuncts
                     .get(1)
                     .is_some_and(|candidate| retained(candidate))
+                || disjuncts.get(2).is_some_and(|candidate| {
+                    matches!(
+                        candidate,
+                        Proposition::Conjunction(conjuncts)
+                            if !conjuncts.is_empty() && conjuncts.iter().all(retained)
+                    )
+                })
         }
         Proposition::Conjunction(conjuncts) => {
             !conjuncts.is_empty() && conjuncts.iter().all(retained)
@@ -1113,6 +1120,62 @@ mod tests {
                     ScalarTerm::integer(signed, IntegerValue::Signed(1)).expect("i8 one"),
                 ),
                 Proposition::LessOrEqual(value(2, signed), value(3, signed)),
+            ],
+        ));
+    }
+
+    #[test]
+    fn exact_division_selects_complete_signed_joint_prior_bounds() {
+        let signed = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+        let goal = CanonicalScalarGoal::ExactDivisionDefined {
+            integer_type: signed,
+            left: value(1, signed),
+            right: value(2, signed),
+        };
+        let divisor_bound = Proposition::LessOrEqual(
+            value(2, signed),
+            ScalarTerm::integer(signed, IntegerValue::Signed(-1)).expect("i8 -1"),
+        );
+        let dividend_bound = Proposition::LessOrEqual(
+            ScalarTerm::integer(signed, IntegerValue::Signed(-127)).expect("i8 minimum + 1"),
+            value(1, signed),
+        );
+        assert!(exact_division_has_closed_prior_certificate(
+            &goal,
+            &[],
+            &[divisor_bound.clone(), dividend_bound.clone()],
+        ));
+        assert!(!exact_division_has_closed_prior_certificate(
+            &goal,
+            &[],
+            std::slice::from_ref(&divisor_bound),
+        ));
+        assert!(!exact_division_has_closed_prior_certificate(
+            &goal,
+            &[],
+            std::slice::from_ref(&dividend_bound),
+        ));
+        assert!(!exact_division_has_closed_prior_certificate(
+            &goal,
+            &[],
+            &[
+                divisor_bound.clone(),
+                Proposition::LessOrEqual(
+                    ScalarTerm::integer(signed, IntegerValue::Signed(-127))
+                        .expect("i8 minimum + 1"),
+                    value(3, signed),
+                ),
+            ],
+        ));
+        assert!(!exact_division_has_closed_prior_certificate(
+            &goal,
+            &[],
+            &[
+                Proposition::LessOrEqual(
+                    value(3, signed),
+                    ScalarTerm::integer(signed, IntegerValue::Signed(-1)).expect("i8 -1"),
+                ),
+                dividend_bound,
             ],
         ));
     }

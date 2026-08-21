@@ -1773,7 +1773,13 @@ The direct safe-divisor family also selects canonical `ExactDivisionDefined`
 from an exact prior `1 <= divisor` proposition for unsigned or signed fixed
 carriers, or `divisor <= -2` for signed widths of at least two. Unsigned
 certificates cite the goal directly; signed certificates cite and introduce
-the selected first or second disjunct. A signed `i1` divisor fact alone remains
+the selected first or second disjunct. The complete signed joint-bound family
+selects the third canonical disjunct when both `divisor <= -1` and
+`MIN + 1 <= dividend` are independently available through the supported exact
+citation or checked transitivity paths. The producer proves both conjuncts,
+constructs their conjunction, and introduces that ordered disjunct; either
+missing premise or redirected operand identity rejects. A signed `i1` divisor
+fact alone remains
 insufficient because the canonical conjunction also needs its dividend premise.
 The complete retained-bound `i1` family selects that conjunction when exact
 prior `divisor <= -1` and `0 <= dividend` propositions are both present; the

@@ -381,9 +381,17 @@ mod tests {
             panic!("exact division uses disjunction introduction")
         };
         assert_eq!(index, 2);
+        let ProofRule::ConjunctionIntroduction(conjuncts) = disjunct.rule else {
+            panic!("joint exact bounds use conjunction introduction")
+        };
+        assert_eq!(conjuncts.len(), 2);
         assert!(matches!(
-            disjunct.rule,
-            ProofRule::ConjunctionIntroduction(ref conjuncts) if conjuncts.len() == 2
+            conjuncts[0].rule,
+            ProofRule::Assumption { index: 0 }
+        ));
+        assert!(matches!(
+            conjuncts[1].rule,
+            ProofRule::Assumption { index: 1 }
         ));
         assert!(prove_canonical_integer_proposition(&context, &goal, &[], &[]).is_none());
     }
