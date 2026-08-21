@@ -1396,6 +1396,21 @@ fn compile_rooted_canary_for_target_with_artifact_policy(
 // exercise production entry selection and may not substitute the legacy entry
 // seam.
 const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
+    "calls/runtime_called_machine_loop_search_exit",
+    "calls/runtime_computed_transition_args_exit",
+    "calls/runtime_cross_machine_substate_name_exit",
+    "calls/runtime_dispatch_machine_array_slice_arg_exit",
+    "calls/runtime_dispatch_result_alias_read_exit",
+    "calls/runtime_dispatch_result_enum_case_exit",
+    "calls/runtime_dispatch_result_field_binding_exit",
+    "calls/runtime_dispatch_second_receiver_exit",
+    "calls/runtime_nonentry_second_receiver_exit",
+    "calls/runtime_option_value_call_exit",
+    "calls/runtime_selfcall_chain_second_receiver_exit",
+    "calls/runtime_struct_by_value_param_exit",
+    "calls/runtime_struct_value_call_exit",
+    "calls/runtime_value_call_composition_exit",
+    "calls/runtime_value_call_to_array_element_exit",
     "filesystem/discarded_self_call_literal_errno_exit",
     "filesystem/field_receiver_method_exit",
     "filesystem/self_value_call_literal_path_exit",
@@ -2639,6 +2654,21 @@ fn task_runtime_machine_selection_builds_omega_activation_sidecar() {
 }
 
 const ACTIVE_PASS_CANARIES: &[&str] = &[
+    "calls/runtime_called_machine_loop_search_exit",
+    "calls/runtime_computed_transition_args_exit",
+    "calls/runtime_cross_machine_substate_name_exit",
+    "calls/runtime_dispatch_machine_array_slice_arg_exit",
+    "calls/runtime_dispatch_result_alias_read_exit",
+    "calls/runtime_dispatch_result_enum_case_exit",
+    "calls/runtime_dispatch_result_field_binding_exit",
+    "calls/runtime_dispatch_second_receiver_exit",
+    "calls/runtime_nonentry_second_receiver_exit",
+    "calls/runtime_option_value_call_exit",
+    "calls/runtime_selfcall_chain_second_receiver_exit",
+    "calls/runtime_struct_by_value_param_exit",
+    "calls/runtime_struct_value_call_exit",
+    "calls/runtime_value_call_composition_exit",
+    "calls/runtime_value_call_to_array_element_exit",
     "filesystem/discarded_self_call_literal_errno_exit",
     "filesystem/field_receiver_method_exit",
     "filesystem/self_value_call_literal_path_exit",

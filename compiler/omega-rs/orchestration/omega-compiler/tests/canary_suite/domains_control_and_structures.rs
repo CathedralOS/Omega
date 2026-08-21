@@ -1802,7 +1802,7 @@ fn runtime_cross_machine_substate_name_exit_canary_runs() {
         "omega-cross-machine-substate-{}",
         std::process::id()
     ));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("cross-machine substate-name canary should compile");
     let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
@@ -1824,7 +1824,7 @@ fn runtime_value_call_to_array_element_exit_canary_runs() {
     // write-side contrast to the value-call dispatch-position drop and the multi-call shared slot.
     let canary = pass_canary("calls/runtime_value_call_to_array_element_exit");
     let scratch = std::env::temp_dir().join(format!("omega-vc-array-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("value-call to array element canary should compile");
     let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
@@ -1846,7 +1846,7 @@ fn runtime_computed_transition_args_exit_canary_runs() {
     // -> exit 70. The working contrast to the value-call-as-transition-arg silent drop.
     let canary = pass_canary("calls/runtime_computed_transition_args_exit");
     let scratch = std::env::temp_dir().join(format!("omega-computed-args-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("computed transition args canary should compile");
     let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
@@ -1869,7 +1869,7 @@ fn runtime_struct_by_value_param_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_struct_by_value_param_exit");
     let scratch =
         std::env::temp_dir().join(format!("omega-struct-by-value-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("struct by-value param canary should compile");
     let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
@@ -1894,7 +1894,7 @@ fn runtime_value_call_composition_exit_canary_runs() {
         "omega-value-call-composition-{}",
         std::process::id()
     ));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("value call composition canary should compile");
     let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
@@ -1917,7 +1917,7 @@ fn runtime_struct_value_call_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_struct_value_call_exit");
     let scratch =
         std::env::temp_dir().join(format!("omega-struct-value-call-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("struct value call canary should compile");
     let output = Command::new(scratch.join("out").join(executable_name()))
         .output()
@@ -1941,7 +1941,7 @@ fn runtime_option_value_call_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_option_value_call_exit");
     let scratch =
         std::env::temp_dir().join(format!("omega-option-value-call-{}", std::process::id()));
-    compile_single_file_hosted_main(&canary, &scratch, native_hosted_target())
+    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("option value call canary should compile");
     let output = Command::new(scratch.join("out").join(executable_name()))
         .output()

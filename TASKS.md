@@ -294,12 +294,14 @@ Remaining:
   authored roots. Ten value-call, indexed-collection, and result-domain probes
   now likewise consume authored roots. Fifteen typed-dispatch, fixed-integer,
   saturating-time, wire-policy, portable-filesystem, and console-byte probes now
-  likewise consume authored roots. The local-named dynamic devirtualization
-  fixture remains rootless because production entry selection currently rejects
-  its state-graph source declaration as missing or ambiguous. A registry-
-  derived inventory now pins 890
-  `RUN_CANARIES`, 810 with authored roots, and 80 rootless. The tracked backlog
-  is 76 after separately excluding the exact four GUI fixtures that still lack
+  likewise consume authored roots. Fifteen Option/record value calls,
+  computed-transition arguments, dispatched result deliveries, and distinct-
+  receiver call chains now likewise consume authored roots. The local-named
+  dynamic devirtualization fixture remains rootless because production entry
+  selection currently rejects its state-graph source declaration as missing or
+  ambiguous. A registry-derived inventory now pins 890
+  `RUN_CANARIES`, 825 with authored roots, and 65 rootless. The tracked backlog
+  is 61 after separately excluding the exact four GUI fixtures that still lack
   a general Linux `Gui`/`Input` provider. The earlier reported backlog of 18
   was incorrect: its baseline parser omitted 39 multiline-form RUN rows, then
   the migration ledger subtracted 34 authored roots outside `RUN_CANARIES` as
@@ -1096,11 +1098,16 @@ Remaining:
   axioms. The producer deterministically prefers the signed negative arm and
   supports exact citation, integer-order transitivity, and literal equality
   substitution. Missing projection or evidence rejects with no operation-result
-  self-justification and no fallback to the legacy reducer. Exact
-  divide/remainder, wrapping remainder, and saturating divide/remainder remain
-  on trusted sufficient reduction. No schema, reducer, or semantic-operation
-  trust status is promoted; terminal `PSITERM\0` codec v18, proof-bundle v15,
-  installation record v24, and `fully-derived false` remain unchanged.
+  self-justification and no fallback to the legacy reducer. The complete
+  `WrappingIntegerRemainder` row now uses the same canonical proposition and
+  untrusted, kernel-checked prior-fact certificate producer. Reconstruction
+  selects the goal solely from the exact operation tag, fails closed without a
+  valid certificate, and cannot cite the operation's own result equation. Both
+  wrapping divide/remainder rows are now canonical; exact and saturating
+  divide/remainder remain on trusted sufficient reduction. No schema, reducer,
+  semantic-operation, or other trust status is promoted; terminal `PSITERM\0`
+  codec v18, proof-bundle v15, installation record v24, and `fully-derived
+  false` remain unchanged.
   The bounded Gamma spike is complete. It canonical-decodes four exact current
   `PSITERM\0` v18 fixtures and audits a 54-row scalar ledger covering constants,
   Boolean not/equality, integer equality/order, bitwise operations, strict
