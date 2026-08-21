@@ -1584,6 +1584,7 @@ fn validate_candidate_conformance_bounds(
             )));
             continue;
         };
+        let type_identity = program.display_type_reference(binding);
 
         if let Some(binder) = bound.binder {
             let Some(evidence_index) = candidate
@@ -1635,7 +1636,7 @@ fn validate_candidate_conformance_bounds(
                 .traits()
                 .iter()
                 .find(|definition| definition.symbol == bound.carrier);
-            if application.subject_identity.as_deref() != Some(type_name)
+            if application.subject_identity.as_deref() != Some(type_identity.as_str())
                 || expected_trait
                     .is_none_or(|definition| application.trait_definition != definition.symbol)
                 || !conformance_application_arguments_match_candidate(
@@ -1646,7 +1647,7 @@ fn validate_candidate_conformance_bounds(
                 )
             {
                 diagnostics.push(Diagnostic::error(format!(
-                    "generic machine `{}` cannot bind `{}` to conformance `{}`: expected a complete `{type_name} satisfies {}` map with the instantiated trait arguments",
+                    "generic machine `{}` cannot bind `{}` to conformance `{}`: expected a complete `{type_identity} satisfies {}` map with the instantiated trait arguments",
                     candidate.template_name,
                     bound
                         .binder_name
@@ -2792,6 +2793,7 @@ fn substitute_machine_parameter_type_references(
 
 fn substitute_forwarded_machine_arguments(
     arguments: &mut [StaticMachineArgument],
+    static_rewrites: &[(SymbolHandle, StaticMachineArgument)],
     rewrites: &[(
         SymbolHandle,
         SymbolHandle,
@@ -2799,15 +2801,128 @@ fn substitute_forwarded_machine_arguments(
     )],
 ) {
     for argument in arguments {
-        let Some((_, symbol, name)) = rewrites
+        if let Some((_, replacement)) = static_rewrites
+            .iter()
+            .find(|(parameter, _)| *parameter == argument.symbol)
+        {
+            *argument = replacement.clone();
+        } else if let Some((_, symbol, name)) = rewrites
             .iter()
             .find(|(parameter, _, _)| *parameter == argument.symbol)
-        else {
-            continue;
-        };
-        argument.symbol = *symbol;
-        argument.path = vec![name.clone()].into_boxed_slice();
+        {
+            argument.symbol = *symbol;
+            argument.path = vec![name.clone()].into_boxed_slice();
+        }
+        if let Some(application) = &mut argument.application {
+            substitute_forwarded_machine_arguments(
+                &mut application.arguments,
+                static_rewrites,
+                rewrites,
+            );
+        }
     }
+}
+
+fn forwarded_static_argument_rewrites(
+    program: &TypedTrees,
+    candidate: &Candidate,
+) -> Vec<(SymbolHandle, StaticMachineArgument)> {
+    candidate
+        .type_parameters
+        .iter()
+        .zip(candidate.type_bindings.iter())
+        .filter_map(|((parameter, _), binding)| {
+            static_argument_from_type_reference(program, binding.as_ref().copied()?)
+                .map(|argument| (*parameter, argument))
+        })
+        .chain(
+            candidate
+                .const_parameters
+                .iter()
+                .zip(candidate.const_bindings.iter())
+                .filter_map(|((parameter, _, _), binding)| {
+                    static_const_literal_from_type_reference(program, binding.as_ref().copied()?)
+                        .map(|literal| {
+                            (
+                                *parameter,
+                                StaticMachineArgument {
+                                    path: Box::default(),
+                                    application: None,
+                                    const_literal: Some(literal),
+                                    evidence_projection: None,
+                                    symbol: SymbolHandle::invalid(),
+                                },
+                            )
+                        })
+                }),
+        )
+        .collect()
+}
+
+fn static_argument_from_type_reference(
+    program: &TypedTrees,
+    handle: TypeReferenceHandle,
+) -> Option<StaticMachineArgument> {
+    match program.type_reference_table.type_reference(handle) {
+        TypeReferenceNode::Named { symbol, name } => Some(StaticMachineArgument {
+            path: vec![name.clone()].into_boxed_slice(),
+            application: None,
+            const_literal: None,
+            evidence_projection: None,
+            symbol: *symbol,
+        }),
+        TypeReferenceNode::Generic {
+            base_symbol,
+            base_name,
+            lifetime_arguments,
+            arguments,
+        } => Some(StaticMachineArgument {
+            path: vec![base_name.clone()].into_boxed_slice(),
+            application: Some(Box::new(
+                psi_typed_trees::expression::StaticSymbolApplication {
+                    lifetime_arguments: lifetime_arguments.clone().into_boxed_slice(),
+                    arguments: program
+                        .type_reference_table
+                        .type_reference_handles(*arguments)
+                        .iter()
+                        .filter_map(|argument| {
+                            static_argument_from_type_reference(program, *argument)
+                        })
+                        .collect::<Vec<_>>()
+                        .into_boxed_slice(),
+                },
+            )),
+            const_literal: None,
+            evidence_projection: None,
+            symbol: *base_symbol,
+        }),
+        _ => None,
+    }
+}
+
+fn static_const_literal_from_type_reference(
+    program: &TypedTrees,
+    handle: TypeReferenceHandle,
+) -> Option<psi_numerics::literals::IntegerLiteral> {
+    let TypeReferenceNode::Named { name, .. } = program.type_reference_table.type_reference(handle)
+    else {
+        return None;
+    };
+    let mut spelling = name.as_str();
+    let negative = spelling.starts_with('-');
+    if negative {
+        spelling = &spelling[1..];
+    }
+    let (radix, digits) = if let Some(digits) = spelling.strip_prefix("0b") {
+        (psi_numerics::literals::IntegerRadix::Binary, digits)
+    } else if let Some(digits) = spelling.strip_prefix("0o") {
+        (psi_numerics::literals::IntegerRadix::Octal, digits)
+    } else if let Some(digits) = spelling.strip_prefix("0x") {
+        (psi_numerics::literals::IntegerRadix::Hexadecimal, digits)
+    } else {
+        (psi_numerics::literals::IntegerRadix::Decimal, spelling)
+    };
+    psi_numerics::literals::IntegerLiteral::from_parts(negative, radix, digits).ok()
 }
 
 fn evidence_argument_rewrites(
@@ -3019,6 +3134,7 @@ fn rewrite_cloned_calls(
     );
     let mut argument_rewrites = machine_rewrites;
     argument_rewrites.extend(evidence_argument_rewrites(source, candidate));
+    let static_argument_rewrites = forwarded_static_argument_rewrites(source, candidate);
     for state in program.machine_states.span_or_empty(states).to_vec() {
         for statement_handle in statement_span_handles(state.statement_nodes) {
             let StatementNode::Call(snapshot) =
@@ -3068,7 +3184,11 @@ fn rewrite_cloned_calls(
             if let Some(rewrite) = evidence_dispatch {
                 call.machine_arguments = rewrite.application_arguments.clone();
             }
-            substitute_forwarded_machine_arguments(&mut call.machine_arguments, &argument_rewrites);
+            substitute_forwarded_machine_arguments(
+                &mut call.machine_arguments,
+                &static_argument_rewrites,
+                &argument_rewrites,
+            );
             if state_symbols
                 .iter()
                 .any(|(_, concrete)| *concrete == call.target_symbol)
@@ -3117,7 +3237,11 @@ fn rewrite_cloned_calls(
         if let Some(rewrite) = evidence_dispatch {
             call.machine_arguments = rewrite.application_arguments.clone();
         }
-        substitute_forwarded_machine_arguments(&mut call.machine_arguments, &argument_rewrites);
+        substitute_forwarded_machine_arguments(
+            &mut call.machine_arguments,
+            &static_argument_rewrites,
+            &argument_rewrites,
+        );
         if state_symbols
             .iter()
             .any(|(_, concrete)| *concrete == call.target_symbol)
@@ -3454,6 +3578,7 @@ fn apply_specialization(program: &mut TypedTrees, candidate: &Candidate) {
     );
     let mut argument_rewrites = machine_rewrites;
     argument_rewrites.extend(evidence_argument_rewrites(program, candidate));
+    let static_argument_rewrites = forwarded_static_argument_rewrites(program, candidate);
 
     substitute_machine_parameter_type_references(program, candidate, None);
 
@@ -3512,7 +3637,11 @@ fn apply_specialization(program: &mut TypedTrees, candidate: &Candidate) {
             if let Some(rewrite) = evidence_dispatch {
                 call.machine_arguments = rewrite.application_arguments.clone();
             }
-            substitute_forwarded_machine_arguments(&mut call.machine_arguments, &argument_rewrites);
+            substitute_forwarded_machine_arguments(
+                &mut call.machine_arguments,
+                &static_argument_rewrites,
+                &argument_rewrites,
+            );
             if candidate.state_symbols.contains(&call.target_symbol) {
                 call.machine_arguments = Box::default();
             }
@@ -3558,7 +3687,11 @@ fn apply_specialization(program: &mut TypedTrees, candidate: &Candidate) {
         if let Some(rewrite) = evidence_dispatch {
             call.machine_arguments = rewrite.application_arguments.clone();
         }
-        substitute_forwarded_machine_arguments(&mut call.machine_arguments, &argument_rewrites);
+        substitute_forwarded_machine_arguments(
+            &mut call.machine_arguments,
+            &static_argument_rewrites,
+            &argument_rewrites,
+        );
         if candidate.state_symbols.contains(&call.target_symbol) {
             call.machine_arguments = Box::default();
         }
