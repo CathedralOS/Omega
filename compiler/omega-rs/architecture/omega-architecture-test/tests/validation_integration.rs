@@ -1458,12 +1458,13 @@ fn named_local_dynamic_coercion_rejects_unknown_selection() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let diagnostic =
+    let diagnostics =
         lower_syntax_trees(&syntax).expect_err("a named dynamic selection must resolve exactly");
     assert!(
-        diagnostic
+        diagnostics.iter().any(|diagnostic| diagnostic
             .message
-            .contains("dynamic coercion selects unknown named conformance `Item::Missing`")
+            .contains("dynamic coercion selects unknown named conformance `Item::Missing`")),
+        "expected unknown named conformance diagnostic, got {diagnostics:#?}"
     );
 }
 
@@ -3830,13 +3831,13 @@ fn rejects_unknown_trait_machine_service_reaches() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let diagnostic = lower_syntax_trees(&syntax_trees)
+    let diagnostics = lower_syntax_trees(&syntax_trees)
         .expect_err("unknown service reach must not enter resolved trees");
     assert!(
-        diagnostic
+        diagnostics.iter().any(|diagnostic| diagnostic
             .message
-            .contains("unknown boundary service `stdoutish`"),
-        "expected unknown service diagnostic, got {diagnostic:#?}"
+            .contains("unknown boundary service `stdoutish`")),
+        "expected unknown service diagnostic, got {diagnostics:#?}"
     );
 }
 
