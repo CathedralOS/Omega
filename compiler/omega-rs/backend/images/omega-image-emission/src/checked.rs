@@ -247,7 +247,12 @@ pub fn emit_checked_executable_image(
         compiler_text_validation.derivation_fingerprint = derivation_fingerprint;
         emitted_output.compiler_text_validation = Some(compiler_text_validation);
         emitted_output.compiler_function_validation = Some(compiler_function_validation);
-        validate_executable_region_enumeration(&emitted_output.executable_regions)?;
+        validate_executable_region_enumeration(
+            &emitted_output.executable_regions,
+            encoded_machine_code,
+            object,
+            final_compiler_text_bytes,
+        )?;
         return Ok(emitted_output);
     }
 
@@ -822,6 +827,9 @@ fn compiler_pointee_double_indexed_place_offsets(
 
 fn validate_executable_region_enumeration(
     inventory: &PlacedExecutableRegionInventory,
+    code: &omega_machine_bytes::EncodedMachineCode,
+    object: &omega_object_file::ObjectPlan,
+    final_compiler_text_bytes: &[u8],
 ) -> Result<(), Diagnostic> {
     if let Some(gap) = inventory.unclassified_gaps.first() {
         return Err(Diagnostic::error(format!(
@@ -829,7 +837,66 @@ fn validate_executable_region_enumeration(
             gap.byte_count, gap.section_offset
         )));
     }
+    let compiler_regions = inventory
+        .regions
+        .iter()
+        .filter(|region| {
+            region.origin == omega_image::FinalExecutableRegionOrigin::CompilerFunction
+        })
+        .collect::<Vec<_>>();
+    if compiler_regions.len() != code.functions.len() {
+        return Err(Diagnostic::error(format!(
+            "final executable inventory retained {} compiler-function region(s), expected {}",
+            compiler_regions.len(),
+            code.functions.len()
+        )));
+    }
+    for (function_index, (_, function)) in code.functions.iter().enumerate() {
+        let (_, symbol) = omega_object_file::object_function_symbol(object, function.identity)
+            .ok_or_else(|| {
+                Diagnostic::error(format!(
+                    "final executable inventory cannot resolve compiler function #{function_index}"
+                ))
+            })?;
+        let expected_address = inventory
+            .text_address
+            .checked_add(function.byte_offset as u64)
+            .ok_or_else(|| Diagnostic::error("final compiler-function address overflows"))?;
+        let function_end = function
+            .byte_offset
+            .checked_add(function.byte_count)
+            .filter(|end| *end <= final_compiler_text_bytes.len())
+            .ok_or_else(|| {
+                Diagnostic::error(format!(
+                    "final executable inventory compiler function #{function_index} exceeds final compiler text"
+                ))
+            })?;
+        let expected_fingerprint = final_region_byte_fingerprint(
+            &final_compiler_text_bytes[function.byte_offset..function_end],
+        );
+        let matching = compiler_regions
+            .iter()
+            .filter(|region| {
+                region.symbol == symbol.name
+                    && region.section_offset == function.byte_offset
+                    && region.address == expected_address
+                    && region.byte_count == function.byte_count
+                    && region.byte_fingerprint == expected_fingerprint
+            })
+            .count();
+        if matching != 1 {
+            return Err(Diagnostic::error(format!(
+                "final executable inventory does not retain one exact region for compiler function #{function_index}"
+            )));
+        }
+    }
     Ok(())
+}
+
+fn final_region_byte_fingerprint(bytes: &[u8]) -> u64 {
+    let mut fingerprint = 0xcbf2_9ce4_8422_2325u64;
+    fingerprint_into(&mut fingerprint, bytes);
+    fingerprint
 }
 
 /// Prove that final `.text` preserves every encoded bit except the exact
