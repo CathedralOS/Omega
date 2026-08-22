@@ -3,9 +3,9 @@
 use psi_core::{Proposition, ScalarTerm};
 use psi_proof_kernel::ProofNode;
 
-mod eligibility;
 mod equalities;
 
+use super::super::eligibility;
 use equalities::OrientedEqualities;
 
 pub(super) struct DirectLiteralCandidates<'a> {
@@ -24,7 +24,7 @@ impl<'a> DirectLiteralCandidates<'a> {
         mut complete: impl FnMut(&'a ScalarTerm, &'a ScalarTerm, ProofNode) -> Option<T>,
     ) -> Option<T> {
         self.equalities.find(|citation, equality, root, literal| {
-            if !eligibility::eligible(root, literal) {
+            if !eligibility::exact_value_binding(root, literal) {
                 return None;
             }
             complete(root, literal, citation.proof(equality))

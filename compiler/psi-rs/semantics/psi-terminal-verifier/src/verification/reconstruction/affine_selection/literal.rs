@@ -6,6 +6,7 @@ use super::super::affine_custody::DefinitionIndex;
 
 mod alias;
 mod direct;
+mod eligibility;
 mod root_bounds;
 
 pub(super) fn retained_landed_literal_affine_bound(
