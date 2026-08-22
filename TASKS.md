@@ -1270,7 +1270,11 @@ Remaining:
   `MIN + 1 <= M`, `M <= K`, and `K == dividend`. The producer constructs the
   ordered conjunction and nests the two dividend-floor citations beneath
   endpoint substitution; a missing or disconnected middle fact cannot prove
-  the arm. A signed `i1`
+  the arm. The complete nested signed-`i1` family transports both mandatory
+  conjuncts from two exact citations each: `Kd <= Md`, `Md <= -1`,
+  `Kd == divisor`, and `0 <= Mn`, `Mn <= Kn`, `Kn == dividend`. The producer
+  emits the ordered conjunction of two transitivity-under-substitution proofs;
+  either missing middle relation rejects the whole goal. A signed `i1`
   divisor fact alone remains
   insufficient because its canonical conjunction also requires the dividend
   premise. The complete retained-bound `i1` family now selects that conjunction
@@ -1579,7 +1583,7 @@ Remaining:
   unchanged; only type-shell normalization and unresolved-call reporting are
   shared privately back to per-call validation.
   Complete-or-opaque caller write-frame inference, alias-origin propagation,
-  and transition-cycle frame equations now form a 2,988-line
+  and transition-cycle frame equations now form a 2,955-line
   `calls/write_frames.rs` child. Its 459-line `write_frames/demand.rs` child
   owns the public resolver facade plus expression/statement demand collection
   and conservative fallback; a separate 123-line
@@ -1607,8 +1611,11 @@ Remaining:
   established stable origins, syntactic mutable-reborrow detection for stable
   parameter/local bindings, and read-only reference-shaped replacement
   classification; it neither recursively infers origins, mutates bindings, nor
-  resolves frames. A 114-line `write_frames/parameter_aliases.rs` leaf owns the
-  narrow parameter-relative origin carrier, exact symbol/name alias lookup, and
+  resolves frames. A separate 59-line `write_frames/alias_bindings.rs` leaf
+  owns exact stable-local rebinding admission and slot mutation through one
+  immutable origin-inference callback; recursive origin analysis remains in
+  the parent. A 114-line `write_frames/parameter_aliases.rs` leaf owns the narrow
+  parameter-relative origin carrier, exact symbol/name alias lookup, and
   syntax-only transparent mutable-reborrow detection; recursive origin and call
   analysis remain in the parent. A 125-line
   `write_frames/transition_topology.rs` leaf owns named-edge target resolution
@@ -2472,12 +2479,16 @@ Remaining N6/N8 work:
   positions; exact side/owner/contract/fact coordinates are retained and
   unresolved value identities reject. These partitions prove no `Q <-> P`
   equivalence or `Respects` clause. The exact final-expression call additionally
-  retains one unchanged state-fallthrough result edge; earlier expression
-  statements, nested requests, and transition values cannot claim that edge.
-  This does not prove all-normal-exit result flow through aliases, transitions,
-  or state forwarding. Every request still rejects as non-executable until exact
-  correspondence, the selected `Respects` contract, and normalized result flow
-  are checked and retained in checked/terminal identity.
+  retains one unchanged state-fallthrough result edge. The same single edge may
+  now pass through a complete straight-line chain of exact immutable,
+  result-typed local aliases when the sealed request is the first initializer
+  and the state's final expression is the last local. Mutable/type-drifted,
+  nested, interrupted, reassigned, cyclic, transition, and state-forwarded
+  shapes cannot claim that edge. This does not prove all-normal-exit result flow
+  through transitions or state forwarding. Every request still rejects as
+  non-executable until exact correspondence, the selected `Respects` contract,
+  and normalized result flow are checked and retained in checked/terminal
+  identity.
 - Suppress every synthesized representation observer on quotient formation.
   Add quotient-owned executable equality through an ordinary lifted operation
   with `DecidesEquivalence`; derive its `Respects` proof, and bind its optional
@@ -2590,9 +2601,11 @@ conformance cannot change token meaning; and no accepted source contains a
   binding case is now payloadless, the core/std/canary corpus uses that form,
   and the seven obsolete authored-name mismatch canaries are deleted in favor
   of one parser regression for the retired payload. Transitional provider rows
-  derive their catalog label from the selected satisfied requirement rather than
-  accepting author text. Replace that transitional label with the resolved
-  realization-machine overload identity plus a structured target catalog key.
+  now retain the compiler-derived normalized realization-machine overload
+  identity through ABI planning, trust reports, and executable-TCB identity.
+  Their separate catalog label derives from the selected satisfied requirement
+  rather than accepting author text. Replace that transitional label with a
+  structured target catalog key.
 - Replace string-backed foreign binding identity with nominal `LibraryId`,
   `SymbolId`, `CallingPlanId`, firmware/table, vtable, and mechanism-specific
   values. Raw object-format library/symbol bytes may exist only in sealed
