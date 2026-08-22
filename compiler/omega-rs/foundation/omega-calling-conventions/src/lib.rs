@@ -2,6 +2,7 @@ mod callback_materializations;
 mod darwin;
 mod linux;
 mod plans;
+mod stack_realizations;
 mod windows;
 pub use callback_materializations::{
     CallbackBinderRequirement, CallbackMaterialization, CallbackMaterializationContext,
@@ -27,6 +28,11 @@ pub use plans::{
     validate_composed_state_footprint, validate_outbound_call_footprint,
     validate_provider_exit_realization, validate_runtime_value_guard_footprint,
     validate_state_footprint,
+};
+pub use stack_realizations::{
+    ArrivalContextId, ArrivalContextRealization, EntryStackEpoch, EntryStackRealization,
+    EntryStackStage, StackDomainRef, StackOccupancy, ValidatedEntryStackRealization,
+    validate_entry_stack_realization,
 };
 pub use windows::windows_import_library;
 
