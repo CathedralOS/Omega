@@ -1,8 +1,32 @@
 //! Final image, instruction-boundary, and executable-region validation regressions.
 
 use super::*;
-use crate::checked::retain_compiler_function_identity;
+use crate::checked::{
+    retain_compiler_function_identity, validate_compiler_function_object_binding,
+};
 use std::collections::HashSet;
+
+fn bind_encoded_function_object_symbol(
+    object: &mut omega_object_file::ObjectPlan,
+    function: &omega_machine_bytes::EncodedMachineFunction,
+) -> omega_object_file::ObjectSymbolHandle {
+    let symbol = object.layout.symbols.insert(omega_object_file::SymbolPlan {
+        name: format!("function_{}", object.layout.symbols.len()),
+        section: omega_object_file::SymbolSection::Section(omega_object_file::SectionKind::Text),
+        offset: function.byte_offset,
+        size: function.byte_count,
+        kind: omega_object_file::SymbolKind::Function,
+        import_library: String::new(),
+    });
+    object
+        .layout
+        .function_symbols
+        .insert(omega_object_file::FunctionSymbolPlan {
+            identity: function.identity,
+            symbol,
+        });
+    symbol
+}
 
 #[test]
 fn final_function_identity_partition_is_unique_valid_and_fingerprinted() {
@@ -69,6 +93,70 @@ fn final_function_identity_partition_is_unique_valid_and_fingerprinted() {
         invalid
             .message
             .contains("invalid compiler-private identity")
+    );
+}
+
+#[test]
+fn final_function_identity_owns_one_exact_object_text_interval() {
+    use omega_control_flow::{MachineFunctionIdentity, StateKey};
+    use omega_machine_bytes::EncodedMachineFunction;
+    use psi_symbols::SymbolHandle;
+
+    let target = NativeTarget::linux_x64();
+    let identity = MachineFunctionIdentity::callback_thunk(
+        StateKey {
+            machine: SymbolHandle::from_parts(1, 2),
+            state: SymbolHandle::from_parts(3, 4),
+            segment_index: 5,
+        },
+        7,
+    )
+    .expect("valid callback identity");
+    let function = EncodedMachineFunction {
+        symbol: "callback".into(),
+        identity,
+        byte_offset: 8,
+        byte_count: 16,
+        ..EncodedMachineFunction::default()
+    };
+    let mut object = omega_object_file::ObjectPlan::with_capacities(target, 0, 1, 1);
+    let symbol = bind_encoded_function_object_symbol(&mut object, &function);
+
+    validate_compiler_function_object_binding(0, &function, &object)
+        .expect("exact callback identity and text interval should rejoin");
+
+    let missing = omega_object_file::ObjectPlan::with_capacities(target, 0, 0, 0);
+    let diagnostic = validate_compiler_function_object_binding(0, &function, &missing)
+        .expect_err("missing final object identity must reject");
+    assert!(diagnostic.message.contains("one exact object text symbol"));
+
+    let mut redirected = object.clone();
+    let binding = redirected
+        .layout
+        .function_symbols
+        .iter()
+        .next()
+        .expect("one function binding")
+        .0;
+    redirected.layout.function_symbols.get_mut(binding).identity =
+        MachineFunctionIdentity::source(identity.associated_source_continuation());
+    assert!(validate_compiler_function_object_binding(0, &function, &redirected).is_err());
+
+    let mut duplicate = object.clone();
+    duplicate
+        .layout
+        .function_symbols
+        .insert(omega_object_file::FunctionSymbolPlan { identity, symbol });
+    assert!(validate_compiler_function_object_binding(0, &function, &duplicate).is_err());
+
+    let mut interval_drift = object.clone();
+    interval_drift.layout.symbols.get_mut(symbol).size += 1;
+    let diagnostic = validate_compiler_function_object_binding(0, &function, &interval_drift)
+        .expect_err("object interval drift must reject");
+    assert!(
+        diagnostic
+            .message
+            .contains("does not match encoded interval")
     );
 }
 
@@ -222,7 +310,7 @@ fn balanced_outgoing_stack_frame_final_bytes_and_footprint_replay_fail_closed() 
         compiler_validation_kind: Some(CompilerInstructionValidationKind::FunctionReturn),
         ..Default::default()
     });
-    plan.code.functions.insert(EncodedMachineFunction {
+    let function = plan.code.functions.insert(EncodedMachineFunction {
         symbol: "synthetic_wrapper".into(),
         identity: omega_control_flow::MachineFunctionIdentity::source(
             omega_control_flow::StateKey {
@@ -286,7 +374,8 @@ fn balanced_outgoing_stack_frame_final_bytes_and_footprint_replay_fail_closed() 
                 &return_footprint,
             ]),
         });
-    let object = omega_object_file::ObjectPlan::with_capacity(target, 0, 0);
+    let mut object = omega_object_file::ObjectPlan::with_capacities(target, 0, 1, 1);
+    bind_encoded_function_object_symbol(&mut object, plan.code.functions.get(function));
     let relocations = RelocationPlan::with_target(target);
     let evidence = validate_compiler_function_instruction_boundaries(
         omega_target::Architecture::X86_64,
@@ -825,7 +914,7 @@ fn compiler_functions_retain_a_complete_final_instruction_partition() {
     use psi_arena::HandleSpan;
 
     let target = NativeTarget::linux_x64();
-    let mut object = omega_object_file::ObjectPlan::with_capacity(target, 0, 1);
+    let mut object = omega_object_file::ObjectPlan::with_capacities(target, 0, 2, 1);
     let storage_symbol = object.layout.symbols.insert(SymbolPlan {
         name: omega_object_file::runtime_frame_storage_symbol_name(),
         section: SymbolSection::Section(SectionKind::Bss),
@@ -926,6 +1015,7 @@ fn compiler_functions_retain_a_complete_final_instruction_partition() {
         byte_count: final_bytes.len(),
         instructions: HandleSpan::from_parts(first, 5),
     });
+    bind_encoded_function_object_symbol(&mut object, plan.code.functions.get(function));
     plan.code.byte_count = final_bytes.len();
     let mut semantics = omega_machine_bytes::EncodedMachineSemanticSummary::default();
     semantics

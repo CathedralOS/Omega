@@ -2180,7 +2180,13 @@ Owners:
   rejects invalid or duplicate identities and fingerprints each exact role,
   continuation handle/generation, segment, and callback placement alongside
   its byte/instruction partition. Role substitution therefore changes final
-  derivation evidence even when all byte intervals remain unchanged. Final
+  derivation evidence even when all byte intervals remain unchanged. The same
+  final replay independently resolves each encoded identity through one exact
+  object function binding and requires its text-symbol interval to equal the
+  encoded byte interval. Missing, duplicate, redirected, non-text/function, or
+  interval-drifted bindings therefore reject uniformly for source, wrapper,
+  and callback roles; object-local private spelling is not confused with an
+  encoded source display name. Final
   emission also rejoins every validated placement row to exactly one private
   thunk plan. Missing,
   duplicate, or out-of-range placement indices, selected-entry drift, and
