@@ -533,12 +533,7 @@ fn retained_canonical_integer_proposition(
                 || retained_two_fact_transitive_integer_bound(goal, requirements, semantic_axioms)
                 || retained_equality_substituted_integer_bound(goal, requirements, semantic_axioms)
                 || context.is_some_and(|context| {
-                    retained_single_definition_affine_bound(
-                        context,
-                        goal,
-                        requirements,
-                        semantic_axioms,
-                    )
+                    retained_bounded_affine_bound(context, goal, requirements, semantic_axioms)
                 })
         }
         Proposition::Conjunction(conjuncts) => {
@@ -559,7 +554,7 @@ fn retained_canonical_integer_proposition(
     }
 }
 
-fn retained_single_definition_affine_bound(
+fn retained_bounded_affine_bound(
     context: &PropositionContext,
     goal: &Proposition,
     requirements: &[Proposition],
@@ -584,23 +579,32 @@ fn retained_single_definition_affine_bound(
                         .into_iter()
                         .filter(|target| matches!(target, ScalarTerm::Value { .. }))
                         .any(|target| {
-                            semantic_axioms.iter().enumerate().any(|(index, _)| {
-                                let witness = IntegerAffineWitness {
-                                    root: root.clone(),
-                                    target: target.clone(),
-                                    definition_axioms: vec![index],
-                                };
-                                check_integer_affine_witness(context, semantic_axioms, &witness)
-                                    .is_ok_and(|form| {
-                                        check_integer_affine_bound_conversion(
-                                            &form, root_bound, goal,
-                                        )
-                                        .is_ok()
-                                    })
-                            })
+                            affine_definition_words(semantic_axioms.len()).any(
+                                |definition_axioms| {
+                                    let witness = IntegerAffineWitness {
+                                        root: root.clone(),
+                                        target: target.clone(),
+                                        definition_axioms,
+                                    };
+                                    check_integer_affine_witness(context, semantic_axioms, &witness)
+                                        .is_ok_and(|form| {
+                                            check_integer_affine_bound_conversion(
+                                                &form, root_bound, goal,
+                                            )
+                                            .is_ok()
+                                        })
+                                },
+                            )
                         })
                 })
         })
+}
+
+fn affine_definition_words(count: usize) -> impl Iterator<Item = Vec<usize>> {
+    (0..count).map(|index| vec![index]).chain(
+        (0..count)
+            .flat_map(move |first| ((first + 1)..count).map(move |second| vec![first, second])),
+    )
 }
 
 fn retained_equality_substituted_integer_bound(
@@ -1922,6 +1926,65 @@ mod tests {
                 )
                 .expect("redirected exact add"),
             )],
+            &[root_bound],
+        ));
+    }
+
+    #[test]
+    fn exact_division_selects_two_definition_affine_safe_divisor() {
+        let signed = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+        let context = PropositionContext::from_value_types((1..=4).map(|id| {
+            (
+                ValueId::new(id).expect("value id"),
+                ScalarType::Integer(signed),
+            )
+        }))
+        .expect("four i8 values");
+        let goal = CanonicalScalarGoal::ExactDivisionDefined {
+            integer_type: signed,
+            left: value(1, signed),
+            right: value(2, signed),
+        };
+        let root_bound = Proposition::LessOrEqual(
+            ScalarTerm::integer(signed, IntegerValue::Signed(-1)).expect("i8 -1"),
+            value(3, signed),
+        );
+        let definitions = [
+            Proposition::Equal(
+                value(4, signed),
+                ScalarTerm::exact_integer_add(
+                    signed,
+                    value(3, signed),
+                    ScalarTerm::integer(signed, IntegerValue::Signed(1)).expect("i8 one"),
+                )
+                .expect("first exact add"),
+            ),
+            Proposition::Equal(
+                value(2, signed),
+                ScalarTerm::exact_integer_add(
+                    signed,
+                    value(4, signed),
+                    ScalarTerm::integer(signed, IntegerValue::Signed(1)).expect("i8 one"),
+                )
+                .expect("second exact add"),
+            ),
+        ];
+        assert!(exact_division_has_prior_certificate(
+            &context,
+            &goal,
+            &definitions,
+            std::slice::from_ref(&root_bound),
+        ));
+        assert!(!exact_division_has_prior_certificate(
+            &context,
+            &goal,
+            &definitions[..1],
+            std::slice::from_ref(&root_bound),
+        ));
+        assert!(!exact_division_has_prior_certificate(
+            &context,
+            &goal,
+            &[definitions[1].clone(), definitions[0].clone()],
             &[root_bound],
         ));
     }
