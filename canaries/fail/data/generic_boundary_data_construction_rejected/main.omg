@@ -1,0 +1,7 @@
+// Generic opaque boundary data has no public representation either. Generic
+// field-shape deferral must not become a nominal constructor bypass.
+boundary data Token<T>;
+
+machine forge() -> Token<i32> {
+    Token {}
+}
