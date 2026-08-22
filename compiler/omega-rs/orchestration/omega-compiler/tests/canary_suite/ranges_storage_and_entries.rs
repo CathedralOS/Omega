@@ -1337,20 +1337,13 @@ fn runtime_bounded_carrier_local_source_concat_exit_canary_runs() {
     ));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("bounded carrier local source concat canary should compile");
-
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("bounded carrier local source concat canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected `out_line = \"== \" + src + \" ==\"` (frame-local source) to render `== Gate ==` \
-         so `self.line == \"== Gate ==\"` exits 70, got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        70,
+        "bounded carrier local-source concat canary",
+        "the frame-local carrier source should materialize into the borrowed output",
     );
 
     let _ = fs::remove_dir_all(&scratch);
@@ -1371,20 +1364,13 @@ fn runtime_value_call_slice_view_carrier_guard_exit_canary_runs() {
     ));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("value-call slice-view carrier guard canary should compile");
-
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("value-call slice-view carrier guard canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected the carrier guard `room.label == \"Gate\"` (room = r[0], r a \
-         slice view) to resolve and take the true arm -> exit 70, got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        70,
+        "slice-view carrier-guard canary",
+        "the value call should resolve the carrier field through the slice view",
     );
 
     let _ = fs::remove_dir_all(&scratch);
@@ -1405,20 +1391,13 @@ fn runtime_value_call_slice_view_element_arg_exit_canary_runs() {
     ));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("value-call slice-view element canary should compile");
-
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("value-call slice-view element canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected `read(r[0])` (r = self.rooms.as_slice()) to resolve room.id to the \
-         underlying array element and return 7 -> exit 70, got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        70,
+        "slice-view element-argument canary",
+        "the value call should resolve the forwarded element against the underlying array",
     );
 
     let _ = fs::remove_dir_all(&scratch);
@@ -1437,17 +1416,13 @@ fn runtime_linear_search_early_exit_canary_runs() {
     let canary = pass_canary("control_flow/runtime_linear_search_early_exit");
     let scratch = std::env::temp_dir().join(format!("omega-linear-search-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("linear search early exit canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("linear search early exit canary should run");
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected linear search to find target 12 at index 2 and stop (exit 70); got {:?}\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        70,
+        "linear-search early-exit canary",
+        "the search should stop when it finds the target at index two",
     );
     let _ = fs::remove_dir_all(&scratch);
 }
@@ -1488,17 +1463,13 @@ fn runtime_entry_unary_result_exit_canary_runs() {
     let canary = pass_canary("control_flow/runtime_entry_unary_result_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-entry-unary-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("runtime unary helper return canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
-        .output()
-        .expect("runtime unary entry return canary should run");
-    assert_eq!(
-        output.status.code(),
-        Some(1),
-        "expected main to return !false (exit 1); got {:?}\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        1,
+        "unary entry-result canary",
+        "the rooted entry should dispatch on the returned logical negation",
     );
     let _ = fs::remove_dir_all(&build_dir);
 
