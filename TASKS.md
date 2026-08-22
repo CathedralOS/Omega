@@ -4699,11 +4699,18 @@ Owners:
   build-time decoding preserves nonzero binder, parameter, layout, and ordered
   field-slot identities, rejects invalid tags/counts/zero identities/empty
   paths, and never silently drops a nonempty row. The ordinary no-context
-  validator continues to reject nonempty catalogs. The remaining slice is to
-  publish compiler-issued binder/signature and native-layout demand catalogs,
-  derive their validation context from the exact registrar signature/layout,
-  admit the evaluated catalog through the context-bound path, and join it to
-  each checked callback use before private relocation emission.
+  validator continues to reject nonempty catalogs. The compiler now publishes
+  the nominal binder half of that validation context: binder identities derive
+  from the exact owner overload plus the compiler-static-machine ordinal and
+  binder name, while requirement identities derive from the exact canonical
+  target-requirement overload. It retains each opaque identity beside the
+  exact parameter, trait, requirement, and ordinal symbols on the boundary
+  realization, rejects invalid or duplicate retained rows, and publishes the
+  bounded catalog to calling policy. The remaining slice is to publish the
+  native-layout demand catalog, derive its half of the validation context from
+  the exact registrar layout, admit the evaluated catalog through the
+  context-bound path, and join it to each checked callback use before private
+  relocation emission.
   Checked-only compilation exposes those rows and native compilation retains
   them on `BackendPlan`, so no later thunk pass may replace the recipe with a
   convention oracle or silently discard it. Native backend planning now also
