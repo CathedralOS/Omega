@@ -851,10 +851,13 @@ fn runtime_slice_index_read_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-runtime-slice-read-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("runtime slice index read canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("slice index read canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("runtime slice index read canary should run");
 
@@ -882,10 +885,13 @@ fn runtime_indexed_read_operand_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("runtime indexed read operand canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("indexed read operand canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("runtime indexed read operand canary should run");
 
@@ -1178,10 +1184,13 @@ fn runtime_slice_index_copy_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-runtime-slice-copy-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("runtime slice index copy canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("slice index copy canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("runtime slice index copy canary should run");
 
@@ -1205,10 +1214,13 @@ fn runtime_slice_index_copy_dispatch_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("runtime dispatch slice index copy canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("dispatch slice index copy canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("runtime dispatch slice index copy canary should run");
 
@@ -1232,10 +1244,13 @@ fn runtime_frame_array_slice_parameter_alias_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("runtime frame array slice parameter alias canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("frame-array slice parameter alias canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("runtime frame array slice parameter alias canary should run");
 
