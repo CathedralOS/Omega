@@ -215,6 +215,24 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
             .0
             .contains("selected provider plan")
     );
+    let mut drifted_selected_schema = selected_provider.clone();
+    drifted_selected_schema.schema.methods[0].parameter_count = 2;
+    drifted_selected_schema.schema.methods[0]
+        .parameter_type_identities
+        .push("Test::ExtraBoundaryWord".into());
+    assert!(
+        drifted_selected_schema
+            .prepare_post_handoff_entry_writer(
+                &execution,
+                &installed_code,
+                &writer,
+                16,
+                writer_site(0x8000),
+            )
+            .expect_err("selected source schema drift must reject before provider preparation")
+            .0
+            .contains("exact prepared writer requirement")
+    );
     assert!(
         selected_provider
             .prepare_post_handoff_entry_writer(

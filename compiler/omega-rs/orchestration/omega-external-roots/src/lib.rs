@@ -2309,6 +2309,22 @@ impl ProviderExecution {
         self.normalized_identity
     }
 
+    pub fn selected_requirement_identity(&self) -> &str {
+        &self.root_evidence.candidate.requirement_identity
+    }
+
+    pub fn selected_boundary_parameter_count(&self) -> usize {
+        self.root_evidence.boundary.call.parameters.len()
+    }
+
+    pub const fn selected_boundary_contract_fingerprint(&self) -> u64 {
+        self.root_evidence.boundary_contract_fingerprint
+    }
+
+    pub fn selected_entry_claims(&self) -> &[ExternalRootEntryClaim] {
+        &self.root_evidence.candidate.entry_claims
+    }
+
     /// Export the exact admitted execution evidence consumed by the clean
     /// terminal-Psi native lane. Lowering does not accept a second provider
     /// plan choice: this binding inherits the plan selected by root admission.
