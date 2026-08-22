@@ -204,6 +204,7 @@ impl InstalledExecutablePublicationEvidence {
 
 pub(super) struct WrittenOutput {
     pub path: std::path::PathBuf,
+    pub kind: super::CompileOutputKind,
     pub executable_publication: Option<super::ExecutablePublicationReceipt>,
     pub app_bundle_publication: Option<super::ExecutablePublicationReceipt>,
 }
@@ -342,6 +343,7 @@ pub(super) fn write_output(
         };
         return Ok(WrittenOutput {
             path: output_path,
+            kind: super::CompileOutputKind::NativeExecutable,
             executable_publication: Some(executable_publication),
             app_bundle_publication,
         });
@@ -360,6 +362,7 @@ pub(super) fn write_output(
         .map_err(|diagnostic| vec![diagnostic])?;
     Ok(WrittenOutput {
         path: output_path,
+        kind: super::CompileOutputKind::ObjectContainer,
         executable_publication: None,
         app_bundle_publication: None,
     })
