@@ -151,6 +151,9 @@ pub struct PlacedFieldPlan {
     pub member_identity: Option<u64>,
     pub field_symbol: psi_symbols::SymbolHandle,
     pub accessor_name: String,
+    /// Exact synthesized accessor type reference. Shell-aware typed lookup
+    /// rejoins through this handle rather than `accessor_name`.
+    pub accessor_type: crate::types::TypeReferenceHandle,
     /// Exact generated accessor data definition. `accessor_name` is retained
     /// for diagnostics and source-oriented artifact presentation only.
     pub accessor_data_symbol: psi_symbols::SymbolHandle,
@@ -169,17 +172,17 @@ pub struct PlacedAccessorTarget {
     pub state_symbol: psi_symbols::SymbolHandle,
 }
 
-fn named_type_name_through_shells(
+fn named_type_reference_through_shells(
     table: &crate::types::TypeReferenceTable,
     handle: crate::types::TypeReferenceHandle,
-) -> Option<&str> {
+) -> Option<crate::types::TypeReferenceHandle> {
     match table.type_reference(handle) {
-        crate::types::TypeReferenceNode::Named { name, .. } => Some(name.as_str()),
+        crate::types::TypeReferenceNode::Named { .. } => Some(handle),
         crate::types::TypeReferenceNode::Reference { referee, .. } => {
-            named_type_name_through_shells(table, *referee)
+            named_type_reference_through_shells(table, *referee)
         }
         crate::types::TypeReferenceNode::Constrained { base_type, .. } => {
-            named_type_name_through_shells(table, *base_type)
+            named_type_reference_through_shells(table, *base_type)
         }
         _ => None,
     }
@@ -1510,12 +1513,12 @@ impl TypedTrees {
         &self,
         type_reference: types::TypeReferenceHandle,
     ) -> Option<(&PlacedViewPlan, &PlacedFieldPlan)> {
-        let accessor_name =
-            named_type_name_through_shells(&self.type_reference_table, type_reference)?;
+        let accessor_type =
+            named_type_reference_through_shells(&self.type_reference_table, type_reference)?;
         self.placed_view_plans.iter().find_map(|view| {
             view.fields
                 .iter()
-                .find(|field| field.accessor_name == accessor_name)
+                .find(|field| field.accessor_type == accessor_type)
                 .map(|field| (view, field))
         })
     }

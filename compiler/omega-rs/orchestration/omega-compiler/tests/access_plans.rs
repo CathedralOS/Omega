@@ -750,6 +750,8 @@ data Main {}
     };
     assert_eq!(status_read_target.operation, "read");
     let status_read_state_symbol = status_read_target.state_symbol;
+    let status_field_symbol = status.field_symbol;
+    let status_accessor_name = status.accessor_name.clone();
     let accessor_data = checked
         .typed
         .data_definitions()
@@ -757,6 +759,14 @@ data Main {}
         .find(|definition| definition.symbol == status.accessor_data_symbol)
         .expect("exact generated status accessor data");
     assert_eq!(accessor_data.name.as_str(), status.accessor_name);
+    let status_accessor_type = status.accessor_type;
+    assert_eq!(
+        checked
+            .typed
+            .placed_field_plan_for_type_reference(status_accessor_type)
+            .map(|field| field.field_symbol),
+        Some(status_field_symbol)
+    );
     let schema_status = checked
         .typed
         .data_members(schema)
@@ -768,7 +778,29 @@ data Main {}
             _ => None,
         })
         .expect("source status field");
-    assert_eq!(status.field_symbol, schema_status.symbol);
+    let schema_status_type = schema_status.type_reference;
+    assert_eq!(status_field_symbol, schema_status.symbol);
+
+    checked.typed.placed_view_plans[0]
+        .fields
+        .iter_mut()
+        .find(|field| field.field_symbol == status_field_symbol)
+        .expect("retained status field")
+        .accessor_name = "diagnostic-only-accessor-name".to_owned();
+    assert_eq!(
+        checked
+            .typed
+            .placed_field_plan_for_type_reference(status_accessor_type)
+            .map(|field| field.field_symbol),
+        Some(status_field_symbol),
+        "typed accessor lookup must not use presentation spelling"
+    );
+    checked.typed.placed_view_plans[0]
+        .fields
+        .iter_mut()
+        .find(|field| field.field_symbol == status_field_symbol)
+        .expect("retained status field")
+        .accessor_name = status_accessor_name;
     psi_validation::validate_program(&checked.typed)
         .expect("independent exact placed-view replay should accept retained identities");
 
@@ -792,6 +824,26 @@ data Main {}
         .find(|field| field.field_name == "status")
         .expect("retained status field")
         .member_identity = None;
+    checked.typed.placed_view_plans[0]
+        .fields
+        .iter_mut()
+        .find(|field| field.field_name == "status")
+        .expect("retained status field")
+        .accessor_type = schema_status_type;
+    let diagnostics = psi_validation::validate_program(&checked.typed)
+        .expect_err("substituted synthesized accessor type must fail closed");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("field `status` changed its exact synthesized accessor binding")
+    }));
+
+    checked.typed.placed_view_plans[0]
+        .fields
+        .iter_mut()
+        .find(|field| field.field_name == "status")
+        .expect("retained status field")
+        .accessor_type = status_accessor_type;
     checked.typed.placed_view_plans[0].schema_symbol = view_data_symbol;
     let diagnostics = psi_validation::validate_program(&checked.typed)
         .expect_err("substituted source schema identity must fail closed");
