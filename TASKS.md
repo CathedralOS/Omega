@@ -557,7 +557,10 @@ Remaining:
   erased shapes. Exact tags, reserved bytes, identity/shape diagnostics and
   precedence, public APIs, validation, and admission replay remain unchanged;
   record decoding remains separate for a dedicated consolidation. The
-  installation parent is now 2,806
+  structural-case codec now owns sum-case counts, ordered identities, and
+  nested field catalogs. Exact shape tags, case/field bytes, capacity guards,
+  literal diagnostics and precedence, public APIs, validation, and admission
+  replay remain unchanged. The installation parent is now 2,761
   lines. This is
   custody, not
   authorization. The remaining
@@ -7188,7 +7191,13 @@ checked-result arithmetic decision listed below.
   binder substitution, generic binding reuse, reference mutability,
   constrained/slice/generic recursion, fixed-array const-binder identity,
   normalized fallback identity, crate APIs, and that same inventory remain
-  unchanged; the 1,110-line parent retains selection/callable orchestration.
+  unchanged. Static-machine callable-shape refinement now lives in a focused
+  535-line private owner. Generic parameter kind/property checks, positional
+  binder setup, parameter/return shape matching, service and invocation
+  ceilings, suspension/blocking/termination refinement, nested machine-contract
+  recursion, trait reverse checks, contract-fact handoff, APIs, diagnostic
+  order, and the 26-function inventory remain unchanged; the 588-line parent
+  retains selection and nominal-admission orchestration.
 - Materialize dynamic descriptors for pass-through, rebound, and escaping
   borrows from the retained exact conformance rows and declaring-trait symbol.
   Bodyless/bare requirements do not license `dyn`; ambiguous same-carrier
