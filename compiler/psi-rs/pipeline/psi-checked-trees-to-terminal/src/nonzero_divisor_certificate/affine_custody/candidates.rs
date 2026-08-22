@@ -5,6 +5,7 @@ use psi_proof_kernel::IntegerAffineWitness;
 
 use super::{definition_index::DefinitionIndex, frontier};
 
+mod fixed;
 mod targets;
 
 pub(super) fn find<T>(
@@ -21,21 +22,14 @@ pub(super) fn find<T>(
     std::iter::once(first_target)
         .chain(targets)
         .find_map(|target| {
-            definition_words.iter().find_map(|definition_axioms| {
-                let literal_axioms = frontier::literal_axioms(
-                    context,
-                    semantic_axioms,
-                    root,
-                    definition_axioms,
-                    target,
-                )?;
-                complete(IntegerAffineWitness {
-                    root: root.clone(),
-                    target: target.clone(),
-                    literal_axioms,
-                    definition_axioms: definition_axioms.clone(),
-                })
-            })
+            fixed::find(
+                context,
+                semantic_axioms,
+                &definition_words,
+                root,
+                target,
+                &mut complete,
+            )
         })
 }
 
@@ -48,14 +42,12 @@ pub(super) fn find_target<T>(
     mut complete: impl FnMut(IntegerAffineWitness) -> Option<T>,
 ) -> Option<T> {
     let definition_words = frontier::definition_words(context, semantic_axioms, definitions, root);
-    definition_words.iter().find_map(|definition_axioms| {
-        let literal_axioms =
-            frontier::literal_axioms(context, semantic_axioms, root, definition_axioms, target)?;
-        complete(IntegerAffineWitness {
-            root: root.clone(),
-            target: target.clone(),
-            literal_axioms,
-            definition_axioms: definition_axioms.clone(),
-        })
-    })
+    fixed::find(
+        context,
+        semantic_axioms,
+        &definition_words,
+        root,
+        target,
+        &mut complete,
+    )
 }

@@ -709,6 +709,14 @@ Citation order, strict boundary tests, proof shapes, rejection, and the fixed
 four-definition frontier remain unchanged; the verifier does not consume the
 producer's mapped proposition as authority.
 
+Affine-witness candidate coordination likewise separates goal-target
+enumeration from exact fixed-target completion. Side-local producer and
+verifier `affine_custody/candidates/fixed` modules independently align literal
+landings and form candidates for one requested target. The bounded
+definition-word frontier is still computed once per parent invocation, and
+target-first then word-order precedence, completion, rejection, and the fixed
+frontier remain unchanged.
+
 The root-bound child may also come from exactly one retained same-carrier
 `root == literal` fact when that literal equals or strengthens the canonical
 bound endpoint. The producer remaps the endpoint into the source carrier,
