@@ -1877,14 +1877,16 @@ Non-order or wrong-root children, stale/reordered/malformed words,
 target/carrier drift, arithmetic failure, or changed mapped conclusions reject.
 Proof-bundle v16 assigns tag 12; the registered calculus is v13 and the Rust
 kernel v5, with the affine checker included in both trust-graph source sets.
-The first complete producer family uses the rule for one prior signed fixed
-affine definition whose exact retained root bound maps directly to a canonical
-safe-divisor arm. Reconstruction independently checks the same one-definition
-witness/conversion; production deterministically selects the root citation and
-definition index and kernel-checks the result. Missing root custody,
-redirected/stale definitions, wrong targets, and noncanonical mapped arms
-reject. Longer affine words, joins, cast/shift compositions, and correlated
-results remain trusted-reducer work; neither complete exact row changes trust.
+The first bounded producer family uses the rule for one or two prior signed
+fixed affine definitions whose exact retained root bound maps directly to a
+canonical safe-divisor arm. Reconstruction and production enumerate every
+one-definition word before strictly ordered two-definition words, then the
+kernel independently checks continuity, algebra, the mapped conclusion, and
+accepted-premise custody. Missing root custody, incomplete, reversed,
+redirected, or stale words, wrong targets, and noncanonical mapped arms reject.
+Words of three or more definitions, joins, cast/shift compositions, and
+correlated results remain trusted-reducer work; neither complete exact row
+changes trust.
 
 The common pure-cast spine now has the same kind of producer-visible custody.
 `IntegerCastChainWitness` binds one or more contiguous partial fixed-native

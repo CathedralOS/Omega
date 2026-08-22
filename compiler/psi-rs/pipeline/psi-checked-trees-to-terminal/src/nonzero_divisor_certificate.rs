@@ -165,10 +165,10 @@ fn prove_integer_bound(
             }
         }
     }
-    prove_single_definition_affine_bound(context, goal, assumptions, semantic_axioms)
+    prove_bounded_affine_bound(context, goal, assumptions, semantic_axioms)
 }
 
-fn prove_single_definition_affine_bound(
+fn prove_bounded_affine_bound(
     context: &PropositionContext,
     goal: &Proposition,
     assumptions: &[Proposition],
@@ -189,7 +189,7 @@ fn prove_single_definition_affine_bound(
                 .into_iter()
                 .filter(|target| matches!(target, psi_core::ScalarTerm::Value { .. }))
             {
-                for (index, _) in semantic_axioms.iter().enumerate() {
+                for definition_axioms in affine_definition_words(semantic_axioms.len()) {
                     let proof = ProofNode {
                         conclusion: goal.clone(),
                         rule: ProofRule::IntegerAffineBound {
@@ -197,7 +197,7 @@ fn prove_single_definition_affine_bound(
                             witness: IntegerAffineWitness {
                                 root: root.clone(),
                                 target: target.clone(),
-                                definition_axioms: vec![index],
+                                definition_axioms,
                             },
                         },
                     };
@@ -211,6 +211,13 @@ fn prove_single_definition_affine_bound(
         }
     }
     None
+}
+
+fn affine_definition_words(count: usize) -> impl Iterator<Item = Vec<usize>> {
+    (0..count).map(|index| vec![index]).chain(
+        (0..count)
+            .flat_map(move |first| ((first + 1)..count).map(move |second| vec![first, second])),
+    )
 }
 
 fn prove_two_fact_transitive_integer_bound(
@@ -1910,6 +1917,83 @@ mod tests {
             prove_canonical_integer_proposition(&context, &goal, &[root_bound], &[redirected],)
                 .is_none(),
             "a definition for another target cannot prove divisor safety",
+        );
+    }
+
+    #[test]
+    fn exact_division_goal_proves_two_definition_affine_safe_divisor() {
+        let signed = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+        let context = PropositionContext::from_value_types((1..=4).map(|id| {
+            (
+                ValueId::new(id).expect("value id"),
+                ScalarType::Integer(signed),
+            )
+        }))
+        .expect("four i8 values");
+        let divisor = value(2, signed);
+        let goal = Proposition::Disjunction(vec![
+            Proposition::LessOrEqual(divisor.clone(), integer(signed, -2)),
+            Proposition::LessOrEqual(integer(signed, 1), divisor.clone()),
+            Proposition::Conjunction(vec![
+                Proposition::LessOrEqual(divisor, integer(signed, -1)),
+                Proposition::LessOrEqual(integer(signed, -127), value(1, signed)),
+            ]),
+        ]);
+        let root_bound = Proposition::LessOrEqual(integer(signed, -1), value(3, signed));
+        let definitions = [
+            Proposition::Equal(
+                value(4, signed),
+                ScalarTerm::exact_integer_add(signed, value(3, signed), integer(signed, 1))
+                    .expect("first exact add"),
+            ),
+            Proposition::Equal(
+                value(2, signed),
+                ScalarTerm::exact_integer_add(signed, value(4, signed), integer(signed, 1))
+                    .expect("second exact add"),
+            ),
+        ];
+        let proof = prove_canonical_integer_proposition(
+            &context,
+            &goal,
+            std::slice::from_ref(&root_bound),
+            &definitions,
+        )
+        .expect("two-definition affine word proves the positive divisor arm");
+        let ProofRule::DisjunctionIntroduction { disjunct, index } = proof.rule else {
+            panic!("two-definition affine divisor selects one canonical arm")
+        };
+        assert_eq!(index, 1);
+        let ProofRule::IntegerAffineBound {
+            root_bound: child,
+            witness,
+        } = disjunct.rule
+        else {
+            panic!("two-definition affine divisor uses the affine-bound rule")
+        };
+        assert!(matches!(child.rule, ProofRule::Assumption { index: 0 }));
+        assert_eq!(witness.root, value(3, signed));
+        assert_eq!(witness.target, value(2, signed));
+        assert_eq!(witness.definition_axioms, vec![0, 1]);
+
+        assert!(
+            prove_canonical_integer_proposition(
+                &context,
+                &goal,
+                std::slice::from_ref(&root_bound),
+                &definitions[..1],
+            )
+            .is_none(),
+            "an incomplete definition word cannot prove divisor safety",
+        );
+        assert!(
+            prove_canonical_integer_proposition(
+                &context,
+                &goal,
+                &[root_bound],
+                &[definitions[1].clone(), definitions[0].clone()],
+            )
+            .is_none(),
+            "a reversed definition word cannot claim canonical custody",
         );
     }
 }

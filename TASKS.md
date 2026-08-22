@@ -1343,14 +1343,14 @@ Remaining:
   target/carrier drift, arithmetic overflow, or a mismatched mapped bound
   reject. Proof-bundle v16 assigns tag 12; the registered calculus is v13 and
   the Rust kernel v5, with the affine checker included in both trust-graph
-  source sets. The first complete producer family now uses the rule for one
-  prior signed fixed affine definition whose exact retained root bound maps
-  directly to a canonical safe-divisor arm. Reconstruction independently
-  enumerates the same one-definition witness and conversion; the producer then
-  deterministically selects the root-bound citation and definition index and
-  kernel-checks the completed proof. A missing root bound, redirected/stale
-  definition, wrong target, or noncanonical mapped arm rejects. This migrates
-  only that one-definition family: longer affine words, joins, cast/shift
+  source sets. The first bounded producer family now uses the rule for one or
+  two prior signed fixed affine definitions whose exact retained root bound
+  maps directly to a canonical safe-divisor arm. Reconstruction and production
+  enumerate every one-definition word before strictly ordered two-definition
+  words, then the kernel independently checks continuity, algebra, the mapped
+  conclusion, and accepted-premise custody. Missing root custody, incomplete,
+  reversed, redirected, or stale words, wrong targets, and noncanonical mapped
+  arms reject. Words of three or more definitions, joins, cast/shift
   compositions, and correlated results remain on trusted reduction; neither
   complete exact row changes trust and `fully-derived false` remains. A
   second non-serialized common checker now normalizes the contiguous pure
