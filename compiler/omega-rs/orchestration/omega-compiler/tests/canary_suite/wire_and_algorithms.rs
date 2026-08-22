@@ -1165,9 +1165,12 @@ fn runtime_saturating_domain_exit_canary_runs() {
     let scratch = std::env::temp_dir().join(format!("omega-saturating-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("saturating domain canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("saturating domain canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("saturating domain canary should run");
     assert_eq!(
@@ -1215,9 +1218,12 @@ fn runtime_cast_sign_zero_extension_exit_canary_runs() {
     let scratch = std::env::temp_dir().join(format!("omega-cast-sign-zero-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("cast sign/zero extension canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("cast sign/zero extension canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("cast sign/zero extension canary should run");
     assert_eq!(
@@ -1293,9 +1299,12 @@ fn runtime_signed_modulo_shift_edges_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-signed-mod-shift-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("signed modulo/shift edges canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("signed modulo/shift canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("signed modulo/shift edges canary should run");
     assert_eq!(
