@@ -16,6 +16,9 @@ pub struct DomainDefinition {
     /// Authored exact trait-requirement paths. Normalization resolves these
     /// once into `establishment_routes` after top-level symbols exist.
     pub authored_routes: Vec<Vec<DiagnosticName>>,
+    /// Explicit closed domain classification, copied from syntax and never
+    /// inferred from the declaration's shape or uses.
+    pub classification: Option<psi_language_semantics::DomainClassification>,
     /// Explicit predicate-body presence from the source declaration.
     pub predicate_body: psi_language_semantics::DomainPredicateBody,
     pub facts: HandleSpan<ProofFact>,

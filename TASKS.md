@@ -6592,19 +6592,23 @@ compiler concept is introduced.
   and out-of-isolated-root shapes remain conservative fences. Do not restore
   authored `stores` clauses or treat lifetime elision as evidence; Git carries
   individual evidence cohorts.
-- **TPR4/TPR6 — implement explicit progress-profile classification and premise
-  coverage.** Extend domain declarations with the owner-only, at-most-one
-  `satisfies ProgressProfile` classification. Require classified domains to be
-  atomic, predicate-free, and routed through exact `established by` boundary
-  requirements with admitted receipts; never infer the role from shape, use,
-  or provider backing. Normalize authored public premise schemas separately
-  from exact call-edge instances. Exported checked bodies must cover every
-  derived instance without letting implementation refactors rewrite their
-  published set; private bodies derive only from selected operation termination
-  contracts. Resolve each instance by exact substitution/lineage to a public
-  schema, local receipt, or manifest-bound provider receipt and reject unknown
-  correspondence. Keep nominal static-machine binder premises pinned to the
-  named requirement contract and ranking witnesses outside public identity.
+- **TPR6 — finish subject-bearing progress-premise normalization and coverage.**
+  Explicit `satisfies ProgressProfile` classification is parsed, normalized,
+  retained on domain constraints, and checked as atomic, predicate-free, and
+  established through exact boundary requirements. Until the remainder lands,
+  any published termination contract that depends on such membership rejects
+  rather than degrading to an unconditional guarantee.
+
+  Normalize authored public premise schemas separately from exact call-edge
+  instances. Exported checked bodies must cover every derived instance without
+  letting implementation refactors rewrite their published set; private bodies
+  derive only from selected operation termination contracts. Resolve each
+  instance by exact substitution or identity-preserving lineage to a public
+  schema, local admitted receipt, or manifest-bound provider receipt; reject
+  unknown correspondence. Keep nominal static-machine binder premises pinned
+  to the named requirement contract and ranking witnesses outside public
+  identity. Remove the temporary fail-closed rejection only when this coverage
+  is complete.
 Acceptance: contract axes normalize independently, wrappers cannot launder
 reach or trust, and private proof improvements do not change public identity.
 

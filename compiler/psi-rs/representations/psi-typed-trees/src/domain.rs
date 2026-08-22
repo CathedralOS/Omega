@@ -16,6 +16,8 @@ pub struct DomainDefinition {
     /// Authored transparent alias theory. Semantic consumers expand this
     /// record before normalization rather than treating the alias as evidence.
     pub alias: Option<DomainAliasDefinition>,
+    /// Explicit closed classification copied from the resolved declaration.
+    pub classification: Option<psi_language_semantics::DomainClassification>,
     /// Explicit predicate-body presence copied from the resolved theory.
     pub predicate_body: psi_language_semantics::DomainPredicateBody,
     pub facts: HandleSpan<ProofFact>,
@@ -43,6 +45,7 @@ impl Default for DomainDefinition {
             index_arguments: Vec::new(),
             is_public: false,
             alias: None,
+            classification: None,
             predicate_body: psi_language_semantics::DomainPredicateBody::Bodyless,
             facts: HandleSpan::empty(),
             operators: HandleSpan::empty(),

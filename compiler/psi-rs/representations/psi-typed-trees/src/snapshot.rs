@@ -539,6 +539,8 @@ pub struct DomainDefinitionSnapshot {
     pub is_public: bool,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub alias: Vec<DomainAliasConstituentSnapshot>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub classification: Option<&'static str>,
     pub predicate_body: &'static str,
     pub semantic_id: u32,
     pub semantic_roles: DomainSemanticRolesSnapshot,
@@ -985,6 +987,8 @@ pub enum TypeConstraintSnapshot {
         arguments: Vec<TypeReferenceSnapshot>,
         symbol: u32,
         semantic_id: u32,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        classification: Option<&'static str>,
         predicate_body: &'static str,
         semantic_roles: DomainSemanticRolesSnapshot,
         establishment_routes: Vec<DomainEstablishmentRouteSnapshot>,
@@ -1134,6 +1138,7 @@ fn domain_definition_snapshot(
                     .collect()
             })
             .unwrap_or_default(),
+        classification: domain.classification.map(|value| value.as_str()),
         predicate_body: domain.predicate_body.as_str(),
         semantic_id: domain.semantic_id.0,
         semantic_roles: semantic_roles_snapshot(domain.semantic_roles),
@@ -2014,6 +2019,7 @@ fn type_constraint_snapshot(
                 .collect(),
             symbol: domain.symbol.arena_index(),
             semantic_id: domain.semantic_id.0,
+            classification: domain.classification.map(|value| value.as_str()),
             predicate_body: domain.predicate_body.as_str(),
             semantic_roles: semantic_roles_snapshot(domain.semantic_roles),
             establishment_routes: domain

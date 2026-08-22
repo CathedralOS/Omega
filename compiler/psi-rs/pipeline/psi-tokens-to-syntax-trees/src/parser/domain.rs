@@ -39,6 +39,7 @@ pub(super) fn parse_domain_definition<'tokens, 'source>(
     let (domain_name, input) = input.take_identifier()?;
     let (index_arguments, input) =
         crate::parser::type_reference::parse_domain_argument_handles(syntax_trees, input)?;
+    let ((classification, classification_token_count), input) = parse_domain_classification(input)?;
     let name = if generic_parameters.type_parameters.is_empty() {
         Identifier::generated(format!("{target_label}::{domain_name}"))
     } else {
@@ -88,11 +89,44 @@ pub(super) fn parse_domain_definition<'tokens, 'source>(
             is_public: false,
             alias,
             authored_routes,
+            classification,
             predicate_body,
             facts,
             operators,
-            semantic_clause_token_count,
+            semantic_clause_token_count: classification_token_count
+                .saturating_add(semantic_clause_token_count),
         },
+        input,
+    ))
+}
+
+fn parse_domain_classification<'tokens, 'source>(
+    input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, (Option<psi_language_core::DomainClassification>, usize)> {
+    if !input.at_contextual("satisfies") {
+        return Ok(((None, 0), input));
+    }
+    let start_tokens = input.tokens.len();
+    let input = input.take_contextual("satisfies")?;
+    let (name, input) = input.take_identifier()?;
+    let classification = match name.as_str() {
+        "ProgressProfile" => psi_language_core::DomainClassification::ProgressProfile,
+        other => {
+            return Err(input.error_here(format!(
+                "unknown compiler-owned domain classification `{other}`; expected `ProgressProfile`"
+            )));
+        }
+    };
+    if input.at_contextual("satisfies") {
+        return Err(
+            input.error_here("a domain may select at most one compiler-owned classification")
+        );
+    }
+    Ok((
+        (
+            Some(classification),
+            start_tokens.saturating_sub(input.tokens.len()),
+        ),
         input,
     ))
 }
@@ -138,6 +172,7 @@ fn parse_domain_requires<'tokens, 'source>(
 
 fn domain_requires_terminator(input: Input<'_, '_>) -> bool {
     input.at_contextual("established")
+        || input.at_contextual("satisfies")
         || input.at_punctuation(PunctuationKind::LeftBrace)
         || input.tokens.is_empty()
         || input.at_keyword(KeywordKind::Pub)
@@ -209,6 +244,12 @@ fn parse_domain_establishment<'tokens, 'source>(
     if input.at_punctuation(PunctuationKind::Semicolon) {
         let input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
         return Ok(((Vec::new(), 0), input));
+    }
+
+    if input.at_contextual("satisfies") {
+        return Err(input.error_here(
+            "a domain classification must appear immediately after the domain head, before `requires`",
+        ));
     }
 
     // A `requires` clause may own the declaration's final semicolon. When its

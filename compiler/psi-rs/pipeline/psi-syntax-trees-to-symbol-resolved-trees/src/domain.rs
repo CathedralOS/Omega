@@ -66,6 +66,7 @@ pub(crate) fn lower_domain_definition(
         is_public: domain.is_public,
         alias,
         authored_routes,
+        classification: domain.classification,
         predicate_body: domain.predicate_body,
         facts,
         operators,

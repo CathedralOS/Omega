@@ -125,6 +125,7 @@ fn normalize_constraint_span(
                 arguments: domain_constraint.arguments,
                 symbol: domain.symbol,
                 semantic_id,
+                classification: domain.classification,
                 predicate_body: domain.predicate_body,
                 semantic_roles,
                 establishment_routes: domain.establishment_routes.clone(),
@@ -168,6 +169,7 @@ fn normalize_constraint_span(
                 semantic_id: declaration
                     .map(|domain| domain.semantic_id)
                     .unwrap_or_default(),
+                classification: declaration.and_then(|domain| domain.classification),
                 predicate_body: declaration
                     .map(|domain| domain.predicate_body)
                     .unwrap_or_default(),

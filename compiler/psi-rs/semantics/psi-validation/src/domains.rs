@@ -16,6 +16,7 @@ pub(crate) fn validate_domain_definitions(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     validate_domain_aliases(program, diagnostics);
+    validate_progress_profile_domains(program, diagnostics);
     validate_repeated_normalized_domain_identities(program, fact_plan, diagnostics);
 
     for domain in program.domain_definitions() {
@@ -42,6 +43,117 @@ pub(crate) fn validate_domain_definitions(
     }
 
     validate_domain_membership_cycles(program, fact_plan, diagnostics);
+    reject_progress_premises_until_normalized(program, diagnostics);
+}
+
+fn validate_progress_profile_domains(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>) {
+    for domain in program.domain_definitions().iter().filter(|domain| {
+        domain.classification == Some(psi_language_semantics::DomainClassification::ProgressProfile)
+    }) {
+        if domain.alias.is_some() {
+            diagnostics.push(Diagnostic::error(format!(
+                "progress profile `{}` must be an atomic domain, not a transparent alias",
+                domain.name
+            )));
+        }
+        if domain.predicate_body.is_present() || !program.proof_facts(domain).is_empty() {
+            diagnostics.push(Diagnostic::error(format!(
+                "progress profile `{}` must be predicate-free; remove its `requires` facts",
+                domain.name
+            )));
+        }
+        if !program.domain_operators(domain).is_empty() || !domain.semantic_roles.is_empty() {
+            diagnostics.push(Diagnostic::error(format!(
+                "progress profile `{}` is opaque and cannot contribute operators or other domain semantic roles",
+                domain.name
+            )));
+        }
+        if domain.establishment_routes.is_empty() {
+            diagnostics.push(Diagnostic::error(format!(
+                "progress profile `{}` requires at least one exact `established by` boundary requirement",
+                domain.name
+            )));
+        } else if domain.establishment_routes.iter().any(|route| {
+            !matches!(
+                route,
+                psi_language_semantics::DomainEstablishmentRoute::BoundaryRequirement { .. }
+            )
+        }) {
+            diagnostics.push(Diagnostic::error(format!(
+                "progress profile `{}` may be established only by exact boundary trait requirements",
+                domain.name
+            )));
+        }
+    }
+}
+
+/// TPR4 declaration slice: classification lands before subject-bearing public
+/// premise schemas. Reject their use rather than publishing a false
+/// unconditional termination guarantee during the staged migration.
+fn reject_progress_premises_until_normalized(
+    program: &TypedTrees,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    for trait_definition in program.traits() {
+        for signature in program.trait_machine_signatures(trait_definition) {
+            if signature.terminates_guarantee {
+                reject_progress_memberships_in_contracts(
+                    program,
+                    program.state_signature_contracts(signature),
+                    &format!(
+                        "trait requirement `{}::{}`",
+                        trait_definition.name, signature.name
+                    ),
+                    diagnostics,
+                );
+            }
+        }
+    }
+
+    for machine in program.machines() {
+        if matches!(
+            machine.termination_plan.interface,
+            psi_language_semantics::TerminationInterface::Published(
+                psi_language_semantics::TerminationGuarantee::Terminates { .. }
+            )
+        ) {
+            reject_progress_memberships_in_contracts(
+                program,
+                program.machine_contracts(machine),
+                &format!("machine `{}`", machine.name),
+                diagnostics,
+            );
+        }
+    }
+}
+
+fn reject_progress_memberships_in_contracts(
+    program: &TypedTrees,
+    contracts: &[psi_typed_trees::signature::SignatureContract],
+    owner: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    for contract in contracts.iter().filter(|contract| {
+        contract.kind == psi_typed_trees::signature::SignatureContractKind::Requires
+    }) {
+        for fact in program.proof_facts.span_or_empty(contract.facts) {
+            let psi_typed_trees::domain::ProofFact::Membership(membership) = fact else {
+                continue;
+            };
+            let Some(domain) = domain_definition_by_symbol(program, membership.domain_symbol)
+            else {
+                continue;
+            };
+            if domain.classification
+                == Some(psi_language_semantics::DomainClassification::ProgressProfile)
+            {
+                diagnostics.push(Diagnostic::error(format!(
+                    "{owner} uses progress profile `{}` as a termination premise, but subject-bearing progress-premise normalization is not implemented yet",
+                    domain.name
+                )));
+            }
+        }
+    }
 }
 
 fn validate_domain_aliases(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>) {
@@ -191,6 +303,7 @@ fn validate_repeated_normalized_domain_identities(
         if peers.any(|peer| {
             peer.semantic_id != domain.semantic_id
                 || peer.predicate_body != domain.predicate_body
+                || peer.classification != domain.classification
                 || peer.semantic_roles != domain.semantic_roles
                 || peer.establishment_routes != domain.establishment_routes
                 || normalized_domain_facts(program, fact_plan, peer.symbol) != normalized_facts

@@ -20,6 +20,7 @@ fn domain_is_declared(
     constraint.symbol.is_valid()
         && program.domain_definitions().iter().any(|domain| {
             domain.symbol == constraint.symbol
+                && domain.classification == constraint.classification
                 && domain.predicate_body == constraint.predicate_body
                 && domain.semantic_roles.denotation_dimension.is_some()
                     == constraint.semantic_roles.denotation_dimension.is_some()

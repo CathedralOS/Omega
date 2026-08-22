@@ -116,6 +116,7 @@ fn type_reference_table_copies_table_payloads_without_tree_roundtrip() {
             arguments: Vec::new(),
             symbol: domain_symbol,
             semantic_id,
+            classification: None,
             predicate_body,
             semantic_roles,
             establishment_routes: establishment_routes.clone(),

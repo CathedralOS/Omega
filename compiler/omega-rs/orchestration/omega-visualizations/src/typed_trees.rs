@@ -73,10 +73,11 @@ pub fn typed_trees_html(typed: &TypedTrees) -> String {
             format!("domain_{domain_index}"),
             {
                 let mut label = format!(
-                    "domain {}\ntarget: {}\nsymbol: {}\npredicate body: {}\nfacts: {}\nsemantic clause tokens: {}",
+                    "domain {}\ntarget: {}\nsymbol: {}\nclassification: {}\npredicate body: {}\nfacts: {}\nsemantic clause tokens: {}",
                     domain.name.as_str(),
                     typed.display_type_reference_with_constraints(domain.target_type),
                     symbol_label(domain.symbol),
+                    domain.classification.map_or("none", |value| value.as_str()),
                     domain.predicate_body.as_str(),
                     typed.proof_facts(domain).len(),
                     domain.semantic_clause_token_count

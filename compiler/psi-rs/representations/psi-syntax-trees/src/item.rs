@@ -675,6 +675,9 @@ pub struct DomainDefinition {
     /// Exact trait-requirement paths authored by `established by`. These
     /// are establishment alternatives, independent from predicate facts.
     pub authored_routes: Vec<Vec<Identifier>>,
+    /// Closed compiler-owned semantics selected by `satisfies` immediately
+    /// after the domain head. This is independent from ordinary conformances.
+    pub classification: Option<psi_language_core::DomainClassification>,
     pub predicate_body: psi_language_core::DomainPredicateBody,
     pub facts: HandleSpan<ProofFact>,
     pub operators: HandleSpan<OperatorDefinition>,
@@ -697,6 +700,7 @@ impl Default for DomainDefinition {
             is_public: false,
             alias: None,
             authored_routes: Vec::new(),
+            classification: None,
             predicate_body: psi_language_core::DomainPredicateBody::Bodyless,
             facts: HandleSpan::empty(),
             operators: HandleSpan::empty(),
