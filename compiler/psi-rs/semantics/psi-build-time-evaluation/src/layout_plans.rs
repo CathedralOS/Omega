@@ -279,6 +279,11 @@ pub(crate) fn schema_fields(
         .iter()
         .find(|data| data.name.as_str() == schema_data)
         .ok_or_else(|| format!("no data definition named `{schema_data}` exists"))?;
+    if data.quotient.is_some() {
+        return Err(format!(
+            "schema reflection cannot observe quotient `{schema_data}`: retained representatives are opaque and require a named lifted operation"
+        ));
+    }
 
     let mut fields = Vec::new();
     for member in typed.data_members(data) {
@@ -575,7 +580,8 @@ fn reflected_record_layout(
             data.name.as_str() == name
         }
     })?;
-    if data.supply_mode != psi_language_semantics::DataSupplyMode::CheckedShape
+    if data.quotient.is_some()
+        || data.supply_mode != psi_language_semantics::DataSupplyMode::CheckedShape
         || !data.type_parameters.is_empty()
         || !data.lifetime_parameters.is_empty()
         || visiting.contains(&data.symbol)
@@ -1643,7 +1649,7 @@ fn validate_integer_decode_range(
 
 #[cfg(test)]
 mod tests {
-    use super::normalized_schema_identity;
+    use super::{normalized_schema_identity, schema_fields};
     use psi_source_files_to_tokens::Lexer;
     use psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
     use psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
@@ -1672,5 +1678,26 @@ mod tests {
 
         assert_ne!(identity("CommonRelevant"), identity("CommonErased"));
         assert_ne!(identity("PayloadRelevant"), identity("PayloadErased"));
+    }
+
+    #[test]
+    fn schema_reflection_rejects_quotients_directly_and_as_nested_records() {
+        let source = r#"
+            data Carrier { case Unit; }
+            proposition same(left: Carrier, right: Carrier) = left == right;
+            data Bucket = Carrier % same;
+            data Envelope { bucket: Bucket; tag: u8; }
+        "#;
+        let tokens = Lexer::new(source).tokenize().expect("tokenize");
+        let syntax = parse_syntax_trees(&tokens).expect("parse");
+        let resolved = lower_syntax_trees(&syntax).expect("resolve");
+        let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+
+        let direct = schema_fields(&typed, "Bucket").expect_err("quotient schema must reject");
+        assert!(direct.contains("schema reflection cannot observe quotient `Bucket`"));
+
+        let nested = schema_fields(&typed, "Envelope")
+            .expect_err("a nested quotient must not acquire a reflected layout");
+        assert!(nested.contains("field `bucket` is neither a supported primitive"));
     }
 }
