@@ -2068,10 +2068,13 @@ fn no_payload_case_variant_after_payload_dispatch_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("no_payload_case_variant_after_payload_dispatch canary should compile");
 
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("no-payload case dispatch canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("no_payload_case_variant_after_payload_dispatch canary should run");
 
@@ -2097,10 +2100,13 @@ fn transition_arg_local_from_embedded_call_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("transition_arg_local_from_embedded_call canary should compile");
 
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("embedded-call transition argument canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("transition_arg_local_from_embedded_call canary should run");
 
@@ -2127,10 +2133,13 @@ fn value_call_embedded_in_binary_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("value_call_embedded_in_binary canary should compile");
 
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("embedded binary value-call canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("value_call_embedded_in_binary canary should run");
 
@@ -2157,10 +2166,13 @@ fn sequential_self_field_rmw_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("sequential_self_field_rmw canary should compile");
 
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("sequential self-field RMW canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("sequential_self_field_rmw canary should run");
 
