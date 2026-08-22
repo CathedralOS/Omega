@@ -5386,7 +5386,7 @@ fn compiler_intrinsic_may_retain_a_compiler_owned_safe_carrier_surface() {
 
         machine console_read_line(out_line: &mut [u8])
         satisfies Console::read_line
-        via Binding::CompilerIntrinsic("Console::read_line");
+        via Binding::CompilerIntrinsic;
         "#,
     );
 

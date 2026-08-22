@@ -2322,14 +2322,14 @@ mod tests {
             ) -> Task<T>
             where machine Target(arguments: Arguments) -> T suspends; blocks;
             satisfies TaskRuntime::start
-            via Binding::CompilerIntrinsic("TaskRuntime::start");
+            via Binding::CompilerIntrinsic;
             machine LocalTaskRuntime::try_start<T, Arguments, machine Target>(
                 &self,
                 arguments: Arguments
             ) -> StartOutcome<T, Arguments>
             where machine Target(arguments: Arguments) -> T suspends; blocks;
             satisfies TaskRuntime::try_start
-            via Binding::CompilerIntrinsic("TaskRuntime::try_start");
+            via Binding::CompilerIntrinsic;
 
             boundary data Sleeper;
             boundary machine Sleeper::park(token: i32) suspends;

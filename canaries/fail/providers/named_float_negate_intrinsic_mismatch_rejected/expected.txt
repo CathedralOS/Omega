@@ -1,1 +1,0 @@
-requires exact intrinsic `F32::negate.f32`

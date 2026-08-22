@@ -1378,7 +1378,11 @@ pub(crate) fn derive_satisfies_plans(
                 None => ProviderBinding::CheckedAdapter {
                     machine: machine.name.as_str().to_owned(),
                 },
-                Some(binding) => external_provider_binding(binding, &provider_type),
+                Some(binding) => external_provider_binding(
+                    binding,
+                    &provider_type,
+                    &format!("{}::{}", clause.trait_name, requirement),
+                ),
             };
             let requirement_identity = satisfied_requirement_identity(
                 typed,
@@ -1520,6 +1524,16 @@ fn derive_boundary_operator_plans(
             let Some(requirement) = clause.requirement.as_ref() else {
                 continue;
             };
+            let Some(operator) = psi_typed_trees::operator::resolve_satisfied_boundary_operator(
+                typed,
+                typed_machine,
+                clause.trait_name.as_str(),
+                requirement.as_str(),
+            ) else {
+                continue;
+            };
+            let intrinsic_name = expected_float_intrinsic(typed, operator)
+                .unwrap_or_else(|| format!("{}::{}", clause.trait_name, requirement));
             let binding = match (&clause.via, machine.bodyless) {
                 (Some(binding), true) => external_provider_binding(
                     binding,
@@ -1528,19 +1542,12 @@ fn derive_boundary_operator_plans(
                         .as_ref()
                         .map(|name| name.as_str())
                         .unwrap_or_default(),
+                    &intrinsic_name,
                 ),
                 (None, false) => ProviderBinding::CheckedAdapter {
                     machine: machine.name.as_str().to_owned(),
                 },
                 _ => continue, // invalid via/body combinations are refused elsewhere
-            };
-            let Some(operator) = psi_typed_trees::operator::resolve_satisfied_boundary_operator(
-                typed,
-                typed_machine,
-                clause.trait_name.as_str(),
-                requirement.as_str(),
-            ) else {
-                continue;
             };
             let Some(schema) = ServiceSchema::from_typed_operator(typed, operator) else {
                 continue;
@@ -1662,6 +1669,7 @@ fn exact_satisfied_requirement_identity(
 fn external_provider_binding(
     binding: &psi_syntax_trees::item::ExternalBinding,
     provider_type: &str,
+    intrinsic_name: &str,
 ) -> ProviderBinding {
     use psi_syntax_trees::item::ExternalBinding;
 
@@ -1671,9 +1679,9 @@ fn external_provider_binding(
             library: module.clone(),
             symbol: symbol.clone(),
         },
-        ExternalBinding::CompilerIntrinsic { name } => {
-            ProviderBinding::CompilerIntrinsic { name: name.clone() }
-        }
+        ExternalBinding::CompilerIntrinsic => ProviderBinding::CompilerIntrinsic {
+            name: intrinsic_name.to_owned(),
+        },
         ExternalBinding::VtableSlot { index } => ProviderBinding::VtableSlot { index: *index },
         ExternalBinding::VtableField { field } => ProviderBinding::VtableField {
             table: provider_type.to_owned(),
@@ -4395,7 +4403,7 @@ mod tests {
             machine OtherProvider::helper() -> i32 { 3 }
             machine Provider::external() -> i32
             satisfies OtherBoundary::other
-            via Binding::CompilerIntrinsic("OtherBoundary::other");
+            via Binding::CompilerIntrinsic;
         "#;
         let tokens = psi_source_files_to_tokens::Lexer::new(source)
             .tokenize()

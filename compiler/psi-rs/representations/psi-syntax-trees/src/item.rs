@@ -63,7 +63,7 @@ impl ExternalBinding {
                 format!("DllImport({module},{symbol})")
             }
             Self::VtableSlot { index } => format!("VtableSlot({index})"),
-            Self::CompilerIntrinsic { name } => format!("CompilerIntrinsic({name})"),
+            Self::CompilerIntrinsic => "CompilerIntrinsic".to_owned(),
             Self::VtableField { field } => format!("VtableField({})", field.as_str()),
             Self::TableFunction { field } => {
                 format!("TableFunction({})", field.as_str())
@@ -86,10 +86,9 @@ pub enum ExternalBinding {
     /// nominal `LibraryId` and `SymbolId` values; raw linker bytes remain in
     /// sealed target metadata.
     DllImport { module: String, symbol: String },
-    /// Bootstrap string carrier for a compiler-known target operation. The
-    /// destination variant has no payload: resolved realization symbol,
+    /// Compiler-known target operation. The resolved realization symbol,
     /// normalized signature, and target key the sealed lowering catalog.
-    CompilerIntrinsic { name: String },
+    CompilerIntrinsic,
     /// COM/UEFI per-object dispatch: `Binding::VtableSlot(1)` (deref `this`, read the
     /// vtable pointer, read slot N, call at the declared convention).
     VtableSlot { index: i64 },

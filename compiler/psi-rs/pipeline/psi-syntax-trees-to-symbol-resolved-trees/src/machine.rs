@@ -35,7 +35,12 @@ pub(crate) fn lower_machine_into(
     lowerer.current_state_name = None;
     lowerer.current_evidence_term_names.clear();
     let type_parameters = lower_type_parameters(lowerer, syntax_trees, machine.type_parameters)?;
-    let satisfies = lower_machine_trait_conformances(lowerer, syntax_trees, machine.satisfies)?;
+    let satisfies = lower_machine_trait_conformances(
+        lowerer,
+        syntax_trees,
+        machine.satisfies,
+        machine.name.as_str(),
+    )?;
     let conformance_bounds =
         lower_generic_conformance_bounds(lowerer, syntax_trees, &machine.conformance_bounds)?;
     let ranking_subjects =
@@ -74,7 +79,7 @@ pub(crate) fn lower_machine_into(
             .find_map(|clause| clause.via.as_ref())
             .map(|binding| {
                 (
-                    binding.normalized_rendering(),
+                    external_binding_identity(binding, machine.name.as_str()),
                     external_binding_mechanism(binding),
                 )
             });
@@ -157,7 +162,7 @@ fn external_binding_mechanism(
     match binding {
         ExternalBinding::Syscall { .. } => ExternalBindingMechanism::Syscall,
         ExternalBinding::DllImport { .. } => ExternalBindingMechanism::Import,
-        ExternalBinding::CompilerIntrinsic { .. } => ExternalBindingMechanism::CompilerIntrinsic,
+        ExternalBinding::CompilerIntrinsic => ExternalBindingMechanism::CompilerIntrinsic,
         ExternalBinding::VtableSlot { .. } => ExternalBindingMechanism::VtableSlot,
         ExternalBinding::VtableField { .. } => ExternalBindingMechanism::VtableField,
         ExternalBinding::TableFunction { .. } => ExternalBindingMechanism::TableFunction,
@@ -476,6 +481,7 @@ fn lower_machine_trait_conformances(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
     satisfies: HandleSpan<syntax::item::SatisfiesClause>,
+    machine_name: &str,
 ) -> Result<HandleSpan<TraitConformance>, Diagnostic> {
     let mut span = HandleSpan::empty();
 
@@ -489,7 +495,7 @@ fn lower_machine_trait_conformances(
             lowerer
                 .symbol_resolved_trees
                 .external_bindings
-                .intern(&binding.normalized_rendering())
+                .intern(&external_binding_identity(binding, machine_name))
         });
         lowerer
             .symbol_resolved_trees
@@ -510,6 +516,18 @@ fn lower_machine_trait_conformances(
     }
 
     Ok(span)
+}
+
+fn external_binding_identity(
+    binding: &syntax::item::ExternalBinding,
+    machine_name: &str,
+) -> String {
+    match binding {
+        syntax::item::ExternalBinding::CompilerIntrinsic => {
+            format!("CompilerIntrinsic(machine:{machine_name})")
+        }
+        _ => binding.normalized_rendering(),
+    }
 }
 
 fn lower_machine_states(
