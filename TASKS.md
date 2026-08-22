@@ -2798,6 +2798,14 @@ Remaining:
   reconstruction independently rechecks kernel conversion and closed-order
   relaxation. Candidate order, proof shape, rejection, and the fixed affine
   frontier are unchanged.
+  Direct retained affine-bound custody handoff now lives in paired, side-local
+  `affine_selection/direct/completion` modules. The producer independently
+  converts the selected origin-indexed citation into its exact proof before
+  affine custody, while reconstruction independently passes the retained
+  proposition into its own custody replay. Parent selectors retain assumptions-
+  before-semantic-axioms traversal and left-before-right value endpoints, so
+  citation order, proof shape, rejection, and the fixed definition frontier are
+  unchanged.
   Closed affine-relaxation completion now lives in paired, side-local
   `affine_custody/relaxation/completion` modules. After their independent mapped-
   endpoint derivations, the producer child constructs the exact closed-order
@@ -3833,6 +3841,19 @@ Owners:
   checked-report receipts while preserving status 70 and exact regression
   diagnostics. Exceptional historical-hang, report-bearing, float/cast, and
   policy owners remain excluded; exact-owner pins remain stable.
+  Five further authored-root aggregate executions—runtime-row/constant-column
+  writes, nested-array constant indexing, whole-array and whole-struct value
+  copies, and fixed-array field guards—now launch solely through checked-report
+  receipts while preserving status 70 and exact data-flow diagnostics.
+  Exceptional, report-bearing, float/cast, policy, and automaton owners remain
+  excluded; exact-owner pins remain stable.
+  The final three eligible fast owners in the wire/algorithm module—standard
+  Optional matching, fixed-array field-value access, and fixed-array element
+  guards—now launch solely through checked-report receipts while preserving
+  status 70 and exact diagnostics. Its remaining conventional launches are
+  deliberately retained exceptions: auxiliary-report consumers, known slow
+  float/cast/policy cases, the historical-hang owner, and the automaton owner.
+  Exact-owner pins remain stable.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
