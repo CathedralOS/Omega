@@ -27,12 +27,15 @@ pub struct BoundNominalCallbackPlacement {
 /// One private inbound function that later target lowering must emit.
 ///
 /// `placement_index` joins back to the exact validated placement row without
-/// cloning it. The symbol is compiler-private planned object identity, never
-/// an Omega value or a source-level address.
+/// cloning it. `function_identity` is the distinct native-function role bound
+/// to that row and selected entry; it cannot impersonate the source entry it
+/// adapts. The symbol is compiler-private planned object identity, never an
+/// Omega value or a source-level address.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CallbackThunkPlan {
     pub placement_index: usize,
     pub entry_key: StateKey,
+    pub function_identity: omega_control_flow::MachineFunctionIdentity,
     pub private_symbol: Arc<str>,
 }
 

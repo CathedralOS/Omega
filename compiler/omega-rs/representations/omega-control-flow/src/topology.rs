@@ -37,6 +37,7 @@ pub struct MachineFunctionIdentity {
 enum MachineFunctionIdentityKind {
     Source,
     ProgramStorageEntryWrapper,
+    CallbackThunk { placement_index: usize },
 }
 
 impl MachineFunctionIdentity {
@@ -54,17 +55,38 @@ impl MachineFunctionIdentity {
         })
     }
 
+    /// Construct the compiler-private identity of one inbound callback thunk.
+    ///
+    /// The placement index is an exact join into the backend plan, while the
+    /// continuation retains the selected source entry that the thunk adapts.
+    pub fn callback_thunk(continuation: StateKey, placement_index: usize) -> Option<Self> {
+        continuation.is_valid().then_some(Self {
+            kind: MachineFunctionIdentityKind::CallbackThunk { placement_index },
+            continuation,
+        })
+    }
+
     pub const fn source_key(self) -> Option<StateKey> {
         match self.kind {
             MachineFunctionIdentityKind::Source => Some(self.continuation),
-            MachineFunctionIdentityKind::ProgramStorageEntryWrapper => None,
+            MachineFunctionIdentityKind::ProgramStorageEntryWrapper
+            | MachineFunctionIdentityKind::CallbackThunk { .. } => None,
         }
     }
 
     pub const fn program_storage_entry_continuation(self) -> Option<StateKey> {
         match self.kind {
-            MachineFunctionIdentityKind::Source => None,
+            MachineFunctionIdentityKind::Source
+            | MachineFunctionIdentityKind::CallbackThunk { .. } => None,
             MachineFunctionIdentityKind::ProgramStorageEntryWrapper => Some(self.continuation),
+        }
+    }
+
+    pub const fn callback_thunk_placement_index(self) -> Option<usize> {
+        match self.kind {
+            MachineFunctionIdentityKind::CallbackThunk { placement_index } => Some(placement_index),
+            MachineFunctionIdentityKind::Source
+            | MachineFunctionIdentityKind::ProgramStorageEntryWrapper => None,
         }
     }
 
@@ -111,6 +133,24 @@ mod machine_function_identity_tests {
         assert!(
             MachineFunctionIdentity::program_storage_entry_wrapper(StateKey::default()).is_none()
         );
+    }
+
+    #[test]
+    fn callback_thunk_identity_binds_placement_and_cannot_impersonate_source() {
+        let key = source_key(2);
+        let source = MachineFunctionIdentity::source(key);
+        let thunk = MachineFunctionIdentity::callback_thunk(key, 7)
+            .expect("valid callback continuation should admit a thunk identity");
+
+        assert_ne!(source, thunk);
+        assert_ne!(
+            thunk,
+            MachineFunctionIdentity::callback_thunk(key, 8).unwrap()
+        );
+        assert_eq!(thunk.source_key(), None);
+        assert_eq!(thunk.callback_thunk_placement_index(), Some(7));
+        assert_eq!(thunk.associated_source_continuation(), key);
+        assert!(MachineFunctionIdentity::callback_thunk(StateKey::default(), 7).is_none());
     }
 }
 

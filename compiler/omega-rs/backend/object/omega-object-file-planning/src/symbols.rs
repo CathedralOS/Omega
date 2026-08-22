@@ -40,13 +40,19 @@ pub(super) fn insert_object_symbols(
     );
     for (_, function) in input.encoded_machine.code.functions.iter() {
         if function.identity != entry_function.identity {
-            let private_symbol =
+            let private_symbol = if function.identity.callback_thunk_placement_index().is_some() {
+                // The callback symbol is already derived from the exact
+                // placement row. Identity alone deliberately cannot recreate
+                // its site/fingerprint-bound spelling.
+                function.symbol.to_string()
+            } else {
                 private_function_symbol_name(function.identity).ok_or_else(|| {
                     Diagnostic::error(format!(
                         "encoded function `{}` has no canonical private linkage name",
                         function.symbol
                     ))
-                })?;
+                })?
+            };
             insert_function_symbol(function, private_symbol, object_plan);
         }
     }

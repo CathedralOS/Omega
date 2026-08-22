@@ -445,6 +445,62 @@ fn object_planning_rejects_duplicate_private_function_identity() {
 }
 
 #[test]
+fn callback_thunk_preserves_placement_bound_private_symbol_and_identity() {
+    let target = NativeTarget::host();
+    let continuation_key = valid_source_key(2);
+    let entry_identity = MachineFunctionIdentity::source(continuation_key);
+    let callback_identity = MachineFunctionIdentity::callback_thunk(continuation_key, 7)
+        .expect("valid callback continuation");
+    let callback_symbol = "__omega_callback_e00000009g00000001_a00000007_exact";
+    let machine_symbol = SymbolHandle::invalid();
+    let host_abi = empty_host_abi(target);
+    let layouts = layouts_with_entry_machine(machine_symbol);
+    let mut encoded_machine = EncodedMachinePlan::with_capacity(target, 2, 0, 0);
+    encoded_machine.code.byte_count = 24;
+    encoded_machine
+        .code
+        .functions
+        .insert(EncodedMachineFunction {
+            symbol: Arc::from(omega_object_file::entry_symbol_name(target)),
+            identity: entry_identity,
+            byte_offset: 0,
+            byte_count: 8,
+            instructions: Default::default(),
+        });
+    encoded_machine
+        .code
+        .functions
+        .insert(EncodedMachineFunction {
+            symbol: Arc::from(callback_symbol),
+            identity: callback_identity,
+            byte_offset: 8,
+            byte_count: 16,
+            instructions: Default::default(),
+        });
+    let data = TargetDataPlan::with_capacity(0, 0);
+
+    let object = build_object_plan(ObjectPlanningInput {
+        target,
+        host_abi: &host_abi,
+        layouts: &layouts,
+        entry_machine_symbol: machine_symbol,
+        entry_machine_name: "Main",
+        entry_function_identity: entry_identity,
+        encoded_machine: &encoded_machine,
+        data: &data,
+        runtime_frame_size: 0,
+        runtime_frame_alignment: 1,
+    })
+    .expect("callback identity should retain its placement-bound symbol");
+
+    let (_, symbol) = object_function_symbol(&object, callback_identity)
+        .expect("callback identity should own one exact object text symbol");
+    assert_eq!(symbol.name, callback_symbol);
+    assert_eq!((symbol.offset, symbol.size), (8, 16));
+    assert!(private_function_symbol_name(callback_identity).is_none());
+}
+
+#[test]
 fn object_entry_rejects_wrapper_identity_for_another_continuation() {
     let target = NativeTarget::host();
     let selected_identity =

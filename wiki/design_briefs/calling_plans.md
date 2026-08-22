@@ -604,9 +604,14 @@ Lowering alone materializes the thunk relocation at the plan's exact native
 argument or nested field. Neither the static machine argument nor its address
 becomes an Omega runtime value. Compiler-private function identity remains
 intact through assigned target operations, machine instructions, encoded
-bytes, and object planning. Native image emission rejects a planned callback
-unless that identity names one exact encoded function for the selected entry
-and one matching private text symbol. Emission also rejoins every validated
+bytes, and object planning. A callback thunk has a distinct function role
+bound to its placement-row index and selected source entry; it cannot satisfy
+emission by relabeling the ordinary source-entry function. Object planning
+preserves the richer site/fingerprint-bound private symbol carried by that
+role, while final emission independently recomputes it from the placement.
+Native image emission rejects a planned callback unless that exact callback
+identity names one encoded function and one matching private text symbol.
+Emission also rejoins every validated
 placement row to exactly one thunk plan and rejects a missing, duplicate, or
 out-of-range placement index, selected-entry drift, and repeated private thunk
 identity. Retaining a thunk plan is not itself emission evidence, and these

@@ -645,6 +645,24 @@ fn retain_callback_thunk_emission_blockers(
             ));
             continue;
         }
+        let canonical_function_identity =
+            omega_control_flow::MachineFunctionIdentity::callback_thunk(
+                thunk.entry_key,
+                thunk.placement_index,
+            );
+        if canonical_function_identity != Some(thunk.function_identity) {
+            emission.blockers.insert(omega_artifacts::emission_blocker(
+                "callback thunk emission",
+                &format!(
+                    "planned private callback `{}` has function identity {:?}, not the canonical identity for placement row {} and selected entry {:?}",
+                    thunk.private_symbol,
+                    thunk.function_identity,
+                    thunk.placement_index,
+                    thunk.entry_key
+                ),
+            ));
+            continue;
+        }
 
         let encoded_functions = encoded_machine
             .code
@@ -665,7 +683,7 @@ fn retain_callback_thunk_emission_blockers(
             continue;
         }
         let encoded = encoded_functions[0];
-        if encoded.identity.source_key() != Some(thunk.entry_key) {
+        if encoded.identity != thunk.function_identity {
             emission.blockers.insert(omega_artifacts::emission_blocker(
                 "callback thunk emission",
                 &format!(
@@ -695,6 +713,28 @@ fn retain_callback_thunk_emission_blockers(
             continue;
         }
         let symbol = symbols[0];
+        let Some((_, identity_symbol)) =
+            omega_object_file::object_function_symbol(object, thunk.function_identity)
+        else {
+            emission.blockers.insert(omega_artifacts::emission_blocker(
+                "callback thunk emission",
+                &format!(
+                    "planned private callback `{}` has no exact object-function binding for identity {:?}",
+                    thunk.private_symbol, thunk.function_identity
+                ),
+            ));
+            continue;
+        };
+        if identity_symbol.name != thunk.private_symbol.as_ref() {
+            emission.blockers.insert(omega_artifacts::emission_blocker(
+                "callback thunk emission",
+                &format!(
+                    "planned private callback identity {:?} binds object symbol `{}`, not `{}`",
+                    thunk.function_identity, identity_symbol.name, thunk.private_symbol
+                ),
+            ));
+            continue;
+        }
         if symbol.kind != omega_object_file::SymbolKind::Function
             || symbol.section
                 != omega_object_file::SymbolSection::Section(omega_object_file::SectionKind::Text)
@@ -827,6 +867,10 @@ mod tests {
         omega_backend_plan::CallbackThunkPlan {
             placement_index: 0,
             entry_key,
+            function_identity: omega_control_flow::MachineFunctionIdentity::callback_thunk(
+                entry_key, 0,
+            )
+            .unwrap_or_default(),
             private_symbol: omega_backend_plan::canonical_callback_private_symbol(placement),
         }
     }
@@ -866,7 +910,8 @@ mod tests {
                 .functions
                 .insert(omega_machine_bytes::EncodedMachineFunction {
                     symbol: Arc::from(symbol),
-                    identity: omega_control_flow::MachineFunctionIdentity::source(*key),
+                    identity: omega_control_flow::MachineFunctionIdentity::callback_thunk(*key, 0)
+                        .unwrap(),
                     byte_offset: 7,
                     byte_count: 11,
                     instructions: Default::default(),
@@ -877,13 +922,13 @@ mod tests {
 
     fn object_with_symbols(
         target: NativeTarget,
-        private_symbol: &str,
+        thunk: &omega_backend_plan::CallbackThunkPlan,
         symbols: &[(usize, usize)],
     ) -> omega_object_file::ObjectPlan {
         let mut object = omega_object_file::ObjectPlan::with_capacity(target, 0, symbols.len());
-        for (offset, size) in symbols {
-            object.layout.symbols.insert(omega_object_file::SymbolPlan {
-                name: private_symbol.into(),
+        for (symbol_index, (offset, size)) in symbols.iter().enumerate() {
+            let symbol = object.layout.symbols.insert(omega_object_file::SymbolPlan {
+                name: thunk.private_symbol.to_string(),
                 section: omega_object_file::SymbolSection::Section(
                     omega_object_file::SectionKind::Text,
                 ),
@@ -892,6 +937,15 @@ mod tests {
                 kind: omega_object_file::SymbolKind::Function,
                 import_library: String::new(),
             });
+            if symbol_index == 0 {
+                object
+                    .layout
+                    .function_symbols
+                    .insert(omega_object_file::FunctionSymbolPlan {
+                        identity: thunk.function_identity,
+                        symbol,
+                    });
+            }
         }
         object
     }
@@ -918,10 +972,10 @@ mod tests {
         let placement = placement(key);
         let thunk = thunk(key, &placement);
         let blockers = callback_blockers(
-            &[placement],
+            std::slice::from_ref(&placement),
             std::slice::from_ref(&thunk),
             &encoded_machine(target, &[key], &thunk.private_symbol),
-            &object_with_symbols(target, &thunk.private_symbol, &[(7, 11)]),
+            &object_with_symbols(target, &thunk, &[(7, 11)]),
         );
         assert!(blockers.is_empty(), "{blockers:?}");
     }
@@ -935,7 +989,7 @@ mod tests {
             &[invalid_placement],
             std::slice::from_ref(&invalid_thunk),
             &encoded_machine(target, &[state_key(2)], &invalid_thunk.private_symbol),
-            &object_with_symbols(target, &invalid_thunk.private_symbol, &[(7, 11)]),
+            &object_with_symbols(target, &invalid_thunk, &[(7, 11)]),
         );
         assert_eq!(invalid.len(), 1);
         assert!(invalid[0].contains("invalid selected-entry key"));
@@ -946,7 +1000,7 @@ mod tests {
             &[redirected_placement],
             std::slice::from_ref(&redirected_thunk),
             &encoded_machine(target, &[state_key(3)], &redirected_thunk.private_symbol),
-            &object_with_symbols(target, &redirected_thunk.private_symbol, &[(7, 11)]),
+            &object_with_symbols(target, &redirected_thunk, &[(7, 11)]),
         );
         assert_eq!(redirected.len(), 1);
         assert!(redirected[0].contains("not its selected entry"));
@@ -958,7 +1012,7 @@ mod tests {
         let key = state_key(2);
         let placement = placement(key);
         let thunk = thunk(key, &placement);
-        let object = object_with_symbols(target, &thunk.private_symbol, &[(7, 11)]);
+        let object = object_with_symbols(target, &thunk, &[(7, 11)]);
 
         let missing = callback_blockers(
             std::slice::from_ref(&placement),
@@ -994,7 +1048,7 @@ mod tests {
                 std::slice::from_ref(&placement),
                 std::slice::from_ref(&thunk),
                 &encoded,
-                &object_with_symbols(target, &thunk.private_symbol, &symbols),
+                &object_with_symbols(target, &thunk, &symbols),
             );
             assert_eq!(blockers.len(), 1);
             assert!(blockers[0].contains("object symbols; exactly one is required"));
@@ -1004,7 +1058,7 @@ mod tests {
             &[placement],
             std::slice::from_ref(&thunk),
             &encoded,
-            &object_with_symbols(target, &thunk.private_symbol, &[(7, 10)]),
+            &object_with_symbols(target, &thunk, &[(7, 10)]),
         );
         assert_eq!(drifted.len(), 1);
         assert!(drifted[0].contains("does not match its encoded function interval"));
@@ -1017,7 +1071,7 @@ mod tests {
         let placement = placement(key);
         let thunk = thunk(key, &placement);
         let encoded = encoded_machine(target, &[key], &thunk.private_symbol);
-        let object = object_with_symbols(target, &thunk.private_symbol, &[(7, 11)]);
+        let object = object_with_symbols(target, &thunk, &[(7, 11)]);
 
         let missing = callback_blockers(std::slice::from_ref(&placement), &[], &encoded, &object);
         assert_eq!(missing.len(), 1);
@@ -1062,7 +1116,7 @@ mod tests {
             &[placement],
             std::slice::from_ref(&thunk),
             &encoded_machine(target, &[drifted], &thunk.private_symbol),
-            &object_with_symbols(target, &thunk.private_symbol, &[(7, 11)]),
+            &object_with_symbols(target, &thunk, &[(7, 11)]),
         );
 
         assert_eq!(blockers.len(), 1);
@@ -1081,10 +1135,63 @@ mod tests {
             &[placement],
             std::slice::from_ref(&thunk),
             &encoded_machine(target, &[key], &thunk.private_symbol),
-            &object_with_symbols(target, &thunk.private_symbol, &[(7, 11)]),
+            &object_with_symbols(target, &thunk, &[(7, 11)]),
         );
 
         assert_eq!(blockers.len(), 1);
         assert!(blockers[0].contains("does not match placement row 0 canonical identity"));
+    }
+
+    #[test]
+    fn callback_thunk_emission_rejects_function_role_or_placement_drift() {
+        let target = NativeTarget::host();
+        let key = state_key(2);
+        let placement = placement(key);
+        let mut source_role = thunk(key, &placement);
+        source_role.function_identity = omega_control_flow::MachineFunctionIdentity::source(key);
+
+        let source_role_blockers = callback_blockers(
+            std::slice::from_ref(&placement),
+            std::slice::from_ref(&source_role),
+            &encoded_machine(target, &[key], &source_role.private_symbol),
+            &object_with_symbols(target, &source_role, &[(7, 11)]),
+        );
+        assert_eq!(source_role_blockers.len(), 1);
+        assert!(source_role_blockers[0].contains("not the canonical identity"));
+
+        let mut wrong_placement = thunk(key, &placement);
+        wrong_placement.function_identity =
+            omega_control_flow::MachineFunctionIdentity::callback_thunk(key, 1).unwrap();
+        let wrong_placement_blockers = callback_blockers(
+            std::slice::from_ref(&placement),
+            std::slice::from_ref(&wrong_placement),
+            &encoded_machine(target, &[key], &wrong_placement.private_symbol),
+            &object_with_symbols(target, &wrong_placement, &[(7, 11)]),
+        );
+        assert_eq!(wrong_placement_blockers.len(), 1);
+        assert!(wrong_placement_blockers[0].contains("not the canonical identity"));
+
+        let exact = thunk(key, &placement);
+        let mut redirected_object = object_with_symbols(target, &exact, &[(7, 11)]);
+        let binding = redirected_object
+            .layout
+            .function_symbols
+            .iter()
+            .next()
+            .map(|(handle, _)| handle)
+            .unwrap();
+        redirected_object
+            .layout
+            .function_symbols
+            .get_mut(binding)
+            .identity = omega_control_flow::MachineFunctionIdentity::source(key);
+        let object_role_blockers = callback_blockers(
+            &[placement],
+            std::slice::from_ref(&exact),
+            &encoded_machine(target, &[key], &exact.private_symbol),
+            &redirected_object,
+        );
+        assert_eq!(object_role_blockers.len(), 1);
+        assert!(object_role_blockers[0].contains("no exact object-function binding"));
     }
 }
