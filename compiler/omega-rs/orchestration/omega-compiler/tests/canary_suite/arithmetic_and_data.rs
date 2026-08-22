@@ -1146,9 +1146,12 @@ fn runtime_mixed_width_sign_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-mixed-width-sign-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("mixed-width-sign canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("mixed-width sign canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("mixed-width-sign canary should run");
     assert_eq!(
@@ -1171,9 +1174,12 @@ fn runtime_integer_casts_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_integer_casts_exit");
     let scratch = std::env::temp_dir().join(format!("omega-integer-casts-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("integer-casts canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("integer-casts canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("integer-casts canary should run");
     assert_eq!(
@@ -1194,9 +1200,12 @@ fn runtime_i64_divide_modulo_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_i64_divide_modulo_exit");
     let scratch = std::env::temp_dir().join(format!("omega-i64-divmod-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("i64 divide/modulo canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("i64 divide/modulo canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("i64 divide/modulo canary should run");
     assert_eq!(
