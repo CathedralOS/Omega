@@ -964,10 +964,13 @@ fn runtime_i64_to_u64_exact_guard_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-i64-u64-exact-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("guarded dynamic i64-to-u64 exact conversion should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("guarded i64-to-u64 canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("guarded dynamic i64-to-u64 exact conversion should run");
     assert_eq!(
