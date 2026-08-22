@@ -129,12 +129,7 @@ pub enum ProviderBinding {
     /// This is the exact normalized realization-machine overload identity;
     /// target catalog selection is derived separately from the checked
     /// requirement and selected target.
-    CompilerIntrinsic {
-        machine: String,
-        /// Transitional compiler-derived display/catalog label. This is not
-        /// binding identity and will become a structured target catalog key.
-        catalog: String,
-    },
+    CompilerIntrinsic { machine: String },
     /// COM/UEFI slot dispatch: callee address read from the receiver.
     VtableSlot { index: i64 },
     /// Field-model vtable dispatch: the fn-ptr field of a named table
@@ -934,16 +929,10 @@ impl ProviderPlan {
                         ));
                     }
                 }
-                ProviderBinding::CompilerIntrinsic { machine, catalog } => {
+                ProviderBinding::CompilerIntrinsic { machine } => {
                     if machine.is_empty() {
                         errors.push(format!(
                             "plan `{}` row `{}` compiler intrinsic has no exact realization-machine identity",
-                            self.name, row.method,
-                        ));
-                    }
-                    if catalog.is_empty() {
-                        errors.push(format!(
-                            "plan `{}` row `{}` compiler intrinsic has no compiler-derived catalog entry",
                             self.name, row.method,
                         ));
                     }
@@ -1180,21 +1169,6 @@ mod tests {
             first.identity_fingerprint(),
             refactored.identity_fingerprint()
         );
-    }
-
-    #[test]
-    fn intrinsic_catalog_display_is_not_provider_identity() {
-        let mut plan = windows_console_plan();
-        plan.rows[0].binding = ProviderBinding::CompilerIntrinsic {
-            machine: "named-callable(path(ConsoleNativeProvider::write_line))".to_owned(),
-            catalog: "Console::write_line".to_owned(),
-        };
-        let identity = plan.identity_fingerprint();
-        let ProviderBinding::CompilerIntrinsic { catalog, .. } = &mut plan.rows[0].binding else {
-            unreachable!()
-        };
-        *catalog = "readable text changed".to_owned();
-        assert_eq!(plan.identity_fingerprint(), identity);
     }
 
     #[test]
@@ -1868,7 +1842,6 @@ mod tests {
             },
             ProviderBinding::CompilerIntrinsic {
                 machine: "Console::write_line".to_owned(),
-                catalog: "Console::write_line".to_owned(),
             },
             ProviderBinding::VtableSlot { index: 0 },
             ProviderBinding::VtableField {
@@ -1900,7 +1873,6 @@ mod tests {
             ProviderBinding::Syscall { number: 0 },
             ProviderBinding::CompilerIntrinsic {
                 machine: "Console::write_line".to_owned(),
-                catalog: "Console::write_line".to_owned(),
             },
             ProviderBinding::VtableSlot { index: 0 },
         ] {
@@ -1938,7 +1910,6 @@ mod tests {
             (
                 ProviderBinding::CompilerIntrinsic {
                     machine: String::new(),
-                    catalog: "Console::write_line".to_owned(),
                 },
                 "compiler intrinsic has no exact realization-machine identity",
             ),

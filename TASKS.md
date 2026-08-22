@@ -2633,13 +2633,12 @@ conformance cannot change token meaning; and no accepted source contains a
   of one parser regression for the retired payload. Transitional provider rows
   now retain the compiler-derived normalized realization-machine overload
   identity through ABI planning, trust reports, and executable-TCB identity.
-  Their separate catalog label derives from the selected satisfied requirement
-  rather than accepting author text, is diagnostic-only, and is excluded from
-  provider identity. Float execution resolves directly from the checked
-  operator namespace, requirement, types, arithmetic policy, and selected
-  target; the old display-string catalog matcher and its permutation test are
-  deleted. Replace the remaining diagnostic label with a structured renderer
-  or remove it once reports consume the exact operator/catalog key directly.
+  Provider rows no longer retain a separate catalog/display string. A single
+  diagnostic-only renderer derives readable float labels on demand from the
+  exact checked operator namespace, requirement, types, and arithmetic policy;
+  it is never binding identity or dispatch input. Float execution resolves
+  directly from that checked structure and selected target, while the old
+  display-string catalog matcher and its permutation test are deleted.
 - Replace string-backed foreign binding identity with nominal `LibraryId`,
   `SymbolId`, `CallingPlanId`, firmware/table, vtable, and mechanism-specific
   values. Raw object-format library/symbol bytes may exist only in sealed

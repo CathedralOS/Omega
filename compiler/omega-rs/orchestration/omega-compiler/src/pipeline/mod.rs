@@ -136,8 +136,9 @@ pub use program_storage_wrapper_frame::{
 pub use provider_plans::{
     AdmittedExternalRootEntryFactHandoff, BoundExternalRootPostHandoffWriterInvocation,
     SelectedExternalRootEntryFactBinding, SelectedExternalRootProviderPlan,
-    bind_external_root_post_handoff_writer_invocation, selected_external_root_entry_fact_bindings,
-    selected_external_root_provider_plan, selected_external_root_provider_plan_id,
+    bind_external_root_post_handoff_writer_invocation, compiler_intrinsic_diagnostic_label,
+    selected_external_root_entry_fact_bindings, selected_external_root_provider_plan,
+    selected_external_root_provider_plan_id,
 };
 pub use psi_access_plans::{ValidatedAccessPlan, ValidatedPlacementPlan};
 pub use psi_build_time_evaluation::{

@@ -1314,7 +1314,7 @@ fn build_runtime_float_semantics_twins_agree() {
         "directed arithmetic and directed FMA",
         "fused versus separately rounded multiply-add",
     ];
-    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0x1c16_0de7_e696_bcb4;
+    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0x5237_e947_1054_c901;
 
     let canary = pass_canary("float/build_runtime_semantics_twins");
     let main_path = canary.join("main.omg");
@@ -1345,9 +1345,8 @@ fn build_runtime_float_semantics_twins_agree() {
         let [row] = plan.rows.as_slice() else {
             continue;
         };
-        let omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic {
-            catalog: name, ..
-        } = &row.binding
+        let omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic { machine: name } =
+            &row.binding
         else {
             continue;
         };
