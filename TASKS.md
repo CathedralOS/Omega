@@ -448,7 +448,11 @@ Remaining:
   rejects. One private completion-custody facade now owns argument-path
   canonicality, receipt bounds, exact source/receipt replay, and provider-
   custody replay in their load-bearing order; object and installation callers
-  only map its closed failures to unchanged public errors. This is custody, not
+  only map its closed failures to unchanged public errors. The format-31
+  completion-source codec now likewise lives in a private 189-line child,
+  retaining exact tags, reserved bytes, structural paths, content segments,
+  projection/algebra rows, count guards, bytes, and decode errors. This is
+  custody, not
   authorization. The remaining
   work is real
   authorized introduction, custody exit, residual geometry, and provider binding—not
@@ -645,6 +649,11 @@ Owners:
   retirement, operation selection, record construction, and exact type-
   reference rewriting. The cohesive discovery/two-pass orchestration root is
   now 298 lines.
+  Exact reification of validated layout reports into source `Plan` values now
+  lives in a focused 126-line private owner. Stable member lookup,
+  `At`/`IntegerAt`/`Bits` encoding, capacity padding, dynamic-size
+  representation, evaluation order, diagnostics, and public APIs remain
+  unchanged; the access-plan coordinator is now 505 lines.
   Plan-laid value layouts now retain the exact synthesized data symbol and
   ordered runtime field-symbol inventory independently from their diagnostic
   name. Interpreter record views, recast/relevance validation, boundary ABI
@@ -2432,7 +2441,12 @@ Remaining:
   bound-conversion checking. Cast legality, continuity, carrier validation,
   target order, proof shape, rejection behavior, and the finite unique-spine
   frontier are unchanged; no alternate-path, permutation, or generic graph
-  search is introduced. Exact integer-cast certificate completion now lives in
+  search is introduced. Known-root definition recovery and unique non-cast
+  source discovery are now separated further into independent side-local
+  `cast_custody/chain/definitions` and `cast_custody/chain/source` modules.
+  Backward ledger order, ambiguity/reuse/cycle rejection, first-cast identity,
+  proof shape, and the finite single-spine frontier remain unchanged. Exact
+  integer-cast certificate completion now lives in
   independent side-local `cast_custody/completion` modules. Each consumes only
   its own deterministic exact-cast spine selection. Production alone preserves
   target-endpoint order, constructs the `IntegerCastChainWitness` and
