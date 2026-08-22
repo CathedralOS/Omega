@@ -28,6 +28,7 @@ impl DormantOwnedResident {
     ) -> Result<EstablishedBorrowedResidentPlacement<'_>, AccessPlanDiagnostic> {
         validate_owned_resident_authority(
             &self.admission,
+            &self.content,
             "borrowed resident shared-view establishment",
         )?;
         let length = self.admission.extent.length();
@@ -47,10 +48,10 @@ impl DormantOwnedResident {
             resources: self.admission.resources.clone(),
             admission: self.admission.identity,
             loan,
-            resident_claim: self.resident_claim,
+            resident_claim: self.content.resident_claim(),
             occurrence,
-            validity_receipt: self.validity_receipt,
-            custody_receipt: self.custody_receipt,
+            validity_receipt: self.content.validity_receipt(),
+            custody_receipt: self.content.custody_receipt(),
         })
     }
 
@@ -63,6 +64,7 @@ impl DormantOwnedResident {
     ) -> Result<EstablishedBorrowedResidentPlacement<'_>, AccessPlanDiagnostic> {
         validate_owned_resident_authority(
             &self.admission,
+            &self.content,
             "borrowed resident exclusive-view establishment",
         )?;
         let plan = self.admission.placement_plan.clone();
@@ -70,9 +72,9 @@ impl DormantOwnedResident {
         let profile = self.admission.profile.clone();
         let resources = self.admission.resources.clone();
         let admission = self.admission.identity;
-        let resident_claim = self.resident_claim;
-        let validity_receipt = self.validity_receipt;
-        let custody_receipt = self.custody_receipt;
+        let resident_claim = self.content.resident_claim();
+        let validity_receipt = self.content.validity_receipt();
+        let custody_receipt = self.content.custody_receipt();
         let length = self.admission.extent.length();
         let loan = self
             .admission

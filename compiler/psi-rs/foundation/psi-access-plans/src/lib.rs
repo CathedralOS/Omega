@@ -2143,9 +2143,7 @@ impl OwnedPlacementRejection {
 #[must_use = "dormant resident content retains linear Extent and content custody"]
 pub struct DormantOwnedResident {
     admission: OwnedPlacementAdmission,
-    resident_claim: ResidentClaimId,
-    validity_receipt: ExtentContentValidityReceiptId,
-    custody_receipt: ExtentContentCustodyReceiptId,
+    content: ProviderExistingContentGrant,
 }
 
 /// Failed owned resident-view establishment preserves the complete dormant
@@ -2195,15 +2193,15 @@ impl DormantOwnedResident {
     }
 
     pub const fn validity_receipt(&self) -> ExtentContentValidityReceiptId {
-        self.validity_receipt
+        self.content.validity_receipt()
     }
 
     pub const fn custody_receipt(&self) -> ExtentContentCustodyReceiptId {
-        self.custody_receipt
+        self.content.custody_receipt()
     }
 
     pub const fn resident_claim(&self) -> ResidentClaimId {
-        self.resident_claim
+        self.content.resident_claim()
     }
 
     /// Transfer dormant resident custody into one requested active placed
@@ -2215,7 +2213,7 @@ impl DormantOwnedResident {
         occurrence: PlacedOccurrenceId,
     ) -> Result<EstablishedOwnedPlacement, OwnedResidentViewEstablishmentError> {
         if let Err(diagnostic) =
-            validate_owned_resident_authority(&self.admission, "owned resident view")
+            validate_owned_resident_authority(&self.admission, &self.content, "owned resident view")
         {
             return Err(OwnedResidentViewEstablishmentError {
                 resident: self,
@@ -2225,10 +2223,8 @@ impl DormantOwnedResident {
         }
         Ok(EstablishedOwnedPlacement {
             admission: self.admission,
-            resident_claim: self.resident_claim,
+            content: self.content,
             occurrence,
-            validity_receipt: self.validity_receipt,
-            custody_receipt: self.custody_receipt,
         })
     }
 }
@@ -2240,10 +2236,8 @@ impl DormantOwnedResident {
 #[must_use = "active owned placed content retains linear resident custody"]
 pub struct EstablishedOwnedPlacement {
     admission: OwnedPlacementAdmission,
-    resident_claim: ResidentClaimId,
+    content: ProviderExistingContentGrant,
     occurrence: PlacedOccurrenceId,
-    validity_receipt: ExtentContentValidityReceiptId,
-    custody_receipt: ExtentContentCustodyReceiptId,
 }
 
 /// Failed resident-preserving retirement returns the complete active carrier;
@@ -2286,15 +2280,15 @@ impl EstablishedOwnedPlacement {
     }
 
     pub const fn validity_receipt(&self) -> ExtentContentValidityReceiptId {
-        self.validity_receipt
+        self.content.validity_receipt()
     }
 
     pub const fn custody_receipt(&self) -> ExtentContentCustodyReceiptId {
-        self.custody_receipt
+        self.content.custody_receipt()
     }
 
     pub const fn resident_claim(&self) -> ResidentClaimId {
-        self.resident_claim
+        self.content.resident_claim()
     }
 
     pub const fn occurrence(&self) -> PlacedOccurrenceId {
@@ -2305,9 +2299,11 @@ impl EstablishedOwnedPlacement {
     /// content. The exact resident claim and provider receipts return to the
     /// dormant carrier; the active occurrence ends here.
     pub fn retire_resident(self) -> Result<DormantOwnedResident, OwnedResidentRetirementError> {
-        if let Err(diagnostic) =
-            validate_owned_resident_authority(&self.admission, "resident-preserving retirement")
-        {
+        if let Err(diagnostic) = validate_owned_resident_authority(
+            &self.admission,
+            &self.content,
+            "resident-preserving retirement",
+        ) {
             return Err(OwnedResidentRetirementError {
                 established: self,
                 diagnostic,
@@ -2315,9 +2311,7 @@ impl EstablishedOwnedPlacement {
         }
         Ok(DormantOwnedResident {
             admission: self.admission,
-            resident_claim: self.resident_claim,
-            validity_receipt: self.validity_receipt,
-            custody_receipt: self.custody_receipt,
+            content: self.content,
         })
     }
 
@@ -2548,7 +2542,7 @@ impl<'view, 'extent> PlacementAuthorityRef<'view, 'extent> {
         match self {
             Self::Borrowed(_) => None,
             Self::BorrowedResident(established) => Some(established.resident_claim()),
-            Self::EstablishedOwned(established) => Some(established.resident_claim),
+            Self::EstablishedOwned(established) => Some(established.resident_claim()),
         }
     }
 
@@ -3849,12 +3843,7 @@ pub fn adopt_owned_stable(
             diagnostic,
         });
     }
-    Ok(DormantOwnedResident {
-        admission,
-        resident_claim: content.resident_claim(),
-        validity_receipt: content.validity_receipt(),
-        custody_receipt: content.custody_receipt(),
-    })
+    Ok(DormantOwnedResident { admission, content })
 }
 
 fn validate_owned_stable_adoption(
@@ -3873,6 +3862,13 @@ fn validate_owned_stable_adoption(
         ));
     }
 
+    validate_owned_content_binding(admission, content)
+}
+
+fn validate_owned_content_binding(
+    admission: &OwnedPlacementAdmission,
+    content: &ProviderExistingContentGrant,
+) -> Result<(), AccessPlanDiagnostic> {
     let extent = &admission.extent;
     if content.interpretation().normalized_identity()
         != admission.placement_plan.identity().normalized_identity()
@@ -3946,6 +3942,7 @@ fn replay_owned_admission_resources(
 
 fn validate_owned_resident_authority(
     admission: &OwnedPlacementAdmission,
+    content: &ProviderExistingContentGrant,
     transition: &str,
 ) -> Result<(), AccessPlanDiagnostic> {
     let resources = replay_owned_admission_resources(admission).map_err(|diagnostic| {
@@ -3958,6 +3955,11 @@ fn validate_owned_resident_authority(
             "{transition} replayed resource compatibility differs from the retained admission"
         )));
     }
+    validate_owned_content_binding(admission, content).map_err(|diagnostic| {
+        AccessPlanDiagnostic(format!(
+            "{transition} could not replay the retained provider content grant: {diagnostic}"
+        ))
+    })?;
     Ok(())
 }
 
@@ -6211,6 +6213,74 @@ mod tests {
             .expect("returned admission and content remain valid for corrected retry");
         assert_eq!(dormant.admission().normalized_identity(), 195);
         assert_eq!(dormant.resident_claim().normalized_identity(), 194);
+    }
+
+    #[test]
+    fn owned_resident_lifecycle_replays_full_provider_content_grant() {
+        let plan = stable_word_placement();
+        let (extent, content) = provider_existing_content(&plan, 0xad90, 4, 204, 205);
+        let profile = stable_word_profile(&extent);
+        let admission = admit_owned_placement(
+            PlacementAdmissionId::from_normalized_identity(208).expect("admission"),
+            extent,
+            &plan,
+            &profile,
+        )
+        .expect("owned Stable admission");
+        let mut dormant =
+            adopt_owned_stable(admission, content).expect("provider resident adoption");
+        let claim = dormant.resident_claim();
+        let validity = dormant.validity_receipt();
+        let custody = dormant.custody_receipt();
+
+        let (replacement_extent, _replacement_content) =
+            provider_existing_content(&plan, 0xad90, 4, 209, 210);
+        let replacement_profile = stable_word_profile(&replacement_extent);
+        let replacement_admission = admit_owned_placement(
+            PlacementAdmissionId::from_normalized_identity(213).expect("replacement admission"),
+            replacement_extent,
+            &plan,
+            &replacement_profile,
+        )
+        .expect("coincident replacement placement");
+        let retained_admission = std::mem::replace(&mut dormant.admission, replacement_admission);
+
+        let occurrence =
+            PlacedOccurrenceId::from_normalized_identity(214).expect("placed occurrence");
+        let rejection = dormant
+            .view(occurrence)
+            .expect_err("resident view must replay the complete provider content grant");
+        assert!(rejection.diagnostic().0.contains("provider content grant"));
+        let (mut dormant, returned_occurrence, _) = rejection.into_parts();
+        assert_eq!(returned_occurrence, occurrence);
+        assert_eq!(dormant.resident_claim(), claim);
+        assert_eq!(dormant.validity_receipt(), validity);
+        assert_eq!(dormant.custody_receipt(), custody);
+        let replacement_admission = std::mem::replace(&mut dormant.admission, retained_admission);
+
+        let mut established = dormant
+            .view(returned_occurrence)
+            .expect("repaired dormant carrier supports corrected view");
+        let retained_admission =
+            std::mem::replace(&mut established.admission, replacement_admission);
+        let rejection = established
+            .retire_resident()
+            .expect_err("resident retirement must replay the complete provider content grant");
+        assert!(rejection.diagnostic().0.contains("provider content grant"));
+        let (mut established, _) = rejection.into_parts();
+        assert_eq!(established.occurrence(), occurrence);
+        assert_eq!(established.resident_claim(), claim);
+        assert_eq!(established.validity_receipt(), validity);
+        assert_eq!(established.custody_receipt(), custody);
+        established.admission = retained_admission;
+
+        let dormant = established
+            .retire_resident()
+            .expect("returned active carrier supports corrected retirement");
+        assert_eq!(dormant.resident_claim(), claim);
+        assert_eq!(dormant.validity_receipt(), validity);
+        assert_eq!(dormant.custody_receipt(), custody);
+        assert_eq!(dormant.admission().normalized_identity(), 208);
     }
 
     #[test]
