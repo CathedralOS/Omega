@@ -3,7 +3,7 @@
 use psi_core::{Proposition, ScalarTerm};
 use psi_proof_kernel::ProofNode;
 
-use super::super::super::super::integer_evidence::cited_facts;
+use super::super::super::equalities;
 use super::super::TwoCitationChains;
 
 pub(super) fn find<'a, T>(
@@ -20,40 +20,34 @@ pub(super) fn find<'a, T>(
     ) -> Option<T>,
 ) -> Option<T> {
     let chains = TwoCitationChains::new(assumptions, semantic_axioms);
-    for (equality_citation, equality) in cited_facts(assumptions, semantic_axioms) {
-        let Proposition::Equal(equality_left, equality_right) = equality else {
+    for (equality_citation, equality, root, alias) in
+        equalities::ordered(assumptions, semantic_axioms)
+    {
+        if root == alias
+            || !matches!(root, ScalarTerm::Value { .. })
+            || !matches!(alias, ScalarTerm::Value { .. })
+        {
             continue;
-        };
-        for (root, alias) in [
-            (equality_left, equality_right),
-            (equality_right, equality_left),
-        ] {
-            if root == alias
-                || !matches!(root, ScalarTerm::Value { .. })
-                || !matches!(alias, ScalarTerm::Value { .. })
-            {
-                continue;
-            }
-            let result = chains.find(|left_citation, left_fact, right_citation, right_fact| {
-                let Proposition::LessOrEqual(left, _) = left_fact else {
-                    unreachable!("only integer chains are enumerated")
-                };
-                let Proposition::LessOrEqual(_, right) = right_fact else {
-                    unreachable!("only integer chains are enumerated")
-                };
-                complete(
-                    root,
-                    alias,
-                    left,
-                    right,
-                    left_citation.proof(left_fact),
-                    right_citation.proof(right_fact),
-                    equality_citation.proof(equality),
-                )
-            });
-            if result.is_some() {
-                return result;
-            }
+        }
+        let result = chains.find(|left_citation, left_fact, right_citation, right_fact| {
+            let Proposition::LessOrEqual(left, _) = left_fact else {
+                unreachable!("only integer chains are enumerated")
+            };
+            let Proposition::LessOrEqual(_, right) = right_fact else {
+                unreachable!("only integer chains are enumerated")
+            };
+            complete(
+                root,
+                alias,
+                left,
+                right,
+                left_citation.proof(left_fact),
+                right_citation.proof(right_fact),
+                equality_citation.proof(equality),
+            )
+        });
+        if result.is_some() {
+            return result;
         }
     }
     None

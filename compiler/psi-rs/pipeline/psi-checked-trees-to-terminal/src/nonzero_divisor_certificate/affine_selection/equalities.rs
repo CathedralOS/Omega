@@ -1,8 +1,8 @@
-//! Source-ordered oriented equalities for affine-literal certificate production.
+//! Source-ordered oriented equalities for affine certificate production.
 
 use psi_core::{Proposition, ScalarTerm};
 
-use super::super::super::integer_evidence::{Citation, cited_facts};
+use super::super::integer_evidence::{Citation, cited_facts};
 
 pub(super) fn ordered<'a>(
     assumptions: &'a [Proposition],

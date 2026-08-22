@@ -1,4 +1,4 @@
-//! Source-ordered oriented equalities for independent affine-literal reconstruction.
+//! Source-ordered oriented equalities for independent affine reconstruction.
 
 use psi_core::{Proposition, ScalarTerm};
 

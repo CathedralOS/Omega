@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 
 use psi_core::{Proposition, ScalarTerm};
 
-use super::super::super::equalities;
+use super::super::super::super::equalities;
 
 pub(super) struct LandingIndex<'a> {
     by_alias: BTreeMap<ScalarTerm, Vec<(&'a Proposition, &'a ScalarTerm)>>,

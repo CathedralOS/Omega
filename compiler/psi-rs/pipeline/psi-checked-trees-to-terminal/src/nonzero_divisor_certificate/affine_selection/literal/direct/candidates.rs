@@ -3,7 +3,8 @@
 use psi_core::{Proposition, ScalarTerm};
 use psi_proof_kernel::ProofNode;
 
-use super::super::{eligibility, equalities};
+use super::super::super::equalities;
+use super::super::eligibility;
 
 pub(super) fn find<'a, T>(
     assumptions: &'a [Proposition],
