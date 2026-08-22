@@ -3250,6 +3250,12 @@ Remaining:
   reduced the two float canaries' checked phases by 56–97ms (3.248s to 3.151s
   and 3.172s to 3.116s); unchanged allocation counts confirm the win is avoided
   symbol/arena rescanning rather than allocation suppression.
+  Index-compatibility construction now resolves one source-ordered call catalog
+  per state and reuses it for outer calls and nested value-context lookup,
+  preserving first-match and unresolved-call fallback semantics. Sampling had
+  placed 76/110 index-compatibility samples in repeated call-site lookup; the
+  two broad float canaries' checked-phase means fell about 1.6% and 1.35%, with
+  essentially flat allocation volume.
   Default-domain validation now delegates conservative symbolic values,
   literal/sequence measures, valuation folding, canonical symbolic equality,
   and recursive call detection to a focused 281-line child while state walking,
@@ -3466,6 +3472,11 @@ Remaining:
   timing/allocation aggregation, table layout, and numeric presentation. The
   public `ArtifactWriter` methods, exact outputs, and 79-function inventory are
   unchanged.
+  Atomic artifact-directory installation now lives in a focused 123-line
+  `artifact_writer` child, owning temporary-file replacement, byte/text/HTML
+  writes, stale-file removal, and executable-container encoding. Report
+  rendering remains in the 2,855-line parent and focused renderer children;
+  public methods, exact outputs, and the 79-function inventory are unchanged.
   Development and test profiles now both omit full DWARF by default, with an
   explicit `CARGO_PROFILE_{DEV,TEST}_DEBUG=2` escape hatch for debugger
   sessions. On the same macOS host, rebuilding the development CLI after the
@@ -5227,6 +5238,28 @@ Owners:
   the 795 rooted/3 legacy inventory, and receipt-drift fences remain green;
   slow-float, crash-specific, timer/loop, and explicit legacy owners remain
   untouched.
+  Three authored-root integer policy/width regressions—saturating bounds, cast
+  sign/zero extension, and signed modulo plus arithmetic/logical/runtime
+  shifts—now launch `OutputOnly` native execution solely through exact checked-
+  report executable receipts while preserving literal exit 70 and every clamp/
+  extension/shift diagnostic. Exact-owner ambiguity, the 795 rooted/3 legacy
+  inventory, and receipt-drift fences remain green; slow-float, loop-heavy,
+  crash-specific, timer, and explicit legacy owners remain untouched.
+  Three authored-root declaration/resolution regressions—bundled core Rat use,
+  free-floating constant substitution, and result-domain machine overload
+  selection—now launch `OutputOnly` native execution solely through exact
+  checked-report executable receipts while preserving literal exit 70 and
+  every resolution diagnostic. Exact-owner ambiguity, the 795 rooted/3 legacy
+  inventory, and receipt-drift fences remain green; cyclic/loop-heavy, slow-
+  float, crash-specific, timer, and explicit legacy owners remain untouched.
+  Three authored-root proof/index regressions—computed-index enum match
+  subjects, guarded `u64` cap-store discharge, and declared-but-unconsumed
+  proof-only data—now launch `OutputOnly` native execution solely through exact
+  checked-report executable receipts while preserving literal exit 70 and
+  every match/range/declaration diagnostic. Exact-owner ambiguity, the 795
+  rooted/3 legacy inventory, and receipt-drift fences remain green; cyclic/
+  loop-heavy, report-bearing, slow-float, crash-specific, timer, and explicit
+  legacy owners remain untouched.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
@@ -5495,6 +5528,10 @@ reach or trust, and private proof improvements do not change public identity.
   Conditional call-location reconstruction and mutual-exclusivity queries now
   live in a focused 86-line `scalar_conditional_call_paths` child. The 4,066-
   line parent retains higher scalar-control and image orchestration, with APIs,
+  native bytes, validation order, and the 69-function inventory unchanged.
+  Public stack-demand derivation and private acyclic peak composition now live
+  in a focused 128-line `stack_demand` child behind the unchanged crate-root
+  re-export. The 3,950-line parent retains terminal image orchestration, with
   native bytes, validation order, and the 69-function inventory unchanged.
   The installed-cleanup ordinal-tamper regression now locates the authoritative
   internal-call custody row by its complete machine/text-offset/owner/target
