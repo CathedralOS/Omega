@@ -966,6 +966,16 @@ Owners:
   it after replay, so observation and recovery remain gated through both
   custody layers. Bytes remain unpublished and this establishes no provider-
   operation authority, consumer semantics, device event, or native execution.
+  Installation-owned written post-handoff destinations now require a consuming
+  exact replay before their resolved context, bytes, prepared recovery state,
+  or raw mapping parts are observable. The sealed non-clonable validated carrier
+  retains the exact installed realization, activated mapping, provider receipt,
+  placement, and byte geometry; rejection returns the complete raw carrier for
+  repaired retry. External-root and compiler-bound validated custody retain
+  this lower validated carrier through observation, decomposition, and recovery,
+  rather than downgrading evidence between layers. Bytes remain unpublished and
+  this establishes no provider-operation authority, consumer semantics, device
+  event, or native execution.
 
 Acceptance: UART/MMIO, shared-page IPC, and ordinary RAM use one extent/layout
 foundation with different profiles. Misalignment, insufficient rights,
