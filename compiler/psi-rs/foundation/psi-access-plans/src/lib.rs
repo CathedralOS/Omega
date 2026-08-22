@@ -3668,6 +3668,21 @@ impl<'view, 'extent> AtomicPrimitiveAccessRequest<'view, 'extent> {
         self.request.effect_footprint
     }
 
+    /// Independently replay the complete placed authority, admitted Atomic
+    /// supply, operation family, and ordering law before an outward lowering
+    /// consumer accepts this request. Rejection only borrows the carrier; it
+    /// performs no atomic attempt and preserves the same request for retry.
+    pub fn validate_for_lowering(&self) -> Result<(), AccessPlanDiagnostic> {
+        let operation = validate_atomic_primitive_request(&self.request)?;
+        if operation != self.operation {
+            return Err(AccessPlanDiagnostic(
+                "Atomic primitive lowering operation differs from its retained specialization"
+                    .into(),
+            ));
+        }
+        Ok(())
+    }
+
     pub fn into_primitive_request(self) -> PrimitiveAccessRequest<'view, 'extent> {
         self.request
     }
@@ -3700,65 +3715,46 @@ impl<'view, 'extent> PrimitiveAccessRequest<'view, 'extent> {
         AtomicPrimitiveAccessRequest<'view, 'extent>,
         AtomicPrimitiveAccessRejection<'view, 'extent>,
     > {
-        if self.observation != ObservationModel::Atomic {
-            return Err(AtomicPrimitiveAccessRejection {
-                request: self,
-                diagnostic: AccessPlanDiagnostic(
-                    "Atomic lowering requires an Atomic observation".into(),
-                ),
-            });
-        }
-        if self.effective_supply.kind() != EffectiveSupplyKind::Atomic {
-            return Err(AtomicPrimitiveAccessRejection {
-                request: self,
-                diagnostic: AccessPlanDiagnostic(
-                    "Atomic lowering requires explicitly admitted Atomic supply".into(),
-                ),
-            });
-        }
-        if let Err(diagnostic) = self.validate_effective_supply_binding() {
-            return Err(AtomicPrimitiveAccessRejection {
-                request: self,
-                diagnostic,
-            });
-        }
-        let AccessOperation::Atomic(operation) = self.operation else {
-            return Err(AtomicPrimitiveAccessRejection {
-                request: self,
-                diagnostic: AccessPlanDiagnostic(
-                    "Atomic lowering accepts only one sealed Atomic operation".into(),
-                ),
-            });
+        let operation = match validate_atomic_primitive_request(&self) {
+            Ok(operation) => operation,
+            Err(diagnostic) => {
+                return Err(AtomicPrimitiveAccessRejection {
+                    request: self,
+                    diagnostic,
+                });
+            }
         };
-        if let Err(diagnostic) = validate_operation_ordering(self.operation) {
-            return Err(AtomicPrimitiveAccessRejection {
-                request: self,
-                diagnostic,
-            });
-        }
-        if let Err(diagnostic) = self.validate_descriptor_binding() {
-            return Err(AtomicPrimitiveAccessRejection {
-                request: self,
-                diagnostic,
-            });
-        }
-        if let Err(diagnostic) = self.validate_authority_binding() {
-            return Err(AtomicPrimitiveAccessRejection {
-                request: self,
-                diagnostic,
-            });
-        }
-        if let Err(diagnostic) = self.validate_authorization_binding() {
-            return Err(AtomicPrimitiveAccessRejection {
-                request: self,
-                diagnostic,
-            });
-        }
         Ok(AtomicPrimitiveAccessRequest {
             request: self,
             operation,
         })
     }
+}
+
+fn validate_atomic_primitive_request(
+    request: &PrimitiveAccessRequest<'_, '_>,
+) -> Result<AtomicAccessOperation, AccessPlanDiagnostic> {
+    if request.observation != ObservationModel::Atomic {
+        return Err(AccessPlanDiagnostic(
+            "Atomic lowering requires an Atomic observation".into(),
+        ));
+    }
+    if request.effective_supply.kind() != EffectiveSupplyKind::Atomic {
+        return Err(AccessPlanDiagnostic(
+            "Atomic lowering requires explicitly admitted Atomic supply".into(),
+        ));
+    }
+    request.validate_effective_supply_binding()?;
+    let AccessOperation::Atomic(operation) = request.operation else {
+        return Err(AccessPlanDiagnostic(
+            "Atomic lowering accepts only one sealed Atomic operation".into(),
+        ));
+    };
+    validate_operation_ordering(request.operation)?;
+    request.validate_descriptor_binding()?;
+    request.validate_authority_binding()?;
+    request.validate_authorization_binding()?;
+    Ok(operation)
 }
 
 pub const fn effect_footprints_conflict(
@@ -7488,6 +7484,67 @@ mod tests {
         for (request, operation) in requests {
             assert_atomic_specialization(request, operation, plan.identity(), admission_id);
         }
+    }
+
+    #[test]
+    fn atomic_primitive_lowering_replays_authority_and_ordering_without_attempt() {
+        let plan = atomic_word_placement();
+        let extent = uart_extent_with_lineage(0xc080, 4, 234);
+        let loan = extent.loan(0, 4).expect("shared Atomic loan");
+        let resources = atomic_word_profile(&loan);
+        let admission = admit_placement(
+            PlacementAdmissionId::from_normalized_identity(235).expect("admission"),
+            loan,
+            &plan,
+            &resources,
+        )
+        .expect("all-family Atomic admission");
+        let view = place(admission).expect("Atomic placed-view establishment");
+        let head = view
+            .project(field_key(plan.access(), "head"))
+            .expect("Atomic head projection");
+        let request = head
+            .atomic_load(MemoryOrdering::Receive)
+            .expect("Atomic load")
+            .into_primitive_request();
+        let mut atomic = request
+            .into_atomic_primitive_access()
+            .expect("Atomic load specialization");
+        let expected = primitive_request_snapshot(&atomic.request);
+        let profile_receipt = atomic.request.profile_receipt;
+
+        atomic.request.profile_receipt =
+            ResourceProfileReceiptId::from_normalized_identity(999).expect("drifted receipt");
+        let diagnostic = atomic
+            .validate_for_lowering()
+            .expect_err("outward preflight must reject copied receipt drift");
+        assert!(diagnostic.0.contains("retained placement authority"));
+        atomic.request.profile_receipt = profile_receipt;
+
+        atomic.request.operation =
+            AccessOperation::Atomic(AtomicAccessOperation::Load(MemoryOrdering::Publish));
+        let diagnostic = atomic
+            .validate_for_lowering()
+            .expect_err("outward preflight must reject invalid ordering drift");
+        assert!(diagnostic.0.contains("invalid ordering plan"));
+        atomic.request.operation =
+            AccessOperation::Atomic(AtomicAccessOperation::Load(MemoryOrdering::Receive));
+
+        atomic.operation = AtomicAccessOperation::FetchAdd(MemoryOrdering::Receive);
+        let diagnostic = atomic
+            .validate_for_lowering()
+            .expect_err("outward preflight must reject specialization drift");
+        assert!(diagnostic.0.contains("retained specialization"));
+        atomic.operation = AtomicAccessOperation::Load(MemoryOrdering::Receive);
+
+        atomic
+            .validate_for_lowering()
+            .expect("corrected carrier must remain valid for retry");
+        assert_eq!(primitive_request_snapshot(&atomic.request), expected);
+        assert_eq!(
+            atomic.operation(),
+            AtomicAccessOperation::Load(MemoryOrdering::Receive)
+        );
     }
 
     #[test]
