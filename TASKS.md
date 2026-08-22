@@ -2760,8 +2760,12 @@ Remaining N6/N8 work:
   whose multiplicity is not unrestricted, as well as references, slices,
   dynamic traits, const-expression type shells, and explicitly carried data.
   Recursive proof-only nodes and contained structurally copy data remain
-  admissible. Exact owned/routed custody occurrence detection and the
-  representative effect/termination fence remain open.
+  admissible. The direct operation plan now also retains the exact
+  representative machine/state when its locally checked termination summary is
+  unconditional. A missing guarantee or one requiring progress-profile
+  premises retains the termination fence rather than treating those premises
+  as discharged. Exact owned/routed custody occurrence detection and the
+  representative effect fence remain open.
 - Add exact-pair-selected heterogeneous constructor lifts. Dependent records
   lift in order and generate checked transport obligations for coarser earlier
   fields. Extend R6 carrier-family binders for reusable proposition-valued
