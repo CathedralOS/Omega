@@ -1838,7 +1838,14 @@ Remaining:
   remains preferred before landed literals, one-alias transport, direct and
   alias-substituted two-leg transitivity, and two-alias transport. Citation and
   endpoint order, proof shapes, missing, redirected, or mistyped rejection, and
-  every finite evidence frontier are unchanged. Fixed affine root-alias
+  every finite evidence frontier are unchanged.
+  Source-ordered direct retained affine-bound candidates now live in paired,
+  side-local `affine_selection/direct/candidates` modules. Producer and
+  reconstruction independently enumerate requirements before semantic axioms,
+  exact `LessOrEqual` rows, and left-before-right Value endpoints; only the
+  producer retains citation custody. The direct custody completion, proof
+  shape, rejection behavior, and fixed search frontier remain unchanged.
+  Fixed affine root-alias
   completion now lives in independent side-local `affine_selection/alias`
   modules. Production alone adapts the existing origin-indexed one- and two-
   alias substitution proofs into affine completion; reconstruction
