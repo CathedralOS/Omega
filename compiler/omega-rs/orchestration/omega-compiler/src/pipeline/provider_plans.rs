@@ -20,12 +20,14 @@ pub struct SelectedExternalRootProviderPlan {
     pub schema: ServiceSchema,
 }
 
-/// A generated writer whose exact AOT fragment is joined to one admitted
-/// external-root execution and its provider-populated invocation context.
+/// A generated writer whose exact AOT fragment and selected source schema are
+/// joined to one admitted external-root execution and its provider-populated
+/// invocation context.
 /// This is the last address-free orchestration seam before a platform provider
 /// installs and invokes the fragment from the final artifact.
 #[derive(Debug, PartialEq, Eq)]
 pub struct BoundExternalRootPostHandoffWriterInvocation {
+    selected_provider: SelectedExternalRootProviderPlan,
     lowered: omega_instruction_selection::LoweredPostHandoffWriter,
     prepared: omega_external_roots::PreparedExternalRootPostHandoffWriterInvocation,
 }
@@ -36,6 +38,7 @@ pub struct BoundExternalRootPostHandoffWriterInvocation {
 /// This carrier establishes neither consumer semantics nor publication.
 #[derive(Debug)]
 pub struct WrittenBoundExternalRootPostHandoffWriterDestination<'mapping, 'bytes> {
+    selected_provider: SelectedExternalRootProviderPlan,
     lowered: omega_instruction_selection::LoweredPostHandoffWriter,
     written:
         omega_external_roots::WrittenExternalRootPostHandoffWriterDestination<'mapping, 'bytes>,
@@ -63,6 +66,10 @@ impl<'mapping, 'bytes> WrittenBoundExternalRootWriterRecoveryError<'mapping, 'by
 }
 
 impl<'mapping, 'bytes> WrittenBoundExternalRootPostHandoffWriterDestination<'mapping, 'bytes> {
+    pub const fn selected_provider(&self) -> &SelectedExternalRootProviderPlan {
+        &self.selected_provider
+    }
+
     pub const fn lowered(&self) -> &omega_instruction_selection::LoweredPostHandoffWriter {
         &self.lowered
     }
@@ -104,7 +111,7 @@ impl<'mapping, 'bytes> WrittenBoundExternalRootPostHandoffWriterDestination<'map
                     .into(),
             ));
         }
-        Ok(())
+        validate_selected_provider_written_source(&self.selected_provider, &self.written)
     }
 
     pub fn bytes(&self) -> &[u8] {
@@ -132,10 +139,18 @@ impl<'mapping, 'bytes> WrittenBoundExternalRootPostHandoffWriterDestination<'map
                 diagnostic,
             }));
         }
-        let Self { lowered, written } = self;
+        let Self {
+            selected_provider,
+            lowered,
+            written,
+        } = self;
         match written.recover_for_retry(installed_code) {
             Ok((prepared, destination)) => Ok((
-                BoundExternalRootPostHandoffWriterInvocation { lowered, prepared },
+                BoundExternalRootPostHandoffWriterInvocation {
+                    selected_provider,
+                    lowered,
+                    prepared,
+                },
                 destination,
             )),
             Err(error) => {
@@ -143,6 +158,7 @@ impl<'mapping, 'bytes> WrittenBoundExternalRootPostHandoffWriterDestination<'map
                 let written = (*error).into_written();
                 Err(Box::new(WrittenBoundExternalRootWriterRecoveryError {
                     written: WrittenBoundExternalRootPostHandoffWriterDestination {
+                        selected_provider,
                         lowered,
                         written,
                     },
@@ -155,18 +171,20 @@ impl<'mapping, 'bytes> WrittenBoundExternalRootPostHandoffWriterDestination<'map
     pub fn into_parts(
         self,
     ) -> (
+        SelectedExternalRootProviderPlan,
         omega_instruction_selection::LoweredPostHandoffWriter,
         omega_external_roots::WrittenExternalRootPostHandoffWriterDestination<'mapping, 'bytes>,
     ) {
-        (self.lowered, self.written)
+        (self.selected_provider, self.lowered, self.written)
     }
 }
 
-/// A failed AOT/provider-preparation join returns both exact inputs so callers
-/// can inspect or retry them without regenerating lowered bytes or provider
-/// authority.
+/// A failed source-schema/AOT/provider-preparation join returns every exact
+/// input so callers can inspect or retry them without regenerating lowered
+/// bytes or provider authority.
 #[derive(Debug)]
 pub struct ExternalRootPostHandoffWriterBindingError {
+    selected_provider: SelectedExternalRootProviderPlan,
     lowered: omega_instruction_selection::LoweredPostHandoffWriter,
     prepared: omega_external_roots::PreparedExternalRootPostHandoffWriterInvocation,
     diagnostic: psi_diagnostics::Diagnostic,
@@ -180,10 +198,11 @@ impl ExternalRootPostHandoffWriterBindingError {
     pub fn into_parts(
         self,
     ) -> (
+        SelectedExternalRootProviderPlan,
         omega_instruction_selection::LoweredPostHandoffWriter,
         omega_external_roots::PreparedExternalRootPostHandoffWriterInvocation,
     ) {
-        (self.lowered, self.prepared)
+        (self.selected_provider, self.lowered, self.prepared)
     }
 }
 
@@ -234,11 +253,15 @@ impl BoundExternalRootPostHandoffWriterInvocation {
                     .into(),
             ));
         }
-        Ok(())
+        validate_selected_provider_writer_source(&self.selected_provider, &self.prepared)
     }
 
     pub const fn lowered(&self) -> &omega_instruction_selection::LoweredPostHandoffWriter {
         &self.lowered
+    }
+
+    pub const fn selected_provider(&self) -> &SelectedExternalRootProviderPlan {
+        &self.selected_provider
     }
 
     pub const fn prepared(
@@ -268,16 +291,26 @@ impl BoundExternalRootPostHandoffWriterInvocation {
                 diagnostic,
             }));
         }
-        let Self { lowered, prepared } = self;
+        let Self {
+            selected_provider,
+            lowered,
+            prepared,
+        } = self;
         match prepared.execute(installed_code, destination) {
-            Ok(written) => {
-                Ok(WrittenBoundExternalRootPostHandoffWriterDestination { lowered, written })
-            }
+            Ok(written) => Ok(WrittenBoundExternalRootPostHandoffWriterDestination {
+                selected_provider,
+                lowered,
+                written,
+            }),
             Err(prepared_error) => {
                 let diagnostic = prepared_error.diagnostic().clone();
                 let (prepared, destination) = (*prepared_error).into_parts();
                 Err(Box::new(BoundExternalRootWriterExecutionError {
-                    bound: BoundExternalRootPostHandoffWriterInvocation { lowered, prepared },
+                    bound: BoundExternalRootPostHandoffWriterInvocation {
+                        selected_provider,
+                        lowered,
+                        prepared,
+                    },
                     destination,
                     diagnostic,
                 }))
@@ -286,10 +319,79 @@ impl BoundExternalRootPostHandoffWriterInvocation {
     }
 }
 
-/// Join an AOT-lowered writer fragment to provider-execution preparation that
-/// already checked selected closure, installed entry, symbolic sources, and
-/// concrete destination placement.
+fn validate_selected_provider_writer_source(
+    selected_provider: &SelectedExternalRootProviderPlan,
+    prepared: &omega_external_roots::PreparedExternalRootPostHandoffWriterInvocation,
+) -> Result<(), psi_layout_plans::MaterializationDiagnostic> {
+    validate_selected_provider_source(
+        selected_provider,
+        prepared.selected_requirement_identity(),
+        prepared.selected_boundary_parameter_count(),
+        prepared.selected_boundary_contract_fingerprint(),
+        prepared.selected_entry_claims(),
+        prepared.provider_execution().provider_plan(),
+    )
+}
+
+fn validate_selected_provider_written_source(
+    selected_provider: &SelectedExternalRootProviderPlan,
+    written: &omega_external_roots::WrittenExternalRootPostHandoffWriterDestination<'_, '_>,
+) -> Result<(), psi_layout_plans::MaterializationDiagnostic> {
+    validate_selected_provider_source(
+        selected_provider,
+        written.selected_requirement_identity(),
+        written.selected_boundary_parameter_count(),
+        written.selected_boundary_contract_fingerprint(),
+        written.selected_entry_claims(),
+        written.provider_execution().provider_plan(),
+    )
+}
+
+fn validate_selected_provider_source(
+    selected_provider: &SelectedExternalRootProviderPlan,
+    requirement_identity: &str,
+    boundary_parameter_count: usize,
+    boundary_contract_fingerprint: u64,
+    root_entry_claims: &[omega_external_roots::ExternalRootEntryClaim],
+    provider_plan: u64,
+) -> Result<(), psi_layout_plans::MaterializationDiagnostic> {
+    let matches = selected_provider
+        .schema
+        .methods
+        .iter()
+        .filter(|method| method.requirement_identity == requirement_identity)
+        .collect::<Vec<_>>();
+    let [method] = matches.as_slice() else {
+        return Err(psi_layout_plans::MaterializationDiagnostic(format!(
+            "selected external-root provider schema retains {} rows for exact writer requirement `{requirement_identity}`",
+            matches.len()
+        )));
+    };
+    let selected_entry_claims = selected_provider
+        .entry_claims(requirement_identity)
+        .map_err(|diagnostic| psi_layout_plans::MaterializationDiagnostic(diagnostic.0))?;
+    if selected_provider.identity.normalized_identity() != provider_plan
+        || selected_provider.schema.trait_name.is_empty()
+        || method.name.is_empty()
+        || method.requirement_owner.is_empty()
+        || method.parameter_count != boundary_parameter_count
+        || method.parameter_type_identities.len() != method.parameter_count
+        || method.calling_plan_fingerprint != Some(boundary_contract_fingerprint)
+        || selected_entry_claims != root_entry_claims
+    {
+        return Err(psi_layout_plans::MaterializationDiagnostic(
+            "selected external-root provider schema does not match the exact prepared writer requirement, boundary, and provider execution"
+                .into(),
+        ));
+    }
+    Ok(())
+}
+
+/// Join an AOT-lowered writer fragment and retained selected source schema to
+/// provider-execution preparation that already checked selected closure,
+/// installed entry, symbolic sources, and concrete destination placement.
 pub fn bind_external_root_post_handoff_writer_invocation(
+    selected_provider: SelectedExternalRootProviderPlan,
     lowered: omega_instruction_selection::LoweredPostHandoffWriter,
     prepared: omega_external_roots::PreparedExternalRootPostHandoffWriterInvocation,
 ) -> Result<BoundExternalRootPostHandoffWriterInvocation, ExternalRootPostHandoffWriterBindingError>
@@ -298,6 +400,7 @@ pub fn bind_external_root_post_handoff_writer_invocation(
         omega_instruction_selection::validate_lowered_post_handoff_writer(&lowered)
     {
         return Err(ExternalRootPostHandoffWriterBindingError {
+            selected_provider,
             lowered,
             prepared,
             diagnostic,
@@ -310,6 +413,7 @@ pub fn bind_external_root_post_handoff_writer_invocation(
             lowered.fragment().target().architecture
         ));
         return Err(ExternalRootPostHandoffWriterBindingError {
+            selected_provider,
             lowered,
             prepared,
             diagnostic,
@@ -321,6 +425,7 @@ pub fn bind_external_root_post_handoff_writer_invocation(
         || !prepared.context().binds_invocation(lowered.invocation())
     {
         return Err(ExternalRootPostHandoffWriterBindingError {
+            selected_provider,
             lowered,
             prepared,
             diagnostic: psi_diagnostics::Diagnostic::error(
@@ -328,7 +433,20 @@ pub fn bind_external_root_post_handoff_writer_invocation(
             ),
         });
     }
-    Ok(BoundExternalRootPostHandoffWriterInvocation { lowered, prepared })
+    if let Err(diagnostic) = validate_selected_provider_writer_source(&selected_provider, &prepared)
+    {
+        return Err(ExternalRootPostHandoffWriterBindingError {
+            selected_provider,
+            lowered,
+            prepared,
+            diagnostic: psi_diagnostics::Diagnostic::error(diagnostic.0),
+        });
+    }
+    Ok(BoundExternalRootPostHandoffWriterInvocation {
+        selected_provider,
+        lowered,
+        prepared,
+    })
 }
 
 /// Static bridge from one selected external-root `accepts` row to the exact
