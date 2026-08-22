@@ -2642,10 +2642,13 @@ fn runtime_string_stored_suffix_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("runtime string stored-suffix canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("runtime string stored-suffix canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("runtime string stored-suffix canary should run");
 
@@ -2674,10 +2677,13 @@ fn runtime_lookup_struct_field_concat_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("runtime lookup struct field concat canary should compile from its authored root");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("runtime lookup struct field concat canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("runtime lookup struct field concat canary should run");
 
@@ -2709,11 +2715,14 @@ fn runtime_large_lookup_struct_field_concat_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
         "runtime large lookup struct field concat canary should compile from its authored root",
     );
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation.checked_native_executable_path().expect(
+        "runtime large lookup struct field concat canary should retain its executable receipt",
+    );
+    let output = Command::new(executable)
         .output()
         .expect("runtime large lookup struct field concat canary should run");
 
@@ -2745,11 +2754,14 @@ fn runtime_large_room_lookup_struct_field_concat_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
         "runtime large room lookup struct field concat canary should compile from its authored root",
     );
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation.checked_native_executable_path().expect(
+        "runtime large room lookup struct field concat canary should retain its executable receipt",
+    );
+    let output = Command::new(executable)
         .output()
         .expect("runtime large room lookup struct field concat canary should run");
 
@@ -2773,11 +2785,14 @@ fn runtime_call_argument_struct_string_field_slice_alias_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
         "runtime call argument struct string slice alias canary should compile from its authored root",
     );
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation.checked_native_executable_path().expect(
+        "runtime call argument struct string slice alias canary should retain its executable receipt",
+    );
+    let output = Command::new(executable)
         .output()
         .expect("runtime call argument struct string slice alias canary should run");
 
