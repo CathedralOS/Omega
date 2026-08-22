@@ -1455,8 +1455,15 @@ Remaining:
   independently repeats direct custody, cast/remap, strict post-cast boundary,
   and affine checks. Real divide/remainder source passes v19 codec, mutation,
   verification, interpretation, and existing host-native exact-divide gates.
-  Shift/cast, joins, correlated, and broader affine/cast shapes remain trusted,
-  with fully-derived false unchanged.
+  One exact forward affine/cast/affine sibling now also composes a directly
+  cited root bound through one finite pre-cast affine word, the unique nonempty
+  cast spine, and one strictly post-cast affine word, producing
+  `IntegerAffineBound(IntegerCastBound(IntegerAffineBound(Assumption)))`.
+  Reconstruction independently replays both witnesses, strict boundaries,
+  endpoint conversion, and cast custody; real divide/remainder source and
+  host-native gates are green. No inverse/alias search, schema, trust-status,
+  or fixed-frontier change is made. Shift/cast, joins, correlated, and broader
+  affine/cast shapes remain trusted, with fully-derived false unchanged.
   The corresponding direct same-carrier family now retains all four nonempty
   divide/remainder-to-affine/shift compositions without a cast. A leading
   divide/remainder chain supplies its complete verifier-owned carrier hull to
