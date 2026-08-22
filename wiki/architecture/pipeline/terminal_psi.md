@@ -1994,11 +1994,16 @@ same-carrier `root == alias` citation may instead transport one directly cited
 canonical bound at that alias. Its fixed proof nests one
 `IntegerLessOrEqualSubstitution` under `IntegerCastBound`; verification repeats
 the same exact equality/bound selection. Missing, redirected, cross-carrier, or
-weaker bounds reject. The constructor does not recurse or strengthen the alias
-bound. One fixed sibling may instead land that alias through exactly one
-same-carrier `alias == literal` citation. It proves the closed canonical bridge,
-substitutes the alias, substitutes the root, then applies `IntegerCastBound`;
-production and verification select the same two exact equalities. Missing,
+weaker bounds reject. One closed source-carrier endpoint bridge may also
+strengthen the cited alias bound. Its fixed proof nests
+`IntegerLessOrEqualTransitivity` under the one substitution; exact alias bounds
+remain preferred. Production and verification recheck the same bound, bridge,
+and equality. They do not search alternate bounds or aliases, and a weaker
+bridge rejects. One fixed sibling may instead land that alias through exactly
+one same-carrier `alias == literal` citation. It proves the closed canonical
+bridge, substitutes the alias, substitutes the root, then applies
+`IntegerCastBound`; production and verification select the same two exact
+equalities. Missing,
 reused, redirected, mistyped, or weaker literals reject. A second alias,
 affine/cast, shift/cast, joins, and correlated results remain outside this
 sibling; neither complete exact row changes trust and `fully-derived false`
