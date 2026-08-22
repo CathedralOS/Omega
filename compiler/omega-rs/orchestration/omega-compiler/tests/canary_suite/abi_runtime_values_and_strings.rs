@@ -1858,7 +1858,7 @@ fn value_call_entry_host_state_payload_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
+    let compilation = compile(CompileOptions {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
@@ -1866,8 +1866,11 @@ fn value_call_entry_host_state_payload_canary_runs() {
     })
     .expect("entry-host-state payload canary should compile");
 
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("entry-host-state payload canary should retain its executable receipt");
     for (stdin, expected) in [(&b"ok\n"[..], 70), (&b"no\n"[..], 75)] {
-        let mut child = Command::new(build_dir.join(executable_name()))
+        let mut child = Command::new(executable)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .spawn()
@@ -1907,7 +1910,7 @@ fn contained_health_loop_command_branch_carrier_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
+    let compilation = compile(CompileOptions {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
@@ -1915,7 +1918,10 @@ fn contained_health_loop_command_branch_carrier_canary_runs() {
     })
     .expect("carrier health-loop canary should compile");
 
-    let mut child = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("carrier health-loop canary should retain its executable receipt");
+    let mut child = Command::new(executable)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .spawn()
@@ -1957,10 +1963,13 @@ fn runtime_stdin_line_buffering_carrier_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("carrier line buffering canary should compile from its authored root");
 
-    let mut child = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("carrier line buffering canary should retain its executable receipt");
+    let mut child = Command::new(executable)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .spawn()
@@ -2000,8 +2009,9 @@ fn runtime_text_storage_carrier_canary_runs() {
         std::env::temp_dir().join(format!("omega-runtime-text-storage-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host_with_auxiliary_artifacts(&canary, build_dir.clone())
-        .expect("carrier text storage canary should compile from its authored root");
+    let compilation =
+        compile_rooted_canary_for_native_host_with_auxiliary_artifacts(&canary, build_dir.clone())
+            .expect("carrier text storage canary should compile from its authored root");
 
     let report = fs::read_to_string(build_dir.join("backend_report.txt"))
         .expect("carrier text storage backend report should exist");
@@ -2010,7 +2020,10 @@ fn runtime_text_storage_carrier_canary_runs() {
         "carrier read must use the destination's 64-byte capacity, not the legacy String scratch capacity:\n{report}"
     );
 
-    let mut child = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("carrier text storage canary should retain its executable receipt");
+    let mut child = Command::new(executable)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .spawn()
@@ -2052,10 +2065,13 @@ fn runtime_stderr_write_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-runtime-stderr-write-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("runtime stderr write canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("runtime stderr write canary should retain its executable receipt");
+    let output = Command::new(executable)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .output()
