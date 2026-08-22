@@ -1813,7 +1813,13 @@ Remaining:
   pruning grants no proof authority: mapped-bound construction, optional closed
   relaxation, and final proof or retained-bound checking remain in each side's
   affine-custody parent. Witness order, rejection behavior, proof shapes, and
-  the finite frontier are unchanged.
+  the finite frontier are unchanged. Affine frontier prefix replay now lives in
+  paired, side-local `affine_custody/frontier/prefix` modules. Producer and
+  reconstruction independently validate each indexed equality row, retain
+  left-before-right Value-target precedence, and ask the proof kernel to replay
+  the exact accumulated definition word before that prefix advances. Fixed-
+  depth frontier expansion, proof shape, rejection behavior, and the four-
+  definition boundary remain unchanged.
   Ordered affine-witness candidates now live in paired, side-local
   `affine_custody/candidates` modules. Producer and reconstruction independently
   require an exact `LessOrEqual` goal, enumerate left-before-right Value targets
@@ -3953,6 +3959,13 @@ Owners:
   hashing, CRC32, Base64 encoding, and run-length encoding—now launch solely
   through checked-report receipts while preserving status 70 and exact hash/
   encoding diagnostics. Numeric-conversion, rendering, exceptional,
+  interactive, report-bearing, float/cast, policy, and automaton owners remain
+  excluded; exact-owner pins remain stable.
+  Five further authored-root text/byte executions—binary formatting, substring
+  search, string palindrome checking, bounded-carrier byte writes, and slice-
+  length field access—now launch solely through checked-report receipts while
+  preserving literal statuses 70/5 and exact formatting/search/content
+  diagnostics. Numeric-conversion, rendering, coercion, exceptional,
   interactive, report-bearing, float/cast, policy, and automaton owners remain
   excluded; exact-owner pins remain stable.
   Final
