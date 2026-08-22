@@ -1909,8 +1909,13 @@ certificate. A nonclosed, mistyped, redirected, or weaker bridge rejects, and
 no variable-endpoint or cited-fact search is added.
 Affine completion now lives in dedicated, side-local `affine_custody` modules.
 Production and verification independently own the fixed four-definition
-witness frontier, exact mapped bound, and optional closed relaxation; retained
-evidence selection remains in their broader engines and no authority is shared.
+witness frontier, exact mapped bound, and optional closed relaxation; no
+authority is shared.
+Affine evidence selection now lives in dedicated, side-local
+`affine_selection` modules. Production and verification independently preserve
+the exact preference order across direct, literal-landed, fixed one-/two-alias,
+and exactly-two-leg transitive custody before invoking affine completion; no
+generic path search or additional evidence shape is introduced.
 One exact prior value equality may also transport a completed affine bound from
 its checked target alias to the canonical goal endpoint. The producer replaces
 that one endpoint, constructs the bounded affine relation directly, and wraps
