@@ -135,6 +135,12 @@ pub fn bind_opaque_adapter_stack_realization(
             "opaque adapter stack realization names no exact installed entry".into(),
         )
     })?;
+    if boundary.plan().state.initial_regime.architecture() != installed_code.architecture() {
+        return Err(ExternalRootDiagnostic(
+            "opaque adapter stack realization target differs from the installed artifact architecture"
+                .into(),
+        ));
+    }
     if summary.stack != boundary.plan().state.stack {
         return Err(ExternalRootDiagnostic(
             "opaque adapter stack summary drifted from the boundary plan's stack disposition"
