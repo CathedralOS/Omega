@@ -48,10 +48,17 @@ pub(super) struct DirectTerminalRelationPlan {
     pub(super) input_relations: Vec<InputRelation>,
     pub(super) result_relation: ExactQuotientRelation,
     pub(super) representative: RepresentativeTelescope,
+    pub(super) representative_termination: Option<RepresentativeTermination>,
     pub(super) define_correspondence: Option<DefineRuntimeCorrespondence>,
     pub(super) public_precondition: Option<RepresentativePreconditionPartition>,
     pub(super) representative_precondition: Option<RepresentativePreconditionPartition>,
     pub(super) define_precondition_correspondence: Option<DefinePreconditionCorrespondence>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) struct RepresentativeTermination {
+    pub(super) machine_symbol: SymbolHandle,
+    pub(super) state_symbol: SymbolHandle,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -289,6 +296,8 @@ pub(super) fn derive_direct_terminal_plan(
         }
     };
     let representative = derive_representative_telescope(program, request)?;
+    let representative_termination =
+        unconditional_representative_termination(program, &representative);
     let define_correspondence = (request.kind == QuotientOperationKind::Define)
         .then(|| {
             derive_define_runtime_correspondence(
@@ -334,11 +343,37 @@ pub(super) fn derive_direct_terminal_plan(
         input_relations,
         result_relation,
         representative,
+        representative_termination,
         define_correspondence,
         public_precondition,
         representative_precondition,
         define_precondition_correspondence,
     })
+}
+
+/// Retain the exact local termination summary only when it is unconditional.
+/// Progress-profile premises are observable admission dependencies and cannot
+/// be silently discharged by the initial quotient wrapper.
+fn unconditional_representative_termination(
+    program: &TypedTrees,
+    representative: &RepresentativeTelescope,
+) -> Option<RepresentativeTermination> {
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == representative.machine_symbol)?;
+    match &machine.termination_plan.checked_summary {
+        psi_language_semantics::TerminationGuarantee::Terminates { premises }
+            if premises.is_empty() =>
+        {
+            Some(RepresentativeTermination {
+                machine_symbol: representative.machine_symbol,
+                state_symbol: representative.state_symbol,
+            })
+        }
+        psi_language_semantics::TerminationGuarantee::NoGuarantee
+        | psi_language_semantics::TerminationGuarantee::Terminates { .. } => None,
+    }
 }
 
 pub(super) fn fallthrough_result_root(
@@ -1178,6 +1213,16 @@ impl DirectTerminalRelationPlan {
         )
     }
 
+    pub(super) fn render_representative_termination(&self) -> Option<String> {
+        self.representative_termination.map(|termination| {
+            format!(
+                "unconditional-termination=machine#{}:state#{}",
+                termination.machine_symbol.arena_index(),
+                termination.state_symbol.arena_index(),
+            )
+        })
+    }
+
     pub(super) fn render_define_correspondence(&self) -> Option<String> {
         self.define_correspondence.as_ref().map(|correspondence| {
             format!(
@@ -1240,7 +1285,7 @@ mod tests {
         derive_direct_terminal_plan, derive_exact_representative_static_application,
         derive_public_precondition_partition, derive_representative_precondition_partition,
         derive_representative_telescope, fallthrough_result_root, immutable_alias_fallthrough_root,
-        substituted_type_matches,
+        substituted_type_matches, unconditional_representative_termination,
     };
     use psi_arena::HandleSpan;
     use psi_symbols::SymbolHandle;
@@ -1724,6 +1769,65 @@ mod tests {
         assert_eq!(
             derive_representative_telescope(&program, &request),
             Err(RelationPlanError::RepresentativeEntryDoesNotResolveExactly)
+        );
+    }
+
+    #[test]
+    fn representative_termination_retains_only_unconditional_checked_summary() {
+        fn telescope_with_summary(
+            summary: psi_language_semantics::TerminationGuarantee,
+        ) -> (TypedTrees, RepresentativeTelescope) {
+            let mut program = TypedTrees::default();
+            let result_type = program.type_reference_table.insert(TypeReferenceNode::Unit);
+            let mut machine = Machine {
+                symbol: symbol(94),
+                termination_plan: psi_language_semantics::MachineTerminationPlan {
+                    checked_summary: summary,
+                    ..Default::default()
+                },
+                ..Default::default()
+            };
+            program.push_machine_state(
+                &mut machine,
+                State {
+                    symbol: symbol(95),
+                    return_type: result_type,
+                    ..Default::default()
+                },
+            );
+            program.push_machine(machine);
+            let telescope =
+                derive_representative_telescope(&program, &request_with_representative(symbol(95)))
+                    .expect("exact representative telescope");
+            (program, telescope)
+        }
+
+        let (program, telescope) =
+            telescope_with_summary(psi_language_semantics::TerminationGuarantee::Terminates {
+                premises: Vec::new(),
+            });
+        assert_eq!(
+            unconditional_representative_termination(&program, &telescope),
+            Some(super::RepresentativeTermination {
+                machine_symbol: symbol(94),
+                state_symbol: symbol(95),
+            })
+        );
+
+        let (program, telescope) =
+            telescope_with_summary(psi_language_semantics::TerminationGuarantee::Terminates {
+                premises: vec![psi_language_semantics::ProgressProfileId(1)],
+            });
+        assert_eq!(
+            unconditional_representative_termination(&program, &telescope),
+            None,
+        );
+
+        let (program, telescope) =
+            telescope_with_summary(psi_language_semantics::TerminationGuarantee::NoGuarantee);
+        assert_eq!(
+            unconditional_representative_termination(&program, &telescope),
+            None,
         );
     }
 
