@@ -4382,6 +4382,14 @@ Owners:
   the exact two-specialization count, and all materialization and layout
   diagnostics. The 795 rooted/3 legacy exact-owner pins and all established
   fences remain unchanged.
+  Affine-literal equality catalogs now use paired, side-local stateless ordered
+  iterators rather than one-shot wrapper structs. Producer and reconstruction
+  independently enumerate assumptions or requirements before semantic axioms
+  and left-before-right orientation for direct discovery, outer alias
+  discovery, and landing-index construction; only the producer iterator
+  attaches citation custody. Consumer eligibility, per-alias landing order,
+  direct-before-alias precedence, proof shapes, rejection behavior, and the
+  fixed affine-literal frontier remain unchanged.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
