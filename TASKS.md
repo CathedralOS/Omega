@@ -2366,6 +2366,14 @@ Remaining:
   still enumerate independently; source/citation order, endpoint precedence,
   root custody, proof shapes, rejection behavior, and every fixed affine
   frontier remain unchanged.
+  One-alias affine-literal landing indexes now own the exact indexed inner-row
+  join. Both sides independently reject reuse of the outer equality as the
+  landing row; production alone converts the selected inner citation into its
+  proof before completion, while reconstruction retains the matching
+  proposition. Outer equality/source order, root same-carrier validation,
+  nested outer-then-inner proof shape, direct-before-alias precedence,
+  rejection behavior, and the fixed one-intermediate-alias frontier remain
+  unchanged.
   One-equality transitive affine completion now lives in independent side-local
   `affine_selection/transitive/alias/completion` modules. Each parent retains
   its own ledger-ordered equality discovery, distinct root/alias custody, and
@@ -4699,6 +4707,13 @@ Owners:
   Exact-owner ambiguity, the 795 rooted/3 legacy inventory, and receipt-drift
   fences remain green; loop/automaton and numeric-conversion owners stay
   fenced.
+  Five authored-root subslice-range executions—runtime-end ranges, nested
+  parameter subslices, runtime-start-over-local ranges, inclusive-end parameter
+  ranges, and range-length materialization—now launch solely through exact
+  checked-report executable receipts while preserving literal exits 70 and 203
+  and all detailed descriptor diagnostics. Exact-owner ambiguity, the 795
+  rooted/3 legacy inventory, and receipt-drift fences remain green; loop/
+  automaton and numeric-conversion owners stay fenced.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
