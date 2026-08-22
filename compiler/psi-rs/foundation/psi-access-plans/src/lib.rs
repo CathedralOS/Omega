@@ -51,7 +51,7 @@ pub use corresponded_stable_compound::{
     CorrespondedStableCompoundMutationAccessRejection,
     CorrespondedStableCompoundMutationAccessRequest,
 };
-pub use field_projection::PlacedFieldProjection;
+pub use field_projection::{PlacedFieldAccess, PlacedFieldProjection};
 pub use owned_resident_custody::adopt_owned_stable;
 pub use placement_admission::{admit_owned_placement, admit_placement, place};
 pub use primitive_specialization::{
@@ -1254,81 +1254,6 @@ pub struct PlacedView<'extent> {
 pub struct PlacedViewRetirementError<'extent> {
     view: PlacedView<'extent>,
     diagnostic: AccessPlanDiagnostic,
-}
-
-/// Sealed lowering input carrying both authorized field geometry and the
-/// exact borrowed or established-owned authority from which its polarity was
-/// derived.
-#[derive(Debug)]
-pub struct PlacedFieldAccess<'view, 'extent> {
-    access: AuthorizedFieldAccess,
-    primitive_address: u64,
-    plan: PlacementPlanId,
-    profile_receipt: ResourceProfileReceiptId,
-    supply: EffectiveFieldSupply,
-    reach: BoundaryReach,
-    admission: PlacementAdmissionId,
-    resident_claim: Option<ResidentClaimId>,
-    placed_occurrence: Option<PlacedOccurrenceId>,
-    _authority: PlacementAuthorityRef<'view, 'extent>,
-}
-
-impl<'view, 'extent> PlacedFieldAccess<'view, 'extent> {
-    pub const fn access(&self) -> &AuthorizedFieldAccess {
-        &self.access
-    }
-
-    pub const fn primitive_address(&self) -> u64 {
-        self.primitive_address
-    }
-
-    pub const fn resident_claim(&self) -> Option<ResidentClaimId> {
-        self.resident_claim
-    }
-
-    pub const fn placed_occurrence(&self) -> Option<PlacedOccurrenceId> {
-        self.placed_occurrence
-    }
-
-    pub const fn correspondence(&self) -> Option<&AdmittedSchemaDeviceCorrespondence> {
-        self._authority.correspondence()
-    }
-
-    /// Consume one authorized access event into the only request primitive
-    /// lowering accepts.
-    ///
-    /// The request remains bound to the normalized plan, exact admission and
-    /// source loan, address, width, observation model, operation ordering, and
-    /// static service reach that produced it. It contains no author-supplied
-    /// offset.
-    pub fn into_primitive_request(self) -> PrimitiveAccessRequest<'view, 'extent> {
-        let descriptor = self.access.descriptor.clone();
-        PrimitiveAccessRequest {
-            plan: self.plan,
-            profile_receipt: self.profile_receipt,
-            effective_supply: self.supply,
-            admission: self.admission,
-            primitive_address: self.primitive_address,
-            key: descriptor.key,
-            field: descriptor.field.clone(),
-            transfer_width_bits: descriptor.transfer_width_bits,
-            logical_extent: descriptor.logical_extent.clone(),
-            effect_footprint: EffectFootprint {
-                address: self.primitive_address,
-                length_bytes: descriptor.effect_footprint.length_bytes,
-            },
-            observation: descriptor.observation,
-            current_borrow: self.access.current_borrow,
-            source_loan: self.access.source_loan,
-            operation: self.access.operation,
-            reach: self.reach,
-            resident_claim: self.resident_claim,
-            placed_occurrence: self.placed_occurrence,
-            descriptor,
-            authorization: self.access,
-            _authority: self._authority,
-        }
-    }
 }
 
 /// Canonical input to target-specific placed-memory lowering.
