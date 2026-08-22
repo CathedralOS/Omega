@@ -2,7 +2,9 @@
 
 use psi_core::{Proposition, ScalarTerm};
 
-use super::index::{distinct_same_carrier_values, indexed_bounds, substitute_bound_endpoint};
+use super::index::{distinct_same_carrier_values, indexed_bounds};
+
+mod completion;
 
 pub(super) fn retained(
     requirements: &[Proposition],
@@ -43,7 +45,7 @@ pub(super) fn retained(
                             bounds_by_endpoint.get(bound_alias).is_some_and(|bounds| {
                                 bounds.iter().any(|(relation, endpoint)| {
                                     let root_bound =
-                                        substitute_bound_endpoint(relation, root, *endpoint);
+                                        completion::retained(relation, root, *endpoint);
                                     complete(root, &root_bound)
                                 })
                             })
