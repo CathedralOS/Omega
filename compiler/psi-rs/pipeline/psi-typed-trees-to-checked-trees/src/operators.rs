@@ -12,7 +12,10 @@ use psi_typed_trees::TypedTrees;
 use psi_typed_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, TableCallExpression, TableIndexedExpression,
 };
-use psi_typed_trees::operator::{SpelledOperator, resolve_spelling_for_operands};
+use psi_typed_trees::operator::{
+    SelectedTraitOperatorMeaning, SpelledOperator, resolve_spelling_for_operands,
+    selected_trait_operator_meanings,
+};
 use psi_typed_trees::types::{PrimitiveType, TypeReferenceHandle};
 
 mod receiver;
@@ -425,6 +428,19 @@ fn binary_operator_use_fact(
     operand_types: &[Option<TypeReferenceHandle>],
     candidate_facts: &mut Arena<CheckedOperatorCandidateFact>,
 ) -> Option<CheckedOperatorUseFact> {
+    let trait_candidates = origin_machine_symbol(origin).map_or_else(Vec::new, |machine_symbol| {
+        selected_trait_operator_meanings(program, machine_symbol, spelling, operand_types)
+    });
+    if !trait_candidates.is_empty() {
+        return Some(trait_operator_use_fact(
+            program,
+            expression,
+            origin,
+            spelling,
+            trait_candidates,
+            candidate_facts,
+        ));
+    }
     let candidates = resolve_spelling_for_operands(program, spelling, operand_types);
     if candidates.is_empty() {
         return None;
@@ -523,6 +539,19 @@ fn operator_use_fact(
     operand_types: &[Option<TypeReferenceHandle>],
     candidate_facts: &mut Arena<CheckedOperatorCandidateFact>,
 ) -> CheckedOperatorUseFact {
+    let trait_candidates = origin_machine_symbol(origin).map_or_else(Vec::new, |machine_symbol| {
+        selected_trait_operator_meanings(program, machine_symbol, spelling, operand_types)
+    });
+    if !trait_candidates.is_empty() {
+        return trait_operator_use_fact(
+            program,
+            expression,
+            origin,
+            spelling,
+            trait_candidates,
+            candidate_facts,
+        );
+    }
     let candidates = resolve_spelling_for_operands(program, spelling, operand_types);
     let candidate_count = candidates.len();
     let candidate_span = candidate_facts.insert_many(
@@ -547,6 +576,84 @@ fn operator_use_fact(
         (
             CheckedOperatorResolutionStatus::Missing,
             SymbolHandle::invalid(),
+        )
+    } else {
+        (
+            CheckedOperatorResolutionStatus::Ambiguous,
+            SymbolHandle::invalid(),
+        )
+    };
+
+    CheckedOperatorUseFact {
+        expression,
+        origin,
+        spelling,
+        policy_adapter: CheckedArithmeticPolicyAdapter::None,
+        provider_plan_identity: 0,
+        selected_operator_symbol,
+        candidates: candidate_span,
+        candidate_count,
+        status,
+    }
+}
+
+fn origin_machine_symbol(origin: CheckedValueOrigin) -> Option<SymbolHandle> {
+    match origin {
+        CheckedValueOrigin::MachineDecrease { machine_symbol, .. }
+        | CheckedValueOrigin::MachineOwnedDataInitializer { machine_symbol, .. }
+        | CheckedValueOrigin::StateStatement { machine_symbol, .. } => Some(machine_symbol),
+        CheckedValueOrigin::NestedExpression { .. } => None,
+    }
+}
+
+fn trait_operator_use_fact(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    origin: CheckedValueOrigin,
+    spelling: OperatorSpelling,
+    candidates: Vec<SelectedTraitOperatorMeaning<'_>>,
+    candidate_facts: &mut Arena<CheckedOperatorCandidateFact>,
+) -> CheckedOperatorUseFact {
+    let candidate_count = candidates.len();
+    let candidate_span = candidate_facts.insert_many(candidates.iter().map(|candidate| {
+        CheckedOperatorCandidateFact::trait_backed(
+            candidate.requirement.symbol,
+            candidate.application.declaration,
+            candidate.row.realization_machine,
+            candidate.row.realization_state,
+            candidate.application.fingerprint,
+        )
+        .with_signature(
+            program
+                .state_signature_parameters(candidate.requirement)
+                .iter()
+                .find(|parameter| parameter.is_self)
+                .or_else(|| {
+                    program
+                        .state_signature_parameters(candidate.requirement)
+                        .iter()
+                        .find(|parameter| !parameter.is_self)
+                })
+                .map(|parameter| parameter.type_reference)
+                .unwrap_or_else(TypeReferenceHandle::invalid),
+            candidate.requirement.return_type,
+            candidate.requirement.contracts,
+            program
+                .trait_type_parameters(candidate.trait_definition)
+                .len()
+                + program
+                    .state_signature_type_parameters(candidate.requirement)
+                    .len(),
+            program
+                .state_signature_parameters(candidate.requirement)
+                .len(),
+            candidate.trait_definition.is_boundary,
+        )
+    }));
+    let (status, selected_operator_symbol) = if let [candidate] = candidates.as_slice() {
+        (
+            CheckedOperatorResolutionStatus::Resolved,
+            candidate.requirement.symbol,
         )
     } else {
         (

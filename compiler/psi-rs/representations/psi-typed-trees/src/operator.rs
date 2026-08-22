@@ -446,6 +446,7 @@ fn operator_matches_operands(
                     program,
                     actual,
                     expected.type_reference,
+                    None,
                     type_parameters,
                     &mut bindings,
                 ) && declared_domain_constraints_match(program, actual, expected.type_reference)
@@ -541,29 +542,164 @@ fn operator_matches_receiver(
         program,
         receiver_type,
         receiver_parameter.type_reference,
+        None,
         program.operator_type_parameters(operator),
         &mut Vec::new(),
     )
+}
+
+/// Whether one exact selected conformance application supplies this
+/// trait-owned fixed-token requirement for the complete operand tuple.
+///
+/// The application is already the proof-static binder selected by generic
+/// specialization. Matching therefore consults no visible conformance set: it
+/// binds the trait's `Self` owner and declared type parameters from the
+/// requirement telescope, then checks those bindings against the closed
+/// application's retained subject and trait arguments.
+pub fn trait_operator_matches_application(
+    program: &TypedTrees,
+    trait_definition: &crate::trait_definition::TraitDefinition,
+    requirement: &crate::signature::StateSignature,
+    application: &crate::typed_trees::ClosedConformanceApplication,
+    operand_types: &[Option<TypeReferenceHandle>],
+) -> bool {
+    let parameters = program.state_signature_parameters(requirement);
+    if parameters.len() != operand_types.len() || operand_types.iter().all(Option::is_none) {
+        return false;
+    }
+
+    let type_parameters = program
+        .trait_type_parameters(trait_definition)
+        .iter()
+        .chain(program.state_signature_type_parameters(requirement))
+        .cloned()
+        .collect::<Vec<_>>();
+    let mut bindings = Vec::new();
+    if !operand_types
+        .iter()
+        .zip(normalized_operand_parameters(parameters))
+        .all(|(actual, expected)| {
+            actual.is_none_or(|actual| {
+                type_reference_matches(
+                    program,
+                    actual,
+                    expected.type_reference,
+                    Some(trait_definition.symbol),
+                    &type_parameters,
+                    &mut bindings,
+                )
+            })
+        })
+    {
+        return false;
+    }
+
+    let binding_identity = |symbol| {
+        bindings.iter().find_map(|(bound, actual)| {
+            (*bound == symbol).then(|| program.display_type_reference(*actual))
+        })
+    };
+    if let Some(subject) = binding_identity(trait_definition.symbol)
+        && application.subject_identity.as_deref() != Some(subject.as_str())
+    {
+        return false;
+    }
+    application.trait_definition != trait_definition.symbol
+        || program
+            .trait_type_parameters(trait_definition)
+            .iter()
+            .zip(&application.trait_arguments)
+            .all(|(parameter, expected)| {
+                binding_identity(parameter.symbol).is_none_or(|actual| actual == *expected)
+            })
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct SelectedTraitOperatorMeaning<'program> {
+    pub trait_definition: &'program crate::trait_definition::TraitDefinition,
+    pub requirement: &'program crate::signature::StateSignature,
+    pub application: &'program crate::typed_trees::ClosedConformanceApplication,
+    pub row: &'program crate::typed_trees::ClosedConformanceRowIdentity,
+}
+
+/// Fixed-token meanings supplied by the proof-static conformance applications
+/// already selected on one specialized machine. This is the sole lookup: it
+/// walks no package-visible conformance declarations and cannot manufacture an
+/// application from operand types.
+pub fn selected_trait_operator_meanings<'program>(
+    program: &'program TypedTrees,
+    machine_symbol: SymbolHandle,
+    spelling: OperatorSpelling,
+    operand_types: &[Option<TypeReferenceHandle>],
+) -> Vec<SelectedTraitOperatorMeaning<'program>> {
+    let Some(specialization) = program
+        .machine_specializations
+        .iter()
+        .find(|specialization| specialization.instance == machine_symbol)
+    else {
+        return Vec::new();
+    };
+
+    specialization
+        .conformance_applications
+        .iter()
+        .flat_map(|application| {
+            application.rows.iter().filter_map(move |row| {
+                let trait_definition = program
+                    .traits()
+                    .iter()
+                    .find(|candidate| candidate.symbol == row.declaring_trait)?;
+                let requirement = program
+                    .trait_machine_signatures(trait_definition)
+                    .iter()
+                    .find(|candidate| candidate.symbol == row.requirement)?;
+                (requirement.spelling == Some(spelling)
+                    && trait_operator_matches_application(
+                        program,
+                        trait_definition,
+                        requirement,
+                        application,
+                        operand_types,
+                    ))
+                .then_some(SelectedTraitOperatorMeaning {
+                    trait_definition,
+                    requirement,
+                    application,
+                    row,
+                })
+            })
+        })
+        .collect()
 }
 
 fn type_reference_matches(
     program: &TypedTrees,
     actual: TypeReferenceHandle,
     expected: TypeReferenceHandle,
+    bindable_owner: Option<SymbolHandle>,
     type_parameters: &[TypeParameter],
     bindings: &mut Vec<(SymbolHandle, TypeReferenceHandle)>,
 ) -> bool {
     if !actual.is_valid() || !expected.is_valid() {
         return false;
     }
-    if let Some(type_parameter) = expected_type_parameter(program, expected, type_parameters) {
+    if let Some(bindable_symbol) =
+        expected_bindable_symbol(program, expected, bindable_owner, type_parameters)
+    {
         if let Some((_, bound_actual)) = bindings
             .iter()
-            .find(|(symbol, _)| *symbol == type_parameter.symbol)
+            .find(|(symbol, _)| *symbol == bindable_symbol)
         {
-            return type_reference_matches(program, actual, *bound_actual, &[], &mut Vec::new());
+            return type_reference_matches(
+                program,
+                actual,
+                *bound_actual,
+                None,
+                &[],
+                &mut Vec::new(),
+            );
         }
-        bindings.push((type_parameter.symbol, actual));
+        bindings.push((bindable_symbol, actual));
         return true;
     }
 
@@ -589,6 +725,7 @@ fn type_reference_matches(
                     program,
                     *actual_referee,
                     *expected_referee,
+                    bindable_owner,
                     type_parameters,
                     bindings,
                 )
@@ -599,14 +736,28 @@ fn type_reference_matches(
                 ..
             },
             _,
-        ) => type_reference_matches(program, *actual_base, expected, type_parameters, bindings),
+        ) => type_reference_matches(
+            program,
+            *actual_base,
+            expected,
+            bindable_owner,
+            type_parameters,
+            bindings,
+        ),
         (
             _,
             TypeReferenceNode::Constrained {
                 base_type: expected_base,
                 ..
             },
-        ) => type_reference_matches(program, actual, *expected_base, type_parameters, bindings),
+        ) => type_reference_matches(
+            program,
+            actual,
+            *expected_base,
+            bindable_owner,
+            type_parameters,
+            bindings,
+        ),
         (
             TypeReferenceNode::FixedArray {
                 element_type: actual_element,
@@ -622,6 +773,7 @@ fn type_reference_matches(
                     program,
                     *actual_element,
                     *expected_element,
+                    bindable_owner,
                     type_parameters,
                     bindings,
                 )
@@ -637,6 +789,7 @@ fn type_reference_matches(
             program,
             *actual_element,
             *expected_element,
+            bindable_owner,
             type_parameters,
             bindings,
         ),
@@ -673,6 +826,7 @@ fn type_reference_matches(
                     program,
                     *actual_arguments,
                     *expected_arguments,
+                    bindable_owner,
                     type_parameters,
                     bindings,
                 )
@@ -686,6 +840,7 @@ fn type_reference_spans_match(
     program: &TypedTrees,
     actual: HandleSpan<TypeReferenceHandle>,
     expected: HandleSpan<TypeReferenceHandle>,
+    bindable_owner: Option<SymbolHandle>,
     type_parameters: &[TypeParameter],
     bindings: &mut Vec<(SymbolHandle, TypeReferenceHandle)>,
 ) -> bool {
@@ -695,8 +850,36 @@ fn type_reference_spans_match(
         .type_reference_handles(expected);
     actual.len() == expected.len()
         && actual.iter().zip(expected).all(|(actual, expected)| {
-            type_reference_matches(program, *actual, *expected, type_parameters, bindings)
+            type_reference_matches(
+                program,
+                *actual,
+                *expected,
+                bindable_owner,
+                type_parameters,
+                bindings,
+            )
         })
+}
+
+fn expected_bindable_symbol(
+    program: &TypedTrees,
+    expected: TypeReferenceHandle,
+    bindable_owner: Option<SymbolHandle>,
+    type_parameters: &[TypeParameter],
+) -> Option<SymbolHandle> {
+    let (symbol, _) = match program.type_reference_table.type_reference(expected) {
+        TypeReferenceNode::Named { symbol, name }
+        | TypeReferenceNode::Generic {
+            base_symbol: symbol,
+            base_name: name,
+            ..
+        } => (*symbol, name),
+        _ => return None,
+    };
+    if symbol.is_valid() && Some(symbol) == bindable_owner {
+        return Some(symbol);
+    }
+    expected_type_parameter(program, expected, type_parameters).map(|parameter| parameter.symbol)
 }
 
 fn expected_type_parameter<'a>(

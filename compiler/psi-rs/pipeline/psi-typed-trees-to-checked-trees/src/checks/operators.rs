@@ -73,7 +73,12 @@ fn ambiguous_operator_diagnostic(
         .iter()
         .map(|candidate| {
             let operator = symbol_name(program, candidate.operator_symbol);
-            if candidate.domain_symbol.is_valid() {
+            if candidate.is_trait_backed() {
+                format!(
+                    "`{operator}` selected by proof-static conformance `{}`",
+                    symbol_name(program, candidate.conformance_symbol)
+                )
+            } else if candidate.domain_symbol.is_valid() {
                 format!(
                     "`{operator}` owned by domain `{}`",
                     symbol_name(program, candidate.domain_symbol)
