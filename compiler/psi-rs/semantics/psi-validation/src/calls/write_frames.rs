@@ -21,6 +21,7 @@ mod assignment_targets;
 mod boundary_calls;
 mod call_targets;
 mod demand;
+mod isolated_initializers;
 mod isolation;
 mod local_aliases;
 mod parameter_aliases;
@@ -47,10 +48,11 @@ pub(super) use call_targets::machine_state_by_symbol;
 pub use demand::{CallFrameResolver, frame_paths_overlap};
 use demand::{collect_expression_call_written_paths, syntactic_call_written_paths};
 pub(crate) use demand::{conservative_call_written_paths, statement_value_expression_roots};
+use isolated_initializers::isolated_local_initializer_preserves_transparent_result;
 use isolation::{
-    isolated_local_initializer_call_tree_is_bounded, struct_literal_field_is_primitive,
-    struct_literal_field_type, struct_literal_matches_expected_type,
-    struct_literal_type_is_caller_isolated, type_is_caller_isolated_local,
+    struct_literal_field_is_primitive, struct_literal_field_type,
+    struct_literal_matches_expected_type, struct_literal_type_is_caller_isolated,
+    type_is_caller_isolated_local,
 };
 use local_aliases::{
     expression_may_rebind_mutable_alias, expression_reborrows_local_alias_binding,
@@ -1130,9 +1132,18 @@ fn transparent_callee_result_origin(
                             program,
                             callee_machine,
                             local.initial_value,
-                            symbols,
-                            active_states,
                             &isolated_local_roots,
+                            |machine_symbols, written| {
+                                collect_expression_call_written_paths(
+                                    program,
+                                    local.initial_value,
+                                    callee_machine,
+                                    machine_symbols,
+                                    symbols,
+                                    active_states,
+                                    written,
+                                )
+                            },
                         ) {
                             return None;
                         }
@@ -1248,51 +1259,6 @@ fn transparent_callee_result_origin(
     })();
     active_states.pop();
     result
-}
-
-/// A caller-isolated scratch local cannot itself redirect a returned place.
-/// Its initializer may therefore precede a transparent returned-place result
-/// when it is syntactically effect-free, or when it is a direct-call tree of
-/// maximum depth two whose inferred frames are complete and write only
-/// previously established caller-isolated scratch locals. Keep deeper or
-/// computed call shapes and every caller-visible or opaque call fenced: this
-/// predicate proves only that the initializer cannot perturb the returned-
-/// place relation.
-fn isolated_local_initializer_preserves_transparent_result(
-    program: &TypedTrees,
-    current_machine: &Machine,
-    expression: ExpressionHandle,
-    symbols: &TopLevelSymbols<'_>,
-    active_states: &mut Vec<SymbolHandle>,
-    isolated_local_roots: &[String],
-) -> bool {
-    if !expression_is_effectful_for_transparent_result(program, expression) {
-        return true;
-    }
-    if !isolated_local_initializer_call_tree_is_bounded(program, expression, 2) {
-        return false;
-    }
-
-    let mut diagnostics = Vec::new();
-    let machine_symbols = MachineSymbols::build(program, current_machine, &mut diagnostics);
-    if !diagnostics.is_empty() {
-        return false;
-    }
-    let mut written = Vec::new();
-    collect_expression_call_written_paths(
-        program,
-        expression,
-        current_machine,
-        &machine_symbols,
-        symbols,
-        active_states,
-        &mut written,
-    )
-    .is_some()
-        && written.iter().all(|path| {
-            let (root, _) = split_place_root(path);
-            isolated_local_roots.iter().any(|local| local == root)
-        })
 }
 
 /// One direct Unit statement call is neutral to a returned-place relation when
