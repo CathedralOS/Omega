@@ -2933,6 +2933,14 @@ Remaining:
   independently checks the same endpoint alignment and closed relation.
   Mapping, kernel affine conversion, citation order, proof shape, rejection,
   and the fixed affine frontier are unchanged.
+  Closed affine-relaxation bridge selection now lives in paired, side-local
+  `affine_custody/relaxation/completion/bridge` modules. Producer and
+  reconstruction independently require mapped and goal `LessOrEqual` rows,
+  preserve right-endpoint alignment before the left-endpoint fallback, and
+  select the exact closed bridge endpoints; only the producer records whether
+  that bridge precedes or follows the affine proof. Closed-fact construction,
+  transitivity shape, rejection behavior, and the fixed frontier remain
+  unchanged.
   Per-witness affine custody completion now lives in paired, side-local
   `affine_custody/completion` modules. The producer independently constructs and
   kernel-checks the direct `IntegerAffineBound` proof before its existing
