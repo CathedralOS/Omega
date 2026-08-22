@@ -3256,6 +3256,12 @@ Remaining:
   placed 76/110 index-compatibility samples in repeated call-site lookup; the
   two broad float canaries' checked-phase means fell about 1.6% and 1.35%, with
   essentially flat allocation volume.
+  Mutation-fact construction now shares completed acyclic state-write summaries
+  across one source-ordered machine batch while leaving opaque and cyclic
+  fallbacks uncached. Allocation-enabled checked phases fell 2.3–3.1%, removing
+  roughly 22,000 allocations and 0.9 MiB per broad float canary; uninstrumented
+  wall time remained noisy, so this is an allocation/instrumented-phase result,
+  not a claimed wall-time win.
   Default-domain validation now delegates conservative symbolic values,
   literal/sequence measures, valuation folding, canonical symbolic equality,
   and recursive call detection to a focused 281-line child while state walking,
@@ -3486,6 +3492,11 @@ Remaining:
   live in a focused 106-line `frontend_reports` child. The 2,656-line parent
   retains artifact carriers and later-stage orchestration; public methods,
   exact HTML output, and the 79-function inventory are unchanged.
+  Emission-plan text, native image installation/reporting, stale-output cleanup,
+  and executable-finalization presentation now live in a focused 139-line
+  `native_output_reports` child. The 2,528-line parent retains report carriers
+  and non-native orchestration; public methods, exact output, and the 79-
+  function inventory are unchanged.
   Development and test profiles now both omit full DWARF by default, with an
   explicit `CARGO_PROFILE_{DEV,TEST}_DEBUG=2` escape hatch for debugger
   sessions. On the same macOS host, rebuilding the development CLI after the
@@ -5283,6 +5294,13 @@ Owners:
   and receipt-drift fences remain green; profiled multi-compile, cyclic/loop-
   heavy, report-bearing, slow-float, crash-specific, timer, and explicit legacy
   owners remain untouched.
+  The authored-root guarded dynamic `i64 -> u64` Exact-conversion regression now
+  launches `OutputOnly` native execution solely through its exact checked-
+  report executable receipt while preserving literal exit 70 and the value-
+  preservation diagnostic. Exact-owner ambiguity, the 795 rooted/3 legacy
+  inventory, and receipt-drift fences remain green; raw legacy conversion
+  surfaces, trapping conversions, cyclic/loop-heavy, report-bearing, slow-
+  float, crash-specific, and timer owners remain untouched.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
