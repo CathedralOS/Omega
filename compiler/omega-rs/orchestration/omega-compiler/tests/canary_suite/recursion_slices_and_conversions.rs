@@ -1132,10 +1132,13 @@ fn runtime_subslice_len_exit_canary_runs() {
     let build_dir = std::env::temp_dir().join(format!("omega-subslice-len-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("subslice len canary should compile from its authored root");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("subslice len canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("subslice len canary should run");
 
@@ -1303,10 +1306,13 @@ fn runtime_subslice_param_bounded_range_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("runtime subslice param bounded range canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("bounded parameter subslice canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("runtime subslice param bounded range canary should run");
 
@@ -1330,10 +1336,13 @@ fn runtime_subslice_param_end_only_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("runtime subslice param end-only canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("end-only parameter subslice canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("runtime subslice param end-only canary should run");
 
@@ -1357,10 +1366,13 @@ fn runtime_subslice_param_local_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("runtime subslice param local canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("local parameter subslice canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("runtime subslice param local canary should run");
 
@@ -1384,10 +1396,13 @@ fn runtime_subslice_runtime_start_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("runtime subslice runtime start canary should compile from its authored root");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("runtime-start subslice canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("runtime subslice runtime start canary should run");
 
