@@ -805,7 +805,11 @@ dependent facts. Fixed facts remain ordinary call obligations outside `Q` and
 `P`. Each match retains both side/owner/contract/fact coordinates. Expression, membership, and proposition
 facts compare their closed structural identities after that positional rename;
 missing, duplicated, category-drifted, or redirected facts reject. This proves
-`Q <-> P` only when both sides are already the same normalized fact set. General
+`Q <-> P` only when both sides are already the same normalized fact set. The
+relation-plan coordinator delegates this entire dependency partition, exact
+fact lookup, positional alpha-renaming, and bijection judgment to one focused
+precondition module; the extraction changes neither the proof language nor its
+admission order. General
 logical implication/equivalence and the selected `Respects` clauses remain
 unresolved, so this evidence still cannot admit execution.
 

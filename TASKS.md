@@ -582,7 +582,12 @@ Owners:
   invocation. Symbolic materialization now preflights every retained write's
   static bit geometry and byte range before invoking any provider/compiler
   resolver; an invalid later field produces no resolver observation or partial
-  action plan.
+  action plan. Post-handoff execution resolves each exact relocation target
+  once, immediately validates that value against every retained same-target
+  write, and does not observe unrelated targets after rejection. Fully resolved
+  materialization then independently replays every write's geometry and
+  stored-integer fit before staging any byte; tampered or out-of-range values
+  reject without truncation or destination mutation.
 
 Acceptance: UART/MMIO, shared-page IPC, and ordinary RAM use one extent/layout
 foundation with different profiles. Misalignment, insufficient rights,
@@ -1488,10 +1493,16 @@ Remaining:
   substitutes the alias, substitutes the root, then applies
   `IntegerCastBound`; production and reconstruction select the same two exact
   equalities. Missing, reused,
-  redirected, mistyped, or weaker literals reject. A second alias,
-  affine/cast, shift/cast, joins, and correlated results remain outside this
-  sibling; neither complete exact row changes trust and `fully-derived false`
-  remains.
+  redirected, mistyped, or weaker literals reject. One fixed two-alias sibling
+  may instead transport one directly cited canonical bound through exactly two
+  distinct same-carrier value equalities. It nests two
+  `IntegerLessOrEqualSubstitution` nodes under `IntegerCastBound`; production
+  and reconstruction independently enumerate that exact three-citation shape,
+  prefer every one-alias family, and perform no recursive alias walk. Missing,
+  reused, redirected, crossed, cyclic, mistyped, or weaker facts reject. A
+  third alias, literal landing through two aliases, affine/cast, shift/cast,
+  joins, and correlated results remain outside this sibling; neither complete
+  exact row changes trust and `fully-derived false` remains.
   A third
   non-serialized common checker now normalizes the
   complete exact-shift core shared by direct, cast-adjacent, affine-adjacent,
@@ -2407,13 +2418,21 @@ Owners:
   additionally retains its exact destination role. The native flat slot accepts
   only `FlatOutput`, the optional bundle slot accepts only `MacOsAppBundle`, and
   the role tag participates in installation identity; swapped otherwise-matching
-  receipts reject. Immediately before either outward receipt is minted,
+  receipts reject. The bundle slot also rederives the canonical
+  `<build>/<sanitized-project>.app/Contents/MacOS/<executable>` path from the
+  report root and flat output, so a same-leaf receipt under another directory
+  cannot substitute. The report root is now outwardly read-only because it
+  participates in that derivation; a caller cannot redirect it after final
+  validation and thereby change the canonical bundle identity. Immediately
+  before either outward receipt is minted,
   installation replays the renamed destination bytes once more against the
   sealed container; interval drift removes the changed file and rejects instead
   of returning stale custody. The validated output flag, category, flat receipt,
   and optional bundle receipt are now outwardly read-only, so a report consumer
   cannot rearrange or drop one component after the compiler's final consistency
-  check.
+  check. Both early check-only and backend reports now use one checked
+  constructor, which rejects an inconsistent output/category/receipt tuple
+  before it can cross the orchestration return boundary.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
@@ -2817,7 +2836,11 @@ Remaining N6/N8 work:
   facts remain ordinary call obligations outside `Q` and `P`. The plan retains
   both exact fact coordinates; missing, duplicated, category-drifted, or
   redirected facts reject. This proves only exact normalized fact identity, not
-  general entailment or any `Respects` clause. The exact final-expression call
+  general entailment or any `Respects` clause. The relation-plan coordinator
+  now delegates `Q`/`P` dependency partitioning, exact fact lookup, positional
+  alpha-renaming, and bijection matching to a focused 416-line precondition
+  judgment child; it does not duplicate or broaden the proof language. The
+  exact final-expression call
   additionally retains one unchanged state-fallthrough result edge. The same
   single edge may
   now pass through a complete straight-line chain of exact immutable,
