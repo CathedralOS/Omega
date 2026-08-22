@@ -594,6 +594,14 @@ same-carrier values. A missing, reused, redirected, crossed, cyclic, or mistyped
 equality rejects. The constructor has no recursive alias walk, and a third
 alias remains outside the producer.
 
+Generic fixed two-alias transport now places ledger/index enumeration in
+independent producer and verifier `alias_transport/two/candidates` modules.
+The unchanged `alias_transport/two` entry APIs still receive the final
+completion callback. Outer equality, orientation, inner equality, then indexed
+bound order, exact fact non-reuse, nested substitution bytes, callback order,
+rejection, and the two-alias frontier remain unchanged; the verifier derives
+its retained bound independently.
+
 One literal-ending sibling may land the affine root through exactly one
 intermediate value alias and one exact same-carrier literal equality. It proves
 a closed reflexive integer order, substitutes the alias, substitutes the root,
