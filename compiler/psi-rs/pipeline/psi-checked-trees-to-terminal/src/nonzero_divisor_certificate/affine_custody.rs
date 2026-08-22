@@ -5,10 +5,9 @@
 //! that complete one already-constructed affine root bound.
 
 use psi_core::{Proposition, PropositionContext, ScalarTerm};
-use psi_proof_kernel::{
-    IntegerAffineWitness, ProofNode, ProofRule, check_certificate, check_integer_affine_witness,
-};
+use psi_proof_kernel::{IntegerAffineWitness, ProofNode};
 
+mod completion;
 mod definition_index;
 mod frontier;
 mod relaxation;
@@ -39,25 +38,15 @@ pub(super) fn prove_from_root(
                 target: target.clone(),
                 definition_axioms,
             };
-            let direct = ProofNode {
-                conclusion: goal.clone(),
-                rule: ProofRule::IntegerAffineBound {
-                    root_bound: Box::new(root_bound.clone()),
-                    witness: witness.clone(),
-                },
-            };
-            if check_certificate(context, goal, assumptions, semantic_axioms, &direct).is_ok() {
-                return Some(direct);
-            }
-
-            let Ok(form) = check_integer_affine_witness(context, semantic_axioms, &witness) else {
-                continue;
-            };
-            let Some(relaxed) = relaxation::prove(goal, &form, &root_bound, witness) else {
-                continue;
-            };
-            if check_certificate(context, goal, assumptions, semantic_axioms, &relaxed).is_ok() {
-                return Some(relaxed);
+            if let Some(proof) = completion::prove(
+                context,
+                goal,
+                assumptions,
+                semantic_axioms,
+                &root_bound,
+                witness,
+            ) {
+                return Some(proof);
             }
         }
     }
