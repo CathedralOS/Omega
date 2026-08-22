@@ -4413,8 +4413,12 @@ Remaining:
   Erased runtime-use noninterference now lives in a focused 463-line owner.
   Proof, runtime, and erased contexts, recursive expression traversal, struct-
   initializer completeness, runtime field/payload rejection, and proof-machine
-  call fencing retain exact diagnostic order; the relevance shape-admission
-  coordinator is now 415 lines with the exact 15-function inventory unchanged.
+  call fencing retain exact diagnostic order. Erased-shape admission now lives
+  in a focused 246-line owner. Boundary, placed, and attached-machine fences,
+  closed-record and case support, unresolved generic use rejection, and
+  recursive erased-field discovery retain exact diagnostic order; the natural
+  relevance root is now a 176-line statement-context facade with the exact 15-
+  function inventory unchanged.
 
   Continue moving any remaining target-neutral generic/build-time probe
   sequencing out of `omega-compiler`; Psi owns those services and normalized
