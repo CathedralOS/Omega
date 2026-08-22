@@ -210,6 +210,7 @@ impl InstalledExecutablePublicationEvidence {
             self.destination,
             self.output_path.clone(),
             publication.certificate.certificate_fingerprint,
+            publication.certificate.boundary_contract_fingerprint,
             publication.certificate.inventory.inventory_fingerprint,
             publication
                 .certificate
@@ -1078,6 +1079,10 @@ mod tests {
         assert_eq!(
             retained.certificate_fingerprint(),
             certificate.certificate_fingerprint
+        );
+        assert_eq!(
+            retained.boundary_contract_fingerprint(),
+            certificate.boundary_contract_fingerprint
         );
         assert_eq!(
             retained.inventory_fingerprint(),

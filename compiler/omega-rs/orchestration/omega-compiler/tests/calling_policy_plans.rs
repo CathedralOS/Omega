@@ -1583,6 +1583,18 @@ machine build(builder: &mut Build) {
             .expect("written bridge publication receipt")
             .compiler_function_validation_fingerprint(),
     );
+    assert_eq!(
+        bridge
+            .emitted_wrapper_evidence()
+            .expect("written bridge final evidence")
+            .arrival()
+            .boundary_contract_fingerprint(),
+        report
+            .executable_publication()
+            .expect("written bridge publication receipt")
+            .boundary_contract_fingerprint()
+            .expect("program-storage publication boundary contract"),
+    );
     let unwritten_report = compile(CompileOptions {
         root_path: directory.join("main.omg"),
         build_dir: Some(directory.join("unwritten-build")),
