@@ -4784,6 +4784,13 @@ Owners:
   diagnostics. Exact-owner ambiguity, the 795 rooted/3 legacy inventory, and
   receipt-drift fences remain green; address algebra and explicit conversion
   owners remain separate.
+  Three authored-root address regressions—field round-trip, first-class
+  parameter/return/local value flow, and legal address algebra—now launch
+  `OutputOnly` native execution solely through exact checked-report executable
+  receipts while preserving literal statuses 88, 70, and 70 and their address-
+  specific diagnostics. Exact-owner ambiguity, the 795 rooted/3 legacy
+  inventory, and receipt-drift fences remain green; explicit conversion and
+  dispatch owners remain separate.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
@@ -4997,11 +5004,13 @@ reach or trust, and private proof improvements do not change public identity.
   affine-cleanup tail. Extend that accounting to general shared native joins
   and general affine cleanup rather than claiming convergence from duplicated
   leaves.
-  Exact x86-64/AArch64 register mapping and 64-bit stack/memory load byte
-  construction for terminal-image replay now live in a focused 94-line
-  `instruction_loads` child. Object construction and decoded stack validation
-  retain their existing ordering, bytes, errors, and public surface; the exact
-  94-function production inventory remains unchanged.
+  Exact x86-64/AArch64 register mapping and stack/memory load byte construction
+  for terminal-image replay now live in a focused 163-line `instruction_loads`
+  child. Structural-Boolean replay reuses the same architecture register maps
+  rather than retaining two duplicate wrappers. Object construction and
+  decoded stack validation retain their existing ordering, bytes, errors, and
+  public surface; the parent is 5,851 lines and the production inventory is 92
+  functions after eliminating those two duplicates.
   Provider-sized external adapter/arrival state is design-blocked on
   `OWNER_QUESTIONS.md` Q3: stack-domain ownership across interrupted and
   switched entry must be settled before this can become a complete root
@@ -5409,6 +5418,12 @@ Remaining N6/N8 work:
   signature, refinement, domain, and service-ceiling byte order while provider
   validity and selection remain outside the codec. The parent is 4,711 lines
   and the exact 199-function codec inventory remains unchanged.
+  Canonical content-custody and recursive content-term encoding/decoding now
+  lives in a focused private `content_wire` child, preserving exact claim,
+  composition, conservation, reshuffle, algebra, term-depth, and structural-
+  place bytes and errors while authority and interpretation remain outside the
+  codec. The parent is 4,429 lines and the exact 199-function codec inventory
+  remains unchanged.
   Proof-bundle coding likewise keeps its `PSIPRF`-specific little-endian
   cursor, bounded string/count/index handling, and nonzero semantic-ID
   primitives in a focused private child; its public API, exact bytes and
