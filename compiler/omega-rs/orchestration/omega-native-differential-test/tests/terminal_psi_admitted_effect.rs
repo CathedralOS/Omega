@@ -330,6 +330,10 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
     assert_eq!(written.written().selected_entry(), entry);
     assert_eq!(written.written().selected_entry_source_slot(), 0);
     assert_eq!(
+        written.written().selected_requirement_identity(),
+        "TimerRoot::tick"
+    );
+    assert_eq!(
         written.written().written().installed_code(),
         installed_code.identity()
     );
@@ -351,6 +355,8 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
     assert_eq!(retained_lowered, bound_lowered);
     let (
         provider_execution,
+        provider_execution_evidence,
+        root_evidence,
         selected_entry,
         selected_entry_source_slot,
         architecture,
@@ -359,6 +365,14 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
         written,
     ) = written.into_parts();
     assert_eq!(provider_execution, bound_provider);
+    assert_eq!(
+        provider_execution_evidence.terminal_binding(),
+        bound_provider
+    );
+    assert_eq!(
+        root_evidence.candidate().requirement_identity,
+        "TimerRoot::tick"
+    );
     assert_eq!(selected_entry, entry);
     assert_eq!(selected_entry_source_slot, 0);
     assert_eq!(architecture, installed_code.architecture());

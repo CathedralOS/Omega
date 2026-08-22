@@ -1702,6 +1702,8 @@ pub struct AdmittedTerminalProviderExecution {
 #[derive(Debug, PartialEq, Eq)]
 pub struct PreparedExternalRootPostHandoffWriterInvocation {
     provider_execution: AdmittedTerminalProviderExecution,
+    provider_execution_evidence: ProviderExecution,
+    root_evidence: ValidatedExternalRoot,
     selected_entry: EntryStubId,
     selected_entry_source_slot: usize,
     architecture: omega_target::Architecture,
@@ -1718,6 +1720,8 @@ pub struct PreparedExternalRootPostHandoffWriterInvocation {
 #[must_use = "written external-root destination retains provider and mapping custody"]
 pub struct WrittenExternalRootPostHandoffWriterDestination<'mapping, 'bytes> {
     provider_execution: AdmittedTerminalProviderExecution,
+    provider_execution_evidence: ProviderExecution,
+    root_evidence: ValidatedExternalRoot,
     selected_entry: EntryStubId,
     selected_entry_source_slot: usize,
     architecture: omega_target::Architecture,
@@ -1780,7 +1784,10 @@ impl PreparedExternalRootPostHandoffWriterInvocation {
                 "prepared external-root writer no longer matches its retained invocation".into(),
             ));
         }
-        validate_selected_entry_source(
+        validate_external_root_writer_source(
+            &self.provider_execution_evidence,
+            &self.root_evidence,
+            self.provider_execution,
             &self.invocation,
             self.selected_entry,
             self.selected_entry_source_slot,
@@ -1817,6 +1824,10 @@ impl PreparedExternalRootPostHandoffWriterInvocation {
 
     pub const fn selected_entry_source_slot(&self) -> usize {
         self.selected_entry_source_slot
+    }
+
+    pub fn selected_requirement_identity(&self) -> &str {
+        &self.root_evidence.candidate.requirement_identity
     }
 
     pub const fn architecture(&self) -> omega_target::Architecture {
@@ -1866,6 +1877,8 @@ impl PreparedExternalRootPostHandoffWriterInvocation {
         }
         let Self {
             provider_execution,
+            provider_execution_evidence,
+            root_evidence,
             selected_entry,
             selected_entry_source_slot,
             architecture,
@@ -1881,6 +1894,8 @@ impl PreparedExternalRootPostHandoffWriterInvocation {
                     return Err(Box::new(PreparedExternalRootWriterExecutionError {
                         prepared: Self {
                             provider_execution,
+                            provider_execution_evidence,
+                            root_evidence,
                             selected_entry,
                             selected_entry_source_slot,
                             architecture,
@@ -1894,6 +1909,8 @@ impl PreparedExternalRootPostHandoffWriterInvocation {
                 }
                 Ok(WrittenExternalRootPostHandoffWriterDestination {
                     provider_execution,
+                    provider_execution_evidence,
+                    root_evidence,
                     selected_entry,
                     selected_entry_source_slot,
                     architecture,
@@ -1908,6 +1925,8 @@ impl PreparedExternalRootPostHandoffWriterInvocation {
                 Err(Box::new(PreparedExternalRootWriterExecutionError {
                     prepared: Self {
                         provider_execution,
+                        provider_execution_evidence,
+                        root_evidence,
                         selected_entry,
                         selected_entry_source_slot,
                         architecture,
@@ -1934,6 +1953,10 @@ impl<'mapping, 'bytes> WrittenExternalRootPostHandoffWriterDestination<'mapping,
 
     pub const fn selected_entry_source_slot(&self) -> usize {
         self.selected_entry_source_slot
+    }
+
+    pub fn selected_requirement_identity(&self) -> &str {
+        &self.root_evidence.candidate.requirement_identity
     }
 
     pub const fn architecture(&self) -> omega_target::Architecture {
@@ -1965,7 +1988,10 @@ impl<'mapping, 'bytes> WrittenExternalRootPostHandoffWriterDestination<'mapping,
                     .into(),
             ));
         }
-        validate_selected_entry_source(
+        validate_external_root_writer_source(
+            &self.provider_execution_evidence,
+            &self.root_evidence,
+            self.provider_execution,
             &self.invocation,
             self.selected_entry,
             self.selected_entry_source_slot,
@@ -2013,6 +2039,8 @@ impl<'mapping, 'bytes> WrittenExternalRootPostHandoffWriterDestination<'mapping,
         }
         let Self {
             provider_execution,
+            provider_execution_evidence,
+            root_evidence,
             selected_entry,
             selected_entry_source_slot,
             architecture,
@@ -2024,6 +2052,8 @@ impl<'mapping, 'bytes> WrittenExternalRootPostHandoffWriterDestination<'mapping,
         Ok((
             PreparedExternalRootPostHandoffWriterInvocation {
                 provider_execution,
+                provider_execution_evidence,
+                root_evidence,
                 selected_entry,
                 selected_entry_source_slot,
                 architecture,
@@ -2039,6 +2069,8 @@ impl<'mapping, 'bytes> WrittenExternalRootPostHandoffWriterDestination<'mapping,
         self,
     ) -> (
         AdmittedTerminalProviderExecution,
+        ProviderExecution,
+        ValidatedExternalRoot,
         EntryStubId,
         usize,
         omega_target::Architecture,
@@ -2048,6 +2080,8 @@ impl<'mapping, 'bytes> WrittenExternalRootPostHandoffWriterDestination<'mapping,
     ) {
         (
             self.provider_execution,
+            self.provider_execution_evidence,
+            self.root_evidence,
             self.selected_entry,
             self.selected_entry_source_slot,
             self.architecture,
@@ -2101,6 +2135,31 @@ fn validate_selected_entry_source(
         ));
     }
     Ok(())
+}
+
+fn validate_external_root_writer_source(
+    provider_execution_evidence: &ProviderExecution,
+    root_evidence: &ValidatedExternalRoot,
+    provider_execution: AdmittedTerminalProviderExecution,
+    invocation: &PostHandoffWriterInvocationPlan,
+    selected_entry: EntryStubId,
+    retained_source_slot: usize,
+) -> Result<(), psi_layout_plans::MaterializationDiagnostic> {
+    if !provider_execution_evidence.matches_root(root_evidence)
+        || provider_execution_evidence.terminal_binding() != provider_execution
+        || root_evidence.candidate.entry != selected_entry
+        || root_evidence.candidate.provider_plan.normalized_identity()
+            != provider_execution.provider_plan
+        || root_evidence.normalized_identity != provider_execution.normalized_root_identity
+        || root_evidence.boundary_contract_fingerprint
+            != provider_execution.boundary_contract_fingerprint
+    {
+        return Err(psi_layout_plans::MaterializationDiagnostic(
+            "post-handoff writer source does not retain its exact validated external-root requirement and provider execution"
+                .into(),
+        ));
+    }
+    validate_selected_entry_source(invocation, selected_entry, retained_source_slot)
 }
 
 impl AdmittedTerminalProviderExecution {
@@ -2280,6 +2339,8 @@ impl ProviderExecution {
         }
         Ok(PreparedExternalRootPostHandoffWriterInvocation {
             provider_execution: self.terminal_binding(),
+            provider_execution_evidence: self.clone(),
+            root_evidence: self.root_evidence.clone(),
             selected_entry: self.entry,
             selected_entry_source_slot,
             architecture: installed_code.architecture(),
@@ -5115,6 +5176,7 @@ mod tests {
         assert_eq!(prepared.provider_execution(), execution.terminal_binding());
         assert_eq!(prepared.selected_entry(), entry);
         assert_eq!(prepared.selected_entry_source_slot(), 0);
+        assert_eq!(prepared.selected_requirement_identity(), "TestRoot::entry");
         assert_eq!(prepared.architecture(), code.architecture());
         assert!(prepared.context().binds_invocation(prepared.invocation()));
     }
@@ -5151,6 +5213,20 @@ mod tests {
             .writer
             .lower_reusable_fragment()
             .expect("restore exact retained invocation");
+        let exact_root_evidence = prepared.root_evidence.clone();
+        let mut drifted_candidate = exact_root_evidence.candidate.clone();
+        drifted_candidate.requirement_identity = "SiblingRoot::entry".into();
+        prepared.root_evidence = validate_external_root(drifted_candidate, &boundary())
+            .expect("independently valid sibling root evidence");
+        let error = prepared
+            .validate_execution(&code)
+            .expect_err("source requirement drift must reject");
+        assert!(
+            error
+                .0
+                .contains("exact validated external-root requirement")
+        );
+        prepared.root_evidence = exact_root_evidence;
         prepared.selected_entry_source_slot = 1;
         let error = prepared
             .validate_execution(&code)
