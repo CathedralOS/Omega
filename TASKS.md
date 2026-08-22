@@ -5143,6 +5143,14 @@ Owners:
   structural-omission diagnostic. Exact-owner ambiguity, the 795 rooted/3
   legacy inventory, and receipt-drift fences remain green; crash semantics and
   legacy owners are unchanged.
+  Three authored-root String-bearing `Equatable` regressions—structural
+  equality in value position, structural inequality after De Morgan
+  simplification, and structural equality directly in guard position—now
+  launch `OutputOnly` native execution solely through exact checked-report
+  executable receipts while preserving literal exit 70 and text-content-plus-
+  scalar diagnostics. Exact-owner ambiguity, the 795 rooted/3 legacy inventory,
+  and receipt-drift fences remain green; crash semantics and legacy owners are
+  unchanged.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
