@@ -35,6 +35,59 @@ struct CompatibilityKey {
     expected: SemanticDomainId,
 }
 
+struct ResolvedStateCall<'program, 'flow> {
+    fact: &'flow psi_checked_trees::FlowCallFact,
+    site: crate::CallSite<'program>,
+}
+
+struct StateCallIndex<'program, 'flow> {
+    calls: Vec<ResolvedStateCall<'program, 'flow>>,
+}
+
+impl<'program, 'flow> StateCallIndex<'program, 'flow> {
+    fn new(
+        program: &'program TypedTrees,
+        flow: &'flow FlowFacts,
+        state_flow: &'flow psi_checked_trees::FlowStateFact,
+    ) -> Self {
+        let calls = flow
+            .control
+            .calls
+            .span_or_empty(state_flow.calls)
+            .iter()
+            .filter_map(|fact| {
+                crate::find_call_site(
+                    program,
+                    state_flow.machine_symbol,
+                    state_flow.state_symbol,
+                    fact.statement_index,
+                    fact.call_ordinal,
+                )
+                .map(|site| ResolvedStateCall { fact, site })
+            })
+            .collect();
+        Self { calls }
+    }
+
+    fn contexts_after_value(
+        &self,
+        statement_index: usize,
+        value: ExpressionHandle,
+        fallback: HandleSpan<FlowSemanticContextRef>,
+    ) -> HandleSpan<FlowSemanticContextRef> {
+        self.calls
+            .iter()
+            .filter(|call| call.fact.statement_index == statement_index)
+            .find_map(|call| match &call.site {
+                crate::CallSite::Expression { expression, .. } if *expression == value => {
+                    Some(call.fact.exit_semantic_contexts)
+                }
+                _ => None,
+            })
+            .unwrap_or(fallback)
+    }
+}
+
 pub(super) fn build_index_compatibility_facts(
     program: &TypedTrees,
     operators: &CheckedOperatorFacts,
@@ -61,21 +114,14 @@ pub(super) fn build_index_compatibility_facts(
             continue;
         };
 
-        for call in flow.control.calls.span_or_empty(state_flow.calls) {
-            let Some(call_site) = crate::find_call_site(
-                program,
-                state_flow.machine_symbol,
-                state_flow.state_symbol,
-                call.statement_index,
-                call.call_ordinal,
-            ) else {
-                continue;
-            };
+        let state_calls = StateCallIndex::new(program, flow, state_flow);
+        for resolved in &state_calls.calls {
+            let call = resolved.fact;
             let Some(parameters) = crate::call_target_parameters(program, call.target_symbol)
             else {
                 continue;
             };
-            let arguments = crate::call_site_argument_expressions(program, &call_site);
+            let arguments = crate::call_site_argument_expressions(program, &resolved.site);
             let point = ProgramPoint::Call {
                 machine_symbol: state_flow.machine_symbol,
                 state_symbol: state_flow.state_symbol,
@@ -98,6 +144,7 @@ pub(super) fn build_index_compatibility_facts(
                     parameter.type_reference,
                     point,
                     call.entry_semantic_contexts,
+                    &state_calls,
                     &mut conditions,
                     &mut diagnostics,
                     &mut unresolved,
@@ -118,10 +165,7 @@ pub(super) fn build_index_compatibility_facts(
             };
             match statement {
                 StatementNode::LocalData(local) => {
-                    let contexts = contexts_after_value(
-                        program,
-                        flow,
-                        state_flow,
+                    let contexts = state_calls.contexts_after_value(
                         statement_index,
                         local.initial_value,
                         statement_contexts,
@@ -138,6 +182,7 @@ pub(super) fn build_index_compatibility_facts(
                         local.type_reference,
                         statement_point,
                         contexts,
+                        &state_calls,
                         &mut conditions,
                         &mut diagnostics,
                         &mut unresolved,
@@ -161,14 +206,12 @@ pub(super) fn build_index_compatibility_facts(
                             assignment.value,
                             target_type,
                             statement_point,
-                            contexts_after_value(
-                                program,
-                                flow,
-                                state_flow,
+                            state_calls.contexts_after_value(
                                 statement_index,
                                 assignment.value,
                                 statement_contexts,
                             ),
+                            &state_calls,
                             &mut conditions,
                             &mut diagnostics,
                             &mut unresolved,
@@ -193,14 +236,12 @@ pub(super) fn build_index_compatibility_facts(
                             state_symbol: state.symbol,
                             statement_index,
                         },
-                        contexts_after_value(
-                            program,
-                            flow,
-                            state_flow,
+                        state_calls.contexts_after_value(
                             statement_index,
                             *expression,
                             statement_contexts,
                         ),
+                        &state_calls,
                         &mut conditions,
                         &mut diagnostics,
                         &mut unresolved,
@@ -231,14 +272,12 @@ pub(super) fn build_index_compatibility_facts(
                                 state_symbol: state.symbol,
                                 statement_index,
                             },
-                            contexts_after_value(
-                                program,
-                                flow,
-                                state_flow,
+                            state_calls.contexts_after_value(
                                 statement_index,
                                 *value,
                                 statement_contexts,
                             ),
+                            &state_calls,
                             &mut conditions,
                             &mut diagnostics,
                             &mut unresolved,
@@ -259,37 +298,6 @@ pub(super) fn build_index_compatibility_facts(
     }
 }
 
-fn contexts_after_value(
-    program: &TypedTrees,
-    flow: &FlowFacts,
-    state_flow: &psi_checked_trees::FlowStateFact,
-    statement_index: usize,
-    value: ExpressionHandle,
-    fallback: HandleSpan<FlowSemanticContextRef>,
-) -> HandleSpan<FlowSemanticContextRef> {
-    for call in flow
-        .control
-        .calls
-        .span_or_empty(state_flow.calls)
-        .iter()
-        .filter(|call| call.statement_index == statement_index)
-    {
-        let Some(crate::CallSite::Expression { expression, .. }) = crate::find_call_site(
-            program,
-            state_flow.machine_symbol,
-            state_flow.state_symbol,
-            statement_index,
-            call.call_ordinal,
-        ) else {
-            continue;
-        };
-        if expression == value {
-            return call.exit_semantic_contexts;
-        }
-    }
-    fallback
-}
-
 #[allow(clippy::too_many_arguments)]
 fn append_expression_compatibilities(
     program: &TypedTrees,
@@ -303,6 +311,7 @@ fn append_expression_compatibilities(
     target_type: TypeReferenceHandle,
     point: ProgramPoint,
     contexts: HandleSpan<FlowSemanticContextRef>,
+    state_calls: &StateCallIndex<'_, '_>,
     conditions: &mut Vec<IndexCompatibilityFact>,
     diagnostics: &mut Vec<Diagnostic>,
     unresolved: &mut Vec<CompatibilityKey>,
@@ -314,17 +323,7 @@ fn append_expression_compatibilities(
     // so its own established `ensures` are part of the exact local context at
     // this boundary. Recompute this for recursive literal members as well as
     // top-level stores/returns.
-    let contexts = flow
-        .control
-        .states
-        .iter()
-        .find_map(|(_, state_flow)| {
-            (state_flow.machine_symbol == machine.symbol && state_flow.state_symbol == state.symbol)
-                .then_some(state_flow)
-        })
-        .map_or(contexts, |state_flow| {
-            contexts_after_value(program, flow, state_flow, statement_index, value, contexts)
-        });
+    let contexts = state_calls.contexts_after_value(statement_index, value, contexts);
     let actual =
         expression_indexed_instances(program, operators, machine, state, statement_index, value);
     let mut expected = Vec::new();
@@ -444,6 +443,7 @@ fn append_expression_compatibilities(
                         field_type,
                         point,
                         contexts,
+                        state_calls,
                         conditions,
                         diagnostics,
                         unresolved,
@@ -466,6 +466,7 @@ fn append_expression_compatibilities(
                         element_type,
                         point,
                         contexts,
+                        state_calls,
                         conditions,
                         diagnostics,
                         unresolved,
