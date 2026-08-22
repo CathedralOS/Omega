@@ -1,5 +1,26 @@
 use super::*;
 
+fn assert_native_exit_code(
+    report: &CompileReport,
+    expected: i32,
+    fixture: &str,
+    expectation: &str,
+) {
+    let executable = report
+        .checked_native_executable_path()
+        .unwrap_or_else(|| panic!("{fixture} lost its exact executable publication receipt"));
+    let output = Command::new(executable)
+        .output()
+        .unwrap_or_else(|error| panic!("{fixture} should run: {error}"));
+    assert_eq!(
+        output.status.code(),
+        Some(expected),
+        "{expectation}; expected exit {expected}, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
 // =============================================================================
 // ch17 Atomics (concurrency stage 1) RUN canaries
 // =============================================================================
@@ -14,20 +35,13 @@ fn runtime_atomic_load_store_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-atomic-load-store-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("atomic load/store canary should compile from its authored root");
-
-    let output = Command::new(build_dir.join(executable_name()))
-        .output()
-        .expect("atomic load/store canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected every legal atomic load/store ordering pair to round-trip and exit 70; \
-         exits 71..73 identify the mismatched pair; got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        70,
+        "atomic load/store canary",
+        "every legal atomic load/store ordering pair should roundtrip",
     );
 
     let _ = fs::remove_dir_all(&build_dir);
@@ -43,21 +57,13 @@ fn runtime_atomic_fetch_add_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-atomic-fetch-add-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("atomic fetch_add canary should compile from its authored root");
-
-    let output = Command::new(build_dir.join(executable_name()))
-        .output()
-        .expect("atomic fetch_add canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected fetch_add(5) old=10/new=15, fetch_add(8) old=15/new=23 (exit 70); \
-         exit 71=bad old1, 72=bad after first, 73=bad old2, 74=bad after second; \
-         got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        70,
+        "atomic fetch-add canary",
+        "each fetch-add should return the prior value and retain the incremented cell",
     );
 
     let _ = fs::remove_dir_all(&build_dir);
@@ -70,19 +76,13 @@ fn runtime_atomic_fetch_sub_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-atomic-fetch-sub-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("atomic fetch_sub canary should compile from its authored root");
-
-    let output = Command::new(build_dir.join(executable_name()))
-        .output()
-        .expect("atomic fetch_sub canary should run");
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected fetch_sub(12) old=42/new=30, then wrapping fetch_sub(31) \
-         old=30/new=u32::MAX; got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        70,
+        "atomic fetch-sub canary",
+        "fetch-sub should return each prior value and retain wrapping subtraction",
     );
     let _ = fs::remove_dir_all(&build_dir);
 
@@ -110,17 +110,13 @@ fn runtime_atomic_fetch_xor_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-atomic-fetch-xor-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("atomic fetch_xor canary should compile from its authored root");
-    let output = Command::new(build_dir.join(executable_name()))
-        .output()
-        .expect("atomic fetch_xor canary should run");
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected fetch_xor 10^12=6 then 6^15=9; got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        70,
+        "atomic fetch-xor canary",
+        "successive fetch-xor operations should retain their exact prior and stored values",
     );
     let _ = fs::remove_dir_all(&build_dir);
 
@@ -144,17 +140,13 @@ fn runtime_atomic_fetch_or_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-atomic-fetch-or-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("atomic fetch_or canary should compile from its authored root");
-    let output = Command::new(build_dir.join(executable_name()))
-        .output()
-        .expect("atomic fetch_or canary should run");
-    assert_eq!(
-        output.status.code(),
-        Some(75),
-        "expected fetch_or 10|5=15 then 15|16=31; got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        75,
+        "atomic fetch-or canary",
+        "successive fetch-or operations should retain their exact prior and stored values",
     );
     let _ = fs::remove_dir_all(&build_dir);
 
