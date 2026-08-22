@@ -2353,6 +2353,13 @@ Remaining:
   producer and reconstruction still classify bindings independently, and
   source/orientation order, direct-before-alias precedence, same-fact
   rejection, proof shapes, and fixed frontiers remain unchanged.
+  Distinct value-to-value alias orientations now live in paired side-local
+  affine equality catalogs shared by literal landing and transitive
+  substitution. Producer selection independently retains equality citation
+  custody while reconstruction independently retains propositions; literal
+  aliases still require the exact same carrier, transitive aliases still must
+  match one reconstructed endpoint, and source/orientation order, same-fact
+  rejection, proof shapes, precedence, and fixed frontiers remain unchanged.
   One-equality transitive affine completion now lives in independent side-local
   `affine_selection/transitive/alias/completion` modules. Each parent retains
   its own ledger-ordered equality discovery, distinct root/alias custody, and
@@ -4662,6 +4669,13 @@ Owners:
   literal status 70, interpreter parity, and all detailed diagnostics. Exact-
   owner ambiguity, the 795 rooted/3 legacy inventory, and receipt-drift fences
   remain green; adjacent `f32` owners stay fenced.
+  Five authored-root direct indexed-access executions—slice reads, indexed
+  reads used as operands, direct and dispatched element copies, and frame-array
+  slice-parameter aliases—now launch solely through exact checked-report
+  executable receipts while preserving literal exits 41, 70, 51, 61, and 72
+  and all detailed diagnostics. Exact-owner ambiguity, the 795 rooted/3 legacy
+  inventory, and receipt-drift fences remain green; loop/automaton and numeric-
+  conversion owners stay fenced.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
@@ -5373,9 +5387,11 @@ boundary without its corresponding checked law.
   unit tests and the public lowering surface remain unchanged.
   Conditional scalar lowering—including known/runtime Boolean and integer
   expressions, fixed arithmetic policies, exact/wrapping shifts, and
-  provenance—now lives in a focused 998-line child, leaving a 4,537-line
-  coordinator. The 55-function production inventory, target operations,
-  diagnostics, and evaluation order remain unchanged.
+  provenance—now lives in a focused 998-line child. Recursive Boolean/integer
+  conditional-control traversal, arm/value binding, and target-control assembly
+  likewise live in a focused 806-line child, leaving a 3,736-line coordinator.
+  The 55-function production inventory, target operations, diagnostics, and
+  evaluation order remain unchanged.
   A concrete direct wrapper may crown only one token meaning per normalized
   operand signature; alternative conformances remain named explicit calls.
 
