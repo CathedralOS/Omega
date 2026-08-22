@@ -2470,6 +2470,13 @@ Remaining:
   insertion remain in their existing owners. A mirrored accepted regression
   now pins the reversed equality orientation. Witness order, proof shape,
   rejection behavior, and the fixed four-definition frontier remain unchanged.
+  Affine-definition input owners now complete operand eligibility locally.
+  Producer and reconstruction independently project the supported exact add,
+  multiply, and subtract inputs and admit only `Value` operands before
+  returning their ordered streams; parent catalogs now solely retain semantic-
+  row traversal, oriented expression selection, and index recording. Input
+  order, witness/proof shape, rejection behavior, and the fixed four-definition
+  frontier remain unchanged.
   One-equality transitive affine completion now lives in independent side-local
   `affine_selection/transitive/alias/completion` modules. Each parent retains
   its own ledger-ordered equality discovery, distinct root/alias custody, and
@@ -4942,6 +4949,13 @@ Owners:
   diagnostics. Exact-owner ambiguity, the 795 rooted/3 legacy inventory, and
   receipt-drift fences remain green; saturating-transition, cast-accumulator,
   crash, and legacy owners remain separate.
+  Three authored-root arithmetic-boundary regressions—a saturating transition-
+  argument accumulator with no Exact obligation, a slice-element domain-cast
+  accumulator, and signed/unsigned Saturating/Wrapping boundary behavior—now
+  launch `OutputOnly` native execution solely through exact checked-report
+  executable receipts while preserving literal status 70 and their exact
+  policy/source diagnostics. Exact-owner ambiguity, the 795 rooted/3 legacy
+  inventory, and receipt-drift fences remain green.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
@@ -5609,6 +5623,12 @@ Remaining N6/N8 work:
   service-ceiling, ordered-block, and retained-contract bytes, tags, and errors
   while block operation/terminator vocabulary remains parent-owned. The parent
   is 2,988 lines and the exact 199-function codec inventory remains unchanged.
+  Exact terminal block, operation-result/operation-kind, and terminator
+  encoding/decoding now lives in a focused private `block_wire` child,
+  preserving every operation/control-flow tag, operand, obligation, cleanup,
+  and crash ordering and invalid-tag/error path while declaration, contract,
+  and structural-helper bytes remain separately owned. The parent is 2,197
+  lines and the exact 199-function codec inventory remains unchanged.
   Proof-bundle coding likewise keeps its `PSIPRF`-specific little-endian
   cursor, bounded string/count/index handling, and nonzero semantic-ID
   primitives in a focused private child; its public API, exact bytes and
