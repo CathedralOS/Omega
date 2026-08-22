@@ -4080,7 +4080,11 @@ Owners:
   checked terminal result value identity, unsigned `u8` scalar type, and native
   result placement now survive as one tuple through machine settlement and
   canonical installation records. Final replay rejects missing, mistyped,
-  misplaced, metadata-only, or unsupported-target tuples. Other
+  misplaced, metadata-only, or unsupported-target tuples. The tuple also
+  retains its exact returning terminal edge through machine settlement and
+  canonical installation format 29; object and installation replay bind that
+  edge to the unique one-unit return-instruction fuel interval and reject edge
+  drift independently from value, type, and placement. Other
   result shapes and targets remain fail-closed. Explicit provider views now
   borrow one linear validity claim: consuming invalidation is accepted after
   the view's last use and rejected while the view remains live. Projected/
