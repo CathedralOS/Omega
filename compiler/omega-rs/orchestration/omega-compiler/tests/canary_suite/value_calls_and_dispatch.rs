@@ -2467,10 +2467,13 @@ fn runtime_call_result_through_reference_field_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("runtime call result through reference field canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("call result through reference field canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("runtime call result through reference field canary should run");
 
@@ -2496,11 +2499,14 @@ fn runtime_string_call_result_through_reference_field_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
         "runtime string call result through reference field canary should compile from its authored root",
     );
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation.checked_native_executable_path().expect(
+        "string result through reference field canary should retain its executable receipt",
+    );
+    let output = Command::new(executable)
         .output()
         .expect("runtime string call result through reference field canary should run");
 
@@ -2526,11 +2532,14 @@ fn runtime_two_string_call_results_through_reference_fields_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
         "runtime two string call results through reference fields canary should compile from its authored root",
     );
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation.checked_native_executable_path().expect(
+        "two string results through reference fields canary should retain its executable receipt",
+    );
+    let output = Command::new(executable)
         .output()
         .expect("runtime two string call results through reference fields canary should run");
 
@@ -2555,11 +2564,14 @@ fn runtime_offset_string_call_results_through_reference_fields_exit_canary_runs(
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
         "runtime offset string call results through reference fields canary should compile from its authored root",
     );
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation.checked_native_executable_path().expect(
+        "offset string results through reference fields canary should retain its executable receipt",
+    );
+    let output = Command::new(executable)
         .output()
         .expect("runtime offset string call results through reference fields canary should run");
 
