@@ -2397,6 +2397,13 @@ Remaining:
   requirements-before-axioms enumeration. Shared-middle order, row
   nonidentity, proof shapes, completion precedence, rejection behavior, and
   the fixed two-leg frontier remain unchanged.
+  Direct affine retained-bound selection now owns its exact evidence handoff.
+  Production converts only the selected origin-indexed citation into a proof
+  node before completion, while reconstruction independently passes the
+  retained proposition to its custody replay. Assumptions/requirements-before-
+  axioms enumeration, left-before-right `Value` endpoints, root custody, proof
+  shape, rejection, direct precedence, and the fixed definition frontier
+  remain unchanged.
   One-equality transitive affine completion now lives in independent side-local
   `affine_selection/transitive/alias/completion` modules. Each parent retains
   its own ledger-ordered equality discovery, distinct root/alias custody, and
@@ -4757,6 +4764,12 @@ Owners:
   preserving literal exits 141, 171, and 191 and detailed diagnostics. Exact-
   owner ambiguity, the 795 rooted/3 legacy inventory, and receipt-drift fences
   remain green.
+  Two authored-root package/root-resolution regressions—build dependency alias
+  mapping and core roster operation resolution—now launch `OutputOnly` native
+  execution solely through exact checked-report executable receipts while
+  preserving literal status 70 and diagnostics. Exact-owner ambiguity, the 795
+  rooted/3 legacy inventory, and receipt-drift fences remain green; the
+  adjacent product-index proof/loop owner remains untouched.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
@@ -5372,6 +5385,11 @@ Remaining N6/N8 work:
   while module ordering and foundation validation remain in the parent. The
   parent is 4,815 lines and the exact 199-function codec inventory remains
   unchanged.
+  Canonical provider-candidate declaration encoding/decoding now lives in a
+  focused private `provider_candidate_wire` child, preserving exact identity,
+  signature, refinement, domain, and service-ceiling byte order while provider
+  validity and selection remain outside the codec. The parent is 4,711 lines
+  and the exact 199-function codec inventory remains unchanged.
   Proof-bundle coding likewise keeps its `PSIPRF`-specific little-endian
   cursor, bounded string/count/index handling, and nonzero semantic-ID
   primitives in a focused private child; its public API, exact bytes and
