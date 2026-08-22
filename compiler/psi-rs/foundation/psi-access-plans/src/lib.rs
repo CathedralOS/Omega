@@ -3396,6 +3396,13 @@ impl<'view, 'extent> StablePrimitiveAccessRequest<'view, 'extent> {
         self.request.correspondence()
     }
 
+    /// Borrow the exact sealed primitive request retained by this
+    /// specialization. Consumers may inspect its complete placement and
+    /// lifetime authority but cannot reconstruct, mutate, or respecialize it.
+    pub const fn primitive_request(&self) -> &PrimitiveAccessRequest<'view, 'extent> {
+        &self.request
+    }
+
     /// Independently replay the complete placed authority and Stable
     /// operation specialization before an outward lowering consumer accepts
     /// this request. Rejection only borrows the carrier, so its exact loan,
@@ -3522,6 +3529,12 @@ impl<'view, 'extent> StableCompoundMutationAccessRequest<'view, 'extent> {
     /// or require such evidence.
     pub const fn correspondence(&self) -> Option<&AdmittedSchemaDeviceCorrespondence> {
         self.request.correspondence()
+    }
+
+    /// Borrow the exact sealed primitive request retained by this bounded
+    /// mutation specialization without weakening its exclusive authority.
+    pub const fn primitive_request(&self) -> &PrimitiveAccessRequest<'view, 'extent> {
+        &self.request
     }
 
     /// Independently replay the complete placed authority and bounded
@@ -3656,6 +3669,13 @@ impl<'view, 'extent> ExternalPrimitiveAccessRequest<'view, 'extent> {
     /// compatibility and establishes no device operation.
     pub const fn correspondence(&self) -> Option<&AdmittedSchemaDeviceCorrespondence> {
         self.request.correspondence()
+    }
+
+    /// Borrow the exact sealed primitive request retained by this External
+    /// specialization. The borrow exposes provenance for a later consumer but
+    /// establishes no transfer or device operation.
+    pub const fn primitive_request(&self) -> &PrimitiveAccessRequest<'view, 'extent> {
+        &self.request
     }
 
     /// Independently replay the complete placed authority, admitted supply
@@ -3804,6 +3824,12 @@ impl<'view, 'extent> AtomicPrimitiveAccessRequest<'view, 'extent> {
     /// this separate provider-issued fact.
     pub const fn correspondence(&self) -> Option<&AdmittedSchemaDeviceCorrespondence> {
         self.request.correspondence()
+    }
+
+    /// Borrow the exact sealed primitive request retained by this Atomic
+    /// specialization without weakening its operation or ordering identity.
+    pub const fn primitive_request(&self) -> &PrimitiveAccessRequest<'view, 'extent> {
+        &self.request
     }
 
     /// Independently replay the complete placed authority, admitted Atomic
@@ -6407,9 +6433,15 @@ mod tests {
                 .placement(),
             plan.identity()
         );
+        let exact_request = primitive_request_snapshot(&request);
         let mut external = request
             .into_external_primitive_access()
             .expect("External specialization replays correspondence");
+        assert_eq!(
+            primitive_request_snapshot(external.primitive_request()),
+            exact_request,
+            "outward specialization must retain the exact sealed request"
+        );
         assert_eq!(
             external
                 .correspondence()
@@ -6429,10 +6461,19 @@ mod tests {
                 .provider(),
             provider
         );
+        assert_eq!(
+            external.primitive_request().plan(),
+            PlacementPlanId(plan.identity().0 ^ 1),
+            "borrowed request inspection reflects the still-retained drifted carrier"
+        );
         external.request.plan = plan.identity();
         external
             .validate_for_lowering()
             .expect("repaired outward carrier remains available for retry");
+        assert_eq!(
+            primitive_request_snapshot(external.primitive_request()),
+            exact_request
+        );
         let request = external.into_primitive_request();
         assert_eq!(
             request
