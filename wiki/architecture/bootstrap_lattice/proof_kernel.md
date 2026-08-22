@@ -632,8 +632,19 @@ now lives in dedicated, side-local `cast_custody` modules. Producer and
 reconstruction independently own unique-spine selection, exact witness/kernel
 replay, and final `IntegerCastBound` completion; the broader evidence selectors
 retain their existing order and proof shapes. Cast evidence selection now lives
-in dedicated, side-local `cast_selection` modules. Producer and reconstruction
-independently preserve direct-bound, landed-literal, fixed one-alias,
+in dedicated, side-local `cast_selection` modules.
+
+Each side's cast-chain owner separates known-root word recovery from non-cast
+source discovery behind its unchanged facade. Independent
+`cast_custody/chain/definitions` modules recover the exact root-to-target
+definition word; `cast_custody/chain/source` modules recover the unique source
+and first cast index. Backward ledger traversal, ambiguity and reuse rejection,
+source ordering, the semantic-axiom-length cycle bound, and the finite
+single-spine frontier remain unchanged; no evidence authority crosses the
+producer/verifier boundary.
+
+Producer and reconstruction independently preserve direct-bound,
+landed-literal, fixed one-alias,
 closed-strengthening, alias-landed-literal, then fixed two-alias precedence;
 source-carrier literal remapping remains with cast custody. No proof shape or
 search frontier changes. This completes contiguous cast-chain custody for exact

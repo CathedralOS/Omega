@@ -2058,6 +2058,16 @@ modules. Production and verification independently own unique-spine selection,
 exact witness/kernel replay, and final `IntegerCastBound` completion; the
 broader evidence selectors retain their existing order and proof shapes. Cast
 evidence selection now lives in dedicated, side-local `cast_selection` modules.
+
+Each side's cast-chain owner now separates its two deterministic spine duties
+behind the unchanged `cast_custody/chain` API. Side-local `chain/definitions`
+modules recover a word between an already-selected root and target, while
+`chain/source` modules discover the unique non-cast source and first cast
+position. Both retain backward ledger traversal, ambiguity/reuse rejection,
+source-order validation, and the semantic-axiom-length cycle bound. Producer
+and reconstruction still perform these walks independently; neither path adds
+alternate-edge or permutation search.
+
 Production and verification independently preserve direct-bound,
 landed-literal, fixed one-alias, closed-strengthening, alias-landed-literal,
 then fixed two-alias precedence; source-carrier literal remapping remains with
