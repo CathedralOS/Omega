@@ -761,9 +761,12 @@ fn runtime_comparison_signedness_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("comparison-signedness canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("comparison-signedness canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("comparison-signedness canary should run");
     assert_eq!(
@@ -785,9 +788,12 @@ fn runtime_shift_signedness_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-shift-signedness-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("shift-signedness canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("shift-signedness canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("shift-signedness canary should run");
     assert_eq!(
@@ -810,9 +816,12 @@ fn runtime_shift_in_guard_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_shift_in_guard_exit");
     let scratch = std::env::temp_dir().join(format!("omega-shift-in-guard-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("shift-in-guard canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("shift-in-guard canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("shift-in-guard canary should run");
     assert_eq!(
