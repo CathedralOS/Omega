@@ -3,9 +3,8 @@
 use psi_core::{Proposition, PropositionContext};
 use psi_proof_kernel::{IntegerAffineWitness, check_integer_affine_witness};
 
-use super::relaxation;
-
 mod direct;
+mod relaxed;
 
 pub(super) fn retained(
     context: &PropositionContext,
@@ -15,6 +14,6 @@ pub(super) fn retained(
     witness: &IntegerAffineWitness,
 ) -> bool {
     check_integer_affine_witness(context, semantic_axioms, witness).is_ok_and(|form| {
-        direct::retained(&form, root_bound, goal) || relaxation::retained(&form, root_bound, goal)
+        direct::retained(&form, root_bound, goal) || relaxed::retained(&form, root_bound, goal)
     })
 }

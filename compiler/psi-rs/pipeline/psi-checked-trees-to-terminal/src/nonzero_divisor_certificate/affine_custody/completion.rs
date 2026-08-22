@@ -3,9 +3,8 @@
 use psi_core::{Proposition, PropositionContext};
 use psi_proof_kernel::{IntegerAffineWitness, ProofNode, check_integer_affine_witness};
 
-use super::relaxation;
-
 mod direct;
+mod relaxed;
 
 pub(super) fn prove(
     context: &PropositionContext,
@@ -27,8 +26,13 @@ pub(super) fn prove(
     }
 
     let form = check_integer_affine_witness(context, semantic_axioms, &witness).ok()?;
-    let relaxed = relaxation::prove(goal, &form, root_bound, witness)?;
-    psi_proof_kernel::check_certificate(context, goal, assumptions, semantic_axioms, &relaxed)
-        .is_ok()
-        .then_some(relaxed)
+    relaxed::prove(
+        context,
+        goal,
+        assumptions,
+        semantic_axioms,
+        &form,
+        root_bound,
+        witness,
+    )
 }
