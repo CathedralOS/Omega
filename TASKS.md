@@ -765,8 +765,12 @@ Owners:
   identities for access plans, placement plans, and resource profiles now live
   in a focused 198-line private owner; exact prefixes, tags, byte order, reach,
   transfer rows, and reserved-zero remapping cross only three typed-ID sibling
-  contracts, and identity remains evidence rather than authority. These
-  extractions leave a 3,026-line coordinator. All 81
+  contracts, and identity remains evidence rather than authority. Provider
+  resource-profile grant/admission custody now lives in a focused 264-line
+  owner behind unchanged re-exports: the non-Clone grant, retry-complete
+  rejection, admitted profile, reach restriction, and exact range/address-
+  space/provenance/era/origin/lineage/rights replay remain sealed. These
+  extractions leave a 2,775-line coordinator. All 81
   unit tests, the current 440-function production inventory, diagnostics,
   custody, retry behavior, and the public surface remain unchanged.
 - Implement `Extent::Resident<P, T>` as the owned exact-range dormant-content
