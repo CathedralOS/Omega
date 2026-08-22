@@ -5458,6 +5458,12 @@ Owners:
   literal exits 43/101. Exact-owner ambiguity, the 795 rooted/3 legacy
   inventory, and cross-copy receipt-drift fences remain green; Cargo-lock and
   concurrent-rebuild waits remain distinct from their 0.02–0.04s bodies.
+  The transitioned fixed-index slice guard and local slice-length comparison
+  regressions now launch solely through the exact executables retained by their
+  checked compilation reports while preserving literal exits 121/191. Exact-
+  owner ambiguity, the 795 rooted/3 legacy inventory, and cross-copy receipt-
+  drift fences remain green; their warm compiler/interpreter bodies remain
+  0.02s.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
