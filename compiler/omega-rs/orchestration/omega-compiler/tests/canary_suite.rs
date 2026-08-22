@@ -806,6 +806,7 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "proofs/quotient_boundary_law_rejected",
     "proofs/quotient_runtime_equality_rejected",
     "proofs/quotient_pattern_rejected",
+    "proofs/quotient_struct_literal_rejected",
     "proofs/quotient_respect_lift_compile",
     "proofs/quotient_attached_respect_lift_compile",
     "proofs/quotient_lift_missing_respect",
