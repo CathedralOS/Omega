@@ -1,10 +1,11 @@
 //! Direct landed-literal affine-root proof construction.
 
 use psi_core::{Proposition, PropositionContext};
-use psi_proof_kernel::{PrimitiveJudgment, ProofNode, ProofRule};
+use psi_proof_kernel::ProofNode;
 
-use super::super::super::affine_custody;
 use super::super::super::integer_evidence::cited_facts;
+
+mod completion;
 
 pub(super) fn prove(
     context: &PropositionContext,
@@ -26,32 +27,16 @@ pub(super) fn prove(
             if root.scalar_type() != psi_core::ScalarType::Integer(integer_type) {
                 continue;
             }
-            let reflexive = Proposition::LessOrEqual(literal.clone(), literal.clone());
-            for (root_bound, endpoint) in [
-                (Proposition::LessOrEqual(literal.clone(), root.clone()), 1),
-                (Proposition::LessOrEqual(root.clone(), literal.clone()), 0),
-            ] {
-                let root_bound = ProofNode {
-                    conclusion: root_bound,
-                    rule: ProofRule::IntegerLessOrEqualSubstitution {
-                        relation: Box::new(ProofNode {
-                            conclusion: reflexive.clone(),
-                            rule: ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation),
-                        }),
-                        equality: Box::new(citation.proof(equality)),
-                        endpoint,
-                    },
-                };
-                if let Some(proof) = affine_custody::prove_from_root(
-                    context,
-                    goal,
-                    assumptions,
-                    semantic_axioms,
-                    root,
-                    root_bound,
-                ) {
-                    return Some(proof);
-                }
+            if let Some(proof) = completion::prove(
+                context,
+                goal,
+                assumptions,
+                semantic_axioms,
+                root,
+                literal,
+                citation.proof(equality),
+            ) {
+                return Some(proof);
             }
         }
     }
