@@ -977,8 +977,7 @@ mod tests {
         );
         let intrinsic = bindings.intern(ExternalBindingIdentity::CompilerIntrinsic);
         assert_ne!(
-            intrinsic,
-            first,
+            intrinsic, first,
             "mechanism tags must remain identity-bearing"
         );
         assert_eq!(
