@@ -61,6 +61,11 @@ pub(crate) fn build_check_facts(
     let mut values = build_value_facts(program, proof_plan);
     let mut operators = build_operator_facts(program, &values);
     let mut proof = build_proof_facts_with_operators(program, proof_plan, &borrow, &operators);
+    crate::proof::bind_float_meaning_projection_facts(
+        program,
+        &mut proof,
+        &validation_facts.float_meaning_projection_invocations,
+    )?;
     crate::proof::bind_evidence_package_invocation_facts(program, &mut proof)?;
     crate::proof::bind_evidence_forwarding_facts(program, &mut proof)?;
     crate::proof::bind_evidence_projection_facts(program, &mut proof)?;
