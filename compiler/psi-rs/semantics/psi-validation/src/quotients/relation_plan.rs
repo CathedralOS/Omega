@@ -75,12 +75,18 @@ pub(super) struct CompleteSingleStateResultFlow {
     pub(super) root: ImmutableAliasFallthroughRoot,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) struct CompleteOneHopStateForwardingResultFlow {
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct CompleteStateForwardingResultFlow {
     pub(super) machine_symbol: SymbolHandle,
-    pub(super) forwarding_state_symbol: SymbolHandle,
+    pub(super) forwarding_edges: Vec<StateForwardingEdge>,
     pub(super) result_state_symbol: SymbolHandle,
     pub(super) root: ImmutableAliasFallthroughRoot,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) struct StateForwardingEdge {
+    pub(super) source_state_symbol: SymbolHandle,
+    pub(super) target_state_symbol: SymbolHandle,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -518,15 +524,16 @@ pub(super) fn complete_single_state_result_flow(
     })
 }
 
-/// Prove complete normal-result coverage for exactly two states when the only
-/// other state performs one unconditional ordinary forwarding transition into
-/// the state owning the unchanged quotient result root.
-pub(super) fn complete_one_hop_state_forwarding_result_flow(
+/// Prove complete normal-result coverage for a finite forwarding graph. Every
+/// non-result state must contain exactly one unconditional ordinary transition,
+/// and every path must reach the state owning the unchanged quotient result
+/// root. This grants no authority for conditional, cyclic, or mixed bodies.
+pub(super) fn complete_state_forwarding_result_flow(
     program: &TypedTrees,
     machine: &Machine,
     result_state: &State,
     root: ImmutableAliasFallthroughRoot,
-) -> Option<CompleteOneHopStateForwardingResultFlow> {
+) -> Option<CompleteStateForwardingResultFlow> {
     if !machine.symbol.is_valid() || !result_state.symbol.is_valid() {
         return None;
     }
@@ -539,19 +546,11 @@ pub(super) fn complete_one_hop_state_forwarding_result_flow(
         return None;
     }
     let states = program.machine_states(machine);
-    if states.len() != 2
+    if states.len() < 2
         || states
             .iter()
-            .filter(|state| state.symbol == result_state.symbol)
-            .count()
-            != 1
-        || program
-            .machines()
-            .iter()
-            .flat_map(|candidate| program.machine_states(candidate))
-            .filter(|candidate| candidate.symbol == result_state.symbol)
-            .count()
-            != 1
+            .find(|state| state.symbol == result_state.symbol)
+            != Some(result_state)
         || fallthrough_result_root(program, result_state) != Some(root)
         || program
             .statement_table
@@ -561,42 +560,74 @@ pub(super) fn complete_one_hop_state_forwarding_result_flow(
     {
         return None;
     }
-    let forwarding_state = states
+    for state in states {
+        if !state.symbol.is_valid()
+            || program
+                .machines()
+                .iter()
+                .flat_map(|candidate| program.machine_states(candidate))
+                .filter(|candidate| candidate.symbol == state.symbol)
+                .count()
+                != 1
+        {
+            return None;
+        }
+    }
+
+    let mut edges = Vec::with_capacity(states.len() - 1);
+    for forwarding_state in states
         .iter()
-        .find(|state| state.symbol != result_state.symbol)?;
-    if program
-        .machines()
+        .filter(|state| state.symbol != result_state.symbol)
+    {
+        let [StatementNode::Transition(transition)] = program
+            .statement_table
+            .statements(forwarding_state.statement_nodes)
+        else {
+            return None;
+        };
+        if transition.guard != psi_typed_trees::statement::TransitionGuardNode::Always
+            || transition.exit != psi_typed_trees::statement::TransitionExit::Ordinary
+            || transition.continuation.is_valid()
+        {
+            return None;
+        }
+        let psi_typed_trees::statement::TransitionTargetNode::Named { path, .. } =
+            program.statement_table.transition_target(transition.target)
+        else {
+            return None;
+        };
+        if !states.iter().any(|state| state.symbol == path.symbol) {
+            return None;
+        }
+        edges.push((forwarding_state.symbol, path.symbol));
+    }
+
+    for state in states
         .iter()
-        .flat_map(|candidate| program.machine_states(candidate))
-        .filter(|candidate| candidate.symbol == forwarding_state.symbol)
-        .count()
-        != 1
+        .filter(|state| state.symbol != result_state.symbol)
     {
-        return None;
+        let mut current = state.symbol;
+        let mut visited = Vec::new();
+        while current != result_state.symbol {
+            if visited.contains(&current) {
+                return None;
+            }
+            visited.push(current);
+            current = edges
+                .iter()
+                .find_map(|(source, target)| (*source == current).then_some(*target))?;
+        }
     }
-    let [StatementNode::Transition(transition)] = program
-        .statement_table
-        .statements(forwarding_state.statement_nodes)
-    else {
-        return None;
-    };
-    if transition.guard != psi_typed_trees::statement::TransitionGuardNode::Always
-        || transition.exit != psi_typed_trees::statement::TransitionExit::Ordinary
-        || transition.continuation.is_valid()
-    {
-        return None;
-    }
-    let psi_typed_trees::statement::TransitionTargetNode::Named { path, .. } =
-        program.statement_table.transition_target(transition.target)
-    else {
-        return None;
-    };
-    if path.symbol != result_state.symbol {
-        return None;
-    }
-    Some(CompleteOneHopStateForwardingResultFlow {
+
+    Some(CompleteStateForwardingResultFlow {
         machine_symbol: machine.symbol,
-        forwarding_state_symbol: forwarding_state.symbol,
+        forwarding_edges: edges
+            .iter()
+            .map(|(source, target)| StateForwardingEdge {
+                source_state_symbol: *source,
+                target_state_symbol: *target,
+            })
+            .collect(),
         result_state_symbol: result_state.symbol,
         root,
     })
@@ -1374,7 +1405,7 @@ mod tests {
         RepresentativeContractFactLocation, RepresentativeContractOwner,
         RepresentativeRuntimeParameter, RepresentativeStaticApplication,
         RepresentativeStaticBindingKind, RepresentativeTelescope,
-        complete_one_hop_state_forwarding_result_flow, complete_single_state_result_flow,
+        complete_single_state_result_flow, complete_state_forwarding_result_flow,
         derive_define_precondition_correspondence, derive_direct_terminal_plan,
         derive_exact_representative_static_application, derive_public_precondition_partition,
         derive_representative_precondition_partition, derive_representative_telescope,
@@ -2832,7 +2863,7 @@ mod tests {
     }
 
     #[test]
-    fn complete_result_flow_accepts_exact_one_hop_state_forwarding() {
+    fn complete_result_flow_accepts_exact_finite_state_forwarding() {
         let mut program = TypedTrees::default();
         let return_type = program.type_reference_table.insert(TypeReferenceNode::Unit);
         let arguments = program
@@ -2887,16 +2918,72 @@ mod tests {
         let result_state = &program.machine_states(machine)[1];
         let root = fallthrough_result_root(&program, result_state).expect("exact result root");
         assert_eq!(
-            complete_one_hop_state_forwarding_result_flow(&program, machine, result_state, root,),
-            Some(super::CompleteOneHopStateForwardingResultFlow {
+            complete_state_forwarding_result_flow(&program, machine, result_state, root,),
+            Some(super::CompleteStateForwardingResultFlow {
                 machine_symbol: symbol(50),
-                forwarding_state_symbol: symbol(51),
+                forwarding_edges: vec![super::StateForwardingEdge {
+                    source_state_symbol: symbol(51),
+                    target_state_symbol: symbol(52),
+                }],
                 result_state_symbol: symbol(52),
                 root,
             })
         );
 
-        let forwarding_span = program.machine_states(machine)[0].statement_nodes;
+        let intermediate_target = program.statement_table.insert_transition_target(
+            psi_typed_trees::statement::TransitionTargetNode::Named {
+                path: psi_typed_trees::statement::TableNamePath {
+                    members: HandleSpan::empty(),
+                    head_symbol: symbol(53),
+                    symbol: symbol(53),
+                },
+                arguments: HandleSpan::empty(),
+                evidence_arguments: Box::default(),
+            },
+        );
+        let forwarding_span = program.machine_states(&program.machines()[0])[0].statement_nodes;
+        let [StatementNode::Transition(transition)] =
+            program.statement_table.statements_mut(forwarding_span)
+        else {
+            panic!("one forwarding transition")
+        };
+        transition.target = intermediate_target;
+        let mut intermediate_state = State {
+            symbol: symbol(53),
+            return_type,
+            ..Default::default()
+        };
+        program.statement_table.push_statement(
+            &mut intermediate_state.statement_nodes,
+            StatementNode::Transition(TableTransition {
+                target,
+                ..Default::default()
+            }),
+        );
+        let mut expanded_machine = program.machines()[0].clone();
+        program.push_machine_state(&mut expanded_machine, intermediate_state);
+        program.machines_mut()[0] = expanded_machine;
+        let machine = &program.machines()[0];
+        let result_state = &program.machine_states(machine)[1];
+        assert_eq!(
+            complete_state_forwarding_result_flow(&program, machine, result_state, root,),
+            Some(super::CompleteStateForwardingResultFlow {
+                machine_symbol: symbol(50),
+                forwarding_edges: vec![
+                    super::StateForwardingEdge {
+                        source_state_symbol: symbol(51),
+                        target_state_symbol: symbol(53),
+                    },
+                    super::StateForwardingEdge {
+                        source_state_symbol: symbol(53),
+                        target_state_symbol: symbol(52),
+                    },
+                ],
+                result_state_symbol: symbol(52),
+                root,
+            })
+        );
+
         let [StatementNode::Transition(transition)] =
             program.statement_table.statements_mut(forwarding_span)
         else {
@@ -2906,7 +2993,7 @@ mod tests {
         let machine = &program.machines()[0];
         let result_state = &program.machine_states(machine)[1];
         assert_eq!(
-            complete_one_hop_state_forwarding_result_flow(&program, machine, result_state, root,),
+            complete_state_forwarding_result_flow(&program, machine, result_state, root,),
             None,
         );
 
@@ -2916,6 +3003,38 @@ mod tests {
             panic!("one forwarding transition")
         };
         transition.continuation = psi_typed_trees::statement::TransitionTargetHandle::invalid();
+
+        let cycle_target = program.statement_table.insert_transition_target(
+            psi_typed_trees::statement::TransitionTargetNode::Named {
+                path: psi_typed_trees::statement::TableNamePath {
+                    members: HandleSpan::empty(),
+                    head_symbol: symbol(51),
+                    symbol: symbol(51),
+                },
+                arguments: HandleSpan::empty(),
+                evidence_arguments: Box::default(),
+            },
+        );
+        let intermediate_span = program.machine_states(&program.machines()[0])[2].statement_nodes;
+        let [StatementNode::Transition(transition)] =
+            program.statement_table.statements_mut(intermediate_span)
+        else {
+            panic!("one intermediate transition")
+        };
+        transition.target = cycle_target;
+        let machine = &program.machines()[0];
+        let result_state = &program.machine_states(machine)[1];
+        assert_eq!(
+            complete_state_forwarding_result_flow(&program, machine, result_state, root,),
+            None,
+        );
+        let [StatementNode::Transition(transition)] =
+            program.statement_table.statements_mut(intermediate_span)
+        else {
+            panic!("one intermediate transition")
+        };
+        transition.target = target;
+
         let mut duplicate_owner = Machine {
             symbol: symbol(60),
             ..Default::default()
@@ -2932,7 +3051,7 @@ mod tests {
         let machine = &program.machines()[0];
         let result_state = &program.machine_states(machine)[1];
         assert_eq!(
-            complete_one_hop_state_forwarding_result_flow(&program, machine, result_state, root,),
+            complete_state_forwarding_result_flow(&program, machine, result_state, root,),
             None,
         );
     }
