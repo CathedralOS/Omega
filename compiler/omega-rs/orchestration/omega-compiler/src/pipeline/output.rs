@@ -188,6 +188,27 @@ impl InstalledExecutablePublicationEvidence {
         fingerprint_into(&mut hash, &self.container_fingerprint.to_le_bytes());
         hash
     }
+
+    fn retained_receipt(
+        &self,
+        publication: &ValidatedExecutablePublication<'_>,
+    ) -> Result<super::ExecutablePublicationReceipt, Diagnostic> {
+        self.validate(publication, &self.output_path)?;
+        Ok(super::ExecutablePublicationReceipt::new(
+            self.output_path.clone(),
+            publication.certificate.certificate_fingerprint,
+            publication.certificate.inventory.inventory_fingerprint,
+            publication.evidence.evidence_fingerprint,
+            self.container_byte_count,
+            self.container_fingerprint,
+            self.evidence_fingerprint,
+        ))
+    }
+}
+
+pub(super) struct WrittenOutput {
+    pub path: std::path::PathBuf,
+    pub executable_publication: Option<super::ExecutablePublicationReceipt>,
 }
 
 const FNV_OFFSET: u64 = 0xcbf2_9ce4_8422_2325;
@@ -214,7 +235,7 @@ pub(super) fn write_output(
     validate_before_publication: impl FnOnce(
         Option<&omega_image::EmittedImageOutput>,
     ) -> Result<(), Vec<Diagnostic>>,
-) -> Result<std::path::PathBuf, Vec<Diagnostic>> {
+) -> Result<WrittenOutput, Vec<Diagnostic>> {
     executable_tcb_authorization.authorize_installation();
     let build_dir = options.build_dir();
     std::fs::create_dir_all(&build_dir).map_err(io_diagnostic)?;
@@ -295,6 +316,9 @@ pub(super) fn write_output(
         installation
             .validate(&publication, &output_path)
             .map_err(|diagnostic| vec![diagnostic])?;
+        let executable_publication = installation
+            .retained_receipt(&publication)
+            .map_err(|diagnostic| vec![diagnostic])?;
         write_executable_region_inventory(
             options,
             publication.certificate(),
@@ -316,7 +340,10 @@ pub(super) fn write_output(
                 .map_err(|diagnostic| vec![diagnostic])?;
             write_macos_app_bundle(options, &build_dir, &publication)?;
         }
-        return Ok(output_path);
+        return Ok(WrittenOutput {
+            path: output_path,
+            executable_publication: Some(executable_publication),
+        });
     }
 
     let object_container = emit_omega_object_container(ObjectContainerInput {
@@ -330,7 +357,10 @@ pub(super) fn write_output(
     let output_path = build_dir.join(&object_container.file_name);
     write_output_file(&output_path, &object_container.bytes, false)
         .map_err(|diagnostic| vec![diagnostic])?;
-    Ok(output_path)
+    Ok(WrittenOutput {
+        path: output_path,
+        executable_publication: None,
+    })
 }
 
 fn build_final_footprint_certificate(
@@ -934,6 +964,23 @@ mod tests {
         receipt
             .validate(&publication, &output)
             .expect("exact receipt");
+        let retained = receipt
+            .retained_receipt(&publication)
+            .expect("compile report receipt");
+        assert_eq!(retained.output_path(), output);
+        assert_eq!(
+            retained.certificate_fingerprint(),
+            certificate.certificate_fingerprint
+        );
+        assert_eq!(
+            retained.inventory_fingerprint(),
+            image.executable_regions.inventory_fingerprint
+        );
+        assert_eq!(retained.container_byte_count(), image.bytes.len());
+        assert_eq!(
+            retained.container_fingerprint(),
+            super::byte_fingerprint(&image.bytes)
+        );
         assert_eq!(
             std::fs::read(&output).expect("installed bytes"),
             image.bytes
