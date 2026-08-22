@@ -119,6 +119,10 @@ impl<'resident> EstablishedBorrowedResidentPlacement<'resident> {
         self.profile_receipt
     }
 
+    pub(super) const fn resources(&self) -> &PlacementResourceCompatibility {
+        &self.resources
+    }
+
     pub const fn base(&self) -> u64 {
         self.loan.base()
     }

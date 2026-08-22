@@ -2366,7 +2366,7 @@ impl<'extent> PlacedView<'extent> {
             current_borrow,
             source_loan,
             None,
-            PlacementAuthorityRef::Borrowed(&self.loan),
+            PlacementAuthorityRef::Borrowed(self),
         )
     }
 }
@@ -2377,17 +2377,61 @@ impl<'extent> PlacedView<'extent> {
 #[allow(dead_code)]
 #[derive(Debug, Clone, Copy)]
 enum PlacementAuthorityRef<'view, 'extent> {
-    Borrowed(&'view ExtentLoan<'extent>),
+    Borrowed(&'view PlacedView<'extent>),
     BorrowedResident(&'view EstablishedBorrowedResidentPlacement<'extent>),
     EstablishedOwned(&'view EstablishedOwnedPlacement),
 }
 
-impl PlacementAuthorityRef<'_, '_> {
+impl<'view, 'extent> PlacementAuthorityRef<'view, 'extent> {
     const fn base(self) -> u64 {
         match self {
-            Self::Borrowed(loan) => loan.base(),
+            Self::Borrowed(view) => view.loan.base(),
             Self::BorrowedResident(established) => established.base(),
             Self::EstablishedOwned(established) => established.extent().base(),
+        }
+    }
+
+    const fn placement_plan(self) -> &'view ValidatedPlacementPlan {
+        match self {
+            Self::Borrowed(view) => &view.plan,
+            Self::BorrowedResident(established) => established.placement_plan(),
+            Self::EstablishedOwned(established) => established.placement_plan(),
+        }
+    }
+
+    const fn profile_receipt(self) -> ResourceProfileReceiptId {
+        match self {
+            Self::Borrowed(view) => view.profile_receipt,
+            Self::BorrowedResident(established) => established.profile_receipt(),
+            Self::EstablishedOwned(established) => established.profile_receipt(),
+        }
+    }
+
+    const fn resources(self) -> &'view PlacementResourceCompatibility {
+        match self {
+            Self::Borrowed(view) => &view.resources,
+            Self::BorrowedResident(established) => established.resources(),
+            Self::EstablishedOwned(established) => established.resources(),
+        }
+    }
+
+    const fn admission(self) -> PlacementAdmissionId {
+        match self {
+            Self::Borrowed(view) => view.admission,
+            Self::BorrowedResident(established) => established.admission(),
+            Self::EstablishedOwned(established) => established.admission(),
+        }
+    }
+
+    const fn source_loan(self) -> BorrowPolarity {
+        let polarity = match self {
+            Self::Borrowed(view) => view.loan.polarity(),
+            Self::BorrowedResident(established) => established.loan_polarity(),
+            Self::EstablishedOwned(_) => LoanPolarity::Exclusive,
+        };
+        match polarity {
+            LoanPolarity::Shared => BorrowPolarity::Shared,
+            LoanPolarity::Exclusive => BorrowPolarity::Exclusive,
         }
     }
 
@@ -2907,6 +2951,42 @@ impl PrimitiveAccessRequest<'_, '_> {
             self.operation,
         )
     }
+
+    fn validate_authority_binding(&self) -> Result<(), AccessPlanDiagnostic> {
+        let authority = self._authority;
+        let placement = authority.placement_plan();
+        if placement.identity() != self.plan
+            || authority.profile_receipt() != self.profile_receipt
+            || authority.admission() != self.admission
+            || placement.reach() != &self.reach
+        {
+            return Err(AccessPlanDiagnostic(
+                "primitive lowering requires the copied plan, profile, admission, and reach to match the retained placement authority"
+                    .into(),
+            ));
+        }
+
+        if authority.resources().placement != placement.identity()
+            || authority.resources().field(self.key) != Some(&self.effective_supply)
+            || placement.access().field_descriptor(self.key) != Some(&self.descriptor)
+        {
+            return Err(AccessPlanDiagnostic(
+                "primitive lowering requires the retained resource row and field descriptor to belong to the exact placement authority"
+                    .into(),
+            ));
+        }
+
+        if authority.source_loan() != self.source_loan
+            || authority.resident_claim() != self.resident_claim
+            || authority.placed_occurrence() != self.placed_occurrence
+        {
+            return Err(AccessPlanDiagnostic(
+                "primitive lowering requires source-loan and resident identities to match the retained placement authority"
+                    .into(),
+            ));
+        }
+        Ok(())
+    }
 }
 
 /// Operation subset accepted by ordinary Stable primitive lowering.
@@ -3026,6 +3106,12 @@ impl<'view, 'extent> PrimitiveAccessRequest<'view, 'extent> {
                 diagnostic,
             });
         }
+        if let Err(diagnostic) = self.validate_authority_binding() {
+            return Err(StablePrimitiveAccessRejection {
+                request: self,
+                diagnostic,
+            });
+        }
         Ok(StablePrimitiveAccessRequest {
             request: self,
             operation,
@@ -3135,6 +3221,12 @@ impl<'view, 'extent> PrimitiveAccessRequest<'view, 'extent> {
             });
         }
         if let Err(diagnostic) = self.validate_descriptor_binding() {
+            return Err(StableCompoundMutationAccessRejection {
+                request: self,
+                diagnostic,
+            });
+        }
+        if let Err(diagnostic) = self.validate_authority_binding() {
             return Err(StableCompoundMutationAccessRejection {
                 request: self,
                 diagnostic,
@@ -3277,6 +3369,12 @@ impl<'view, 'extent> PrimitiveAccessRequest<'view, 'extent> {
                 diagnostic,
             });
         }
+        if let Err(diagnostic) = self.validate_authority_binding() {
+            return Err(ExternalPrimitiveAccessRejection {
+                request: self,
+                diagnostic,
+            });
+        }
         Ok(ExternalPrimitiveAccessRequest {
             request: self,
             operation,
@@ -3390,6 +3488,12 @@ impl<'view, 'extent> PrimitiveAccessRequest<'view, 'extent> {
             });
         }
         if let Err(diagnostic) = self.validate_descriptor_binding() {
+            return Err(AtomicPrimitiveAccessRejection {
+                request: self,
+                diagnostic,
+            });
+        }
+        if let Err(diagnostic) = self.validate_authority_binding() {
             return Err(AtomicPrimitiveAccessRejection {
                 request: self,
                 diagnostic,
@@ -5323,8 +5427,8 @@ mod tests {
         request: &PrimitiveAccessRequest<'_, '_>,
     ) -> PrimitiveRequestSnapshot {
         let (authority_kind, authority_identity) = match request._authority {
-            PlacementAuthorityRef::Borrowed(loan) => {
-                ("borrowed", std::ptr::from_ref(loan).cast::<()>())
+            PlacementAuthorityRef::Borrowed(view) => {
+                ("borrowed", std::ptr::from_ref(view).cast::<()>())
             }
             PlacementAuthorityRef::BorrowedResident(established) => (
                 "borrowed-resident",
@@ -6051,6 +6155,82 @@ mod tests {
         drop(request);
         assert_eq!(established.validity_receipt().normalized_identity(), 173);
         assert_eq!(established.custody_receipt().normalized_identity(), 174);
+    }
+
+    #[test]
+    fn stable_primitive_specialization_replays_exact_placement_authority() {
+        let plan = stable_word_placement();
+        let extent = uart_extent_with_lineage(0xad70, 4, 176);
+        let profile = stable_word_profile(&extent);
+        let loan = extent.loan(0, 4).expect("shared Stable loan");
+        let admission_id = PlacementAdmissionId::from_normalized_identity(177).expect("admission");
+        let admission = admit_placement(admission_id, loan, &plan, &profile)
+            .expect("borrowed Stable admission");
+        let view = place(admission);
+        let projection = view
+            .project(field_key(plan.access(), "word"))
+            .expect("shared Stable projection");
+        let mut request = projection
+            .read()
+            .expect("authorized Stable read")
+            .into_primitive_request();
+
+        request.plan.0 ^= 1;
+        request = expect_exact_stable_primitive_rejection(request, "placement authority");
+        request.plan = plan.identity();
+
+        request.profile_receipt.0 ^= 1;
+        request = expect_exact_stable_primitive_rejection(request, "placement authority");
+        request.profile_receipt = profile.receipt();
+
+        request.admission.0 ^= 1;
+        request = expect_exact_stable_primitive_rejection(request, "placement authority");
+        request.admission = admission_id;
+
+        request.reach = BoundaryReach::from_services([
+            BoundaryServiceReachId::from_normalized_identity(178).expect("reach"),
+        ]);
+        request = expect_exact_stable_primitive_rejection(request, "placement authority");
+        request.reach = plan.reach().clone();
+
+        request.source_loan = BorrowPolarity::Exclusive;
+        request = expect_exact_stable_primitive_rejection(request, "source-loan");
+        request.source_loan = BorrowPolarity::Shared;
+
+        request.resident_claim =
+            Some(ResidentClaimId::from_normalized_identity(179).expect("spurious resident claim"));
+        request = expect_exact_stable_primitive_rejection(request, "resident identities");
+        request.resident_claim = None;
+
+        request.descriptor.field.push_str("_drift");
+        request.field.push_str("_drift");
+        request.effective_supply.field.push_str("_drift");
+        let request = expect_exact_stable_primitive_rejection(request, "resource row");
+        assert_eq!(request.admission(), admission_id);
+    }
+
+    #[test]
+    fn established_primitive_specialization_replays_resident_identities() {
+        let (plan, established) = established_stable_word(0xad78, 180, 181, 183);
+        let projection = established
+            .project(field_key(plan.access(), "word"))
+            .expect("shared established projection");
+        let mut request = projection
+            .read()
+            .expect("authorized Stable read")
+            .into_primitive_request();
+
+        request.resident_claim =
+            Some(ResidentClaimId::from_normalized_identity(184).expect("drifting resident claim"));
+        request = expect_exact_stable_primitive_rejection(request, "resident identities");
+        request.resident_claim = Some(established.resident_claim());
+
+        request.placed_occurrence =
+            Some(PlacedOccurrenceId::from_normalized_identity(185).expect("drifting occurrence"));
+        let request = expect_exact_stable_primitive_rejection(request, "resident identities");
+        drop(request);
+        assert_eq!(established.validity_receipt().normalized_identity(), 181);
+        assert_eq!(established.custody_receipt().normalized_identity(), 182);
     }
 
     #[test]
