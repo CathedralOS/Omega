@@ -5401,6 +5401,11 @@ reach or trust, and private proof improvements do not change public identity.
   header before mutating the ordinal, rather than accidentally changing an
   earlier stack-evidence duplicate. The unchanged decoder rejects the targeted
   drift, and all 16 projected Unit-call integration tests pass.
+  The terminal-conditional identity golden now reflects format 20/vocabulary
+  22's canonical FloatMeaning equality table. Its empty table count is still
+  part of the domain-separated semantic bytes, so the refreshed fingerprint
+  pins the intentional identity change; conditional, nested-conditional,
+  division-stack, and image suites are green.
   Provider-sized external adapter/arrival state is design-blocked on
   `OWNER_QUESTIONS.md` Q3: stack-domain ownership across interrupted and
   switched entry must be settled before this can become a complete root
