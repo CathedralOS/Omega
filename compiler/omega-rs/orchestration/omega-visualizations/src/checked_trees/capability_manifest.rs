@@ -9,9 +9,17 @@ pub fn capability_manifest_html(
     program: &CheckedTrees,
     selected_entry_machine: Option<&str>,
 ) -> String {
+    capability_manifest_html_with_selection(program, selected_entry_machine, None)
+}
+
+pub fn capability_manifest_html_with_selection(
+    program: &CheckedTrees,
+    selected_entry_machine: Option<&str>,
+    selected: Option<&omega_effects::SelectedProviderPlanFacts>,
+) -> String {
     crate::phase_diagram::text_report_html(
         "capability_manifest",
-        &capability_manifest_text(program, selected_entry_machine),
+        &capability_manifest_text(program, selected_entry_machine, selected),
     )
 }
 
@@ -21,7 +29,15 @@ pub fn capability_manifest_json(
     program: &CheckedTrees,
     selected_entry_machine: Option<&str>,
 ) -> String {
-    let manifest = entry_capability_manifest(program, selected_entry_machine);
+    capability_manifest_json_with_selection(program, selected_entry_machine, None)
+}
+
+pub fn capability_manifest_json_with_selection(
+    program: &CheckedTrees,
+    selected_entry_machine: Option<&str>,
+    selected: Option<&omega_effects::SelectedProviderPlanFacts>,
+) -> String {
+    let manifest = entry_capability_manifest(program, selected_entry_machine, selected);
 
     let mut json = String::new();
     json.push_str("{\n");
@@ -56,7 +72,22 @@ pub fn capability_manifest_json(
             }
             push_json_string(&mut json, service);
         }
-        json.push_str("]}");
+        json.push(']');
+        if let Some(resolved) = &reach.resolved {
+            json.push_str(", \"selected_row\": [");
+            for (service_index, service) in resolved.services.iter().enumerate() {
+                if service_index > 0 {
+                    json.push_str(", ");
+                }
+                push_json_string(&mut json, service);
+            }
+            json.push_str("], \"provider_plan_identity\": ");
+            push_json_string(
+                &mut json,
+                &format!("{:#018x}", resolved.provider_plan_identity),
+            );
+        }
+        json.push('}');
     }
     json.push_str("],\n  \"may_block\": ");
     json.push_str(if manifest.may_block { "true" } else { "false" });
@@ -76,8 +107,9 @@ pub fn capability_manifest_json(
 fn capability_manifest_text(
     program: &CheckedTrees,
     selected_entry_machine: Option<&str>,
+    selected: Option<&omega_effects::SelectedProviderPlanFacts>,
 ) -> String {
-    let manifest = entry_capability_manifest(program, selected_entry_machine);
+    let manifest = entry_capability_manifest(program, selected_entry_machine, selected);
     let mut report = String::new();
 
     report.push_str("Executable Capability Manifest\n");
@@ -105,6 +137,14 @@ fn capability_manifest_text(
             report.push_str(&reach.requirement);
             report.push_str(" <= ");
             report.push_str(&reach.upper_bound.join(" + "));
+            if let Some(resolved) = &reach.resolved {
+                report.push_str(" => ");
+                if resolved.services.is_empty() {
+                    report.push_str("<empty>");
+                } else {
+                    report.push_str(&resolved.services.join(" + "));
+                }
+            }
             report.push('\n');
         }
     }
@@ -141,11 +181,19 @@ struct EntryCapabilityManifest {
 struct InstallationBoundReachManifest {
     requirement: String,
     upper_bound: Vec<String>,
+    resolved: Option<ResolvedInstallationReachManifest>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ResolvedInstallationReachManifest {
+    provider_plan_identity: u64,
+    services: Vec<String>,
 }
 
 fn entry_capability_manifest(
     program: &CheckedTrees,
     selected_entry_machine: Option<&str>,
+    selected: Option<&omega_effects::SelectedProviderPlanFacts>,
 ) -> EntryCapabilityManifest {
     let Some((machine_symbol, machine_name, state_name)) =
         entry_machine(program, selected_entry_machine)
@@ -190,7 +238,7 @@ fn entry_capability_manifest(
         })
         .map(|definition| definition.name.clone())
         .collect();
-    let installation_bound_reaches = installation_bound_reaches(program, reach);
+    let installation_bound_reaches = installation_bound_reaches(program, reach, selected);
 
     let mut matching_suspensions = program
         .facts
@@ -234,6 +282,7 @@ fn entry_capability_manifest(
 fn installation_bound_reaches(
     program: &CheckedTrees,
     reach: &psi_checked_trees::MachineServiceReachRows,
+    selected: Option<&omega_effects::SelectedProviderPlanFacts>,
 ) -> Vec<InstallationBoundReachManifest> {
     let mut rows = reach
         .unresolved_installation_reaches
@@ -282,10 +331,28 @@ fn installation_bound_reaches(
                         .name
                         .clone()
                 })
-                .collect();
+                .collect::<Vec<_>>();
+            let resolved = selected.map(|selected| {
+                let resolution = selected
+                    .installation_reach_resolution(&requirement)
+                    .unwrap_or_else(|| {
+                        panic!(
+                            "capability manifest invariant: selected provider closure does not resolve installation-bound requirement `{requirement}`"
+                        )
+                    });
+                assert_eq!(
+                    resolution.upper_bound, upper_bound,
+                    "capability manifest invariant: selected installation reach bound drifted from checked entry"
+                );
+                ResolvedInstallationReachManifest {
+                    provider_plan_identity: resolution.provider_plan_identity,
+                    services: resolution.resolved_row.clone(),
+                }
+            });
             InstallationBoundReachManifest {
                 requirement,
                 upper_bound,
+                resolved,
             }
         })
         .collect::<Vec<_>>();
@@ -328,7 +395,12 @@ fn entry_machine_named(
 
 #[cfg(test)]
 mod tests {
-    use super::{capability_manifest_json, capability_manifest_text};
+    use super::{
+        capability_manifest_json, capability_manifest_json_with_selection, capability_manifest_text,
+    };
+    use omega_effects::provider_plan::{
+        ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceMethod, ServiceSchema,
+    };
     use psi_checked_trees::{CheckedTrees, MachineContractPlan, MachineServiceReachRows};
     use psi_effects::InstallationReachRequirement;
     use psi_language_semantics::{
@@ -398,6 +470,29 @@ mod tests {
             capability_manifest_json(program, Some("Application::launch"))
         }))
         .expect_err("invalid manifest facts must fail closed");
+        panic
+            .downcast_ref::<String>()
+            .cloned()
+            .or_else(|| {
+                panic
+                    .downcast_ref::<&str>()
+                    .map(|message| (*message).to_owned())
+            })
+            .expect("invariant panic has a string diagnostic")
+    }
+
+    fn selected_manifest_panic(
+        program: &CheckedTrees,
+        selected: &omega_effects::SelectedProviderPlanFacts,
+    ) -> String {
+        let panic = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            capability_manifest_json_with_selection(
+                program,
+                Some("Application::launch"),
+                Some(selected),
+            )
+        }))
+        .expect_err("invalid selected manifest facts must fail closed");
         panic
             .downcast_ref::<String>()
             .cloned()
@@ -514,7 +609,7 @@ mod tests {
             });
 
         let json = capability_manifest_json(&program, Some("Application::launch"));
-        let text = capability_manifest_text(&program, Some("Application::launch"));
+        let text = capability_manifest_text(&program, Some("Application::launch"), None);
 
         assert!(json.contains("\"entry_machine\": \"Application::launch\""));
         assert!(json.contains("\"service_reach\": [\"MachineControl\", \"PortIo\"]"));
@@ -567,6 +662,23 @@ mod tests {
             },
         );
         program.typed.push_trait_definition(controller);
+        let requirement_identity = {
+            let owner = program
+                .typed
+                .traits()
+                .iter()
+                .find(|owner| owner.symbol == SymbolHandle::from_arena_index(40))
+                .expect("controller trait exists");
+            let requirement = program
+                .typed
+                .trait_machine_signatures(owner)
+                .first()
+                .expect("completion requirement exists");
+            program
+                .typed
+                .normalized_trait_requirement_overload_identity(owner, requirement)
+                .identity()
+        };
 
         program.facts.service_reaches = Default::default();
         let reaches = &mut program.facts.service_reaches;
@@ -591,7 +703,7 @@ mod tests {
         );
 
         let json = capability_manifest_json(&program, Some("Application::launch"));
-        let text = capability_manifest_text(&program, Some("Application::launch"));
+        let text = capability_manifest_text(&program, Some("Application::launch"), None);
 
         assert!(
             json.contains("InterruptCompletion::complete"),
@@ -604,6 +716,64 @@ mod tests {
         assert!(text.contains("installation-bound reach:"));
         assert!(text.contains("InterruptCompletion::complete"));
         assert!(text.contains("<= MachineControl + PortIo"));
+
+        let provider = ProviderPlan {
+            name: "pic".into(),
+            provider_type: "LegacyPic".into(),
+            target: "test-target".into(),
+            schema: ServiceSchema {
+                trait_name: "InterruptCompletion".into(),
+                methods: vec![ServiceMethod {
+                    name: "complete".into(),
+                    requirement_owner: "InterruptCompletion".into(),
+                    requirement_identity: requirement_identity.clone(),
+                    parameter_count: 0,
+                    parameter_type_identities: Vec::new(),
+                    entry_claims: Vec::new(),
+                    has_result: false,
+                    result_type_identity: None,
+                    result_claims: Vec::new(),
+                    service_reach: vec!["PortIo".into()],
+                    synchronous_invocations: Vec::new(),
+                    may_suspend: false,
+                    may_block: false,
+                    terminates_guarantee: false,
+                    termination_premises: Vec::new(),
+                    calling_plan_fingerprint: None,
+                }],
+            },
+            rows: vec![ProviderPlanRow {
+                method: "complete".into(),
+                requirement_identity: requirement_identity.clone(),
+                binding: ProviderBinding::CompilerIntrinsic {
+                    machine: "LegacyPic::complete".into(),
+                },
+            }],
+            origin_package: "test".into(),
+        };
+        let provider_identity = provider.identity_fingerprint();
+        let selected_without_reach =
+            omega_effects::SelectedProviderPlanFacts::from_selection(&[provider], &["pic".into()])
+                .expect("provider selection is valid");
+        assert!(
+            selected_manifest_panic(&program, &selected_without_reach)
+                .contains("does not resolve installation-bound requirement")
+        );
+        let selected = selected_without_reach
+            .with_installation_reach_resolutions(vec![omega_effects::InstallationReachResolution {
+                requirement_identity,
+                provider_plan_identity: provider_identity,
+                upper_bound: vec!["MachineControl".into(), "PortIo".into()],
+                resolved_row: vec!["PortIo".into()],
+            }])
+            .expect("installation reach resolves inside its bound");
+        let selected_json = capability_manifest_json_with_selection(
+            &program,
+            Some("Application::launch"),
+            Some(&selected),
+        );
+        assert!(selected_json.contains("\"selected_row\": [\"PortIo\"]"));
+        assert!(selected_json.contains(&format!("{provider_identity:#018x}")));
     }
 
     #[test]

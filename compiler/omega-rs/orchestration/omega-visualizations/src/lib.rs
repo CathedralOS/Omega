@@ -14,7 +14,8 @@ pub use backend::{
     emission_html, machine_instructions_html, target_operations_html,
 };
 pub use checked_trees::{
-    capability_manifest_html, capability_manifest_json, carry_manifest_json, checked_trees_html,
+    capability_manifest_html, capability_manifest_html_with_selection, capability_manifest_json,
+    capability_manifest_json_with_selection, carry_manifest_json, checked_trees_html,
     claim_outcome_manifest_json, index_compatibility_manifest_json, machine_contract_manifest_json,
     qualification_evidence_manifest_json, task_activation_manifest_json,
 };
