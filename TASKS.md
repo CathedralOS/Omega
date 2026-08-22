@@ -690,8 +690,13 @@ Owners:
   lives in a focused 522-line private owner. Declared-domain matching, indexed-
   argument handoff, semantic-role conflict ordering, carry/value/arithmetic
   diagnostics, OmegaLayout carrier checks, dependent-range admission, crate
-  APIs, and that same inventory remain unchanged; the 1,050-line parent retains
-  recursive type-shape and generic-argument dispatch.
+  APIs, and that same inventory remain unchanged. Generic type-reference
+  argument admission now lives in a focused 401-line private owner. Exact
+  static-machine contract selection, symbolic array-length checks, canonical
+  structural const-index eligibility, forwarded const identity, integer-range
+  diagnostics, property-bound ordering, crate APIs, and the 33-function
+  inventory remain unchanged; the 662-line parent retains recursive type-shape
+  dispatch and owner/scope orchestration.
   Erased terms remain semantically mandatory but add no bytes, including nested
   records and fixed arrays whose entire runtime shape is erased. Scalar
   placement/access semantics remain fenced for aggregates. Continue beyond
