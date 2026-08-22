@@ -2526,6 +2526,12 @@ Remaining:
   only root construction is exposed to the frontier parent. Expansion order,
   prefix replay, witness/proof shape, rejection, and the fixed four-layer
   frontier remain unchanged.
+  Affine frontier cursor owners now complete their custody boundary: fields are
+  fully private, and producer/reconstruction cursors independently enumerate
+  exact start-bounded definition extensions, clone and append each source index,
+  and construct accepted successor cursors. Layer parents retain kernel prefix
+  replay and accepted-word accumulation. Source order, witness/proof shape,
+  rejection behavior, and the fixed four-layer frontier remain unchanged.
   One-equality transitive affine completion now lives in independent side-local
   `affine_selection/transitive/alias/completion` modules. Each parent retains
   its own ledger-ordered equality discovery, distinct root/alias custody, and
@@ -5064,6 +5070,13 @@ Owners:
   and their Exact-proof diagnostics. Exact-owner ambiguity, the 795 rooted/3
   legacy inventory, and receipt-drift fences remain green; crash semantics and
   legacy owners are unchanged.
+  Three authored-root arithmetic/range regressions—FNV-1a wrapping arithmetic,
+  min/max clamp narrowing, and modulo/division interval narrowing—now launch
+  `OutputOnly` native execution solely through exact checked-report executable
+  receipts while preserving literal exit 70 and the existing Exact-bound
+  diagnostics. Exact-owner ambiguity, the 795 rooted/3 legacy inventory, and
+  receipt-drift fences remain green; crash semantics and legacy owners are
+  unchanged.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
@@ -5296,6 +5309,13 @@ reach or trust, and private proof improvements do not change public identity.
   qualification identity, affine discard order, and final x86-64/AArch64 return
   bytes. Object construction and stack/image orchestration remain in the 5,255-
   line parent; APIs, errors, bytes, order, and the 140-function inventory remain
+  unchanged.
+  Exact internal Unit-call custody and projected-copy replay now live in a
+  focused 418-line `unit_call_custody` child, preserving retained call,
+  provenance, and fuel identity, native calling-policy placements, structural
+  path/home geometry, claim transfers, exact x86-64/AArch64 copy bytes, and
+  call-span containment while orchestration and relocation remain in the 4,859-
+  line parent. API, error, byte order, and the 140-function inventory remain
   unchanged.
   Provider-sized external adapter/arrival state is design-blocked on
   `OWNER_QUESTIONS.md` Q3: stack-domain ownership across interrupted and
