@@ -2425,6 +2425,14 @@ Remaining:
   order and its indexed join custody. Reconstruction retains its independent
   proposition-only short-circuit traversals, with proof shapes, rejection,
   precedence, and fixed frontiers unchanged.
+  Fixed affine indexed joins now short-circuit directly through their retained
+  ordered slices. Two-citation chain authorities independently reject reuse of
+  the left row before completing against each indexed right leg, while the
+  producer alone materializes the accepted citation proof pair; the producer
+  literal-landing index likewise rejects outer/inner row reuse before
+  materializing its existing proof pair. Shared-middle and alias lookup order,
+  carrier checks, proof shapes, completion precedence, rejection behavior, and
+  the fixed two-leg/one-alias frontiers remain unchanged.
   One-equality transitive affine completion now lives in independent side-local
   `affine_selection/transitive/alias/completion` modules. Each parent retains
   its own ledger-ordered equality discovery, distinct root/alias custody, and
@@ -4827,6 +4835,13 @@ Owners:
   diagnostics that reject lexically fixed implementation selection. Exact-
   owner ambiguity, the 795 rooted/3 legacy inventory, and receipt-drift fences
   remain green.
+  Two authored-root runtime-boundary regressions—a `build`-named machine
+  authored in main source remaining an ordinary runtime machine, and natural
+  termination returning the oracle's zero status—now launch `OutputOnly`
+  native execution solely through exact checked-report executable receipts
+  while preserving literal statuses 70 and 0 and their diagnostics. Exact-
+  owner ambiguity, the 795 rooted/3 legacy inventory, and receipt-drift fences
+  remain green; deep-state collision and u64 guard owners remain separate.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
