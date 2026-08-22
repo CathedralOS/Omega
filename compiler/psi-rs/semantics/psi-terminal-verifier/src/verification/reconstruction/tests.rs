@@ -1029,13 +1029,13 @@ fn exact_division_selects_single_definition_affine_safe_divisor() {
         value(3, signed),
     );
     let definition = Proposition::Equal(
-        value(2, signed),
         ScalarTerm::exact_integer_add(
             signed,
             value(3, signed),
             ScalarTerm::integer(signed, IntegerValue::Signed(1)).expect("i8 one"),
         )
         .expect("exact add"),
+        value(2, signed),
     );
     assert!(exact_division_has_prior_certificate(
         &context,
