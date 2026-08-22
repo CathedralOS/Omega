@@ -4,6 +4,7 @@ use omega_calling_conventions::{
     BoundaryEntryPlan, MachineRegister, StateFootprintEvidence, ValidatedBoundaryEntryPlan,
     validate_state_footprint,
 };
+use omega_effects::{InstallationReachResolution, SelectedProviderPlanFacts};
 use psi_layout_plans::EntryStubId;
 
 use super::stack_demand::fingerprint_entry_stack;
@@ -54,6 +55,98 @@ pub struct ExternalRootResultClaim {
     pub effective_carry: psi_language_semantics::CarryPolicy,
 }
 
+/// Final, source-handle-free service reach of one installed-root closure.
+///
+/// The concrete row comes from checked code. Installation-bound requirements
+/// remain nominal dependencies until provider selection supplies each exact
+/// realization row. Construction fails closed on an absent selection; the
+/// published root therefore never substitutes an authored upper bound for a
+/// provider's actual reach.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ResolvedRootServiceReach {
+    concrete: Vec<String>,
+    installation_requirements: Vec<String>,
+    resolutions: Vec<InstallationReachResolution>,
+    effective: Vec<String>,
+    selected_provider_closure_fingerprint: u64,
+}
+
+impl ResolvedRootServiceReach {
+    pub fn from_selected_provider_closure(
+        mut concrete: Vec<String>,
+        mut installation_requirements: Vec<String>,
+        selected: &SelectedProviderPlanFacts,
+    ) -> Result<Self, ExternalRootDiagnostic> {
+        if concrete.iter().any(String::is_empty) {
+            return Err(ExternalRootDiagnostic(
+                "external-root concrete service reach contains an empty service identity".into(),
+            ));
+        }
+        concrete.sort();
+        concrete.dedup();
+
+        if installation_requirements.iter().any(String::is_empty) {
+            return Err(ExternalRootDiagnostic(
+                "external-root installation reach contains an empty requirement identity".into(),
+            ));
+        }
+        installation_requirements.sort();
+        if installation_requirements
+            .windows(2)
+            .any(|pair| pair[0] == pair[1])
+        {
+            return Err(ExternalRootDiagnostic(
+                "external-root installation reach requirements must be unique".into(),
+            ));
+        }
+
+        let effective = selected
+            .resolve_installation_reach(&concrete, &installation_requirements)
+            .map_err(ExternalRootDiagnostic)?;
+        let resolutions = installation_requirements
+            .iter()
+            .map(|requirement| {
+                selected
+                    .installation_reach_resolution(requirement)
+                    .cloned()
+                    .ok_or_else(|| {
+                        ExternalRootDiagnostic(format!(
+                            "installation reach requirement `{requirement}` remains unresolved at final admission"
+                        ))
+                    })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        Ok(Self {
+            concrete,
+            installation_requirements,
+            resolutions,
+            effective,
+            selected_provider_closure_fingerprint: selected.normalized_identity(),
+        })
+    }
+
+    pub fn concrete(&self) -> &[String] {
+        &self.concrete
+    }
+
+    pub fn installation_requirements(&self) -> &[String] {
+        &self.installation_requirements
+    }
+
+    pub fn resolutions(&self) -> &[InstallationReachResolution] {
+        &self.resolutions
+    }
+
+    pub fn effective(&self) -> &[String] {
+        &self.effective
+    }
+
+    pub const fn selected_provider_closure_fingerprint(&self) -> u64 {
+        self.selected_provider_closure_fingerprint
+    }
+}
+
 /// Provider-independent facts required for one externally invoked entry.
 ///
 /// Effects and receipts are normalized open sets. The concrete interrupt,
@@ -81,6 +174,10 @@ pub struct ExternalRootCandidate {
     /// and masks the current invocation. It belongs to the independently
     /// selected mask-control provider, not implicitly to the root provider.
     pub interrupt_mask_guard_claim: Option<ExternalRootResultClaim>,
+    /// Fully selected service reach for this exact root closure. This carrier
+    /// is constructed only after every installation-bound requirement has an
+    /// exact selected-provider resolution.
+    pub service_reach: ResolvedRootServiceReach,
     pub effects: BTreeSet<RootEffectId>,
     pub trust_receipts: BTreeSet<TrustReceiptId>,
     /// Identity of the artifact-wide relation that names which other roots may
@@ -278,6 +375,32 @@ fn fingerprint_root(candidate: &ExternalRootCandidate, boundary: u64) -> u64 {
             fingerprint_carry_policy(&mut hash, claim.effective_carry);
         }
         None => hash.u64(0),
+    }
+    hash.u64(
+        candidate
+            .service_reach
+            .selected_provider_closure_fingerprint(),
+    );
+    hash.u64(candidate.service_reach.concrete().len() as u64);
+    for service in candidate.service_reach.concrete() {
+        hash.string(service);
+    }
+    hash.u64(candidate.service_reach.installation_requirements().len() as u64);
+    for resolution in candidate.service_reach.resolutions() {
+        hash.string(&resolution.requirement_identity);
+        hash.u64(resolution.provider_plan_identity);
+        hash.u64(resolution.upper_bound.len() as u64);
+        for service in &resolution.upper_bound {
+            hash.string(service);
+        }
+        hash.u64(resolution.resolved_row.len() as u64);
+        for service in &resolution.resolved_row {
+            hash.string(service);
+        }
+    }
+    hash.u64(candidate.service_reach.effective().len() as u64);
+    for service in candidate.service_reach.effective() {
+        hash.string(service);
     }
     hash.u64(boundary);
     hash.u64(candidate.nesting_relation.normalized_identity());

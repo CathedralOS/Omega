@@ -553,6 +553,7 @@ name = "omega-external-roots"
 version = "0.1.0"
 dependencies = [
  "omega-calling-conventions",
+ "omega-effects",
  "omega-executable-installation",
  "omega-target",
  "omega-terminal-installation-evidence",
