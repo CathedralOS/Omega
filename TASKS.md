@@ -1909,7 +1909,7 @@ Remaining:
   storage/place, 866-line outbound-call, and 512-line buffer/wire/text
   responsibilities. A
   separate instruction-selection boundary-footprint owner has begun the same
-  split: its 3,936-line `entry.rs` parent delegates all eleven compact-binary
+  split: its 3,060-line `entry.rs` parent delegates all eleven compact-binary
   append/read footprint derivations to a 433-line `entry/wire.rs` child, while
   a separate 373-line `entry/text.rs` child owns bounded-buffer, string-
   descriptor, and runtime-text assembly footprints. A focused 152-line
@@ -1930,8 +1930,11 @@ Remaining:
   exact target encoder clobber contracts. A 240-line `entry/runtime_io.rs`
   child owns byte-read, byte-write, and line-read host-adapter footprint
   derivation. A 75-line `entry/constant_results.rs` child owns per-target
-  constant host-result materialization footprints. The public re-export
-  surface, validation order, and 135-function inventory are unchanged; the
+  constant host-result materialization footprints. A 901-line
+  `entry/direct_imports.rs` child owns all sixteen direct-import footprint
+  classifications and their shared retained-plan evaluator. The public
+  re-export surface, validation order, and 135-function inventory are
+  unchanged; the
   children depend only on retained instructions/operands, the validated
   boundary plan, place-shape classification where applicable, and architecture
   encoder clobber/state facts. A
