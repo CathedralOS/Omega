@@ -3626,12 +3626,14 @@ fn trapping_float_to_narrow_int_cast_traps_aborts() {
     let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
         .expect("narrow Trapping canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
+    let reason = outcome
+        .error
+        .expect("interpreter must report the same narrow cast trap");
     assert!(
-        outcome
-            .error
-            .as_deref()
-            .is_some_and(|reason| reason.contains("float-to-int cast out of range")),
-        "interpreter must report the same narrow cast trap"
+        reason.contains("float-to-int conversion failed in Trapping domain")
+            && reason.contains("truncated value is out of range")
+            && reason.contains("U8"),
+        "expected the narrow cast trap reason, got: {reason}"
     );
     let _ = fs::remove_dir_all(&build_dir);
 }
