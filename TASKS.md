@@ -2166,8 +2166,13 @@ Owners:
   placeholder encoding. This pins the eventual thunk-to-selected-entry call
   edge but does not synthesize that thunk body. Missing, duplicate, redirected,
   role-drifted, or interval-drifted identities reject, so a plan row cannot be
-  mistaken for emitted thunk evidence. Final emission now also rejoins every
-  validated placement row to exactly one private thunk plan. Missing,
+  mistaken for emitted thunk evidence. Final compiler-function replay now also
+  rejects invalid or duplicate identities and fingerprints each exact role,
+  continuation handle/generation, segment, and callback placement alongside
+  its byte/instruction partition. Role substitution therefore changes final
+  derivation evidence even when all byte intervals remain unchanged. Final
+  emission also rejoins every validated placement row to exactly one private
+  thunk plan. Missing,
   duplicate, or out-of-range placement indices, selected-entry drift, and
   repeated private thunk identities reject before encoded-function/object
   evidence is accepted. This does not

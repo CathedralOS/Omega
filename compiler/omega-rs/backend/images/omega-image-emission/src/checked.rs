@@ -7,6 +7,7 @@ use omega_image::{
 use omega_object_file::{RelocationKind, RelocationPlan, SectionKind};
 use omega_target::Architecture;
 use psi_diagnostics::Diagnostic;
+use std::collections::HashSet;
 
 mod assembly;
 mod atomic_replay;
@@ -283,8 +284,15 @@ fn validate_compiler_function_instruction_boundaries(
     let mut body_specification_instruction_count = 0usize;
     let mut body_specification_validation_fingerprint = 0xcbf2_9ce4_8422_2325u64;
     let mut compiler_instruction_footprints = Vec::new();
+    let mut function_identities = HashSet::with_capacity(code.functions.len());
 
     for (function_index, (_, function)) in code.functions.iter().enumerate() {
+        retain_compiler_function_identity(
+            function_index,
+            function.identity,
+            &mut function_identities,
+            &mut fingerprint,
+        )?;
         if function.byte_offset != expected_byte_offset {
             return Err(Diagnostic::error(format!(
                 "compiler function #{function_index} begins at byte {}, expected complete partition offset {expected_byte_offset}",
@@ -524,6 +532,74 @@ fn validate_compiler_function_instruction_boundaries(
         composed_footprint_fingerprint,
         validation_fingerprint: fingerprint,
     })
+}
+
+fn retain_compiler_function_identity(
+    function_index: usize,
+    identity: omega_control_flow::MachineFunctionIdentity,
+    identities: &mut HashSet<omega_control_flow::MachineFunctionIdentity>,
+    fingerprint: &mut u64,
+) -> Result<(), Diagnostic> {
+    if !identity.is_valid() {
+        return Err(Diagnostic::error(format!(
+            "compiler function #{function_index} has an invalid compiler-private identity"
+        )));
+    }
+    if !identities.insert(identity) {
+        return Err(Diagnostic::error(format!(
+            "compiler function #{function_index} duplicates compiler-private identity {identity:?}"
+        )));
+    }
+
+    let role_tag = if identity.source_key().is_some() {
+        1u8
+    } else if identity.program_storage_entry_continuation().is_some() {
+        2u8
+    } else if identity.callback_thunk_placement_index().is_some() {
+        3u8
+    } else {
+        return Err(Diagnostic::error(format!(
+            "compiler function #{function_index} has an unknown compiler-private role"
+        )));
+    };
+    let continuation = identity.associated_source_continuation();
+    let segment_index = u64::try_from(continuation.segment_index).map_err(|_| {
+        Diagnostic::error(format!(
+            "compiler function #{function_index} segment index exceeds the validation fingerprint carrier"
+        ))
+    })?;
+    let placement_index = identity
+        .callback_thunk_placement_index()
+        .map(u64::try_from)
+        .transpose()
+        .map_err(|_| {
+            Diagnostic::error(format!(
+                "compiler function #{function_index} callback placement index exceeds the validation fingerprint carrier"
+            ))
+        })?;
+    fingerprint_into(fingerprint, &[role_tag]);
+    fingerprint_into(
+        fingerprint,
+        &u64::from(continuation.machine.arena_index()).to_le_bytes(),
+    );
+    fingerprint_into(
+        fingerprint,
+        &u64::from(continuation.machine.generation()).to_le_bytes(),
+    );
+    fingerprint_into(
+        fingerprint,
+        &u64::from(continuation.state.arena_index()).to_le_bytes(),
+    );
+    fingerprint_into(
+        fingerprint,
+        &u64::from(continuation.state.generation()).to_le_bytes(),
+    );
+    fingerprint_into(fingerprint, &segment_index.to_le_bytes());
+    fingerprint_into(
+        fingerprint,
+        &placement_index.unwrap_or(u64::MAX).to_le_bytes(),
+    );
+    Ok(())
 }
 
 fn validate_compiler_storage_relocation(

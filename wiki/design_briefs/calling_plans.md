@@ -618,6 +618,11 @@ drift therefore rejects before placeholder encoding; this pins the call edge a
 future callback body will use without claiming that the body exists yet.
 Native image emission rejects a planned callback unless that exact callback
 identity names one encoded function and one matching private text symbol.
+The final compiler-function replay independently rejects invalid or duplicate
+function identities and folds each role, continuation handle/generation,
+segment, and callback placement into its validation fingerprint. Function-role
+substitution therefore changes final derivation evidence even when byte
+intervals and instruction rows are otherwise unchanged.
 Emission also rejoins every validated
 placement row to exactly one thunk plan and rejects a missing, duplicate, or
 out-of-range placement index, selected-entry drift, and repeated private thunk
