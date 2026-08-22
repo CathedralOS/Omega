@@ -477,8 +477,12 @@ Remaining:
   parameter-home rows now share a private 149-line codec. Unit and scalar rows
   retain their original positions around affine cleanup evidence, exact bytes,
   reserved fields, direct placements, count guards, and distinct literal zero-
-  identity diagnostics; admission replay is unchanged. The installation parent
-  is now 4,581
+  identity diagnostics; admission replay is unchanged. Unit affine-cleanup
+  records and scalar-control cleanup lists now share a private 203-line codec.
+  Function-row presence fields and order, structural/local/action bytes,
+  literal identity diagnostics, count/capacity guards, cleanup canonicality,
+  fuel/call validation, and admission replay remain unchanged. The installation
+  parent is now 4,385
   lines. This is
   custody, not
   authorization. The remaining
@@ -3100,7 +3104,12 @@ Remaining:
   orientation, endpoint order, proof shape, missing/redirected/mistyped
   rejection, and the exact one-alias frontier are unchanged; no depth
   parameter, recursion, or graph search is introduced.
-  Fixed two-alias bound completion now lives in independent side-local
+  Fixed two-alias transport now places ledger/index enumeration in independent
+  side-local `alias_transport/two/candidates` modules behind unchanged callback
+  APIs. Outer equality, orientation, inner equality, indexed-bound order, exact
+  fact non-reuse, citation identity, nested substitution proof bytes, callback/
+  rejection order, and the fixed two-alias frontier are unchanged. Fixed two-
+  alias bound completion now lives in independent side-local
   `alias_transport/two/completion` modules shared only through each side's own
   private facade. The producer parent retains origin-indexed outer/inner
   equality citations, distinct same-carrier value custody, cycle/reuse
@@ -7068,9 +7077,14 @@ checked-result arithmetic decision listed below.
   focused 127-line private owner. Checked integer arithmetic, shifts, bitwise
   and logical operations, comparisons, unary operations, `self` substitution,
   unsupported-expression fallback, diagnostics, and evaluation order remain
-  unchanged. Its 341-line coordinator retains membership discovery, domain
-  recursion, machine-backed fact admission, and transactional replacement;
-  public APIs and the 107-function production inventory are unchanged.
+  unchanged.
+  Recursive constant-domain membership discharge now lives in a focused 227-
+  line private owner. Nested-domain traversal, cycle fallback, direct-`self`
+  machine-fact selection, common-floor admission, exact signature checks,
+  proof-fact order, and diagnostics remain unchanged. The natural 122-line
+  coordinator now owns only concrete-membership discovery and transactional
+  fact replacement; public APIs and the 107-function production inventory are
+  unchanged.
 - Finish member reflection (`Self::fields` and field/case splices), constant
   positions, and proof checking of generator-expanded bodies.
 - Complete the ordinary `Build` API/executor with exact dependency aliases,
