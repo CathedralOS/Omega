@@ -1352,12 +1352,12 @@ Remaining:
   mapped conclusion, and records every selected definition in accepted premise
   closure. Non-order or wrong-root children, stale/reordered/malformed words,
   target/carrier drift, arithmetic overflow, or a mismatched mapped bound
-  reject. Proof-bundle v17 assigns tag 12; the registered calculus is v13 and
-  the Rust kernel v5, with the affine checker included in both trust-graph
-  source sets. The first bounded producer family now uses the rule for one to
-  four prior signed fixed affine definitions whose exact retained root bound
-  maps directly to a canonical safe-divisor arm. Reconstruction and production
-  enumerate shortest words first and advance only prefixes accepted by the
+  reject. Proof-bundle v17 retains tag 12; the registered calculus is v14 and
+  the Rust kernel v6, with the affine and cast checkers included in both
+  trust-graph source sets. The first bounded producer family now uses the rule
+  for one to four prior signed fixed affine definitions whose exact retained
+  root bound maps directly to a canonical safe-divisor arm. Reconstruction and
+  production enumerate shortest words first and advance only prefixes accepted by the
   affine witness checker; within each depth, semantic-axiom indices stay
   strictly ordered. The kernel independently checks continuity, algebra, the
   mapped conclusion, and accepted-premise custody. Missing root custody,
@@ -1432,7 +1432,19 @@ Remaining:
   representable intersection, never total or lossy conversion. The checker
   accepts no proof authority, does not establish machine-parameter custody or
   surrounding prefix/suffix algebra, and leaves heterogeneous widening/cast
-  words separate. A third non-serialized common checker now normalizes the
+  words separate. `IntegerCastBound` is the versioned first integration for
+  that core. One recursively checked root-bound child and exactly one partial
+  fixed-native exact-cast definition map the same mathematical literal endpoint
+  into the target carrier. The kernel rechecks the cast witness and conversion
+  and records the selected definition in accepted premise closure. A non-order
+  or wrong-root child, zero or multiple cast definitions, stale or
+  total/widening-shaped casts, target/orientation drift, or a changed endpoint
+  rejects. Proof-bundle v17 assigns tag 13; the producer and reconstruction
+  enumerate one definition only. This adds a complete direct one-cast custody
+  family for exact divide/remainder goals but does not promote either whole row:
+  multi-cast, affine/cast, shift/cast, joins, and correlated results remain
+  trusted-reducer work, and `fully-derived false` is unchanged. A third
+  non-serialized common checker now normalizes the
   complete exact-shift core shared by direct, cast-adjacent, affine-adjacent,
   and divide/remainder-adjacent families. It binds a nonempty, strictly ordered
   word of canonical exact-left/right semantic equalities from one fixed-native
@@ -2309,7 +2321,11 @@ Owners:
   joining the sealed entry projection and whole function-region binding to the
   prior inventory, exact composed footprint, and resulting inventory.
   Boundary-bearing final footprint certificates require and fingerprint this
-  receipt; missing, stale, redirected, or pre/post-inventory drift rejects.
+  receipt; missing, stale, redirected, or pre/post-inventory drift rejects. The
+  complete certificate is now constructed and revalidated before executable or
+  app-bundle installation, and auxiliary inventory serialization consumes that
+  existing certificate rather than discovering a semantic failure only after
+  executable bytes become visible.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
