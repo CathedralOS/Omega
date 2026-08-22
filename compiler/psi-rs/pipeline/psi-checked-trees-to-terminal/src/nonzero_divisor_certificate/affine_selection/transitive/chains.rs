@@ -1,24 +1,24 @@
 //! Ordered exact two-citation chains for affine certificate production.
 
-use psi_core::{Proposition, ScalarTerm};
+use psi_core::Proposition;
 
-use super::super::super::integer_evidence::{Citation, cited_facts};
+use super::super::super::integer_evidence::Citation;
 
+mod left_legs;
 mod right_index;
 
+use left_legs::LeftLegs;
 use right_index::RightLegIndex;
 
 pub(super) struct TwoCitationChains<'a> {
-    assumptions: &'a [Proposition],
-    semantic_axioms: &'a [Proposition],
+    left_legs: LeftLegs<'a>,
     right_legs: RightLegIndex<'a>,
 }
 
 impl<'a> TwoCitationChains<'a> {
     pub(super) fn new(assumptions: &'a [Proposition], semantic_axioms: &'a [Proposition]) -> Self {
         Self {
-            assumptions,
-            semantic_axioms,
+            left_legs: LeftLegs::new(assumptions, semantic_axioms),
             right_legs: RightLegIndex::new(assumptions, semantic_axioms),
         }
     }
@@ -27,13 +27,7 @@ impl<'a> TwoCitationChains<'a> {
         &self,
         mut complete: impl FnMut(Citation, &'a Proposition, Citation, &'a Proposition) -> Option<T>,
     ) -> Option<T> {
-        for (left_citation, left_fact) in cited_facts(self.assumptions, self.semantic_axioms) {
-            let Proposition::LessOrEqual(_, middle) = left_fact else {
-                continue;
-            };
-            if !matches!(middle, ScalarTerm::Value { .. }) {
-                continue;
-            }
+        self.left_legs.find(|left_citation, left_fact, middle| {
             for &(right_citation, right_fact) in self.right_legs.candidates(middle) {
                 if std::ptr::eq(left_fact, right_fact) {
                     continue;
@@ -43,7 +37,7 @@ impl<'a> TwoCitationChains<'a> {
                     return Some(result);
                 }
             }
-        }
-        None
+            None
+        })
     }
 }
