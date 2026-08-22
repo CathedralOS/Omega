@@ -850,10 +850,13 @@ fn runtime_ref_param_method_dispatch_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("ref-param method dispatch canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("ref-param method dispatch canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("ref-param method dispatch canary should run");
 
@@ -884,10 +887,13 @@ fn runtime_typed_two_method_receivers_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("typed two-method receivers canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("typed two-method receivers canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("typed two-method receivers canary should run");
 
