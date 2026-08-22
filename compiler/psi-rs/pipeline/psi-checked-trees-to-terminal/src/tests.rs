@@ -23,6 +23,54 @@ mod structural_return_cases;
 mod unit_cleanup;
 
 #[test]
+fn integer_operation_obligations_follow_the_shared_policy_catalog() {
+    let operation = operation_id(10);
+    let obligation_kinds = [
+        LoweredIntegerBinaryKind::ExactShiftLeft,
+        LoweredIntegerBinaryKind::ExactShiftRight,
+        LoweredIntegerBinaryKind::ExactAdd,
+        LoweredIntegerBinaryKind::ExactSubtract,
+        LoweredIntegerBinaryKind::ExactMultiply,
+        LoweredIntegerBinaryKind::ExactDivide,
+        LoweredIntegerBinaryKind::ExactRemainder,
+        LoweredIntegerBinaryKind::WrappingDivide,
+        LoweredIntegerBinaryKind::WrappingRemainder,
+        LoweredIntegerBinaryKind::SaturatingDivide,
+        LoweredIntegerBinaryKind::SaturatingRemainder,
+    ];
+    for kind in obligation_kinds {
+        assert!(kind.formation_obligation(operation).is_some(), "{kind:?}");
+    }
+    for kind in [
+        LoweredIntegerBinaryKind::BitwiseAnd,
+        LoweredIntegerBinaryKind::BitwiseOr,
+        LoweredIntegerBinaryKind::BitwiseXor,
+        LoweredIntegerBinaryKind::WrappingShiftLeft,
+        LoweredIntegerBinaryKind::WrappingShiftRight,
+        LoweredIntegerBinaryKind::WrappingAdd,
+        LoweredIntegerBinaryKind::SaturatingAdd,
+        LoweredIntegerBinaryKind::WrappingSubtract,
+        LoweredIntegerBinaryKind::SaturatingSubtract,
+        LoweredIntegerBinaryKind::WrappingMultiply,
+        LoweredIntegerBinaryKind::SaturatingMultiply,
+    ] {
+        assert!(kind.formation_obligation(operation).is_none(), "{kind:?}");
+    }
+    assert_eq!(
+        LoweredIntegerBinaryKind::ExactSubtract.integer_policy_binding(),
+        Some((IntegerPolicyPrimitive::Subtract, ArithmeticDomain::Exact,)),
+    );
+    assert_eq!(
+        LoweredIntegerBinaryKind::SaturatingDivide.integer_policy_binding(),
+        Some((IntegerPolicyPrimitive::Divide, ArithmeticDomain::Saturating,)),
+    );
+    assert_eq!(
+        LoweredIntegerBinaryKind::ExactRemainder.integer_policy_binding(),
+        None,
+    );
+}
+
+#[test]
 fn shared_boolean_comparison_normalization_rejects_two_runtime_sides() {
     let comparison = LoweredBooleanReturnExpression::Equal {
         left: Box::new(LoweredBooleanReturnExpression::Parameter { position: 0 }),

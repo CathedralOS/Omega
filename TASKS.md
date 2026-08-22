@@ -1456,6 +1456,15 @@ Remaining:
   shift requires count and representability custody, and right shift requires
   count custody. Remainder remains on its explicit verifier path because the
   settled catalog has no remainder primitive.
+  Checked-to-Terminal integer operation emission now allocates formation
+  obligations from the shared catalog's nonempty formation-condition rows for
+  exact add/subtract/multiply/divide, exact left/right shift, and
+  wrapping/saturating divide. Goal-free catalog rows allocate none.
+  Exact/wrapping/saturating remainder retain their existing explicit
+  obligations but remain catalog-unbound because no remainder primitive is
+  settled. One operation-local allocator replaces repeated policy-specific
+  identity arithmetic; obligation identity and Terminal operation shapes are
+  unchanged.
   The next bounded proof-calculus parity slice exposes canonical disjunction
   introduction in the production certificate kernel. One
   `DisjunctionIntroduction` node owns exactly one independently checked child
@@ -2124,6 +2133,37 @@ Remaining:
   proof shape, weaker, nonclosed, redirected, or mistyped rejection, and the
   fixed one-alias/one-bridge frontier are unchanged; no recursive strengthening
   or generic search is introduced.
+  Direct landed-literal root-bound construction for exact casts now lives in
+  independent side-local `cast_selection/literal/completion/bound` modules.
+  Each completion parent retains exact goal/target precedence, literal carrier
+  remapping, and cast-custody completion, while its outer parent retains
+  requirements-before-semantic-axioms equality discovery. Production alone
+  constructs the closed relation and one endpoint substitution;
+  reconstruction independently checks the same closed relation and rebuilds
+  the resulting root-bound proposition. Citation and endpoint order, proof
+  shape, unsafe/missing/redirected/mistyped rejection, and the fixed direct-
+  literal frontier are unchanged; no recursive alias or generic search is
+  introduced.
+  Direct retained root-bound completion for exact casts now lives in
+  independent side-local `cast_selection/direct/completion` modules. Each
+  parent retains requirements-before-semantic-axioms retained-order discovery
+  and exact citation/proposition custody; production completion preserves
+  left-then-right value-root order and applies its own citation proof before
+  cast custody, while reconstruction independently preserves the same endpoint
+  order and rechecks the retained proposition through cast custody. Direct
+  evidence remains first in cast selection. Citation order, endpoint order,
+  proof shape, non-order/non-value/missing/redirected rejection, and the fixed
+  direct-root frontier are unchanged; no generic evidence search is introduced.
+  Fixed two-alias exact-cast completion now lives in independent side-local
+  `cast_selection/alias/two` modules. Each child adapts only its side's existing
+  exact two-alias transport to cast custody: production retains origin-indexed
+  equality/bound citations and the nested two-substitution proof, while
+  reconstruction independently replays retained facts and the resulting root
+  bound. The alias-family parents preserve direct one-alias, stronger-bound,
+  landed-literal, then two-alias precedence. Citation identity/order, equality
+  orientation/distinctness, proof shape, missing/reused/cyclic/redirected/
+  mistyped rejection, and the exact two-alias frontier are unchanged; no third
+  alias, depth parameter, recursion, or graph search is introduced.
   Direct retained bounds and direct landed literals remain earlier in each
   parent. Citation orientation, endpoint order, proof shapes, rejection
   behavior, and the finite two-alias frontier are unchanged. Alias-landed-
@@ -3465,6 +3505,24 @@ Owners:
   forwarding, tuple transitions, and room-use reentry retain statuses 70, 70,
   70, 22, and 41; both independent interpreter oracles remain unchanged. The
   795 rooted/3 legacy exact-owner pins remain stable.
+  Five further authored-root dungeon/storage executions—enemy-clear reentry,
+  clear/carve/render String fields, full-level wrapper String lookup, multi-room
+  reentry, and mutable-slice element writes—now launch only from exact checked-
+  report receipts while retaining literal statuses 51, 198, 202, 63, and 21.
+  Both dungeon interpreter oracles and all diagnostics remain unchanged, and
+  the 795 rooted/3 legacy exact-owner pins remain stable. Five further authored-
+  root indexed-storage executions—straight-line and dispatched mutable-slice
+  writes, runtime array indexed reads, indexed struct-field writes, and
+  particle integration—now launch only from exact checked-report receipts
+  while retaining literal statuses 70, 31, 70, 70, and 70. Existing alias,
+  stale-fold, and self-check diagnostics remain unchanged, and the 795 rooted/3
+  legacy exact-owner pins remain stable. Five further authored-root
+  construction/call-identity executions—nested-struct construction, cross-
+  machine substate-name resolution, value-call array-element writes, computed
+  transition arguments, and by-value struct parameters—now launch only from
+  exact checked-report receipts while retaining literal status 70 and every
+  regression-specific diagnostic. The 795 rooted/3 legacy exact-owner pins
+  remain stable.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected

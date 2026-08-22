@@ -50,6 +50,10 @@ use psi_language_semantics::{
     CarryPolicy, Multiplicity, PermissionClaimIdentity, SemanticDomainId, ServiceReachId,
     ServiceReachInterface, ServiceReachPlan, ServiceReachRowId, ServiceReachSummary,
 };
+use psi_numerics::{
+    arithmetic::ArithmeticDomain,
+    integer_policy::{IntegerPolicyPrimitive, integer_policy_bridge},
+};
 use psi_proof_kernel::{
     CertificateEnvelope, EvidenceRoute, PrimitiveJudgment, ProofNode, ProofRule, ProofSystemMarker,
 };
@@ -493,7 +497,87 @@ impl PendingNestedBlockGroup {
 }
 
 impl LoweredIntegerBinaryKind {
+    const fn integer_policy_binding(self) -> Option<(IntegerPolicyPrimitive, ArithmeticDomain)> {
+        match self {
+            Self::WrappingShiftLeft => Some((
+                IntegerPolicyPrimitive::ShiftLeft,
+                ArithmeticDomain::Wrapping,
+            )),
+            Self::WrappingShiftRight => Some((
+                IntegerPolicyPrimitive::ShiftRight,
+                ArithmeticDomain::Wrapping,
+            )),
+            Self::ExactShiftLeft => {
+                Some((IntegerPolicyPrimitive::ShiftLeft, ArithmeticDomain::Exact))
+            }
+            Self::ExactShiftRight => {
+                Some((IntegerPolicyPrimitive::ShiftRight, ArithmeticDomain::Exact))
+            }
+            Self::ExactAdd => Some((IntegerPolicyPrimitive::Add, ArithmeticDomain::Exact)),
+            Self::ExactSubtract => {
+                Some((IntegerPolicyPrimitive::Subtract, ArithmeticDomain::Exact))
+            }
+            Self::ExactMultiply => {
+                Some((IntegerPolicyPrimitive::Multiply, ArithmeticDomain::Exact))
+            }
+            Self::ExactDivide => Some((IntegerPolicyPrimitive::Divide, ArithmeticDomain::Exact)),
+            Self::WrappingDivide => {
+                Some((IntegerPolicyPrimitive::Divide, ArithmeticDomain::Wrapping))
+            }
+            Self::SaturatingDivide => {
+                Some((IntegerPolicyPrimitive::Divide, ArithmeticDomain::Saturating))
+            }
+            Self::WrappingAdd => Some((IntegerPolicyPrimitive::Add, ArithmeticDomain::Wrapping)),
+            Self::SaturatingAdd => {
+                Some((IntegerPolicyPrimitive::Add, ArithmeticDomain::Saturating))
+            }
+            Self::WrappingSubtract => {
+                Some((IntegerPolicyPrimitive::Subtract, ArithmeticDomain::Wrapping))
+            }
+            Self::SaturatingSubtract => Some((
+                IntegerPolicyPrimitive::Subtract,
+                ArithmeticDomain::Saturating,
+            )),
+            Self::WrappingMultiply => {
+                Some((IntegerPolicyPrimitive::Multiply, ArithmeticDomain::Wrapping))
+            }
+            Self::SaturatingMultiply => Some((
+                IntegerPolicyPrimitive::Multiply,
+                ArithmeticDomain::Saturating,
+            )),
+            Self::BitwiseAnd
+            | Self::BitwiseOr
+            | Self::BitwiseXor
+            | Self::ExactRemainder
+            | Self::WrappingRemainder
+            | Self::SaturatingRemainder => None,
+        }
+    }
+
+    fn formation_obligation(self, operation: OperationId) -> Option<ObligationId> {
+        let catalog_requires_formation =
+            self.integer_policy_binding()
+                .is_some_and(|(primitive, policy)| {
+                    !integer_policy_bridge(primitive, policy)
+                        .formation_conditions
+                        .is_empty()
+                });
+        let unsettled_remainder_requires_formation = matches!(
+            self,
+            Self::ExactRemainder | Self::WrappingRemainder | Self::SaturatingRemainder
+        );
+        (catalog_requires_formation || unsettled_remainder_requires_formation).then(|| {
+            obligation_id(
+                operation
+                    .get()
+                    .checked_add(1)
+                    .expect("integer formation obligation follows its operation identity"),
+            )
+        })
+    }
+
     fn operation(self, operation: OperationId, left: ValueId, right: ValueId) -> OperationKind {
+        let formation_obligation = self.formation_obligation(operation);
         match self {
             Self::BitwiseAnd => OperationKind::IntegerBitwiseAnd { left, right },
             Self::BitwiseOr => OperationKind::IntegerBitwiseOr { left, right },
@@ -509,112 +593,60 @@ impl LoweredIntegerBinaryKind {
             Self::ExactShiftLeft => OperationKind::ExactIntegerShiftLeft {
                 value: left,
                 count: right,
-                obligation: obligation_id(
-                    operation
-                        .get()
-                        .checked_add(1)
-                        .expect("exact-shift obligation follows its operation identity"),
-                ),
+                obligation: formation_obligation.expect("exact shift has formation conditions"),
             },
             Self::ExactShiftRight => OperationKind::ExactIntegerShiftRight {
                 value: left,
                 count: right,
-                obligation: obligation_id(
-                    operation
-                        .get()
-                        .checked_add(1)
-                        .expect("exact-shift obligation follows its operation identity"),
-                ),
+                obligation: formation_obligation.expect("exact shift has formation conditions"),
             },
             Self::ExactAdd => OperationKind::ExactIntegerAdd {
                 left,
                 right,
-                obligation: obligation_id(
-                    operation
-                        .get()
-                        .checked_add(1)
-                        .expect("exact-add obligation follows its operation identity"),
-                ),
+                obligation: formation_obligation.expect("exact add has formation conditions"),
             },
             Self::ExactSubtract => OperationKind::ExactIntegerSubtract {
                 left,
                 right,
-                obligation: obligation_id(
-                    operation
-                        .get()
-                        .checked_add(1)
-                        .expect("exact-subtract obligation follows its operation identity"),
-                ),
+                obligation: formation_obligation.expect("exact subtract has formation conditions"),
             },
             Self::ExactMultiply => OperationKind::ExactIntegerMultiply {
                 left,
                 right,
-                obligation: obligation_id(
-                    operation
-                        .get()
-                        .checked_add(1)
-                        .expect("exact-multiply obligation follows its operation identity"),
-                ),
+                obligation: formation_obligation.expect("exact multiply has formation conditions"),
             },
             Self::ExactDivide => OperationKind::ExactIntegerDivide {
                 left,
                 right,
-                obligation: obligation_id(
-                    operation
-                        .get()
-                        .checked_add(1)
-                        .expect("exact-divide obligation follows its operation identity"),
-                ),
+                obligation: formation_obligation.expect("exact divide has formation conditions"),
             },
             Self::ExactRemainder => OperationKind::ExactIntegerRemainder {
                 left,
                 right,
-                obligation: obligation_id(
-                    operation
-                        .get()
-                        .checked_add(1)
-                        .expect("exact-remainder obligation follows its operation identity"),
-                ),
+                obligation: formation_obligation.expect("exact remainder retains its obligation"),
             },
             Self::WrappingDivide => OperationKind::WrappingIntegerDivide {
                 left,
                 right,
-                obligation: obligation_id(
-                    operation
-                        .get()
-                        .checked_add(1)
-                        .expect("wrapping-divide obligation follows its operation identity"),
-                ),
+                obligation: formation_obligation.expect("wrapping divide has formation conditions"),
             },
             Self::WrappingRemainder => OperationKind::WrappingIntegerRemainder {
                 left,
                 right,
-                obligation: obligation_id(
-                    operation
-                        .get()
-                        .checked_add(1)
-                        .expect("wrapping-remainder obligation follows its operation identity"),
-                ),
+                obligation: formation_obligation
+                    .expect("wrapping remainder retains its obligation"),
             },
             Self::SaturatingDivide => OperationKind::SaturatingIntegerDivide {
                 left,
                 right,
-                obligation: obligation_id(
-                    operation
-                        .get()
-                        .checked_add(1)
-                        .expect("saturating-divide obligation follows its operation identity"),
-                ),
+                obligation: formation_obligation
+                    .expect("saturating divide has formation conditions"),
             },
             Self::SaturatingRemainder => OperationKind::SaturatingIntegerRemainder {
                 left,
                 right,
-                obligation: obligation_id(
-                    operation
-                        .get()
-                        .checked_add(1)
-                        .expect("saturating-remainder obligation follows its operation identity"),
-                ),
+                obligation: formation_obligation
+                    .expect("saturating remainder retains its obligation"),
             },
             Self::WrappingAdd => OperationKind::WrappingIntegerAdd { left, right },
             Self::SaturatingAdd => OperationKind::SaturatingIntegerAdd { left, right },
