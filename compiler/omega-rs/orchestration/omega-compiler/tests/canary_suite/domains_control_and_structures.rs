@@ -780,9 +780,12 @@ fn rooted_residual_scalar_entry_cohort_runs() {
             std::process::id()
         ));
         let _ = fs::remove_dir_all(&build_dir);
-        compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
             .unwrap_or_else(|diagnostics| panic!("{name} should compile: {diagnostics:?}"));
-        let output = Command::new(build_dir.join(executable_name()))
+        let executable = compilation
+            .checked_native_executable_path()
+            .unwrap_or_else(|| panic!("{name} should retain its executable receipt"));
+        let output = Command::new(executable)
             .output()
             .unwrap_or_else(|error| panic!("{name} should run: {error}"));
         assert_eq!(
