@@ -265,8 +265,18 @@ fn push_external_root_json(output: &mut String, record: &InstalledRootRecord) {
         push_hex_identity(output, adapter.entry().normalized_identity());
         output.push_str(", \"adapter_boundary_contract\": ");
         push_hex_identity(output, adapter.boundary_contract_fingerprint());
-        output.push_str(", \"adapter_resolved_stack\": ");
-        calling_plan_json::push_entry_stack_json(output, adapter.resolved_stack());
+        output.push_str(", \"adapter_body_domains\": [");
+        for (domain_index, (context, domain)) in adapter.body_domains().iter().enumerate() {
+            if domain_index > 0 {
+                output.push_str(", ");
+            }
+            output.push_str("{\"context\": ");
+            push_hex_identity(output, context.get());
+            output.push_str(", \"domain\": ");
+            push_stack_domain_ref_json(output, *domain);
+            output.push('}');
+        }
+        output.push(']');
         output.push_str(", \"adapter_realization_fingerprint\": ");
         push_hex_identity(output, adapter.realization().fingerprint());
         output.push_str(", \"adapter_validation_receipt\": ");

@@ -109,7 +109,6 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
             boundary,
             &installed_code,
             entry,
-            EntryStack::Interrupted,
             realization,
             root_id(48, StackValidationReceiptId::from_normalized_identity),
         )

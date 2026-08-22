@@ -30,9 +30,10 @@ pub use plans::{
     validate_state_footprint,
 };
 pub use stack_realizations::{
-    ArrivalContextId, ArrivalContextRealization, EntryStackEpoch, EntryStackRealization,
-    EntryStackStage, StackDomainRef, StackOccupancy, ValidatedEntryStackRealization,
-    validate_entry_stack_realization,
+    ArrivalContextId, ArrivalContextRealization, ArrivalContextStackDomain, EntryStackEpoch,
+    EntryStackRealization, EntryStackStage, StackDomainRef, StackOccupancy,
+    ValidatedEntryStackDomainClosure, ValidatedEntryStackRealization,
+    validate_entry_stack_domain_closure, validate_entry_stack_realization,
 };
 pub use windows::windows_import_library;
 

@@ -4,8 +4,9 @@
 
 use omega_artifacts::external_root_manifest_json;
 use omega_calling_conventions::{
-    CallSignature, CallingPolicy, MachineRegister, MachineStateSet, RegisterSet,
-    StateFootprintEvidence, evaluate_ordinary_boundary_entry_plan,
+    ArrivalContextId, ArrivalContextStackDomain, CallSignature, CallingPolicy, MachineRegister,
+    MachineStateSet, RegisterSet, StackDomainRef, StateFootprintEvidence,
+    evaluate_ordinary_boundary_entry_plan, validate_entry_stack_domain_closure,
 };
 use omega_compiler::compile_to_checked;
 use omega_executable_installation::{

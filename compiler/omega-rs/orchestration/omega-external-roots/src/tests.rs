@@ -1,9 +1,10 @@
 use super::*;
 use omega_calling_conventions::{
-    ArrivalContextId, ArrivalContextRealization, CallSignature, CallingPolicy, EntryStackEpoch,
-    EntryStackRealization, EntryStackStage, MachineRegime, MachineState, MachineStateSet,
-    Preemption, RegisterSet, StackDomainRef, StatePlan, ValueShape,
-    evaluate_ordinary_boundary_entry_plan, validate_boundary_entry_plan,
+    ArrivalContextId, ArrivalContextRealization, ArrivalContextStackDomain, CallSignature,
+    CallingPolicy, EntryStackEpoch, EntryStackRealization, EntryStackStage, MachineRegime,
+    MachineState, MachineStateSet, Preemption, RegisterSet, StackDomainRef, StatePlan,
+    ValidatedEntryStackDomainClosure, ValueShape, evaluate_ordinary_boundary_entry_plan,
+    validate_boundary_entry_plan, validate_entry_stack_domain_closure,
     validate_entry_stack_realization,
 };
 use omega_effects::provider_plan::{
@@ -197,6 +198,47 @@ fn boundary() -> ValidatedBoundaryEntryPlan {
     .expect("validated boundary")
 }
 
+fn provider_selected_boundary() -> ValidatedBoundaryEntryPlan {
+    let signature = CallSignature {
+        parameters: vec![ValueShape::integer(8, 8)],
+        result: None,
+    };
+    let ordinary = evaluate_ordinary_boundary_entry_plan(CallingPolicy::SystemVAMD64, &signature)
+        .expect("ordinary boundary");
+    let mut plan = ordinary.plan().clone();
+    plan.state.stack = EntryStack::ProviderSelected;
+    validate_boundary_entry_plan(plan, &signature).expect("provider-selected boundary")
+}
+
+fn interrupted_boundary() -> ValidatedBoundaryEntryPlan {
+    let signature = CallSignature {
+        parameters: vec![ValueShape::integer(8, 8)],
+        result: None,
+    };
+    let ordinary = evaluate_ordinary_boundary_entry_plan(CallingPolicy::SystemVAMD64, &signature)
+        .expect("ordinary boundary");
+    let mut plan = ordinary.plan().clone();
+    plan.state.stack = EntryStack::Interrupted;
+    validate_boundary_entry_plan(plan, &signature).expect("interrupted boundary")
+}
+
+fn body_domains(
+    boundary: &ValidatedBoundaryEntryPlan,
+    contexts: &[(u64, StackDomainRef)],
+) -> ValidatedEntryStackDomainClosure {
+    validate_entry_stack_domain_closure(
+        boundary.plan().state.stack,
+        contexts
+            .iter()
+            .map(|(context, domain)| ArrivalContextStackDomain {
+                context: ArrivalContextId::new(*context).expect("arrival context"),
+                domain: *domain,
+            })
+            .collect(),
+    )
+    .expect("test stack-domain closure")
+}
+
 #[derive(Debug)]
 struct TestTerminalObject {
     identity: psi_terminal::TerminalPsiIdentity,
@@ -323,7 +365,6 @@ fn stack_demand(
         boundary,
         code,
         entry,
-        resolved_stack,
         realization,
         root_id(48, StackValidationReceiptId::from_normalized_identity),
     )
@@ -530,7 +571,7 @@ fn direct_generated_entry_derives_one_exact_body_epoch_without_provider_attestat
         &boundary,
         &code,
         entry,
-        EntryStack::Interrupted,
+        body_domains(&boundary, &[(1, StackDomainRef::Interrupted)]),
     )
     .expect("direct generated entry derives its realization");
 
@@ -551,13 +592,28 @@ fn direct_generated_entry_derives_one_exact_body_epoch_without_provider_attestat
         contexts[0].epochs[0].active_domain,
         StackDomainRef::Interrupted
     );
+
+    let fixed_boundary = interrupted_boundary();
+    let error = bind_direct_generated_entry_stack_realization(
+        &summary,
+        &boundary,
+        &code,
+        entry,
+        body_domains(&fixed_boundary, &[(1, StackDomainRef::Interrupted)]),
+    )
+    .expect_err("direct entry cannot replay a closure for another public stack disposition");
+    assert!(
+        error
+            .0
+            .contains("drifted from the boundary stack disposition")
+    );
 }
 
 #[test]
 fn opaque_epoch_realization_binds_exact_installed_entry_plan_and_body_evidence() {
     let entry = entry_id(0x811);
     let code = installed_code(0x812, entry);
-    let boundary = boundary();
+    let boundary = interrupted_boundary();
     let root = root_id(0x813, ExternalRootId::from_normalized_identity);
     let provider = root_id(0x814, RootProviderId::from_normalized_identity);
     let summary = ProviderStackSummary::from_admitted_provider(
@@ -587,7 +643,6 @@ fn opaque_epoch_realization_binds_exact_installed_entry_plan_and_body_evidence()
         &boundary,
         &code,
         entry,
-        omega_calling_conventions::EntryStack::Interrupted,
         realization(Preemption::NotApplicable),
         root_id(0x816, StackValidationReceiptId::from_normalized_identity),
     )
@@ -624,7 +679,6 @@ fn opaque_epoch_realization_binds_exact_installed_entry_plan_and_body_evidence()
         &boundary,
         &code,
         entry,
-        omega_calling_conventions::EntryStack::Interrupted,
         realization(Preemption::Nestable { maximum_depth: 2 }),
         root_id(0x818, StackValidationReceiptId::from_normalized_identity),
     )
@@ -640,7 +694,6 @@ fn opaque_epoch_realization_binds_exact_installed_entry_plan_and_body_evidence()
         &boundary,
         &code,
         entry_id(0x819),
-        omega_calling_conventions::EntryStack::Interrupted,
         realization(Preemption::NotApplicable),
         root_id(0x81a, StackValidationReceiptId::from_normalized_identity),
     )
@@ -660,7 +713,6 @@ fn opaque_epoch_realization_binds_exact_installed_entry_plan_and_body_evidence()
         &aarch64_boundary,
         &code,
         entry,
-        omega_calling_conventions::EntryStack::Interrupted,
         realization(Preemption::NotApplicable),
         root_id(0x81b, StackValidationReceiptId::from_normalized_identity),
     )
@@ -688,12 +740,74 @@ fn opaque_epoch_realization_binds_exact_installed_entry_plan_and_body_evidence()
         &boundary,
         &code,
         entry,
-        omega_calling_conventions::EntryStack::Interrupted,
         wrong_body_domain,
         root_id(0x81c, StackValidationReceiptId::from_normalized_identity),
     )
     .expect_err("opaque epoch evidence cannot move the handler body to another stack");
-    assert!(error.0.contains("executes its body on a domain other than"));
+    assert!(
+        error
+            .0
+            .contains("body stack domain differs from the fixed boundary stack disposition")
+    );
+}
+
+#[test]
+fn provider_selected_stack_closes_independently_in_each_arrival_context() {
+    let entry = entry_id(0x821);
+    let code = installed_code(0x822, entry);
+    let boundary = provider_selected_boundary();
+    let root = root_id(0x823, ExternalRootId::from_normalized_identity);
+    let provider = root_id(0x824, RootProviderId::from_normalized_identity);
+    let summary = ProviderStackSummary::from_admitted_provider(
+        root,
+        provider,
+        EntryStack::ProviderSelected,
+        64,
+        16,
+        root_id(0x825, StackValidationReceiptId::from_normalized_identity),
+    );
+    let body_epoch = |active_domain| EntryStackEpoch {
+        stage: EntryStackStage::Body,
+        active_domain,
+        occupancy_by_domain: Vec::new(),
+        nesting: Preemption::NotApplicable,
+    };
+    let realization = validate_entry_stack_realization(EntryStackRealization {
+        contexts: vec![
+            ArrivalContextRealization {
+                context: ArrivalContextId::new(1).expect("arrival context"),
+                epochs: vec![body_epoch(StackDomainRef::Interrupted)],
+            },
+            ArrivalContextRealization {
+                context: ArrivalContextId::new(2).expect("arrival context"),
+                epochs: vec![body_epoch(StackDomainRef::Dedicated { class: 3 })],
+            },
+        ],
+    })
+    .expect("context-specific body domains are structurally closed");
+
+    let bound = bind_opaque_adapter_stack_realization(
+        &summary,
+        &boundary,
+        &code,
+        entry,
+        realization,
+        root_id(0x826, StackValidationReceiptId::from_normalized_identity),
+    )
+    .expect("provider-selected stack may close differently per arrival context");
+    assert_eq!(
+        bound.realization_evidence().body_domains(),
+        [
+            (
+                ArrivalContextId::new(1).expect("arrival context"),
+                StackDomainRef::Interrupted,
+            ),
+            (
+                ArrivalContextId::new(2).expect("arrival context"),
+                StackDomainRef::Dedicated { class: 3 },
+            ),
+        ]
+    );
 }
 
 #[test]

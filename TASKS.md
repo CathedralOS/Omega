@@ -6684,37 +6684,29 @@ reach or trust, and private proof improvements do not change public identity.
   wider structural partial values, repeated-cycle resource composition, and
   conservation/backend-ledger reporting. This is not yet a general conditional
   CFG, complete cleanup plan, or conservation witness.
-- **EXTERNAL-ENTRY-STACK-EPOCHS — implement the settled root realization.**
-  Target-neutral arrival-context, epoch, domain, occupancy, alignment, and
-  phase-nesting carriers now normalize into a validated, fingerprinted
-  realization. Structural validation closes phase order, body cardinality,
-  finite nesting, provider-selected domains, duplicate rows, and malformed
-  occupancy before orchestration. A pure orchestration composer now resolves
-  path-relative `Interrupted`, joins body WCSU only at the body epoch, sums
-  aligned concurrent demand, takes maxima across sequential epochs and arrival
-  contexts, and closes cyclic nesting through the declared finite depth. An
-  admission-capable wrapper now binds an opaque adapter's realization and body
-  demand to one exact installed entry, installed-code context, artifact,
-  boundary-plan fingerprint, resolved stack domain, provider receipt, and
-  public preemption ceiling. Bound composition retains those exact inputs
-  behind the compact arithmetic fingerprint and rejects duplicate roots,
-  unresolved provider-selected stacks, body-domain drift, entry drift, and
-  nesting-ceiling widening. The external-root resource column, provider
-  execution, installation ledger, and canonical artifact report now consume
-  that bound epoch composition directly; the scalar admitted stack composer is
-  no longer an admission path. Per-domain demand and the complete normalized
-  arrival contexts/epochs remain reportable alongside compact fingerprints.
-  A direct compiler-emitted Terminal entry with no adapter prologue now derives
-  its single body epoch from the exact installed Terminal evidence, needs no
-  provider receipt, and records that origin distinctly from an opaque adapter.
+- **EXTERNAL-ENTRY-STACK-EPOCHS — finish provenance for the settled root
+  realization.** Target-neutral arrival contexts and finite enter/body/exit
+  epochs normalize into one validated, fingerprinted realization. The composer
+  resolves path-relative `Interrupted`, joins body WCSU only at the body epoch,
+  sums aligned concurrent demand, takes maxima across sequential epochs and
+  contexts, and closes cyclic nesting through declared finite depth.
 
-  Remaining: derive nontrivial generated-adapter enter/exit epochs from exact
-  emitted instructions, and hardware arrival from sealed target rules plus
-  exact installation facts. Replace the current one-domain `resolved_stack`
-  precursor with exact per-context domain closure where conditional hardware
-  switching makes the same installed entry execute on different physical
-  domains. Prove each admitted opaque arrival-context set is complete. Add no
-  architecture-specific frame vocabulary to source.
+  Each realization now retains an exact context-to-body-domain closure. Fixed
+  public stack dispositions must agree in every context; `ProviderSelected`
+  may close differently per context but may never remain unresolved. Opaque
+  adapters bind the realization, domain closure, body evidence, provider
+  receipt, boundary contract, and exact installed entry. Direct generated
+  entries bind the same facts to emitted Terminal evidence without a provider
+  receipt. The external-root ledger and canonical artifact report preserve the
+  complete contexts, epochs, body domains, per-domain demand, and evidence
+  origin behind compact fingerprints. The old scalar admitted composer is not
+  an admission path.
+
+  Remaining: derive hardware-arrival epochs and body-domain closure from sealed
+  target rules plus exact installation facts; derive nontrivial generated
+  adapter enter/exit epochs from emitted instructions; and prove each admitted
+  opaque arrival-context set complete. Add no architecture-specific frame
+  vocabulary to source.
 - **TR3-TR8:** finish whole-call-graph WCSU derivation, bind exact `StackPlan`
   evidence, reserve fixed nonmoving `StackLease`s, validate preservation and
   cancellation conformances, transfer arguments transactionally, lower
