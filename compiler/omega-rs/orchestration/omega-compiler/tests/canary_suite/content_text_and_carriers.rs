@@ -992,10 +992,13 @@ fn runtime_carrier_len_guard_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-carrier-len-guard-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("carrier len guard canary should compile");
 
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("carrier len guard canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("carrier len guard canary should run");
 
@@ -1017,10 +1020,13 @@ fn runtime_carrier_fnv_loop_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-carrier-fnv-loop-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("carrier fnv loop canary should compile");
 
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("carrier fnv loop canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("carrier fnv loop canary should run");
 
@@ -1068,9 +1074,12 @@ fn runtime_crc32_exit_canary_runs() {
     let canary = pass_canary("text/runtime_crc32_exit");
     let scratch = std::env::temp_dir().join(format!("omega-crc32-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("crc32 canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("crc32 canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("crc32 canary should run");
     assert_eq!(
@@ -1091,9 +1100,12 @@ fn runtime_base64_encode_exit_canary_runs() {
     let canary = pass_canary("text/runtime_base64_encode_exit");
     let scratch = std::env::temp_dir().join(format!("omega-base64-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("base64 encode canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("base64 encode canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("base64 encode canary should run");
     assert_eq!(
@@ -1114,9 +1126,12 @@ fn runtime_run_length_encode_exit_canary_runs() {
     let canary = pass_canary("text/runtime_run_length_encode_exit");
     let scratch = std::env::temp_dir().join(format!("omega-rle-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("run-length encode canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("run-length encode canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("run-length encode canary should run");
     assert_eq!(
