@@ -1366,8 +1366,8 @@ Remaining:
   facts stay in ledger order, while bound and second-leg indexes use their exact
   value endpoint. A missing bound, equality, or order leg, unsafe or mistyped
   literal, identity, non-value, disconnected, redirected, cross-carrier, or
-  same-citation join rejects. Multi-alias, mixed
-  alias/transitive, or three-or-more-leg root reconstruction, words of five or
+  same-citation join rejects. Multi-alias or three-or-more-leg root
+  reconstruction, words of five or
   more definitions, joins, cast/shift compositions, and correlated results
   remain on trusted reduction; neither complete exact row changes trust and
   `fully-derived false` remains. An exact mapped affine bound may also close to
@@ -1385,8 +1385,16 @@ Remaining:
   same exact identity selection. A missing, redirected, crossed, or mistyped
   target equality rejects. The affine relation builder cannot recurse into
   another target alias, so this adds one wrapper only and no alias-chain search.
-  A
-  second non-serialized common checker now normalizes the contiguous pure
+  One bounded mixed root-custody sibling may instead compose exactly two prior
+  order citations at an alias endpoint, transport that completed bound through
+  exactly one retained value equality to the affine root, and then apply
+  `IntegerAffineBound`. Its proof nests `IntegerLessOrEqualTransitivity` beneath
+  `IntegerLessOrEqualSubstitution`; missing or disconnected order legs and
+  absent or redirected equalities reject. The constructor calls the affine
+  builder directly, so it cannot add another equality or order leg and does not
+  introduce recursive path search. Multi-alias and three-or-more-leg custody
+  remain outside the producer. A second non-serialized common checker now
+  normalizes the contiguous pure
   fixed-integer cast spine used by the accepted one-cast and multi-cast
   sandwiches. It binds strictly ordered canonical semantic equalities to exact
   root/target SSA values, validates every adjacent partial 8/16/32/64
@@ -1890,10 +1898,11 @@ Remaining:
   quotient's retained relation premise; it performs no ambient proof discovery
   and cannot fall through to generic arithmetic or structural tiers. Compiler
   footprint derivation now has a 509-line composition/partition parent over a
-  declarative four-family registry: 249-line control/entry, 621-line storage/place,
-  866-line outbound-call, and 512-line buffer/wire/text responsibilities. A
+  declarative four-family registry: 249-line control/entry, 621-line
+  storage/place, 866-line outbound-call, and 512-line buffer/wire/text
+  responsibilities. A
   separate instruction-selection boundary-footprint owner has begun the same
-  split: its 5,170-line `entry.rs` parent delegates all eleven compact-binary
+  split: its 4,905-line `entry.rs` parent delegates all eleven compact-binary
   append/read footprint derivations to a 433-line `entry/wire.rs` child, while
   a separate 373-line `entry/text.rs` child owns bounded-buffer, string-
   descriptor, and runtime-text assembly footprints. A focused 152-line
@@ -1906,8 +1915,10 @@ Remaining:
   assembly catalog footprint over retained selected instructions and runtime
   operands. A 158-line `entry/exit.rs` child owns the derived-exit carrier,
   normalized result placement, and direct/indirect result footprints. The
-  public re-export surface, validation order, and 135-function inventory are
-  unchanged; the
+  277-line `entry/inbound.rs` sibling owns inbound-storage carriers, normalized
+  parameter/result-pointer writes, descriptor scratch, and exact target
+  clobber validation. The public re-export surface, validation order, and
+  135-function inventory are unchanged; the
   children depend only on retained instructions/operands, the validated
   boundary plan, place-shape classification where applicable, and architecture
   encoder clobber/state facts. A
@@ -2624,9 +2635,15 @@ Remaining N6/N8 work:
   `requires` facts are partitioned into `P` versus fixed facts. Both use complete
   expression dependency on the corresponding quotient-bearing runtime
   positions; exact side/owner/contract/fact coordinates are retained and
-  unresolved value identities reject. These partitions prove no `Q <-> P`
-  equivalence or `Respects` clause. The exact final-expression call additionally
-  retains one unchanged state-fallthrough result edge. The same single edge may
+  unresolved value identities reject. The first exact equivalence rung now
+  alpha-renames both runtime telescopes by their retained position map and
+  requires a bijection between the corresponding dependent facts. Fixed ambient
+  facts remain ordinary call obligations outside `Q` and `P`. The plan retains
+  both exact fact coordinates; missing, duplicated, category-drifted, or
+  redirected facts reject. This proves only exact normalized fact identity, not
+  general entailment or any `Respects` clause. The exact final-expression call
+  additionally retains one unchanged state-fallthrough result edge. The same
+  single edge may
   now pass through a complete straight-line chain of exact immutable,
   result-typed local aliases when the sealed request is the first initializer
   and the state's final expression is the last local. Mutable/type-drifted,
