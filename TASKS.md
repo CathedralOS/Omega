@@ -2462,6 +2462,14 @@ Remaining:
   rejection; parent catalogs retain equality orientation, source order,
   `Value` eligibility, and index insertion. Proof replay, witness shape,
   rejection behavior, and the fixed four-definition frontier remain unchanged.
+  Affine-definition equality orientation now lives in paired, side-local
+  `affine_custody/definition_index/candidates/orientations` modules. Producer
+  and reconstruction independently require an equality with an exact `Value`
+  target and preserve left-target before right-target expression order; source-
+  row traversal, affine input projection, input `Value` eligibility, and index
+  insertion remain in their existing owners. A mirrored accepted regression
+  now pins the reversed equality orientation. Witness order, proof shape,
+  rejection behavior, and the fixed four-definition frontier remain unchanged.
   One-equality transitive affine completion now lives in independent side-local
   `affine_selection/transitive/alias/completion` modules. Each parent retains
   its own ledger-ordered equality discovery, distinct root/alias custody, and
@@ -4926,6 +4934,14 @@ Owners:
   status 70 and exact diagnostics; crash-process semantics are unchanged.
   Exact-owner ambiguity, the 795 rooted/3 legacy inventory, and receipt-drift
   fences remain green.
+  Four authored-root exact-narrowing regressions—guarded transition-argument
+  decrement, one-sided `requires` range intersection, guarded transition-value
+  decrement, and negated false-arm increment—now launch `OutputOnly` native
+  execution solely through exact checked-report executable receipts while
+  preserving literal statuses 70, 42, 42, and 70 and their Exact-proof
+  diagnostics. Exact-owner ambiguity, the 795 rooted/3 legacy inventory, and
+  receipt-drift fences remain green; saturating-transition, cast-accumulator,
+  crash, and legacy owners remain separate.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
@@ -5587,6 +5603,12 @@ Remaining N6/N8 work:
   behavior, operand order, primitive scalar delegation, structural field-path
   tags, and decode-time constructor validation. The parent is 3,169 lines and
   the exact 199-function codec inventory remains unchanged.
+  Canonical terminal-machine envelope encoding/decoding now lives in a focused
+  private `machine_wire` child, preserving exact identity, attachment, scalar
+  and structural parameter/result, structural-place, entry/content-claim,
+  service-ceiling, ordered-block, and retained-contract bytes, tags, and errors
+  while block operation/terminator vocabulary remains parent-owned. The parent
+  is 2,988 lines and the exact 199-function codec inventory remains unchanged.
   Proof-bundle coding likewise keeps its `PSIPRF`-specific little-endian
   cursor, bounded string/count/index handling, and nonzero semantic-ID
   primitives in a focused private child; its public API, exact bytes and
