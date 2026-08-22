@@ -1798,10 +1798,13 @@ fn runtime_mutable_slice_element_write_straight_line_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("runtime mutable slice write straight-line canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation.checked_native_executable_path().expect(
+        "runtime mutable slice write straight-line canary should retain its executable receipt",
+    );
+    let output = Command::new(executable)
         .output()
         .expect("runtime mutable slice write straight-line canary should run");
 
@@ -1824,10 +1827,13 @@ fn runtime_dispatch_mutable_slice_element_write_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("runtime dispatch mutable slice write canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("runtime dispatch mutable slice write canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("runtime dispatch mutable slice write canary should run");
 
@@ -1850,10 +1856,13 @@ fn runtime_array_indexed_read_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("runtime array indexed read canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("runtime array indexed read canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("runtime array indexed read canary should run");
 
@@ -1879,10 +1888,13 @@ fn runtime_indexed_struct_field_write_exit_canary_runs() {
         "omega-runtime-indexed-struct-field-{}",
         std::process::id()
     ));
-    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("runtime indexed struct-field write canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("runtime indexed struct-field write canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("runtime indexed struct-field write canary should run");
 
@@ -1905,9 +1917,12 @@ fn runtime_particle_system_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-particle-system-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("particle system canary should compile from its authored root");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("particle system canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("particle system canary should run");
     assert_eq!(
