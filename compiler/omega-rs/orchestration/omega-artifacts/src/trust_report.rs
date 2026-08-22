@@ -1,0 +1,251 @@
+//! Chapter-10 trust and provider-qualification artifact presentation.
+
+use psi_diagnostics::Diagnostic;
+
+use super::{ArtifactWriter, TrustReport};
+
+impl ArtifactWriter {
+    /// GR5: the chapter-10 trust report -- the proof-tier surface the
+    /// boundary report does not carry. Written even when empty (an empty
+    /// report is the honest "no semantic commitments admitted" statement).
+    pub fn write_trust_report(&self, trust_report: &TrustReport) -> Result<(), Diagnostic> {
+        let mut output = String::new();
+        output.push_str("# Omega Trust\n\n");
+        output.push_str(&format!(
+            "selected provider closure: {:016x}\n\n",
+            trust_report.selected_provider_closure_fingerprint
+        ));
+        output.push_str(&format!(
+            "admitted commitments: {}\n\n",
+            trust_report.rows.len()
+        ));
+        for row in &trust_report.rows {
+            output.push_str(&format!("- {} -- {}", row.commitment, row.provenance));
+            if let Some(fingerprint) = row.machine_contract_fingerprint {
+                output.push_str(&format!(" -- machine contract: {fingerprint:016x}"));
+            }
+            if let Some(fingerprint) = row.machine_template_fingerprint {
+                output.push_str(&format!(" -- accepted template: {fingerprint:016x}"));
+            }
+            if let Some(service_reach) = &row.machine_service_reach {
+                output.push_str(" -- service reach: ");
+                if service_reach.is_empty() {
+                    output.push_str("none");
+                } else {
+                    output.push_str(&service_reach.join(", "));
+                }
+            }
+            if let Some(invocations) = &row.machine_synchronous_invocations {
+                output.push_str(" -- synchronous invocations: ");
+                if invocations.is_empty() {
+                    output.push_str("none");
+                } else {
+                    output.push_str(&invocations.join(", "));
+                }
+            }
+            if let Some(may_suspend) = row.machine_may_suspend {
+                output.push_str(&format!(
+                    " -- may suspend: {}",
+                    if may_suspend { "yes" } else { "no" }
+                ));
+            }
+            if let Some(may_block) = row.machine_may_block {
+                output.push_str(&format!(
+                    " -- may block: {}",
+                    if may_block { "yes" } else { "no" }
+                ));
+            }
+            if let Some(terminates) = row.machine_terminates_guarantee {
+                output.push_str(&format!(
+                    " -- termination guarantee: {}",
+                    if terminates { "yes" } else { "no" }
+                ));
+            }
+            if let Some(routes) = &row.machine_crash_routes {
+                output.push_str(" -- crash routes: ");
+                if routes.is_empty() {
+                    output.push_str("none");
+                } else {
+                    for (route_index, route) in routes.iter().enumerate() {
+                        if route_index > 0 {
+                            output.push_str(", ");
+                        }
+                        output.push_str(route.cause.as_str());
+                        output.push('[');
+                        for (guard_index, guard) in route.alternative_guards.iter().enumerate() {
+                            if guard_index > 0 {
+                                output.push_str(" | ");
+                            }
+                            output.push_str(&guard.report_text());
+                        }
+                        output.push(']');
+                    }
+                }
+            }
+            if row.standing_warning {
+                output.push_str(" [STANDING WARNING: dev-active until the final build grants it (`b.accept_boundary<..>();`)]");
+            }
+            output.push('\n');
+        }
+        output.push_str("\n## Generic accepted instances\n\n");
+        output.push_str(&format!(
+            "generic accepted instances: {}\n\n",
+            trust_report.generic_accepted_instances.len()
+        ));
+        for row in &trust_report.generic_accepted_instances {
+            output.push_str(&format!(
+                "- accepted template: {} [{:016x}] -- instance: {:016x} -- instance contract: {:016x} -- type argument identities: {} -- const argument identities: {} -- machine argument contracts: {} -- conformance arguments: {}\n",
+                row.template_commitment,
+                row.template_fingerprint,
+                row.instance_fingerprint,
+                row.instance_contract_fingerprint,
+                if row.type_argument_identities.is_empty() {
+                    "none".to_owned()
+                } else {
+                    row.type_argument_identities.join(", ")
+                },
+                if row.const_argument_identities.is_empty() {
+                    "none".to_owned()
+                } else {
+                    row.const_argument_identities.join(", ")
+                },
+                if row.machine_argument_contract_fingerprints.is_empty() {
+                    "none".to_owned()
+                } else {
+                    row.machine_argument_contract_fingerprints
+                        .iter()
+                        .map(|fingerprint| format!("{fingerprint:016x}"))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                },
+                if row.conformance_argument_fingerprints.is_empty() {
+                    "none".to_owned()
+                } else {
+                    row.conformance_argument_fingerprints
+                        .iter()
+                        .map(|fingerprint| format!("{fingerprint:016x}"))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                }
+            ));
+        }
+        output.push_str("\n## Provider requirements\n\n");
+        output.push_str(&format!(
+            "provider requirements: {}\n\n",
+            trust_report.provider_requirements.len()
+        ));
+        for row in &trust_report.provider_requirements {
+            output.push_str(&format!(
+                "- provider plan: {} [{:016x}] -- provider type: {} -- target: {} -- provider origin package: {} -- service schema: {} -- calling plan: {} -- selected: {} -- requirement owner: {} -- requirement identity: {} -- method: {} -- parameter types: {} -- result type: {} -- service reach: {} -- synchronous invocations: {} -- may suspend: {} -- may block: {} -- termination guarantee: {} -- realization: {} -- {} -- grant selectors: {}",
+                row.provider_plan,
+                row.provider_plan_fingerprint,
+                if row.provider_type.is_empty() {
+                    "<free external>"
+                } else {
+                    row.provider_type.as_str()
+                },
+                if row.target.is_empty() {
+                    "<all>"
+                } else {
+                    row.target.as_str()
+                },
+                if row.provider_origin_package.is_empty() {
+                    "<none>"
+                } else {
+                    row.provider_origin_package.as_str()
+                },
+                row.service_schema,
+                row.calling_plan_fingerprint
+                    .map_or_else(|| "<none>".to_owned(), |value| format!("{value:016x}")),
+                if row.selected { "yes" } else { "no" },
+                row.requirement_owner,
+                row.requirement_identity,
+                row.method,
+                if row.parameter_type_identities.is_empty() {
+                    "<none>".to_owned()
+                } else {
+                    row.parameter_type_identities.join(", ")
+                },
+                row.result_type_identity.as_deref().unwrap_or("<none>"),
+                if row.service_reach.is_empty() {
+                    "none".to_owned()
+                } else {
+                    row.service_reach.join(", ")
+                },
+                if row.synchronous_invocations.is_empty() {
+                    "none".to_owned()
+                } else {
+                    row.synchronous_invocations.join(", ")
+                },
+                if row.may_suspend { "yes" } else { "no" },
+                if row.may_block { "yes" } else { "no" },
+                if row.terminates_guarantee { "yes" } else { "no" },
+                row.realization.report_text(),
+                row.provenance,
+                if row.grant_selectors.is_empty() {
+                    "none".to_owned()
+                } else {
+                    row.grant_selectors.join(", ")
+                },
+            ));
+            if row.standing_warning {
+                output.push_str(" [STANDING WARNING: dev-active until the final build grants its provider plan]");
+            }
+            output.push('\n');
+        }
+        output.push_str("\n## Routed qualifications\n\n");
+        output.push_str(&format!(
+            "routed qualifications: {}\n\n",
+            trust_report.qualifications.len()
+        ));
+        for row in &trust_report.qualifications {
+            output.push_str(&format!(
+                "- provider plan: {} [{:016x}] -- provider type: {} -- target: {} -- provider origin package: {} -- service schema: {} -- calling plan: {} -- selected: {} -- requirement owner: {} -- requirement identity: {} -- method: {} -- subject: {} -- flow: {} -- domain: {} -- carry: {} -- predicate discharge: {} -- {} -- grant selectors: {}",
+                row.provider_plan,
+                row.provider_plan_fingerprint,
+                if row.provider_type.is_empty() {
+                    "<free external>"
+                } else {
+                    row.provider_type.as_str()
+                },
+                if row.target.is_empty() {
+                    "<all>"
+                } else {
+                    row.target.as_str()
+                },
+                if row.provider_origin_package.is_empty() {
+                    "<none>"
+                } else {
+                    row.provider_origin_package.as_str()
+                },
+                row.service_schema,
+                row.calling_plan_fingerprint
+                    .map_or_else(|| "<none>".to_owned(), |value| format!("{value:016x}")),
+                if row.selected { "yes" } else { "no" },
+                row.requirement_owner,
+                row.requirement_identity,
+                row.method,
+                row.subject,
+                row.authority_flow,
+                row.domain,
+                row.effective_carry,
+                if row.predicate_discharge_required {
+                    "required"
+                } else {
+                    "none"
+                },
+                row.provenance,
+                if row.grant_selectors.is_empty() {
+                    "none".to_owned()
+                } else {
+                    row.grant_selectors.join(", ")
+                },
+            ));
+            if row.standing_warning {
+                output.push_str(" [STANDING WARNING: dev-active until the final build grants its provider plan]");
+            }
+            output.push('\n');
+        }
+        self.write_text("trust_report.md", &output)
+    }
+}
