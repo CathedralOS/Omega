@@ -24,6 +24,7 @@ use omega_terminal_machine_code::{
     TerminalBoundaryResultRecord, TerminalBoundarySettlementRecord, TerminalMachineCodeFunction,
     TerminalMachineCodePlan, TerminalNativeFuelAttribution, TerminalNativeFuelSite,
     TerminalScalarControlFlowEvidence, TerminalStructuralReturnRecord,
+    derive_completion_provider_custody,
 };
 use omega_terminal_target_operations::MachineRegister;
 #[cfg(test)]
@@ -215,10 +216,17 @@ fn emit_function(
                 code_offset: read_byte_count,
                 byte_count: 1,
             });
+            let provider_execution = (*provider_execution).into();
+            let completion_provider_custody = derive_completion_provider_custody(
+                provider_execution,
+                completion_claim_sources,
+                completion_receipts,
+            )
+            .ok_or(EmissionError::InvalidCompletionProviderCustody)?;
             boundary_settlements.push(TerminalBoundarySettlementRecord {
                 psi_operation: *psi_operation,
                 boundary: *boundary,
-                provider_execution: (*provider_execution).into(),
+                provider_execution,
                 realization:
                     omega_terminal_target_operations::TerminalBoundaryRealization::DirectPortReadU8(
                         *realization,
@@ -226,6 +234,7 @@ fn emit_function(
                 arguments: arguments.clone(),
                 completion_claim_sources: completion_claim_sources.clone(),
                 completion_receipts: completion_receipts.clone(),
+                completion_provider_custody,
                 native_result: Some(TerminalBoundaryResultRecord {
                     value: *source_value,
                     scalar_type: psi_core::ScalarType::Integer(
@@ -856,6 +865,7 @@ pub enum EmissionError {
     UnsupportedStructuralResultRegister(MachineRegister),
     PortWriteUnsupportedOnArchitecture(Architecture),
     BoundaryPortReadUnsupported(Architecture),
+    InvalidCompletionProviderCustody,
     IntegerWidthNotNativelySupported {
         value: ValueId,
         bits: u16,

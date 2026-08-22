@@ -1759,7 +1759,7 @@ fn installation_record_is_canonical_and_binds_exact_image_and_target_facts() {
         terminal_installation_fingerprint(&record)
             .expect("installation fingerprint")
             .to_string(),
-        "6b181a107156a55c2602d9d906609be08ca02bab2c708a0aa11476c166f64561"
+        "7ffcdd785eb843a7ac0f02d72a41db4a2a6cacf65b3d4e20aa628c2a82550349"
     );
 
     let mut changed_plan = plan;
@@ -1906,6 +1906,7 @@ fn privileged_effect_and_exact_provider_execution_survive_installation() {
                 arguments: Vec::new(),
                 completion_claim_sources: Vec::new(),
                 completion_receipts: Vec::new(),
+                completion_provider_custody: Vec::new(),
                 native_result: None,
                 operation_ordinal: 1,
                 code_offset: 27,

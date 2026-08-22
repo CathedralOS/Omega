@@ -7,9 +7,10 @@ use omega_calling_conventions::{
 use omega_image::CompilerTextValidationEvidence;
 use omega_target::{Architecture, NativeTarget, ObjectFormat};
 use omega_terminal_machine_code::{
-    TerminalBoundaryResultRecord, TerminalBoundarySettlementRecord, TerminalNativeFuelAttribution,
+    TerminalBoundaryResultRecord, TerminalBoundarySettlementRecord,
+    TerminalCompletionProviderCustodyBinding, TerminalNativeFuelAttribution,
     TerminalNativeFuelSite, TerminalPortEffectRecord, TerminalProviderExecutionRecord,
-    TerminalStructuralReturnRecord,
+    TerminalStructuralReturnRecord, derive_completion_provider_custody,
 };
 use omega_terminal_target_operations::{
     TerminalBoundaryRealization, TerminalCallSiteOwner, TerminalCompletionClaimSource,
@@ -37,7 +38,7 @@ use crate::{
     completion_receipts::completion_receipts_have_exact_custody,
 };
 
-pub const TERMINAL_INSTALLATION_FORMAT_MARKER: u16 = 30;
+pub const TERMINAL_INSTALLATION_FORMAT_MARKER: u16 = 31;
 const MAGIC: &[u8; 8] = b"PSIINST\0";
 const IMAGE_DOMAIN: &[u8] = b"omega-terminal-installed-image\0";
 const RECORD_DOMAIN: &[u8] = b"omega-terminal-installation-record\0";
@@ -814,6 +815,17 @@ pub fn encode_terminal_installation_record(
             push_u64(&mut bytes, claim.claim.get());
             push_u32(&mut bytes, claim.argument_index);
         }
+        push_u32(
+            &mut bytes,
+            u32::try_from(settlement.completion_provider_custody.len())
+                .map_err(|_| TerminalInstallationError::TooManyCompletionProviderCustody)?,
+        );
+        for binding in &settlement.completion_provider_custody {
+            encode_completion_claim_source(&mut bytes, &binding.source)?;
+            push_u64(&mut bytes, binding.receipt.claim.get());
+            push_u32(&mut bytes, binding.receipt.argument_index);
+            push_provider_execution(&mut bytes, binding.provider_execution);
+        }
         match &settlement.native_result {
             Some(result) => {
                 bytes.push(1);
@@ -1460,6 +1472,23 @@ pub fn decode_terminal_installation_record(
                 argument_index: reader.u32()?,
             });
         }
+        let provider_custody_count = usize::try_from(reader.u32()?)
+            .map_err(|_| TerminalInstallationError::TooManyCompletionProviderCustody)?;
+        if provider_custody_count > reader.remaining() / 64 {
+            return Err(TerminalInstallationError::UnexpectedEnd);
+        }
+        let mut completion_provider_custody = Vec::with_capacity(provider_custody_count);
+        for _ in 0..provider_custody_count {
+            completion_provider_custody.push(TerminalCompletionProviderCustodyBinding {
+                source: decode_completion_claim_source(&mut reader)?,
+                receipt: CompletionReceipt {
+                    claim: ClaimId::new(reader.u64()?)
+                        .ok_or(TerminalInstallationError::ZeroSettlementIdentity("ClaimId"))?,
+                    argument_index: reader.u32()?,
+                },
+                provider_execution: decode_provider_execution(&mut reader)?,
+            });
+        }
         let native_result_present = decode_boolean(reader.u8()?)?;
         if reader.take(3)? != [0; 3] {
             return Err(TerminalInstallationError::NonzeroReservedField);
@@ -1486,6 +1515,7 @@ pub fn decode_terminal_installation_record(
                 arguments,
                 completion_claim_sources,
                 completion_receipts,
+                completion_provider_custody,
                 native_result,
                 operation_ordinal,
                 code_offset,
@@ -2939,6 +2969,20 @@ fn validate_record_shape(
                 machine: installed.machine,
                 operation: installed.settlement.psi_operation,
             });
+        }
+        if derive_completion_provider_custody(
+            installed.settlement.provider_execution,
+            &installed.settlement.completion_claim_sources,
+            &installed.settlement.completion_receipts,
+        )
+        .is_none_or(|expected| expected != installed.settlement.completion_provider_custody)
+        {
+            return Err(
+                TerminalInstallationError::InvalidCompletionProviderCustody {
+                    machine: installed.machine,
+                    operation: installed.settlement.psi_operation,
+                },
+            );
         }
         let valid_realization = match installed.settlement.realization {
             TerminalBoundaryRealization::MetadataOnlyPort(realization) => {
@@ -4942,6 +4986,27 @@ fn decode_boolean(value: u8) -> Result<bool, TerminalInstallationError> {
     }
 }
 
+fn push_provider_execution(bytes: &mut Vec<u8>, execution: TerminalProviderExecutionRecord) {
+    push_u64(bytes, execution.provider_plan);
+    push_u64(bytes, execution.provider_execution_identity);
+    push_u64(bytes, execution.provider_execution_fingerprint);
+    push_u64(bytes, execution.normalized_root_identity);
+    push_u64(bytes, execution.boundary_contract_fingerprint);
+}
+
+fn decode_provider_execution(
+    reader: &mut Reader<'_>,
+) -> Result<TerminalProviderExecutionRecord, TerminalInstallationError> {
+    TerminalProviderExecutionRecord::new(
+        reader.u64()?,
+        reader.u64()?,
+        reader.u64()?,
+        reader.u64()?,
+        reader.u64()?,
+    )
+    .ok_or(TerminalInstallationError::ZeroProviderExecutionEvidence)
+}
+
 fn push_u16(bytes: &mut Vec<u8>, value: u16) {
     bytes.extend_from_slice(&value.to_le_bytes());
 }
@@ -5054,6 +5119,7 @@ pub enum TerminalInstallationError {
     TooManySettlementArgumentPathSegments,
     SettlementArgumentFieldTooLong,
     TooManyCompletionReceipts,
+    TooManyCompletionProviderCustody,
     TooManyCompletionClaimSources,
     SettlementOffsetNotRepresentable,
     FunctionOffsetNotRepresentable,
@@ -5130,6 +5196,10 @@ pub enum TerminalInstallationError {
         operation: OperationId,
     },
     InvalidCompletionReceiptCustody {
+        machine: MachineId,
+        operation: OperationId,
+    },
+    InvalidCompletionProviderCustody {
         machine: MachineId,
         operation: OperationId,
     },

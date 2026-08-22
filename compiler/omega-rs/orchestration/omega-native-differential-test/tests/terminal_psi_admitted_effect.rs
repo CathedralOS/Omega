@@ -782,6 +782,32 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
         direct_machine.functions[0].boundary_settlements[0].completion_claim_sources,
         completion_claim_sources.as_slice()
     );
+    let direct_provider_custody =
+        &direct_machine.functions[0].boundary_settlements[0].completion_provider_custody;
+    assert_eq!(direct_provider_custody.len(), 1);
+    assert_eq!(direct_provider_custody[0].source, direct_content_source);
+    assert_eq!(
+        direct_provider_custody[0].receipt,
+        CompletionReceipt {
+            claim: direct_claim,
+            argument_index: 0,
+        }
+    );
+    assert_eq!(
+        direct_provider_custody[0].provider_execution,
+        direct_machine.functions[0].boundary_settlements[0].provider_execution
+    );
+    let mut substituted_provider_custody = direct_machine.clone();
+    substituted_provider_custody.functions[0].boundary_settlements[0]
+        .completion_provider_custody[0]
+        .provider_execution
+        .provider_plan ^= 1;
+    assert!(matches!(
+        build_terminal_object_artifact(&substituted_provider_custody),
+        Err(
+            omega_terminal_image_emission::TerminalObjectError::InvalidCompletionProviderCustody { .. }
+        )
+    ));
     let mut dropped_content_source = direct_machine.clone();
     dropped_content_source.functions[0].boundary_settlements[0].completion_claim_sources[0]
         .content = None;
@@ -837,6 +863,12 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
             .completion_claim_sources
             .as_slice(),
         completion_claim_sources.as_slice()
+    );
+    assert_eq!(
+        direct_installation.boundary_settlements()[0]
+            .settlement
+            .completion_provider_custody,
+        direct_provider_custody.as_slice()
     );
     assert_eq!(
         &direct_installation.boundary_settlements()[0]

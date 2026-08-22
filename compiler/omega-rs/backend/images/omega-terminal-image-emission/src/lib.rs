@@ -68,7 +68,7 @@ use omega_target::{Architecture, NativeTarget};
 use omega_terminal_machine_code::{
     TerminalBoundarySettlementRecord, TerminalMachineCodePlan, TerminalNativeFuelAttribution,
     TerminalNativeFuelSite, TerminalPortEffectRecord, TerminalScalarControlAffineCleanupRecord,
-    TerminalStructuralReturnRecord,
+    TerminalStructuralReturnRecord, derive_completion_provider_custody,
 };
 use omega_terminal_target_operations::{
     TerminalBoundaryRealization, TerminalCallSiteOwner, TerminalPsiProvenance,
@@ -917,6 +917,18 @@ pub fn build_terminal_object_artifact(
                     operation: settlement.psi_operation,
                 });
             }
+            if derive_completion_provider_custody(
+                settlement.provider_execution,
+                &settlement.completion_claim_sources,
+                &settlement.completion_receipts,
+            )
+            .is_none_or(|expected| expected != settlement.completion_provider_custody)
+            {
+                return Err(TerminalObjectError::InvalidCompletionProviderCustody {
+                    machine: function.machine,
+                    operation: settlement.psi_operation,
+                });
+            }
             let valid_realization = match settlement.realization {
                 TerminalBoundaryRealization::MetadataOnlyPort(realization) => {
                     settlement.byte_count == 0
@@ -1391,6 +1403,10 @@ pub enum TerminalObjectError {
         operation: psi_core::OperationId,
     },
     InvalidCompletionReceiptCustody {
+        machine: MachineId,
+        operation: psi_core::OperationId,
+    },
+    InvalidCompletionProviderCustody {
         machine: MachineId,
         operation: psi_core::OperationId,
     },
