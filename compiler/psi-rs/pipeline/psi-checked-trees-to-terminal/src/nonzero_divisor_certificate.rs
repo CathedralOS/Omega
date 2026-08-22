@@ -280,6 +280,7 @@ fn prove_cast_chain_bound(
         }
     }
     prove_landed_literal_cast_bound(context, goal, assumptions, semantic_axioms)
+        .or_else(|| prove_alias_substituted_cast_bound(context, goal, assumptions, semantic_axioms))
 }
 
 fn prove_landed_literal_cast_bound(
@@ -383,6 +384,76 @@ fn remap_integer_literal(
     let (source_type, value) = literal.integer_value()?;
     let value = source_type.exact_cast_value_to(target_type, value)?;
     psi_core::ScalarTerm::integer(target_type, value).ok()
+}
+
+fn prove_alias_substituted_cast_bound(
+    context: &PropositionContext,
+    goal: &Proposition,
+    assumptions: &[Proposition],
+    semantic_axioms: &[Proposition],
+) -> Option<ProofNode> {
+    for (equality_citation, equality) in cited_facts(assumptions, semantic_axioms) {
+        let Proposition::Equal(equality_left, equality_right) = equality else {
+            continue;
+        };
+        for (root, alias) in [
+            (equality_left, equality_right),
+            (equality_right, equality_left),
+        ] {
+            if root == alias
+                || !matches!(root, psi_core::ScalarTerm::Value { .. })
+                || !matches!(alias, psi_core::ScalarTerm::Value { .. })
+                || root.scalar_type() != alias.scalar_type()
+            {
+                continue;
+            }
+            for (bound_citation, bound) in cited_facts(assumptions, semantic_axioms) {
+                let Proposition::LessOrEqual(bound_left, bound_right) = bound else {
+                    continue;
+                };
+                let (root_bound, endpoint, literal) = if bound_left == alias {
+                    (
+                        Proposition::LessOrEqual(root.clone(), bound_right.clone()),
+                        0,
+                        bound_right,
+                    )
+                } else if bound_right == alias {
+                    (
+                        Proposition::LessOrEqual(bound_left.clone(), root.clone()),
+                        1,
+                        bound_left,
+                    )
+                } else {
+                    continue;
+                };
+                let Some((integer_type, _)) = literal.integer_value() else {
+                    continue;
+                };
+                if root.scalar_type() != psi_core::ScalarType::Integer(integer_type) {
+                    continue;
+                }
+                let root_bound = ProofNode {
+                    conclusion: root_bound,
+                    rule: ProofRule::IntegerLessOrEqualSubstitution {
+                        relation: Box::new(bound_citation.proof(bound)),
+                        equality: Box::new(equality_citation.proof(equality)),
+                        endpoint,
+                    },
+                };
+                if let Some(proof) = prove_cast_bound_from_root(
+                    context,
+                    goal,
+                    assumptions,
+                    semantic_axioms,
+                    root,
+                    root_bound,
+                ) {
+                    return Some(proof);
+                }
+            }
+        }
+    }
+    None
 }
 
 fn prove_cast_bound_from_root(
@@ -3109,6 +3180,10 @@ mod tests {
                 ValueId::new(6).expect("redirected root"),
                 ScalarType::Integer(i32_type),
             ),
+            (
+                ValueId::new(7).expect("redirected bound"),
+                ScalarType::Integer(i32_type),
+            ),
         ])
         .expect("cast values");
         let divisor = value(2, i8_type);
@@ -3310,6 +3385,86 @@ mod tests {
                 "a weaker landed root cannot justify either canonical arm",
             );
         }
+
+        let root_alias = Proposition::Equal(value(5, i32_type), value(6, i32_type));
+        let alias_positive_bound =
+            Proposition::LessOrEqual(integer(i32_type, 1), value(6, i32_type));
+        let alias_positive = prove_canonical_integer_proposition(
+            &context,
+            &goal,
+            &[alias_positive_bound.clone(), root_alias.clone()],
+            &[first_cast.clone(), second_cast.clone()],
+        )
+        .expect("one exact root alias transports its directly cited positive bound");
+        let ProofRule::DisjunctionIntroduction { disjunct, index } = alias_positive.rule else {
+            panic!("aliased positive root selects one canonical arm")
+        };
+        assert_eq!(index, 1);
+        let ProofRule::IntegerCastBound { root_bound, .. } = disjunct.rule else {
+            panic!("aliased positive root uses the cast-bound rule")
+        };
+        let ProofRule::IntegerLessOrEqualSubstitution {
+            relation,
+            equality,
+            endpoint,
+        } = root_bound.rule
+        else {
+            panic!("aliased root bound uses one substitution")
+        };
+        assert_eq!(endpoint, 1);
+        assert!(matches!(relation.rule, ProofRule::Assumption { index: 0 }));
+        assert!(matches!(equality.rule, ProofRule::Assumption { index: 1 }));
+
+        let alias_negative_bound =
+            Proposition::LessOrEqual(value(6, i32_type), integer(i32_type, -2));
+        let alias_negative = prove_canonical_integer_proposition(
+            &context,
+            &goal,
+            &[alias_negative_bound, root_alias.clone()],
+            &[first_cast.clone(), second_cast.clone()],
+        )
+        .expect("one exact root alias transports its directly cited negative bound");
+        let ProofRule::DisjunctionIntroduction { index, .. } = alias_negative.rule else {
+            panic!("aliased negative root selects one canonical arm")
+        };
+        assert_eq!(index, 0);
+
+        assert!(
+            prove_canonical_integer_proposition(
+                &context,
+                &goal,
+                std::slice::from_ref(&alias_positive_bound),
+                &[first_cast.clone(), second_cast.clone()],
+            )
+            .is_none(),
+            "an alias bound without its exact equality does not reach the cast root",
+        );
+        assert!(
+            prove_canonical_integer_proposition(
+                &context,
+                &goal,
+                &[
+                    Proposition::LessOrEqual(integer(i32_type, 1), value(7, i32_type)),
+                    root_alias.clone(),
+                ],
+                &[first_cast.clone(), second_cast.clone()],
+            )
+            .is_none(),
+            "a redirected bound cannot ride an unrelated root equality",
+        );
+        assert!(
+            prove_canonical_integer_proposition(
+                &context,
+                &goal,
+                &[
+                    Proposition::LessOrEqual(integer(i32_type, 0), value(6, i32_type)),
+                    root_alias,
+                ],
+                &[first_cast.clone(), second_cast.clone()],
+            )
+            .is_none(),
+            "the fixed alias sibling does not strengthen a weaker bound",
+        );
 
         assert!(
             prove_canonical_integer_proposition(

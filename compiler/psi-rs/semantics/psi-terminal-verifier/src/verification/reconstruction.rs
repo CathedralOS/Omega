@@ -590,7 +590,7 @@ fn retained_cast_chain_bound(
     {
         return true;
     }
-    requirements
+    if requirements
         .iter()
         .chain(semantic_axioms)
         .filter_map(|equality| match equality {
@@ -615,6 +615,70 @@ fn retained_cast_chain_bound(
                         literal,
                     )
                 })
+        })
+    {
+        return true;
+    }
+    retained_alias_substituted_cast_bound(context, goal, requirements, semantic_axioms)
+}
+
+fn retained_alias_substituted_cast_bound(
+    context: &PropositionContext,
+    goal: &Proposition,
+    requirements: &[Proposition],
+    semantic_axioms: &[Proposition],
+) -> bool {
+    let facts = || requirements.iter().chain(semantic_axioms);
+    facts()
+        .filter_map(|equality| match equality {
+            Proposition::Equal(left, right) => Some((left, right)),
+            _ => None,
+        })
+        .any(|(equality_left, equality_right)| {
+            [
+                (equality_left, equality_right),
+                (equality_right, equality_left),
+            ]
+            .into_iter()
+            .filter(|(root, alias)| {
+                root != alias
+                    && matches!(root, ScalarTerm::Value { .. })
+                    && matches!(alias, ScalarTerm::Value { .. })
+                    && root.scalar_type() == alias.scalar_type()
+            })
+            .any(|(root, alias)| {
+                facts()
+                    .filter_map(|bound| match bound {
+                        Proposition::LessOrEqual(left, right) => Some((left, right)),
+                        _ => None,
+                    })
+                    .any(|(bound_left, bound_right)| {
+                        let (root_bound, literal) = if bound_left == alias {
+                            (
+                                Proposition::LessOrEqual(root.clone(), bound_right.clone()),
+                                bound_right,
+                            )
+                        } else if bound_right == alias {
+                            (
+                                Proposition::LessOrEqual(bound_left.clone(), root.clone()),
+                                bound_left,
+                            )
+                        } else {
+                            return false;
+                        };
+                        let Some((integer_type, _)) = literal.integer_value() else {
+                            return false;
+                        };
+                        root.scalar_type() == psi_core::ScalarType::Integer(integer_type)
+                            && retained_cast_bound_from_root(
+                                context,
+                                goal,
+                                semantic_axioms,
+                                root,
+                                &root_bound,
+                            )
+                    })
+            })
         })
 }
 
@@ -2869,6 +2933,10 @@ mod tests {
                 ValueId::new(6).expect("redirected root"),
                 ScalarType::Integer(i32_type),
             ),
+            (
+                ValueId::new(7).expect("redirected bound"),
+                ScalarType::Integer(i32_type),
+            ),
         ])
         .expect("cast values");
         let goal = CanonicalScalarGoal::ExactDivisionDefined {
@@ -2984,6 +3052,64 @@ mod tests {
                 )],
             ));
         }
+        let root_alias = Proposition::Equal(value(5, i32_type), value(6, i32_type));
+        assert!(exact_division_has_prior_certificate(
+            &context,
+            &goal,
+            &[first_cast.clone(), second_cast.clone()],
+            &[
+                Proposition::LessOrEqual(
+                    ScalarTerm::integer(i32_type, IntegerValue::Signed(1)).expect("i32 one"),
+                    value(6, i32_type),
+                ),
+                root_alias.clone(),
+            ],
+        ));
+        assert!(exact_division_has_prior_certificate(
+            &context,
+            &goal,
+            &[first_cast.clone(), second_cast.clone()],
+            &[
+                Proposition::LessOrEqual(
+                    value(6, i32_type),
+                    ScalarTerm::integer(i32_type, IntegerValue::Signed(-2)).expect("i32 -2"),
+                ),
+                root_alias.clone(),
+            ],
+        ));
+        assert!(!exact_division_has_prior_certificate(
+            &context,
+            &goal,
+            &[first_cast.clone(), second_cast.clone()],
+            &[Proposition::LessOrEqual(
+                ScalarTerm::integer(i32_type, IntegerValue::Signed(1)).expect("i32 one"),
+                value(6, i32_type),
+            )],
+        ));
+        assert!(!exact_division_has_prior_certificate(
+            &context,
+            &goal,
+            &[first_cast.clone(), second_cast.clone()],
+            &[
+                Proposition::LessOrEqual(
+                    ScalarTerm::integer(i32_type, IntegerValue::Signed(1)).expect("i32 one"),
+                    value(7, i32_type),
+                ),
+                root_alias.clone(),
+            ],
+        ));
+        assert!(!exact_division_has_prior_certificate(
+            &context,
+            &goal,
+            &[first_cast.clone(), second_cast.clone()],
+            &[
+                Proposition::LessOrEqual(
+                    ScalarTerm::integer(i32_type, IntegerValue::Signed(0)).expect("i32 zero"),
+                    value(6, i32_type),
+                ),
+                root_alias,
+            ],
+        ));
         assert!(!exact_division_has_prior_certificate(
             &context,
             &goal,
