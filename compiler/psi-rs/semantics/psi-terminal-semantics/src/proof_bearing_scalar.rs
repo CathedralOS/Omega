@@ -10,6 +10,13 @@ use psi_core::{
     IntegerCarrier, IntegerSign, IntegerType, IntegerValue, ObligationId, Proposition, ScalarTerm,
     ScalarType, ValueId,
 };
+use psi_numerics::{
+    arithmetic::ArithmeticDomain,
+    integer_policy::{
+        IntegerFormationCondition, IntegerPolicyBridge, IntegerPolicyPrimitive,
+        integer_policy_bridge,
+    },
+};
 use psi_terminal::{Operation, OperationKind};
 
 use super::{
@@ -64,6 +71,99 @@ impl ProofBearingScalarLeafSchema {
 
     pub const fn frontier(self) -> ScalarLeafFrontierPolicy {
         self.frontier
+    }
+}
+
+/// Exact join from a Terminal operation row into the shared fixed-width
+/// integer policy catalog. Operations absent from that settled catalog (exact
+/// cast and the remainder family) deliberately have no binding.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ProofBearingIntegerPolicyBinding {
+    primitive: IntegerPolicyPrimitive,
+    policy: ArithmeticDomain,
+}
+
+impl ProofBearingIntegerPolicyBinding {
+    pub const fn primitive(self) -> IntegerPolicyPrimitive {
+        self.primitive
+    }
+
+    pub const fn policy(self) -> ArithmeticDomain {
+        self.policy
+    }
+
+    pub const fn bridge(self) -> IntegerPolicyBridge {
+        integer_policy_bridge(self.primitive, self.policy)
+    }
+}
+
+/// Return the exact shared-catalog identity for a proof-bearing Terminal row.
+/// Remainder is intentionally absent until the integer policy catalog settles
+/// a remainder primitive.
+pub const fn proof_bearing_integer_policy_binding(
+    tag: OperationSemanticTag,
+) -> Option<ProofBearingIntegerPolicyBinding> {
+    let (primitive, policy) = match tag {
+        OperationSemanticTag::ExactIntegerAdd => {
+            (IntegerPolicyPrimitive::Add, ArithmeticDomain::Exact)
+        }
+        OperationSemanticTag::ExactIntegerSubtract => {
+            (IntegerPolicyPrimitive::Subtract, ArithmeticDomain::Exact)
+        }
+        OperationSemanticTag::ExactIntegerMultiply => {
+            (IntegerPolicyPrimitive::Multiply, ArithmeticDomain::Exact)
+        }
+        OperationSemanticTag::ExactIntegerDivide => {
+            (IntegerPolicyPrimitive::Divide, ArithmeticDomain::Exact)
+        }
+        OperationSemanticTag::WrappingIntegerDivide => {
+            (IntegerPolicyPrimitive::Divide, ArithmeticDomain::Wrapping)
+        }
+        OperationSemanticTag::SaturatingIntegerDivide => {
+            (IntegerPolicyPrimitive::Divide, ArithmeticDomain::Saturating)
+        }
+        OperationSemanticTag::ExactIntegerShiftLeft => {
+            (IntegerPolicyPrimitive::ShiftLeft, ArithmeticDomain::Exact)
+        }
+        OperationSemanticTag::ExactIntegerShiftRight => {
+            (IntegerPolicyPrimitive::ShiftRight, ArithmeticDomain::Exact)
+        }
+        _ => return None,
+    };
+    Some(ProofBearingIntegerPolicyBinding { primitive, policy })
+}
+
+fn catalog_goal_shape(binding: ProofBearingIntegerPolicyBinding) -> Option<ScalarLeafGoalShape> {
+    let bridge = binding.bridge();
+    match (binding.primitive, bridge.formation_conditions) {
+        (
+            IntegerPolicyPrimitive::Add
+            | IntegerPolicyPrimitive::Subtract
+            | IntegerPolicyPrimitive::Multiply,
+            [IntegerFormationCondition::ResultRepresentable],
+        ) => Some(ScalarLeafGoalShape::ExactArithmeticRepresentable),
+        (
+            IntegerPolicyPrimitive::Divide,
+            [
+                IntegerFormationCondition::NonZeroDivisor,
+                IntegerFormationCondition::ResultRepresentable,
+            ],
+        ) => Some(ScalarLeafGoalShape::ExactDivisionDefined),
+        (IntegerPolicyPrimitive::Divide, [IntegerFormationCondition::NonZeroDivisor]) => {
+            Some(ScalarLeafGoalShape::NonzeroDivisor)
+        }
+        (
+            IntegerPolicyPrimitive::ShiftLeft,
+            [
+                IntegerFormationCondition::ShiftCountWithinWidth,
+                IntegerFormationCondition::ResultRepresentable,
+            ],
+        ) => Some(ScalarLeafGoalShape::ExactShiftLeftRepresentable),
+        (
+            IntegerPolicyPrimitive::ShiftRight,
+            [IntegerFormationCondition::ShiftCountWithinWidth],
+        ) => Some(ScalarLeafGoalShape::ExactShiftCount),
+        _ => None,
     }
 }
 
@@ -214,6 +314,17 @@ const PROOF_BEARING_SCALAR_TAGS: [OperationSemanticTag; 12] = [
     OperationSemanticTag::SaturatingIntegerRemainder,
 ];
 
+const INTEGER_POLICY_BOUND_TAGS: [OperationSemanticTag; 8] = [
+    OperationSemanticTag::ExactIntegerShiftLeft,
+    OperationSemanticTag::ExactIntegerShiftRight,
+    OperationSemanticTag::ExactIntegerAdd,
+    OperationSemanticTag::ExactIntegerSubtract,
+    OperationSemanticTag::ExactIntegerMultiply,
+    OperationSemanticTag::ExactIntegerDivide,
+    OperationSemanticTag::WrappingIntegerDivide,
+    OperationSemanticTag::SaturatingIntegerDivide,
+];
+
 const fn is_proof_bearing_scalar_tag(tag: OperationSemanticTag) -> bool {
     matches!(
         tag,
@@ -270,6 +381,18 @@ pub fn validate_proof_bearing_scalar_semantic_rows(
         let row = exact_proof_bearing_scalar_semantic_row_in(tag, rows)?
             .expect("the requested tag belongs to the proof-bearing scalar cohort");
         if Some(row.schema) != canonical_schema(tag) {
+            return Err(OperationSemanticError::ProofBearingScalarSchemaMismatch(
+                tag,
+            ));
+        }
+    }
+    for tag in INTEGER_POLICY_BOUND_TAGS {
+        let row = exact_proof_bearing_scalar_semantic_row_in(tag, rows)?
+            .expect("the catalog-bound tag belongs to the proof-bearing scalar cohort");
+        let binding = proof_bearing_integer_policy_binding(tag).ok_or(
+            OperationSemanticError::ProofBearingScalarSchemaMismatch(tag),
+        )?;
+        if catalog_goal_shape(binding) != Some(row.schema.goal) {
             return Err(OperationSemanticError::ProofBearingScalarSchemaMismatch(
                 tag,
             ));
@@ -952,6 +1075,44 @@ mod tests {
                 && row.schema.fuel == ScalarLeafFuelPolicy::ConsumeOne
                 && row.schema.frontier == ScalarLeafFrontierPolicy::PreserveLocal
         }));
+    }
+
+    #[test]
+    fn integer_policy_rows_rejoin_the_shared_catalog_exactly() {
+        assert_eq!(INTEGER_POLICY_BOUND_TAGS.len(), 8);
+        for tag in INTEGER_POLICY_BOUND_TAGS {
+            let binding = proof_bearing_integer_policy_binding(tag)
+                .expect("every bound Terminal row has one catalog identity");
+            let row = exact_proof_bearing_scalar_semantic_row_in(
+                tag,
+                &ProofBearingScalarSemanticRow::ALL,
+            )
+            .unwrap()
+            .unwrap();
+            assert_eq!(catalog_goal_shape(binding), Some(row.schema.goal));
+        }
+        assert_eq!(
+            proof_bearing_integer_policy_binding(OperationSemanticTag::ExactIntegerAdd),
+            Some(ProofBearingIntegerPolicyBinding {
+                primitive: IntegerPolicyPrimitive::Add,
+                policy: ArithmeticDomain::Exact,
+            }),
+        );
+        assert_eq!(
+            proof_bearing_integer_policy_binding(OperationSemanticTag::WrappingIntegerDivide),
+            Some(ProofBearingIntegerPolicyBinding {
+                primitive: IntegerPolicyPrimitive::Divide,
+                policy: ArithmeticDomain::Wrapping,
+            }),
+        );
+        for unbound in [
+            OperationSemanticTag::IntegerExactCast,
+            OperationSemanticTag::ExactIntegerRemainder,
+            OperationSemanticTag::WrappingIntegerRemainder,
+            OperationSemanticTag::SaturatingIntegerRemainder,
+        ] {
+            assert_eq!(proof_bearing_integer_policy_binding(unbound), None);
+        }
     }
 
     #[test]
