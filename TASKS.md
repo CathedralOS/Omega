@@ -4675,8 +4675,18 @@ Owners:
   lowering. That join now materializes one target-owned callback-use/thunk row
   containing the exact nominal-use site and ordinal, selected machine/entry,
   satisfaction identity, fingerprint, and validated `BoundaryEntryPlan`.
-  It does not yet supply the separately settled fixed registrar binder-slot-to-
-  native-place row.
+  The normalized outbound `CallPlan` foundation now owns the separately
+  settled fixed registrar binder-slot-to-native-place catalog. A focused
+  348-line owner defines nonzero nominal binder, requirement, native-parameter,
+  layout, and field-slot identities; direct-parameter and nested-field places;
+  typed private demands; exact closure validation; and ABI fingerprinting.
+  Bare plans cannot validate nonempty catalogs, while the context-bound path
+  rejects missing, duplicate, unknown, overlapping, empty-path, and
+  requirement-incompatible rows. Empty ordinary plans preserve their prior
+  identities. The remaining slice is to publish these rows in the source
+  calling vocabulary, derive binder and native-layout demand context from the
+  exact registrar signature/layout, decode the evaluated catalog, and join it
+  to each checked callback use before private relocation emission.
   Checked-only compilation exposes those rows and native compilation retains
   them on `BackendPlan`, so no later thunk pass may replace the recipe with a
   convention oracle or silently discard it. Native backend planning now also
