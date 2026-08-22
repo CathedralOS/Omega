@@ -4024,8 +4024,14 @@ Owners:
   through a receipt. Successful bodyless terminal boundary calls now retain the
   exact verifier-derived completion-receipt set through canonical encoding,
   interpretation, native lowering, machine-code evidence, and installation;
-  provider rejection records no receipt and leaves custody live. The checker
-  accepts only one compatible consumed input
+  provider rejection records no receipt and leaves custody live.
+  Final object construction and decoded installation replay now also require
+  canonical receipt order and reject duplicate acknowledgment of one claim
+  across foreign arguments; argument bounds remain independently fail-closed.
+  Independent claim-membership replay still requires retaining the caller's
+  entry/content-claim catalog in the native artifact; the current machine row
+  retains receipt IDs and arguments but not that source catalog.
+  The checker accepts only one compatible consumed input
   for inferred post-return custody and rejects borrow-only sources. Ambiguous
   multiple-owned sources are accepted only when an exact authored equality
   relates one whole input entry projection directly to the whole current result
