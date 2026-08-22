@@ -33,6 +33,7 @@ mod call_site_owner_codec;
 mod completion_custody_codec;
 mod fuel_attribution_codec;
 mod function_affine_cleanup_codec;
+mod function_codec;
 mod function_parameter_codec;
 mod function_stack_codec;
 mod internal_unit_call_codec;
@@ -43,15 +44,7 @@ mod structural_return_codec;
 mod value_placement_codec;
 use boundary_settlement_codec::{decode_boundary_settlements, encode_boundary_settlements};
 use fuel_attribution_codec::{decode_fuel_attributions, encode_fuel_attributions};
-use function_affine_cleanup_codec::{
-    decode_scalar_control_affine_cleanups, decode_unit_affine_cleanup,
-    encode_scalar_control_affine_cleanups, encode_unit_affine_cleanup,
-};
-use function_parameter_codec::{
-    decode_scalar_parameter_homes, decode_scalar_parameter_records, decode_unit_parameter_homes,
-    decode_unit_parameter_records, encode_parameter_homes, encode_parameter_records,
-};
-use function_stack_codec::{decode_function_stack_facts, encode_function_stack_facts};
+use function_codec::{decode_functions, encode_functions};
 use internal_unit_call_codec::{decode_internal_unit_call, encode_internal_unit_call};
 use port_effect_codec::{decode_port_effects, encode_port_effects};
 use structural_return_codec::{decode_structural_return, encode_structural_return};
@@ -601,61 +594,7 @@ pub fn encode_terminal_installation_record(
     for provider in &record.selected_provider_plans {
         push_u64(&mut bytes, provider.get());
     }
-    push_u32(&mut bytes, function_count);
-    for function in &record.functions {
-        push_u64(&mut bytes, function.machine.get());
-        match function.attachment {
-            Some(attachment) => {
-                bytes.push(1);
-                bytes.extend_from_slice(&[0; 7]);
-                push_u64(&mut bytes, attachment.get());
-            }
-            None => bytes.extend_from_slice(&[0; 16]),
-        }
-        push_u64(
-            &mut bytes,
-            u64::try_from(function.text_offset)
-                .map_err(|_| TerminalInstallationError::FunctionOffsetNotRepresentable)?,
-        );
-        push_u64(
-            &mut bytes,
-            u64::try_from(function.byte_count)
-                .map_err(|_| TerminalInstallationError::FunctionOffsetNotRepresentable)?,
-        );
-        encode_function_stack_facts(&mut bytes, function)?;
-        bytes.push(u8::from(function.unit_body));
-        bytes.extend_from_slice(&[0; 3]);
-        encode_parameter_records(&mut bytes, &function.unit_parameters)?;
-        encode_parameter_homes(&mut bytes, &function.unit_parameter_homes)?;
-        match &function.unit_affine_cleanup {
-            Some(cleanup) => {
-                bytes.push(1);
-                bytes.extend_from_slice(&[0; 3]);
-                encode_unit_affine_cleanup(&mut bytes, cleanup)?;
-            }
-            None => {
-                bytes.push(0);
-                bytes.extend_from_slice(&[0; 3]);
-            }
-        }
-        encode_parameter_records(&mut bytes, &function.scalar_structural_parameters)?;
-        encode_parameter_homes(&mut bytes, &function.scalar_structural_parameter_homes)?;
-        match &function.scalar_affine_cleanup {
-            Some(cleanup) => {
-                bytes.push(1);
-                bytes.extend_from_slice(&[0; 3]);
-                encode_unit_affine_cleanup(&mut bytes, cleanup)?;
-            }
-            None => {
-                bytes.push(0);
-                bytes.extend_from_slice(&[0; 3]);
-            }
-        }
-        encode_scalar_control_affine_cleanups(
-            &mut bytes,
-            &function.scalar_control_affine_cleanups,
-        )?;
-    }
+    encode_functions(&mut bytes, function_count, &record.functions)?;
     push_u32(&mut bytes, structural_return_count);
     for installed in &record.structural_returns {
         encode_structural_return(&mut bytes, installed)?;
@@ -739,91 +678,7 @@ pub fn decode_terminal_installation_record(
         }
         selected_provider_plans.push(provider);
     }
-    let function_count = usize::try_from(reader.u32()?)
-        .map_err(|_| TerminalInstallationError::TooManyInstalledFunctions)?;
-    if function_count > reader.remaining() / 24 {
-        return Err(TerminalInstallationError::UnexpectedEnd);
-    }
-    let mut functions = Vec::with_capacity(function_count);
-    for _ in 0..function_count {
-        let machine =
-            MachineId::new(reader.u64()?).ok_or(TerminalInstallationError::ZeroFunctionIdentity)?;
-        let attachment = match reader.u8()? {
-            0 => {
-                if reader.take(7)? != [0; 7] || reader.u64()? != 0 {
-                    return Err(TerminalInstallationError::NonzeroReservedField);
-                }
-                None
-            }
-            1 => {
-                if reader.take(7)? != [0; 7] {
-                    return Err(TerminalInstallationError::NonzeroReservedField);
-                }
-                Some(StructuralTypeId::new(reader.u64()?).ok_or(
-                    TerminalInstallationError::ZeroStructuralReturnIdentity("function attachment"),
-                )?)
-            }
-            tag => return Err(TerminalInstallationError::InvalidPresenceFlag(tag)),
-        };
-        let text_offset = usize::try_from(reader.u64()?)
-            .map_err(|_| TerminalInstallationError::FunctionOffsetNotRepresentable)?;
-        let byte_count = usize::try_from(reader.u64()?)
-            .map_err(|_| TerminalInstallationError::FunctionOffsetNotRepresentable)?;
-        let (unit_stack, scalar_stack, unit_call_stacks, scalar_call_stacks) =
-            decode_function_stack_facts(&mut reader)?;
-        let unit_body = decode_boolean(reader.u8()?)?;
-        if reader.take(3)? != [0; 3] {
-            return Err(TerminalInstallationError::NonzeroReservedField);
-        }
-        let unit_parameters = decode_unit_parameter_records(&mut reader)?;
-        let unit_parameter_homes = decode_unit_parameter_homes(&mut reader)?;
-        functions.push(TerminalInstalledFunction {
-            machine,
-            attachment,
-            text_offset,
-            byte_count,
-            unit_stack,
-            scalar_stack,
-            unit_call_stacks,
-            scalar_call_stacks,
-            unit_body,
-            unit_parameters,
-            unit_parameter_homes,
-            unit_affine_cleanup: match reader.u8()? {
-                0 => {
-                    if reader.take(3)? != [0; 3] {
-                        return Err(TerminalInstallationError::NonzeroReservedField);
-                    }
-                    None
-                }
-                1 => {
-                    if reader.take(3)? != [0; 3] {
-                        return Err(TerminalInstallationError::NonzeroReservedField);
-                    }
-                    Some(decode_unit_affine_cleanup(&mut reader)?)
-                }
-                tag => return Err(TerminalInstallationError::InvalidBoolean(tag)),
-            },
-            scalar_structural_parameters: decode_scalar_parameter_records(&mut reader)?,
-            scalar_structural_parameter_homes: decode_scalar_parameter_homes(&mut reader)?,
-            scalar_affine_cleanup: match reader.u8()? {
-                0 => {
-                    if reader.take(3)? != [0; 3] {
-                        return Err(TerminalInstallationError::NonzeroReservedField);
-                    }
-                    None
-                }
-                1 => {
-                    if reader.take(3)? != [0; 3] {
-                        return Err(TerminalInstallationError::NonzeroReservedField);
-                    }
-                    Some(decode_unit_affine_cleanup(&mut reader)?)
-                }
-                tag => return Err(TerminalInstallationError::InvalidBoolean(tag)),
-            },
-            scalar_control_affine_cleanups: decode_scalar_control_affine_cleanups(&mut reader)?,
-        });
-    }
+    let functions = decode_functions(&mut reader)?;
     let structural_return_count = usize::try_from(reader.u32()?)
         .map_err(|_| TerminalInstallationError::TooManyStructuralReturns)?;
     let mut structural_returns = Vec::with_capacity(structural_return_count);
@@ -3209,6 +3064,13 @@ impl std::error::Error for TerminalInstallationError {}
 #[cfg(test)]
 mod resource_tests {
     use super::*;
+    use super::{
+        function_affine_cleanup_codec::{
+            decode_scalar_control_affine_cleanups, decode_unit_affine_cleanup,
+            encode_scalar_control_affine_cleanups,
+        },
+        function_stack_codec::{decode_function_stack_facts, encode_function_stack_facts},
+    };
     use psi_core::EdgeId;
 
     fn installed_function_with_unit_call() -> TerminalInstalledFunction {
