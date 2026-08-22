@@ -1,8 +1,8 @@
 //! Independent affine-root replay for a following exact partial-cast spine.
 
-use psi_core::{Proposition, PropositionContext, ScalarTerm, ScalarType};
+use psi_core::{Proposition, PropositionContext, ScalarTerm};
 
-use super::super::{affine_selection, cast_custody};
+mod completion;
 
 pub(super) fn retained(
     context: &PropositionContext,
@@ -18,32 +18,14 @@ pub(super) fn retained(
             if !matches!(target, ScalarTerm::Value { .. }) {
                 return false;
             }
-            let Some((source, first_cast)) = cast_custody::source_root(target, semantic_axioms)
-            else {
-                return false;
-            };
-            let ScalarType::Integer(source_type) = source.scalar_type() else {
-                return false;
-            };
-            let Some(literal) = cast_custody::remap_integer_literal(literal, source_type) else {
-                return false;
-            };
-            let source_goal = if target_is_right {
-                Proposition::LessOrEqual(literal, source.clone())
-            } else {
-                Proposition::LessOrEqual(source.clone(), literal)
-            };
-            affine_selection::retained(
-                context,
-                &source_goal,
-                requirements,
-                &semantic_axioms[..first_cast],
-            ) && cast_custody::retained_from_root(
+            completion::retained(
                 context,
                 goal,
+                requirements,
                 semantic_axioms,
-                &source,
-                &source_goal,
+                target,
+                literal,
+                target_is_right,
             )
         },
     )

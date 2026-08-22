@@ -2084,7 +2084,17 @@ cast source, an affine definition or landing at/after the first cast, an
 unrepresentable endpoint, or either failed kernel check rejects. Direct,
 literal, and fixed alias cast families retain precedence. No rule or proof
 schema beyond proof-bundle v19 is added. This bounded composition does not
-promote either whole row. The bounded dual may start from one directly cited
+promote either whole row.
+
+This affine-to-cast selector now separates endpoint orientation from resolved
+completion. Independent producer and verifier `cast_selection/affine` parents
+retain right-endpoint-before-left-endpoint order and value eligibility;
+side-local `cast_selection/affine/completion` modules own source-spine recovery,
+literal remapping, prefix-bounded affine custody, and cast completion. The
+source goal, proof bytes, rejection order within one orientation, direct-cast
+precedence, and finite frontier are unchanged.
+
+The bounded dual may start from one directly cited
 same-carrier source bound, replay a unique nonempty partial-cast spine, and then
 complete one later finite affine word. Production remaps the cited literal into
 the cast target, constructs `IntegerCastBound` directly from that exact
