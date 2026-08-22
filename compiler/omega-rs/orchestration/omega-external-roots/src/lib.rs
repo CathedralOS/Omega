@@ -1722,6 +1722,25 @@ pub struct WrittenExternalRootPostHandoffWriterDestination<'mapping, 'bytes> {
     written: omega_executable_installation::WrittenPostHandoffWriterDestination<'mapping, 'bytes>,
 }
 
+/// Failed recovery of a still-unpublished external-root writer destination.
+/// The complete written carrier is returned unchanged so the owning consumer
+/// can correct the installed-code input or choose another recovery path.
+#[derive(Debug)]
+pub struct WrittenExternalRootWriterRecoveryError<'mapping, 'bytes> {
+    written: WrittenExternalRootPostHandoffWriterDestination<'mapping, 'bytes>,
+    diagnostic: psi_layout_plans::MaterializationDiagnostic,
+}
+
+impl<'mapping, 'bytes> WrittenExternalRootWriterRecoveryError<'mapping, 'bytes> {
+    pub const fn diagnostic(&self) -> &psi_layout_plans::MaterializationDiagnostic {
+        &self.diagnostic
+    }
+
+    pub fn into_written(self) -> WrittenExternalRootPostHandoffWriterDestination<'mapping, 'bytes> {
+        self.written
+    }
+}
+
 #[derive(Debug)]
 pub struct PreparedExternalRootWriterExecutionError<'mapping, 'bytes> {
     prepared: PreparedExternalRootPostHandoffWriterInvocation,
@@ -1925,6 +1944,48 @@ impl<'mapping, 'bytes> WrittenExternalRootPostHandoffWriterDestination<'mapping,
 
     pub fn bytes(&self) -> &[u8] {
         self.written.bytes()
+    }
+
+    /// Return this still-unpublished destination to the exact provider-writer
+    /// preparation state from which it can be executed again. Recovery first
+    /// replays the complete provider, invocation, installation, mapping, and
+    /// destination binding; rejection preserves this written carrier intact.
+    /// Success does not restore old bytes, validate consumer semantics, or
+    /// publish the destination.
+    pub fn recover_for_retry(
+        self,
+        installed_code: &InstalledCode,
+    ) -> Result<
+        (
+            PreparedExternalRootPostHandoffWriterInvocation,
+            omega_executable_installation::PreparedPostHandoffWriterDestination<'mapping, 'bytes>,
+        ),
+        Box<WrittenExternalRootWriterRecoveryError<'mapping, 'bytes>>,
+    > {
+        if let Err(diagnostic) = self.validate_for_consumer(installed_code) {
+            return Err(Box::new(WrittenExternalRootWriterRecoveryError {
+                written: self,
+                diagnostic,
+            }));
+        }
+        let Self {
+            provider_execution,
+            architecture,
+            invocation,
+            writer,
+            written,
+        } = self;
+        let (context, destination) = written.into_prepared_parts();
+        Ok((
+            PreparedExternalRootPostHandoffWriterInvocation {
+                provider_execution,
+                architecture,
+                invocation,
+                writer,
+                context,
+            },
+            destination,
+        ))
     }
 
     pub fn into_parts(
