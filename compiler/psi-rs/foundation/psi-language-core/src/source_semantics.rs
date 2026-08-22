@@ -246,6 +246,24 @@ pub enum DomainPredicateBody {
     Present,
 }
 
+/// One closed compiler-owned classification attached explicitly to a domain.
+///
+/// This is not an ordinary trait conformance: each case grants fixed language
+/// semantics that packages cannot extend by declaring another same-shaped
+/// trait. The initial vocabulary contains only progress profiles.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DomainClassification {
+    ProgressProfile,
+}
+
+impl DomainClassification {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::ProgressProfile => "progress_profile",
+        }
+    }
+}
+
 impl DomainPredicateBody {
     pub const fn is_present(self) -> bool {
         matches!(self, Self::Present)

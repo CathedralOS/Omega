@@ -343,6 +343,8 @@ pub struct DomainDefinitionSnapshot {
     pub alias: Vec<DomainAliasConstituentSnapshot>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub authored_routes: Vec<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub classification: Option<&'static str>,
     pub predicate_body: &'static str,
     pub semantic_id: u32,
     pub semantic_roles: DomainSemanticRolesSnapshot,
@@ -930,6 +932,7 @@ fn domain_definition_snapshot(
             .iter()
             .map(|route| route.iter().map(ToString::to_string).collect())
             .collect(),
+        classification: domain.classification.map(|value| value.as_str()),
         predicate_body: domain.predicate_body.as_str(),
         semantic_id: domain.semantic_id.0,
         semantic_roles: DomainSemanticRolesSnapshot {

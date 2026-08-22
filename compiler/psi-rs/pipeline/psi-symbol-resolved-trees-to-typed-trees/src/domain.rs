@@ -146,6 +146,7 @@ pub(crate) fn lower_domain_definition(
             .collect::<Result<Vec<_>, _>>()?,
         is_public: domain.is_public,
         alias,
+        classification: domain.classification,
         predicate_body: domain.predicate_body,
         facts,
         operators: Default::default(),

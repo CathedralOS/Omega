@@ -407,9 +407,10 @@ fn item_label(syntax: &SyntaxTrees, item: &Item) -> String {
         Item::Domain(value) => {
             let target = type_reference_label(syntax, value.target_type);
             let mut label = format!(
-                "domain {}\ntarget: {}\npredicate body: {}\nfacts: {}\nsemantic clause tokens: {}",
+                "domain {}\ntarget: {}\nclassification: {}\npredicate body: {}\nfacts: {}\nsemantic clause tokens: {}",
                 value.name.as_str(),
                 target,
+                value.classification.map_or("none", |value| value.as_str()),
                 value.predicate_body.as_str(),
                 syntax.items.proof_facts(value.facts).len(),
                 value.semantic_clause_token_count

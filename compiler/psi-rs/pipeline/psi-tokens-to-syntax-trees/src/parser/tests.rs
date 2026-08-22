@@ -3576,6 +3576,75 @@ fn parses_domain_requires_and_requirement_routes_independently() {
 }
 
 #[test]
+fn parses_explicit_progress_profile_classification() {
+    let source = r#"
+        domain SchedulerHandle::WeakFair
+        satisfies ProgressProfile
+        established by SchedulerAdmission::grant_weak_fair;
+        "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let parsed = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let domain = parsed
+        .root_items()
+        .find_map(|item| match item {
+            psi_syntax_trees::item::Item::Domain(domain) => Some(domain),
+            _ => None,
+        })
+        .expect("domain");
+
+    assert_eq!(
+        domain.classification,
+        Some(psi_language_core::DomainClassification::ProgressProfile)
+    );
+    assert_eq!(domain.authored_routes.len(), 1);
+    assert!(domain.semantic_clause_token_count > 0);
+}
+
+#[test]
+fn rejects_unknown_or_duplicate_domain_classifications() {
+    for (source, expected) in [
+        (
+            "domain Scheduler::Fair satisfies UserProfile;",
+            "unknown compiler-owned domain classification `UserProfile`",
+        ),
+        (
+            "domain Scheduler::Fair satisfies ProgressProfile satisfies ProgressProfile;",
+            "at most one compiler-owned classification",
+        ),
+    ] {
+        let tokens = Lexer::new(source)
+            .tokenize()
+            .expect("tokenize should succeed");
+        let error = parse_syntax_trees(&tokens).expect_err("classification must reject");
+        assert!(error.message.contains(expected), "got: {}", error.message);
+    }
+}
+
+#[test]
+fn rejects_domain_classification_after_requires() {
+    let source = r#"
+        domain Scheduler::Fair
+        requires true
+        satisfies ProgressProfile
+        established by SchedulerAdmission::grant;
+        "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let error = parse_syntax_trees(&tokens).expect_err("classification order must reject");
+    assert!(
+        error
+            .message
+            .contains("classification must appear immediately after the domain head"),
+        "got: {}",
+        error.message
+    );
+}
+
+#[test]
 fn rejects_legacy_domain_route_bodies_with_migration_guidance() {
     let source = r#"
         domain Reservation::Issued {

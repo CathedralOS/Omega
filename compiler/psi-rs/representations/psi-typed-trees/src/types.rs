@@ -823,6 +823,7 @@ pub struct DomainConstraint {
     pub arguments: Vec<TypeReferenceHandle>,
     pub symbol: SymbolHandle,
     pub semantic_id: psi_language_semantics::SemanticDomainId,
+    pub classification: Option<psi_language_semantics::DomainClassification>,
     pub predicate_body: psi_language_semantics::DomainPredicateBody,
     pub semantic_roles: psi_language_semantics::DomainSemanticRoles,
     pub establishment_routes: Vec<psi_language_semantics::DomainEstablishmentRoute>,

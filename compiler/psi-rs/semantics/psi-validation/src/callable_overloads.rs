@@ -109,6 +109,7 @@ mod tests {
                     name: Identifier::generated("Positive"),
                     symbol: SymbolHandle::invalid(),
                     semantic_id: positive,
+                    classification: None,
                     predicate_body: DomainPredicateBody::Present,
                     semantic_roles: DomainSemanticRoles::default(),
                     establishment_routes: Vec::new(),

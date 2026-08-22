@@ -70,12 +70,13 @@ pub fn symbol_resolved_trees_html(program: &SymbolResolvedTrees) -> String {
             format!("domain_{domain_index}"),
             {
                 let mut label = format!(
-                    "domain {}\ntarget: {}\nsymbol: {}\npredicate body: {}\nfacts: {}\nsemantic clause tokens: {}",
+                    "domain {}\ntarget: {}\nsymbol: {}\nclassification: {}\npredicate body: {}\nfacts: {}\nsemantic clause tokens: {}",
                     domain.name.as_str(),
                     domain
                         .target_type
                         .display_name_with_constraints(&program.tables.types.constraints),
                     symbol_label(domain.symbol),
+                    domain.classification.map_or("none", |value| value.as_str()),
                     domain.predicate_body.as_str(),
                     program.proof_facts(domain.facts).len(),
                     domain.semantic_clause_token_count

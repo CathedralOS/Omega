@@ -33,6 +33,7 @@ fn domain_definition_carries_independent_domain_theory_records() {
             // so aliases cannot masquerade as bodyless establishment.
             alias: _,
             predicate_body: _,
+            classification: _,
             // The normalized identity remains independent from contribution
             // roles: qualification and trust can name a declaration even when
             // it contributes no operator-selection role.
@@ -56,6 +57,7 @@ fn domain_constraint_carries_carrier_resolved_identity_and_roles() {
             symbol: _,
             semantic_id: _,
             predicate_body: _,
+            classification: _,
             semantic_roles: _,
             establishment_routes: _,
         } = constraint;

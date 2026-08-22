@@ -1785,6 +1785,39 @@ fn normalizes_authored_checked_and_boundary_requirement_routes() {
 }
 
 #[test]
+fn preserves_explicit_progress_profile_classification_during_resolution() {
+    let source = r#"
+    data SchedulerHandle {}
+    domain SchedulerHandle::WeakFair
+    satisfies ProgressProfile
+    established by SchedulerAdmission::grant;
+    boundary trait SchedulerAdmission {
+        machine grant(scheduler: SchedulerHandle) -> SchedulerHandle in WeakFair;
+    }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let program = lower_syntax_trees(&syntax_trees).expect("lowering should succeed");
+    let domain = program
+        .domain_definitions
+        .iter()
+        .find(|domain| domain.name.as_str() == "SchedulerHandle::WeakFair")
+        .expect("profile domain");
+
+    assert_eq!(
+        domain.classification,
+        Some(psi_language_semantics::DomainClassification::ProgressProfile)
+    );
+    assert!(matches!(
+        domain.establishment_routes.as_slice(),
+        [psi_language_semantics::DomainEstablishmentRoute::BoundaryRequirement { .. }]
+    ));
+}
+
+#[test]
 fn boundary_requirement_route_accepts_exact_non_self_parameter_domain() {
     use psi_language_semantics::DomainEstablishmentRoute;
 

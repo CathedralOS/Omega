@@ -43,6 +43,102 @@ fn closed_conformance_validates_its_exact_inline_and_reference_rows() {
 }
 
 #[test]
+fn explicit_routed_progress_profile_validates() {
+    let typed = typed_program_from_source(
+        r#"
+        data SchedulerHandle {}
+        domain SchedulerHandle::WeakFair
+        satisfies ProgressProfile
+        established by SchedulerAdmission::grant;
+
+        boundary trait SchedulerAdmission {
+            machine grant(scheduler: SchedulerHandle) -> SchedulerHandle in WeakFair;
+        }
+        "#,
+    );
+
+    validate_program(&typed).expect("an opaque boundary-routed progress profile should validate");
+}
+
+#[test]
+fn progress_profile_rejects_predicates_missing_routes_and_checked_routes() {
+    let cases = [
+        (
+            r#"
+            data SchedulerHandle {}
+            domain SchedulerHandle::WeakFair
+            satisfies ProgressProfile
+            requires true
+            established by SchedulerAdmission::grant;
+            boundary trait SchedulerAdmission {
+                machine grant(scheduler: SchedulerHandle) -> SchedulerHandle in WeakFair;
+            }
+            "#,
+            "must be predicate-free",
+        ),
+        (
+            r#"
+            data SchedulerHandle {}
+            domain SchedulerHandle::WeakFair
+            satisfies ProgressProfile;
+            "#,
+            "requires at least one exact `established by` boundary requirement",
+        ),
+        (
+            r#"
+            data SchedulerHandle {}
+            domain SchedulerHandle::WeakFair
+            satisfies ProgressProfile
+            established by SchedulerAdmission::grant;
+            trait SchedulerAdmission {
+                machine grant() -> SchedulerHandle in WeakFair;
+            }
+            "#,
+            "may be established only by exact boundary trait requirements",
+        ),
+    ];
+
+    for (source, expected) in cases {
+        let typed = typed_program_from_source(source);
+        let diagnostics = validate_program(&typed).expect_err("profile shape must reject");
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains(expected)),
+            "expected `{expected}`, got: {diagnostics:?}"
+        );
+    }
+}
+
+#[test]
+fn progress_profile_termination_premise_fails_closed_until_subject_normalization() {
+    let typed = typed_program_from_source(
+        r#"
+        data SchedulerHandle {}
+        domain SchedulerHandle::WeakFair
+        satisfies ProgressProfile
+        established by SchedulerAdmission::grant;
+        boundary trait SchedulerAdmission {
+            machine grant(scheduler: SchedulerHandle) -> SchedulerHandle in WeakFair;
+        }
+        boundary trait SchedulerRuntime {
+            machine wait(scheduler: SchedulerHandle)
+            requires scheduler in WeakFair
+            terminates;
+        }
+        "#,
+    );
+
+    let diagnostics = validate_program(&typed)
+        .expect_err("an unnormalized public progress premise must fail closed");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("subject-bearing progress-premise normalization is not implemented yet")
+    }));
+}
+
+#[test]
 fn closed_conformance_rejects_an_incompatible_inline_row() {
     let typed = typed_program_from_source(
         r#"

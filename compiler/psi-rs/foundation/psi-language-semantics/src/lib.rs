@@ -15,7 +15,7 @@ pub mod wire;
 pub use psi_language_core::{
     CallOperationalAcknowledgement, CallOperationalAcknowledgementOrigin, CarryAddress, CarryCpu,
     CarryHostThread, CarryPermission, CarryPolicy, CarrySuspension, DataSupplyMode,
-    DomainPredicateBody, Multiplicity,
+    DomainClassification, DomainPredicateBody, Multiplicity,
 };
 
 /// Semantic ownership-event roles. Shared by checked flow and every lowered

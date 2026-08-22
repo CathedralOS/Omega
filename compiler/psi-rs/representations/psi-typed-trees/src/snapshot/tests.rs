@@ -105,6 +105,7 @@ fn snapshots_normalized_domain_constraint_identity_and_roles() {
             arguments: Vec::new(),
             symbol,
             semantic_id,
+            classification: None,
             predicate_body: psi_language_semantics::DomainPredicateBody::Present,
             semantic_roles: psi_language_semantics::DomainSemanticRoles {
                 denotation_dimension: Some(semantic_id),
@@ -126,6 +127,7 @@ fn snapshots_normalized_domain_constraint_identity_and_roles() {
             arguments,
             symbol: 31,
             semantic_id: 7,
+            classification: None,
             predicate_body: "present",
             semantic_roles: super::DomainSemanticRolesSnapshot {
                 denotation_dimension: Some(7),

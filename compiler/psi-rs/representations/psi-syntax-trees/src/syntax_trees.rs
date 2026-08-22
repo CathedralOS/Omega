@@ -284,6 +284,7 @@ impl SyntaxTrees {
                             .collect(),
                     }),
                 authored_routes: domain.authored_routes.clone(),
+                classification: domain.classification,
                 predicate_body: domain.predicate_body,
                 facts: self.copy_domain_fact_span(other, domain.facts),
                 operators: self.copy_operator_definition_span(other, domain.operators),
