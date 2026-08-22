@@ -39,6 +39,7 @@ mod function_stack_codec;
 mod internal_unit_call_codec;
 mod port_effect_codec;
 mod provider_execution_codec;
+mod provider_plan_codec;
 mod structural_argument_codec;
 mod structural_return_codec;
 mod value_placement_codec;
@@ -47,6 +48,7 @@ use fuel_attribution_codec::{decode_fuel_attributions, encode_fuel_attributions}
 use function_codec::{decode_functions, encode_functions};
 use internal_unit_call_codec::{decode_internal_unit_calls, encode_internal_unit_calls};
 use port_effect_codec::{decode_port_effects, encode_port_effects};
+use provider_plan_codec::{decode_provider_plans, encode_provider_plans};
 use structural_return_codec::{decode_structural_returns, encode_structural_returns};
 
 pub const TERMINAL_INSTALLATION_FORMAT_MARKER: u16 = 31;
@@ -590,10 +592,7 @@ pub fn encode_terminal_installation_record(
     );
     push_u64(&mut bytes, text_relocation_count);
     push_u64(&mut bytes, checked_instruction_validation_count);
-    push_u32(&mut bytes, provider_count);
-    for provider in &record.selected_provider_plans {
-        push_u64(&mut bytes, provider.get());
-    }
+    encode_provider_plans(&mut bytes, provider_count, &record.selected_provider_plans);
     encode_functions(&mut bytes, function_count, &record.functions)?;
     encode_structural_returns(
         &mut bytes,
@@ -664,22 +663,7 @@ pub fn decode_terminal_installation_record(
         .map_err(|_| TerminalInstallationError::CountNotRepresentable("text relocations"))?;
     let checked_instruction_validation_count = usize::try_from(reader.u64()?)
         .map_err(|_| TerminalInstallationError::CountNotRepresentable("checked instructions"))?;
-    let provider_count = usize::try_from(reader.u32()?)
-        .map_err(|_| TerminalInstallationError::TooManyProviderPlans)?;
-    if provider_count > reader.remaining() / 8 {
-        return Err(TerminalInstallationError::UnexpectedEnd);
-    }
-    let mut selected_provider_plans = Vec::with_capacity(provider_count);
-    for _ in 0..provider_count {
-        let provider = SelectedProviderPlanIdentity::new(reader.u64()?)
-            .ok_or(TerminalInstallationError::ZeroProviderPlan)?;
-        if let Some(previous) = selected_provider_plans.last().copied()
-            && previous >= provider
-        {
-            return Err(TerminalInstallationError::NonCanonicalProviderPlanOrder);
-        }
-        selected_provider_plans.push(provider);
-    }
+    let selected_provider_plans = decode_provider_plans(&mut reader)?;
     let functions = decode_functions(&mut reader)?;
     let structural_returns = decode_structural_returns(&mut reader)?;
     let internal_unit_calls = decode_internal_unit_calls(&mut reader)?;
