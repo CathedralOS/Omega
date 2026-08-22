@@ -353,7 +353,7 @@ fn select_runtime_frame_slot_value_write_in_table_with_source_anchor_and_call_or
                 RuntimeStorageRegion::RuntimeFrame,
                 slot.byte_offset,
             ),
-            literal: std::sync::Arc::from(value),
+            literal: value,
         });
     }
 

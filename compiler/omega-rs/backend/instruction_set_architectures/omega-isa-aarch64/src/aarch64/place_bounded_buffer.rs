@@ -136,7 +136,7 @@ pub fn place_bounded_buffer_source_append_additional_machine_state() -> MachineS
 
 pub fn encode_place_bounded_buffer_literal_append(
     target: &Place,
-    literal: &str,
+    literal: &[u8],
 ) -> Result<(Vec<u8>, BoundedBufferPlaceSites), Diagnostic> {
     let mut bytes = Vec::new();
     let mut sites = BoundedBufferPlaceSites::default();
@@ -150,7 +150,7 @@ pub fn encode_place_bounded_buffer_literal_append(
     bytes.extend(encode_load_x_from_x(15, 16, target_offset)?);
     append_add_x_constant(&mut bytes, 14, 16, target_offset + 8, 13)?;
     bytes.extend(encode_add_x_register(14, 14, 15));
-    for byte in literal.as_bytes() {
+    for byte in literal {
         append_unsigned_immediate(&mut bytes, 17, u64::from(*byte));
         bytes.extend(encode_store_byte_w_post_increment(17, 14, 1)?);
     }

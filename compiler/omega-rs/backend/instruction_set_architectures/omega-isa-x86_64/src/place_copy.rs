@@ -441,7 +441,7 @@ pub fn place_text_buffer_materialize_additional_machine_state(target: &Place) ->
 /// addressed through any x86 place walk.
 pub fn encode_place_text_literal_append(
     target: &Place,
-    literal: &str,
+    literal: &[u8],
 ) -> Result<(Vec<u8>, PlaceCopySites, usize), Diagnostic> {
     let mut bytes = Vec::new();
     let mut sites = PlaceCopySites::default();
@@ -450,7 +450,7 @@ pub fn encode_place_text_literal_append(
     let buffer_site = bytes.len();
     super::append_mov_r14_imm64(&mut bytes, 0);
     super::append_load_r11_from_r15(&mut bytes, displacement + 8)?;
-    for byte in literal.as_bytes() {
+    for byte in literal {
         bytes.extend([0xb1, *byte]); // mov cl, imm8
         bytes.extend([0x43, 0x88, 0x0c, 0x1e]); // mov [r14+r11], cl
         bytes.extend([0x49, 0xff, 0xc3]); // inc r11
@@ -613,7 +613,7 @@ pub fn place_string_write_additional_machine_state(target: &Place) -> MachineSta
 /// through-pointer layout (34 + 8*len).
 pub fn encode_place_bounded_buffer_write(
     target: &Place,
-    literal: &str,
+    literal: &[u8],
 ) -> Result<(Vec<u8>, PlaceCopySites), Diagnostic> {
     let mut bytes = Vec::new();
     let mut sites = PlaceCopySites::default();
@@ -621,7 +621,7 @@ pub fn encode_place_bounded_buffer_write(
         materialize_place_address(&mut bytes, &mut sites, target, AddressRegister::Target)?;
     super::append_mov_rax_imm64(&mut bytes, literal.len() as u64);
     super::append_store_rax_to_r15(&mut bytes, displacement, 8)?;
-    for (index, byte) in literal.as_bytes().iter().enumerate() {
+    for (index, byte) in literal.iter().enumerate() {
         let content_displacement = super::disp32(displacement + 8 + index)?;
         bytes.extend([0x41, 0xc6, 0x87]); // mov byte [r15 + disp32], imm8
         bytes.extend(content_displacement.to_le_bytes());
@@ -696,7 +696,7 @@ pub fn place_bounded_buffer_source_append_additional_machine_state() -> MachineS
 /// a Place. This is the place-shaped successor of the machine-only encoder.
 pub fn encode_place_bounded_buffer_literal_append(
     target: &Place,
-    literal: &str,
+    literal: &[u8],
 ) -> Result<(Vec<u8>, PlaceCopySites), Diagnostic> {
     let mut bytes = Vec::new();
     let mut sites = PlaceCopySites::default();
@@ -706,7 +706,7 @@ pub fn encode_place_bounded_buffer_literal_append(
     bytes.extend([0x49, 0x8d, 0xbf]); // lea rdi,[r15 + target bytes]
     bytes.extend(super::disp32(displacement + 8)?.to_le_bytes());
     bytes.extend([0x48, 0x01, 0xc7]); // add rdi,rax
-    for (index, byte) in literal.as_bytes().iter().enumerate() {
+    for (index, byte) in literal.iter().enumerate() {
         let index = i8::try_from(index).map_err(|_| {
             Diagnostic::error(
                 "X86_64 encoder cannot append a carrier literal longer than 127 bytes",
@@ -2107,7 +2107,7 @@ mod tests {
         assert_eq!(&materialize[buffer_site..buffer_site + 2], &[0x49, 0xbe]);
 
         let (literal, sites, buffer_site) =
-            encode_place_text_literal_append(&target, "ok").expect("append literal");
+            encode_place_text_literal_append(&target, b"ok").expect("append literal");
         assert_sites(sites);
         assert_eq!(&literal[buffer_site..buffer_site + 2], &[0x49, 0xbe]);
 

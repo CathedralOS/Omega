@@ -496,7 +496,7 @@ pub(in crate::selection) fn runtime_text_builder_write_without_aliases_emit(
                     target.frame_base_double_indexed.as_ref(),
                     target.machine_indexed.as_ref(),
                     target.machine_double_indexed.as_ref(),
-                    Arc::from(UNSUPPORTED_RUNTIME_TEXT_SEGMENT),
+                    Arc::from(UNSUPPORTED_RUNTIME_TEXT_SEGMENT.as_bytes()),
                     emit,
                 ) {
                     return false;
@@ -915,7 +915,7 @@ fn emit_runtime_text_builder_segments_with_handle_resolver(
                     target.frame_base_double_indexed.as_ref(),
                     target.machine_indexed.as_ref(),
                     target.machine_double_indexed.as_ref(),
-                    Arc::from(UNSUPPORTED_RUNTIME_TEXT_SEGMENT),
+                    Arc::from(UNSUPPORTED_RUNTIME_TEXT_SEGMENT.as_bytes()),
                     emit,
                 ) {
                     return false;
@@ -940,7 +940,7 @@ fn append_runtime_text_literal_to_target(
     target_frame_base_double_indexed: Option<&RuntimeFrameBaseDoubleIndexedTarget>,
     target_machine_indexed: Option<&RuntimeMachineIndexedTarget>,
     target_machine_double_indexed: Option<&RuntimeMachineDoubleIndexedTarget>,
-    literal: Arc<str>,
+    literal: Arc<[u8]>,
     emit: &mut dyn FnMut(SelectedInstructionKind),
 ) -> bool {
     if let Some(target_place) = target_place {

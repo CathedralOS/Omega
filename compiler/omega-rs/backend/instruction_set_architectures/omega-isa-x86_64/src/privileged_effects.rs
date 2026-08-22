@@ -533,7 +533,7 @@ mod machine_control_tests {
         fn text_equals_literal(
             &self,
             _: RuntimeValueOperandHandle,
-        ) -> Option<(RuntimeValueOperandHandle, String, bool)> {
+        ) -> Option<(RuntimeValueOperandHandle, std::sync::Arc<[u8]>, bool)> {
             None
         }
     }

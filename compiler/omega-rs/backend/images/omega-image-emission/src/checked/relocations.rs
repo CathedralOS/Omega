@@ -449,7 +449,7 @@ pub(super) fn validate_compiler_text_literal_append_relocations(
         ],
         (Architecture::X86_64, _) => {
             let (_, encoded_sites, buffer_site) =
-                omega_isa_x86_64::encode_place_text_literal_append(&target, "")?;
+                omega_isa_x86_64::encode_place_text_literal_append(&target, b"")?;
             let mut sites = encoded_sites
                 .iter()
                 .map(|(site, side)| {

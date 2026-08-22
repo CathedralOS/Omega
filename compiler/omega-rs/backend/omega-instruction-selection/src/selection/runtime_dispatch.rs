@@ -1189,7 +1189,7 @@ pub(crate) fn write_place_bounded_buffer_frame_base_double_indexed(
     inner_index_byte_size: usize,
     inner_stride: usize,
     field_byte_offset: usize,
-    literal: std::sync::Arc<str>,
+    literal: std::sync::Arc<[u8]>,
 ) -> SelectedInstructionKind {
     SelectedInstructionKind::WritePlaceBoundedBuffer {
         target: double_indexed_place(
@@ -1537,7 +1537,7 @@ pub(crate) fn write_place_address_machine_indexed(
 pub(crate) fn write_place_bounded_buffer_pointee(
     pointer_byte_offset: usize,
     field_byte_offset: usize,
-    literal: std::sync::Arc<str>,
+    literal: std::sync::Arc<[u8]>,
 ) -> SelectedInstructionKind {
     SelectedInstructionKind::WritePlaceBoundedBuffer {
         target: omega_abstract_operations::Place::at(

@@ -288,8 +288,16 @@ pub fn collect_depend_aliases(
                     let Some(location) = location else {
                         continue;
                     };
-                    let directory = base_dir.join(location.as_str());
-                    let alias = alias.as_str().to_string();
+                    // Dependency aliases and filesystem paths are textual build
+                    // metadata, not arbitrary byte payloads. Validate this
+                    // boundary explicitly; never repair invalid bytes lossily.
+                    let (Ok(location), Ok(alias)) =
+                        (std::str::from_utf8(&location), std::str::from_utf8(alias))
+                    else {
+                        continue;
+                    };
+                    let directory = base_dir.join(location);
+                    let alias = alias.to_owned();
                     if !depend_aliases
                         .iter()
                         .any(|(existing, _)| existing == &alias)

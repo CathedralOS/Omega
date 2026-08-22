@@ -1634,7 +1634,7 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
             if let Expression::String(prefix) = first {
                 kinds.push(SelectedInstructionKind::WritePlaceBoundedBuffer {
                     target: target_place,
-                    literal: std::sync::Arc::from(prefix.to_string()),
+                    literal: prefix.clone(),
                 });
             } else if let Some(source_place) = resolve_bounded_buffer_target_place(
                 input,
@@ -1659,7 +1659,7 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
                     {
                         kinds.push(SelectedInstructionKind::WritePlaceBoundedBuffer {
                             target: target_place,
-                            literal: std::sync::Arc::from(""),
+                            literal: std::sync::Arc::from(&b""[..]),
                         });
                         kinds.push(SelectedInstructionKind::AppendPlaceBoundedBufferSource {
                             target: target_place,
@@ -1677,7 +1677,7 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
                 if let Expression::String(literal) = segment {
                     kinds.push(SelectedInstructionKind::AppendPlaceBoundedBufferLiteral {
                         target: target_place,
-                        literal: std::sync::Arc::from(literal.to_string()),
+                        literal: literal.clone(),
                     });
                 } else if let Some(source_place) = resolve_bounded_buffer_target_place(
                     input,
@@ -3359,14 +3359,14 @@ fn saturating_integer_bounds(primitive: PrimitiveType) -> Option<(i64, i64)> {
 /// any leaf is not a string literal. Mirrors the runtime-text planner's fold
 /// (which classifies these writes as StaticText) and the data planner's
 /// folded-literal object, so the descriptor write finds matching bytes.
-fn fold_static_string_tree_value(value: &Expression) -> Option<String> {
+fn fold_static_string_tree_value(value: &Expression) -> Option<Vec<u8>> {
     match value {
-        Expression::String(value) => Some(value.to_string()),
+        Expression::String(value) => Some(value.to_vec()),
         Expression::Binary(binary)
             if binary.operator == psi_checked_trees::expression::BinaryOperator::Add =>
         {
             let mut folded = fold_static_string_tree_value(&binary.left)?;
-            folded.push_str(&fold_static_string_tree_value(&binary.right)?);
+            folded.extend_from_slice(&fold_static_string_tree_value(&binary.right)?);
             Some(folded)
         }
         _ => None,

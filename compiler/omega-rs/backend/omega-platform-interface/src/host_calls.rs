@@ -255,4 +255,36 @@ mod tests {
         assert_eq!(call.statement_index, 0);
         assert_eq!(call.call_ordinal, 0);
     }
+
+    #[test]
+    fn host_call_plan_retains_non_utf8_literal_bytes() {
+        let source = r#"
+            boundary trait Console {
+                machine write_line(text: &[u8]);
+            }
+
+            data Main { console: Console; }
+
+            machine Main::main(&mut self) {
+                self.console.write_line("\x80A");
+            }
+        "#;
+
+        let tokens = Lexer::new(source).tokenize().expect("tokenize");
+        let syntax = parse_syntax_trees(&tokens).expect("parse");
+        let resolved = lower_syntax_trees(&syntax).expect("resolve");
+        let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+        let checked = lower_typed_trees(typed).expect("check");
+        let target = omega_target::NativeTarget::linux_arm64();
+        let host_abi = build_host_abi_plan(target);
+
+        let plan = build_host_call_plan(&checked, target, &host_abi).expect("host calls");
+        let (_, call) = plan.calls.iter().next().expect("write_line host call");
+        let arguments = plan.arguments.span(call.arguments).expect("arguments");
+
+        assert!(matches!(
+            &arguments[0].kind,
+            crate::HostCallArgumentKind::Text(bytes) if bytes.as_ref() == [0x80, b'A']
+        ));
+    }
 }

@@ -128,7 +128,7 @@ pub trait RuntimeValueOperandSource {
     fn text_equals_literal(
         &self,
         handle: RuntimeValueOperandHandle,
-    ) -> Option<(RuntimeValueOperandHandle, String, bool)>;
+    ) -> Option<(RuntimeValueOperandHandle, std::sync::Arc<[u8]>, bool)>;
 }
 
 impl RuntimeValueOperandSource for Arena<RuntimeValueOperand> {
@@ -384,7 +384,7 @@ impl RuntimeValueOperandSource for Arena<RuntimeValueOperand> {
     fn text_equals_literal(
         &self,
         handle: RuntimeValueOperandHandle,
-    ) -> Option<(RuntimeValueOperandHandle, String, bool)> {
+    ) -> Option<(RuntimeValueOperandHandle, std::sync::Arc<[u8]>, bool)> {
         match self.get(handle) {
             RuntimeValueOperand::TextEqualsLiteral {
                 place,

@@ -162,7 +162,7 @@ pub enum CompilerInstructionValidationKind {
     },
     RuntimeTextLiteralGuard {
         buffer_symbol: Arc<str>,
-        literal: Arc<str>,
+        literal: Arc<[u8]>,
         failure_branch_distances: Vec<isize>,
         delimiter_failure_branch_distance: isize,
     },
@@ -447,11 +447,11 @@ pub enum CompilerInstructionValidationKind {
     },
     CompilerBodyPlaceBoundedBufferWrite {
         target: Place,
-        literal: Arc<str>,
+        literal: Arc<[u8]>,
     },
     CompilerBodyPlaceBoundedBufferLiteralAppend {
         target: Place,
-        literal: Arc<str>,
+        literal: Arc<[u8]>,
     },
     CompilerBodyPlaceBoundedBufferSourceAppend {
         target: Place,
@@ -594,7 +594,7 @@ pub enum CompilerInstructionValidationKind {
     CompilerBodyTextLiteralAppend {
         buffer_symbol: Arc<str>,
         target: Place,
-        literal: Arc<str>,
+        literal: Arc<[u8]>,
     },
     CompilerBodyTextStoredAppend {
         buffer_symbol: Arc<str>,
@@ -605,7 +605,7 @@ pub enum CompilerInstructionValidationKind {
     CompilerBodyTextLiteralSegmentWrite {
         buffer_symbol: Arc<str>,
         byte_offset: usize,
-        literal: Arc<str>,
+        literal: Arc<[u8]>,
     },
     CompilerBodyTextStoredSuffixAppend {
         buffer_symbol: Arc<str>,

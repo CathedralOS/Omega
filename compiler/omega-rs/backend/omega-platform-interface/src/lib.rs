@@ -145,7 +145,7 @@ impl Default for HostCallArgument {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum HostCallArgumentKind {
-    Text(Arc<str>),
+    Text(Arc<[u8]>),
     Integer(i64),
     Expression(ExpressionHandle),
 }

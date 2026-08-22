@@ -245,3 +245,44 @@ fn estimate_static_string_expression_capacity(
         | ExpressionNode::ZeroValue(_) => {}
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use omega_platform_interface::{HostCall, HostCallArgument, HostCallArgumentKind};
+    use std::sync::Arc;
+
+    #[test]
+    fn host_text_data_retains_non_utf8_bytes_and_newline() {
+        let mut host_calls = HostCallPlan::with_capacity(1, 0, 0, 1);
+        let mut call = HostCall {
+            data: PlatformCallData::FirstTextArgument {
+                append_newline: true,
+            },
+            ..HostCall::default()
+        };
+        host_calls.arguments.append_to_span(
+            &mut call.arguments,
+            HostCallArgument {
+                kind: HostCallArgumentKind::Text(Arc::from(&[0x80, b'A'][..])),
+                ..HostCallArgument::default()
+            },
+        );
+        host_calls.calls.insert(call);
+
+        let data = build_target_data_plan(
+            &CheckedTrees::default(),
+            &host_calls,
+            &StateStoragePlan::default(),
+            &StateValuePlan::default(),
+            &RuntimeBranchingCallPlan::default(),
+            &RuntimeTextPlan::default(),
+        );
+        let (_, object) = data.objects.iter().next().expect("static host text object");
+
+        assert_eq!(
+            data.bytes.span(object.bytes),
+            Some(&[0x80, b'A', b'\n'][..])
+        );
+    }
+}

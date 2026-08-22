@@ -615,7 +615,7 @@ mod tests {
         [
             SelectedInstructionKind::CompareRuntimeTextLiteral {
                 buffer: omega_abstract_operations::AbstractDataObjectHandle::invalid(),
-                literal: std::sync::Arc::from("omega"),
+                literal: std::sync::Arc::from(&b"omega"[..]),
             },
             SelectedInstructionKind::CompareRuntimeTextStorage {
                 buffer: omega_abstract_operations::AbstractDataObjectHandle::invalid(),

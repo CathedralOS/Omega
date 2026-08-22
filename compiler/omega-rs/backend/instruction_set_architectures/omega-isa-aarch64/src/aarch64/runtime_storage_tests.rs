@@ -293,11 +293,11 @@ fn to_machine_indexed_clobbers_match_the_address_recipe() {
 
 #[test]
 fn bounded_buffer_literal_write_rebases_large_machine_offsets() {
-    let bytes = encode_runtime_machine_bounded_buffer_write(5072, "torch")
+    let bytes = encode_runtime_machine_bounded_buffer_write(5072, b"torch")
         .expect("large carrier offset encodes");
     assert_eq!(
         bytes.len(),
-        widths::runtime_machine_bounded_buffer_write_width(5072, "torch")
+        widths::runtime_machine_bounded_buffer_write_width(5072, b"torch")
     );
 }
 
@@ -313,7 +313,7 @@ fn indexed_bounded_buffer_writes_match_their_widths() {
             8,
             16,
             0,
-            "Gate",
+            b"Gate",
         )
         .expect("frame-indexed bounded-buffer write");
         assert_eq!(
@@ -322,7 +322,7 @@ fn indexed_bounded_buffer_writes_match_their_widths() {
                 index_region,
                 16,
                 0,
-                "Gate",
+                b"Gate",
             )
         );
 
@@ -333,7 +333,7 @@ fn indexed_bounded_buffer_writes_match_their_widths() {
             8,
             16,
             0,
-            "Gate",
+            b"Gate",
         )
         .expect("machine-indexed bounded-buffer write");
         assert_eq!(
@@ -345,30 +345,30 @@ fn indexed_bounded_buffer_writes_match_their_widths() {
                 8,
                 16,
                 0,
-                "Gate",
+                b"Gate",
             )
         );
     }
 
     let frame_base =
-        encode_runtime_frame_base_indexed_bounded_buffer_write(24, 8, 8, 16, 0, "Gate")
+        encode_runtime_frame_base_indexed_bounded_buffer_write(24, 8, 8, 16, 0, b"Gate")
             .expect("frame-base-indexed bounded-buffer write");
     assert_eq!(
         frame_base.len(),
         super::super::widths::runtime_frame_base_indexed_bounded_buffer_write_width(
-            24, 8, 8, 16, 0, "Gate",
+            24, 8, 8, 16, 0, b"Gate",
         )
     );
 
     let cross_region_frame_base =
         encode_runtime_frame_base_indexed_bounded_buffer_write_with_index_region(
-            24, machine, 8, 8, 16, 0, "Gate",
+            24, machine, 8, 8, 16, 0, b"Gate",
         )
         .expect("cross-region frame-base-indexed bounded-buffer write");
     assert_eq!(
             cross_region_frame_base.len(),
             super::super::widths::runtime_frame_base_indexed_bounded_buffer_write_with_index_region_width(
-                24, machine, 8, 8, 16, 0, "Gate",
+                24, machine, 8, 8, 16, 0, b"Gate",
             )
         );
     let index_site = widths::runtime_frame_base_indexed_machine_index_base_offset(24);
@@ -399,7 +399,7 @@ fn indexed_bounded_buffer_writes_match_their_widths() {
             8,
             16,
             0,
-            "Gate",
+            b"Gate",
         )
         .expect("double-indexed bounded-buffer write");
         assert_eq!(
@@ -407,7 +407,7 @@ fn indexed_bounded_buffer_writes_match_their_widths() {
             super::super::widths::runtime_machine_double_indexed_bounded_buffer_write_width(
                 outer_region,
                 inner_region,
-                "Gate",
+                b"Gate",
             )
         );
     }
@@ -425,7 +425,7 @@ fn indexed_bounded_buffer_literal_appends_match_their_widths() {
             8,
             16,
             0,
-            "te",
+            b"te",
         )
         .expect("frame-indexed bounded-buffer literal append");
         assert_eq!(
@@ -434,7 +434,7 @@ fn indexed_bounded_buffer_literal_appends_match_their_widths() {
                 index_region,
                 16,
                 0,
-                "te",
+                b"te",
             )
         );
 
@@ -445,7 +445,7 @@ fn indexed_bounded_buffer_literal_appends_match_their_widths() {
             8,
             16,
             0,
-            "te",
+            b"te",
         )
         .expect("machine-indexed bounded-buffer literal append");
         assert_eq!(
@@ -457,30 +457,30 @@ fn indexed_bounded_buffer_literal_appends_match_their_widths() {
                 8,
                 16,
                 0,
-                "te",
+                b"te",
             )
         );
     }
 
     let frame_base =
-        encode_runtime_frame_base_indexed_bounded_buffer_literal_append(24, 8, 8, 16, 0, "te")
+        encode_runtime_frame_base_indexed_bounded_buffer_literal_append(24, 8, 8, 16, 0, b"te")
             .expect("frame-base-indexed bounded-buffer literal append");
     assert_eq!(
         frame_base.len(),
         super::super::widths::runtime_frame_base_indexed_bounded_buffer_literal_append_width(
-            24, 8, 8, 16, 0, "te",
+            24, 8, 8, 16, 0, b"te",
         )
     );
 
     let cross_region_frame_base =
         encode_runtime_frame_base_indexed_bounded_buffer_literal_append_with_index_region(
-            24, machine, 8, 8, 16, 0, "te",
+            24, machine, 8, 8, 16, 0, b"te",
         )
         .expect("cross-region frame-base-indexed bounded-buffer literal append");
     assert_eq!(
             cross_region_frame_base.len(),
             super::super::widths::runtime_frame_base_indexed_bounded_buffer_literal_append_with_index_region_width(
-                24, machine, 8, 8, 16, 0, "te",
+                24, machine, 8, 8, 16, 0, b"te",
             )
         );
     let index_site = widths::runtime_frame_base_indexed_machine_index_base_offset(24);
@@ -495,12 +495,12 @@ fn indexed_bounded_buffer_literal_appends_match_their_widths() {
     );
 
     let frame_double = encode_runtime_frame_base_double_indexed_bounded_buffer_literal_append(
-        24, 64, 8, 48, 72, 8, 16, 8, "te",
+        24, 64, 8, 48, 72, 8, 16, 8, b"te",
     )
     .expect("frame-double-indexed bounded-buffer literal append");
     assert_eq!(
         frame_double.len(),
-        widths::runtime_frame_base_double_indexed_bounded_buffer_literal_append_width("te")
+        widths::runtime_frame_base_double_indexed_bounded_buffer_literal_append_width(b"te")
     );
     assert_eq!(
         &frame_double[..8],
@@ -529,7 +529,7 @@ fn indexed_bounded_buffer_literal_appends_match_their_widths() {
             8,
             16,
             0,
-            "te",
+            b"te",
         )
         .expect("double-indexed bounded-buffer literal append");
         assert_eq!(
@@ -537,7 +537,7 @@ fn indexed_bounded_buffer_literal_appends_match_their_widths() {
                 super::super::widths::runtime_machine_double_indexed_bounded_buffer_literal_append_width(
                     outer_region,
                     inner_region,
-                    "te",
+                    b"te",
                 )
             );
     }
@@ -1673,13 +1673,13 @@ fn frame_base_double_indexed_string_write_reuses_one_frame_base() {
 #[test]
 fn frame_base_double_indexed_bounded_buffer_write_reuses_one_frame_base() {
     let bytes = encode_runtime_frame_base_double_indexed_bounded_buffer_write(
-        24, 64, 8, 48, 72, 8, 16, 8, "omega",
+        24, 64, 8, 48, 72, 8, 16, 8, b"omega",
     )
     .expect("encode frame double-indexed bounded-buffer write");
 
     assert_eq!(
         bytes.len(),
-        widths::runtime_frame_base_double_indexed_bounded_buffer_write_width("omega")
+        widths::runtime_frame_base_double_indexed_bounded_buffer_write_width(b"omega")
     );
     assert_eq!(
         &bytes[..8],

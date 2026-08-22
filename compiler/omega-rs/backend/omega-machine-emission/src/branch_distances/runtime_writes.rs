@@ -73,7 +73,7 @@ pub(crate) fn byte_distances_to_next_runtime_machine_write_end(
     input: MachineEmissionContext<'_>,
     machine_instructions: &[LaidOutMachineInstruction],
     machine_instruction_index: usize,
-    literal: &str,
+    literal: &[u8],
 ) -> Result<RuntimeMachineWriteEndBranchDistances, Diagnostic> {
     let Some(current) = machine_instructions.get(machine_instruction_index) else {
         return Err(Diagnostic::error(format!(

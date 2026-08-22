@@ -47,7 +47,7 @@ pub enum AbstractOperationKind {
     },
     CompareRuntimeTextLiteral {
         buffer: AbstractDataObjectHandle,
-        literal: Arc<str>,
+        literal: Arc<[u8]>,
     },
     CompareRuntimeTextStorage {
         buffer: AbstractDataObjectHandle,
@@ -86,12 +86,12 @@ pub enum AbstractOperationKind {
     },
     WriteRuntimeTextLiteral {
         buffer: AbstractDataObjectHandle,
-        literal: Arc<str>,
+        literal: Arc<[u8]>,
     },
     WriteRuntimeTextLiteralSegment {
         buffer: AbstractDataObjectHandle,
         byte_offset: usize,
-        literal: Arc<str>,
+        literal: Arc<[u8]>,
     },
     AppendRuntimeTextStoredSuffix {
         buffer: AbstractDataObjectHandle,
@@ -128,7 +128,7 @@ pub enum AbstractOperationKind {
     AppendTextLiteralToPlace {
         buffer: AbstractDataObjectHandle,
         target: Place,
-        literal: Arc<str>,
+        literal: Arc<[u8]>,
     },
     /// compact_binary v0 wire framing (chapter 20): store one COMPILE-TIME
     /// byte (era and field-tag varint bytes are known when the schema is) into
@@ -552,7 +552,7 @@ pub enum AbstractOperationKind {
     /// guard proves the result still fits the target's `N`.
     AppendPlaceBoundedBufferLiteral {
         target: Place,
-        literal: Arc<str>,
+        literal: Arc<[u8]>,
     },
     ReadRuntimeTextLine {
         buffer: AbstractDataObjectHandle,
@@ -650,7 +650,7 @@ pub enum AbstractOperationKind {
     /// is immediate, so the walk's base relocation(s) are the only sites.
     WritePlaceBoundedBuffer {
         target: Place,
-        literal: Arc<str>,
+        literal: Arc<[u8]>,
     },
 
     /// Task #131: store the ADDRESS of a place-shaped source into the

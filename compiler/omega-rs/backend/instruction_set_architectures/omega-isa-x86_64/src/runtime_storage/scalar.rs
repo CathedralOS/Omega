@@ -2138,7 +2138,7 @@ pub const RUNTIME_TEXT_EQUALS_RIGHT_BASE_OFFSET: usize = 10 + 7 + 7;
 pub fn runtime_text_equals_literal_operand_width(
     runtime_value_operands: &impl RuntimeValueOperandSource,
     place: RuntimeValueOperandHandle,
-    literal: &str,
+    literal: &[u8],
 ) -> usize {
     let place_setup_width = if runtime_value_operands.storage(place).is_some() {
         // mov r15,imm64 (10) + mov rax,r15 (3)
@@ -2809,7 +2809,7 @@ fn append_runtime_text_equals_literal_operand(
     bytes: &mut Vec<u8>,
     destination: Reg64,
     place: RuntimeValueOperandHandle,
-    literal: &str,
+    literal: &[u8],
     place_is_bounded_buffer: bool,
 ) -> Result<(), Diagnostic> {
     let operand_start = bytes.len();
@@ -2912,7 +2912,7 @@ fn append_runtime_text_equals_literal_operand(
     // result = 0; a length mismatch is unequal text. The jne also means an
     // all-zero (default) descriptor never has its null pointer dereferenced
     // when the literal is non-empty.
-    let literal_bytes = literal.as_bytes();
+    let literal_bytes = literal;
     bytes.extend([0x45, 0x31, 0xc9]); // xor r9d, r9d
     bytes.extend([0x48, 0x81, 0xfa]); // cmp rdx, imm32 (literal length)
     bytes.extend(disp32(literal_bytes.len())?.to_le_bytes());

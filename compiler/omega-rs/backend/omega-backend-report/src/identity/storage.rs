@@ -28,8 +28,9 @@ impl BackendStringStorage {
         count_string(&mut self.identity_strings, &mut self.identity_bytes, value);
     }
 
-    pub(in crate::identity) fn count_payload(&mut self, value: &str) {
-        count_string(&mut self.payload_strings, &mut self.payload_bytes, value);
+    pub(in crate::identity) fn count_payload(&mut self, value: &[u8]) {
+        self.payload_strings += 1;
+        self.payload_bytes += value.len();
     }
 
     pub(in crate::identity) fn count_generated_symbol(&mut self, value: &str) {

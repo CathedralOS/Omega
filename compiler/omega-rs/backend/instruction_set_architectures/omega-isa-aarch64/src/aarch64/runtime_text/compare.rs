@@ -15,7 +15,7 @@ use super::super::widths::{
 };
 
 pub fn encode_runtime_text_literal_compare(
-    literal: &str,
+    literal: &[u8],
     failure_branch_distances: impl ExactSizeIterator<Item = isize>,
     delimiter_failure_branch_distance: isize,
 ) -> Result<Vec<u8>, Diagnostic> {
@@ -32,11 +32,8 @@ pub fn encode_runtime_text_literal_compare(
     bytes.extend(encode_adrp_placeholder(16));
     bytes.extend(encode_add_page_offset_placeholder(16));
 
-    for (byte_index, (expected_byte, failure_branch_distance)) in literal
-        .as_bytes()
-        .iter()
-        .zip(failure_branch_distances)
-        .enumerate()
+    for (byte_index, (expected_byte, failure_branch_distance)) in
+        literal.iter().zip(failure_branch_distances).enumerate()
     {
         bytes.extend(encode_load_byte_w17_from_x16(byte_index)?);
         bytes.extend(encode_compare_w17_immediate(u32::from(*expected_byte))?);

@@ -737,7 +737,7 @@ fn append_runtime_text_equals_literal_operand(
     destination_register: u8,
     scratch_registers: &[u8],
     place: RuntimeValueOperandHandle,
-    literal: &str,
+    literal: &[u8],
     place_is_bounded_buffer: bool,
 ) -> Result<(), Diagnostic> {
     let [
@@ -861,7 +861,7 @@ fn append_runtime_text_equals_literal_operand(
     bytes.extend(encode_movz_w(destination_register, 0));
     append_unsigned_immediate_padded(bytes, byte_scratch, literal.len() as u64);
     bytes.extend(encode_compare_x_register(len_register, byte_scratch));
-    let literal_bytes = literal.as_bytes();
+    let literal_bytes = literal;
     // Forward distances to `done` (the instruction after the final movz):
     // each unrolled byte block is 12 bytes, plus the 4-byte equal-result movz.
     bytes.extend(encode_conditional_branch_not_equal(
