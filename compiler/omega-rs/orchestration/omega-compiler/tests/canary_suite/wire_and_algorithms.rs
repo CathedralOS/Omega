@@ -1502,9 +1502,12 @@ fn runtime_coin_change_dp_exit_canary_runs() {
     let scratch = std::env::temp_dir().join(format!("omega-coin-change-dp-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("coin change dp canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("coin change dp canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("coin change dp canary should run");
     assert_eq!(
@@ -1553,9 +1556,12 @@ fn runtime_hash_table_exit_canary_runs() {
     let scratch = std::env::temp_dir().join(format!("omega-hash-table-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("hash table canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("hash table canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("hash table canary should run");
     assert_eq!(
@@ -1577,9 +1583,12 @@ fn runtime_matrix_multiply_exit_canary_runs() {
     let scratch = std::env::temp_dir().join(format!("omega-matrix-mul-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("matrix multiply canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("matrix multiply canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("matrix multiply canary should run");
     assert_eq!(
@@ -1602,9 +1611,12 @@ fn runtime_ring_buffer_queue_exit_canary_runs() {
     let scratch = std::env::temp_dir().join(format!("omega-ring-buffer-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("ring buffer queue canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("ring buffer queue canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("ring buffer queue canary should run");
     assert_eq!(
@@ -1625,9 +1637,12 @@ fn runtime_bubble_sort_exit_canary_runs() {
     let scratch = std::env::temp_dir().join(format!("omega-bubble-sort-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("bubble sort canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("bubble sort canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("bubble sort canary should run");
     assert_eq!(
