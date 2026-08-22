@@ -1424,8 +1424,15 @@ Remaining:
   Reconstruction independently repeats source, endpoint, prefix-boundary,
   affine, and cast checks. Real divide and remainder source pass codec,
   mutation rejection, verification, and interpretation. Direct/literal/fixed-
-  alias precedence is unchanged; shift/cast, joins, correlated, and broader
-  affine/cast shapes remain trusted, with fully-derived false unchanged.
+  alias precedence is unchanged. The bounded dual now also admits one directly
+  cited same-carrier source bound, a unique nonempty partial-cast spine, and one
+  strictly later finite affine word for exact divide/remainder. Production
+  constructs `IntegerAffineBound(IntegerCastBound(Assumption))`; reconstruction
+  independently repeats direct custody, cast/remap, strict post-cast boundary,
+  and affine checks. Real divide/remainder source passes v19 codec, mutation,
+  verification, interpretation, and existing host-native exact-divide gates.
+  Shift/cast, joins, correlated, and broader affine/cast shapes remain trusted,
+  with fully-derived false unchanged.
   The corresponding direct same-carrier family now retains all four nonempty
   divide/remainder-to-affine/shift compositions without a cast. A leading
   divide/remainder chain supplies its complete verifier-owned carrier hull to
