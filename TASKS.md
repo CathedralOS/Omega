@@ -5439,6 +5439,11 @@ reach or trust, and private proof improvements do not change public identity.
   behind one parent-facing query. Higher scalar-control evidence and native
   instruction replay remain in the 4,607-line parent, with APIs, bytes, errors,
   order, and function inventory unchanged.
+  Stack-depth reconstruction and exact x86-64/AArch64 Boolean structural-read
+  byte replay now live in a focused 197-line `structural_condition_read` child
+  shared by structural-condition validation. Higher scalar-control accounting
+  remains in the 4,427-line parent, with APIs, bytes, errors, order, and function
+  inventory unchanged.
   The installed-cleanup ordinal-tamper regression now locates the authoritative
   internal-call custody row by its complete machine/text-offset/owner/target
   header before mutating the ordinal, rather than accidentally changing an
