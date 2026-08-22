@@ -20,7 +20,7 @@ pub(super) fn any<'a>(
             return false;
         }
         for &(inner_equality, literal) in landings.candidates(alias) {
-            if eligibility::one_alias_join(outer_equality, root, inner_equality, literal)
+            if eligibility::distinct_facts(outer_equality, inner_equality)
                 && complete(root, literal)
             {
                 return true;

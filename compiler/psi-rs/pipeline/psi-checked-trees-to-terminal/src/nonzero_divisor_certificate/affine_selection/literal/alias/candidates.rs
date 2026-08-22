@@ -28,7 +28,7 @@ pub(super) fn find<'a, T>(
                 return None;
             }
             for &(inner_citation, inner_equality, literal) in landings.candidates(alias) {
-                if !eligibility::one_alias_join(outer_equality, root, inner_equality, literal) {
+                if !eligibility::distinct_facts(outer_equality, inner_equality) {
                     continue;
                 }
                 if let Some(result) = complete(
