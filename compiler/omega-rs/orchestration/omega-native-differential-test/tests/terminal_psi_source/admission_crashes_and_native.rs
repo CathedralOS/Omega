@@ -1208,6 +1208,13 @@ fn interpreted_terminal_source_matches_emitted_host_machine_code() {
         entry_claims: Vec::new(),
         acknowledgement_parameter_index: None,
         interrupt_mask_guard_claim: None,
+        service_reach:
+            omega_external_roots::ResolvedRootServiceReach::from_selected_provider_closure(
+                Vec::new(),
+                Vec::new(),
+                &omega_effects::SelectedProviderPlanFacts::default(),
+            )
+            .expect("empty root service reach"),
         effects: BTreeSet::new(),
         trust_receipts: BTreeSet::from([trust_receipt]),
         nesting_relation: relation_identity,
