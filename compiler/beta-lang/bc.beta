@@ -22,6 +22,7 @@
 ;
 ; Fixed memory (above the 1 MiB data stack):
 ;   2097152 SRC    source bytes        2097144 CUR    cursor (index into SRC)
+;   SRC occupies [2097152, 3145728): exactly 1048576 bytes; exhaustion returns 253
 ;   2097136 LEN    source length       2097128 NLOC   declared local count
 ;   2097120 IDOFF  last ident offset    2097112 IDLEN  last ident length
 ;   2097104 LBL    label counter        2097096 CURPROC off  2097088 CURPROC len
@@ -33,12 +34,14 @@ proc slurp() {
     let n = 0
     let c = read_byte()
     state loop { to body when (c >= 0)  to done }
-    state body { byte[2097152 + n] = c  n = n + 1  c = read_byte()  to loop }
+    state body { to full when (n == 1048576)  byte[2097152 + n] = c  n = n + 1  c = read_byte()  to loop }
+    state full { return 0 }
     state done {
         word[2097136] = n        ; LEN
         word[2097144] = 0        ; CUR
         word[2097128] = 0        ; NLOC
         word[2097104] = 0        ; LBL (label counter)
+        return 1
     }
 }
 
@@ -957,10 +960,14 @@ proc parse_proc() {
 }
 
 proc main() {
-    slurp()
-    emit_prelude()
-    emit_write_str()             ; the emit() helper (after halt; harmless if unused)
-    skip_ws()
+    let storage_ok = slurp()
+    state storage { to ready when (storage_ok == 1)  return 253 }
+    state ready {
+        emit_prelude()
+        emit_write_str()         ; the emit() helper (after halt; harmless if unused)
+        skip_ws()
+        to loop
+    }
     state loop {
         to body when (cbyte() != 0)
         return 0
