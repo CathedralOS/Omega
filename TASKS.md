@@ -3275,6 +3275,13 @@ Remaining:
   allocation-enabled float checked phases fell another 10.0%/9.9% to 2.436s/
   2.432s with allocation counts and bytes exactly unchanged. Stale, non-state,
   and mismatched symbols remain fail-closed.
+  Machine, owned-data, and state typed-handle lookup now validates exact
+  retained parent/name ownership directly instead of rescanning hierarchy/name
+  tables; attached-data fields retain the broader machine-child path because
+  their handles belong to the data definition. No-allocation checked phases
+  fell from 2.449s/2.481s to 1.899s/1.906s, while allocation-enabled phases fell
+  17.1%/19.9% with counts and bytes exactly unchanged. Stale, redirected, or
+  mismatched handles remain fail-closed.
   Default-domain validation now delegates conservative symbolic values,
   literal/sequence measures, valuation folding, canonical symbolic equality,
   and recursive call detection to a focused 281-line child while state walking,
@@ -5370,6 +5377,12 @@ Owners:
   literal exit 70, and its documented no-interpreter-custom-capability
   boundary. Exact-owner ambiguity, the 795 rooted/3 legacy inventory, and
   cross-copy receipt-drift fences remain green.
+  The bundled proof-only core-Nat declaration regression now launches solely
+  through the exact executable retained by its checked compilation report while
+  preserving literal exit 70 and the proof/runtime boundary. Exact-owner
+  ambiguity, the 795 rooted/3 legacy inventory, and cross-copy receipt-drift
+  fences remain green; structural-recursion/cyclic and accepted-axiom trust-
+  report owners remain untouched.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
@@ -5672,6 +5685,11 @@ reach or trust, and private proof improvements do not change public identity.
   a cohesive 399-line `unit_affine_cleanup` child. The 2,986-line parent retains
   terminal image orchestration, with crate linkage, native byte/error order,
   and the 69-function inventory unchanged.
+  Exact x86-64 division-branch decoding, stack mutation/call replay, and
+  balanced-region validation now live in a cohesive 484-line
+  `scalar_division_stack` child. The 2,524-line parent retains terminal image
+  orchestration, with crate linkage, native byte/error order, and the 69-
+  function inventory unchanged.
   The installed-cleanup ordinal-tamper regression now locates the authoritative
   internal-call custody row by its complete machine/text-offset/owner/target
   header before mutating the ordinal, rather than accidentally changing an
