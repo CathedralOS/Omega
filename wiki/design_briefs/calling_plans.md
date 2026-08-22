@@ -721,6 +721,10 @@ Each receipt also carries its exact destination role, and that role participates
 in the installation identity. The flat report slot accepts only `FlatOutput`,
 while the optional bundle slot accepts only `MacOsAppBundle`; swapping two
 otherwise matching receipts therefore rejects.
+Immediately before either outward receipt is minted, installation replays the
+renamed destination bytes once more against the sealed container. Destination
+drift in the interval after the installation check removes the changed file and
+rejects instead of returning stale custody.
 The report also retains the exact orchestration output category. A native
 executable requires the flat receipt, an object-container fallback forbids both
 executable receipts, and a check-only result forbids both output and receipts.
