@@ -10,7 +10,7 @@ use psi_typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNo
 use psi_typed_trees::machine::Machine;
 use psi_typed_trees::state::State;
 
-use super::data_definition_for_expression;
+use super::place_queries::data_definition_for_expression;
 use super::symbolic_values::integer_literal_value;
 use crate::arithmetic_domains::Interval;
 
