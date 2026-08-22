@@ -708,6 +708,10 @@ After atomic rename, the compiler independently reads the destination and
 compares every byte with the sealed container before minting or returning the
 installation receipt. A missing or changed destination is removed and rejects,
 so the outward report cannot attest merely to a validated temporary file.
+For a Mach-O GUI build, the compiler report retains the app-bundle executable
+receipt separately from the flat executable receipt. Both consume the same
+sealed publication and container, while their exact destination paths remain
+distinct; non-bundle targets retain no second receipt.
 Final relocation replay also builds one exact owner map from every retained
 selected-instruction identity to that function symbol. A selected instruction
 retained twice, an instruction relocation naming another function, or an

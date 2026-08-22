@@ -75,6 +75,10 @@ pub struct CompileReport {
     /// Exact checked publication receipt for a native executable image.
     /// Object-container fallbacks and check-only compilations retain `None`.
     pub executable_publication: Option<ExecutablePublicationReceipt>,
+    /// Exact checked publication receipt for the executable copied into an
+    /// optional macOS application bundle. Non-GUI/non-Mach-O builds retain
+    /// `None`; this remains distinct from the flat executable receipt.
+    pub app_bundle_publication: Option<ExecutablePublicationReceipt>,
     /// Exact target root-slot/schema/ABI-capture binding for a program-storage
     /// entry. Hosted compatibility entries and unmigrated name discovery have
     /// no such authority-bearing artifact.
