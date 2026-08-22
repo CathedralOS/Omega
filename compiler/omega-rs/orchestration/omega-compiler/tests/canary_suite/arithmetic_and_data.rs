@@ -97,9 +97,12 @@ fn arithmetic_domain_wrapping_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("arithmetic_domain_wrapping canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("arithmetic-domain wrapping canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("arithmetic_domain_wrapping canary should run");
 
@@ -124,9 +127,12 @@ fn arithmetic_domain_saturating_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("arithmetic_domain_saturating canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("arithmetic-domain saturating canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("arithmetic_domain_saturating canary should run");
 
@@ -154,9 +160,12 @@ fn arithmetic_domain_saturating_div_mod_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("arithmetic_domain_saturating_div_mod canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("saturating divide/modulo canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("arithmetic_domain_saturating_div_mod canary should run");
 
