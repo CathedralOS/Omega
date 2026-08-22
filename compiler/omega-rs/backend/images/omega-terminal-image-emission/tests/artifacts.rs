@@ -32,7 +32,7 @@ use psi_core::{
     ServiceId, StructuralTypeId,
 };
 use psi_terminal::{
-    CompletionReceipt, NominalAffineCleanup, SemanticFingerprint, StructuralArgument,
+    CompletionReceipt, EntryClaim, NominalAffineCleanup, SemanticFingerprint, StructuralArgument,
     StructuralMultiplicity, TerminalAffineCleanupAction, TerminalPsiIdentity, VocabularyMarker,
 };
 
@@ -1759,7 +1759,7 @@ fn installation_record_is_canonical_and_binds_exact_image_and_target_facts() {
         terminal_installation_fingerprint(&record)
             .expect("installation fingerprint")
             .to_string(),
-        "f9ec50f3b8535fb9bdd7a9bebadbc2718bbc00cff21d5ff82509ceeee7ecea2c"
+        "6b181a107156a55c2602d9d906609be08ca02bab2c708a0aa11476c166f64561"
     );
 
     let mut changed_plan = plan;
@@ -1970,8 +1970,12 @@ fn privileged_effect_and_exact_provider_execution_survive_installation() {
     duplicate_completion_claim.functions[0].boundary_settlements[0].completion_claim_sources =
         vec![TerminalCompletionClaimSource {
             claim: ClaimId::new(1).unwrap(),
-            input: PlaceId::new(1).unwrap(),
-            path: Some(Vec::new()),
+            entry: Some(EntryClaim {
+                claim: ClaimId::new(1).unwrap(),
+                input: PlaceId::new(1).unwrap(),
+                path: Vec::new(),
+            }),
+            content: None,
         }];
     assert_eq!(
         build_terminal_object_artifact(&duplicate_completion_claim),
