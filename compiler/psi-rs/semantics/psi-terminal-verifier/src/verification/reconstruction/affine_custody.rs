@@ -8,10 +8,11 @@ use psi_proof_kernel::{
     IntegerAffineWitness, check_integer_affine_bound_conversion, check_integer_affine_witness,
 };
 
+mod definition_index;
 mod frontier;
 mod relaxation;
 
-pub(super) use frontier::DefinitionIndex;
+pub(super) use definition_index::DefinitionIndex;
 
 pub(super) fn retained_from_root(
     context: &PropositionContext,

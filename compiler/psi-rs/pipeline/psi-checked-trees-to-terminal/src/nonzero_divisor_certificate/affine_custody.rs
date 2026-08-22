@@ -9,10 +9,11 @@ use psi_proof_kernel::{
     IntegerAffineWitness, ProofNode, ProofRule, check_certificate, check_integer_affine_witness,
 };
 
+mod definition_index;
 mod frontier;
 mod relaxation;
 
-pub(super) use frontier::DefinitionIndex;
+pub(super) use definition_index::DefinitionIndex;
 
 pub(super) fn prove_from_root(
     context: &PropositionContext,
