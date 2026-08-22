@@ -188,6 +188,7 @@ pub struct FinalFootprintCertificate {
     pub boundary_contract_fingerprint: Option<u64>,
     pub implementation_evidence_fingerprint: u64,
     pub implementation_fragment_count: usize,
+    pub callback_placement_identity_fingerprint: u64,
     pub compiler_text_validation: CompilerTextValidationEvidence,
     pub compiler_function_validation: CompilerFunctionValidationEvidence,
     pub compiler_entry_footprint_binding: Option<CompilerEntryFootprintBindingEvidence>,
@@ -200,6 +201,7 @@ impl FinalFootprintCertificate {
         boundary_contract_fingerprint: Option<u64>,
         implementation_evidence_fingerprint: u64,
         implementation_fragment_count: usize,
+        callback_placement_identity_fingerprint: u64,
         compiler_text_validation: CompilerTextValidationEvidence,
         compiler_function_validation: CompilerFunctionValidationEvidence,
         compiler_entry_footprint_binding: Option<CompilerEntryFootprintBindingEvidence>,
@@ -241,6 +243,7 @@ impl FinalFootprintCertificate {
         let boundary_placement_binding_fingerprint = placement_binding_fingerprint(
             boundary_contract_fingerprint,
             implementation_evidence_fingerprint,
+            callback_placement_identity_fingerprint,
             compiler_text_validation.derivation_fingerprint,
             compiler_function_validation.evidence_fingerprint(),
             compiler_entry_footprint_binding
@@ -266,6 +269,7 @@ impl FinalFootprintCertificate {
             boundary_contract_fingerprint,
             implementation_evidence_fingerprint,
             implementation_fragment_count,
+            callback_placement_identity_fingerprint,
             compiler_text_validation,
             compiler_function_validation,
             compiler_entry_footprint_binding,
@@ -331,6 +335,7 @@ impl FinalFootprintCertificate {
         let expected_binding = placement_binding_fingerprint(
             self.boundary_contract_fingerprint,
             self.implementation_evidence_fingerprint,
+            self.callback_placement_identity_fingerprint,
             self.compiler_text_validation.derivation_fingerprint,
             self.compiler_function_validation.evidence_fingerprint(),
             self.compiler_entry_footprint_binding
@@ -397,6 +402,7 @@ fn validate_entry_footprint_binding(
 fn placement_binding_fingerprint(
     boundary_contract_fingerprint: Option<u64>,
     implementation_evidence_fingerprint: u64,
+    callback_placement_identity_fingerprint: u64,
     compiler_text_derivation_fingerprint: u64,
     compiler_function_validation_fingerprint: u64,
     compiler_entry_footprint_binding_fingerprint: u64,
@@ -421,6 +427,10 @@ fn placement_binding_fingerprint(
     fingerprint_bytes(
         &mut hash,
         &implementation_evidence_fingerprint.to_le_bytes(),
+    );
+    fingerprint_bytes(
+        &mut hash,
+        &callback_placement_identity_fingerprint.to_le_bytes(),
     );
     fingerprint_bytes(
         &mut hash,
@@ -500,6 +510,7 @@ mod tests {
             Some(1),
             2,
             3,
+            21,
             CompilerTextValidationEvidence {
                 encoded_text_fingerprint: 4,
                 final_compiler_text_fingerprint: 5,
@@ -562,6 +573,11 @@ mod tests {
             {
                 let mut value = certificate.clone();
                 value.boundary_contract_fingerprint = Some(99);
+                value
+            },
+            {
+                let mut value = certificate.clone();
+                value.callback_placement_identity_fingerprint = 99;
                 value
             },
             {
@@ -655,6 +671,7 @@ mod tests {
         assert!(
             FinalFootprintCertificate::current(
                 None,
+                0,
                 0,
                 0,
                 CompilerTextValidationEvidence {

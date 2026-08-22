@@ -52,6 +52,7 @@ pub(super) struct EmittedProgram {
     /// bundle beside the flat binary; other formats ignore it.
     pub(super) subsystem: u16,
     pub(super) planned_text_bytes: usize,
+    pub(super) callback_placement_identity_fingerprint: u64,
     pub(super) object: omega_object_file::ObjectPlan,
     pub(super) relocations: omega_object_file::RelocationPlan,
     pub(super) encoded_machine_code: omega_machine_bytes::EncodedMachineCode,
@@ -804,6 +805,10 @@ pub(super) fn backend_plan_to_native_image_payload(
             target: plan.target,
             subsystem,
             planned_text_bytes: object_text_size(&plan.object),
+            callback_placement_identity_fingerprint:
+                omega_backend_plan::callback_thunk_placement_identity_fingerprint(
+                    &plan.callback_thunks,
+                ),
             object: plan.object.clone(),
             relocations: plan.relocations.clone(),
             encoded_machine_code: plan.encoded_machine.code.clone(),
