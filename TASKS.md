@@ -4541,7 +4541,14 @@ Remaining:
   already-installed unmetered artifact as dynamic evidence is removed: no
   constructor for final installed dynamic evidence exists until charge/stub
   insertion and independent final-byte replay land. Compact fingerprints remain
-  summary identities only.
+  summary identities only. Focused x86-64 and AArch64 ISA owners now encode the
+  admitted hot charge shape directly from that recipe: `RBX` with `R10/R11` or
+  `X28` with `X16/X17`, full-width required units, unsigned strict-less-than
+  failure branch, then subtraction and allowance store only on the payable arm.
+  Equality therefore pays and leaves zero; the sequence touches no activation
+  stack. Wrong transport/profile, zero-unit, out-of-range displacement, and
+  branch-range inputs reject. These exact bytes are not yet inserted into a
+  terminal artifact and grant no installed dynamic evidence.
   Root admission now retains the selected native realization against the exact
   logical-fuel demand, provision, grant, installed-code context, and artifact.
   Existing fixed roots automatically produce the exact fixed realization;

@@ -676,7 +676,9 @@ name = "omega-isa-aarch64"
 version = "0.1.0"
 dependencies = [
  "omega-calling-conventions",
+ "omega-target",
  "omega-target-operations",
+ "omega-terminal-installation-evidence",
  "psi-arena",
  "psi-diagnostics",
  "psi-language-core",
@@ -690,7 +692,9 @@ name = "omega-isa-x86_64"
 version = "0.1.0"
 dependencies = [
  "omega-calling-conventions",
+ "omega-target",
  "omega-target-operations",
+ "omega-terminal-installation-evidence",
  "omega-x86-encoding",
  "psi-arena",
  "psi-diagnostics",

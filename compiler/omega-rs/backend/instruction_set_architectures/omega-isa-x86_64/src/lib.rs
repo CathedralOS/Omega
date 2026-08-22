@@ -6,6 +6,7 @@ mod function_boundary;
 mod function_frame;
 mod generated_writer;
 mod host_calls;
+mod native_fuel;
 mod place_copy;
 mod privileged_effects;
 mod runtime_storage;
@@ -21,6 +22,7 @@ pub use function_boundary::*;
 pub use function_frame::*;
 pub use generated_writer::*;
 pub use host_calls::*;
+pub use native_fuel::*;
 pub use place_copy::{
     PLACE_COPY_MAX_SITES, PlaceCopySide, PlaceCopySites, copy_places_clobbers,
     copy_places_direct_clobbers, copy_places_from_frame_base_double_indexed_clobbers,
