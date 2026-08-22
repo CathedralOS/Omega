@@ -1225,6 +1225,64 @@ machine Main::exercise(&mut self) {}
 }
 
 #[test]
+fn provider_requirement_rows_retain_public_progress_premise_schemas() {
+    let project = std::env::temp_dir().join(format!(
+        "omega-provider-requirement-progress-premises-{}",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_dir_all(&project);
+    std::fs::create_dir_all(&project).expect("create project dir");
+    std::fs::write(
+        project.join("main.omg"),
+        r#"data SchedulerHandle { id: u64; }
+domain SchedulerHandle::WeakFair
+satisfies ProgressProfile
+established by SchedulerAdmission::grant;
+
+boundary trait SchedulerAdmission {
+    machine grant(scheduler: SchedulerHandle) -> SchedulerHandle in WeakFair;
+}
+
+boundary trait SchedulerRuntime {
+    machine wait(scheduler: SchedulerHandle)
+    requires scheduler in WeakFair
+    terminates;
+}
+
+machine wait_leaf(scheduler: SchedulerHandle)
+    satisfies SchedulerRuntime::wait via Binding::VtableSlot(1);
+
+data Main {}
+machine Main::exercise(&mut self) {}
+"#,
+    )
+    .expect("write main.omg");
+
+    let build_dir = project.join("build");
+    compile(CompileOptions {
+        root_path: project.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: false,
+    })
+    .expect("progress-premised provider requirement should compile");
+
+    let report = std::fs::read_to_string(build_dir.join("trust_report.md"))
+        .expect("trust report should be written");
+    let requirement = report
+        .lines()
+        .find(|line| {
+            line.contains("provider plan: satisfies::SchedulerRuntime [")
+                && line.contains("method: wait")
+        })
+        .expect("wait provider requirement row");
+    assert!(requirement.contains("termination guarantee: yes"));
+    assert!(requirement.contains("progress premises: SchedulerHandle::WeakFair(parameter:0)"));
+
+    let _ = std::fs::remove_dir_all(&project);
+}
+
+#[test]
 fn routed_qualification_rows_retain_exact_plan_claims_and_provenance() {
     let project = std::env::temp_dir().join(format!(
         "omega-routed-qualification-rows-{}",

@@ -136,7 +136,7 @@ impl ArtifactWriter {
         ));
         for row in &trust_report.provider_requirements {
             output.push_str(&format!(
-                "- provider plan: {} [{:016x}] -- provider type: {} -- target: {} -- provider origin package: {} -- service schema: {} -- calling plan: {} -- selected: {} -- requirement owner: {} -- requirement identity: {} -- method: {} -- parameter types: {} -- result type: {} -- service reach: {} -- synchronous invocations: {} -- may suspend: {} -- may block: {} -- termination guarantee: {} -- realization: {} -- {} -- grant selectors: {}",
+                "- provider plan: {} [{:016x}] -- provider type: {} -- target: {} -- provider origin package: {} -- service schema: {} -- calling plan: {} -- selected: {} -- requirement owner: {} -- requirement identity: {} -- method: {} -- parameter types: {} -- result type: {} -- service reach: {} -- synchronous invocations: {} -- may suspend: {} -- may block: {} -- termination guarantee: {} -- progress premises: {} -- realization: {} -- {} -- grant selectors: {}",
                 row.provider_plan,
                 row.provider_plan_fingerprint,
                 if row.provider_type.is_empty() {
@@ -180,6 +180,7 @@ impl ArtifactWriter {
                 if row.may_suspend { "yes" } else { "no" },
                 if row.may_block { "yes" } else { "no" },
                 if row.terminates_guarantee { "yes" } else { "no" },
+                progress_premises_text(&row.termination_premises),
                 row.realization.report_text(),
                 row.provenance,
                 if row.grant_selectors.is_empty() {
@@ -248,4 +249,29 @@ impl ArtifactWriter {
         }
         self.write_text("trust_report.md", &output)
     }
+}
+
+fn progress_premises_text(premises: &[super::TrustProgressPremiseRow]) -> String {
+    if premises.is_empty() {
+        return "none".to_owned();
+    }
+    premises
+        .iter()
+        .map(|premise| {
+            let mut subject = match premise.subject {
+                super::TrustProgressPremiseSubject::ProviderReceiver => {
+                    "provider-receiver(build-bound)".to_owned()
+                }
+                super::TrustProgressPremiseSubject::Parameter(index) => {
+                    format!("parameter:{index}")
+                }
+            };
+            for projection in &premise.subject_projections {
+                subject.push('.');
+                subject.push_str(projection);
+            }
+            format!("{}({subject})", premise.profile)
+        })
+        .collect::<Vec<_>>()
+        .join(", ")
 }

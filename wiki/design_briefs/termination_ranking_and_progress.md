@@ -244,6 +244,15 @@ premise schemas from the named requirement contract rather than from whichever
 implementation is later substituted. This keeps generic and exported contract
 identity fixed across selection.
 
+Durable provider-requirement artifacts retain those public schemas
+structurally: profile identity, provider-receiver or caller-parameter subject,
+and the exact subject projections. A provider-receiver subject is recorded as
+build-bound rather than rewritten as a caller parameter. Retention makes the
+dependency auditable; it does not discharge it. The canonical component
+manifest must still export each reachable build-bound instance, and final
+composition must resolve it against the exact selected provider occurrence and
+its admitted establishment receipt.
+
 The normalized guarantee records the actual pinned premises, not merely the
 presence of `suspends` or `blocks` operational clauses. General machine-side
 trace propositions, deadlines, starvation freedom, and entailment between
