@@ -579,8 +579,9 @@ fn retained_bounded_affine_bound(
                         .into_iter()
                         .filter(|target| matches!(target, ScalarTerm::Value { .. }))
                         .any(|target| {
-                            affine_definition_words(semantic_axioms.len()).any(
-                                |definition_axioms| {
+                            affine_definition_words(context, semantic_axioms, root)
+                                .into_iter()
+                                .any(|definition_axioms| {
                                     let witness = IntegerAffineWitness {
                                         root: root.clone(),
                                         target: target.clone(),
@@ -593,18 +594,56 @@ fn retained_bounded_affine_bound(
                                             )
                                             .is_ok()
                                         })
-                                },
-                            )
+                                })
                         })
                 })
         })
 }
 
-fn affine_definition_words(count: usize) -> impl Iterator<Item = Vec<usize>> {
-    (0..count).map(|index| vec![index]).chain(
-        (0..count)
-            .flat_map(move |first| ((first + 1)..count).map(move |second| vec![first, second])),
-    )
+fn affine_definition_words(
+    context: &PropositionContext,
+    semantic_axioms: &[Proposition],
+    root: &ScalarTerm,
+) -> Vec<Vec<usize>> {
+    const MAX_DEFINITIONS: usize = 3;
+
+    // This only prunes candidate words. Every retained prefix and final bound
+    // is independently replayed by the proof-kernel checkers below.
+    let mut words = Vec::new();
+    let mut frontier = vec![(Vec::new(), 0)];
+    for _ in 0..MAX_DEFINITIONS {
+        let mut next = Vec::new();
+        for (prefix, start) in frontier {
+            for index in start..semantic_axioms.len() {
+                let Proposition::Equal(left, right) = &semantic_axioms[index] else {
+                    continue;
+                };
+                let mut word = prefix.clone();
+                word.push(index);
+                let continues = [left, right]
+                    .into_iter()
+                    .filter(|target| matches!(target, ScalarTerm::Value { .. }))
+                    .any(|target| {
+                        check_integer_affine_witness(
+                            context,
+                            semantic_axioms,
+                            &IntegerAffineWitness {
+                                root: root.clone(),
+                                target: target.clone(),
+                                definition_axioms: word.clone(),
+                            },
+                        )
+                        .is_ok()
+                    });
+                if continues {
+                    words.push(word.clone());
+                    next.push((word, index + 1));
+                }
+            }
+        }
+        frontier = next;
+    }
+    words
 }
 
 fn retained_equality_substituted_integer_bound(
@@ -1985,6 +2024,78 @@ mod tests {
             &context,
             &goal,
             &[definitions[1].clone(), definitions[0].clone()],
+            &[root_bound],
+        ));
+    }
+
+    #[test]
+    fn exact_division_selects_three_definition_affine_safe_divisor() {
+        let signed = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+        let context = PropositionContext::from_value_types((1..=5).map(|id| {
+            (
+                ValueId::new(id).expect("value id"),
+                ScalarType::Integer(signed),
+            )
+        }))
+        .expect("five i8 values");
+        let goal = CanonicalScalarGoal::ExactDivisionDefined {
+            integer_type: signed,
+            left: value(1, signed),
+            right: value(2, signed),
+        };
+        let root_bound = Proposition::LessOrEqual(
+            ScalarTerm::integer(signed, IntegerValue::Signed(-2)).expect("i8 -2"),
+            value(3, signed),
+        );
+        let definitions = [
+            Proposition::Equal(
+                value(4, signed),
+                ScalarTerm::exact_integer_add(
+                    signed,
+                    value(3, signed),
+                    ScalarTerm::integer(signed, IntegerValue::Signed(1)).expect("i8 one"),
+                )
+                .expect("first exact add"),
+            ),
+            Proposition::Equal(
+                value(5, signed),
+                ScalarTerm::exact_integer_add(
+                    signed,
+                    value(4, signed),
+                    ScalarTerm::integer(signed, IntegerValue::Signed(1)).expect("i8 one"),
+                )
+                .expect("second exact add"),
+            ),
+            Proposition::Equal(
+                value(2, signed),
+                ScalarTerm::exact_integer_add(
+                    signed,
+                    value(5, signed),
+                    ScalarTerm::integer(signed, IntegerValue::Signed(1)).expect("i8 one"),
+                )
+                .expect("third exact add"),
+            ),
+        ];
+        assert!(exact_division_has_prior_certificate(
+            &context,
+            &goal,
+            &definitions,
+            std::slice::from_ref(&root_bound),
+        ));
+        assert!(!exact_division_has_prior_certificate(
+            &context,
+            &goal,
+            &definitions[..2],
+            std::slice::from_ref(&root_bound),
+        ));
+        assert!(!exact_division_has_prior_certificate(
+            &context,
+            &goal,
+            &[
+                definitions[2].clone(),
+                definitions[1].clone(),
+                definitions[0].clone(),
+            ],
             &[root_bound],
         ));
     }
