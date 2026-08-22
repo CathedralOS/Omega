@@ -1,4 +1,5 @@
 use super::*;
+use std::cell::Cell;
 
 pub(super) enum StructuralJudgment {
     Proven,
@@ -178,6 +179,10 @@ pub(super) struct StructuralJudge<'program> {
     ring_licenses: Vec<RingLicense>,
     /// Tier-2: paired add/mul licenses with a conformed distributivity law.
     semiring_licenses: Vec<SemiringLicense>,
+    /// The last exact source-ordered machine selected for structural unfolding.
+    /// Every hit rechecks the complete name/attachment predicate; a miss still
+    /// scans from the beginning, so this hint cannot change first-match order.
+    unfold_machine_hint: Cell<Option<usize>>,
 }
 
 impl Clone for StructuralJudge<'_> {
@@ -189,6 +194,7 @@ impl Clone for StructuralJudge<'_> {
             hypotheses_contradictory: self.hypotheses_contradictory,
             ring_licenses: self.ring_licenses.clone(),
             semiring_licenses: self.semiring_licenses.clone(),
+            unfold_machine_hint: Cell::new(self.unfold_machine_hint.get()),
         }
     }
 }
@@ -206,6 +212,7 @@ impl<'program> StructuralJudge<'program> {
             hypotheses_contradictory: false,
             ring_licenses: compute_ring_licenses(program, judged_machine),
             semiring_licenses: compute_semiring_licenses(program, judged_machine),
+            unfold_machine_hint: Cell::new(None),
         };
         for fact in requires {
             judge.intake(program, *fact);
@@ -387,9 +394,17 @@ impl<'program> StructuralJudge<'program> {
         }
         let program = self.program;
         let (machine_name, selected_machines) = split_structural_machine_name(machine_name);
-        let machine = program.machines().iter().find(|machine| {
+        let machines = program.machines();
+        let matches = |machine: &Machine| {
             machine.attached_data.is_none() && machine.name.as_str() == machine_name
-        })?;
+        };
+        let machine_index = self
+            .unfold_machine_hint
+            .get()
+            .filter(|index| machines.get(*index).is_some_and(matches))
+            .or_else(|| machines.iter().position(matches))?;
+        self.unfold_machine_hint.set(Some(machine_index));
+        let machine = &machines[machine_index];
         let machine_parameters: Vec<&psi_typed_trees::data::TypeParameter> = program
             .machine_type_parameters(machine)
             .iter()
