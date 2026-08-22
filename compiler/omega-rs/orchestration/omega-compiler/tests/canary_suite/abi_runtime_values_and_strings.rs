@@ -1454,10 +1454,13 @@ fn runtime_value_call_dispatch_results_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-dispatch-results-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("dispatch-results canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("dispatch-results canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("dispatch-results canary should run");
 
@@ -1501,10 +1504,13 @@ fn runtime_value_call_literal_len_arm_guard_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("literal-len arm-guard canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("literal-len arm-guard canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("literal-len arm-guard canary should run");
 
@@ -1545,10 +1551,13 @@ fn runtime_value_call_guard_subject_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-guard-subject-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("guard-subject canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("guard-subject canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("guard-subject canary should run");
 
@@ -1585,10 +1594,13 @@ fn runtime_effectful_guard_local_and_self_terminal_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("effectful guard/local and self-terminal canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation.checked_native_executable_path().expect(
+        "effectful guard/local and self-terminal canary should retain its executable receipt",
+    );
+    let output = Command::new(executable)
         .output()
         .expect("effectful guard/local and self-terminal canary should run");
     assert_eq!(
@@ -1622,10 +1634,13 @@ fn runtime_guarded_effectful_transition_argument_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("guarded effectful transition-argument canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation.checked_native_executable_path().expect(
+        "guarded effectful transition-argument canary should retain its executable receipt",
+    );
+    let output = Command::new(executable)
         .output()
         .expect("guarded effectful transition-argument canary should run");
     assert_eq!(
