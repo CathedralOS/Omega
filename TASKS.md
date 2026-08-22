@@ -6643,17 +6643,18 @@ reach or trust, and private proof improvements do not change public identity.
   phase-nesting carriers now normalize into a validated, fingerprinted
   realization. Structural validation closes phase order, body cardinality,
   finite nesting, provider-selected domains, duplicate rows, and malformed
-  occupancy before orchestration.
+  occupancy before orchestration. A pure orchestration composer now resolves
+  path-relative `Interrupted`, joins body WCSU only at the body epoch, sums
+  aligned concurrent demand, takes maxima across sequential epochs and arrival
+  contexts, and closes cyclic nesting through the declared finite depth.
 
-  Remaining: replace the scalar provider-local composer. Derive hardware
-  arrival from sealed target rules plus exact installation facts, generated
-  adapter epochs from emitted bytes, and opaque-adapter epochs only from an
-  identity-bound receipt. Prove the context set complete, resolve relative
-  `Interrupted` along each nesting path, join the sole body epoch with emitted
-  Terminal-Psi WCSU, sum aligned concurrent demand, and take maxima across
-  alternative epochs and contexts. Reject missing contexts, evidence drift,
-  unbounded depth, and overflow; add no architecture-specific frame vocabulary
-  to source.
+  Remaining: bind the pure inputs and replace the scalar admitted composer.
+  Derive hardware arrival from sealed target rules plus exact installation
+  facts, generated adapter epochs from emitted bytes, and opaque-adapter epochs
+  only from an identity-bound receipt. Prove the arrival-context set complete,
+  retain exact realization evidence through the ledger/artifact report, and
+  reject evidence drift and overflow. Add no architecture-specific frame
+  vocabulary to source.
 - **TR3-TR8:** finish whole-call-graph WCSU derivation, bind exact `StackPlan`
   evidence, reserve fixed nonmoving `StackLease`s, validate preservation and
   cancellation conformances, transfer arguments transactionally, lower

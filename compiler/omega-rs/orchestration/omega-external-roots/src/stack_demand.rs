@@ -632,7 +632,7 @@ fn compose_active_stack_peak(
     Ok((peak, alignment))
 }
 
-fn align_up_checked(value: u64, alignment: u64) -> Result<u64, ExternalRootDiagnostic> {
+pub(super) fn align_up_checked(value: u64, alignment: u64) -> Result<u64, ExternalRootDiagnostic> {
     value
         .checked_add(alignment - 1)
         .map(|sum| sum & !(alignment - 1))

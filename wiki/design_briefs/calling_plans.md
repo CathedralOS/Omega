@@ -1020,12 +1020,16 @@ the complete composition fingerprint. Cycles, missing endpoints, unknown
 nested provider-selected stacks, overflow, and active dedicated-class re-entry
 reject.
 
-The live composer is a scalar precursor: each provider currently contributes
-one local WCSU and one `EntryStack` domain. It does not yet carry admissible
-arrival contexts, epoch transitions, per-domain occupancy, or phase-specific
-nesting. Consequently its result remains insufficient as a complete
-`StackPlan` for an installed root until the settled realization above replaces
-that local row.
+The target-neutral realization carriers and pure epoch composer are live. They
+validate and fingerprint the finite context/epoch shape, resolve relative
+`Interrupted` per path, join body WCSU only at the body epoch, compose aligned
+concurrent demand, maximize sequential epochs and contexts, and close repeated
+nesting through the declared finite depth. The admitted installation path is
+still a scalar precursor: it has not yet bound those pure inputs to sealed
+target facts, emitted adapter bytes, or an opaque-provider receipt, proved the
+arrival-context set complete, or retained the exact realization through the
+root ledger. Its result therefore remains insufficient as a complete
+`StackPlan` until that evidence-bound path replaces the scalar local row.
 
 A sealed provider-execution binding joins the normalized selected provider
 plan, exact entry/boundary/reach, and all three resource realizations into
