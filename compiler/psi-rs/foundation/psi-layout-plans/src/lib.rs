@@ -1996,18 +1996,34 @@ pub fn derive_symbolic_materialization(
         })
         .collect::<Result<Vec<_>, MaterializationDiagnostic>>()?;
 
+    let mut resolved_targets = std::collections::BTreeMap::new();
     let mut actions = Vec::new();
-    for (symbolic, writes) in symbolic_fields.iter().zip(prepared_writes) {
-        let resolved = resolve(symbolic.target);
-        for (placement, write) in writes {
-            let action = match resolved {
-                Some(source_value) => {
-                    validate_write_source_value(&write, source_value, "symbolic")?;
-                    MaterializationAction::ResolvedWrite {
-                        write,
-                        source_value,
+    for (symbolic_index, symbolic) in symbolic_fields.iter().enumerate() {
+        let writes = &prepared_writes[symbolic_index];
+        let resolved = if let Some(resolved) = resolved_targets.get(&symbolic.target) {
+            *resolved
+        } else {
+            let resolved = resolve(symbolic.target);
+            if let Some(source_value) = resolved {
+                for (_, candidate_writes) in symbolic_fields
+                    .iter()
+                    .zip(&prepared_writes)
+                    .filter(|(candidate, _)| candidate.target == symbolic.target)
+                {
+                    for (_, write) in candidate_writes {
+                        validate_write_source_value(write, source_value, "symbolic")?;
                     }
                 }
+            }
+            resolved_targets.insert(symbolic.target, resolved);
+            resolved
+        };
+        for (placement, write) in writes.iter().cloned() {
+            let action = match resolved {
+                Some(source_value) => MaterializationAction::ResolvedWrite {
+                    write,
+                    source_value,
+                },
                 None if context.consumption == ConsumptionInstant::AfterOmegaHandoff => {
                     MaterializationAction::RuntimeWriter(write)
                 }
@@ -3471,6 +3487,92 @@ mod tests {
         assert_eq!(
             resolutions, 0,
             "no provider/compiler resolver runs before all static writer geometry validates"
+        );
+    }
+
+    #[test]
+    fn symbolic_value_constraints_reject_before_unrelated_target_resolution() {
+        let first = entry();
+        let unrelated = RelocationTarget::Entry(
+            EntryStubId::from_normalized_identity(0x66bb).expect("unrelated entry identity"),
+        );
+        let layout = LayoutPlanReport {
+            schema_identity: 1,
+            entries: vec![
+                LayoutFieldEntryReport {
+                    field: "first".into(),
+                    member_identity: None,
+                    placement: LayoutPlacementReport::At { offset: 0 },
+                },
+                LayoutFieldEntryReport {
+                    field: "unrelated".into(),
+                    member_identity: None,
+                    placement: LayoutPlacementReport::At { offset: 8 },
+                },
+                LayoutFieldEntryReport {
+                    field: "narrow".into(),
+                    member_identity: None,
+                    placement: LayoutPlacementReport::IntegerAt {
+                        offset: 16,
+                        stored_width: 8,
+                        interpretation: IntegerInterpretation::Unsigned,
+                    },
+                },
+            ],
+            offsets: None,
+            size: Some(24),
+            align: 8,
+        };
+        let symbolic_fields = [
+            SymbolicFieldValue::new("first", 64, first).expect("first symbolic field"),
+            SymbolicFieldValue::new("unrelated", 64, unrelated).expect("unrelated symbolic field"),
+            SymbolicFieldValue::new("narrow", 64, first).expect("narrow symbolic field"),
+        ];
+        let mut resolutions = Vec::new();
+        let error = derive_symbolic_materialization(
+            &layout,
+            &symbolic_fields,
+            MaterializationContext {
+                consumption: ConsumptionInstant::AfterOmegaHandoff,
+                byte_order: ByteOrder::LittleEndian,
+                native_pointer_relocation_bits: None,
+                placement: PlacementConstraints::unconstrained(PlacementPhase::PostHandoff),
+            },
+            |target| {
+                resolutions.push(target);
+                Some(if target == first { 0x100 } else { 0 })
+            },
+        )
+        .expect_err("one target must satisfy all retained writes before derivation continues");
+        assert!(error.0.contains("does not fit"), "{}", error.0);
+        assert_eq!(resolutions, vec![first]);
+
+        resolutions.clear();
+        let plan = derive_symbolic_materialization(
+            &layout,
+            &symbolic_fields,
+            MaterializationContext {
+                consumption: ConsumptionInstant::AfterOmegaHandoff,
+                byte_order: ByteOrder::LittleEndian,
+                native_pointer_relocation_bits: None,
+                placement: PlacementConstraints::unconstrained(PlacementPhase::PostHandoff),
+            },
+            |target| {
+                resolutions.push(target);
+                Some(if target == first { 0x7f } else { 0 })
+            },
+        )
+        .expect("one fitting value serves every retained write for its exact target");
+        assert_eq!(resolutions, vec![first, unrelated]);
+        assert_eq!(
+            plan.actions
+                .iter()
+                .map(|action| match action {
+                    MaterializationAction::ResolvedWrite { source_value, .. } => *source_value,
+                    action => panic!("resolved derivation produced {action:?}"),
+                })
+                .collect::<Vec<_>>(),
+            vec![0x7f, 0, 0x7f]
         );
     }
 
