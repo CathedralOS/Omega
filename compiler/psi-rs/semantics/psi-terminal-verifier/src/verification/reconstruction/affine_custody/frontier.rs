@@ -28,6 +28,9 @@ pub(super) fn definition_words(
             frontier,
             &mut words,
         );
+        if frontier.is_empty() {
+            break;
+        }
     }
     words
 }
