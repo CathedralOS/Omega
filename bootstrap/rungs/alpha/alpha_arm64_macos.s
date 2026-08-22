@@ -1,13 +1,13 @@
 // ============================================================================
 // Alpha tape VM — macOS arm64 (Mach-O).  Hand-authored; the per-platform seed.
 //
-// A faithful, independent re-implementation of the 21-opcode tape VM specified
-// by alpha_x64_windows.hex — a different ISA (arm64), OS (macOS), and author,
-// which is what makes the lattice "diamond" real: this VM and the x64 VM
-// produce BYTE-IDENTICAL tapes from the same source (Thompson resistance — see
-// bootstrap_lattice.md "Ladder vs lattice: diversity is the security").
+// A faithful, independently written realization of the same 21-opcode semantics
+// as the x64 VM.  Running identical tapes on a different ISA and OS supplies
+// useful cross-platform conformance evidence.  Agreement is not DDC and does
+// not grant either realization authority; the written semantics and each
+// realization's audited correspondence to them are the trust boundary.
 //
-// Trust obligation (compiler/alpha/README.md): disassemble the committed binary
+// Trust obligation (bootstrap/rungs/alpha/README.md): disassemble the committed binary
 // and read it against THIS source.  alpha_arm64_macos.lst is a committed
 // disassembly to ease that audit.
 //

@@ -8,6 +8,10 @@ SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 OMEGA_REPO_ROOT=$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd -P)
 . "$SCRIPT_DIR/paths.sh"
 
+# Keep the role manifest and temporary compatibility entry points pinned while
+# this static scan prevents new topology-dependent cross-owner paths.
+sh "$SCRIPT_DIR/test-paths.sh"
+
 pattern='\.\./(alpha|beta|beta-lang|beta-lang-rs|beta-lang-py|gamma|delta-rs|proof-kernel|omega|omega-rs|lattice-corpus|psi-rs)(/|[^A-Za-z0-9_-]|$)'
 
 if command -v rg >/dev/null 2>&1; then

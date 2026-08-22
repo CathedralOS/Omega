@@ -12,11 +12,16 @@ if [ -z "${OMEGA_REPO_ROOT:-}" ] || [ ! -f "$OMEGA_REPO_ROOT/TASKS_BOOTSTRAP.md"
 fi
 
 : "${OMEGA_PATH_COMPILER_ROOT:=$OMEGA_REPO_ROOT/compiler}"
+: "${OMEGA_PATH_BOOTSTRAP_ROOT:=$OMEGA_REPO_ROOT/bootstrap}"
+: "${OMEGA_PATH_RUNGS_ROOT:=$OMEGA_PATH_BOOTSTRAP_ROOT/rungs}"
 
 # Current locations, named by architectural role.  Ownership migrations update
 # this manifest; gates do not encode the repository topology themselves.
-: "${OMEGA_PATH_ALPHA:=$OMEGA_PATH_COMPILER_ROOT/alpha}"
-: "${OMEGA_PATH_BETA_ASSEMBLER:=$OMEGA_PATH_COMPILER_ROOT/beta}"
+: "${OMEGA_PATH_ALPHA:=$OMEGA_PATH_RUNGS_ROOT/alpha}"
+: "${OMEGA_PATH_ALPHA_ASSEMBLER:=$OMEGA_PATH_ALPHA/assembler}"
+# Historical compatibility name.  The assembler is an Alpha-tier tool; new
+# plumbing should use OMEGA_PATH_ALPHA_ASSEMBLER / the alpha-assembler role.
+: "${OMEGA_PATH_BETA_ASSEMBLER:=$OMEGA_PATH_ALPHA_ASSEMBLER}"
 : "${OMEGA_PATH_BETA_LANGUAGE:=$OMEGA_PATH_COMPILER_ROOT/beta-lang}"
 : "${OMEGA_PATH_BETA_RUST:=$OMEGA_PATH_COMPILER_ROOT/beta-lang-rs}"
 : "${OMEGA_PATH_BETA_REFERENCE:=$OMEGA_PATH_COMPILER_ROOT/beta-lang-py}"
@@ -29,8 +34,9 @@ fi
 : "${OMEGA_PATH_PSI_PRODUCT:=$OMEGA_PATH_COMPILER_ROOT/psi-rs}"
 : "${OMEGA_PATH_OMEGA_PRODUCT:=$OMEGA_PATH_COMPILER_ROOT/omega-rs}"
 
-export OMEGA_REPO_ROOT OMEGA_PATH_COMPILER_ROOT
-export OMEGA_PATH_ALPHA OMEGA_PATH_BETA_ASSEMBLER OMEGA_PATH_BETA_LANGUAGE
+export OMEGA_REPO_ROOT OMEGA_PATH_COMPILER_ROOT OMEGA_PATH_BOOTSTRAP_ROOT
+export OMEGA_PATH_RUNGS_ROOT OMEGA_PATH_ALPHA OMEGA_PATH_ALPHA_ASSEMBLER
+export OMEGA_PATH_BETA_ASSEMBLER OMEGA_PATH_BETA_LANGUAGE
 export OMEGA_PATH_BETA_RUST OMEGA_PATH_BETA_REFERENCE OMEGA_PATH_GAMMA
 export OMEGA_PATH_DELTA OMEGA_PATH_DELTA_RUST OMEGA_PATH_PROOF_KERNEL
 export OMEGA_PATH_OMEGA0 OMEGA_PATH_CORPUS
@@ -43,6 +49,8 @@ omega_bootstrap_path() {
   case "$1" in
     compiler) printf '%s\n' "$OMEGA_PATH_COMPILER_ROOT" ;;
     alpha) printf '%s\n' "$OMEGA_PATH_ALPHA" ;;
+    alpha-assembler) printf '%s\n' "$OMEGA_PATH_ALPHA_ASSEMBLER" ;;
+    beta-assembler) printf '%s\n' "$OMEGA_PATH_BETA_ASSEMBLER" ;;
     beta) printf '%s\n' "$OMEGA_PATH_BETA_ASSEMBLER" ;;
     beta-lang) printf '%s\n' "$OMEGA_PATH_BETA_LANGUAGE" ;;
     beta-lang-rs) printf '%s\n' "$OMEGA_PATH_BETA_RUST" ;;

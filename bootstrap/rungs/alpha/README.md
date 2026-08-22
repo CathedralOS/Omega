@@ -1,9 +1,11 @@
-# `compiler/alpha/` — the native seed executor
+# `bootstrap/rungs/alpha/` — the native seed executor
 
 Alpha is the native execution floor of the lattice: a small, hand-written,
 hand-auditable VM checked against written semantics.
-This folder is just **a bundle of per-platform seed binaries + the listings they're
-built from** — nothing else lives here.
+This owner contains the per-platform seed binaries and audited listings, the
+written semantics and conformance tools, and the Alpha-written assembler. The
+seed audit boundary remains the binaries, listings, and semantics; colocated
+reference/refinement tools do not become trusted by placement.
 
 ```
 alpha_x64_windows.exe    seed binary, x86-64 Windows PE   (audit THIS)
@@ -19,6 +21,11 @@ resize-x64-tape-hole.py  one-purpose audited 32 KiB -> 256 KiB PE extent migrati
 SEMANTICS.md             the written small-step operational semantics — the meaning a seed is audited AGAINST
 conformance.sh           executable companion: hand-built tapes pinning every opcode + edge; any seed must pass
 verify.sh                the per-platform acceptance gate: provenance + conformance + reproduction
+
+assembler/               Alpha-written assembler, self-host gate, reference cross-check, and examples
+refinement-samples/      Beta fixtures used by the transitional refinement tooling
+alpha_ref*.py            untrusted executable/reference semantics helpers
+refinement*.{sh,py}      transitional refinement gates awaiting the assurance split
 ```
 
 `sh verify.sh` runs the whole local trust check for the host's seed:
@@ -28,7 +35,7 @@ verify.sh                the per-platform acceptance gate: provenance + conforma
   audit the `.exe` against its `.hex` by hand; the committed resize helper only changes
   three documented PE capacity fields and extends the zero-only tape section);
 - **behavior** — `conformance.sh` (every opcode + edge realizes `SEMANTICS.md`);
-- **reproduction** — `../beta/selfhost.sh` (the VM reproduces the canonical assembler bytecode).
+- **reproduction** — `assembler/selfhost.sh` (the VM reproduces the canonical assembler bytecode).
 
 To audit a seed: disassemble the binary and read it against its listing (the `.hex` for
 x64, the `.s` + `.lst` for arm64), checking that each opcode realizes the transition in
@@ -45,7 +52,7 @@ through both VMs produces **byte-identical tapes**, so disagreement exposes a
 conformance or implementation problem. The written semantics and audited
 implementation correspondence supply authority; multiplicity supplies useful
 evidence. Verified: the arm64 macOS VM reproduces the x64 VM's assembler
-bytecode from `../beta/assembler.alpha` byte-for-byte (sha256 `945c8061…`), and the full
+bytecode from `assembler/assembler.alpha` byte-for-byte (sha256 `945c8061…`), and the full
 example corpus runs to the same answers on both.
 
 **Third point — `alpha_ref.py`.** The two seeds are hand-authored *assembly*, hard to audit.
@@ -84,7 +91,7 @@ alpha_x64_windows.exe   alpha_aarch64_linux.elf   alpha_aarch64_macos.app   ...
 What **is** cross-platform is everything *above* the seed. The seed is a tape VM (a
 register machine with byte I/O) with a zero "hole" in it; a program is **tape** (VM
 bytecode), and a built `.exe` is a seed with the program's tape memcpy'd into its hole.
-The *same* tape runs on every platform's seed — so the assembler (`../beta`) and every
+The *same* tape runs on every platform's seed — so the assembler (`assembler/`) and every
 rung up are written once, cross-platform, and only the ~5 KB VM differs per machine.
 
 So the "cross-platform thing that reproduces the rest of itself" is the **tape**, not
@@ -92,7 +99,7 @@ the binary. The binary is the small per-platform shim the tape runs on.
 
 ## Where the rest is
 
-- `../beta/` — the assembler, written in alpha (`.alpha`); turns text into tape, then
+- `assembler/` — the assembler, written in alpha (`.alpha`); turns text into tape, then
   memcpy's it into a seed to make a standalone `.exe`.
 - The hex→binary forge (a no-Python transcriber + label resolver) lived under `dev/`;
   it isn't trust-bearing (you audit the committed binary, not the tool that emitted it),

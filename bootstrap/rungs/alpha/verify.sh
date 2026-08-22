@@ -3,8 +3,8 @@
 #   provenance  - the committed binary re-derives from the committed source
 #                 (where a forge exists; modulo the OS-imposed code signature);
 #   behavior    - it realizes SEMANTICS.md (conformance.sh, every opcode + edge);
-#   diamond     - the VM reproduces the canonical assembler bytecode the OTHER
-#                 platform's seed produced (${OMEGA_PATH_BETA_ASSEMBLER}/selfhost.sh).
+#   reproduction - the VM reproduces the canonical assembler bytecode
+#                  (${OMEGA_PATH_ALPHA_ASSEMBLER}/selfhost.sh).
 # Run after touching a seed; this is the per-platform acceptance gate.
 OMEGA_GATE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 if [ -z "${OMEGA_REPO_ROOT:-}" ]; then
@@ -53,13 +53,13 @@ esac
 echo "--- behavior (conformance) ---"
 if sh conformance.sh; then :; else rc=1; fi
 
-echo "--- diamond (self-host) ---"
-if [ -f "${OMEGA_PATH_BETA_ASSEMBLER}"/selfhost.sh ]; then
-  if sh "${OMEGA_PATH_BETA_ASSEMBLER}"/selfhost.sh; then :; else rc=1; fi
+echo "--- reproduction (assembler self-host) ---"
+if [ -f "${OMEGA_PATH_ALPHA_ASSEMBLER}"/selfhost.sh ]; then
+  if sh "${OMEGA_PATH_ALPHA_ASSEMBLER}"/selfhost.sh; then :; else rc=1; fi
 else
-  echo "diamond SKIP — ${OMEGA_PATH_BETA_ASSEMBLER}/selfhost.sh not found"
+  echo "reproduction SKIP — ${OMEGA_PATH_ALPHA_ASSEMBLER}/selfhost.sh not found"
 fi
 
 echo ""
-[ $rc = 0 ] && echo "alpha seed VERIFIED ✓ (provenance + behavior + diamond)" || echo "alpha seed verification FAILED"
+[ $rc = 0 ] && echo "alpha seed VERIFIED ✓ (provenance + behavior + reproduction)" || echo "alpha seed verification FAILED"
 exit $rc

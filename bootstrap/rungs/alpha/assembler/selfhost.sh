@@ -34,7 +34,7 @@ printf "$(printf '\\%03o\\%03o\\%03o\\%03o' $((L & 255)) $(((L >> 8) & 255)) $((
 cat build/assembler.tape >> build/fresh.tape
 
 if cmp -s build/embedded.tape build/fresh.tape; then
-    echo "self-host ✓ — beta rebuilds its own bytecode from assembler.alpha, byte-identical, no Rust"
+    echo "self-host ✓ — Alpha assembler rebuilds its own bytecode from assembler.alpha, byte-identical, no Rust"
 else
     echo "FAIL: beta does not reproduce its own bytecode" >&2; exit 1
 fi
