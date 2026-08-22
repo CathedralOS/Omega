@@ -1215,20 +1215,13 @@ fn runtime_end_fixed_array_subslice_element_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-rt-end-subslice-elem-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("runtime-end fixed-array subslice element canary should compile");
-
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("runtime-end fixed-array subslice element canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(20),
-        "expected `sub[0]` through the seeded-then-shrunk `self.arr[1..self.hi]` \
-         descriptor to read element 1 (20) -> exit 20, got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        20,
+        "runtime-end subslice element canary",
+        "the seeded and shrunk descriptor should point at the first subslice element",
     );
 
     let _ = fs::remove_dir_all(&scratch);
@@ -1245,20 +1238,13 @@ fn guard_fixed_array_len_operand_exit_canary_runs() {
     let scratch = std::env::temp_dir().join(format!("omega-guard-arr-len-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("guard fixed-array len operand canary should compile");
-
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("guard fixed-array len operand canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(7),
-        "expected `hi <= self.arr.len` (hi=4, len 5) to fold the length and take \
-         the true arm -> exit 7, got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        7,
+        "fixed-array length-guard canary",
+        "the fixed-array length operand should fold before dispatch",
     );
 
     let _ = fs::remove_dir_all(&scratch);
@@ -1278,20 +1264,13 @@ fn runtime_bounded_fixed_array_subslice_arg_exit_canary_runs() {
     ));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("runtime-bounded fixed-array subslice arg canary should compile");
-
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("runtime-bounded fixed-array subslice arg canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(3),
-        "expected the guarded `self.arr[lo..hi]` (1..4) slice argument to carry \
-         window length 3 -> exit 3, got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        3,
+        "runtime-bounded subslice-argument canary",
+        "the guarded runtime bounds should produce the exact slice argument window",
     );
 
     let _ = fs::remove_dir_all(&scratch);
@@ -1310,20 +1289,13 @@ fn runtime_bounded_carrier_concat_exit_canary_runs() {
     ));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("bounded carrier concat canary should compile");
-
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("bounded carrier concat canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected the owned `[u8; 16] in Utf8` carrier to materialize `\"Room \" + self.label` \
-         into its inline storage so `self.text == \"Room A1\"` exits 70, got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        70,
+        "bounded carrier-concat canary",
+        "the owned bounded carrier should materialize the concatenation inline",
     );
 
     let _ = fs::remove_dir_all(&scratch);
@@ -1342,20 +1314,13 @@ fn runtime_bounded_carrier_alias_concat_exit_canary_runs() {
     ));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("bounded carrier alias concat canary should compile");
-
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("bounded carrier alias concat canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected `out_line = \"== \" + self.label + \" ==\"` to materialize `== Gate ==` into the \
-         borrowed carrier so `self.line == \"== Gate ==\"` exits 70, got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        70,
+        "bounded carrier alias-concat canary",
+        "the multi-segment concatenation should materialize through the borrowed carrier",
     );
 
     let _ = fs::remove_dir_all(&scratch);
