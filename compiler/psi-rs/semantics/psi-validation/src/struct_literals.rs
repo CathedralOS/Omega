@@ -211,13 +211,13 @@ fn validate_literal_field_names(
         }
         return;
     };
-    if data_definition.type_parameters.count() > 0 {
-        return;
-    }
     if data_definition.quotient.is_some() {
         diagnostics.push(Diagnostic::error(format!(
             "cannot construct quotient `{type_name}` with a struct or case literal: retained representatives are opaque and quotient values may be minted only from the exact carrier with `as {type_name}`"
         )));
+        return;
+    }
+    if data_definition.type_parameters.count() > 0 {
         return;
     }
     if data_definition.supply_mode == psi_language_semantics::DataSupplyMode::BoundaryOpaque {
