@@ -180,7 +180,9 @@ pub(crate) fn validate_plans(program: &TypedTrees, diagnostics: &mut Vec<Diagnos
                         && (field.member_identity.is_some()
                             || candidate.name.as_str() == field.field_name)
                 });
-            if exact_view_field.is_none() {
+            if !exact_view_field
+                .is_some_and(|candidate| candidate.type_reference == field.accessor_type)
+            {
                 diagnostics.push(Diagnostic::error(format!(
                     "placed view `{}` field `{}` changed its exact synthesized accessor binding",
                     view.data_name, field.field_name
@@ -198,10 +200,10 @@ pub(crate) fn validate_plans(program: &TypedTrees, diagnostics: &mut Vec<Diagnos
                 )));
                 continue;
             }
-            if let Some(candidate) = exact_view_field {
+            if exact_view_field.is_some() {
                 let type_symbol = program
                     .type_reference_table
-                    .type_symbol(candidate.type_reference);
+                    .type_symbol(field.accessor_type);
                 if (type_symbol.is_valid() && type_symbol != field.accessor_data_symbol)
                     || (!type_symbol.is_valid()
                         && !matches!(field.access, FieldAccess::Atomic { .. }))

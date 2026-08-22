@@ -313,6 +313,7 @@ fn install_placed_view_plan(
             member_identity: schema_field.identity,
             field_symbol: schema_field.symbol,
             accessor_name,
+            accessor_type: view_field.type_reference,
             accessor_data_symbol: accessor_data.symbol,
             accessor_targets,
             value_type: schema_field.type_reference,
