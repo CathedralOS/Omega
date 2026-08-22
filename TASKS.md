@@ -521,7 +521,12 @@ Remaining:
   order, reserved bytes, count/capacity guards, literal diagnostics, and offset
   errors preserve exact bytes and precedence; the parent retains upfront count
   conversion, cross-function order, canonicality, association, and admission
-  replay. The installation parent is now 3,424
+  replay. The selected-provider-plan codec now owns its complete ordered
+  catalog: count bytes, exact nonzero identities, the eight-byte minimum-row
+  capacity guard, and strict increasing-order replay. The parent retains upfront
+  count conversion and global record order; canonical bytes, literal errors,
+  validation, and admission replay remain unchanged. The installation parent is
+  now 3,408
   lines. This is
   custody, not
   authorization. The remaining
