@@ -7,9 +7,11 @@
 //! placement admission, content establishment, or field access.
 
 use super::{
-    AccessPlanDiagnostic, AdmittedResourceProfile, PlacementPlanId, ResourceProfileReceiptId,
-    ValidatedPlacementPlan,
+    AccessPlanDiagnostic, AdmittedResourceProfile, PlacementAdmission, PlacementAdmissionId,
+    PlacementPlanId, ResourceProfileReceiptId, ValidatedPlacementPlan,
+    validate_placement_admission,
 };
+use psi_extents::ExtentLoan;
 
 macro_rules! normalized_identity {
     ($name:ident, $label:literal) => {
@@ -227,6 +229,28 @@ impl AdmittedSchemaDeviceCorrespondence {
     pub const fn revision(&self) -> Option<&RuntimeDeviceRevisionEvidence> {
         self.revision.as_ref()
     }
+
+    fn validate_structure(&self) -> Result<(), AccessPlanDiagnostic> {
+        if self.revision.as_ref().is_some_and(|revision| {
+            revision.provider != self.provider
+                || revision.device != self.device
+                || revision.profile_receipt != self.profile_receipt
+        }) {
+            return Err(AccessPlanDiagnostic(
+                "admitted schema correspondence could not replay its runtime revision provider, stable device instance, and resource-profile grant"
+                    .into(),
+            ));
+        }
+        Ok(())
+    }
+
+    #[cfg(test)]
+    pub(super) fn replace_placement_for_test(
+        &mut self,
+        placement: PlacementPlanId,
+    ) -> PlacementPlanId {
+        std::mem::replace(&mut self.placement, placement)
+    }
 }
 
 /// Failed correspondence admission returns the exact provider grant rather
@@ -298,6 +322,123 @@ fn admit_schema_device_correspondence(
         profile_receipt,
         revision,
     })
+}
+
+/// One borrowed placement admission joined to its separate admitted physical
+/// correspondence. The fields remain distinct: correspondence contributes no
+/// storage compatibility, loan, content, or access authority.
+#[derive(Debug)]
+#[must_use = "corresponded placement admission retains loan and physical provenance"]
+pub struct SchemaCorrespondedPlacementAdmission<'extent> {
+    admission: PlacementAdmission<'extent>,
+    correspondence: AdmittedSchemaDeviceCorrespondence,
+}
+
+impl<'extent> SchemaCorrespondedPlacementAdmission<'extent> {
+    pub const fn admission(&self) -> PlacementAdmissionId {
+        self.admission.identity
+    }
+
+    pub const fn correspondence(&self) -> &AdmittedSchemaDeviceCorrespondence {
+        &self.correspondence
+    }
+
+    pub fn into_parts(
+        self,
+    ) -> (
+        PlacementAdmission<'extent>,
+        AdmittedSchemaDeviceCorrespondence,
+    ) {
+        (self.admission, self.correspondence)
+    }
+
+    /// Cancel the permission-only placement while preserving the separately
+    /// admitted correspondence for a later matching placement.
+    pub fn withdraw(self) -> (ExtentLoan<'extent>, AdmittedSchemaDeviceCorrespondence) {
+        (self.admission.withdraw(), self.correspondence)
+    }
+}
+
+/// Failed placement/correspondence binding returns both exact non-Clone
+/// inputs. No loan is released and no physical meaning is attached to storage.
+#[derive(Debug)]
+pub struct SchemaCorrespondencePlacementBindingError<'extent> {
+    admission: PlacementAdmission<'extent>,
+    correspondence: AdmittedSchemaDeviceCorrespondence,
+    diagnostic: AccessPlanDiagnostic,
+}
+
+impl<'extent> SchemaCorrespondencePlacementBindingError<'extent> {
+    pub const fn diagnostic(&self) -> &AccessPlanDiagnostic {
+        &self.diagnostic
+    }
+
+    pub fn into_parts(
+        self,
+    ) -> (
+        PlacementAdmission<'extent>,
+        AdmittedSchemaDeviceCorrespondence,
+        AccessPlanDiagnostic,
+    ) {
+        (self.admission, self.correspondence, self.diagnostic)
+    }
+}
+
+/// Join one correspondence fact to the exact borrowed placement admission it
+/// describes. This is a custody relation only; it establishes no placed view,
+/// content qualification, field access, or device operation.
+pub fn bind_schema_correspondence_to_placement<'extent>(
+    admission: PlacementAdmission<'extent>,
+    correspondence: AdmittedSchemaDeviceCorrespondence,
+) -> Result<
+    SchemaCorrespondedPlacementAdmission<'extent>,
+    SchemaCorrespondencePlacementBindingError<'extent>,
+> {
+    let diagnostic = validate_schema_correspondence_placement_binding(&admission, &correspondence);
+    if let Err(diagnostic) = diagnostic {
+        return Err(SchemaCorrespondencePlacementBindingError {
+            admission,
+            correspondence,
+            diagnostic,
+        });
+    }
+    Ok(SchemaCorrespondedPlacementAdmission {
+        admission,
+        correspondence,
+    })
+}
+
+fn validate_schema_correspondence_placement_binding(
+    admission: &PlacementAdmission<'_>,
+    correspondence: &AdmittedSchemaDeviceCorrespondence,
+) -> Result<(), AccessPlanDiagnostic> {
+    correspondence.validate_structure()?;
+    if correspondence.placement != admission.placement_plan.identity()
+        || correspondence.profile_receipt != admission.profile_receipt
+        || admission.profile.receipt() != admission.profile_receipt
+    {
+        return Err(AccessPlanDiagnostic(
+            "schema correspondence does not bind the placement admission's exact plan and resource-profile receipt"
+                .into(),
+        ));
+    }
+    let replayed = validate_placement_admission(
+        &admission.loan,
+        &admission.placement_plan,
+        &admission.profile,
+    )
+    .map_err(|diagnostic| {
+        AccessPlanDiagnostic(format!(
+            "schema correspondence could not replay the retained placement admission: {diagnostic}"
+        ))
+    })?;
+    if replayed != admission.resources {
+        return Err(AccessPlanDiagnostic(
+            "schema correspondence replayed resource compatibility differs from the retained placement admission"
+                .into(),
+        ));
+    }
+    Ok(())
 }
 
 #[cfg(test)]

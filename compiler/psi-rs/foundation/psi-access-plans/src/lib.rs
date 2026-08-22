@@ -26,9 +26,11 @@ mod schema_correspondence;
 pub use resident_views::{BorrowedResidentRetirementError, EstablishedBorrowedResidentPlacement};
 pub use schema_correspondence::{
     AdmittedSchemaDeviceCorrespondence, DeviceRevisionPredicateId, RuntimeDeviceRevisionEvidence,
-    RuntimeDeviceRevisionObservationId, SchemaCorrespondenceProviderId,
+    RuntimeDeviceRevisionObservationId, SchemaCorrespondedPlacementAdmission,
+    SchemaCorrespondencePlacementBindingError, SchemaCorrespondenceProviderId,
     SchemaCorrespondenceSourceId, SchemaDeviceCorrespondenceAdmissionError,
     SchemaDeviceCorrespondenceGrant, SchemaDeviceCorrespondenceGrantError, StableDeviceInstanceId,
+    bind_schema_correspondence_to_placement,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -6025,6 +6027,60 @@ mod tests {
                 .observed_revision(),
             3
         );
+    }
+
+    #[test]
+    fn correspondence_binding_replays_placement_and_returns_both_inputs_for_retry() {
+        let plan = uart_placement_plan();
+        let extent = uart_extent_with_lineage(0x7190, 12, 242);
+        let loan = extent.loan(0, 12).expect("shared UART loan");
+        let profile = uart_resource_profile(&loan, &uart_reach());
+        let admission_id =
+            PlacementAdmissionId::from_normalized_identity(243).expect("placement admission");
+        let admission = admit_placement(admission_id, loan, &plan, &profile)
+            .expect("borrowed placement admission");
+        let provider = SchemaCorrespondenceProviderId::from_normalized_identity(244)
+            .expect("correspondence provider");
+        let device = StableDeviceInstanceId::from_normalized_identity(245).expect("stable device");
+        let grant = SchemaDeviceCorrespondenceGrant::from_admitted_provider(
+            provider,
+            device,
+            SchemaCorrespondenceSourceId::from_normalized_identity(246)
+                .expect("datasheet provenance"),
+            plan.identity(),
+            profile.receipt(),
+            None,
+        )
+        .expect("provider correspondence grant");
+        let mut correspondence = grant
+            .admit(&plan, &profile)
+            .expect("schema correspondence admission");
+
+        correspondence.replace_placement_for_test(PlacementPlanId(plan.identity().0 ^ 1));
+        let rejection = bind_schema_correspondence_to_placement(admission, correspondence)
+            .expect_err("placement identity drift must reject");
+        assert!(rejection.diagnostic().0.contains("exact plan"));
+        let (mut admission, mut correspondence, _) = rejection.into_parts();
+        assert_eq!(admission.identity(), admission_id);
+        correspondence.replace_placement_for_test(plan.identity());
+
+        admission.profile_receipt =
+            ResourceProfileReceiptId::from_normalized_identity(999).expect("drifted receipt");
+        let rejection = bind_schema_correspondence_to_placement(admission, correspondence)
+            .expect_err("admission receipt drift must reject");
+        assert!(rejection.diagnostic().0.contains("exact plan"));
+        let (mut admission, correspondence, _) = rejection.into_parts();
+        admission.profile_receipt = profile.receipt();
+
+        let bound = bind_schema_correspondence_to_placement(admission, correspondence)
+            .expect("repaired inputs remain valid for retry");
+        assert_eq!(bound.admission(), admission_id);
+        assert_eq!(bound.correspondence().provider(), provider);
+        assert_eq!(bound.correspondence().device(), device);
+        let (loan, correspondence) = bound.withdraw();
+        assert_eq!(loan.base(), 0x7190);
+        assert_eq!(loan.length(), 12);
+        assert_eq!(correspondence.placement(), plan.identity());
     }
 
     #[test]
