@@ -1,8 +1,9 @@
 //! Source-ordered direct landed-literal candidates for certificate production.
 
-use psi_core::{Proposition, ScalarTerm, ScalarType};
+use psi_core::{Proposition, ScalarTerm};
 use psi_proof_kernel::ProofNode;
 
+mod eligibility;
 mod equalities;
 
 use equalities::OrientedEqualities;
@@ -23,13 +24,7 @@ impl<'a> DirectLiteralCandidates<'a> {
         mut complete: impl FnMut(&'a ScalarTerm, &'a ScalarTerm, ProofNode) -> Option<T>,
     ) -> Option<T> {
         self.equalities.find(|citation, equality, root, literal| {
-            if !matches!(root, ScalarTerm::Value { .. }) {
-                return None;
-            }
-            let Some((integer_type, _)) = literal.integer_value() else {
-                return None;
-            };
-            if root.scalar_type() != ScalarType::Integer(integer_type) {
+            if !eligibility::eligible(root, literal) {
                 return None;
             }
             complete(root, literal, citation.proof(equality))
