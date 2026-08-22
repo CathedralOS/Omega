@@ -530,7 +530,11 @@ Remaining:
   facts, profile/image identity, and compiler-text validation evidence. The
   parent retains validation and every preflight count conversion in original
   order; canonical bytes, literal errors, target admission, and installation
-  replay remain unchanged. The installation parent is now 3,272
+  replay remain unchanged. Every header and row codec now routes through one
+  bounds-checked private wire layer for cursor advancement, little-endian u16/
+  u32/u64 writes, and boolean-tag decoding. Facade APIs, byte order,
+  truncation/error precedence, canonical re-encoding, validation, and admission
+  replay remain unchanged. The installation parent is now 3,204
   lines. This is
   custody, not
   authorization. The remaining
