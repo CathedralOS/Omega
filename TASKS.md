@@ -3482,6 +3482,10 @@ Remaining:
   The 2,751-line parent retains artifact carriers and general report
   orchestration; public methods, exact output, and the 79-function inventory
   are unchanged.
+  Source-load totals/file tables and syntax-tree identity/file presentation now
+  live in a focused 106-line `frontend_reports` child. The 2,656-line parent
+  retains artifact carriers and later-stage orchestration; public methods,
+  exact HTML output, and the 79-function inventory are unchanged.
   Development and test profiles now both omit full DWARF by default, with an
   explicit `CARGO_PROFILE_{DEV,TEST}_DEBUG=2` escape hatch for debugger
   sessions. On the same macOS host, rebuilding the development CLI after the
@@ -5272,6 +5276,13 @@ Owners:
   diagnostic. Exact-owner ambiguity, the 795 rooted/3 legacy inventory, and
   receipt-drift fences remain green; cyclic/loop-heavy, report-bearing, slow-
   float, crash-specific, timer, and explicit legacy owners remain untouched.
+  The authored-root `u8 in Saturating` constant-fold regression now launches
+  `OutputOnly` native execution solely through its exact checked-report
+  executable receipt while preserving literal exit 70 and the exit-71 domain-
+  drop diagnostic. Exact-owner ambiguity, the 795 rooted/3 legacy inventory,
+  and receipt-drift fences remain green; profiled multi-compile, cyclic/loop-
+  heavy, report-bearing, slow-float, crash-specific, timer, and explicit legacy
+  owners remain untouched.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
@@ -5550,6 +5561,11 @@ reach or trust, and private proof improvements do not change public identity.
   `final_image_validation` child. The 3,892-line parent retains construction
   and terminal orchestration, with native bytes, validation order, and the 69-
   function inventory unchanged.
+  Object-container handoff, supported-target admission, executable-writer
+  dispatch, and sealed output carriers now live in a focused 155-line
+  `image_output` child behind unchanged crate-root re-exports. The 3,754-line
+  parent retains terminal image construction and validation, with native bytes,
+  error order, and the 69-function inventory unchanged.
   The installed-cleanup ordinal-tamper regression now locates the authoritative
   internal-call custody row by its complete machine/text-offset/owner/target
   header before mutating the ordinal, rather than accidentally changing an
