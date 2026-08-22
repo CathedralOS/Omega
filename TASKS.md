@@ -6664,15 +6664,21 @@ reach or trust, and private proof improvements do not change public identity.
   occupancy before orchestration. A pure orchestration composer now resolves
   path-relative `Interrupted`, joins body WCSU only at the body epoch, sums
   aligned concurrent demand, takes maxima across sequential epochs and arrival
-  contexts, and closes cyclic nesting through the declared finite depth.
+  contexts, and closes cyclic nesting through the declared finite depth. An
+  admission-capable wrapper now binds an opaque adapter's realization and body
+  demand to one exact installed entry, installed-code context, artifact,
+  boundary-plan fingerprint, resolved stack domain, provider receipt, and
+  public preemption ceiling. Bound composition retains those exact inputs
+  behind the compact arithmetic fingerprint and rejects duplicate roots,
+  unresolved provider-selected stacks, body-domain drift, entry drift, and
+  nesting-ceiling widening.
 
-  Remaining: bind the pure inputs and replace the scalar admitted composer.
+  Remaining: replace the scalar admitted composer with the bound epoch path.
   Derive hardware arrival from sealed target rules plus exact installation
-  facts, generated adapter epochs from emitted bytes, and opaque-adapter epochs
-  only from an identity-bound receipt. Prove the arrival-context set complete,
-  retain exact realization evidence through the ledger/artifact report, and
-  reject evidence drift and overflow. Add no architecture-specific frame
-  vocabulary to source.
+  facts and generated adapter epochs from emitted bytes. Prove each admitted
+  arrival-context set complete, retain bound realization evidence through the
+  ledger/artifact report, and reject downstream evidence drift and overflow.
+  Add no architecture-specific frame vocabulary to source.
 - **TR3-TR8:** finish whole-call-graph WCSU derivation, bind exact `StackPlan`
   evidence, reserve fixed nonmoving `StackLease`s, validate preservation and
   cancellation conformances, transfer arguments transactionally, lower

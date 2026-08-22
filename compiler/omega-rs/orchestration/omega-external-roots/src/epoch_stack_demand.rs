@@ -8,12 +8,17 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use omega_calling_conventions::{
-    EntryStackStage, Preemption, StackDomainRef, ValidatedEntryStackRealization,
+    EntryStack, EntryStackStage, Preemption, StackDomainRef, ValidatedBoundaryEntryPlan,
+    ValidatedEntryStackRealization,
 };
+use omega_executable_installation::{
+    ArtifactId, InstalledCode, InstalledCodeContext, InstalledCodeId,
+};
+use psi_layout_plans::EntryStubId;
 
 use super::{
-    ExternalRootDiagnostic, ExternalRootId, Fnv1a, RootProviderId, StackDomain,
-    StackNestingRelation,
+    ExternalRootDiagnostic, ExternalRootId, Fnv1a, ProviderStackSummary, RootProviderId,
+    StackDomain, StackLocalEvidence, StackNestingRelation, StackValidationReceiptId,
 };
 
 /// Structurally closed input to epoch composition.
@@ -28,6 +33,206 @@ pub struct EpochStackCompositionInput {
     pub realization: ValidatedEntryStackRealization,
     pub body_wcsu_bytes: u64,
     pub body_wcsu_alignment: u64,
+}
+
+/// Exact admitted evidence for an opaque external-entry adapter's epoch plan.
+///
+/// The receipt attests the complete context/epoch set. Exact installed-code and
+/// boundary-plan identities keep that admission from being replayed for a
+/// different adapter, entry, target, or public stack contract.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OpaqueAdapterStackRealizationEvidence {
+    root: ExternalRootId,
+    provider: RootProviderId,
+    architecture: omega_target::Architecture,
+    installed_code: InstalledCodeId,
+    installed_code_context: InstalledCodeContext,
+    artifact: ArtifactId,
+    entry: EntryStubId,
+    boundary_contract_fingerprint: u64,
+    resolved_stack: EntryStack,
+    realization: ValidatedEntryStackRealization,
+    validation_receipt: StackValidationReceiptId,
+}
+
+impl OpaqueAdapterStackRealizationEvidence {
+    pub const fn root(&self) -> ExternalRootId {
+        self.root
+    }
+
+    pub const fn provider(&self) -> RootProviderId {
+        self.provider
+    }
+
+    pub const fn realization(&self) -> &ValidatedEntryStackRealization {
+        &self.realization
+    }
+
+    pub const fn validation_receipt(&self) -> StackValidationReceiptId {
+        self.validation_receipt
+    }
+
+    fn matches_installed_entry(
+        &self,
+        installed_code: &InstalledCode,
+        entry: EntryStubId,
+        boundary: &ValidatedBoundaryEntryPlan,
+    ) -> bool {
+        self.architecture == installed_code.architecture()
+            && self.installed_code == installed_code.identity()
+            && self.installed_code_context == installed_code.receipt_context()
+            && self.artifact == installed_code.artifact()
+            && self.entry == entry
+            && self.boundary_contract_fingerprint == boundary.contract_fingerprint()
+    }
+}
+
+/// Epoch input whose body demand and adapter realization are both bound to the
+/// same exact installed root. Private fields prevent structurally valid but
+/// unaudited epoch data from entering admission.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BoundEpochStackCompositionInput {
+    pure: EpochStackCompositionInput,
+    body_evidence: StackLocalEvidence,
+    realization_evidence: OpaqueAdapterStackRealizationEvidence,
+}
+
+impl BoundEpochStackCompositionInput {
+    pub const fn root(&self) -> ExternalRootId {
+        self.pure.root
+    }
+
+    pub const fn provider(&self) -> RootProviderId {
+        self.pure.provider
+    }
+
+    pub const fn pure(&self) -> &EpochStackCompositionInput {
+        &self.pure
+    }
+
+    pub const fn body_evidence(&self) -> &StackLocalEvidence {
+        &self.body_evidence
+    }
+
+    pub const fn realization_evidence(&self) -> &OpaqueAdapterStackRealizationEvidence {
+        &self.realization_evidence
+    }
+}
+
+/// Bind an admitted opaque adapter realization to one exact provider summary,
+/// installed entry, and public boundary plan.
+pub fn bind_opaque_adapter_stack_realization(
+    summary: &ProviderStackSummary,
+    boundary: &ValidatedBoundaryEntryPlan,
+    installed_code: &InstalledCode,
+    entry: EntryStubId,
+    resolved_stack: EntryStack,
+    realization: ValidatedEntryStackRealization,
+    validation_receipt: StackValidationReceiptId,
+) -> Result<BoundEpochStackCompositionInput, ExternalRootDiagnostic> {
+    installed_code.selected_entry_target(entry).map_err(|_| {
+        ExternalRootDiagnostic(
+            "opaque adapter stack realization names no exact installed entry".into(),
+        )
+    })?;
+    if summary.stack != boundary.plan().state.stack {
+        return Err(ExternalRootDiagnostic(
+            "opaque adapter stack summary drifted from the boundary plan's stack disposition"
+                .into(),
+        ));
+    }
+    match boundary.plan().state.stack {
+        EntryStack::ProviderSelected => {}
+        fixed if fixed == resolved_stack => {}
+        _ => {
+            return Err(ExternalRootDiagnostic(
+                "opaque adapter resolved stack differs from the fixed boundary stack disposition"
+                    .into(),
+            ));
+        }
+    }
+    let body_domain = resolved_stack_domain(resolved_stack)?;
+    for context in &realization.realization().contexts {
+        let body = context
+            .epochs
+            .iter()
+            .find(|epoch| epoch.stage == EntryStackStage::Body)
+            .expect("validated realization has exactly one body epoch");
+        if body.active_domain != body_domain {
+            return Err(ExternalRootDiagnostic(format!(
+                "opaque adapter arrival context 0x{:016x} executes its body on a domain other than the resolved entry stack",
+                context.context.get()
+            )));
+        }
+        for epoch in &context.epochs {
+            if !preemption_refines(epoch.nesting, boundary.plan().state.preemption) {
+                return Err(ExternalRootDiagnostic(format!(
+                    "opaque adapter arrival context 0x{:016x} widens the boundary plan's nesting ceiling",
+                    context.context.get()
+                )));
+            }
+        }
+    }
+    if let StackLocalEvidence::TerminalEntry(binding) = &summary.local_evidence
+        && !binding.matches_installed_entry(installed_code, entry)
+    {
+        return Err(ExternalRootDiagnostic(
+            "terminal body WCSU and opaque adapter realization name different installed entries"
+                .into(),
+        ));
+    }
+
+    let realization_evidence = OpaqueAdapterStackRealizationEvidence {
+        root: summary.root,
+        provider: summary.provider,
+        architecture: installed_code.architecture(),
+        installed_code: installed_code.identity(),
+        installed_code_context: installed_code.receipt_context(),
+        artifact: installed_code.artifact(),
+        entry,
+        boundary_contract_fingerprint: boundary.contract_fingerprint(),
+        resolved_stack,
+        realization: realization.clone(),
+        validation_receipt,
+    };
+    debug_assert!(realization_evidence.matches_installed_entry(installed_code, entry, boundary));
+    Ok(BoundEpochStackCompositionInput {
+        pure: EpochStackCompositionInput {
+            root: summary.root,
+            provider: summary.provider,
+            realization,
+            body_wcsu_bytes: summary.local_wcsu_bytes(),
+            body_wcsu_alignment: summary.wcsu_alignment(),
+        },
+        body_evidence: summary.local_evidence.clone(),
+        realization_evidence,
+    })
+}
+
+fn resolved_stack_domain(stack: EntryStack) -> Result<StackDomainRef, ExternalRootDiagnostic> {
+    match stack {
+        EntryStack::Interrupted => Ok(StackDomainRef::Interrupted),
+        EntryStack::Dedicated { class } => Ok(StackDomainRef::Dedicated { class }),
+        EntryStack::ProviderSelected => Err(ExternalRootDiagnostic(
+            "provider-selected entry stack remains unresolved before epoch binding".into(),
+        )),
+    }
+}
+
+fn preemption_refines(actual: Preemption, ceiling: Preemption) -> bool {
+    match (actual, ceiling) {
+        (_, Preemption::ProviderDefined) => true,
+        (Preemption::NotApplicable | Preemption::Masked, Preemption::Nestable { .. }) => true,
+        (
+            Preemption::Nestable {
+                maximum_depth: actual,
+            },
+            Preemption::Nestable {
+                maximum_depth: ceiling,
+            },
+        ) => actual <= ceiling,
+        (actual, ceiling) => actual == ceiling,
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -86,6 +291,72 @@ impl EpochStackComposition {
     pub const fn fingerprint(&self) -> u64 {
         self.fingerprint
     }
+}
+
+/// Admission-capable epoch composition retaining every exact body and adapter
+/// evidence row behind the pure arithmetic result.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BoundEpochStackComposition {
+    composition: EpochStackComposition,
+    inputs: BTreeMap<ExternalRootId, BoundEpochStackCompositionInput>,
+    fingerprint: u64,
+}
+
+impl BoundEpochStackComposition {
+    pub const fn composition(&self) -> &EpochStackComposition {
+        &self.composition
+    }
+
+    pub fn input(&self, root: ExternalRootId) -> Option<&BoundEpochStackCompositionInput> {
+        self.inputs.get(&root)
+    }
+
+    pub const fn fingerprint(&self) -> u64 {
+        self.fingerprint
+    }
+}
+
+pub fn compose_bound_entry_stack_epochs<'a>(
+    relation: &StackNestingRelation,
+    inputs: impl IntoIterator<Item = &'a BoundEpochStackCompositionInput>,
+) -> Result<BoundEpochStackComposition, ExternalRootDiagnostic> {
+    let mut bound = BTreeMap::new();
+    for input in inputs {
+        if bound.insert(input.root(), input.clone()).is_some() {
+            return Err(ExternalRootDiagnostic(format!(
+                "bound epoch stack input for root 0x{:016x} is duplicated",
+                input.root().normalized_identity()
+            )));
+        }
+    }
+    let composition = compose_entry_stack_epochs(
+        relation,
+        bound.values().map(BoundEpochStackCompositionInput::pure),
+    )?;
+    let mut fingerprint = Fnv1a::new();
+    fingerprint.u64(composition.fingerprint());
+    fingerprint.u64(bound.len() as u64);
+    for input in bound.values() {
+        let evidence = input.realization_evidence();
+        fingerprint.u64(evidence.root.normalized_identity());
+        fingerprint.u64(evidence.provider.normalized_identity());
+        fingerprint.u64(match evidence.architecture {
+            omega_target::Architecture::X86_64 => 1,
+            omega_target::Architecture::Aarch64 => 2,
+        });
+        fingerprint.u64(evidence.installed_code.normalized_identity());
+        fingerprint.u64(evidence.artifact.normalized_identity());
+        fingerprint.u64(evidence.entry.normalized_identity());
+        fingerprint.u64(evidence.boundary_contract_fingerprint);
+        super::stack_demand::fingerprint_entry_stack(&mut fingerprint, evidence.resolved_stack);
+        fingerprint.u64(evidence.realization.fingerprint());
+        fingerprint.u64(evidence.validation_receipt.normalized_identity());
+    }
+    Ok(BoundEpochStackComposition {
+        composition,
+        inputs: bound,
+        fingerprint: fingerprint.finish(),
+    })
 }
 
 /// Compose structurally validated epoch plans.

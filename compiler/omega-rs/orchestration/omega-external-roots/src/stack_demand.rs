@@ -68,7 +68,11 @@ impl InstalledTerminalEntryStackDemand {
         self.entry
     }
 
-    fn matches_installed_entry(&self, installed_code: &InstalledCode, entry: EntryStubId) -> bool {
+    pub(super) fn matches_installed_entry(
+        &self,
+        installed_code: &InstalledCode,
+        entry: EntryStubId,
+    ) -> bool {
         self.entry == entry
             && self.installed_code == installed_code.identity()
             && self.installed_code_context == installed_code.receipt_context()

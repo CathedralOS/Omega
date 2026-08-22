@@ -1,8 +1,10 @@
 use super::*;
 use omega_calling_conventions::{
-    CallSignature, CallingPolicy, MachineRegime, MachineState, MachineStateSet, Preemption,
-    RegisterSet, StatePlan, ValueShape, evaluate_ordinary_boundary_entry_plan,
-    validate_boundary_entry_plan,
+    ArrivalContextId, ArrivalContextRealization, CallSignature, CallingPolicy, EntryStackEpoch,
+    EntryStackRealization, EntryStackStage, MachineRegime, MachineState, MachineStateSet,
+    Preemption, RegisterSet, StackDomainRef, StatePlan, ValueShape,
+    evaluate_ordinary_boundary_entry_plan, validate_boundary_entry_plan,
+    validate_entry_stack_realization,
 };
 use omega_effects::provider_plan::{
     ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceMethod, ServiceSchema,
@@ -396,6 +398,86 @@ fn root_service_reach_substitutes_selected_rows_and_rejects_absence() {
     )
     .expect_err("an installed root cannot retain an unresolved reach row");
     assert!(error.0.contains("remains unresolved at final admission"));
+}
+
+#[test]
+fn opaque_epoch_realization_binds_exact_installed_entry_plan_and_body_evidence() {
+    let entry = entry_id(0x811);
+    let code = installed_code(0x812, entry);
+    let boundary = boundary();
+    let root = root_id(0x813, ExternalRootId::from_normalized_identity);
+    let provider = root_id(0x814, RootProviderId::from_normalized_identity);
+    let summary = ProviderStackSummary::from_admitted_provider(
+        root,
+        provider,
+        boundary.plan().state.stack,
+        64,
+        16,
+        root_id(0x815, StackValidationReceiptId::from_normalized_identity),
+    );
+    let realization = |nesting| {
+        validate_entry_stack_realization(EntryStackRealization {
+            contexts: vec![ArrivalContextRealization {
+                context: ArrivalContextId::new(1).expect("arrival context"),
+                epochs: vec![EntryStackEpoch {
+                    stage: EntryStackStage::Body,
+                    active_domain: StackDomainRef::Interrupted,
+                    occupancy_by_domain: Vec::new(),
+                    nesting,
+                }],
+            }],
+        })
+        .expect("structurally valid epoch realization")
+    };
+    let bound = bind_opaque_adapter_stack_realization(
+        &summary,
+        &boundary,
+        &code,
+        entry,
+        omega_calling_conventions::EntryStack::Interrupted,
+        realization(Preemption::NotApplicable),
+        root_id(0x816, StackValidationReceiptId::from_normalized_identity),
+    )
+    .expect("opaque realization binds to exact installed root");
+    let composition = compose_bound_entry_stack_epochs(
+        &StackNestingRelation {
+            identity: root_id(0x817, NestingRelationId::from_normalized_identity),
+            edges: BTreeSet::new(),
+        },
+        [&bound],
+    )
+    .expect("bound epoch evidence composes");
+    assert_eq!(
+        composition.composition().domain(StackDomain::Interrupted),
+        Some(DomainStackDemand {
+            bytes: 64,
+            alignment: 16,
+        })
+    );
+    assert_eq!(
+        composition
+            .input(root)
+            .expect("retained exact evidence")
+            .realization_evidence()
+            .validation_receipt(),
+        root_id(0x816, StackValidationReceiptId::from_normalized_identity)
+    );
+
+    let error = bind_opaque_adapter_stack_realization(
+        &summary,
+        &boundary,
+        &code,
+        entry,
+        omega_calling_conventions::EntryStack::Interrupted,
+        realization(Preemption::Nestable { maximum_depth: 2 }),
+        root_id(0x818, StackValidationReceiptId::from_normalized_identity),
+    )
+    .expect_err("opaque epoch evidence cannot widen the published nesting ceiling");
+    assert!(
+        error
+            .0
+            .contains("widens the boundary plan's nesting ceiling")
+    );
 }
 
 #[test]
