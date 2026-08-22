@@ -6,6 +6,7 @@ use psi_proof_kernel::{PrimitiveJudgment, ProofNode, ProofRule};
 use super::integer_evidence::cited_facts;
 use super::{affine_selection, cast_selection};
 
+mod logical;
 mod order;
 mod substitution;
 
@@ -28,27 +29,14 @@ pub(super) fn build(
         Proposition::LessOrEqual(_, _) => {
             prove_integer_bound(context, goal, assumptions, semantic_axioms)
         }
-        Proposition::Conjunction(conjuncts) => Some(ProofNode {
-            conclusion: goal.clone(),
-            rule: ProofRule::ConjunctionIntroduction(
-                conjuncts
-                    .iter()
-                    .map(|conjunct| build(context, conjunct, assumptions, semantic_axioms))
-                    .collect::<Option<Vec<_>>>()?,
-            ),
-        }),
+        Proposition::Conjunction(conjuncts) => {
+            logical::prove_conjunction(goal, conjuncts, |part| {
+                build(context, part, assumptions, semantic_axioms)
+            })
+        }
         Proposition::Disjunction(disjuncts) => {
-            let (index, disjunct) =
-                disjuncts.iter().enumerate().find_map(|(index, disjunct)| {
-                    build(context, disjunct, assumptions, semantic_axioms)
-                        .map(|proof| (index, proof))
-                })?;
-            Some(ProofNode {
-                conclusion: goal.clone(),
-                rule: ProofRule::DisjunctionIntroduction {
-                    disjunct: Box::new(disjunct),
-                    index,
-                },
+            logical::prove_disjunction(goal, disjuncts, |part| {
+                build(context, part, assumptions, semantic_axioms)
             })
         }
         _ => None,
