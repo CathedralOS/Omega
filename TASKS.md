@@ -3530,6 +3530,11 @@ Remaining:
   formatting. It reuses the calling-plan vocabulary without numeric entry
   addresses; the 1,722-line parent retains carriers and general orchestration,
   while public APIs, exact JSON, and the 79-function inventory are unchanged.
+  Chapter-10 trust commitments, generic accepted instances, provider
+  requirements, and qualification rows now render from a focused 251-line
+  `trust_report` child. The 1,476-line parent retains artifact carriers, shared
+  HTML presentation, and general orchestration; public APIs, exact Markdown,
+  and the 79-function inventory are unchanged.
   Development and test profiles now both omit full DWARF by default, with an
   explicit `CARGO_PROFILE_{DEV,TEST}_DEBUG=2` escape hatch for debugger
   sessions. On the same macOS host, rebuilding the development CLI after the
