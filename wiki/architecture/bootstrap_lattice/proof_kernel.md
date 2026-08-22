@@ -659,7 +659,17 @@ checks. Missing or ambiguous cast sources, late affine definitions or literal
 landings, unrepresentable endpoints, and either failed checker reject. The
 existing direct/literal/fixed-alias cast precedence is unchanged, and no new
 rule or proof-bundle-v19 field is introduced. This does not promote either
-whole row. The bounded dual accepts one directly cited same-carrier source
+whole row.
+
+This affine-to-cast selector separates endpoint orientation from resolved
+completion. Independent producer and verifier `cast_selection/affine` parents
+retain right-before-left endpoint order and value eligibility; side-local
+`cast_selection/affine/completion` modules own source-spine recovery, literal
+remapping, prefix-bounded affine custody, and cast completion. Source goals,
+proof bytes, rejection order within each orientation, direct-cast precedence,
+and the finite frontier remain unchanged.
+
+The bounded dual accepts one directly cited same-carrier source
 bound, a unique nonempty partial-cast spine, and one later finite affine word.
 Producer selection remaps the cited literal into the cast target, constructs
 `IntegerCastBound` from that exact assumption, and completes
