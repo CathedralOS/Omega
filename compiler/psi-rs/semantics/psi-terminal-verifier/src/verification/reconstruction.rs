@@ -584,13 +584,55 @@ fn retained_bounded_affine_bound(
     {
         return true;
     }
-    retained_alias_substituted_affine_bound(context, goal, requirements, semantic_axioms)
+    retained_landed_literal_affine_bound(context, goal, requirements, semantic_axioms)
+        || retained_alias_substituted_affine_bound(context, goal, requirements, semantic_axioms)
         || retained_transitively_reconstructed_affine_bound(
             context,
             goal,
             requirements,
             semantic_axioms,
         )
+}
+
+fn retained_landed_literal_affine_bound(
+    context: &PropositionContext,
+    goal: &Proposition,
+    requirements: &[Proposition],
+    semantic_axioms: &[Proposition],
+) -> bool {
+    requirements
+        .iter()
+        .chain(semantic_axioms)
+        .filter_map(|equality| match equality {
+            Proposition::Equal(left, right) => Some((left, right)),
+            _ => None,
+        })
+        .any(|(left, right)| {
+            [(left, right), (right, left)]
+                .into_iter()
+                .filter(|(root, literal)| {
+                    matches!(root, ScalarTerm::Value { .. })
+                        && literal.integer_value().is_some_and(|(integer_type, _)| {
+                            root.scalar_type() == psi_core::ScalarType::Integer(integer_type)
+                        })
+                })
+                .any(|(root, literal)| {
+                    [
+                        Proposition::LessOrEqual(literal.clone(), root.clone()),
+                        Proposition::LessOrEqual(root.clone(), literal.clone()),
+                    ]
+                    .iter()
+                    .any(|root_bound| {
+                        retained_affine_bound_from_root(
+                            context,
+                            goal,
+                            semantic_axioms,
+                            root,
+                            root_bound,
+                        )
+                    })
+                })
+        })
 }
 
 fn retained_alias_substituted_affine_bound(
@@ -2235,6 +2277,76 @@ mod tests {
             &goal,
             &[weak_definition],
             &[positive_root_bound],
+        ));
+    }
+
+    #[test]
+    fn exact_division_selects_landed_literal_affine_root() {
+        let signed = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+        let context = PropositionContext::from_value_types((1..=4).map(|id| {
+            (
+                ValueId::new(id).expect("value id"),
+                ScalarType::Integer(signed),
+            )
+        }))
+        .expect("four i8 values");
+        let goal = CanonicalScalarGoal::ExactDivisionDefined {
+            integer_type: signed,
+            left: value(1, signed),
+            right: value(2, signed),
+        };
+        let zero = ScalarTerm::integer(signed, IntegerValue::Signed(0)).expect("i8 zero");
+        let landed_root = Proposition::Equal(value(3, signed), zero.clone());
+        let positive_definition = Proposition::Equal(
+            value(2, signed),
+            ScalarTerm::exact_integer_add(
+                signed,
+                value(3, signed),
+                ScalarTerm::integer(signed, IntegerValue::Signed(1)).expect("i8 one"),
+            )
+            .expect("exact add"),
+        );
+        assert!(exact_division_has_prior_certificate(
+            &context,
+            &goal,
+            std::slice::from_ref(&positive_definition),
+            std::slice::from_ref(&landed_root),
+        ));
+
+        let negative_definition = Proposition::Equal(
+            value(2, signed),
+            ScalarTerm::exact_integer_subtract(
+                signed,
+                value(3, signed),
+                ScalarTerm::integer(signed, IntegerValue::Signed(2)).expect("i8 two"),
+            )
+            .expect("exact subtract"),
+        );
+        assert!(exact_division_has_prior_certificate(
+            &context,
+            &goal,
+            std::slice::from_ref(&negative_definition),
+            std::slice::from_ref(&landed_root),
+        ));
+
+        let unsafe_definition = Proposition::Equal(
+            value(2, signed),
+            ScalarTerm::exact_integer_add(signed, value(3, signed), zero).expect("exact add zero"),
+        );
+        assert!(!exact_division_has_prior_certificate(
+            &context,
+            &goal,
+            std::slice::from_ref(&unsafe_definition),
+            std::slice::from_ref(&landed_root),
+        ));
+        assert!(!exact_division_has_prior_certificate(
+            &context,
+            &goal,
+            &[positive_definition],
+            &[Proposition::Equal(
+                value(4, signed),
+                ScalarTerm::integer(signed, IntegerValue::Signed(0)).expect("i8 zero"),
+            )],
         ));
     }
 
