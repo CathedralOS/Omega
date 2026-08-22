@@ -19,7 +19,19 @@ use super::{
     },
 };
 
-pub(super) fn encode_internal_unit_call(
+pub(super) fn encode_internal_unit_calls(
+    bytes: &mut Vec<u8>,
+    count: u32,
+    installed: &[TerminalInstalledInternalUnitCall],
+) -> Result<(), TerminalInstallationError> {
+    push_u32(bytes, count);
+    for call in installed {
+        encode_internal_unit_call(bytes, call)?;
+    }
+    Ok(())
+}
+
+fn encode_internal_unit_call(
     bytes: &mut Vec<u8>,
     installed: &TerminalInstalledInternalUnitCall,
 ) -> Result<(), TerminalInstallationError> {
@@ -146,7 +158,22 @@ pub(super) fn encode_internal_unit_call(
     Ok(())
 }
 
-pub(super) fn decode_internal_unit_call(
+pub(super) fn decode_internal_unit_calls(
+    reader: &mut Reader<'_>,
+) -> Result<Vec<TerminalInstalledInternalUnitCall>, TerminalInstallationError> {
+    let count = usize::try_from(reader.u32()?)
+        .map_err(|_| TerminalInstallationError::TooManyInternalUnitCalls)?;
+    if count > reader.remaining() / 64 {
+        return Err(TerminalInstallationError::UnexpectedEnd);
+    }
+    let mut internal_unit_calls = Vec::with_capacity(count);
+    for _ in 0..count {
+        internal_unit_calls.push(decode_internal_unit_call(reader)?);
+    }
+    Ok(internal_unit_calls)
+}
+
+fn decode_internal_unit_call(
     reader: &mut Reader<'_>,
 ) -> Result<TerminalInstalledInternalUnitCall, TerminalInstallationError> {
     let machine =
