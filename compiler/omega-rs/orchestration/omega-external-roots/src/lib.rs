@@ -1732,6 +1732,33 @@ pub struct WrittenExternalRootPostHandoffWriterDestination<'mapping, 'bytes> {
     written: omega_executable_installation::WrittenPostHandoffWriterDestination<'mapping, 'bytes>,
 }
 
+/// A written external-root destination whose provider, root, invocation,
+/// installation, mapping, and destination evidence has been replayed before
+/// its still-unpublished bytes become observable.
+#[derive(Debug)]
+#[must_use = "validated written external-root destination retains provider and mapping custody"]
+pub struct ValidatedWrittenExternalRootPostHandoffWriterDestination<'mapping, 'bytes> {
+    written: WrittenExternalRootPostHandoffWriterDestination<'mapping, 'bytes>,
+}
+
+/// Consumer-validation rejection returns the complete written carrier for a
+/// corrected installed-realization retry without exposing destination bytes.
+#[derive(Debug)]
+pub struct WrittenExternalRootConsumerValidationError<'mapping, 'bytes> {
+    written: WrittenExternalRootPostHandoffWriterDestination<'mapping, 'bytes>,
+    diagnostic: psi_layout_plans::MaterializationDiagnostic,
+}
+
+impl<'mapping, 'bytes> WrittenExternalRootConsumerValidationError<'mapping, 'bytes> {
+    pub const fn diagnostic(&self) -> &psi_layout_plans::MaterializationDiagnostic {
+        &self.diagnostic
+    }
+
+    pub fn into_written(self) -> WrittenExternalRootPostHandoffWriterDestination<'mapping, 'bytes> {
+        self.written
+    }
+}
+
 /// Failed recovery of a still-unpublished external-root writer destination.
 /// The complete written carrier is returned unchanged so the owning consumer
 /// can correct the installed-code input or choose another recovery path.
@@ -1993,12 +2020,6 @@ impl<'mapping, 'bytes> WrittenExternalRootPostHandoffWriterDestination<'mapping,
         &self.invocation
     }
 
-    pub const fn written(
-        &self,
-    ) -> &omega_executable_installation::WrittenPostHandoffWriterDestination<'mapping, 'bytes> {
-        &self.written
-    }
-
     /// Independently replay provider preparation, invocation structure, and
     /// the installation-owned context. Rejection only borrows this carrier so
     /// the exact provider and destination inputs remain available for retry.
@@ -2037,8 +2058,23 @@ impl<'mapping, 'bytes> WrittenExternalRootPostHandoffWriterDestination<'mapping,
             .map_err(|diagnostic| psi_layout_plans::MaterializationDiagnostic(diagnostic.0))
     }
 
-    pub fn bytes(&self) -> &[u8] {
-        self.written.bytes()
+    /// Consume this carrier only after replaying its complete retained context
+    /// against the consumer's installed realization. Rejection returns the
+    /// original carrier and exposes no destination bytes.
+    pub fn into_validated_for_consumer(
+        self,
+        installed_code: &InstalledCode,
+    ) -> Result<
+        ValidatedWrittenExternalRootPostHandoffWriterDestination<'mapping, 'bytes>,
+        Box<WrittenExternalRootConsumerValidationError<'mapping, 'bytes>>,
+    > {
+        if let Err(diagnostic) = self.validate_for_consumer(installed_code) {
+            return Err(Box::new(WrittenExternalRootConsumerValidationError {
+                written: self,
+                diagnostic,
+            }));
+        }
+        Ok(ValidatedWrittenExternalRootPostHandoffWriterDestination { written: self })
     }
 
     /// Return this still-unpublished destination to the exact provider-writer
@@ -2091,7 +2127,7 @@ impl<'mapping, 'bytes> WrittenExternalRootPostHandoffWriterDestination<'mapping,
         ))
     }
 
-    pub fn into_parts(
+    fn into_parts(
         self,
     ) -> (
         AdmittedTerminalProviderExecution,
@@ -2115,6 +2151,59 @@ impl<'mapping, 'bytes> WrittenExternalRootPostHandoffWriterDestination<'mapping,
             self.writer,
             self.written,
         )
+    }
+}
+
+impl<'mapping, 'bytes> ValidatedWrittenExternalRootPostHandoffWriterDestination<'mapping, 'bytes> {
+    /// Bytes remain unpublished; this is observation after exact replay, not
+    /// consumer semantic validation or publication.
+    pub fn bytes(&self) -> &[u8] {
+        self.written.written.bytes()
+    }
+
+    pub const fn provider_execution(&self) -> AdmittedTerminalProviderExecution {
+        self.written.provider_execution
+    }
+
+    pub const fn selected_entry(&self) -> EntryStubId {
+        self.written.selected_entry
+    }
+
+    pub const fn selected_entry_source_slot(&self) -> usize {
+        self.written.selected_entry_source_slot
+    }
+
+    pub fn selected_requirement_identity(&self) -> &str {
+        &self.written.root_evidence.candidate.requirement_identity
+    }
+
+    pub fn recover_for_retry(
+        self,
+        installed_code: &InstalledCode,
+    ) -> Result<
+        (
+            PreparedExternalRootPostHandoffWriterInvocation,
+            omega_executable_installation::PreparedPostHandoffWriterDestination<'mapping, 'bytes>,
+        ),
+        Box<WrittenExternalRootWriterRecoveryError<'mapping, 'bytes>>,
+    > {
+        self.written.recover_for_retry(installed_code)
+    }
+
+    pub fn into_parts(
+        self,
+    ) -> (
+        AdmittedTerminalProviderExecution,
+        ProviderExecution,
+        ValidatedExternalRoot,
+        EntryStubId,
+        usize,
+        omega_target::Architecture,
+        PostHandoffWriterInvocationPlan,
+        PostHandoffWriterPlan,
+        omega_executable_installation::WrittenPostHandoffWriterDestination<'mapping, 'bytes>,
+    ) {
+        self.written.into_parts()
     }
 }
 
