@@ -13,6 +13,7 @@
 //! resulting sealed image. It does not grant executable authority or replace
 //! the separate native admission, placement, and retirement ladder.
 
+mod completion_receipts;
 mod final_image_validation;
 mod image_output;
 mod installation;
@@ -44,6 +45,7 @@ pub use installation::*;
 pub(crate) use partial_cleanup_partition::exact_partial_cleanup_partition;
 pub use stack_demand::{derive_terminal_stack_demand, derive_terminal_unit_stack_demand};
 
+use completion_receipts::completion_receipts_have_exact_custody;
 use scalar_cleanup_preservation::validate_scalar_cleanup_preservation;
 use scalar_conditional_call_paths::{conditional_call_path, conditional_paths_are_exclusive};
 use scalar_control_cleanup::{cleanup_for_owner, validate_scalar_control_cleanup_evidence};
@@ -903,6 +905,12 @@ pub fn build_terminal_object_artifact(
                     operation: settlement.psi_operation,
                 });
             }
+            if !completion_receipts_have_exact_custody(&settlement.completion_receipts) {
+                return Err(TerminalObjectError::InvalidCompletionReceiptCustody {
+                    machine: function.machine,
+                    operation: settlement.psi_operation,
+                });
+            }
             let valid_realization = match settlement.realization {
                 TerminalBoundaryRealization::MetadataOnlyPort(realization) => {
                     settlement.byte_count == 0
@@ -1340,6 +1348,10 @@ pub enum TerminalObjectError {
         operation: psi_core::OperationId,
     },
     InvalidCompletionReceiptArgumentIndex {
+        machine: MachineId,
+        operation: psi_core::OperationId,
+    },
+    InvalidCompletionReceiptCustody {
         machine: MachineId,
         operation: psi_core::OperationId,
     },

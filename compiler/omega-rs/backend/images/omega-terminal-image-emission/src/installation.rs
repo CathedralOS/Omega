@@ -31,6 +31,7 @@ use sha2::{Digest, Sha256};
 use crate::{
     TerminalExecutableImage, TerminalObjectBoundarySettlement, TerminalObjectFuelAttribution,
     TerminalObjectPortEffect, can_emit_terminal_executable_image,
+    completion_receipts::completion_receipts_have_exact_custody,
 };
 
 pub const TERMINAL_INSTALLATION_FORMAT_MARKER: u16 = 25;
@@ -2663,6 +2664,12 @@ fn validate_record_shape(
                 },
             );
         }
+        if !completion_receipts_have_exact_custody(&installed.settlement.completion_receipts) {
+            return Err(TerminalInstallationError::InvalidCompletionReceiptCustody {
+                machine: installed.machine,
+                operation: installed.settlement.psi_operation,
+            });
+        }
         let valid_realization = match installed.settlement.realization {
             TerminalBoundaryRealization::MetadataOnlyPort(realization) => {
                 installed.settlement.byte_count == 0
@@ -4807,6 +4814,10 @@ pub enum TerminalInstallationError {
         operation: OperationId,
     },
     InvalidCompletionReceiptArgumentIndex {
+        machine: MachineId,
+        operation: OperationId,
+    },
+    InvalidCompletionReceiptCustody {
         machine: MachineId,
         operation: OperationId,
     },
