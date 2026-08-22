@@ -1,4 +1,5 @@
 use super::*;
+use psi_extents::{AddressSpaceId, ExtentProvenanceId, ExtentRights};
 use psi_layout_plans::{
     IntegerInterpretation, LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport,
 };
@@ -3313,7 +3314,10 @@ fn stable_primitive_specialization_replays_exact_placement_authority() {
     request = expect_exact_stable_primitive_rejection(request, "placement authority");
     request.plan = plan.identity();
 
-    request.profile_receipt.0 ^= 1;
+    request.profile_receipt = ResourceProfileReceiptId::from_normalized_identity(
+        request.profile_receipt.normalized_identity() ^ 1,
+    )
+    .expect("tampered nonzero profile receipt");
     request = expect_exact_stable_primitive_rejection(request, "placement authority");
     request.profile_receipt = profile.receipt();
 
