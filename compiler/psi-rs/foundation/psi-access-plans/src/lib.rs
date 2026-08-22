@@ -3400,6 +3400,14 @@ impl<'view, 'extent> StableCompoundMutationAccessRequest<'view, 'extent> {
         self.request.effect_footprint
     }
 
+    /// Independently replay the complete placed authority and bounded
+    /// read-patch-write specialization before an outward lowering consumer
+    /// accepts this request. Rejection only borrows the carrier, preserving
+    /// its exact exclusive loan and resident-content custody for retry.
+    pub fn validate_for_lowering(&self) -> Result<(), AccessPlanDiagnostic> {
+        validate_stable_compound_mutation_request(&self.request)
+    }
+
     pub fn into_primitive_request(self) -> PrimitiveAccessRequest<'view, 'extent> {
         self.request
     }
@@ -3432,60 +3440,7 @@ impl<'view, 'extent> PrimitiveAccessRequest<'view, 'extent> {
         StableCompoundMutationAccessRequest<'view, 'extent>,
         StableCompoundMutationAccessRejection<'view, 'extent>,
     > {
-        if self.observation != ObservationModel::Stable {
-            return Err(StableCompoundMutationAccessRejection {
-                request: self,
-                diagnostic: AccessPlanDiagnostic(
-                    "Stable compound mutation requires a Stable observation".into(),
-                ),
-            });
-        }
-        if self.effective_supply.kind() != EffectiveSupplyKind::Stable {
-            return Err(StableCompoundMutationAccessRejection {
-                request: self,
-                diagnostic: AccessPlanDiagnostic(
-                    "Stable compound mutation requires admitted Stable supply".into(),
-                ),
-            });
-        }
-        if let Err(diagnostic) = self.validate_effective_supply_binding() {
-            return Err(StableCompoundMutationAccessRejection {
-                request: self,
-                diagnostic,
-            });
-        }
-        if self.current_borrow != BorrowPolarity::Exclusive
-            || self.source_loan != BorrowPolarity::Exclusive
-        {
-            return Err(StableCompoundMutationAccessRejection {
-                request: self,
-                diagnostic: AccessPlanDiagnostic(
-                    "Stable compound mutation requires exclusive current and source borrows".into(),
-                ),
-            });
-        }
-        if self.operation != AccessOperation::CompoundMutation {
-            return Err(StableCompoundMutationAccessRejection {
-                request: self,
-                diagnostic: AccessPlanDiagnostic(
-                    "Stable compound lowering accepts only one sealed CompoundMutation event"
-                        .into(),
-                ),
-            });
-        }
-        if let Err(diagnostic) = self.validate_descriptor_binding() {
-            return Err(StableCompoundMutationAccessRejection {
-                request: self,
-                diagnostic,
-            });
-        }
-        if let Err(diagnostic) = self.validate_authority_binding() {
-            return Err(StableCompoundMutationAccessRejection {
-                request: self,
-                diagnostic,
-            });
-        }
-        if let Err(diagnostic) = self.validate_authorization_binding() {
+        if let Err(diagnostic) = validate_stable_compound_mutation_request(&self) {
             return Err(StableCompoundMutationAccessRejection {
                 request: self,
                 diagnostic,
@@ -3493,6 +3448,37 @@ impl<'view, 'extent> PrimitiveAccessRequest<'view, 'extent> {
         }
         Ok(StableCompoundMutationAccessRequest { request: self })
     }
+}
+
+fn validate_stable_compound_mutation_request(
+    request: &PrimitiveAccessRequest<'_, '_>,
+) -> Result<(), AccessPlanDiagnostic> {
+    if request.observation != ObservationModel::Stable {
+        return Err(AccessPlanDiagnostic(
+            "Stable compound mutation requires a Stable observation".into(),
+        ));
+    }
+    if request.effective_supply.kind() != EffectiveSupplyKind::Stable {
+        return Err(AccessPlanDiagnostic(
+            "Stable compound mutation requires admitted Stable supply".into(),
+        ));
+    }
+    request.validate_effective_supply_binding()?;
+    if request.current_borrow != BorrowPolarity::Exclusive
+        || request.source_loan != BorrowPolarity::Exclusive
+    {
+        return Err(AccessPlanDiagnostic(
+            "Stable compound mutation requires exclusive current and source borrows".into(),
+        ));
+    }
+    if request.operation != AccessOperation::CompoundMutation {
+        return Err(AccessPlanDiagnostic(
+            "Stable compound lowering accepts only one sealed CompoundMutation event".into(),
+        ));
+    }
+    request.validate_descriptor_binding()?;
+    request.validate_authority_binding()?;
+    request.validate_authorization_binding()
 }
 
 /// Operation subset accepted by one exact External primitive transfer.
@@ -6753,6 +6739,43 @@ mod tests {
         drop(request);
         assert_eq!(established.validity_receipt().normalized_identity(), 161);
         assert_eq!(established.custody_receipt().normalized_identity(), 162);
+    }
+
+    #[test]
+    fn stable_compound_lowering_replays_authority_without_consuming_retry() {
+        let (plan, mut established) = established_stable_word(0xad10, 228, 229, 231);
+        let mut projection = established
+            .project_mut(field_key(plan.access(), "word"))
+            .expect("exclusive Stable projection");
+        let request = projection
+            .compound_mutation()
+            .expect("authorized Stable compound mutation")
+            .into_primitive_request();
+        let mut compound = request
+            .into_stable_compound_mutation_access()
+            .expect("Stable compound specialization");
+        let expected = primitive_request_snapshot(&compound.request);
+
+        compound.request.profile_receipt =
+            ResourceProfileReceiptId::from_normalized_identity(999).expect("drifted receipt");
+        let diagnostic = compound
+            .validate_for_lowering()
+            .expect_err("outward preflight must reject copied receipt drift");
+        assert!(diagnostic.0.contains("retained placement authority"));
+        compound.request.profile_receipt =
+            ResourceProfileReceiptId::from_normalized_identity(91).expect("profile receipt");
+
+        compound.request.operation = AccessOperation::Write;
+        let diagnostic = compound
+            .validate_for_lowering()
+            .expect_err("outward preflight must reject operation drift");
+        assert!(diagnostic.0.contains("CompoundMutation"));
+        compound.request.operation = AccessOperation::CompoundMutation;
+
+        compound
+            .validate_for_lowering()
+            .expect("corrected carrier must remain valid for retry");
+        assert_eq!(primitive_request_snapshot(&compound.request), expected);
     }
 
     #[test]
