@@ -14,10 +14,7 @@ use omega_image::CompilerTextValidationEvidence;
 use omega_target::{Architecture, NativeTarget, ObjectFormat};
 use omega_terminal_machine_code::{TerminalNativeFuelSite, TerminalStructuralReturnRecord};
 use omega_terminal_target_operations::{TerminalBoundaryRealization, TerminalCallSiteOwner};
-use psi_core::{
-    MachineId, OperationId, ProfileDecisionId, StructuralCaseId, StructuralFieldId,
-    StructuralTypeId,
-};
+use psi_core::{MachineId, OperationId, ProfileDecisionId, StructuralFieldId, StructuralTypeId};
 use psi_terminal::{
     StructuralMultiplicity, StructuralPathSegment, StructuralTypeShape, TerminalPsiIdentity,
 };
@@ -39,6 +36,7 @@ mod port_effect_codec;
 mod provider_execution_codec;
 mod provider_plan_codec;
 mod structural_argument_codec;
+mod structural_case_codec;
 mod structural_field_codec;
 mod structural_return_codec;
 mod structural_scalar_codec;
@@ -56,7 +54,8 @@ use installation_header_codec::{
 use internal_unit_call_codec::{decode_internal_unit_calls, encode_internal_unit_calls};
 use port_effect_codec::{decode_port_effects, encode_port_effects};
 use provider_plan_codec::{decode_provider_plans, encode_provider_plans};
-use structural_field_codec::{decode_structural_field, encode_structural_field};
+use structural_case_codec::{decode_structural_cases, encode_structural_cases};
+use structural_field_codec::encode_structural_field;
 use structural_return_codec::{decode_structural_returns, encode_structural_returns};
 use structural_scalar_codec::{
     decode_identity, decode_multiplicity, encode_identity, multiplicity_tag,
@@ -2072,23 +2071,7 @@ fn encode_structural_types(
             }
             psi_terminal::StructuralTypeShape::Sum { cases } => {
                 bytes.extend_from_slice(&[3, 0, 0, 0]);
-                push_u32(
-                    bytes,
-                    u32::try_from(cases.len())
-                        .map_err(|_| TerminalInstallationError::TooManyStructuralCases)?,
-                );
-                for case in cases {
-                    push_u64(bytes, case.id.get());
-                    encode_identity(bytes, &case.identity)?;
-                    push_u32(
-                        bytes,
-                        u32::try_from(case.fields.len())
-                            .map_err(|_| TerminalInstallationError::TooManyStructuralFields)?,
-                    );
-                    for field in &case.fields {
-                        encode_structural_field(bytes, field)?;
-                    }
-                }
+                encode_structural_cases(bytes, cases)?;
             }
         }
     }
@@ -2240,37 +2223,9 @@ fn decode_structural_types(
                 )?,
                 length: reader.u64()?,
             },
-            3 => {
-                let case_count = usize::try_from(reader.u32()?)
-                    .map_err(|_| TerminalInstallationError::TooManyStructuralCases)?;
-                if case_count > reader.remaining() {
-                    return Err(TerminalInstallationError::UnexpectedEnd);
-                }
-                let mut cases = Vec::with_capacity(case_count);
-                for _ in 0..case_count {
-                    cases.push(psi_terminal::StructuralCaseDeclaration {
-                        id: StructuralCaseId::new(reader.u64()?).ok_or(
-                            TerminalInstallationError::ZeroStructuralReturnIdentity(
-                                "structural case",
-                            ),
-                        )?,
-                        identity: decode_identity(reader)?,
-                        fields: {
-                            let field_count = usize::try_from(reader.u32()?)
-                                .map_err(|_| TerminalInstallationError::TooManyStructuralFields)?;
-                            if field_count > reader.remaining() {
-                                return Err(TerminalInstallationError::UnexpectedEnd);
-                            }
-                            let mut fields = Vec::with_capacity(field_count);
-                            for _ in 0..field_count {
-                                fields.push(decode_structural_field(reader)?);
-                            }
-                            fields
-                        },
-                    });
-                }
-                psi_terminal::StructuralTypeShape::Sum { cases }
-            }
+            3 => psi_terminal::StructuralTypeShape::Sum {
+                cases: decode_structural_cases(reader)?,
+            },
             tag => {
                 return Err(TerminalInstallationError::InvalidStructuralTypeShapeTag(
                     tag,
@@ -2442,7 +2397,7 @@ mod resource_tests {
         },
         function_stack_codec::{decode_function_stack_facts, encode_function_stack_facts},
     };
-    use psi_core::{EdgeId, PlaceId};
+    use psi_core::{EdgeId, PlaceId, StructuralCaseId};
 
     fn installed_function_with_unit_call() -> TerminalInstalledFunction {
         TerminalInstalledFunction {
