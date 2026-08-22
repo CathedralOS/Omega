@@ -70,6 +70,12 @@ fn output_only_backend_compile_keeps_primary_image_and_certification() {
     )
     .expect("output-only backend compile should still certify and install its image");
     assert!(report.wrote_output());
+    assert_eq!(
+        report
+            .checked_native_executable_path()
+            .map(std::path::Path::to_path_buf),
+        Some(build_dir.join("omega-program.exe")),
+    );
     assert!(build_dir.join("omega-program.exe").is_file());
     let entries = fs::read_dir(&build_dir)
         .expect("read output-only build directory")
