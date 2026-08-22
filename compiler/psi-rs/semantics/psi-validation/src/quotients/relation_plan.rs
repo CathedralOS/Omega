@@ -63,6 +63,12 @@ pub(super) struct RepresentativeTermination {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) struct RepresentativePurity {
+    pub(super) machine_symbol: SymbolHandle,
+    pub(super) state_symbol: SymbolHandle,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) struct ImmutableAliasFallthroughRoot {
     pub(super) request_expression: ExpressionHandle,
     pub(super) alias_count: usize,
@@ -389,6 +395,90 @@ fn unconditional_representative_termination(
         psi_language_semantics::TerminationGuarantee::NoGuarantee
         | psi_language_semantics::TerminationGuarantee::Terminates { .. } => None,
     }
+}
+
+/// Consume the shared whole-program operational and service-reach fixed points
+/// to retain the initial pure-representative certificate. The exact entry must
+/// have no mutable/out parameter, the enclosing machine must have no recursive
+/// service, suspension, or blocking behavior, and every concrete call reachable
+/// from that machine must retain a resolved machine target. Custody occurrence
+/// remains a separate fence.
+pub(super) fn pure_representative_effect(
+    representative: &RepresentativeTelescope,
+    operational: &psi_effects::OperationalPlan,
+    service_reaches: &psi_effects::ServiceReachInferencePlan,
+) -> Option<RepresentativePurity> {
+    if representative
+        .parameters
+        .iter()
+        .any(|parameter| parameter.is_mutable)
+    {
+        return None;
+    }
+    let machine_summaries = operational
+        .machines()
+        .iter()
+        .filter(|summary| summary.symbol == representative.machine_symbol)
+        .collect::<Vec<_>>();
+    let [machine_summary] = machine_summaries.as_slice() else {
+        return None;
+    };
+    if machine_summary.transitive_may_suspend || machine_summary.transitive_may_block {
+        return None;
+    }
+    let entry_summaries = operational
+        .states
+        .span_or_empty(machine_summary.states)
+        .iter()
+        .filter(|summary| summary.symbol == representative.state_symbol)
+        .collect::<Vec<_>>();
+    if entry_summaries.len() != 1 {
+        return None;
+    }
+    let reach_summaries = service_reaches
+        .machines()
+        .iter()
+        .filter(|summary| summary.machine == representative.machine_symbol)
+        .collect::<Vec<_>>();
+    let [reach_summary] = reach_summaries.as_slice() else {
+        return None;
+    };
+    if !service_reaches
+        .services(reach_summary.inferred_transitive)
+        .is_empty()
+    {
+        return None;
+    }
+
+    let mut pending = vec![representative.machine_symbol];
+    let mut visited = Vec::new();
+    while let Some(machine_symbol) = pending.pop() {
+        if visited.contains(&machine_symbol) {
+            continue;
+        }
+        visited.push(machine_symbol);
+        let summaries = operational
+            .machines()
+            .iter()
+            .filter(|summary| summary.symbol == machine_symbol)
+            .collect::<Vec<_>>();
+        let [summary] = summaries.as_slice() else {
+            return None;
+        };
+        for state in operational.states.span_or_empty(summary.states) {
+            for call in operational.calls.span_or_empty(state.calls) {
+                if !call.target_machine_symbol.is_valid() {
+                    return None;
+                }
+                pending.push(call.target_machine_symbol);
+            }
+        }
+    }
+
+    Some(RepresentativePurity {
+        machine_symbol: representative.machine_symbol,
+        state_symbol: representative.state_symbol,
+    })
 }
 
 pub(super) fn fallthrough_result_root(
@@ -1409,8 +1499,8 @@ mod tests {
         derive_define_precondition_correspondence, derive_direct_terminal_plan,
         derive_exact_representative_static_application, derive_public_precondition_partition,
         derive_representative_precondition_partition, derive_representative_telescope,
-        fallthrough_result_root, immutable_alias_fallthrough_root, substituted_type_matches,
-        unconditional_representative_termination,
+        fallthrough_result_root, immutable_alias_fallthrough_root, pure_representative_effect,
+        substituted_type_matches, unconditional_representative_termination,
     };
     use psi_arena::HandleSpan;
     use psi_symbols::SymbolHandle;
@@ -1952,6 +2042,66 @@ mod tests {
             telescope_with_summary(psi_language_semantics::TerminationGuarantee::NoGuarantee);
         assert_eq!(
             unconditional_representative_termination(&program, &telescope),
+            None,
+        );
+    }
+
+    #[test]
+    fn representative_purity_consumes_shared_recursive_effect_summaries() {
+        let mut program = TypedTrees::default();
+        let result_type = program.type_reference_table.insert(TypeReferenceNode::Unit);
+        let mut machine = Machine {
+            symbol: symbol(96),
+            ..Default::default()
+        };
+        program.push_machine_state(
+            &mut machine,
+            State {
+                symbol: symbol(97),
+                return_type: result_type,
+                ..Default::default()
+            },
+        );
+        program.push_machine(machine);
+        let telescope =
+            derive_representative_telescope(&program, &request_with_representative(symbol(97)))
+                .expect("exact representative telescope");
+        let operational = psi_effects::infer_operational_may(&program);
+        let service_reaches = psi_effects::infer_service_reaches(&program, &operational);
+        assert_eq!(
+            pure_representative_effect(&telescope, &operational, &service_reaches,),
+            Some(super::RepresentativePurity {
+                machine_symbol: symbol(96),
+                state_symbol: symbol(97),
+            })
+        );
+
+        let mut suspending = operational.clone();
+        let machine_handle = suspending
+            .machines
+            .iter()
+            .find_map(|(handle, summary)| (summary.symbol == symbol(96)).then_some(handle))
+            .expect("machine effect summary");
+        suspending
+            .machines
+            .get_mut(machine_handle)
+            .transitive_may_suspend = true;
+        assert_eq!(
+            pure_representative_effect(&telescope, &suspending, &service_reaches,),
+            None,
+        );
+
+        let mut mutable_telescope = telescope;
+        mutable_telescope
+            .parameters
+            .push(RepresentativeRuntimeParameter {
+                symbol: symbol(98),
+                type_reference: result_type,
+                is_mutable: true,
+                is_self: false,
+            });
+        assert_eq!(
+            pure_representative_effect(&mutable_telescope, &operational, &service_reaches,),
             None,
         );
     }
