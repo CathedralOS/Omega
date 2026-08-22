@@ -4,7 +4,7 @@ use psi_core::{Proposition, ScalarTerm};
 
 mod landing_index;
 
-use super::super::super::{eligibility, equalities};
+use super::super::super::equalities;
 use landing_index::LandingIndex;
 
 pub(super) fn any<'a>(
@@ -17,13 +17,6 @@ pub(super) fn any<'a>(
         if root.scalar_type() != alias.scalar_type() {
             return false;
         }
-        for &(inner_equality, literal) in landings.candidates(alias) {
-            if eligibility::distinct_facts(outer_equality, inner_equality)
-                && complete(root, literal)
-            {
-                return true;
-            }
-        }
-        false
+        landings.any(alias, outer_equality, |literal| complete(root, literal))
     })
 }
