@@ -1380,8 +1380,13 @@ dependencies = [
  "psi-language-semantics",
  "psi-layout-plans",
  "psi-numerics",
+ "psi-source-files-to-tokens",
+ "psi-symbol-resolved-trees-to-typed-trees",
  "psi-symbols",
+ "psi-syntax-trees-to-symbol-resolved-trees",
+ "psi-tokens-to-syntax-trees",
  "psi-typed-trees",
+ "psi-typed-trees-to-checked-trees",
 ]
 
 [[package]]
