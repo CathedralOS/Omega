@@ -134,6 +134,9 @@ and reset pair provides bulk reclamation. `lowermachine.alp` still uses dedicate
 fixed tables, but source-buffer exhaustion is now an explicit exit failure
 instead of silent tail truncation. The frozen D0 contract is recorded in
 [`../omega/BOOTSTRAP_PROFILES.md`](../omega/BOOTSTRAP_PROFILES.md).
+`delta-storage-meaning.sh` runs the exact contract and a perturbation through
+the lower-rung `omega2gamma.beta` → `interp.beta` route without using the Rust
+Gamma emitter.
 
 ## Language additions (beyond slice 9)
 

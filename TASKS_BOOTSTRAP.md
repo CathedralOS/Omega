@@ -151,7 +151,7 @@ story.
   silent fixed-capacity truncation from the compiler path.
   - [x] Gate the D0 fixed-backing allocator convention for deterministic aligned
     allocation, indexed handles, exhaustion-state preservation, and bulk reset
-    across native and Delta-to-Gamma meaning routes.
+    across native, Rust-reference, and Rust-free Delta-to-Gamma meaning routes.
   - [x] Make `lowermachine.alp` reject source-buffer exhaustion instead of
     silently compiling a truncated prefix.
   - [ ] Replace `lowermachine`'s dedicated fixed source/table arrays with logical
@@ -167,6 +167,14 @@ story.
   the Delta-to-Gamma route for every construct used by the first Omega compiler,
   including allocation and exhaustion. Preserve native-versus-meaning
   differential gates. Full unused-Delta coverage may proceed separately.
+  - [x] Evaluate D0 fixed-backing allocation and exhaustion through the
+    Beta-written `omega2gamma.beta` elaborator and Gamma interpreter, with a
+    source perturbation that changes the observed result.
+  - [x] Exercise byte input/output and real Delta certifiers through the same
+    Rust-free route in `compiler/omega/convergence-reference.sh`.
+  - [ ] Audit the eventual Omega0 Delta source against D0 and make every construct
+    either elaborate through the lower-rung route or reject before it can enter
+    the compiler. Keep `gamma_emit.rs` only as a reference differential producer.
 - [ ] **Build a vertical Omega canary in Delta.** A Delta-written program must
   accept a small Omega source file, perform name/type checks, lower through the
   chosen terminal-Psi path, and produce a runnable artifact whose behavior
