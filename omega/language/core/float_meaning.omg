@@ -40,7 +40,7 @@ machine nonzero_rat(
 ) -> Rat in NonZero
 requires
     positive != negative;
-    (sub(Nat::Succ { prev: Nat::Zero }, denominator)) == Nat::Zero
+    (saturating_sub(Nat::Succ { prev: Nat::Zero }, denominator)) == Nat::Zero
 {
     Rat {
         num: IntPair {

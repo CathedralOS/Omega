@@ -10,7 +10,7 @@ machine false_close_triangle(
     precision: Nat
 )
 requires
-    (sub(Nat::Succ { prev: Nat::Zero }, middle.den)) == Nat::Zero;
+    (saturating_sub(Nat::Succ { prev: Nat::Zero }, middle.den)) == Nat::Zero;
     (rat_close(left, middle, add(precision, precision))) == Nat::Zero;
     (rat_close(middle, right, add(precision, precision))) == Nat::Zero
 ensures

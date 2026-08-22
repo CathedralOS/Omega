@@ -25,7 +25,7 @@ ensures (rat_close(right, left, precision)) == Nat::Zero
 
 machine scaled_triangle_is_available(left: Rat, middle: Rat, right: Rat)
 ensures
-    (sub(
+    (saturating_sub(
         mul(middle.den, rat_gap(left, right)),
         add(
             mul(right.den, rat_gap(left, middle)),
@@ -43,7 +43,7 @@ machine doubled_precision_triangle_is_available(
     precision: Nat
 )
 requires
-    (sub(Nat::Succ { prev: Nat::Zero }, middle.den)) == Nat::Zero;
+    (saturating_sub(Nat::Succ { prev: Nat::Zero }, middle.den)) == Nat::Zero;
     (rat_close(left, middle, add(precision, precision))) == Nat::Zero;
     (rat_close(middle, right, add(precision, precision))) == Nat::Zero
 ensures

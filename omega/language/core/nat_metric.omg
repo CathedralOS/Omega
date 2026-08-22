@@ -1,11 +1,11 @@
 // Absolute difference and order lemmas over core Nat. This is the metric
 // substrate used by Rat's denominator-scaled triangle proof: all order facts
-// retain Nat's settled monus spelling (`a <= b` iff `sub(a, b) == Zero`).
+// retain Nat's settled monus spelling (`a <= b` iff `saturating_sub(a, b) == Zero`).
 use omega::language::core::nat;
 
 machine nat_gap(a: Nat, b: Nat) -> Nat {
-    let forward: Nat = sub(a, b);
-    let backward: Nat = sub(b, a);
+    let forward: Nat = saturating_sub(a, b);
+    let backward: Nat = saturating_sub(b, a);
     let gap: Nat = add(forward, backward);
     transition { _ -> (gap) }
 }
@@ -22,7 +22,7 @@ machine nat_gap_symmetric(a: Nat, b: Nat)
 ensures
     (nat_gap(a, b)) == (nat_gap(b, a))
 {
-    add_comm(sub(a, b), sub(b, a));
+    add_comm(saturating_sub(a, b), saturating_sub(b, a));
 }
 
 machine nat_gap_zero_left(b: Nat)
@@ -54,9 +54,9 @@ ensures
 machine add_le_add_right(a: Nat, b: Nat, c: Nat) -> Nat
 terminates by c;
 requires
-    (sub(a, b)) == Nat::Zero
+    (saturating_sub(a, b)) == Nat::Zero
 ensures
-    (sub(add(a, c), add(b, c))) == Nat::Zero
+    (saturating_sub(add(a, c), add(b, c))) == Nat::Zero
 {
     transition c {
         Nat::Zero -> alar_zero(a, b)
@@ -80,10 +80,10 @@ ensures
 machine le_trans(a: Nat, b: Nat, c: Nat) -> Nat
 terminates by a;
 requires
-    (sub(a, b)) == Nat::Zero;
-    (sub(b, c)) == Nat::Zero
+    (saturating_sub(a, b)) == Nat::Zero;
+    (saturating_sub(b, c)) == Nat::Zero
 ensures
-    (sub(a, c)) == Nat::Zero
+    (saturating_sub(a, c)) == Nat::Zero
 {
     transition a {
         Nat::Zero -> le_trans_zero(c)
@@ -123,10 +123,10 @@ ensures
 
 machine add_le_add(a: Nat, b: Nat, c: Nat, d: Nat)
 requires
-    (sub(a, b)) == Nat::Zero;
-    (sub(c, d)) == Nat::Zero
+    (saturating_sub(a, b)) == Nat::Zero;
+    (saturating_sub(c, d)) == Nat::Zero
 ensures
-    (sub(add(a, c), add(b, d))) == Nat::Zero
+    (saturating_sub(add(a, c), add(b, d))) == Nat::Zero
 {
     add_le_add_right(a, b, c);
     add_comm(c, b);
@@ -141,9 +141,9 @@ ensures
 machine mul_le_mul_right(a: Nat, b: Nat, factor: Nat) -> Nat
 terminates by factor;
 requires
-    (sub(a, b)) == Nat::Zero
+    (saturating_sub(a, b)) == Nat::Zero
 ensures
-    (sub(mul(a, factor), mul(b, factor))) == Nat::Zero
+    (saturating_sub(mul(a, factor), mul(b, factor))) == Nat::Zero
 {
     transition factor {
         Nat::Zero -> mlmr_zero(a, b)
@@ -171,10 +171,10 @@ ensures
 machine mul_le_cancel_right(a: Nat, b: Nat, factor: Nat) -> Nat
 terminates by a;
 requires
-    (sub(Nat::Succ { prev: Nat::Zero }, factor)) == Nat::Zero;
-    (sub(mul(a, factor), mul(b, factor))) == Nat::Zero
+    (saturating_sub(Nat::Succ { prev: Nat::Zero }, factor)) == Nat::Zero;
+    (saturating_sub(mul(a, factor), mul(b, factor))) == Nat::Zero
 ensures
-    (sub(a, b)) == Nat::Zero
+    (saturating_sub(a, b)) == Nat::Zero
 {
     transition a {
         Nat::Zero -> mlcr_a_zero(b, factor)
@@ -215,7 +215,7 @@ ensures
 machine le_add_gap(a: Nat, b: Nat) -> Nat
 terminates by a;
 ensures
-    (sub(b, add(a, nat_gap(a, b)))) == Nat::Zero
+    (saturating_sub(b, add(a, nat_gap(a, b)))) == Nat::Zero
 {
     transition a {
         Nat::Zero -> lag_zero(b)
@@ -250,17 +250,17 @@ ensures
 // Absolute difference never exceeds the sum of its endpoints.
 machine nat_gap_le_add(a: Nat, b: Nat)
 ensures
-    (sub(nat_gap(a, b), add(a, b))) == Nat::Zero
+    (saturating_sub(nat_gap(a, b), add(a, b))) == Nat::Zero
 {
     sub_le(a, b);
     sub_le(b, a);
-    add_le_add(sub(a, b), a, sub(b, a), b);
+    add_le_add(saturating_sub(a, b), a, saturating_sub(b, a), b);
 }
 
 machine nat_gap_triangle(a: Nat, b: Nat, c: Nat) -> Nat
 terminates by a;
 ensures
-    (sub(nat_gap(a, c), add(nat_gap(a, b), nat_gap(b, c)))) == Nat::Zero
+    (saturating_sub(nat_gap(a, c), add(nat_gap(a, b), nat_gap(b, c)))) == Nat::Zero
 {
     transition a {
         Nat::Zero -> ngt_a_zero(b, c)
@@ -320,7 +320,7 @@ ensures
 machine sub_add_cancel_left(prefix: Nat, a: Nat, b: Nat) -> Nat
 terminates by prefix;
 ensures
-    (sub(add(prefix, a), add(prefix, b))) == (sub(a, b))
+    (saturating_sub(add(prefix, a), add(prefix, b))) == (saturating_sub(a, b))
 {
     transition prefix {
         Nat::Zero -> sacl_zero(a, b)

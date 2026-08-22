@@ -141,7 +141,7 @@ context-derived eligibility, not a separate proof language.
 
 Structural-subterm descent is an automation tier, not the semantic limit of
 proof recursion. For a recursive edge whose next subject is computed (for
-example `sub(a, b)`), the selected ranking view emits its ordinary strict
+example `Nat::saturating_sub(a, b)`), the selected ranking view emits its ordinary strict
 decrease obligation. The normal entailment engine may discharge that
 obligation from contracts or explicitly cited lemmas such as `sub_lt`; no new
 ranking-citation syntax is introduced. Proof-stratum machines use this same

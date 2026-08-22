@@ -1117,7 +1117,7 @@ fn citation_call_in_statement<'program>(
 /// statement calls and `let`-bound call initializers alike -- each with its
 /// requires judged Proven first (skipped otherwise; over-refusal safe) and
 /// its ensures instantiated with `result` mapped to the call term. The
-/// obligation `sub(Succ(ARG), MEASURE) == Zero` then judges under the
+/// obligation `saturating_sub(Succ(ARG), MEASURE) == Zero` then judges under the
 /// accumulated hypotheses.
 pub(crate) fn proof_edge_strict_decrease_judged(
     program: &TypedTrees,
@@ -1348,7 +1348,7 @@ pub(crate) fn proof_edge_strict_decrease_judged(
         return false;
     };
     let left = StructuralTerm::Application {
-        machine: "sub".to_owned(),
+        machine: "saturating_sub".to_owned(),
         arguments: vec![
             StructuralTerm::Constructor {
                 data: "Nat".to_owned(),
@@ -1956,7 +1956,7 @@ struct StructuralCaseArm {
     /// variables. Nested case states contribute one refinement apiece.
     case_hypotheses: Vec<(String, StructuralTerm)>,
     /// COMPUTED-SUBJECT refinements accumulated along the path. A subject
-    /// such as `sub(b, a)` cannot be a substitution, so it is retained as an
+    /// such as `saturating_sub(b, a)` cannot be a substitution, so it is retained as an
     /// equation to intake instead.
     case_equations: Vec<(StructuralTerm, StructuralTerm)>,
     /// PER-ARM CITATIONS (N3 rung 2): equations injected by citation

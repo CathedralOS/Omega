@@ -1,6 +1,6 @@
 // FALSE TWIN for the IH-enriched citation base (N4 order rung): sub_le's
 // exact machine shape -- induction on b, pred_le_left citation, inductive
-// self-call -- but the CLAIM is false (sub(sub(a,b), a) == Succ Zero). The
+// self-call -- but the CLAIM is false (saturating_sub(saturating_sub(a,b), a) == Succ Zero). The
 // two-pass citation instantiation must not let the machinery certify it.
 use omega::language::core::nat;
 
@@ -10,7 +10,7 @@ data Main { console: Console; }
 machine bogus_sub_le(a: Nat, b: Nat) -> Nat
 terminates by b;
 ensures
-    (sub((sub(a, b)), a)) == (Nat::Succ { prev: Nat::Zero })
+    (saturating_sub((saturating_sub(a, b)), a)) == (Nat::Succ { prev: Nat::Zero })
 {
     transition b {
         Nat::Zero -> bsl_zero(a)
@@ -23,7 +23,7 @@ ensures
     }
 
     state bsl_step(a: Nat, q: Nat) -> Nat {
-        pred_le_left((sub(a, q)), a);
+        pred_le_left((saturating_sub(a, q)), a);
         transition { _ -> (bogus_sub_le(a, q)) }
     }
 }

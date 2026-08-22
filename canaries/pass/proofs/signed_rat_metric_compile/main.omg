@@ -30,7 +30,7 @@ ensures
 
 machine signed_scaled_triangle_is_available(left: Rat, middle: Rat, right: Rat)
 ensures
-    (sub(
+    (saturating_sub(
         mul(middle.den, rat_gap(left, right)),
         add(
             mul(right.den, rat_gap(left, middle)),
