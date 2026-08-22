@@ -311,9 +311,12 @@ fn runtime_multi_field_payload_arith_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-multi-field-payload-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("multi-field payload canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("multi-field payload canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("multi-field payload canary should run");
     assert_eq!(
@@ -336,9 +339,12 @@ fn case_payload_shared_field_name_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("case_payload_shared_field_name canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("shared payload field-name canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("case_payload_shared_field_name canary should run");
     assert_eq!(
@@ -375,9 +381,12 @@ fn sum_field_storage_roundtrip_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-sum-field-roundtrip-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("sum field-storage canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("sum field-storage canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("sum field-storage canary should run");
     assert_eq!(
