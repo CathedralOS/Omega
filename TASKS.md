@@ -778,7 +778,11 @@ Owners:
   rebinds the non-Clone provider grant to exact interpretation, origin,
   lineage, geometry, address space, provenance, era, admitted resources, and
   Stable-only observation before each consuming lifecycle step, preserving both
-  inputs on rejection. These extractions leave a 2,523-line coordinator. All 81
+  inputs on rejection. Access authorization and alias-exclusion judgments now
+  live in a focused 112-line owner, retaining exact descriptor permissions,
+  current/source borrow polarity, Stable compound exclusivity, Atomic family/
+  order legality, and whole-transfer footprint conflict classification. These
+  extractions leave a 2,422-line coordinator. All 81
   unit tests, the current 440-function production inventory, diagnostics,
   custody, retry behavior, and the public surface remain unchanged.
 - Implement `Extent::Resident<P, T>` as the owned exact-range dormant-content
