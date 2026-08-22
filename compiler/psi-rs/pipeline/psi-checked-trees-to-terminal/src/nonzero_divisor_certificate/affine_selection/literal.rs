@@ -7,6 +7,7 @@ use super::super::affine_custody::DefinitionIndex;
 
 mod alias;
 mod direct;
+mod root_bounds;
 
 pub(super) fn prove_landed_literal_affine_bound(
     context: &PropositionContext,
