@@ -12,6 +12,7 @@ mod contract_wire;
 mod debug_map;
 mod proof_bundle;
 mod proof_declaration_wire;
+mod proposition_wire;
 mod provider_candidate_wire;
 mod scalar_wire;
 mod structural_field_wire;
@@ -42,10 +43,9 @@ pub use trust_graph::{
 };
 
 use content_wire::{
-    decode_content_algebra, decode_content_entry_claim, decode_content_identity_reshuffle,
-    decode_content_partition_composition, decode_content_term, encode_content_algebra,
-    encode_content_entry_claim, encode_content_identity_reshuffle,
-    encode_content_partition_composition, encode_content_term,
+    decode_content_entry_claim, decode_content_identity_reshuffle,
+    decode_content_partition_composition, encode_content_entry_claim,
+    encode_content_identity_reshuffle, encode_content_partition_composition,
 };
 use contract_wire::{
     decode_contract, decode_crash_predicate, decode_crash_routes, decode_successor_edge,
@@ -56,11 +56,12 @@ use proof_declaration_wire::{
     decode_evidence_interface, decode_proposition_application, decode_proposition_declaration,
     encode_evidence_interface, encode_proposition_application, encode_proposition_declaration,
 };
+use proposition_wire::{decode_proposition, encode_proposition};
 use provider_candidate_wire::{decode_provider_candidate, encode_provider_candidate};
 use psi_core::{
-    CanonicalStructuralPathSegment, ClaimId, ContentConservation, ContentTerm, IeeeFloatFormat,
-    ObligationId, Proposition, PropositionError, PropositionId, PsiSemanticId, ScalarTerm,
-    ServiceId, StructuralCaseSubject, StructuralPlaceKind, StructuralTypeId,
+    CanonicalStructuralPathSegment, ClaimId, ContentTerm, IeeeFloatFormat, ObligationId,
+    Proposition, PropositionError, PropositionId, PsiSemanticId, ScalarTerm, ServiceId,
+    StructuralPlaceKind, StructuralTypeId,
 };
 use psi_terminal::{
     Block, ClaimTransfer, ClosedConformanceApplication, ClosedConformanceParameterBinding,
@@ -84,12 +85,6 @@ use scalar_wire::{
 };
 use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
-use structural_field_wire::{
-    decode_byte_sequence_field, decode_canonical_structural_field,
-    decode_ieee_float_comparison_kind, decode_ieee_float_field, decode_ieee_float_format,
-    encode_byte_sequence_field, encode_canonical_structural_field,
-    encode_ieee_float_comparison_kind, encode_ieee_float_field, encode_ieee_float_format,
-};
 use structural_signature_wire::{
     decode_boundary_machine, decode_structural_parameters, encode_boundary_machine,
     encode_service_ceiling, encode_structural_parameters,
@@ -2402,95 +2397,6 @@ fn encode_obligation_ids(
     Ok(())
 }
 
-fn encode_proposition(
-    writer: &mut Writer,
-    proposition: &Proposition,
-    depth: usize,
-) -> Result<(), CodecError> {
-    if depth > MAX_PROPOSITION_DEPTH {
-        return Err(CodecError::PropositionNestingTooDeep);
-    }
-    match proposition {
-        Proposition::Truth => writer.u8(1),
-        Proposition::Falsehood => writer.u8(2),
-        Proposition::Atom(id) => {
-            writer.u8(3);
-            writer.id(*id);
-        }
-        Proposition::Equal(left, right) => {
-            writer.u8(4);
-            encode_scalar_term(writer, left, 0)?;
-            encode_scalar_term(writer, right, 0)?;
-        }
-        Proposition::LessThan(left, right) => {
-            writer.u8(5);
-            encode_scalar_term(writer, left, 0)?;
-            encode_scalar_term(writer, right, 0)?;
-        }
-        Proposition::LessOrEqual(left, right) => {
-            writer.u8(6);
-            encode_scalar_term(writer, left, 0)?;
-            encode_scalar_term(writer, right, 0)?;
-        }
-        Proposition::Conjunction(conjuncts) => {
-            writer.u8(7);
-            writer.len("conjuncts", conjuncts.len())?;
-            for conjunct in conjuncts {
-                encode_proposition(writer, conjunct, depth + 1)?;
-            }
-        }
-        Proposition::Implication {
-            premise,
-            conclusion,
-        } => {
-            writer.u8(8);
-            encode_proposition(writer, premise, depth + 1)?;
-            encode_proposition(writer, conclusion, depth + 1)?;
-        }
-        Proposition::ContentConservation(conservation) => {
-            writer.u8(9);
-            encode_content_algebra(writer, conservation.algebra())?;
-            encode_content_term(writer, conservation.left(), 0)?;
-            encode_content_term(writer, conservation.right(), 0)?;
-        }
-        Proposition::Disjunction(disjuncts) => {
-            writer.u8(10);
-            writer.len("disjuncts", disjuncts.len())?;
-            for disjunct in disjuncts {
-                encode_proposition(writer, disjunct, depth + 1)?;
-            }
-        }
-        Proposition::IeeeFloatComparison {
-            kind,
-            format,
-            left,
-            right,
-        } => {
-            writer.u8(11);
-            encode_ieee_float_comparison_kind(writer, *kind);
-            encode_ieee_float_format(writer, *format);
-            encode_ieee_float_field(writer, left)?;
-            encode_ieee_float_field(writer, right)?;
-        }
-        Proposition::ByteSequenceEqual { left, right } => {
-            writer.u8(12);
-            encode_byte_sequence_field(writer, left)?;
-            encode_byte_sequence_field(writer, right)?;
-        }
-        Proposition::StructuralCaseMembership { subject, case } => {
-            writer.u8(13);
-            encode_canonical_structural_field(
-                writer,
-                subject.root(),
-                subject.path(),
-                "structural case subject path",
-            )?;
-            writer.id(*case);
-        }
-    }
-    Ok(())
-}
-
 fn encode_structural_place_kind(writer: &mut Writer, kind: StructuralPlaceKind) {
     match kind {
         StructuralPlaceKind::Parameter { position, is_self } => {
@@ -3563,73 +3469,6 @@ fn decode_structural_path(
         )),
         2 => Ok(StructuralPathSegment::FixedIndex(reader.u64()?)),
         tag => Err(CodecError::InvalidTag("StructuralPathSegment", tag)),
-    })
-}
-
-fn decode_proposition(reader: &mut Reader<'_>, depth: usize) -> Result<Proposition, CodecError> {
-    if depth > MAX_PROPOSITION_DEPTH {
-        return Err(CodecError::PropositionNestingTooDeep);
-    }
-    Ok(match reader.u8()? {
-        1 => Proposition::Truth,
-        2 => Proposition::Falsehood,
-        3 => Proposition::Atom(reader.id::<PropositionId>("PropositionId")?),
-        4 => Proposition::Equal(
-            decode_scalar_term(reader, 0)?,
-            decode_scalar_term(reader, 0)?,
-        ),
-        5 => Proposition::LessThan(
-            decode_scalar_term(reader, 0)?,
-            decode_scalar_term(reader, 0)?,
-        ),
-        6 => Proposition::LessOrEqual(
-            decode_scalar_term(reader, 0)?,
-            decode_scalar_term(reader, 0)?,
-        ),
-        7 => {
-            let count = reader.count()?;
-            let mut conjuncts = Vec::new();
-            for _ in 0..count {
-                conjuncts.push(decode_proposition(reader, depth + 1)?);
-            }
-            Proposition::Conjunction(conjuncts)
-        }
-        8 => Proposition::Implication {
-            premise: Box::new(decode_proposition(reader, depth + 1)?),
-            conclusion: Box::new(decode_proposition(reader, depth + 1)?),
-        },
-        9 => {
-            let algebra = decode_content_algebra(reader)?;
-            let left = decode_content_term(reader, 0)?;
-            let right = decode_content_term(reader, 0)?;
-            Proposition::ContentConservation(ContentConservation::new(algebra, left, right))
-        }
-        10 => {
-            let count = reader.count()?;
-            let mut disjuncts = Vec::new();
-            for _ in 0..count {
-                disjuncts.push(decode_proposition(reader, depth + 1)?);
-            }
-            Proposition::Disjunction(disjuncts)
-        }
-        11 => Proposition::IeeeFloatComparison {
-            kind: decode_ieee_float_comparison_kind(reader)?,
-            format: decode_ieee_float_format(reader)?,
-            left: decode_ieee_float_field(reader)?,
-            right: decode_ieee_float_field(reader)?,
-        },
-        12 => Proposition::ByteSequenceEqual {
-            left: decode_byte_sequence_field(reader)?,
-            right: decode_byte_sequence_field(reader)?,
-        },
-        13 => {
-            let (root, path) = decode_canonical_structural_field(reader)?;
-            Proposition::StructuralCaseMembership {
-                subject: StructuralCaseSubject::new(root, path),
-                case: reader.id("StructuralCaseId")?,
-            }
-        }
-        tag => return Err(CodecError::InvalidTag("Proposition", tag)),
     })
 }
 
