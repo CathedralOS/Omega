@@ -20,6 +20,46 @@ pub struct SelectedExternalRootProviderPlan {
     pub schema: ServiceSchema,
 }
 
+/// One exact selected source schema sealed to the provider-populated writer
+/// preparation it admitted. Binding consumes this carrier as a unit, so a
+/// caller cannot substitute another same-plan schema after source resolution.
+#[derive(Debug, PartialEq, Eq)]
+pub struct SelectedExternalRootPostHandoffWriterPreparation {
+    selected_provider: SelectedExternalRootProviderPlan,
+    prepared: omega_external_roots::PreparedExternalRootPostHandoffWriterInvocation,
+}
+
+impl SelectedExternalRootPostHandoffWriterPreparation {
+    pub const fn selected_provider(&self) -> &SelectedExternalRootProviderPlan {
+        &self.selected_provider
+    }
+
+    pub const fn prepared(
+        &self,
+    ) -> &omega_external_roots::PreparedExternalRootPostHandoffWriterInvocation {
+        &self.prepared
+    }
+}
+
+/// Preparation rejection returns the exact selected schema. Provider
+/// execution, installed code, writer, and placement are borrowed inputs and
+/// therefore remain with the caller unchanged.
+#[derive(Debug)]
+pub struct SelectedExternalRootWriterPreparationError {
+    selected_provider: SelectedExternalRootProviderPlan,
+    diagnostic: omega_external_roots::ExternalRootDiagnostic,
+}
+
+impl SelectedExternalRootWriterPreparationError {
+    pub const fn diagnostic(&self) -> &omega_external_roots::ExternalRootDiagnostic {
+        &self.diagnostic
+    }
+
+    pub fn into_selected_provider(self) -> SelectedExternalRootProviderPlan {
+        self.selected_provider
+    }
+}
+
 /// A generated writer whose exact AOT fragment and selected source schema are
 /// joined to one admitted external-root execution and its provider-populated
 /// invocation context.
@@ -184,9 +224,8 @@ impl<'mapping, 'bytes> WrittenBoundExternalRootPostHandoffWriterDestination<'map
 /// bytes or provider authority.
 #[derive(Debug)]
 pub struct ExternalRootPostHandoffWriterBindingError {
-    selected_provider: SelectedExternalRootProviderPlan,
+    preparation: SelectedExternalRootPostHandoffWriterPreparation,
     lowered: omega_instruction_selection::LoweredPostHandoffWriter,
-    prepared: omega_external_roots::PreparedExternalRootPostHandoffWriterInvocation,
     diagnostic: psi_diagnostics::Diagnostic,
 }
 
@@ -198,11 +237,10 @@ impl ExternalRootPostHandoffWriterBindingError {
     pub fn into_parts(
         self,
     ) -> (
-        SelectedExternalRootProviderPlan,
         omega_instruction_selection::LoweredPostHandoffWriter,
-        omega_external_roots::PreparedExternalRootPostHandoffWriterInvocation,
+        SelectedExternalRootPostHandoffWriterPreparation,
     ) {
-        (self.selected_provider, self.lowered, self.prepared)
+        (self.lowered, self.preparation)
     }
 }
 
@@ -391,18 +429,18 @@ fn validate_selected_provider_source(
 /// provider-execution preparation that already checked selected closure,
 /// installed entry, symbolic sources, and concrete destination placement.
 pub fn bind_external_root_post_handoff_writer_invocation(
-    selected_provider: SelectedExternalRootProviderPlan,
     lowered: omega_instruction_selection::LoweredPostHandoffWriter,
-    prepared: omega_external_roots::PreparedExternalRootPostHandoffWriterInvocation,
+    preparation: SelectedExternalRootPostHandoffWriterPreparation,
 ) -> Result<BoundExternalRootPostHandoffWriterInvocation, ExternalRootPostHandoffWriterBindingError>
 {
+    let selected_provider = preparation.selected_provider();
+    let prepared = preparation.prepared();
     if let Err(diagnostic) =
         omega_instruction_selection::validate_lowered_post_handoff_writer(&lowered)
     {
         return Err(ExternalRootPostHandoffWriterBindingError {
-            selected_provider,
+            preparation,
             lowered,
-            prepared,
             diagnostic,
         });
     }
@@ -413,9 +451,8 @@ pub fn bind_external_root_post_handoff_writer_invocation(
             lowered.fragment().target().architecture
         ));
         return Err(ExternalRootPostHandoffWriterBindingError {
-            selected_provider,
+            preparation,
             lowered,
-            prepared,
             diagnostic,
         });
     }
@@ -425,23 +462,24 @@ pub fn bind_external_root_post_handoff_writer_invocation(
         || !prepared.context().binds_invocation(lowered.invocation())
     {
         return Err(ExternalRootPostHandoffWriterBindingError {
-            selected_provider,
+            preparation,
             lowered,
-            prepared,
             diagnostic: psi_diagnostics::Diagnostic::error(
                 "external-root provider preparation does not bind the exact lowered post-handoff writer invocation",
             ),
         });
     }
-    if let Err(diagnostic) = validate_selected_provider_writer_source(&selected_provider, &prepared)
-    {
+    if let Err(diagnostic) = validate_selected_provider_writer_source(selected_provider, prepared) {
         return Err(ExternalRootPostHandoffWriterBindingError {
-            selected_provider,
+            preparation,
             lowered,
-            prepared,
             diagnostic: psi_diagnostics::Diagnostic::error(diagnostic.0),
         });
     }
+    let SelectedExternalRootPostHandoffWriterPreparation {
+        selected_provider,
+        prepared,
+    } = preparation;
     Ok(BoundExternalRootPostHandoffWriterInvocation {
         selected_provider,
         lowered,
@@ -657,38 +695,54 @@ impl SelectedExternalRootProviderPlan {
     /// Matching it here prevents accidental closure substitution between
     /// selection and writer preparation.
     pub fn prepare_post_handoff_entry_writer(
-        &self,
+        self,
         execution: &omega_external_roots::ProviderExecution,
         installed_code: &omega_executable_installation::InstalledCode,
         writer: &psi_layout_plans::PostHandoffWriterPlan,
         destination_len: usize,
         destination_site: psi_layout_plans::PlacementSite,
     ) -> Result<
-        omega_external_roots::PreparedExternalRootPostHandoffWriterInvocation,
-        omega_external_roots::ExternalRootDiagnostic,
+        SelectedExternalRootPostHandoffWriterPreparation,
+        SelectedExternalRootWriterPreparationError,
     > {
         if self.identity != execution.provider_plan() {
-            return Err(omega_external_roots::ExternalRootDiagnostic(
-                "post-handoff writer selected provider plan does not match the admitted provider execution"
-                    .into(),
-            ));
+            return Err(SelectedExternalRootWriterPreparationError {
+                selected_provider: self,
+                diagnostic: omega_external_roots::ExternalRootDiagnostic(
+                    "post-handoff writer selected provider plan does not match the admitted provider execution"
+                        .into(),
+                ),
+            });
         }
-        validate_selected_provider_source(
-            self,
+        if let Err(diagnostic) = validate_selected_provider_source(
+            &self,
             execution.selected_requirement_identity(),
             execution.selected_boundary_parameter_count(),
             execution.selected_boundary_contract_fingerprint(),
             execution.selected_entry_claims(),
             execution.provider_plan().normalized_identity(),
-        )
-        .map_err(|diagnostic| omega_external_roots::ExternalRootDiagnostic(diagnostic.0))?;
-        execution.prepare_post_handoff_entry_writer(
+        ) {
+            return Err(SelectedExternalRootWriterPreparationError {
+                selected_provider: self,
+                diagnostic: omega_external_roots::ExternalRootDiagnostic(diagnostic.0),
+            });
+        }
+        match execution.prepare_post_handoff_entry_writer(
             self.identity,
             installed_code,
             writer,
             destination_len,
             destination_site,
-        )
+        ) {
+            Ok(prepared) => Ok(SelectedExternalRootPostHandoffWriterPreparation {
+                selected_provider: self,
+                prepared,
+            }),
+            Err(diagnostic) => Err(SelectedExternalRootWriterPreparationError {
+                selected_provider: self,
+                diagnostic,
+            }),
+        }
     }
 
     /// Lower the compiler-owned accepted claims for one exact requirement into
