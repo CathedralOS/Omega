@@ -749,6 +749,9 @@ That constructor also rejoins the optional program-storage entry binding to its
 native bridge. Both must be absent together or the retained binding must equal
 the bridge's exact binding; a dropped, unpaired, or redirected binding rejects
 before report return.
+The retained binding and bridge are outwardly read-only after that check.
+Consumers can inspect or clone their evidence through accessors, but cannot
+mutate one side of the report pair into a post-validation mismatch.
 Final relocation replay also builds one exact owner map from every retained
 selected-instruction identity to that function symbol. A selected instruction
 retained twice, an instruction relocation naming another function, or an

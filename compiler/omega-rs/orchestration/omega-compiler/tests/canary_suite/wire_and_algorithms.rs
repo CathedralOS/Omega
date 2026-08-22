@@ -184,7 +184,7 @@ fn numbered_case_identities_compile() {
     })
     .expect("numbered case identities should survive the compiler pipeline");
     assert!(!compilation.wrote_output());
-    assert_eq!(compilation.program_storage_entry, None);
+    assert!(compilation.program_storage_entry().is_none());
     let report = fs::read_to_string(build_dir.join("04_wire_protocols.txt"))
         .expect("identity-keyed ordinary data should appear in the wire artifact");
     assert!(

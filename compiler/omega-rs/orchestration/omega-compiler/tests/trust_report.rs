@@ -14,7 +14,7 @@ fn compile(
     );
     let report = omega_compiler::compile(options)?;
     assert!(!report.wrote_output());
-    assert_eq!(report.program_storage_entry, None);
+    assert!(report.program_storage_entry().is_none());
     Ok(report)
 }
 
