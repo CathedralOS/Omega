@@ -1,5 +1,5 @@
 use psi_core::{IntegerValue, Proposition};
-use psi_proof_kernel::{AdmissionProfile, EvidenceRoute, ProofRule};
+use psi_proof_kernel::{AdmissionProfile, EvidenceRoute, PrimitiveJudgment, ProofRule};
 use psi_source_files_to_tokens::Lexer;
 use psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
@@ -19,7 +19,7 @@ const SOURCE: &str = r#"
 "#;
 
 #[test]
-fn landed_negative_one_and_nonminimum_dividend_use_canonical_exact_certificates() {
+fn landed_negative_one_and_nonminimum_dividend_use_closed_exact_certificates() {
     let tokens = Lexer::new(SOURCE).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = lower_syntax_trees(&syntax).expect("resolve");
@@ -55,17 +55,10 @@ fn landed_negative_one_and_nonminimum_dividend_use_canonical_exact_certificates(
         let EvidenceRoute::CertificateDerived(certificate) = &evidence.route else {
             panic!("closed signed exact operation has a recursive certificate")
         };
+        assert_eq!(certificate.proof.conclusion, Proposition::Truth);
         assert!(matches!(
-            certificate.proof.conclusion,
-            Proposition::Disjunction(ref disjuncts) if disjuncts.len() == 3
-        ));
-        let ProofRule::DisjunctionIntroduction { disjunct, index } = &certificate.proof.rule else {
-            panic!("signed -1 operation selects one canonical exact-defined arm")
-        };
-        assert_eq!(*index, 2);
-        assert!(matches!(
-            disjunct.rule,
-            ProofRule::ConjunctionIntroduction(ref conjuncts) if conjuncts.len() == 2
+            certificate.proof.rule,
+            ProofRule::Primitive(PrimitiveJudgment::Truth)
         ));
     }
 
@@ -107,6 +100,6 @@ fn landed_negative_one_and_nonminimum_dividend_use_canonical_exact_certificates(
             &AdmissionProfile::default(),
         )
         .is_err(),
-        "stale exceptional-arm certificates reject a minimum dividend",
+        "stale closed-goal certificates reject a minimum dividend",
     );
 }

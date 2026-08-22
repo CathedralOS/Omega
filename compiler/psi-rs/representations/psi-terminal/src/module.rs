@@ -341,9 +341,12 @@ pub struct BoundaryMachineDeclaration {
     pub id: BoundaryMachineId,
     pub identity: String,
     pub attachment: Option<StructuralTypeId>,
-    /// This first boundary slice has structural parameters and no scalar
-    /// parameters. A primitive scalar result is retained when the successful
-    /// invocation returns a runtime status/value.
+    /// Ordered primitive scalar parameters. Boundary calls bind their scalar
+    /// arguments positionally and preserve this authored order exactly.
+    pub scalar_parameters: Vec<ScalarType>,
+    /// Ordered runtime structural parameters, independently positional from
+    /// the scalar lane. A primitive scalar result is retained when the
+    /// successful invocation returns a runtime status/value.
     pub structural_parameters: Vec<StructuralParameterDeclaration>,
     pub result: Option<ScalarType>,
     /// Strictly ordered by `(argument_index, domain)`.
@@ -930,6 +933,9 @@ pub enum OperationKind {
     /// with the boundary declaration's optional scalar result.
     BoundaryCall {
         boundary: BoundaryMachineId,
+        /// Positional scalar arguments in the boundary declaration's exact
+        /// authored parameter order.
+        arguments: Vec<ValueId>,
         structural_arguments: Vec<StructuralArgument>,
         completion_receipts: Vec<CompletionReceipt>,
         requirement_obligations: Vec<ObligationId>,

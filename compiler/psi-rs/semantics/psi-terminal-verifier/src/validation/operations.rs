@@ -5,6 +5,7 @@ use super::*;
 pub(super) fn validate_operation_operands(
     operation: &psi_terminal::Operation,
     machines: &BTreeMap<MachineId, &TerminalMachine>,
+    boundary_machines: &[BoundaryMachineDeclaration],
     value_types: &BTreeMap<ValueId, ScalarType>,
     defined: &BTreeSet<ValueId>,
 ) -> Result<(), ModuleError> {
@@ -16,25 +17,38 @@ pub(super) fn validate_operation_operands(
             .get(callee)
             .copied()
             .expect("call target was validated during operation registration");
-        if arguments.len() != callee.parameters.len() {
-            return Err(ModuleError::CallArgumentArityMismatch {
-                operation: operation.id,
-                expected: callee.parameters.len(),
-                actual: arguments.len(),
-            });
-        }
-        for (argument, parameter) in arguments.iter().zip(&callee.parameters) {
-            require_defined(*argument, value_types, defined)?;
-            let actual = value_types[argument];
-            if actual != parameter.scalar_type {
-                return Err(ModuleError::CallArgumentTypeMismatch {
-                    operation: operation.id,
-                    argument: *argument,
-                    expected: parameter.scalar_type,
-                    actual,
-                });
-            }
-        }
+        validate_call_arguments(
+            operation.id,
+            arguments,
+            &callee
+                .parameters
+                .iter()
+                .map(|parameter| parameter.scalar_type)
+                .collect::<Vec<_>>(),
+            value_types,
+            defined,
+            ScalarCallKind::Ordinary,
+        )?;
+        return Ok(());
+    }
+    if let OperationKind::BoundaryCall {
+        boundary,
+        arguments,
+        ..
+    } = &operation.kind
+    {
+        let boundary = boundary_machines
+            .iter()
+            .find(|candidate| candidate.id == *boundary)
+            .expect("boundary target was validated during operation registration");
+        validate_call_arguments(
+            operation.id,
+            arguments,
+            &boundary.scalar_parameters,
+            value_types,
+            defined,
+            ScalarCallKind::Boundary,
+        )?;
         return Ok(());
     }
     if let OperationKind::IntegerExactCast { operand, .. } = operation.kind.clone() {
@@ -493,6 +507,81 @@ pub(super) fn validate_operation_operands(
                         actual,
                     }
                 }
+            });
+        }
+    }
+    Ok(())
+}
+
+#[derive(Clone, Copy)]
+enum ScalarCallKind {
+    Ordinary,
+    Boundary,
+}
+
+fn validate_call_arguments(
+    operation: OperationId,
+    arguments: &[ValueId],
+    parameter_types: &[ScalarType],
+    value_types: &BTreeMap<ValueId, ScalarType>,
+    defined: &BTreeSet<ValueId>,
+    kind: ScalarCallKind,
+) -> Result<(), ModuleError> {
+    if arguments.len() != parameter_types.len() {
+        return Err(match kind {
+            ScalarCallKind::Ordinary => ModuleError::CallArgumentArityMismatch {
+                operation,
+                expected: parameter_types.len(),
+                actual: arguments.len(),
+            },
+            ScalarCallKind::Boundary => ModuleError::BoundaryCallArgumentArityMismatch {
+                operation,
+                expected: parameter_types.len(),
+                actual: arguments.len(),
+            },
+        });
+    }
+    for (argument, expected) in arguments.iter().zip(parameter_types) {
+        if let Err(error) = require_defined(*argument, value_types, defined) {
+            return Err(match (kind, error) {
+                (ScalarCallKind::Boundary, ModuleError::UnknownValue(_)) => {
+                    ModuleError::UnknownBoundaryCallArgument {
+                        operation,
+                        argument: *argument,
+                    }
+                }
+                (ScalarCallKind::Boundary, ModuleError::ValueUsedBeforeDefinition(_))
+                    if !value_types.contains_key(argument) =>
+                {
+                    ModuleError::UnknownBoundaryCallArgument {
+                        operation,
+                        argument: *argument,
+                    }
+                }
+                (ScalarCallKind::Boundary, ModuleError::ValueUsedBeforeDefinition(_)) => {
+                    ModuleError::BoundaryCallArgumentUsedBeforeDefinition {
+                        operation,
+                        argument: *argument,
+                    }
+                }
+                (_, error) => error,
+            });
+        }
+        let actual = value_types[argument];
+        if actual != *expected {
+            return Err(match kind {
+                ScalarCallKind::Ordinary => ModuleError::CallArgumentTypeMismatch {
+                    operation,
+                    argument: *argument,
+                    expected: *expected,
+                    actual,
+                },
+                ScalarCallKind::Boundary => ModuleError::BoundaryCallArgumentTypeMismatch {
+                    operation,
+                    argument: *argument,
+                    expected: *expected,
+                    actual,
+                },
             });
         }
     }

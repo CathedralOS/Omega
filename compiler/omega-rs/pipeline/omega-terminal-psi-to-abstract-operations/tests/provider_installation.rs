@@ -192,6 +192,7 @@ fn provider_catalog_union_rejects_a_candidate_that_reenters_its_boundary() {
         result: OperationResult::Unit,
         kind: OperationKind::BoundaryCall {
             boundary: boundary_id(1),
+            arguments: Vec::new(),
             structural_arguments: Vec::new(),
             completion_receipts: Vec::new(),
             requirement_obligations: Vec::new(),
@@ -247,6 +248,7 @@ fn provider_module() -> TerminalModule {
             id: boundary_id(1),
             identity: REQUIREMENT.into(),
             attachment: None,
+            scalar_parameters: Vec::new(),
             structural_parameters: Vec::new(),
             result: None,
             requires: Vec::new(),
@@ -286,6 +288,7 @@ fn provider_module() -> TerminalModule {
                     result: OperationResult::Unit,
                     kind: OperationKind::BoundaryCall {
                         boundary: boundary_id(1),
+                        arguments: Vec::new(),
                         structural_arguments: Vec::new(),
                         completion_receipts: Vec::new(),
                         requirement_obligations: Vec::new(),

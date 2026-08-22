@@ -651,6 +651,7 @@ fn hard_root_checked_fixture() -> CheckedTrees {
                 is_self: true,
                 ..structural_parameter(0)
             }],
+            scalar_parameters: Vec::new(),
             result_type: None,
             domain_requirements: vec![
                 psi_checked_trees::CheckedUnitStructuralDomainRequirementPlan {
@@ -733,6 +734,7 @@ fn hard_root_checked_fixture() -> CheckedTrees {
                         target_state: boundary_state,
                         target_contract_fingerprint: 0x303,
                         service_reach: reach,
+                        scalar_arguments: Vec::new(),
                         structural_arguments: vec![
                             psi_checked_trees::CheckedUnitStructuralArgumentPlan {
                                 source_parameter_index: 0,

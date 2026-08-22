@@ -744,6 +744,12 @@ pub(super) fn validate_machine(
         ));
     }
 
-    control_flow::validate_control_flow(machine, machines, &blocks, &value_types)?;
+    control_flow::validate_control_flow(
+        machine,
+        machines,
+        &module.boundary_machines,
+        &blocks,
+        &value_types,
+    )?;
     frontier::validate_structural_frontier(module, machine, machines, &blocks)
 }

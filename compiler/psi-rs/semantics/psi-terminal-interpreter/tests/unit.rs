@@ -1151,6 +1151,7 @@ fn unit_calls_transfer_claims_and_effects_observe_exact_structural_arguments() {
             operation: operation_id(3),
             result: None,
             boundary: boundary_id(1),
+            arguments: Vec::new(),
             structural_arguments: vec![argument],
             completion_receipts: vec![CompletionReceipt {
                 claim: claim_id(1),
@@ -1168,6 +1169,57 @@ fn unit_calls_transfer_claims_and_effects_observe_exact_structural_arguments() {
     assert_eq!(measured.effects(), expected);
     assert_eq!(measured.value(), TerminalExecutionResult::Unit);
     assert_eq!(measured.usage().total_units(), 5);
+}
+
+#[test]
+fn boundary_scalar_arguments_reach_effect_handlers_in_declared_order() {
+    let module = scalar_boundary_effect_module();
+    let semantic = encode_module(&module).expect("scalar boundary module encodes");
+    let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes");
+    let mut handler = RecordingHandler::default();
+    let measured = interpret_terminal_artifact_with_effect_handler_measured(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+        &[],
+        &[],
+        &mut handler,
+    )
+    .expect("verified scalar boundary call executes");
+
+    let expected = TerminalEffect::BoundaryCall {
+        operation: operation_id(3),
+        boundary: boundary_id(1),
+        arguments: vec![
+            TerminalScalarValue::Boolean(true),
+            TerminalScalarValue::Boolean(false),
+        ],
+        structural_arguments: Vec::new(),
+        completion_receipts: Vec::new(),
+        result: None,
+    };
+    assert_eq!(handler.effects, [expected.clone()]);
+    assert_eq!(measured.effects(), &[expected]);
+    assert_eq!(measured.value(), TerminalExecutionResult::Unit);
+}
+
+#[test]
+fn boundary_scalar_argument_effect_rejection_is_fail_closed() {
+    let module = scalar_boundary_effect_module();
+    let semantic = encode_module(&module).expect("scalar boundary module encodes");
+    let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes");
+    let mut execution =
+        TerminalExecution::start_artifact(&semantic, &proof, &AdmissionProfile::default(), &[])
+            .expect("verified scalar boundary call starts");
+    let mut meter = TerminalFuelMeter::unbounded();
+    let mut handler = RejectScalarBoundaryArguments;
+
+    assert!(matches!(
+        execution.resume_with_effect_handler(&mut meter, &mut handler),
+        Err(TerminalInterpretError::EffectRejected { operation, .. })
+            if operation == operation_id(3)
+    ));
+    assert!(execution.effects().is_empty());
 }
 
 #[test]
@@ -1481,11 +1533,116 @@ impl TerminalEffectHandler for RejectingHandler {
     }
 }
 
+struct RejectScalarBoundaryArguments;
+
+impl TerminalEffectHandler for RejectScalarBoundaryArguments {
+    fn handle_effect(&mut self, effect: &TerminalEffect) -> Result<(), TerminalEffectRejection> {
+        match effect {
+            TerminalEffect::BoundaryCall { arguments, .. }
+                if arguments
+                    == &[
+                        TerminalScalarValue::Boolean(true),
+                        TerminalScalarValue::Boolean(false),
+                    ] =>
+            {
+                Err(TerminalEffectRejection::new(
+                    "mock policy rejects the scalar boundary argument",
+                ))
+            }
+            _ => Err(TerminalEffectRejection::new(
+                "scalar boundary arguments were not resolved in declaration order",
+            )),
+        }
+    }
+}
+
 fn effect_artifact_sections() -> (Vec<u8>, Vec<u8>) {
     (
         encode_module(&effect_module()).expect("effect semantics encode"),
         encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes"),
     )
+}
+
+fn scalar_boundary_effect_module() -> TerminalModule {
+    TerminalModule {
+        vocabulary_marker: VocabularyMarker::CURRENT,
+        entry: machine_id(1),
+        structural_types: Vec::new(),
+        structural_domains: Vec::new(),
+        services: Vec::new(),
+        root_service_reach: Default::default(),
+        boundary_machines: vec![BoundaryMachineDeclaration {
+            id: boundary_id(1),
+            identity: "test::observe".into(),
+            attachment: None,
+            scalar_parameters: vec![ScalarType::Boolean, ScalarType::Boolean],
+            structural_parameters: Vec::new(),
+            result: None,
+            requires: Vec::new(),
+            published_service_ceiling: Vec::new(),
+        }],
+        provider_candidates: Vec::new(),
+        float_meaning_projections: Vec::new(),
+        float_meaning_equalities: Vec::new(),
+        proposition_declarations: Vec::new(),
+        proposition_applications: Vec::new(),
+        evidence_terms: Vec::new(),
+        evidence_contract_lanes: Vec::new(),
+        evidence_package_invocations: Vec::new(),
+        closed_conformance_applications: Vec::new(),
+        machines: vec![TerminalMachine {
+            id: machine_id(1),
+            attachment: None,
+            parameters: Vec::new(),
+            structural_parameters: Vec::new(),
+            result: TerminalMachineResult::Unit,
+            structural_places: Vec::new(),
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
+            content_entry_claims: Vec::new(),
+            content_identity_reshuffles: Vec::new(),
+            content_partition_compositions: Vec::new(),
+            entry: block_id(1),
+            blocks: vec![Block {
+                id: block_id(1),
+                parameters: Vec::new(),
+                operations: vec![
+                    Operation {
+                        id: operation_id(1),
+                        result: OperationResult::Scalar(ValueDeclaration {
+                            id: value_id(1),
+                            scalar_type: ScalarType::Boolean,
+                        }),
+                        kind: OperationKind::BooleanConstant { value: true },
+                    },
+                    Operation {
+                        id: operation_id(2),
+                        result: OperationResult::Scalar(ValueDeclaration {
+                            id: value_id(2),
+                            scalar_type: ScalarType::Boolean,
+                        }),
+                        kind: OperationKind::BooleanConstant { value: false },
+                    },
+                    Operation {
+                        id: operation_id(3),
+                        result: OperationResult::Unit,
+                        kind: OperationKind::BoundaryCall {
+                            boundary: boundary_id(1),
+                            arguments: vec![value_id(1), value_id(2)],
+                            structural_arguments: Vec::new(),
+                            completion_receipts: Vec::new(),
+                            requirement_obligations: Vec::new(),
+                        },
+                    },
+                ],
+                terminator: Terminator::ReturnUnit {
+                    edge: edge_id(1),
+                    trivial_affine_discards: Vec::new(),
+                },
+            }],
+            contract: empty_contract(contract_id(1)),
+        }],
+    }
 }
 
 fn effect_module() -> TerminalModule {
@@ -1515,6 +1672,7 @@ fn effect_module() -> TerminalModule {
             id: boundary_id(1),
             identity: "test::acknowledge".into(),
             attachment: Some(structural_type),
+            scalar_parameters: Vec::new(),
             structural_parameters: vec![structural_parameter(place_id(3), structural_type, domain)],
             result: None,
             requires: vec![StructuralDomainRequirement {
@@ -1621,6 +1779,7 @@ fn effect_module() -> TerminalModule {
                         result: OperationResult::Unit,
                         kind: OperationKind::BoundaryCall {
                             boundary: boundary_id(1),
+                            arguments: Vec::new(),
                             structural_arguments: vec![StructuralArgument {
                                 place: place_id(2),
                                 path: Vec::new(),

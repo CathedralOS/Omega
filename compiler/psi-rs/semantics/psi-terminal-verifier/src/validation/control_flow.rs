@@ -6,6 +6,7 @@ use super::*;
 pub(super) fn validate_control_flow(
     machine: &TerminalMachine,
     machines: &BTreeMap<MachineId, &TerminalMachine>,
+    boundary_machines: &[BoundaryMachineDeclaration],
     blocks: &BTreeMap<BlockId, &psi_terminal::Block>,
     value_types: &BTreeMap<ValueId, ScalarType>,
 ) -> Result<(), ModuleError> {
@@ -155,7 +156,13 @@ pub(super) fn validate_control_flow(
             (*definition != block_id && block_dominators.contains(definition)).then_some(*value)
         }));
         for operation in &block.operations {
-            validate_operation_operands(operation, machines, value_types, &defined)?;
+            validate_operation_operands(
+                operation,
+                machines,
+                boundary_machines,
+                value_types,
+                &defined,
+            )?;
             if let Some(result) = operation.result.scalar() {
                 defined.insert(result.id);
             }

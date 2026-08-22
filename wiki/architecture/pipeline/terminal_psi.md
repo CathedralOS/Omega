@@ -39,20 +39,22 @@ Parsing therefore belongs to Psi. “Omega files” is the language and product
 branding; Psi is the frontend, semantic verifier input, and portable execution
 representation.
 
-### Current boundary-argument fence
+### Boundary-argument realization fence
 
-Ordinary in-module calls already carry positional scalar arguments. Bodyless
-boundary calls do not: the current `BoundaryMachineDeclaration` declares only
-structural parameters, and `BoundaryCall` carries only structural arguments.
-Its optional primitive scalar is a result lane, not an input lane. A scalar
-boundary-input slice must add exact declared parameter types and positional
-value arguments through canonical encoding, validation, interpretation, fuel,
-and Omega abstract lowering together. The target lowering must reject a scalar
-boundary call until its selected boundary has a real realization; preserving
-the value in an abstract operation is not permission to discard it in a
-metadata-only backend path. Producers must not encode an effect input as an
-ordinary machine return or introduce a private pre-terminal IR to evade this
-fence.
+Ordinary in-module and bodyless boundary calls both carry positional scalar
+arguments. In terminal-Psi vocabulary 23, `BoundaryMachineDeclaration` declares
+ordered scalar parameter types and `BoundaryCall` carries the matching ordered
+`ValueId` arguments alongside its structural lane. Canonical encoding binds
+both orders; validation checks exact arity, definition, dominance, and type;
+interpretation evaluates the scalar values before invoking the effect handler;
+and Omega abstract lowering preserves them without reinterpretation. The
+optional primitive scalar remains the independent result lane.
+
+Preservation is not realization. Omega target lowering rejects nonempty scalar
+boundary calls until the selected boundary has a native implementation; it may
+not discard the values in a metadata-only backend path. Producers likewise may
+not encode an effect input as an ordinary machine return or introduce a private
+pre-terminal IR to evade this fence.
 
 ## Checked-adapter provider installation
 

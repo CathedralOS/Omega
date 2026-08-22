@@ -280,6 +280,25 @@ pub enum ModuleError {
         expected: Option<ScalarType>,
         actual: Option<ScalarType>,
     },
+    BoundaryCallArgumentArityMismatch {
+        operation: OperationId,
+        expected: usize,
+        actual: usize,
+    },
+    UnknownBoundaryCallArgument {
+        operation: OperationId,
+        argument: ValueId,
+    },
+    BoundaryCallArgumentUsedBeforeDefinition {
+        operation: OperationId,
+        argument: ValueId,
+    },
+    BoundaryCallArgumentTypeMismatch {
+        operation: OperationId,
+        argument: ValueId,
+        expected: ScalarType,
+        actual: ScalarType,
+    },
     UnitCallTargetHasScalarSignature {
         operation: OperationId,
         callee: MachineId,

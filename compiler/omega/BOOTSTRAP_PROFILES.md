@@ -106,21 +106,22 @@ deterministic runnable artifact. The artifact must print the literal plus one
 newline, then exit with the requested low-byte status; those observations must
 agree with canonical meaning.
 
-The current terminal-Psi vocabulary is not yet sufficient for that lowering.
-`BoundaryMachineDeclaration` explicitly has structural parameters but no scalar
-parameters, and `OperationKind::BoundaryCall` likewise has no scalar-argument
-lane. O0 therefore waits on canonical scalar boundary arguments for
-`exit_process(i32)`; treating the exit literal as an unrelated machine return or
-introducing an Omega0-only IR would evade, not close, the intended seam. The
-string passed to `write_line` must also retain its exact structural carrier and
-custody through the same canonical call.
+Terminal-Psi vocabulary 23 now represents the scalar half of that lowering.
+`BoundaryMachineDeclaration` carries ordered scalar parameter types and
+`OperationKind::BoundaryCall` carries ordered scalar `ValueId` arguments. The
+checked producer retains exact scalar expressions, the codec and verifier bind
+their order, the interpreter supplies them to the effect handler, and Omega's
+abstract operation preserves them. Provider candidates remain outside this
+scalar boundary slice and reject such signatures rather than silently ignoring
+them.
 
-The scalar lane itself is a bounded implementation change, not an unresolved
-language question: a bodyless declaration needs ordered scalar parameter types,
-and the operation needs ordered scalar value arguments. The canonical consumer
-must preserve and interpret them. Omega target lowering must reject them until
-O0 adds an explicit process-exit realization; its current metadata-only port
-settlement does not implement this boundary.
+O0 still waits on a genuine native realization of `exit_process(i32)`. Omega
+target lowering deliberately rejects every nonempty scalar boundary call until
+that realization exists; its metadata-only port settlement is not an exit
+operation. Treating the exit literal as an unrelated machine return or
+introducing an Omega0-only IR would evade, not close, the intended seam. The
+string passed to `write_line` must likewise retain its exact structural carrier
+and custody through the canonical call.
 
 O0 excludes build files, packages beyond the fixed `use`, arbitrary data,
 general expressions, user calls, control flow, allocation, proofs, and

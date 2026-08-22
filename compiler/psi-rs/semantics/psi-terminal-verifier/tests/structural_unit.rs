@@ -2556,6 +2556,7 @@ fn claims_are_linear_across_unit_operations_and_return() {
         result: OperationResult::Unit,
         kind: OperationKind::BoundaryCall {
             boundary: boundary_id(1),
+            arguments: Vec::new(),
             structural_arguments: vec![StructuralArgument {
                 place: place_id(1),
                 path: Vec::new(),
@@ -3093,6 +3094,7 @@ fn affine_structural_arguments_transfer_at_most_once() {
         result: OperationResult::Unit,
         kind: OperationKind::BoundaryCall {
             boundary: boundary_id(1),
+            arguments: Vec::new(),
             structural_arguments: vec![StructuralArgument {
                 place: place_id(1),
                 path: Vec::new(),
@@ -3275,6 +3277,7 @@ fn hard_root_module() -> TerminalModule {
         id: boundary_id(1),
         identity: "settle_port".into(),
         attachment: None,
+        scalar_parameters: Vec::new(),
         structural_parameters: vec![boundary_parameter],
         result: None,
         requires: vec![StructuralDomainRequirement {
@@ -3364,6 +3367,7 @@ fn hard_root_module() -> TerminalModule {
                     result: OperationResult::Unit,
                     kind: OperationKind::BoundaryCall {
                         boundary: boundary.id,
+                        arguments: Vec::new(),
                         structural_arguments: vec![StructuralArgument {
                             place: place_id(2),
                             path: Vec::new(),

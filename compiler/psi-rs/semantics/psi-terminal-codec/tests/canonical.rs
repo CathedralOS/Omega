@@ -1206,13 +1206,13 @@ fn structural_foundation_rejects_opaque_relevant_and_nonopaque_erased_fields() {
 }
 
 #[test]
-fn decoder_rejects_a_noncurrent_vocabulary_marker() {
+fn decoder_rejects_the_previous_vocabulary_marker() {
     let mut bytes = encode_module(&structural_effect_fixture()).unwrap();
-    bytes[10..12].copy_from_slice(&1_u16.to_le_bytes());
+    bytes[10..12].copy_from_slice(&22_u16.to_le_bytes());
 
     assert_eq!(
         decode_module(&bytes),
-        Err(CodecError::UnsupportedVocabularyMarker(1))
+        Err(CodecError::UnsupportedVocabularyMarker(22))
     );
 }
 
@@ -2281,6 +2281,7 @@ fn structural_effect_fixture() -> TerminalModule {
             id: boundary_machine_id(1),
             identity: "example::Occurrence::settle".to_owned(),
             attachment: Some(resource_type),
+            scalar_parameters: Vec::new(),
             structural_parameters: vec![structural_parameter(place_id(30), 0, resource_type, true)],
             result: None,
             requires: vec![StructuralDomainRequirement {
@@ -2405,6 +2406,7 @@ fn structural_effect_fixture() -> TerminalModule {
                             result: OperationResult::Unit,
                             kind: OperationKind::BoundaryCall {
                                 boundary: boundary_machine_id(1),
+                                arguments: Vec::new(),
                                 structural_arguments: vec![StructuralArgument {
                                     place: callee_place,
                                     path: Vec::new(),
@@ -2431,6 +2433,73 @@ fn structural_effect_fixture() -> TerminalModule {
             },
         ],
     }
+}
+
+#[test]
+fn boundary_scalar_parameter_and_argument_order_round_trips_canonically() {
+    let mut module = structural_effect_fixture();
+    let first = value_id(1);
+    let second = value_id(2);
+    module.boundary_machines[0].scalar_parameters = vec![ScalarType::Boolean; 2];
+    let operations = &mut module.machines[1].blocks[0].operations;
+    operations[0].id = operation_id(4);
+    operations[1].id = operation_id(5);
+    operations.splice(
+        0..0,
+        [
+            Operation {
+                id: operation_id(2),
+                result: OperationResult::Scalar(ValueDeclaration {
+                    id: first,
+                    scalar_type: ScalarType::Boolean,
+                }),
+                kind: OperationKind::BooleanConstant { value: false },
+            },
+            Operation {
+                id: operation_id(3),
+                result: OperationResult::Scalar(ValueDeclaration {
+                    id: second,
+                    scalar_type: ScalarType::Boolean,
+                }),
+                kind: OperationKind::BooleanConstant { value: true },
+            },
+        ],
+    );
+    let OperationKind::BoundaryCall { arguments, .. } =
+        &mut module.machines[1].blocks[0].operations[3].kind
+    else {
+        unreachable!()
+    };
+    *arguments = vec![second, first];
+
+    let bytes = encode_module(&module).expect("scalar boundary lanes should encode");
+    assert_eq!(decode_module(&bytes), Ok(module.clone()));
+
+    let mut reordered = module;
+    let OperationKind::BoundaryCall { arguments, .. } =
+        &mut reordered.machines[1].blocks[0].operations[3].kind
+    else {
+        unreachable!()
+    };
+    arguments.swap(0, 1);
+    assert_ne!(
+        semantic_fingerprint(&reordered).unwrap(),
+        semantic_fingerprint(&decode_module(&bytes).unwrap()).unwrap(),
+        "boundary scalar argument order is semantic",
+    );
+}
+
+#[test]
+fn structural_foundation_rejects_wrong_boundary_scalar_arity() {
+    let mut module = structural_effect_fixture();
+    module.boundary_machines[0].scalar_parameters = vec![ScalarType::Integer(i32_type())];
+
+    assert_eq!(
+        encode_module(&module),
+        Err(CodecError::MalformedStructuralFoundation(
+            "boundary call has the wrong scalar arity"
+        )),
+    );
 }
 
 fn project_boundary_argument(

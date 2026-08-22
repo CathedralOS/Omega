@@ -153,6 +153,8 @@ pub enum TerminalAbstractOperation {
         psi_operation: OperationId,
         result: Option<TerminalAbstractResult>,
         boundary: BoundaryMachineId,
+        /// Runtime scalar arguments in the exact terminal-Psi call order.
+        arguments: Vec<ValueId>,
         structural_arguments: Vec<StructuralArgument>,
         completion_claim_sources: Vec<TerminalCompletionClaimSource>,
         completion_receipts: Vec<CompletionReceipt>,

@@ -806,6 +806,10 @@ pub enum CheckedUnitEffectOperationPlan {
         target_state: SymbolHandle,
         target_contract_fingerprint: u64,
         service_reach: ServiceReachSummary,
+        /// Checked primitive arguments in the boundary declaration's dense
+        /// scalar-parameter order. Structural arguments retain their separate
+        /// custody namespace below.
+        scalar_arguments: Vec<CheckedScalarExpression>,
         structural_arguments: Vec<CheckedUnitStructuralArgumentPlan>,
         completion_receipts: Vec<CheckedUnitClaimTransferPlan>,
     },
@@ -852,6 +856,9 @@ pub struct CheckedBoundaryMachinePlan {
     /// static boundary-trait requirement, which has no runtime provider value.
     pub attachment_type_identity: Option<String>,
     pub structural_parameters: Vec<CheckedUnitStructuralParameterPlan>,
+    /// Primitive parameters in authored order after removing structural
+    /// parameters into their independent custody namespace.
+    pub scalar_parameters: Vec<CheckedStructuralScalarParameterPlan>,
     pub result_type: Option<PrimitiveType>,
     /// Canonical `(argument_index, domain)` order derived from exact normalized
     /// membership facts in the boundary contract.

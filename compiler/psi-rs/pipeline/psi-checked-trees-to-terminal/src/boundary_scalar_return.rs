@@ -13,6 +13,7 @@ pub(super) fn lower_boundary_scalar_return_machine(
         target_state,
         target_contract_fingerprint,
         service_reach,
+        scalar_arguments,
         structural_arguments,
         completion_receipts,
     } = &plan.boundary_call
@@ -59,6 +60,11 @@ pub(super) fn lower_boundary_scalar_return_machine(
         &domain_ids,
         &mut next_place,
     )?;
+    let boundary_scalar_parameters = boundary
+        .scalar_parameters
+        .iter()
+        .map(|parameter| terminal_scalar_type(parameter.primitive_type))
+        .collect::<Result<Vec<_>, _>>()?;
     let mut requires = boundary
         .domain_requirements
         .iter()
@@ -80,6 +86,7 @@ pub(super) fn lower_boundary_scalar_return_machine(
             .as_ref()
             .map(|identity| lookup_type_id(&type_ids, identity))
             .transpose()?,
+        scalar_parameters: boundary_scalar_parameters.clone(),
         structural_parameters: boundary_parameters,
         result: Some(terminal_scalar_type(plan.result_type)?),
         requires,
@@ -150,16 +157,47 @@ pub(super) fn lower_boundary_scalar_return_machine(
         &type_ids,
         &expected_claim_arguments,
     )?;
+    if scalar_arguments.len() != boundary_scalar_parameters.len() {
+        return unsupported(
+            "result-bearing boundary scalar argument count disagrees with its declaration",
+        );
+    }
+    let mut operations = OperationBuffer::new(0);
+    let mut next_value_identity = 1_u64;
+    let arguments = scalar_arguments
+        .iter()
+        .zip(&boundary_scalar_parameters)
+        .map(|(argument, target_type)| {
+            let argument = lower_checked_scalar_expression(argument)?;
+            if argument.scalar_type() != *target_type {
+                return unsupported(
+                    "result-bearing boundary scalar argument type disagrees with its declaration",
+                );
+            }
+            Ok(emit_direct_expression(
+                &argument,
+                &[],
+                &mut next_value_identity,
+                &mut operations,
+            ))
+        })
+        .collect::<Result<Vec<_>, LoweringError>>()?;
     let scalar_type = terminal_scalar_type(plan.result_type)?;
     let call_result = ValueDeclaration {
-        id: value_id(1),
+        id: value_id(next_value_identity),
         scalar_type,
     };
+    next_value_identity = next_value_identity
+        .checked_add(1)
+        .ok_or(LoweringError::Unsupported(
+            "result-bearing boundary value identity space is exhausted",
+        ))?;
     let operation = Operation {
-        id: operation_id(1),
+        id: operations.allocate(),
         result: psi_terminal::OperationResult::Scalar(call_result),
         kind: OperationKind::BoundaryCall {
             boundary: boundary_id,
+            arguments,
             structural_arguments: lower_structural_arguments(structural_arguments, &parameters)?,
             completion_receipts: completion_receipts
                 .iter()
@@ -173,8 +211,9 @@ pub(super) fn lower_boundary_scalar_return_machine(
             requirement_obligations: Vec::new(),
         },
     };
+    operations.push(operation);
     let machine_result = ValueDeclaration {
-        id: value_id(2),
+        id: value_id(next_value_identity),
         scalar_type,
     };
     let machine = TerminalMachine {
@@ -207,7 +246,7 @@ pub(super) fn lower_boundary_scalar_return_machine(
         blocks: vec![Block {
             id: block_id(1),
             parameters: Vec::new(),
-            operations: vec![operation],
+            operations: operations.operations,
             terminator: Terminator::Return {
                 edge: edge_id(1),
                 value: call_result.id,

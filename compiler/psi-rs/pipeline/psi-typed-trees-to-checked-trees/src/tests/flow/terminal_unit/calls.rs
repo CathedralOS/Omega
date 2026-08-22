@@ -3,6 +3,74 @@
 use super::*;
 
 #[test]
+fn retains_static_boundary_scalar_parameter_and_literal_argument() {
+    let checked = checked(
+        r#"
+        boundary trait Console {
+            machine exit_process(return_code: i32)
+            reaches Console;
+        }
+
+        data Root {}
+
+        machine Root::enter()
+        reaches Console
+        {
+            Console::exit_process(37);
+        }
+        "#,
+    );
+
+    let plans = &checked.facts.flow.terminal_unit_effects;
+    let boundary = plans
+        .boundary_machines
+        .iter()
+        .find(|boundary| !boundary.scalar_parameters.is_empty())
+        .expect("scalar boundary declaration should retain a checked plan");
+    assert_eq!(boundary.structural_parameters, []);
+    assert_eq!(boundary.scalar_parameters.len(), 1);
+    assert_eq!(boundary.scalar_parameters[0].source_position, 0);
+    assert_eq!(
+        boundary.scalar_parameters[0].primitive_type,
+        PrimitiveType::I32
+    );
+    assert!(
+        checked
+            .facts
+            .values
+            .scalar_expressions
+            .expressions
+            .iter()
+            .any(|expression| matches!(
+                expression.role,
+                CheckedScalarExpressionRole::BoundaryCallArgument {
+                    call_ordinal: 0,
+                    argument_ordinal: 0,
+                }
+            )),
+        "scalar facts: {:#?}",
+        checked.facts.values.scalar_expressions.expressions
+    );
+
+    let root = plans
+        .for_machine(machine_named(&checked, "enter"))
+        .expect("scalar boundary caller should retain a checked Unit plan");
+    let CheckedUnitEffectOperationPlan::BoundaryCall {
+        scalar_arguments, ..
+    } = &root.operations[0]
+    else {
+        panic!("root should retain the boundary effect")
+    };
+    assert_eq!(scalar_arguments.len(), 1);
+    assert!(matches!(
+        &scalar_arguments[0],
+        CheckedScalarExpression::IntegerLiteral { literal }
+            if literal.landing().is_some_and(|landing|
+                landing.landed_type == psi_numerics::literals::LandedIntegerType::I32)
+    ));
+}
+
+#[test]
 fn retains_static_attached_root_helper_port_and_boundary_settlement() {
     let checked = checked(
         r#"

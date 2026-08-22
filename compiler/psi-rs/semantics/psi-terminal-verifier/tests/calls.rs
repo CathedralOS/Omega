@@ -1,15 +1,16 @@
 use psi_core::{
-    BlockId, ContractId, EdgeId, EvidenceIdentity, MachineId, ObligationId, OperationId,
-    Proposition, ScalarTerm, ScalarType, ServiceId, ValueId,
+    BlockId, BoundaryMachineId, ContractId, EdgeId, EvidenceIdentity, IntegerSign, IntegerType,
+    MachineId, ObligationId, OperationId, Proposition, ScalarTerm, ScalarType, ServiceId, ValueId,
 };
 use psi_proof_kernel::{
     AdmissionProfile, CertificateEnvelope, EvidenceRoute, ProofNode, ProofRule, ProofSystemMarker,
 };
 use psi_terminal::{
-    Block, ContractClause, CrashCause, CrashRouteBucket, CrashRouteGuard,
-    InstallationReachDependency, MachineContract, Operation, OperationKind, ServiceDeclaration,
-    TerminalMachine, TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration,
-    VocabularyMarker,
+    Block, BoundaryMachineDeclaration, ContractClause, CrashCause, CrashRouteBucket,
+    CrashRouteGuard, InstallationReachDependency, MachineContract, Operation, OperationKind,
+    OperationResult, ProviderCandidateConformance, ProviderUnitRefinement, ProviderUnitSignature,
+    ServiceDeclaration, StructuralTypeDeclaration, StructuralTypeShape, TerminalMachine,
+    TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
 };
 use psi_terminal_verifier::{
     ModuleError, ObligationEvidence, ProofBundle, reconstruct_operation_obligations,
@@ -228,6 +229,226 @@ fn installation_reach_dependencies_are_exact_closed_service_rows() {
     );
 }
 
+#[test]
+fn boundary_scalar_arguments_validate_in_declared_order() {
+    validate_module(&boundary_call_module())
+        .expect("a defined exact-type boundary scalar argument validates");
+}
+
+#[test]
+fn boundary_scalar_arguments_fail_closed_on_arity_definedness_and_type() {
+    let mut arity = boundary_call_module();
+    boundary_arguments_mut(&mut arity).clear();
+    assert_eq!(
+        validate_module(&arity).unwrap_err(),
+        ModuleError::BoundaryCallArgumentArityMismatch {
+            operation: operation_id(2),
+            expected: 1,
+            actual: 0,
+        }
+    );
+
+    let mut undefined = boundary_call_module();
+    *boundary_arguments_mut(&mut undefined) = vec![value_id(2)];
+    undefined.machines[0].blocks[0].operations.push(Operation {
+        id: operation_id(3),
+        result: OperationResult::Scalar(boolean_declaration(value_id(2))),
+        kind: OperationKind::BooleanConstant { value: false },
+    });
+    assert_eq!(
+        validate_module(&undefined).unwrap_err(),
+        ModuleError::BoundaryCallArgumentUsedBeforeDefinition {
+            operation: operation_id(2),
+            argument: value_id(2),
+        }
+    );
+
+    let mut unknown = boundary_call_module();
+    *boundary_arguments_mut(&mut unknown) = vec![value_id(9)];
+    assert_eq!(
+        validate_module(&unknown).unwrap_err(),
+        ModuleError::UnknownBoundaryCallArgument {
+            operation: operation_id(2),
+            argument: value_id(9),
+        }
+    );
+
+    let mut wrong_type = boundary_call_module();
+    let integer = ScalarType::Integer(
+        IntegerType::new(IntegerSign::Unsigned, 8).expect("u8 boundary parameter"),
+    );
+    wrong_type.boundary_machines[0].scalar_parameters = vec![integer];
+    assert_eq!(
+        validate_module(&wrong_type).unwrap_err(),
+        ModuleError::BoundaryCallArgumentTypeMismatch {
+            operation: operation_id(2),
+            argument: value_id(1),
+            expected: integer,
+            actual: ScalarType::Boolean,
+        }
+    );
+}
+
+#[test]
+fn provider_candidates_remain_a_zero_scalar_argument_subset() {
+    let mut module = provider_candidate_module();
+    validate_module(&module).expect("zero-scalar provider candidate remains admitted");
+
+    module.boundary_machines[0].scalar_parameters = vec![ScalarType::Boolean];
+    *boundary_arguments_mut(&mut module) = vec![value_id(1)];
+    assert_eq!(
+        validate_module(&module).unwrap_err(),
+        ModuleError::InvalidProviderCandidate {
+            boundary: boundary_id(1),
+            candidate: machine_id(2),
+        }
+    );
+}
+
+fn boundary_call_module() -> TerminalModule {
+    TerminalModule {
+        vocabulary_marker: VocabularyMarker::CURRENT,
+        entry: machine_id(1),
+        structural_types: Vec::new(),
+        structural_domains: Vec::new(),
+        services: Vec::new(),
+        root_service_reach: Default::default(),
+        boundary_machines: vec![BoundaryMachineDeclaration {
+            id: boundary_id(1),
+            identity: "test::observe".into(),
+            attachment: None,
+            scalar_parameters: vec![ScalarType::Boolean],
+            structural_parameters: Vec::new(),
+            result: None,
+            requires: Vec::new(),
+            published_service_ceiling: Vec::new(),
+        }],
+        provider_candidates: Vec::new(),
+        float_meaning_projections: Vec::new(),
+        float_meaning_equalities: Vec::new(),
+        proposition_declarations: Vec::new(),
+        proposition_applications: Vec::new(),
+        evidence_terms: Vec::new(),
+        evidence_contract_lanes: Vec::new(),
+        evidence_package_invocations: Vec::new(),
+        closed_conformance_applications: Vec::new(),
+        machines: vec![TerminalMachine {
+            id: machine_id(1),
+            attachment: None,
+            structural_parameters: Vec::new(),
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
+            parameters: Vec::new(),
+            result: TerminalMachineResult::Unit,
+            structural_places: Vec::new(),
+            content_entry_claims: Vec::new(),
+            content_identity_reshuffles: Vec::new(),
+            content_partition_compositions: Vec::new(),
+            entry: block_id(1),
+            blocks: vec![Block {
+                id: block_id(1),
+                parameters: Vec::new(),
+                operations: vec![
+                    Operation {
+                        id: operation_id(1),
+                        result: OperationResult::Scalar(boolean_declaration(value_id(1))),
+                        kind: OperationKind::BooleanConstant { value: true },
+                    },
+                    Operation {
+                        id: operation_id(2),
+                        result: OperationResult::Unit,
+                        kind: OperationKind::BoundaryCall {
+                            boundary: boundary_id(1),
+                            arguments: vec![value_id(1)],
+                            structural_arguments: Vec::new(),
+                            completion_receipts: Vec::new(),
+                            requirement_obligations: Vec::new(),
+                        },
+                    },
+                ],
+                terminator: Terminator::ReturnUnit {
+                    edge: edge_id(1),
+                    trivial_affine_discards: Vec::new(),
+                },
+            }],
+            contract: MachineContract {
+                id: contract_id(1),
+                crash_routes: Vec::new(),
+                requires: Vec::new(),
+                ensures: Vec::new(),
+            },
+        }],
+    }
+}
+
+fn boundary_arguments_mut(module: &mut TerminalModule) -> &mut Vec<ValueId> {
+    let OperationKind::BoundaryCall { arguments, .. } =
+        &mut module.machines[0].blocks[0].operations[1].kind
+    else {
+        unreachable!()
+    };
+    arguments
+}
+
+fn provider_candidate_module() -> TerminalModule {
+    let mut module = boundary_call_module();
+    module.boundary_machines[0].scalar_parameters.clear();
+    boundary_arguments_mut(&mut module).clear();
+    let provider_type = psi_core::StructuralTypeId::new(1).unwrap();
+    module.structural_types.push(StructuralTypeDeclaration {
+        id: provider_type,
+        identity: "test::Provider".into(),
+        shape: StructuralTypeShape::Record { fields: Vec::new() },
+    });
+    module
+        .provider_candidates
+        .push(ProviderCandidateConformance {
+            boundary: boundary_id(1),
+            requirement_identity: "test::observe".into(),
+            provider_identity: "test::Provider::observe".into(),
+            candidate_identity: "test::provider_candidate".into(),
+            candidate: machine_id(2),
+            signature: ProviderUnitSignature {
+                parameters: Vec::new(),
+            },
+            refinement: ProviderUnitRefinement {
+                positional_parameters: Vec::new(),
+                required_domains: Vec::new(),
+                realized_service_ceiling: Vec::new(),
+            },
+        });
+    module.machines.push(TerminalMachine {
+        id: machine_id(2),
+        attachment: Some(provider_type),
+        structural_parameters: Vec::new(),
+        entry_claims: Vec::new(),
+        published_service_ceiling: Vec::new(),
+        parameters: Vec::new(),
+        result: TerminalMachineResult::Unit,
+        structural_places: Vec::new(),
+        content_entry_claims: Vec::new(),
+        content_identity_reshuffles: Vec::new(),
+        content_partition_compositions: Vec::new(),
+        entry: block_id(2),
+        blocks: vec![Block {
+            id: block_id(2),
+            parameters: Vec::new(),
+            operations: Vec::new(),
+            terminator: Terminator::ReturnUnit {
+                edge: edge_id(2),
+                trivial_affine_discards: Vec::new(),
+            },
+        }],
+        contract: MachineContract {
+            id: contract_id(2),
+            crash_routes: Vec::new(),
+            requires: Vec::new(),
+            ensures: Vec::new(),
+        },
+    });
+    module
+}
+
 fn call_module() -> TerminalModule {
     let caller_constant = value_id(1);
     let call_result = value_id(2);
@@ -400,6 +621,10 @@ fn boolean_value(raw: u64) -> ScalarTerm {
 
 fn machine_id(raw: u64) -> MachineId {
     MachineId::new(raw).unwrap()
+}
+
+fn boundary_id(raw: u64) -> BoundaryMachineId {
+    BoundaryMachineId::new(raw).unwrap()
 }
 
 fn block_id(raw: u64) -> BlockId {

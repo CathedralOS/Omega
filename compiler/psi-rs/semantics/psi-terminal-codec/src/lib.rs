@@ -637,6 +637,7 @@ fn validate_operation_foundation(
         }
         OperationKind::BoundaryCall {
             boundary,
+            arguments,
             structural_arguments,
             completion_receipts,
             ..
@@ -650,6 +651,9 @@ fn validate_operation_foundation(
             };
             if operation.result.scalar().map(|result| result.scalar_type) != boundary.result {
                 return malformed("boundary call result disagrees with its declaration");
+            }
+            if arguments.len() != boundary.scalar_parameters.len() {
+                return malformed("boundary call has the wrong scalar arity");
             }
             if structural_arguments.len() != boundary.structural_parameters.len() {
                 return malformed("boundary call has the wrong structural arity");

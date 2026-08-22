@@ -197,6 +197,7 @@ fn call_composition_ledger_fixture() -> TerminalModule {
                 result: OperationResult::Unit,
                 kind: OperationKind::BoundaryCall {
                     boundary: boundary_machine_id(10),
+                    arguments: Vec::new(),
                     structural_arguments: vec![StructuralArgument {
                         place: callee_place,
                         path: Vec::new(),
@@ -240,6 +241,7 @@ fn call_composition_ledger_fixture() -> TerminalModule {
             id: boundary_machine_id(10),
             identity: "Spike::Resource::settle".into(),
             attachment: Some(resource),
+            scalar_parameters: Vec::new(),
             structural_parameters: vec![parameter(place_id(30), 0, true)],
             result: None,
             requires: vec![StructuralDomainRequirement {

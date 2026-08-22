@@ -1487,6 +1487,18 @@ Owners:
 
 Remaining:
 
+- **PSIIR-PROOF-RECONSTRUCTION-PERF.** Recover the exact mixed-shift terminal
+  lowering regression in
+  `psi-checked-trees-to-terminal/tests/mixed_shift_source.rs`. On the current
+  warm tree, the test enters `lower_machine` and remains there beyond 100
+  seconds; the retained profile history records about 6.08 seconds for the same
+  317-obligation source. Profile the producer-side fixed affine/cast/shift
+  reconstruction before changing storage or concurrency. Preserve the complete
+  source, proof frontier, independent verifier replay, and tamper gates. Accept
+  when the focused warm test is back below 10 seconds on the same host and the
+  emitted semantic/proof artifacts are unchanged. Viewer/report generation is
+  not implicated because this test lowers in memory.
+
 - **PSIIR.** Extend terminal Psi only as complete vertical slices: canonical
   encoding, independent obligation reconstruction and verification,
   interpretation, fixed fuel, Omega lowering, native evidence, artifact/image

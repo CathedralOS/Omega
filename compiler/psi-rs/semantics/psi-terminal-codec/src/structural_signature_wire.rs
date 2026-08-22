@@ -21,6 +21,13 @@ pub(super) fn encode_boundary_machine(
     writer.id(declaration.id);
     writer.string("boundary machine identity", &declaration.identity)?;
     encode_optional_id(writer, declaration.attachment);
+    writer.len(
+        "boundary scalar parameters",
+        declaration.scalar_parameters.len(),
+    )?;
+    for parameter in &declaration.scalar_parameters {
+        encode_scalar_type(writer, *parameter);
+    }
     encode_structural_parameters(writer, &declaration.structural_parameters)?;
     writer.boolean(declaration.result.is_some());
     if let Some(result) = declaration.result {
@@ -81,6 +88,7 @@ pub(super) fn decode_boundary_machine(
         id: reader.id("BoundaryMachineId")?,
         identity: reader.string("boundary machine identity")?,
         attachment: decode_optional_id(reader, "StructuralTypeId")?,
+        scalar_parameters: decode_counted(reader, decode_scalar_type)?,
         structural_parameters: decode_structural_parameters(reader)?,
         result: reader
             .boolean()?

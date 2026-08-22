@@ -185,21 +185,22 @@ story.
   agrees with canonical meaning.
   - [x] Freeze the O0 console source contract and implement the Delta streaming
     decoder for its canonical multi-source input artifact.
-  - [ ] Extend canonical terminal Psi boundary declarations and calls with exact
+  - [x] Extend canonical terminal Psi boundary declarations and calls with exact
     scalar parameter/argument lanes. Use ordered scalar parameter types on the
     bodyless declaration and ordered scalar `ValueId` arguments on the call;
     carry them through the checked-plan producer, canonical codec and vocabulary
-    bump, semantic call schema, verifier, interpreter effect, and Omega abstract
-    operation. The current producer already partitions primitive arguments and
-    can retain their checked scalar expressions; its terminal-flow carriers are
-    the missing seam. Until a real boundary realization exists, target lowering
-    must explicitly reject nonempty scalar boundary arguments rather than discard
-    them. This is bounded implementation work, not an open language ruling.
-  - [ ] Implement the Delta O0 lexer/parser, complete name/type rejection matrix,
-    terminal-Psi emission, process-exit boundary realization, and runnable
-    artifact gate after that canonical lane exists. `write_line` also needs its
-    exact string-carrier custody preserved. The current metadata-only port
-    settlement is not a realization of `exit_process(i32)`.
+    bump (vocabulary 23), semantic call schema, verifier, interpreter effect,
+    and Omega abstract operation. Target lowering explicitly rejects nonempty
+    scalar boundary arguments until a real native realization exists.
+  - [ ] Implement the Delta O0 lexer/parser and complete its positive and
+    name/type/count rejection matrix against the frozen source contract.
+  - [ ] Emit the O0 terminal-Psi artifact while retaining `write_line`'s exact
+    structural string carrier and custody through its boundary call.
+  - [ ] Implement a genuine target `exit_process(i32)` boundary realization.
+    Consume the preserved scalar argument; do not reinterpret it as a machine
+    return or route it through the metadata-only port settlement.
+  - [ ] Gate the runnable O0 artifact: exact output plus newline, requested
+    low-byte exit status, deterministic bytes, and canonical-meaning agreement.
 - [ ] **Implement the first Omega compiler in Delta.** Grow the canary into the
   deliberately simple, spec-compliant compiler. Prefer direct and auditable
   stages over porting the production optimizer or the entire current Rust
