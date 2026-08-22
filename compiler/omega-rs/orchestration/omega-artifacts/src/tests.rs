@@ -18,11 +18,12 @@ use omega_external_roots::{
     ComponentVersionPin, ComponentVersionPinId, ExternalRootDiagnostic, ExternalRootId,
     FixedFuelCall, FixedFuelProviderSummary, FuelProvisionId, FuelScheduleIdentity,
     FuelValidationReceiptId, InstalledRootRecord, LogicalFuelResourceColumn,
-    MachineStateResourceColumn, NestingRelationId, OpaqueProviderExitAssurance,
-    ProviderExecutionId, ProviderFuelSummaryId, ProviderFuelValidationReceiptId, ProviderPlanId,
-    ProviderStackSummary, RootAdmissionId, RootEffectId, RootProviderId, RootSlotId,
-    RootSlotOwnerId, StackNestingRelation, StackResourceColumn, StackValidationReceiptId,
-    StateValidationReceiptId, TrustReceiptId, compose_artifact_stacks, compose_fixed_fuel,
+    MachineStateResourceColumn, NativeFuelRealizationKind, NestingRelationId,
+    OpaqueProviderExitAssurance, ProviderExecutionId, ProviderFuelSummaryId,
+    ProviderFuelValidationReceiptId, ProviderPlanId, ProviderStackSummary, RootAdmissionId,
+    RootEffectId, RootProviderId, RootSlotId, RootSlotOwnerId, StackNestingRelation,
+    StackResourceColumn, StackValidationReceiptId, StateValidationReceiptId, TrustReceiptId,
+    compose_artifact_stacks, compose_fixed_fuel,
 };
 use omega_target::Architecture;
 use psi_checked_trees::CheckedTrees;
@@ -656,6 +657,8 @@ fn external_root_manifest_is_complete_normalized_and_address_free() {
         },
         provider_exit_assurance_fingerprint: 0x3031,
         provider_plan: root_id(31, ProviderPlanId::from_normalized_identity),
+        native_fuel_kind: NativeFuelRealizationKind::FixedProvision,
+        native_fuel_fingerprint: 0x3032,
         requirement_identity: "TestRoot::entry".into(),
         entry_claims: Vec::new(),
         acknowledgement_parameter_index: None,
@@ -713,6 +716,11 @@ fn external_root_manifest_is_complete_normalized_and_address_free() {
         "0x000000000000001e"
     );
     assert_eq!(parsed["roots"][0]["provider_plan"], "0x000000000000001f");
+    assert_eq!(parsed["roots"][0]["native_fuel"]["kind"], "fixed_provision");
+    assert_eq!(
+        parsed["roots"][0]["native_fuel"]["fingerprint"],
+        "0x0000000000003032"
+    );
     assert_eq!(
         parsed["roots"][0]["boundary_plan"]["call"]["policy"],
         "system_v_amd64"
