@@ -1793,6 +1793,12 @@ Remaining:
   calls, ABI, proofs, layouts, and runtime families. All 1,241 tests and 1,272
   functions remain; the sole cross-family float differential helper is imported
   explicitly, and no family module exceeds 3,795 lines.
+  Artifact presentation has begun the same responsibility split. The
+  3,149-line `omega-artifacts` root retains artifact carriers and general
+  writing orchestration, while a focused 296-line `wire_report.rs` child owns
+  only the stable wire-protocol text projection and its field/case/verdict
+  formatters. The public `ArtifactWriter` method, exact output, and 79-function
+  inventory are unchanged.
   Development and test profiles now both omit full DWARF by default, with an
   explicit `CARGO_PROFILE_{DEV,TEST}_DEBUG=2` escape hatch for debugger
   sessions. On the same macOS host, rebuilding the development CLI after the
