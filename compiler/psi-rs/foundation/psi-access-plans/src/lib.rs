@@ -2417,6 +2417,20 @@ impl<'extent> PlacedView<'extent> {
         self.loan.length()
     }
 
+    /// End this ordinary borrowed view after independently replaying its exact
+    /// loan, placement, admitted profile, receipt, and resource compatibility.
+    /// Success returns the original loan; rejection returns this complete view
+    /// for repair and retry. No content, vacancy, or destruction is claimed.
+    pub fn retire(self) -> Result<ExtentLoan<'extent>, PlacedViewRetirementError<'extent>> {
+        if let Err(diagnostic) = self.validate_authority("borrowed placed-view retirement") {
+            return Err(PlacedViewRetirementError {
+                view: self,
+                diagnostic,
+            });
+        }
+        Ok(self.loan)
+    }
+
     /// Purely project one accepted field through a shared view borrow.
     ///
     /// Projection performs no memory event. The returned accessor remains
@@ -2458,6 +2472,44 @@ impl<'extent> PlacedView<'extent> {
             None,
             PlacementAuthorityRef::Borrowed(self),
         )
+    }
+
+    fn validate_authority(&self, transition: &str) -> Result<(), AccessPlanDiagnostic> {
+        if self.profile.receipt() != self.profile_receipt {
+            return Err(AccessPlanDiagnostic(format!(
+                "{transition} could not replay the exact admitted resource-profile receipt"
+            )));
+        }
+        let replayed = validate_placement_admission(&self.loan, &self.plan, &self.profile)
+            .map_err(|diagnostic| {
+                AccessPlanDiagnostic(format!(
+                    "{transition} could not replay the retained placement authority: {diagnostic}"
+                ))
+            })?;
+        if replayed != self.resources {
+            return Err(AccessPlanDiagnostic(format!(
+                "{transition} replayed resource compatibility differs from the retained view"
+            )));
+        }
+        Ok(())
+    }
+}
+
+/// Failed ordinary borrowed-view retirement preserves the complete
+/// loan-bearing view for corrected retry.
+#[derive(Debug)]
+pub struct PlacedViewRetirementError<'extent> {
+    view: PlacedView<'extent>,
+    diagnostic: AccessPlanDiagnostic,
+}
+
+impl<'extent> PlacedViewRetirementError<'extent> {
+    pub const fn diagnostic(&self) -> &AccessPlanDiagnostic {
+        &self.diagnostic
+    }
+
+    pub fn into_parts(self) -> (PlacedView<'extent>, AccessPlanDiagnostic) {
+        (self.view, self.diagnostic)
     }
 }
 
@@ -7541,6 +7593,45 @@ mod tests {
         let request = stable.into_primitive_request();
         assert_eq!(request.admission(), admission_id);
         assert_eq!(request.profile_receipt(), profile_receipt);
+    }
+
+    #[test]
+    fn borrowed_view_retirement_replays_authority_and_returns_exact_loan() {
+        let plan = uart_placement_plan();
+        let extent = uart_extent_with_lineage(0xad88, 12, 265);
+        let origin = extent.origin();
+        let lineage = extent.lineage_root();
+        let loan = extent.loan(0, 12).expect("shared UART loan");
+        let profile = uart_resource_profile(&loan, &uart_reach());
+        let admission_id =
+            PlacementAdmissionId::from_normalized_identity(266).expect("placement admission");
+        let admission = admit_placement(admission_id, loan, &plan, &profile)
+            .expect("borrowed placement admission");
+        let mut view = place(admission).expect("borrowed view establishment");
+        let exact_resources = view.resources.clone();
+
+        view.resources.fields[0].offset ^= 4;
+        let rejection = view
+            .retire()
+            .expect_err("retirement must reject drifted resource compatibility");
+        assert!(
+            rejection
+                .diagnostic()
+                .0
+                .contains("resource compatibility differs")
+        );
+        let (mut view, _) = rejection.into_parts();
+        assert_eq!(view.admission(), admission_id);
+        view.resources = exact_resources;
+
+        let loan = view
+            .retire()
+            .expect("repaired view remains valid for retirement retry");
+        assert_eq!(loan.origin(), origin);
+        assert_eq!(loan.lineage_root(), lineage);
+        assert_eq!(loan.base(), 0xad88);
+        assert_eq!(loan.length(), 12);
+        assert_eq!(loan.polarity(), LoanPolarity::Shared);
     }
 
     #[test]
