@@ -356,6 +356,20 @@ fn normalize_projection_scalar(
     expression: ExpressionHandle,
 ) -> Option<ContentScalarExpression> {
     match program.expression_table.expression(expression) {
+        // Content algebras are Nat-valued, while runtime integers and
+        // addresses uniformly embed into proof Int. The explicit exact
+        // conversion is semantic evidence at the source boundary; the
+        // canonical content term retains only the embedded mathematical
+        // scalar. Accept no other cast target or inner expression here.
+        ExpressionNode::Cast(cast)
+            if program
+                .named_type_reference(cast.target_type)
+                .is_some_and(|name| name.as_str() == "Nat")
+                && cast.domain == psi_numerics::arithmetic::ArithmeticDomain::Exact
+                && cast.semantic_domain.count() == 0 =>
+        {
+            normalize_projection_scalar(program, subject, cast.value)
+        }
         ExpressionNode::Integer(value) => {
             let value = value.value_bignum()?;
             (!value.is_negative()).then(|| ContentScalarExpression::Natural(value.to_string()))

@@ -11,5 +11,5 @@ domain Region::Owned;
 machine Owned::content(region: &Region) -> CountedQuantity<ByteUnit>
 satisfies Content<CountedQuantity<ByteUnit>>::project
 {
-    CountedQuantity { magnitude: embed(region.delta) }
+    CountedQuantity { magnitude: embed(region.delta) as Nat }
 }

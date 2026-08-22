@@ -51,15 +51,15 @@ pub boundary trait ProgramStorageEntry {
 // arithmetic must not define the one-past end: fixed-width values first embed
 // into proof Int, and their derived nonnegativity permits exact conversion to
 // these proof-Nat coordinates. Nat retains an end equal to the address-space
-// bound even when `addr` cannot represent it. The direct destination-driven
-// embedding below is the current bootstrap spelling; the settled surface makes
-// both `as Nat` conversions explicit when uniform-Int embedding lands.
+// bound even when `addr` cannot represent it. Both conversions remain visible:
+// embedding selects the uniform proof-Int meaning, while `as Nat` consumes its
+// derived nonnegative range fact at the content-algebra boundary.
 machine Granted::content(extent: &Extent) -> IntervalSet<Nat>
 satisfies Content<IntervalSet<Nat>>::project
 {
     IntervalSet {
-        start: embed(extent.base),
-        end: embed(extent.base) + embed(extent.length)
+        start: embed(extent.base) as Nat,
+        end: (embed(extent.base) + embed(extent.length)) as Nat
     }
 }
 

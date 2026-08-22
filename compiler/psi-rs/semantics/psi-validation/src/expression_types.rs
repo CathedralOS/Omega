@@ -577,6 +577,19 @@ pub(crate) fn validate_cast_types(
         diagnostics,
     );
     let target_name = program.named_type_reference(cast.target_type);
+    // Uniform content embedding returns proof Int. Its carrier-derived range
+    // is nonnegative for the closed u8/u16/u32/u64/addr inputs admitted by the
+    // content projection validator, so the explicit exact `as Nat` conversion
+    // is legal and remains proof-only. No general data-to-data cast is opened.
+    if target_name.is_some_and(|target| target.as_str() == "Nat")
+        && cast.domain == ArithmeticDomain::Exact
+        && cast.semantic_domain.count() == 0
+        && matches!(program.expression_table.expression(cast.value),
+            ExpressionNode::Call(call)
+                if call.target.as_str().rsplit("::").next() == Some("embed"))
+    {
+        return;
+    }
     // N6 quotient mint: `carrier as Quotient` is not a scalar conversion.
     // It introduces an equivalence class while retaining no representative,
     // and is legal only from the quotient's exact carrier family.
