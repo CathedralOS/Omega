@@ -190,7 +190,7 @@ fn carries_trait_signature_contract_facts_into_checked_proof_facts() {
         suspends: false,
         blocks: false,
         contracts: Default::default(),
-        terminates_guarantee: false,
+        termination_guarantee: psi_language_semantics::TerminationGuarantee::NoGuarantee,
     };
     program.push_state_signature_contract(
         &mut signature,
@@ -394,7 +394,7 @@ fn indexes_inherited_trait_contracts_by_concrete_call_target() {
         suspends: false,
         blocks: false,
         contracts: Default::default(),
-        terminates_guarantee: false,
+        termination_guarantee: psi_language_semantics::TerminationGuarantee::NoGuarantee,
     };
     program.push_state_signature_contract(
         &mut signature,

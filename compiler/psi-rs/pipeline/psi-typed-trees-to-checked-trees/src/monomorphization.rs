@@ -4083,11 +4083,18 @@ fn template_contract_fingerprint(program: &TypedTrees, machine_index: usize) -> 
             psi_language_semantics::TerminationGuarantee::Terminates { premises },
         ) => {
             bytes.push(2);
-            let mut premises = premises.clone();
-            premises.sort_unstable_by_key(|premise| premise.0);
-            for premise in premises {
-                bytes.extend(premise.0.to_le_bytes());
-            }
+            let parameter_symbols = program
+                .machine_states(machine)
+                .first()
+                .map(|state| {
+                    program
+                        .state_parameters(state)
+                        .iter()
+                        .map(|parameter| parameter.symbol)
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default();
+            encode_progress_premises(premises, &parameter_symbols, &mut bytes);
         }
     }
     let mut hash = OFFSET;
@@ -4342,7 +4349,51 @@ fn encode_state_signature(
         output.extend(contract);
         output.push(0xfc);
     }
-    output.push(u8::from(signature.terminates_guarantee));
+    match &signature.termination_guarantee {
+        psi_language_semantics::TerminationGuarantee::NoGuarantee => output.push(0),
+        psi_language_semantics::TerminationGuarantee::Terminates { premises } => {
+            output.push(1);
+            let parameter_symbols = program
+                .state_signature_parameters(signature)
+                .iter()
+                .map(|parameter| parameter.symbol)
+                .collect::<Vec<_>>();
+            encode_progress_premises(premises, &parameter_symbols, output);
+        }
+    }
+}
+
+fn encode_progress_premises(
+    premises: &[psi_language_semantics::ProgressPremise],
+    parameter_symbols: &[psi_symbols::SymbolHandle],
+    output: &mut Vec<u8>,
+) {
+    let mut encoded = premises
+        .iter()
+        .map(|premise| {
+            let mut bytes = Vec::new();
+            bytes.extend(premise.profile.0.to_le_bytes());
+            if let Some(index) = parameter_symbols
+                .iter()
+                .position(|symbol| *symbol == premise.subject.root)
+            {
+                bytes.push(0);
+                bytes.extend(index.to_le_bytes());
+            } else {
+                bytes.push(1);
+                bytes.extend(premise.subject.root.arena_index().to_le_bytes());
+            }
+            for projection in &premise.subject.projections {
+                bytes.extend(projection.arena_index().to_le_bytes());
+            }
+            bytes
+        })
+        .collect::<Vec<_>>();
+    encoded.sort();
+    for premise in encoded {
+        output.extend(premise);
+        output.push(0xfa);
+    }
 }
 
 pub(crate) fn canonical_state_signature_fingerprint(

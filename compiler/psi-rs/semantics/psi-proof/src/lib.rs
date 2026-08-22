@@ -615,6 +615,7 @@ mod tests {
             is_public: false,
             alias: None,
             authored_routes: Vec::new(),
+            classification: None,
             predicate_body: psi_language_semantics::DomainPredicateBody::Bodyless,
             facts: HandleSpan::empty(),
             operators: HandleSpan::empty(),

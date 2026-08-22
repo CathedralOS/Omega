@@ -15,6 +15,7 @@ mod machine;
 mod measure;
 mod name;
 mod operator;
+mod progress;
 mod proposition;
 mod qualification_casts;
 mod state;

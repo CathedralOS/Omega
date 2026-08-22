@@ -21,11 +21,10 @@ pub struct StateSignature {
     pub suspends: bool,
     pub blocks: bool,
     pub contracts: HandleSpan<SignatureContract>,
-    /// TPR4 (decision 23): the bodyless requirement's authored PUBLIC
-    /// guarantee (bare `terminates;`); the conformance check propagates it
-    /// to implementations by INHERITANCE. Copied from the resolved record,
-    /// never re-derived.
-    pub terminates_guarantee: bool,
+    /// The bodyless requirement's normalized PUBLIC guarantee, including its
+    /// exact parameter-rooted progress-premise schemas. Implementations
+    /// inherit this record rather than reconstructing it from their bodies.
+    pub termination_guarantee: psi_language_semantics::TerminationGuarantee,
 }
 
 impl Default for StateSignature {
@@ -44,7 +43,7 @@ impl Default for StateSignature {
             suspends: false,
             blocks: false,
             contracts: HandleSpan::empty(),
-            terminates_guarantee: false,
+            termination_guarantee: psi_language_semantics::TerminationGuarantee::NoGuarantee,
         }
     }
 }

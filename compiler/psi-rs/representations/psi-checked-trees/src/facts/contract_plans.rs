@@ -1236,9 +1236,19 @@ pub fn contract_fingerprint(
         TerminationInterface::Published(TerminationGuarantee::Terminates { premises }) => {
             fold(2);
             for premise in premises {
-                for byte in premise.0.to_le_bytes() {
+                for byte in premise.profile.0.to_le_bytes() {
                     fold(byte);
                 }
+                for byte in premise.subject.root.arena_index().to_le_bytes() {
+                    fold(byte);
+                }
+                fold(0xfb);
+                for projection in &premise.subject.projections {
+                    for byte in projection.arena_index().to_le_bytes() {
+                        fold(byte);
+                    }
+                }
+                fold(0xfa);
             }
         }
     }

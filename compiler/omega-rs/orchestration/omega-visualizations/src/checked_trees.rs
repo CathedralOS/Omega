@@ -4331,7 +4331,19 @@ fn push_termination_json(
                 if index > 0 {
                     json.push_str(", ");
                 }
-                json.push_str(&premise.0.to_string());
+                json.push_str("{\"profile\": ");
+                json.push_str(&premise.profile.0.to_string());
+                json.push_str(", \"subject_root\": ");
+                json.push_str(&premise.subject.root.arena_index().to_string());
+                json.push_str(", \"subject_projections\": [");
+                for (projection_index, projection) in premise.subject.projections.iter().enumerate()
+                {
+                    if projection_index > 0 {
+                        json.push_str(", ");
+                    }
+                    json.push_str(&projection.arena_index().to_string());
+                }
+                json.push_str("]}");
             }
             json.push_str("]}");
         }

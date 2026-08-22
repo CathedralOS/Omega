@@ -253,6 +253,7 @@ mod tests {
                     may_suspend: false,
                     may_block: false,
                     terminates_guarantee: false,
+                    termination_premises: Vec::new(),
                     calling_plan_fingerprint: None,
                 }],
             },

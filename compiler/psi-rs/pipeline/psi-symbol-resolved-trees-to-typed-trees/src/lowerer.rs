@@ -226,6 +226,7 @@ pub(crate) struct Lowerer<'source> {
 impl Lowerer<'_> {
     pub(crate) fn finish(mut self) -> Result<TypedTrees, Diagnostic> {
         self.typed_trees.symbols = self.source_trees.symbols.clone();
+        crate::progress::normalize_progress_premises(&mut self.typed_trees)?;
         let TypedTrees {
             roots,
             tables,

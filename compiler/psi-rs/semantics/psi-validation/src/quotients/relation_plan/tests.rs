@@ -533,7 +533,13 @@ fn representative_termination_retains_only_unconditional_checked_summary() {
 
     let (program, telescope) =
         telescope_with_summary(psi_language_semantics::TerminationGuarantee::Terminates {
-            premises: vec![psi_language_semantics::ProgressProfileId(1)],
+            premises: vec![psi_language_semantics::ProgressPremise {
+                profile: psi_language_semantics::SemanticDomainId(1),
+                subject: psi_language_semantics::ProgressSubject {
+                    root: symbol(96),
+                    projections: Vec::new(),
+                },
+            }],
         });
     assert_eq!(
         unconditional_representative_termination(&program, &telescope),

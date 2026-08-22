@@ -886,13 +886,7 @@ fn build_crash_contract_capsules(
             }
             let canonical_facts = vec![callable_shape];
             let termination = psi_language_semantics::TerminationInterface::Published(
-                if signature.terminates_guarantee {
-                    psi_language_semantics::TerminationGuarantee::Terminates {
-                        premises: Vec::new(),
-                    }
-                } else {
-                    psi_language_semantics::TerminationGuarantee::NoGuarantee
-                },
+                signature.termination_guarantee.clone(),
             );
             let fingerprint = psi_checked_trees::contract_fingerprint(
                 psi_language_semantics::MachineSupplyMode::Requirement,
@@ -918,13 +912,7 @@ fn build_crash_contract_capsules(
                 published_invocations,
                 signature.suspends,
                 signature.blocks,
-                if signature.terminates_guarantee {
-                    psi_language_semantics::TerminationGuarantee::Terminates {
-                        premises: Vec::new(),
-                    }
-                } else {
-                    psi_language_semantics::TerminationGuarantee::NoGuarantee
-                },
+                signature.termination_guarantee.clone(),
             )
         })
         .collect::<Vec<_>>();

@@ -43,7 +43,7 @@ pub(crate) fn validate_domain_definitions(
     }
 
     validate_domain_membership_cycles(program, fact_plan, diagnostics);
-    reject_progress_premises_until_normalized(program, diagnostics);
+    reject_checked_progress_dependencies_until_covered(program, diagnostics);
 }
 
 fn validate_progress_profile_domains(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>) {
@@ -87,71 +87,28 @@ fn validate_progress_profile_domains(program: &TypedTrees, diagnostics: &mut Vec
     }
 }
 
-/// TPR4 declaration slice: classification lands before subject-bearing public
-/// premise schemas. Reject their use rather than publishing a false
-/// unconditional termination guarantee during the staged migration.
-fn reject_progress_premises_until_normalized(
+/// Public schemas are normalized, but checked call-edge instantiation and
+/// receipt/manifest coverage are a later TPR6 slice. Keep checked bodies fail
+/// closed while allowing bodyless requirements to publish the contract that
+/// those edges will instantiate.
+fn reject_checked_progress_dependencies_until_covered(
     program: &TypedTrees,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    for trait_definition in program.traits() {
-        for signature in program.trait_machine_signatures(trait_definition) {
-            if signature.terminates_guarantee {
-                reject_progress_memberships_in_contracts(
-                    program,
-                    program.state_signature_contracts(signature),
-                    &format!(
-                        "trait requirement `{}::{}`",
-                        trait_definition.name, signature.name
-                    ),
-                    diagnostics,
-                );
-            }
-        }
-    }
-
     for machine in program.machines() {
-        if matches!(
-            machine.termination_plan.interface,
-            psi_language_semantics::TerminationInterface::Published(
-                psi_language_semantics::TerminationGuarantee::Terminates { .. }
-            )
-        ) {
-            reject_progress_memberships_in_contracts(
-                program,
-                program.machine_contracts(machine),
-                &format!("machine `{}`", machine.name),
-                diagnostics,
-            );
-        }
-    }
-}
-
-fn reject_progress_memberships_in_contracts(
-    program: &TypedTrees,
-    contracts: &[psi_typed_trees::signature::SignatureContract],
-    owner: &str,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    for contract in contracts.iter().filter(|contract| {
-        contract.kind == psi_typed_trees::signature::SignatureContractKind::Requires
-    }) {
-        for fact in program.proof_facts.span_or_empty(contract.facts) {
-            let psi_typed_trees::domain::ProofFact::Membership(membership) = fact else {
-                continue;
-            };
-            let Some(domain) = domain_definition_by_symbol(program, membership.domain_symbol)
-            else {
-                continue;
-            };
-            if domain.classification
-                == Some(psi_language_semantics::DomainClassification::ProgressProfile)
-            {
-                diagnostics.push(Diagnostic::error(format!(
-                    "{owner} uses progress profile `{}` as a termination premise, but subject-bearing progress-premise normalization is not implemented yet",
-                    domain.name
-                )));
-            }
+        let psi_language_semantics::TerminationInterface::Published(
+            psi_language_semantics::TerminationGuarantee::Terminates { premises },
+        ) = &machine.termination_plan.interface
+        else {
+            continue;
+        };
+        if machine.supply_mode == psi_language_semantics::MachineSupplyMode::CheckedBody
+            && !premises.is_empty()
+        {
+            diagnostics.push(Diagnostic::error(format!(
+                "machine `{}` has subject-bearing progress dependencies, but checked call-edge premise coverage is not implemented yet",
+                machine.name
+            )));
         }
     }
 }
