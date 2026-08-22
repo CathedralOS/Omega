@@ -12,6 +12,7 @@ mod equalities;
 mod fact_identity;
 mod literal;
 mod transitive;
+mod value_index;
 
 pub(super) fn prove(
     context: &PropositionContext,

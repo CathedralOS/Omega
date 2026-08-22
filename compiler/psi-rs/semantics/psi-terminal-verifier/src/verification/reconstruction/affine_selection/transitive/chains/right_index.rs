@@ -1,23 +1,18 @@
 //! Source-ordered right-leg index for independent two-citation reconstruction.
 
-use std::collections::BTreeMap;
-
 use psi_core::{Proposition, ScalarTerm};
 
-use super::super::super::bounds;
+use super::super::super::{bounds, value_index::ValueIndex};
 
 pub(super) struct RightLegIndex<'a> {
-    by_left_endpoint: BTreeMap<ScalarTerm, Vec<(&'a Proposition, &'a ScalarTerm)>>,
+    by_left_endpoint: ValueIndex<(&'a Proposition, &'a ScalarTerm)>,
 }
 
 impl<'a> RightLegIndex<'a> {
     pub(super) fn new(requirements: &'a [Proposition], semantic_axioms: &'a [Proposition]) -> Self {
-        let mut by_left_endpoint = BTreeMap::<_, Vec<_>>::new();
+        let mut by_left_endpoint = ValueIndex::new();
         for (fact, left, right) in bounds::with_value_left(requirements, semantic_axioms) {
-            by_left_endpoint
-                .entry(left.clone())
-                .or_default()
-                .push((fact, right));
+            by_left_endpoint.push(left, (fact, right));
         }
         Self { by_left_endpoint }
     }
@@ -26,9 +21,6 @@ impl<'a> RightLegIndex<'a> {
         &self,
         left_endpoint: &ScalarTerm,
     ) -> &[(&'a Proposition, &'a ScalarTerm)] {
-        self.by_left_endpoint
-            .get(left_endpoint)
-            .map(Vec::as_slice)
-            .unwrap_or(&[])
+        self.by_left_endpoint.candidates(left_endpoint)
     }
 }
