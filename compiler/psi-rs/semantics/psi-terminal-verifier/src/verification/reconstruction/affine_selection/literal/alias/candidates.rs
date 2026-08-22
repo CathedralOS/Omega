@@ -4,20 +4,19 @@ use psi_core::{Proposition, ScalarTerm};
 
 mod join;
 mod landing_index;
-mod root_aliases;
 
+use super::super::equalities::OrientedEqualities;
 use landing_index::LandingIndex;
-use root_aliases::RootAliases;
 
 pub(super) struct LiteralAliasCandidates<'a> {
-    root_aliases: RootAliases<'a>,
+    root_equalities: OrientedEqualities<'a>,
     landings: LandingIndex<'a>,
 }
 
 impl<'a> LiteralAliasCandidates<'a> {
     pub(super) fn new(requirements: &'a [Proposition], semantic_axioms: &'a [Proposition]) -> Self {
         Self {
-            root_aliases: RootAliases::new(requirements, semantic_axioms),
+            root_equalities: OrientedEqualities::new(requirements, semantic_axioms),
             landings: LandingIndex::new(requirements, semantic_axioms),
         }
     }
@@ -26,15 +25,24 @@ impl<'a> LiteralAliasCandidates<'a> {
         &self,
         mut complete: impl FnMut(&'a ScalarTerm, &'a ScalarTerm) -> bool,
     ) -> bool {
-        self.root_aliases.any(|outer_equality, root, alias| {
-            for &(inner_equality, literal) in self.landings.candidates(alias) {
-                if join::eligible(outer_equality, root, inner_equality, literal)
-                    && complete(root, literal)
+        self.root_equalities
+            .iter()
+            .any(|(outer_equality, root, alias)| {
+                if root == alias
+                    || !matches!(root, ScalarTerm::Value { .. })
+                    || !matches!(alias, ScalarTerm::Value { .. })
+                    || root.scalar_type() != alias.scalar_type()
                 {
-                    return true;
+                    return false;
                 }
-            }
-            false
-        })
+                for &(inner_equality, literal) in self.landings.candidates(alias) {
+                    if join::eligible(outer_equality, root, inner_equality, literal)
+                        && complete(root, literal)
+                    {
+                        return true;
+                    }
+                }
+                false
+            })
     }
 }
