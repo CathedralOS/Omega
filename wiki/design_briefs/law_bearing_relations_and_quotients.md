@@ -376,7 +376,9 @@ elimination rule: source code cannot recover, compare, hash, order, serialize,
 reflect over, pattern-match, or otherwise observe the retained representative
 unless a checked quotient operation licenses that observation. In particular,
 quotient formation suppresses every synthesized representation-derived
-operation, including structural equality.
+operation, including structural equality. Struct and case literals cannot
+construct the nominal quotient directly; casting an exact carrier instance with
+`as Quotient` is the sole minting path.
 
 The initial quotient surface also rejects carriers containing affine or linear
 `Type` content or owned/routed custody. An equivalence that identifies distinct
@@ -727,10 +729,11 @@ container equality, use runtime `==`/`!=`, or appear as the target of proof-only
 `zero_value<T>()`; those surfaces would compare or choose retained
 representative bytes without a checked law. Record and arm destructuring also
 reject quotient subjects before field or case analysis, including empty/rest
-patterns. Equality in a proof-fact position stays as a logical fact for the
-exact quotient-congruence judge and is never lowered to a structural compare.
-Executable equality still requires a named lifted operation and its separate
-`DecidesEquivalence` law.
+patterns. Struct and case literals cannot mint a quotient by naming its nominal
+type; only the exact carrier-to-quotient cast may construct one. Equality in a
+proof-fact position stays as a logical fact for the exact quotient-congruence
+judge and is never lowered to a structural compare. Executable equality still
+requires a named lifted operation and its separate `DecidesEquivalence` law.
 
 For a request that is the direct terminal expression of a state, validation
 now derives a non-authoritative relation plan when every selected quotient
