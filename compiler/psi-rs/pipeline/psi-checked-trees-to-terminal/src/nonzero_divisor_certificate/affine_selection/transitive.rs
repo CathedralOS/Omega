@@ -1,12 +1,11 @@
 //! Fixed two-citation transitive affine evidence construction.
 
 use psi_core::{Proposition, PropositionContext};
-use psi_proof_kernel::{ProofNode, ProofRule};
-
-use super::super::affine_custody;
+use psi_proof_kernel::ProofNode;
 
 mod alias;
 mod chains;
+mod completion;
 
 use chains::TwoCitationChains;
 
@@ -37,29 +36,16 @@ pub(super) fn prove_transitively_reconstructed_affine_bound(
             let Proposition::LessOrEqual(_, right) = right_fact else {
                 unreachable!("only integer chains are enumerated")
             };
-            let root_bound = ProofNode {
-                conclusion: Proposition::LessOrEqual(left.clone(), right.clone()),
-                rule: ProofRule::IntegerLessOrEqualTransitivity {
-                    left_less_or_equal_middle: Box::new(left_citation.proof(left_fact)),
-                    middle_less_or_equal_right: Box::new(right_citation.proof(right_fact)),
-                },
-            };
-            for root in [left, right]
-                .into_iter()
-                .filter(|root| matches!(root, psi_core::ScalarTerm::Value { .. }))
-            {
-                if let Some(proof) = affine_custody::prove_from_root(
-                    context,
-                    goal,
-                    assumptions,
-                    semantic_axioms,
-                    root,
-                    root_bound.clone(),
-                ) {
-                    return Some(proof);
-                }
-            }
-            None
+            completion::prove(
+                context,
+                goal,
+                assumptions,
+                semantic_axioms,
+                left,
+                right,
+                left_citation.proof(left_fact),
+                right_citation.proof(right_fact),
+            )
         },
     )
 }
