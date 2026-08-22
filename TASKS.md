@@ -1598,7 +1598,7 @@ Remaining:
   provenance, and sub-state descent closure. The proof validator is its only
   crate-visible export and reuses one parent-private self-call identity check.
   Value-position per-call bound validation and exact diagnostics form a
-  1,004-line `calls/expression_scanning.rs` child. Its 838-line
+  748-line `calls/expression_scanning.rs` child. Its 838-line
   `expression_scanning/traversal.rs` child owns source-ordered recursive
   statement/expression scanning, malformed-name checks, and nested-indexed-read
   fences, delegating through one parent-private call-validation seam. A
@@ -1606,7 +1606,13 @@ Remaining:
   declared-receiver type discovery, lowering-aligned target-channel replay,
   and the fail-closed unresolved-call decision. Existing crate queries are
   unchanged; only type-shell normalization and unresolved-call reporting are
-  shared privately back to per-call validation.
+  shared privately back to per-call validation. A separate 273-line
+  `expression_scanning/result_realization.rs` child owns the fail-closed
+  runtime-result fences for LET-local receivers, nested unmaterialized machine
+  calls, and void callees in value position. It exposes the same two
+  crate-visible diagnostics plus one parent-private void-callee check; target
+  selection, argument validation, diagnostic text, and source order are
+  unchanged.
   Complete-or-opaque caller write-frame inference, alias-origin propagation,
   and transition-cycle frame equations now form a 2,921-line
   `calls/write_frames.rs` child. Its 459-line `write_frames/demand.rs` child
