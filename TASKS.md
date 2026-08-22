@@ -2151,7 +2151,11 @@ Owners:
   planned callback role. Target-instruction lowering now validates the whole
   assigned function set before selecting any body, rejecting invalid roles or
   two functions that claim one source, wrapper, or callback identity instead
-  of deferring ambiguity to object planning. Missing, duplicate, redirected,
+  of deferring ambiguity to object planning. Each internal direct-call target
+  must resolve in that same exact assigned identity set, so role, callback
+  placement, continuation-generation, or absence drift rejects before
+  placeholder encoding. This pins the eventual thunk-to-selected-entry call
+  edge but does not synthesize that thunk body. Missing, duplicate, redirected,
   role-drifted, or interval-drifted identities reject, so a plan row cannot be
   mistaken for emitted thunk evidence. Final emission now also rejoins every
   validated placement row to exactly one private thunk plan. Missing,
