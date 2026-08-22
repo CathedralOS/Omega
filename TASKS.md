@@ -4366,6 +4366,14 @@ Owners:
   independently of producer proof construction. Direct-before-alias
   precedence, source/citation and endpoint order, proof shapes, rejection
   behavior, and the fixed affine-literal frontier remain unchanged.
+  Affine-literal candidate selection now uses paired, side-local invocation
+  functions rather than one-shot candidate structs. Producer and
+  reconstruction independently build the same direct ordered catalog or the
+  fixed one-alias outer catalog plus indexed literal landings, then apply their
+  existing eligibility and completion callbacks; only the producer
+  materializes citations. Construction and source order, direct-before-alias
+  precedence, equality/citation and endpoint order, proof shapes, rejection
+  behavior, and the fixed affine-literal frontier remain unchanged.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
