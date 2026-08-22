@@ -1511,9 +1511,9 @@ fn exact_division_goal_proves_single_definition_affine_safe_divisor() {
     ]);
     let root_bound = Proposition::LessOrEqual(integer(signed, 0), value(3, signed));
     let definition = Proposition::Equal(
-        value(2, signed),
         ScalarTerm::exact_integer_add(signed, value(3, signed), integer(signed, 1))
             .expect("exact add"),
+        value(2, signed),
     );
     let proof = prove_canonical_integer_proposition(
         &context,
