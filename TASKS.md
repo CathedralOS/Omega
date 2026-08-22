@@ -3262,6 +3262,12 @@ Remaining:
   roughly 22,000 allocations and 0.9 MiB per broad float canary; uninstrumented
   wall time remained noisy, so this is an allocation/instrumented-phase result,
   not a claimed wall-time win.
+  Exact call-site resolution now indexes the already-known statement before
+  replaying that statement's recursive source/ordinal call order, instead of
+  traversing every state statement even though ordinals reset per statement.
+  The two allocation-enabled float checked phases fell from 3.029s/3.026s to
+  2.708s/2.700s with exactly unchanged allocation counts and bytes; out-of-
+  range and unresolved lookups remain fail-closed.
   Default-domain validation now delegates conservative symbolic values,
   literal/sequence measures, valuation folding, canonical symbolic equality,
   and recursive call detection to a focused 281-line child while state walking,
@@ -3494,9 +3500,10 @@ Remaining:
   later-stage orchestration; public methods, exact HTML output, and the 79-
   function inventory are unchanged.
   Emission-plan text, native image installation/reporting, stale-output cleanup,
-  and executable-finalization presentation now live in a focused 139-line
-  `native_output_reports` child. The 2,528-line parent retains report carriers
-  and non-native orchestration; public methods, exact output, and the 79-
+  direct-executable finalization, permission installation, and finalization
+  presentation now live in a focused 202-line `native_output_reports` child
+  behind unchanged crate-root re-exports. The 2,416-line parent retains report
+  carriers and non-native orchestration; public APIs, exact output, and the 79-
   function inventory are unchanged.
   Development and test profiles now both omit full DWARF by default, with an
   explicit `CARGO_PROFILE_{DEV,TEST}_DEBUG=2` escape hatch for debugger
