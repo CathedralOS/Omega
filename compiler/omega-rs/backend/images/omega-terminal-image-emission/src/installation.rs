@@ -9,8 +9,7 @@ use omega_target::{Architecture, NativeTarget, ObjectFormat};
 use omega_terminal_machine_code::{
     TerminalBoundaryResultRecord, TerminalBoundarySettlementRecord,
     TerminalCompletionProviderCustodyBinding, TerminalNativeFuelAttribution,
-    TerminalNativeFuelSite, TerminalPortEffectRecord, TerminalProviderExecutionRecord,
-    TerminalStructuralReturnRecord,
+    TerminalNativeFuelSite, TerminalPortEffectRecord, TerminalStructuralReturnRecord,
 };
 use omega_terminal_target_operations::{
     TerminalBoundaryRealization, TerminalCallSiteOwner, TerminalDirectPortReadU8Realization,
@@ -41,12 +40,14 @@ use crate::{
 mod boundary_result_scalar_codec;
 mod call_site_owner_codec;
 mod completion_custody_codec;
+mod provider_execution_codec;
 mod structural_argument_codec;
 use boundary_result_scalar_codec::{
     decode_boundary_result_scalar_type, encode_boundary_result_scalar_type,
 };
 use call_site_owner_codec::{decode_call_site_owner, encode_call_site_owner};
 use completion_custody_codec::{decode_completion_claim_source, encode_completion_claim_source};
+use provider_execution_codec::{decode_provider_execution, encode_provider_execution};
 use structural_argument_codec::{decode_structural_argument, encode_structural_argument};
 
 pub const TERMINAL_INSTALLATION_FORMAT_MARKER: u16 = 31;
@@ -758,12 +759,7 @@ pub fn encode_terminal_installation_record(
         push_u64(&mut bytes, installed.machine.get());
         push_u64(&mut bytes, settlement.psi_operation.get());
         push_u64(&mut bytes, settlement.boundary.get());
-        let execution = settlement.provider_execution;
-        push_u64(&mut bytes, execution.provider_plan);
-        push_u64(&mut bytes, execution.provider_execution_identity);
-        push_u64(&mut bytes, execution.provider_execution_fingerprint);
-        push_u64(&mut bytes, execution.normalized_root_identity);
-        push_u64(&mut bytes, execution.boundary_contract_fingerprint);
+        encode_provider_execution(&mut bytes, settlement.provider_execution);
         match settlement.realization {
             TerminalBoundaryRealization::MetadataOnlyPort(realization) => {
                 bytes.push(0);
@@ -835,7 +831,7 @@ pub fn encode_terminal_installation_record(
             encode_completion_claim_source(&mut bytes, &binding.source)?;
             push_u64(&mut bytes, binding.receipt.claim.get());
             push_u32(&mut bytes, binding.receipt.argument_index);
-            push_provider_execution(&mut bytes, binding.provider_execution);
+            encode_provider_execution(&mut bytes, binding.provider_execution);
         }
         match &settlement.native_result {
             Some(result) => {
@@ -1235,14 +1231,7 @@ pub fn decode_terminal_installation_record(
         let boundary = BoundaryMachineId::new(reader.u64()?).ok_or(
             TerminalInstallationError::ZeroSettlementIdentity("BoundaryMachineId"),
         )?;
-        let provider_execution = TerminalProviderExecutionRecord::new(
-            reader.u64()?,
-            reader.u64()?,
-            reader.u64()?,
-            reader.u64()?,
-            reader.u64()?,
-        )
-        .ok_or(TerminalInstallationError::ZeroProviderExecutionEvidence)?;
+        let provider_execution = decode_provider_execution(&mut reader)?;
         let realization_tag = reader.u8()?;
         let effect_operation = reader.u64()?;
         let service = ServiceId::new(reader.u64()?).ok_or(
@@ -4634,27 +4623,6 @@ fn decode_boolean(value: u8) -> Result<bool, TerminalInstallationError> {
         1 => Ok(true),
         _ => Err(TerminalInstallationError::InvalidBoolean(value)),
     }
-}
-
-fn push_provider_execution(bytes: &mut Vec<u8>, execution: TerminalProviderExecutionRecord) {
-    push_u64(bytes, execution.provider_plan);
-    push_u64(bytes, execution.provider_execution_identity);
-    push_u64(bytes, execution.provider_execution_fingerprint);
-    push_u64(bytes, execution.normalized_root_identity);
-    push_u64(bytes, execution.boundary_contract_fingerprint);
-}
-
-fn decode_provider_execution(
-    reader: &mut Reader<'_>,
-) -> Result<TerminalProviderExecutionRecord, TerminalInstallationError> {
-    TerminalProviderExecutionRecord::new(
-        reader.u64()?,
-        reader.u64()?,
-        reader.u64()?,
-        reader.u64()?,
-        reader.u64()?,
-    )
-    .ok_or(TerminalInstallationError::ZeroProviderExecutionEvidence)
 }
 
 fn push_u16(bytes: &mut Vec<u8>, value: u16) {
