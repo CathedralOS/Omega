@@ -42,7 +42,7 @@ representation.
 ### Boundary-argument realization fence
 
 Ordinary in-module and bodyless boundary calls both carry positional scalar
-arguments. In current terminal-Psi vocabulary 24, `BoundaryMachineDeclaration` declares
+arguments. In current terminal-Psi vocabulary 25, `BoundaryMachineDeclaration` declares
 ordered scalar parameter types and `BoundaryCall` carries the matching ordered
 `ValueId` arguments alongside its structural lane. Canonical encoding binds
 both orders; validation checks exact arity, definition, dominance, and type;
@@ -50,13 +50,20 @@ interpretation evaluates the scalar values before invoking the effect handler;
 and Omega abstract lowering preserves them without reinterpretation. The
 optional primitive scalar remains the independent result lane.
 
-Vocabulary 24 also admits a first-class immutable borrowed byte-sequence shape,
+Vocabulary 25 also admits a first-class immutable borrowed byte-sequence shape,
 an exact raw-octet literal establishment, and that local literal as a structural
 argument to a bodyless boundary. The codec, verifier, and interpreter preserve
 all bytes, including non-UTF-8 payloads. Psi syntax, resolved, typed, and checked
 trees own that exact payload, and checked-to-terminal lowering establishes its
 borrowed place before passing the same place to the bodyless call. In-module and
 nonliteral forwarding remain fenced.
+
+Vocabulary 25 also closes the O0 provider-backed attachment specialization. The
+machine retains `attachment: Some(Main)`, its relevant `console` field retains
+the exact erased provider identity, and sorted `ProviderAttachment` roots bind
+that field to precisely the bodyless boundaries called through it. Validation
+requires exact root/call equality and rejects missing attachments, duplicate or
+orphan roots, runtime `self`, and provider roots forwarded as arguments.
 
 Preservation is not realization. Omega target lowering accepts the one exact
 Linux `exit_process(i32)` shape through import-free `exit_group`, including the

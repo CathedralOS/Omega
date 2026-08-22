@@ -124,7 +124,7 @@ deterministic runnable artifact. The artifact must print the literal plus one
 newline, then exit with the requested low-byte status; those observations must
 agree with canonical meaning.
 
-Terminal-Psi vocabulary 24 represents both boundary operands needed by O0.
+Terminal-Psi vocabulary 25 represents both boundary operands needed by O0.
 `BoundaryMachineDeclaration` carries ordered scalar parameter types and
 `OperationKind::BoundaryCall` carries ordered scalar `ValueId` arguments. The
 checked producer retains exact scalar expressions, the codec and verifier bind
@@ -133,7 +133,7 @@ abstract operation preserves them. Provider candidates remain outside this
 scalar boundary slice and reject such signatures rather than silently ignoring
 them.
 
-Vocabulary 24 also carries a first-class borrowed byte-sequence structural type,
+Vocabulary 25 also carries a first-class borrowed byte-sequence structural type,
 an exact raw-octet literal establishment, and the literal's custody through a
 bodyless boundary call. Psi syntax, resolved, typed, and checked trees own the
 exact bytes, and checked-to-terminal lowering passes the established literal
@@ -149,6 +149,15 @@ shape, preserves the consumed scalar in settlement evidence, emits a trap after
 the nominally nonreturning syscall, and keeps Darwin/Windows fail-closed pending
 validated import/relocation evidence. The metadata-only port settlement remains
 unrelated to process exit.
+
+The authored `Main { console: Console }` shape remains attached in terminal Psi.
+The relevant provider field is erased from runtime layout only alongside exact,
+sorted provider roots for `write_line` and `exit_process`; verification requires
+those roots to equal the boundary calls and rejects missing or substituted
+attachments. The Delta frontend streams this canonical module directly through
+ordinary `write_byte`, byte-identical to the shared-codec vocabulary-25 fixture.
+It uses no private terminal representation or artifact buffer; incomplete output
+is never accepted because every truncated prefix fails canonical decoding.
 
 The frontend is covered by the canonical lower-rung meaning route for its used
 profile. Native execution, Delta-written `lowermachine`, and the Beta-written

@@ -36,16 +36,16 @@ lattice and `compiler/` for the product implementation.
 
 ### Language spine
 
-| Current path | Role | Target owner |
+| Canonical or compatibility source | Role | Target owner |
 | --- | --- | --- |
-| `compiler/alpha/` | 21-opcode native seed VM and written semantics | `bootstrap/rungs/alpha/` |
-| `compiler/beta/`, `compiler/beta-lang/` | Alpha assembler plus Beta language/compiler | `bootstrap/rungs/beta/` |
+| `bootstrap/rungs/alpha/` (compatibility: `compiler/alpha`, `compiler/beta`) | 21-opcode native seed VM, written semantics, and Alpha-written Alpha assembler | `bootstrap/rungs/alpha/` — moved |
+| `compiler/beta-lang/` | Beta language and self-hosting compiler | `bootstrap/rungs/beta/` |
 | `compiler/gamma/` | Gamma language, interpreter, and type checker | `bootstrap/rungs/gamma/` |
 | lattice-built sources/artifacts in `compiler/delta*/` | Delta language and compiler | `bootstrap/rungs/delta/` |
 
 ### Assurance and bootstrap Omega
 
-| Current path | Role | Target owner |
+| Canonical or transitional source | Role | Target owner |
 | --- | --- | --- |
 | `compiler/proof-kernel/` plus Gamma checker sources | cross-cutting derivation checking, tools, corpora, and gates | `bootstrap/assurance/proof-kernel/`, split by implementation/tool/corpus/gate |
 | refinement tooling spread across `alpha/`, `omega/`, and Python helpers | source-to-artifact obligation reconstruction and checking | `bootstrap/assurance/refinement/` |
@@ -54,9 +54,9 @@ lattice and `compiler/` for the product implementation.
 
 ### Transitional and product implementations
 
-| Current path | Role | Target owner |
+| Canonical or transitional source | Role | Target owner |
 | --- | --- | --- |
-| `compiler/beta-lang-rs/`, Rust producer portion of `compiler/delta-rs/` | disposable/reference on-ramps | `bootstrap/onramps/` |
+| `compiler/beta-rs/`, `compiler/beta-lang-rs/`, Rust producer portion of `compiler/delta-rs/` | Alpha-assembler, Beta-language, and Delta disposable/reference on-ramps | `bootstrap/onramps/`, separated by produced role |
 | semantic and symbolic portions of `compiler/beta-lang-py/` | Beta meaning/refinement references | Beta reference or refinement owner, not a Python-named peer rung |
 | `compiler/beta-lang-py/beta_parser.py` | shared untrusted Beta source recognition | narrowest Beta reference/refinement owner needing it |
 | compiler portion of `compiler/beta-lang-py/bc2.py` | optional differential backend | retain only for unique diagnostics |
@@ -214,14 +214,14 @@ story.
     acceptance and rejection. It retains the decoded `write_line` carrier and
     `exit_process` literal and exposes their digest until terminal-Psi emission
     consumes them.
-  - [ ] Emit the O0 terminal-Psi semantic artifact while retaining
+  - [x] Emit the O0 terminal-Psi semantic artifact while retaining
     `write_line`'s exact structural byte carrier and custody through its
     boundary call. This is implementation work, not an unresolved language
     ruling, and it must use the shared terminal representation rather than an
     O0-private IR.
     - [x] Add the first-class borrowed byte-sequence structural type, canonical
       literal establishment/place, and generalized structural boundary-argument
-      source required by `write_line` (terminal vocabulary 24). Local literal
+      source required by `write_line` (terminal vocabulary 25). Local literal
       sources are admitted only at bodyless boundaries; in-module forwarding
       and nonliteral native layout remain fail-closed.
     - [x] Preserve literal bytes exactly in the canonical codec, verifier, and
@@ -236,33 +236,40 @@ story.
       newline, retries short writes, and composes with `exit_group` in one Unit
       body on x86-64 and AArch64. Nonliteral forwarding and Darwin/Windows remain
       fail-closed.
-    - [ ] Represent O0's `Main { console: Console }` attachment honestly. Either
-      verify a canonical specialization that erases the dynamic-trait field
-      into the retained boundary requirement plus provider-installation seam,
-      or carry the provider-backed attachment descriptor; do not substitute an
-      empty record or `attachment: None` while claiming the original shape.
-    - [ ] Emit canonical terminal semantic bytes directly from Delta and gate
+    - [x] Represent O0's `Main { console: Console }` attachment honestly. The
+      canonical specialization retains `attachment: Some(Main)`, the relevant
+      erased `console` provider field, and exact sorted provider roots for every
+      bodyless boundary used through that field. The verifier requires exact
+      root/call correspondence and rejects missing, ambiguous, forwarded, or
+      tampered shapes.
+    - [x] Emit canonical terminal semantic bytes directly from Delta and gate
       them through the shared codec/verifier with the canonical empty proof
       bundle for proof-free O0. Do not route this milestone through the Rust
       checked-plan producer trees.
-      - [ ] After the attachment representation is honest, freeze one canonical
+      - [x] After the attachment representation is honest, freeze one canonical
         O0 terminal-module fixture: stable declaration/value/operation IDs,
         ordered `write_line` then `exit_process` calls, the exact byte literal,
         and the exact scalar exit operand. Generate the fixture through the
         shared codec only as conformance evidence, not as a bootstrap producer.
-      - [ ] Add the Delta emitter using ordinary checked `write_byte` output and
+      - [x] Add the Delta emitter using ordinary checked `write_byte` output and
         explicit length/integer encoding. Its emitted bytes must decode and
-        verify through the shared vocabulary-24 path and must be byte-identical
+        verify through the shared vocabulary-25 path and must be byte-identical
         to the frozen canonical fixture for the same retained operands.
-      - [ ] Gate custody perturbations independently: changing any literal byte,
+      - [x] Gate custody perturbations independently: changing any literal byte,
         its length, the newline-producing call order, or the exit scalar must
         change the decoded semantic artifact or reject. Truncation and emitter
         storage exhaustion must reject without a partial artifact being
-        accepted.
-    - [ ] If a standalone semantic-plus-proof file becomes necessary, add one
-      generic length-delimited terminal envelope; do not invent an O0-only
-      container. The proof-free semantic-slice gate does not depend on this
-      packaging work.
+        accepted. The direct emitter streams and has no artifact buffer to
+        exhaust; source/text exhaustion occurs before output, and every partial
+        prefix is rejected by the shared decoder.
+    - [x] No standalone semantic-plus-proof envelope is needed for this slice.
+      If a later profile needs one, add one generic length-delimited terminal
+      envelope rather than an O0-only container.
+  - [ ] **Close the Delta artifact-publication sink contract.** D0 `write_byte`
+    returns `Unit`, so the compiler cannot observe a physical sink/short-write
+    failure. Either make that failure explicit or require atomic persistence
+    plus successful canonical decode before publication; a successful producer
+    exit alone is not artifact acceptance.
   - [x] Implement a genuine target `exit_process(i32)` boundary realization.
     Consume the preserved scalar argument; do not reinterpret it as a machine
     return or route it through the metadata-only port settlement.
@@ -328,6 +335,14 @@ from attractive but deferrable language work.
 - [ ] **Create the `bootstrap/` ownership root.** Move rungs first without
   changing behavior; retain temporary compatibility wrappers where external
   entry points require them.
+  - [x] Move both the native seed/written Alpha semantics from `compiler/alpha/`
+    and the Alpha-written Alpha assembler from historical `compiler/beta/` to
+    `bootstrap/rungs/alpha/`. The directory name must not assign the assembler
+    to the Beta rung. Compatibility symlinks preserve the old entry points;
+    canonical gates and dependency hashes use the `alpha-assembler` role.
+  - [ ] Move the Beta language and self-hosting compiler from
+    `compiler/beta-lang/` to `bootstrap/rungs/beta/` independently of the Alpha
+    assembler compatibility path.
 - [ ] **Split proof-kernel responsibilities.** Separate Beta/Gamma/reference
   checker implementations, untrusted proof tooling, corpora, and gates under
   `bootstrap/assurance/proof-kernel/`.

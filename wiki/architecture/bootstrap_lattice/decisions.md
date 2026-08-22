@@ -229,8 +229,8 @@ path matures.
 ```
 α  seed VM ...... small written semantics + audited x64/arm64 realizations               [ROOT: execution]
 │                 hand-audited; own small-step semantics
-β  assembler .... written in α-asm, run by α; self-hosts                                [derived from α]
-   bc ........... Beta compiler in Beta; self-hosts; whole-artifact refinement open      [D5 work]
+α  assembler .... written in α-asm, run by α; self-hosts                                [derived from α]
+β  bc ........... Beta compiler in Beta; self-hosts; whole-artifact refinement open      [D5 work]
 γ  interpreter .. interp.beta (+ typeck): the canonical MEANING substrate               [Rust-free]
 δ  systems ...... compiler-host language; meaning elaborates δ → γ                      [D2; Rust removal active]
                   builds a simple, spec-compliant Omega compiler                          [bootstrap producer]

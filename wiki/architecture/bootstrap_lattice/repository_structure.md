@@ -14,12 +14,13 @@ not a sound ownership model.
 ```text
 bootstrap/
   rungs/
-    alpha/                  written semantics + native seed realizations
-    beta/                   Alpha assembler + Beta language/compiler
+    alpha/                  written semantics + native seeds + Alpha assembler
+    beta/                   Beta language + self-hosting compiler
     gamma/                  Gamma language, interpreter, and type checker
     delta/                  Delta language + lattice-built compiler
 
   onramps/
+    alpha-assembler-rust/   disposable/reference Alpha assembler producer
     beta-rust/              disposable/reference Beta producer
     delta-rust/             disposable/reference Delta producer
 
@@ -106,13 +107,13 @@ rejects new named sibling-relative references. Broad moves may therefore update
 one role manifest instead of rewriting every gate. Migrate by ownership, keeping
 temporary wrappers where needed:
 
-| Current path | Target role |
+| Canonical or transitional source | Target role |
 | --- | --- |
-| `compiler/alpha/` | `bootstrap/rungs/alpha/` |
-| `compiler/beta/` + `compiler/beta-lang/` | `bootstrap/rungs/beta/` |
+| `bootstrap/rungs/alpha/` (compatibility: `compiler/alpha`, historical `compiler/beta`) | `bootstrap/rungs/alpha/` — complete |
+| `compiler/beta-lang/` | `bootstrap/rungs/beta/` |
 | `compiler/gamma/` | `bootstrap/rungs/gamma/` |
 | lattice-built Delta sources/artifacts in `compiler/delta*/` | `bootstrap/rungs/delta/` |
-| `compiler/beta-lang-rs/`, Rust portion of `compiler/delta-rs/` | `bootstrap/onramps/` |
+| `compiler/beta-rs/`, `compiler/beta-lang-rs/`, Rust portion of `compiler/delta-rs/` | `bootstrap/onramps/`, separated by produced role |
 | `compiler/proof-kernel/` + Gamma checker sources | `bootstrap/assurance/proof-kernel/` |
 | refinement scripts spread across `alpha/`, `omega/`, and Python tools | `bootstrap/assurance/refinement/` |
 | `compiler/omega/` bootstrap experiments | `bootstrap/omega0/` |
