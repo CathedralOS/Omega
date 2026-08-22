@@ -683,6 +683,13 @@ Owners:
   for corrected retry; withdrawal returns the original loan and
   correspondence. No placed view, content qualification, field access, or
   device operation is established.
+  Schema/device provider grants and admitted correspondence now retain the
+  complete validated placement plan—layout, access policy, and boundary
+  reach—rather than treating compact `PlacementPlanId` as authority. Admission
+  and every later placement/view/access/retirement replay compare exact
+  structure; same-ID/different-geometry or policy drift rejects transactionally
+  and returns the complete non-Clone inputs for repair. Compact identities
+  remain reporting/cache keys only.
   Corresponded borrowed placement admission now establishes a sealed placed-
   view carrier only after independently replaying both its physical
   correspondence and exact loan/profile/plan/resource admission. Rejection
@@ -1402,6 +1409,14 @@ Remaining:
   the dispatcher falsely claims a kernel derivation of the canonical goal. The
   trust graph binds the table to exactly those twelve denotation nodes and the
   dispatcher to every affected reducer.
+  Eight of those Terminal rows now rejoin the settled shared integer-policy
+  catalog by exact primitive/domain identity: exact add/subtract/multiply,
+  exact divide, exact left/right shift, and wrapping/saturating divide. Row
+  validation derives their existing canonical goal shapes from the catalog's
+  formation conditions, so representability, divisor, and shift-count policy
+  are no longer a disconnected Terminal authority. Exact cast and all
+  remainder rows remain explicitly unbound because the catalog defines no
+  corresponding primitive; no policy is inferred past the settled vocabulary.
   The next bounded proof-calculus parity slice exposes canonical disjunction
   introduction in the production certificate kernel. One
   `DisjunctionIntroduction` node owns exactly one independently checked child
@@ -1838,7 +1853,18 @@ Remaining:
   closed-order, root-bound, and cast checks. Direct-root, landed-literal, then
   alias precedence, citation order, endpoint orientation, proof shape, unsafe,
   redirected, or mistyped rejection, and the fixed evidence frontier are
-  unchanged. Cast-
+  unchanged. Exact integer-cast definition-spine selection now lives in
+  independent side-local `cast_custody/chain` modules. Production and
+  reconstruction each walk backward from the selected target through exactly
+  one retained `IntegerExactCast` definition per value, reject ambiguous or
+  reused definitions and failure to reach the exact root, then require the
+  recovered semantic-axiom word to be source ordered. Production's cast-
+  custody parent still owns target precedence, witness/proof construction, and
+  full certificate checking; reconstruction independently owns witness and
+  bound-conversion checking. Cast legality, continuity, carrier validation,
+  target order, proof shape, rejection behavior, and the finite unique-spine
+  frontier are unchanged; no alternate-path, permutation, or generic graph
+  search is introduced. Cast-
   specific alias transport now lives in independent
   side-local `alias_transport/cast` modules. Production alone constructs the
   closed-strengthening and alias-landed-literal substitution proofs before cast
@@ -1880,7 +1906,18 @@ Remaining:
   affine custody. Direct literal landing remains preferred before the fixed
   one-intermediate-alias sibling. Citation/order orientation, proof shape,
   unsafe, missing, redirected, or mistyped rejection, and both finite literal
-  frontiers are unchanged. Fixed one-intermediate-alias affine literal custody now lives in
+  frontiers are unchanged. Direct landed-literal affine completion now lives in
+  independent side-local `affine_selection/literal/direct/completion` modules.
+  Each parent retains its own requirements-before-semantic-axioms equality
+  discovery, citation and orientation order, value-root custody, and typed-
+  literal filtering; production alone constructs the closed reflexive
+  relation, one endpoint substitution, and affine proof, while reconstruction
+  independently rechecks the same two root-bound orientations through affine
+  custody. Direct literal landing remains preferred before the fixed one-
+  intermediate-alias sibling. Proof shape, endpoint order, unsafe, missing,
+  redirected, or mistyped rejection, and both finite literal frontiers are
+  unchanged; no recursive alias or generic evidence search is introduced.
+  Fixed one-intermediate-alias affine literal custody now lives in
   independent side-local `affine_selection/literal/alias` modules. Production
   alone retains the distinct root-alias and alias-literal citation identities
   and constructs the closed reflexive relation followed by two exact
@@ -1889,7 +1926,28 @@ Remaining:
   remains preferred in each parent. Citation order, endpoint orientation,
   nested proof shape, reused, redirected, or mistyped rejection, and the
   single-intermediate-alias frontier are unchanged; no recursive alias search
-  is introduced. A
+  is introduced. One-intermediate-alias affine literal completion now lives in
+  independent side-local `affine_selection/literal/alias/completion` modules.
+  Each parent retains its own outer-then-inner equality discovery, distinct
+  citation/value custody, and typed literal filtering; production alone
+  constructs the closed reflexive relation, inner alias substitution, outer
+  root substitution, and affine proof, while reconstruction independently
+  rechecks the same two root-bound orientations through affine custody. Direct
+  landed-literal custody remains preferred. Equality/citation order and
+  distinctness, endpoint orientation, nested proof shape, missing, reused,
+  redirected, or mistyped rejection, and the fixed one-intermediate-alias
+  frontier are unchanged; no recursive alias search is introduced. One-
+  equality transitive affine completion now lives in independent side-local
+  `affine_selection/transitive/alias/completion` modules. Each parent retains
+  its own ledger-ordered equality discovery, distinct root/alias custody, and
+  exact two-citation chain enumeration; production alone constructs the
+  transitivity child, one endpoint substitution, and affine proof, while
+  reconstruction independently maps the same root-bound endpoint and rechecks
+  affine custody. Direct transitive affine custody remains preferred. Equality
+  and chain order, endpoint orientation, citation identity, nested proof shape,
+  missing, reused, redirected, or mistyped rejection, and the fixed two-
+  citation/one-alias frontier are unchanged; no generalized path or alias
+  search is introduced. A
   single exact prior value equality may also transport a completed affine bound
   from its checked target alias to the canonical goal endpoint. The producer
   replaces that one endpoint, constructs the bounded affine relation directly,
@@ -3242,6 +3300,32 @@ Owners:
   lookup concatenation, and a call-argument slice alias—retain 193, 190, 192,
   200, and 77. Exact interpreter, stdout, and content-comparison assertions
   remain unchanged, and the 795 rooted/3 legacy exact-owner pins remain stable.
+  Five further authored-root ABI/string-storage executions—mutable struct
+  string-field copy/concat/write-line, machine-owned indexed integer writes,
+  fixed- and runtime-indexed struct copies, and nested indexed exit writes—now
+  launch only from exact checked-report receipts while retaining literal
+  statuses 77, 79, 83, 85, and 89. Five further authored-root ABI/ordered-
+  dispatch executions—direct, after-call, game-shape, and large-machine room
+  dispatch plus guarded inline leaf-arm skipping—now use the same receipt-only
+  boundary while retaining literal statuses 73, 83, 93, 103, and 70. Exact
+  interpreter/stdout and existing diagnostic assertions remain unchanged, and
+  the 795 rooted/3 legacy exact-owner pins remain stable.
+  Four further ABI/dungeon executions—ordered-room dispatch and real-show-state
+  stdin loops, the threaded mutable-argument interrupt soak, and nested value-
+  call caller-local guarding—now launch only from exact checked-report receipts
+  while retaining literal statuses 135, 145, 70, and 70. Five further authored-
+  root domain/control executions—copy-then-read, full-width i64 operations,
+  chained bounded-text append, descriptor append-in-place, and two-field
+  bounded-text concatenation—use the same receipt-only boundary while retaining
+  literal status 70. Existing stdin, interpreter, and diagnostic assertions
+  remain unchanged, and the 795 rooted/3 legacy exact-owner pins remain stable.
+  Five further authored-root domain/control executions—machine bounded-text
+  append, local string-field copying through mutable parameters, bounded-
+  carrier call returns, min-call result arithmetic, and direct Boolean
+  conjunction dispatch—now launch only from exact checked-report receipts while
+  retaining literal statuses 70, 70, 70, 70, and 21. Existing interpreter
+  assertions remain unchanged, and the 795 rooted/3 legacy exact-owner pins
+  remain stable.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
