@@ -13,6 +13,7 @@
 //! resulting sealed image. It does not grant executable authority or replace
 //! the separate native admission, placement, and retirement ladder.
 
+mod final_image_validation;
 mod installation;
 mod instruction_loads;
 mod scalar_cleanup_preservation;
@@ -29,6 +30,7 @@ mod unit_stack;
 pub use installation::*;
 pub use stack_demand::{derive_terminal_stack_demand, derive_terminal_unit_stack_demand};
 
+use final_image_validation::validate_terminal_image;
 use scalar_cleanup_preservation::{
     validate_scalar_cleanup_preservation, validate_scalar_cleanup_preservation_record,
 };
@@ -54,10 +56,7 @@ use unit_stack::{
 };
 
 use omega_calling_conventions::ValueLocation;
-use omega_image::{
-    CompilerTextValidationEvidence, EmittedImageOutput, FinalExecutableRegionOrigin,
-    FinalImageInput, emitted_direct_executable_output, validate_final_text_relocation_envelope,
-};
+use omega_image::{EmittedImageOutput, FinalImageInput, emitted_direct_executable_output};
 use omega_object_file::{
     ObjectContainerInput, ObjectContainerOutput, ObjectPlan, ObjectSymbolHandle, RelocationKind,
     RelocationOrigin, RelocationPlan, RelocationRecord, SectionKind, SectionPlan, SymbolKind,
@@ -3684,65 +3683,6 @@ impl TerminalExecutableImage {
     pub fn fuel_attribution(&self) -> &[TerminalObjectFuelAttribution] {
         &self.fuel_attribution
     }
-}
-
-fn validate_terminal_image(
-    artifact: &TerminalObjectArtifact,
-    output: &EmittedImageOutput,
-) -> Result<CompilerTextValidationEvidence, Diagnostic> {
-    if output.final_image_imports != 0 {
-        return Err(Diagnostic::error(
-            "terminal-Psi internal-call image unexpectedly retained imports",
-        ));
-    }
-    if output.final_image_relocations != artifact.relocations.record_count() {
-        return Err(Diagnostic::error(format!(
-            "terminal-Psi image retained {} relocation(s), expected {}",
-            output.final_image_relocations,
-            artifact.relocations.record_count()
-        )));
-    }
-    if let Some(gap) = output.executable_regions.unclassified_gaps.first() {
-        return Err(Diagnostic::error(format!(
-            "terminal-Psi executable inventory left {} unclassified byte(s) at .text offset {}",
-            gap.byte_count, gap.section_offset
-        )));
-    }
-    let compiler_regions = output
-        .executable_regions
-        .regions
-        .iter()
-        .filter(|region| region.origin == FinalExecutableRegionOrigin::CompilerFunction)
-        .collect::<Vec<_>>();
-    if compiler_regions.len() != artifact.functions.len() {
-        return Err(Diagnostic::error(format!(
-            "terminal-Psi image retained {} compiler function region(s), expected {}",
-            compiler_regions.len(),
-            artifact.functions.len()
-        )));
-    }
-    for function in &artifact.functions {
-        let symbol = omega_object_file::object_symbol_name(&artifact.object, function.symbol);
-        let matching = compiler_regions
-            .iter()
-            .filter(|region| {
-                region.symbol == symbol
-                    && region.section_offset == function.text_offset
-                    && region.byte_count == function.byte_count
-            })
-            .count();
-        if matching != 1 {
-            return Err(Diagnostic::error(format!(
-                "terminal-Psi function {} must bind exactly one final executable region; found {matching}",
-                function.machine
-            )));
-        }
-    }
-    validate_final_text_relocation_envelope(
-        &artifact.text_bytes,
-        &output.final_text_bytes,
-        &artifact.relocations,
-    )
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
