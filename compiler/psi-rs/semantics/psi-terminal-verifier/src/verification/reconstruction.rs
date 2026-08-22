@@ -607,22 +607,62 @@ fn retained_cast_chain_bound(
                         })
                 })
                 .any(|(root, literal)| {
-                    [
-                        Proposition::LessOrEqual(literal.clone(), root.clone()),
-                        Proposition::LessOrEqual(root.clone(), literal.clone()),
-                    ]
-                    .iter()
-                    .any(|root_bound| {
-                        retained_cast_bound_from_root(
-                            context,
-                            goal,
-                            semantic_axioms,
-                            root,
-                            root_bound,
-                        )
-                    })
+                    retained_cast_bound_from_landed_literal(
+                        context,
+                        goal,
+                        semantic_axioms,
+                        root,
+                        literal,
+                    )
                 })
         })
+}
+
+fn retained_cast_bound_from_landed_literal(
+    context: &PropositionContext,
+    goal: &Proposition,
+    semantic_axioms: &[Proposition],
+    root: &ScalarTerm,
+    landed_literal: &ScalarTerm,
+) -> bool {
+    let Proposition::LessOrEqual(goal_left, goal_right) = goal else {
+        return false;
+    };
+    let psi_core::ScalarType::Integer(root_type) = root.scalar_type() else {
+        return false;
+    };
+    [(goal_right, goal_left, 1), (goal_left, goal_right, 0)]
+        .into_iter()
+        .filter(|(target, _, _)| matches!(target, ScalarTerm::Value { .. }))
+        .any(|(_, target_endpoint, endpoint)| {
+            let Some(source_endpoint) = retained_remap_integer_literal(target_endpoint, root_type)
+            else {
+                return false;
+            };
+            let closed = if endpoint == 1 {
+                closed_integer_less_or_equal(&source_endpoint, landed_literal)
+            } else {
+                closed_integer_less_or_equal(landed_literal, &source_endpoint)
+            };
+            if !closed {
+                return false;
+            }
+            let root_bound = if endpoint == 1 {
+                Proposition::LessOrEqual(source_endpoint, root.clone())
+            } else {
+                Proposition::LessOrEqual(root.clone(), source_endpoint)
+            };
+            retained_cast_bound_from_root(context, goal, semantic_axioms, root, &root_bound)
+        })
+}
+
+fn retained_remap_integer_literal(
+    literal: &ScalarTerm,
+    target_type: psi_core::IntegerType,
+) -> Option<ScalarTerm> {
+    let (source_type, value) = literal.integer_value()?;
+    let value = source_type.exact_cast_value_to(target_type, value)?;
+    ScalarTerm::integer(target_type, value).ok()
 }
 
 fn retained_cast_bound_from_root(
@@ -2914,7 +2954,7 @@ mod tests {
                 ScalarTerm::integer(i32_type, IntegerValue::Signed(1)).expect("i32 one"),
             )],
         ));
-        assert!(!exact_division_has_prior_certificate(
+        assert!(exact_division_has_prior_certificate(
             &context,
             &goal,
             &[first_cast.clone(), second_cast.clone()],
@@ -2923,6 +2963,27 @@ mod tests {
                 ScalarTerm::integer(i32_type, IntegerValue::Signed(2)).expect("i32 two"),
             )],
         ));
+        assert!(exact_division_has_prior_certificate(
+            &context,
+            &goal,
+            &[first_cast.clone(), second_cast.clone()],
+            &[Proposition::Equal(
+                value(5, i32_type),
+                ScalarTerm::integer(i32_type, IntegerValue::Signed(-3)).expect("i32 -3"),
+            )],
+        ));
+        for weak in [0, -1] {
+            assert!(!exact_division_has_prior_certificate(
+                &context,
+                &goal,
+                &[first_cast.clone(), second_cast.clone()],
+                &[Proposition::Equal(
+                    value(5, i32_type),
+                    ScalarTerm::integer(i32_type, IntegerValue::Signed(weak))
+                        .expect("weak i32 literal"),
+                )],
+            ));
+        }
         assert!(!exact_division_has_prior_certificate(
             &context,
             &goal,

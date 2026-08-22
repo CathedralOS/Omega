@@ -302,36 +302,87 @@ fn prove_landed_literal_cast_bound(
             if root.scalar_type() != psi_core::ScalarType::Integer(integer_type) {
                 continue;
             }
-            let reflexive = Proposition::LessOrEqual(literal.clone(), literal.clone());
-            for (root_bound, endpoint) in [
-                (Proposition::LessOrEqual(literal.clone(), root.clone()), 1),
-                (Proposition::LessOrEqual(root.clone(), literal.clone()), 0),
-            ] {
-                let root_bound = ProofNode {
-                    conclusion: root_bound,
-                    rule: ProofRule::IntegerLessOrEqualSubstitution {
-                        relation: Box::new(ProofNode {
-                            conclusion: reflexive.clone(),
-                            rule: ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation),
-                        }),
-                        equality: Box::new(citation.proof(equality)),
-                        endpoint,
-                    },
-                };
-                if let Some(proof) = prove_cast_bound_from_root(
-                    context,
-                    goal,
-                    assumptions,
-                    semantic_axioms,
-                    root,
-                    root_bound,
-                ) {
-                    return Some(proof);
-                }
+            if let Some(proof) = prove_cast_bound_from_landed_literal(
+                context,
+                goal,
+                assumptions,
+                semantic_axioms,
+                root,
+                literal,
+                citation.proof(equality),
+            ) {
+                return Some(proof);
             }
         }
     }
     None
+}
+
+fn prove_cast_bound_from_landed_literal(
+    context: &PropositionContext,
+    goal: &Proposition,
+    assumptions: &[Proposition],
+    semantic_axioms: &[Proposition],
+    root: &psi_core::ScalarTerm,
+    landed_literal: &psi_core::ScalarTerm,
+    equality: ProofNode,
+) -> Option<ProofNode> {
+    let Proposition::LessOrEqual(goal_left, goal_right) = goal else {
+        return None;
+    };
+    let psi_core::ScalarType::Integer(root_type) = root.scalar_type() else {
+        return None;
+    };
+    for (target, target_endpoint, endpoint) in
+        [(goal_right, goal_left, 1), (goal_left, goal_right, 0)]
+    {
+        if !matches!(target, psi_core::ScalarTerm::Value { .. }) {
+            continue;
+        }
+        let Some(source_endpoint) = remap_integer_literal(target_endpoint, root_type) else {
+            continue;
+        };
+        let closed_relation = if endpoint == 1 {
+            Proposition::LessOrEqual(source_endpoint.clone(), landed_literal.clone())
+        } else {
+            Proposition::LessOrEqual(landed_literal.clone(), source_endpoint.clone())
+        };
+        let Some(closed_relation) = closed_integer_relation(closed_relation) else {
+            continue;
+        };
+        let root_bound = ProofNode {
+            conclusion: if endpoint == 1 {
+                Proposition::LessOrEqual(source_endpoint, root.clone())
+            } else {
+                Proposition::LessOrEqual(root.clone(), source_endpoint)
+            },
+            rule: ProofRule::IntegerLessOrEqualSubstitution {
+                relation: Box::new(closed_relation),
+                equality: Box::new(equality.clone()),
+                endpoint,
+            },
+        };
+        if let Some(proof) = prove_cast_bound_from_root(
+            context,
+            goal,
+            assumptions,
+            semantic_axioms,
+            root,
+            root_bound,
+        ) {
+            return Some(proof);
+        }
+    }
+    None
+}
+
+fn remap_integer_literal(
+    literal: &psi_core::ScalarTerm,
+    target_type: psi_core::IntegerType,
+) -> Option<psi_core::ScalarTerm> {
+    let (source_type, value) = literal.integer_value()?;
+    let value = source_type.exact_cast_value_to(target_type, value)?;
+    psi_core::ScalarTerm::integer(target_type, value).ok()
 }
 
 fn prove_cast_bound_from_root(
@@ -3207,16 +3258,58 @@ mod tests {
             .is_none(),
             "a redirected landed literal does not supply root custody",
         );
-        assert!(
-            prove_canonical_integer_proposition(
-                &context,
-                &goal,
-                &[Proposition::Equal(value(5, i32_type), integer(i32_type, 2))],
-                &[first_cast.clone(), second_cast.clone()],
-            )
-            .is_none(),
-            "a changed endpoint literal cannot justify the canonical arm",
+        let stronger_positive = prove_canonical_integer_proposition(
+            &context,
+            &goal,
+            &[Proposition::Equal(value(5, i32_type), integer(i32_type, 2))],
+            &[first_cast.clone(), second_cast.clone()],
+        )
+        .expect("a closed stronger positive root literal proves the canonical arm");
+        let ProofRule::DisjunctionIntroduction { disjunct, index } = stronger_positive.rule else {
+            panic!("stronger positive root selects one canonical arm")
+        };
+        assert_eq!(index, 1);
+        let ProofRule::IntegerCastBound { root_bound, .. } = disjunct.rule else {
+            panic!("stronger positive root uses the cast-bound rule")
+        };
+        let ProofRule::IntegerLessOrEqualSubstitution { relation, .. } = root_bound.rule else {
+            panic!("stronger positive root uses one substitution")
+        };
+        assert_eq!(
+            relation.conclusion,
+            Proposition::LessOrEqual(integer(i32_type, 1), integer(i32_type, 2)),
         );
+
+        let stronger_negative = prove_canonical_integer_proposition(
+            &context,
+            &goal,
+            &[Proposition::Equal(
+                value(5, i32_type),
+                integer(i32_type, -3),
+            )],
+            &[first_cast.clone(), second_cast.clone()],
+        )
+        .expect("a closed stronger negative root literal proves the canonical arm");
+        let ProofRule::DisjunctionIntroduction { index, .. } = stronger_negative.rule else {
+            panic!("stronger negative root selects one canonical arm")
+        };
+        assert_eq!(index, 0);
+
+        for weak in [0, -1] {
+            assert!(
+                prove_canonical_integer_proposition(
+                    &context,
+                    &goal,
+                    &[Proposition::Equal(
+                        value(5, i32_type),
+                        integer(i32_type, weak),
+                    )],
+                    &[first_cast.clone(), second_cast.clone()],
+                )
+                .is_none(),
+                "a weaker landed root cannot justify either canonical arm",
+            );
+        }
 
         assert!(
             prove_canonical_integer_proposition(
