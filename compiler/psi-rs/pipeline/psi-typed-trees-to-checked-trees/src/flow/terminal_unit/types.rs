@@ -24,6 +24,7 @@ pub(super) fn return_unit_affine_discards(
                 ..
             } => structural_arguments
                 .iter()
+                .filter(|argument| argument.byte_sequence_literal.is_none())
                 .map(|argument| argument.source_parameter_index)
                 .collect::<Vec<_>>(),
             CheckedUnitEffectOperationPlan::PortWrite { .. }
@@ -625,6 +626,29 @@ impl<'program> ShapeCollector<'program> {
         binders: &[(SymbolHandle, String)],
         substitutions: &[(SymbolHandle, TypeReferenceHandle)],
     ) -> Option<String> {
+        if let Some(carrier) = byte_sequence_carrier(self.program, type_reference, substitutions) {
+            let identity = self
+                .program
+                .normalized_type_identity_with_binders_and_substitutions(
+                    type_reference,
+                    binders,
+                    substitutions,
+                )
+                .into_string();
+            let plan = CheckedUnitStructuralTypePlan {
+                identity: identity.clone(),
+                shape: CheckedUnitStructuralTypeShape::ByteSequence(carrier),
+            };
+            if self
+                .types
+                .get(&identity)
+                .is_some_and(|existing| existing != &plan)
+            {
+                return None;
+            }
+            self.types.insert(identity.clone(), plan);
+            return Some(identity);
+        }
         let mut type_reference = type_reference;
         loop {
             match self
@@ -893,6 +917,7 @@ impl<'program> ShapeCollector<'program> {
                     continue;
                 };
                 match &plan.shape {
+                    CheckedUnitStructuralTypeShape::ByteSequence(_) => {}
                     CheckedUnitStructuralTypeShape::Record { fields } => {
                         for field in fields {
                             if let CheckedUnitStructuralFieldType::Structural { type_identity } =

@@ -155,6 +155,7 @@ pub(super) fn lower_boundary_scalar_return_machine(
         &parameters,
         &boundary.structural_parameters,
         &type_ids,
+        &structural_types,
         &expected_claim_arguments,
     )?;
     if scalar_arguments.len() != boundary_scalar_parameters.len() {
@@ -198,7 +199,11 @@ pub(super) fn lower_boundary_scalar_return_machine(
         kind: OperationKind::BoundaryCall {
             boundary: boundary_id,
             arguments,
-            structural_arguments: lower_structural_arguments(structural_arguments, &parameters)?,
+            structural_arguments: lower_structural_arguments(
+                structural_arguments,
+                &parameters,
+                &[],
+            )?,
             completion_receipts: completion_receipts
                 .iter()
                 .map(|receipt| {

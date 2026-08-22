@@ -257,7 +257,7 @@ pub(super) fn expression_sequence_measures(
 ) -> Option<(Option<i128>, Option<i128>)> {
     match program.expression_table.expression(expression) {
         ExpressionNode::String(literal) => {
-            let measure = i128::try_from(literal.as_bytes().len()).ok();
+            let measure = i128::try_from(literal.len()).ok();
             Some((measure, measure))
         }
         _ => None,

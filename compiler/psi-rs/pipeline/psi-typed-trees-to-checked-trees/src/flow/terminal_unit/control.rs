@@ -547,91 +547,114 @@ pub(super) fn build_boundary_machine(
 pub(super) fn build_static_boundary_requirements(
     program: &TypedTrees,
     facts: &CheckFacts,
+    shapes: &mut ShapeCollector<'_>,
 ) -> Vec<CheckedBoundaryMachinePlan> {
-    let mut plans = program
-        .traits()
-        .iter()
-        .filter(|definition| definition.is_boundary)
-        .filter(|definition| program.trait_type_parameters(definition).is_empty())
-        .flat_map(|definition| {
-            program
-                .trait_machine_signatures(definition)
+    let mut plans = Vec::new();
+    for definition in program.traits().iter().filter(|definition| {
+        definition.is_boundary && program.trait_type_parameters(definition).is_empty()
+    }) {
+        for signature in program.trait_machine_signatures(definition) {
+            if !program
+                .state_signature_type_parameters(signature)
+                .is_empty()
+                || !is_unit(program, signature.return_type)
+                || !program.state_signature_contracts(signature).is_empty()
+                || signature.suspends
+                || signature.blocks
+            {
+                continue;
+            }
+            let mut structural_parameters = Vec::new();
+            let mut scalar_parameters = Vec::new();
+            let mut supported = true;
+            for (position, parameter) in program
+                .state_signature_parameters(signature)
                 .iter()
-                .filter(|signature| {
-                    program
-                        .state_signature_type_parameters(signature)
-                        .is_empty()
-                        && program
-                            .state_signature_parameters(signature)
-                            .iter()
-                            .all(|parameter| {
-                                !parameter.is_self
-                                    && !parameter.is_const
-                                    && !parameter.is_mutable
-                                    && program
-                                        .primitive_type_reference(parameter.type_reference)
-                                        .is_some()
-                            })
-                        && is_unit(program, signature.return_type)
-                        && program.state_signature_contracts(signature).is_empty()
-                        && !signature.suspends
-                        && !signature.blocks
-                })
-                .filter_map(|signature| {
-                    let capsule = facts
-                        .contract_plans
-                        .crash_capsule(definition.symbol, signature.symbol)?;
-                    let call_reaches = facts
-                        .flow
-                        .control
-                        .calls
-                        .iter()
-                        .map(|(_, call)| call)
-                        .filter(|call| call.target_symbol == signature.symbol)
-                        .map(|call| call.service_reach.transitive)
-                        .collect::<Vec<_>>();
-                    let [published_reach, rest @ ..] = call_reaches.as_slice() else {
-                        return None;
-                    };
-                    if rest.iter().any(|reach| reach != published_reach) {
-                        return None;
-                    }
-                    let service_reach = psi_language_semantics::ServiceReachSummary {
-                        direct: *published_reach,
-                        transitive: *published_reach,
-                    };
-                    Some(CheckedBoundaryMachinePlan {
-                        machine: signature.symbol,
-                        state: signature.symbol,
-                        attachment_type_identity: None,
-                        structural_parameters: Vec::new(),
-                        scalar_parameters: program
-                            .state_signature_parameters(signature)
-                            .iter()
-                            .enumerate()
-                            .map(|(position, parameter)| {
-                                Some(CheckedStructuralScalarParameterPlan {
-                                    source_position: u32::try_from(position).ok()?,
-                                    primitive_type: program
-                                        .primitive_type_reference(parameter.type_reference)?,
-                                })
-                            })
-                            .collect::<Option<Vec<_>>>()?,
-                        result_type: None,
-                        domain_requirements: Vec::new(),
-                        contract_fingerprint: capsule.target_contract_fingerprint(),
-                        contract_service_reach: psi_language_semantics::ServiceReachPlan {
-                            interface:
-                                psi_language_semantics::ServiceReachInterface::PublishedCeiling(
-                                    *published_reach,
-                                ),
-                            checked_inferred: *published_reach,
-                        },
-                        service_reach,
-                    })
-                })
-        })
-        .collect::<Vec<_>>();
+                .enumerate()
+            {
+                let Some(source_position) = u32::try_from(position).ok() else {
+                    supported = false;
+                    break;
+                };
+                if parameter.is_self || parameter.is_const || parameter.is_mutable {
+                    supported = false;
+                    break;
+                }
+                if let Some(primitive_type) =
+                    program.primitive_type_reference(parameter.type_reference)
+                {
+                    scalar_parameters.push(CheckedStructuralScalarParameterPlan {
+                        source_position,
+                        primitive_type,
+                    });
+                    continue;
+                }
+                if byte_sequence_carrier(program, parameter.type_reference, &[])
+                    != Some(psi_checked_trees::CheckedByteSequenceCarrier::BorrowedView)
+                {
+                    supported = false;
+                    break;
+                }
+                let Some(type_identity) = shapes.add_type(parameter.type_reference, &[], &[])
+                else {
+                    supported = false;
+                    break;
+                };
+                structural_parameters.push(CheckedUnitStructuralParameterPlan {
+                    position: source_position,
+                    is_self: false,
+                    type_identity,
+                    multiplicity: Multiplicity::Unrestricted,
+                    qualifications: Vec::new(),
+                });
+            }
+            if !supported {
+                continue;
+            }
+            let Some(capsule) = facts
+                .contract_plans
+                .crash_capsule(definition.symbol, signature.symbol)
+            else {
+                continue;
+            };
+            let call_reaches = facts
+                .flow
+                .control
+                .calls
+                .iter()
+                .map(|(_, call)| call)
+                .filter(|call| call.target_symbol == signature.symbol)
+                .map(|call| call.service_reach.transitive)
+                .collect::<Vec<_>>();
+            let [published_reach, rest @ ..] = call_reaches.as_slice() else {
+                continue;
+            };
+            if rest.iter().any(|reach| reach != published_reach) {
+                continue;
+            }
+            let service_reach = psi_language_semantics::ServiceReachSummary {
+                direct: *published_reach,
+                transitive: *published_reach,
+            };
+            plans.push(CheckedBoundaryMachinePlan {
+                machine: signature.symbol,
+                state: signature.symbol,
+                attachment_type_identity: None,
+                structural_parameters,
+                scalar_parameters,
+                result_type: None,
+                domain_requirements: Vec::new(),
+                contract_fingerprint: capsule.target_contract_fingerprint(),
+                contract_service_reach: psi_language_semantics::ServiceReachPlan {
+                    interface: psi_language_semantics::ServiceReachInterface::PublishedCeiling(
+                        *published_reach,
+                    ),
+                    checked_inferred: *published_reach,
+                },
+                service_reach,
+            });
+        }
+    }
     plans.sort_by_key(|plan| (plan.machine.arena_index(), plan.machine.generation()));
     plans.dedup_by_key(|plan| plan.machine);
     plans

@@ -53,7 +53,7 @@ impl ExpressionNode {
                 (false, false) => "..".to_string(),
             },
             Self::StructLiteral(struct_literal) => struct_literal.type_name.to_string(),
-            Self::String(value) => format!("{:?}", value.as_str()),
+            Self::String(value) => psi_source::display_literal_bytes(value),
             Self::Unary(unary) => unary.display_name(table),
             Self::ZeroValue(_) => "zero_value<type>()".to_owned(),
         }

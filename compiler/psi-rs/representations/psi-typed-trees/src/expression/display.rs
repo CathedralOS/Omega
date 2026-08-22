@@ -36,7 +36,7 @@ impl Expression {
             Expression::Name(path) => display_name_path(path, "::"),
             Expression::Range(range) => range.display_name(),
             Expression::StructLiteral(struct_literal) => struct_literal.type_name.to_string(),
-            Expression::String(value) => format!("{value:?}"),
+            Expression::String(value) => psi_source::display_literal_bytes(value),
             Expression::Unary(unary) => unary.display_name(),
             Expression::ZeroValue(_) => "zero_value<type>()".to_owned(),
         }
@@ -85,7 +85,7 @@ impl ExpressionNode {
                 (false, false) => "..".to_string(),
             },
             Self::StructLiteral(struct_literal) => struct_literal.type_name.to_string(),
-            Self::String(value) => format!("{value:?}"),
+            Self::String(value) => psi_source::display_literal_bytes(value),
             Self::Unary(unary) => unary.display_name(table),
             Self::ZeroValue(_) => "zero_value<type>()".to_owned(),
         }

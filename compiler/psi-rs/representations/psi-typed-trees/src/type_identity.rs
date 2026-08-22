@@ -702,7 +702,7 @@ fn normalize_index_expression(
         // equality oracle.
         ExpressionNode::Boolean(value) => atom("boolean", &value.to_string()),
         ExpressionNode::Float(value) => atom("float", &value.to_string()),
-        ExpressionNode::String(value) => atom("string", value),
+        ExpressionNode::String(value) => byte_atom("string", value),
         ExpressionNode::ArrayLiteral(_)
         | ExpressionNode::Atomic(_)
         | ExpressionNode::Cast(_)
@@ -918,6 +918,19 @@ fn atom(tag: &str, value: &str) -> String {
             output.push('\\');
         }
         output.push(character);
+    }
+    output.push(')');
+    output
+}
+
+fn byte_atom(tag: &str, value: &[u8]) -> String {
+    let mut output = String::with_capacity(tag.len() + value.len().saturating_mul(2) + 24);
+    output.push_str(tag);
+    output.push('(');
+    output.push_str(&value.len().to_string());
+    output.push(':');
+    for byte in value {
+        output.push_str(&format!("{byte:02x}"));
     }
     output.push(')');
     output

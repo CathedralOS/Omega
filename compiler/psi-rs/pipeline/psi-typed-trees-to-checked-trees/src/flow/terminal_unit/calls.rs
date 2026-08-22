@@ -169,17 +169,39 @@ pub(super) fn build_call_operation(
         .collect::<Vec<_>>();
     if let [(definition, signature)] = static_boundaries.as_slice() {
         let arguments = crate::call_site_argument_expressions(program, &call_site);
-        let scalar_parameters = program
-            .state_signature_parameters(signature)
-            .iter()
-            .enumerate()
-            .map(|(position, parameter)| {
-                Some(CheckedStructuralScalarParameterPlan {
-                    source_position: u32::try_from(position).ok()?,
-                    primitive_type: program.primitive_type_reference(parameter.type_reference)?,
-                })
-            })
-            .collect::<Option<Vec<_>>>()?;
+        let source_parameters = program.state_signature_parameters(signature);
+        let mut scalar_parameters = Vec::new();
+        let mut structural_arguments = Vec::new();
+        for (position, (parameter, argument)) in
+            source_parameters.iter().zip(arguments.iter()).enumerate()
+        {
+            let source_position = u32::try_from(position).ok()?;
+            if let Some(primitive_type) = program.primitive_type_reference(parameter.type_reference)
+            {
+                scalar_parameters.push(CheckedStructuralScalarParameterPlan {
+                    source_position,
+                    primitive_type,
+                });
+                continue;
+            }
+            if byte_sequence_carrier(program, parameter.type_reference, &[])
+                != Some(psi_checked_trees::CheckedByteSequenceCarrier::BorrowedView)
+            {
+                return None;
+            }
+            let ExpressionNode::String(bytes) = program.expression_table.expression(*argument)
+            else {
+                return None;
+            };
+            structural_arguments.push(CheckedUnitStructuralArgumentPlan {
+                source_parameter_index: u32::MAX,
+                path: Vec::new(),
+                type_identity: program
+                    .normalized_type_identity_with_binders(parameter.type_reference, &[])
+                    .into_string(),
+                byte_sequence_literal: Some(bytes.to_vec()),
+            });
+        }
         if !program.trait_type_parameters(definition).is_empty()
             || !program
                 .state_signature_type_parameters(signature)
@@ -188,7 +210,7 @@ pub(super) fn build_call_operation(
                 .state_signature_parameters(signature)
                 .iter()
                 .any(|parameter| parameter.is_self || parameter.is_const || parameter.is_mutable)
-            || arguments.len() != scalar_parameters.len()
+            || arguments.len() != source_parameters.len()
             || !call.has_receiver
             || call.receiver_symbol != definition.symbol
             || match expected_boundary_result {
@@ -218,7 +240,7 @@ pub(super) fn build_call_operation(
                 coordinate,
                 &scalar_parameters,
             )?,
-            structural_arguments: Vec::new(),
+            structural_arguments,
             completion_receipts: Vec::new(),
         });
     }
@@ -349,14 +371,13 @@ fn checked_boundary_scalar_arguments(
 ) -> Option<Vec<CheckedScalarExpression>> {
     parameters
         .iter()
-        .enumerate()
-        .map(|(argument_index, parameter)| {
+        .map(|parameter| {
             let expression = facts.values.scalar_expressions.expression_at(
                 caller_state,
                 coordinate.statement_index,
                 CheckedScalarExpressionRole::BoundaryCallArgument {
                     call_ordinal: coordinate.call_ordinal,
-                    argument_ordinal: u32::try_from(argument_index).ok()?,
+                    argument_ordinal: parameter.source_position,
                 },
             )?;
             (crate::values::scalar_expression_type(expression)? == parameter.primitive_type)
@@ -376,6 +397,12 @@ pub(super) fn ordinary_projected_call_is_supported(
     arguments: &[CheckedUnitStructuralArgumentPlan],
     allow_field_path_projection: bool,
 ) -> bool {
+    if arguments
+        .iter()
+        .any(|argument| argument.byte_sequence_literal.is_some())
+    {
+        return false;
+    }
     if arguments.iter().all(|argument| argument.path.is_empty()) {
         return true;
     }
@@ -831,6 +858,7 @@ pub(super) fn structural_call_arguments(
             source_parameter_index: u32::try_from(source_index).ok()?,
             path,
             type_identity: target_identity,
+            byte_sequence_literal: None,
         });
     }
     if explicit_index != explicit_arguments.len() {
@@ -872,6 +900,12 @@ pub(super) fn call_claim_transfers(
         .collect::<Vec<_>>();
     let mut output = Vec::new();
     for (argument_index, argument) in arguments.iter().enumerate() {
+        if argument.byte_sequence_literal.is_some() {
+            if argument.source_parameter_index != u32::MAX || !argument.path.is_empty() {
+                return None;
+            }
+            continue;
+        }
         let entries = entry_claims
             .iter()
             .filter(|entry| {

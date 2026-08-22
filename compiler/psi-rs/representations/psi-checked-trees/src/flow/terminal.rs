@@ -549,6 +549,9 @@ pub struct CheckedUnitStructuralTypePlan {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CheckedUnitStructuralTypeShape {
+    /// Immutable view over exact literal octets. This is semantic custody,
+    /// not an assertion about a target pointer/length layout.
+    ByteSequence(CheckedByteSequenceCarrier),
     /// Field order is declaration order; field identities are normalized
     /// declaration identities rather than source spellings alone.
     Record {
@@ -665,6 +668,10 @@ pub struct CheckedUnitStructuralArgumentPlan {
     /// field path; their specialized checked plans constrain the destination.
     pub path: Vec<CheckedUnitStructuralPathSegment>,
     pub type_identity: String,
+    /// Present only for an exact byte-sequence literal passed directly to a
+    /// bodyless boundary. The parameter index is then deliberately invalid and
+    /// must never be interpreted as caller storage.
+    pub byte_sequence_literal: Option<Vec<u8>>,
 }
 
 /// One claim-free affine structural leaf that remains live after a projected

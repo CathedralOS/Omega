@@ -312,13 +312,9 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                         },
                     )))
             }
-            resolved::expression::ExpressionNode::String(value) => {
-                Ok(self
-                    .target()
-                    .insert(typed::expression::ExpressionNode::String(
-                        value.shared_text(),
-                    )))
-            }
+            resolved::expression::ExpressionNode::String(value) => Ok(self
+                .target()
+                .insert(typed::expression::ExpressionNode::String(value.clone()))),
             resolved::expression::ExpressionNode::Unary(unary) => {
                 let operand = self.lower(unary.operand)?;
                 Ok(self

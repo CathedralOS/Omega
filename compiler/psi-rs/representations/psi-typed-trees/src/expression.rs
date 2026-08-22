@@ -30,7 +30,7 @@ pub enum Expression {
     Name(NamePath),
     Range(Box<RangeExpression>),
     StructLiteral(StructLiteral),
-    String(Arc<str>),
+    String(Arc<[u8]>),
     Unary(Box<UnaryExpression>),
     ZeroValue(crate::types::TypeReferenceHandle),
 }
@@ -1846,14 +1846,14 @@ impl ExpressionTable {
         }
     }
 
-    pub fn string_literal(&self, handle: ExpressionHandle) -> Option<&str> {
+    pub fn string_literal(&self, handle: ExpressionHandle) -> Option<&[u8]> {
         match self.expression(handle) {
             ExpressionNode::String(value) => Some(value.as_ref()),
             _ => None,
         }
     }
 
-    pub fn string_literal_value(&self, handle: ExpressionHandle) -> Option<Arc<str>> {
+    pub fn string_literal_value(&self, handle: ExpressionHandle) -> Option<Arc<[u8]>> {
         match self.expression(handle) {
             ExpressionNode::String(value) => Some(value.clone()),
             _ => None,
@@ -1897,7 +1897,9 @@ pub enum ExpressionNode {
     Name(TableNamePath),
     Range(TableRangeExpression),
     StructLiteral(TableStructLiteral),
-    String(Arc<str>),
+    /// Exact decoded literal octets. Text interpretation, when required by a
+    /// particular language construct, is an explicit checked operation.
+    String(Arc<[u8]>),
     Unary(TableUnaryExpression),
     /// Proof-only observation of a type's normalized all-zero home value.
     ZeroValue(crate::types::TypeReferenceHandle),

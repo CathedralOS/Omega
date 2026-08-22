@@ -72,7 +72,7 @@ pub(crate) fn argument_matches_type_reference_handle(
             // text literal by itself.
             (matches!(argument_node, ExpressionNode::String(literal)
                 if bounded_byte_buffer_capacity(program, type_reference)
-                    .is_some_and(|capacity| literal.as_bytes().len() <= capacity))
+                    .is_some_and(|capacity| literal.len() <= capacity))
                 || argument_matches_type_reference_handle(program, argument, *base_type))
         }
         TypeReferenceNode::FixedArray { .. } => matches!(
@@ -221,11 +221,11 @@ pub(crate) fn validate_expression_type_handle(
 ) {
     if let ExpressionNode::String(literal) = program.expression_table.expression(expression)
         && let Some(capacity) = bounded_byte_buffer_capacity(program, type_reference)
-        && literal.as_bytes().len() > capacity
+        && literal.len() > capacity
     {
         diagnostics.push(Diagnostic::error(format!(
             "{owner} constructs {} byte(s), exceeding the {capacity}-byte capacity of `{}`",
-            literal.as_bytes().len(),
+            literal.len(),
             program.display_type_reference_with_constraints(type_reference),
         )));
         return;

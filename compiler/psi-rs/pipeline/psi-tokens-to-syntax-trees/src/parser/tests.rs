@@ -5,6 +5,22 @@ use psi_syntax_trees::statement::StatementNode;
 use psi_syntax_trees::types::TypeReferenceNode;
 
 #[test]
+fn owns_non_utf8_string_literal_bytes_in_syntax_tree() {
+    let tokens = Lexer::new(
+        r#"
+        machine emit() {
+            Console::write_line("\x80A");
+        }
+        "#,
+    )
+    .tokenize()
+    .expect("tokenize raw-byte escape");
+    let parsed = parse_syntax_trees(&tokens).expect("raw bytes are syntax payload");
+    let snapshot = parsed.snapshot_json().expect("snapshot");
+    assert!(snapshot.contains("\"bytes\":[128,65]"), "{snapshot}");
+}
+
+#[test]
 fn parses_relevance_on_numbered_wire_fields() {
     let tokens = Lexer::new(
         r#"

@@ -768,7 +768,7 @@ pub(crate) fn string_literal_grants_domain(
         return false;
     };
     psi_typed_trees::byte_predicates::domain_byte_predicate(program, domain_symbol)
-        .is_some_and(|predicate| predicate.holds_for(literal.as_bytes()))
+        .is_some_and(|predicate| predicate.holds_for(literal))
 }
 
 pub(crate) fn domain_admits_empty_bytes(program: &TypedTrees, domain_symbol: SymbolHandle) -> bool {

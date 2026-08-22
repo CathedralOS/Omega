@@ -3,8 +3,8 @@ use super::{
     TableStructLiteral, TableStructLiteralField,
 };
 use crate::name::DiagnosticName;
-use psi_source::SourceText;
 use psi_symbols::SymbolHandle;
+use std::sync::Arc;
 
 #[test]
 fn expression_table_stores_nested_expressions_as_handles() {
@@ -88,7 +88,7 @@ fn expression_table_copies_table_payloads_without_tree_roundtrip() {
         symbol: field_symbol,
     }));
 
-    let hall = source.insert(ExpressionNode::String(SourceText::generated("Hall")));
+    let hall = source.insert(ExpressionNode::String(Arc::from(&b"Hall"[..])));
     let open = source.insert(ExpressionNode::Binary(TableBinaryExpression {
         left: room,
         operator: BinaryOperator::Equal,

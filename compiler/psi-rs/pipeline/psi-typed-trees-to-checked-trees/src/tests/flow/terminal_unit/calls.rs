@@ -3,6 +3,88 @@
 use super::*;
 
 #[test]
+fn retains_exact_byte_literal_for_static_bodyless_boundary() {
+    let checked = checked(
+        r#"
+        boundary trait Console {
+            machine write_line(text: &[u8])
+            reaches Console;
+        }
+
+        data Root {}
+        machine Root::enter()
+        reaches Console
+        {
+            Console::write_line("\x80A");
+        }
+        "#,
+    );
+    let plans = &checked.facts.flow.terminal_unit_effects;
+    let boundary = plans
+        .boundary_machines
+        .iter()
+        .find(|boundary| boundary.structural_parameters.len() == 1)
+        .expect("write_line boundary structural parameter");
+    assert!(boundary.scalar_parameters.is_empty());
+    let byte_type = plans
+        .structural_types
+        .iter()
+        .find(|shape| shape.identity == boundary.structural_parameters[0].type_identity)
+        .expect("borrowed byte-sequence shape");
+    assert!(matches!(
+        byte_type.shape,
+        CheckedUnitStructuralTypeShape::ByteSequence(
+            psi_checked_trees::CheckedByteSequenceCarrier::BorrowedView
+        )
+    ));
+    let root = plans
+        .for_machine(machine_named(&checked, "enter"))
+        .expect("literal boundary caller plan");
+    let CheckedUnitEffectOperationPlan::BoundaryCall {
+        structural_arguments,
+        ..
+    } = &root.operations[0]
+    else {
+        panic!("write_line should retain a bodyless boundary call")
+    };
+    assert!(matches!(
+        structural_arguments.as_slice(),
+        [argument]
+            if argument.source_parameter_index == u32::MAX
+                && argument.path.is_empty()
+                && argument.byte_sequence_literal.as_deref() == Some(&[0x80, b'A'][..])
+    ));
+}
+
+#[test]
+fn rejects_nonliteral_byte_sequence_boundary_source() {
+    let checked = checked(
+        r#"
+        boundary trait Console {
+            machine write_line(text: &[u8])
+            reaches Console;
+        }
+
+        data Root {}
+        machine Root::enter(text: &[u8])
+        reaches Console
+        {
+            Console::write_line(text);
+        }
+        "#,
+    );
+    assert!(
+        checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .for_machine(machine_named(&checked, "enter"))
+            .is_none(),
+        "nonliteral byte-sequence forwarding remains fail-closed"
+    );
+}
+
+#[test]
 fn retains_static_boundary_scalar_parameter_and_literal_argument() {
     let checked = checked(
         r#"

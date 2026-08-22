@@ -67,7 +67,7 @@ fn expression_table_copies_table_payloads_without_tree_roundtrip() {
             vec![
                 StructLiteralField {
                     name: Identifier::generated("name"),
-                    value: Expression::String(Arc::from("Hall")),
+                    value: Expression::String(Arc::from(&b"Hall"[..])),
                 },
                 StructLiteralField {
                     name: Identifier::generated("open"),

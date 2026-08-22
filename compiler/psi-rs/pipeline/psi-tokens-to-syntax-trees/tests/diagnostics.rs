@@ -68,3 +68,12 @@ fn machine_item_error_lists_expected_members() {
         "expected one of `pub entry`, `entry`, `state`, `invariant`, found keyword `let`"
     );
 }
+
+#[test]
+fn raw_bytes_remain_rejected_in_utf16_text_sugar() {
+    let message = parse_error_message(r#"machine emit() { utf16"\x80" }"#);
+    assert_eq!(
+        message,
+        "raw byte string literal requires the terminal byte-sequence lowering path"
+    );
+}

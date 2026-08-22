@@ -22,6 +22,107 @@ mod structural_control_cases;
 mod structural_return_cases;
 mod unit_cleanup;
 
+fn checked_write_line_literal() -> psi_checked_trees::CheckedTrees {
+    let source = r#"
+        boundary trait Console {
+            machine write_line(text: &[u8])
+            reaches Console;
+        }
+
+        data Root {}
+        machine Root::enter()
+        reaches Console
+        {
+            Console::write_line("\x80A");
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    lower_typed_trees(typed).expect("check")
+}
+
+#[test]
+fn lowers_exact_raw_bytes_into_borrowed_boundary_argument() {
+    let checked = checked_write_line_literal();
+    let lowered = lower_machine(&checked, "Root::enter").expect("lower write_line literal");
+    let [machine] = lowered.semantic_module.machines.as_slice() else {
+        panic!("one source machine")
+    };
+    let literal_place = machine
+        .structural_places
+        .iter()
+        .find_map(|place| {
+            matches!(
+                place.kind,
+                StructuralPlaceKind::ByteSequenceLiteral {
+                    declaration_ordinal: 0,
+                    ..
+                }
+            )
+            .then_some(place.id)
+        })
+        .expect("canonical byte-sequence literal place");
+    let [establish, call] = machine.blocks[0].operations.as_slice() else {
+        panic!("literal establishment then boundary call")
+    };
+    assert!(matches!(
+        &establish.kind,
+        OperationKind::EstablishByteSequenceLiteral { destination, bytes }
+            if *destination == literal_place && bytes == &[0x80, b'A']
+    ));
+    assert!(matches!(
+        &call.kind,
+        OperationKind::BoundaryCall { structural_arguments, .. }
+            if matches!(structural_arguments.as_slice(), [argument]
+                if argument.place == literal_place && argument.path.is_empty())
+    ));
+    let literal_type = lowered
+        .semantic_module
+        .structural_types
+        .iter()
+        .find(|declaration| {
+            matches!(
+                declaration.shape,
+                StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView)
+            )
+        })
+        .expect("borrowed-view declaration");
+    assert!(machine.structural_places.iter().any(|place| matches!(
+        place.kind,
+        StructuralPlaceKind::ByteSequenceLiteral { structural_type, .. }
+            if structural_type == literal_type.id
+    )));
+}
+
+#[test]
+fn rejects_tampered_owned_carrier_for_source_literal() {
+    let mut checked = checked_write_line_literal();
+    let literal_type = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .structural_types
+        .iter_mut()
+        .find(|plan| {
+            matches!(
+                plan.shape,
+                psi_checked_trees::CheckedUnitStructuralTypeShape::ByteSequence(_)
+            )
+        })
+        .expect("literal type");
+    literal_type.shape = psi_checked_trees::CheckedUnitStructuralTypeShape::ByteSequence(
+        psi_checked_trees::CheckedByteSequenceCarrier::BoundedOwned { capacity: 2 },
+    );
+    let error = lower_machine(&checked, "Root::enter")
+        .expect_err("an owned carrier must not establish a borrowed source literal");
+    assert!(
+        error.to_string().contains("requires a borrowed-view type"),
+        "{error}"
+    );
+}
+
 #[test]
 fn bounded_installation_reach_lowers_source_free_terminal_dependency() {
     let source = r#"
@@ -690,6 +791,7 @@ fn hard_root_checked_fixture() -> CheckedTrees {
                                 source_parameter_index: 0,
                                 type_identity: "example::Acknowledgement".to_owned(),
                                 path: Vec::new(),
+                                byte_sequence_literal: None,
                             },
                         ],
                         claim_transfers: vec![psi_checked_trees::CheckedUnitClaimTransferPlan {
@@ -740,6 +842,7 @@ fn hard_root_checked_fixture() -> CheckedTrees {
                                 source_parameter_index: 0,
                                 type_identity: "example::Acknowledgement".to_owned(),
                                 path: Vec::new(),
+                                byte_sequence_literal: None,
                             },
                         ],
                         completion_receipts: vec![
