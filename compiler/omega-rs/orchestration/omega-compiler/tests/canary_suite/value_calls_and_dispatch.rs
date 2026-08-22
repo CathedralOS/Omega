@@ -1725,9 +1725,12 @@ fn runtime_multiarm_same_named_locals_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("multi-arm same-named locals canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("multi-arm same-named locals canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("multi-arm same-named locals canary should run");
     assert_eq!(
@@ -1762,9 +1765,12 @@ fn runtime_multiarm_texteq_local_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("multi-arm texteq locals canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("multi-arm texteq locals canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("multi-arm texteq locals canary should run");
     assert_eq!(
@@ -1797,9 +1803,12 @@ fn runtime_pre_guard_texteq_local_guard_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("pre-guard texteq local guard canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("pre-guard texteq local guard canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("pre-guard texteq local guard canary should run");
     assert_eq!(
@@ -1831,9 +1840,12 @@ fn runtime_pre_guard_texteq_local_arg_forward_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("pre-guard texteq local argument canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("pre-guard texteq local argument canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("pre-guard texteq local argument canary should run");
     assert_eq!(
