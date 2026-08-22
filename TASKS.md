@@ -3222,6 +3222,14 @@ Remaining:
   carrier/endpoint eligibility, closed bridge and substitution proof bytes,
   rejection, family precedence, and the single-alias/single-bridge frontier
   are unchanged.
+  Stronger alias-bound endpoint eligibility now lives in paired, side-local
+  `alias_transport/cast/stronger/candidates/bound` modules. Producer and
+  reconstruction independently require the selected alias at the left endpoint
+  before the right fallback, decode the opposite endpoint as a fixed-integer
+  literal, and require its carrier to match the root. Candidate parents retain
+  equality-first, orientation-second, and bound-third citation order.
+  Completion inputs, proof bytes, rejection, cast-family precedence, and the
+  fixed single-alias/single-bridge frontier remain unchanged.
   Closed stronger alias-bound transport for exact casts now lives in
   independent side-local
   `alias_transport/cast/stronger/completion/bound` modules. Each completion
