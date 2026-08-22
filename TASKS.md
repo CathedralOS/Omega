@@ -7249,9 +7249,11 @@ checked-result arithmetic decision listed below.
   nested-cycle rejection. Encode/decode now share a focused 214-line value-
   field owner for nested-message shape matching, exact repeated carrier/
   element/capacity replay, decode range establishment, and named-data
-  resolution. The call-validation coordinator is now 865 lines; crate APIs,
-  diagnostic order, protocol identities, and the exact 22-function inventory
-  remain unchanged.
+  resolution. Encode-call validation now lives in a focused 400-line owner for
+  schema-field classification, runtime-sized order, exact worst-case output
+  budgeting, value/schema matching, and output/written argument admission. The
+  natural dispatcher/decode root is now 475 lines; crate APIs, diagnostic order,
+  protocol identities, and the exact 22-function inventory remain unchanged.
 - Extend repeated encode/decode to `Vec<T>` after allocator obligations land.
   Packed scalar decode into `&[T]` remains unsupported because variable-width
   encodings cannot form a zero-copy scalar view.
