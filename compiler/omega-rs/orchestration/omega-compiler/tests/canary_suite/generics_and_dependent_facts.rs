@@ -1645,9 +1645,12 @@ fn runtime_inherited_trait_default_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("inherited trait defaults should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("inherited trait-default canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("inherited trait default canary should run");
     assert_eq!(output.status.code(), Some(70));
@@ -1662,9 +1665,12 @@ fn runtime_generic_trait_default_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("generic trait defaults should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("generic trait-default canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("generic trait default canary should run");
     assert_eq!(output.status.code(), Some(70));
@@ -1677,9 +1683,12 @@ fn runtime_const_container_methods_exit_canary_runs() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-const-container-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("const-specialized container methods should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("const-container methods canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("const container method canary should run");
     assert_eq!(
@@ -1701,9 +1710,12 @@ fn runtime_generic_two_instantiations_exit_canary_runs() {
     let canary = pass_canary("generics/runtime_generic_two_instantiations_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-gen-two-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("two-instantiation generic canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("two-instantiation generic canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("two-instantiation generic canary should run");
     assert_eq!(
@@ -1727,9 +1739,12 @@ fn runtime_min_max_guard_subject_hoist_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_min_max_guard_subject_hoist_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-minguard-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("min/max guard-subject hoist canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("min/max guard-subject canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("min/max guard-subject hoist canary should run");
     assert_eq!(
