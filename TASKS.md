@@ -5158,6 +5158,13 @@ Owners:
   exact nested `out/` publications. Literal exit 70 and all copy/layout
   diagnostics remain unchanged; exact-owner ambiguity, the 795 rooted/3 legacy
   inventory, and receipt-drift fences remain green.
+  Four authored-root operator regressions—compound assignment chaining,
+  chained field mutation, guard comparison signedness, and value-position
+  comparison signedness—now launch `OutputOnly` native execution solely through
+  exact checked-report executable receipts while preserving literal exit 70
+  and every mutation/signedness diagnostic. Exact-owner ambiguity, the 795
+  rooted/3 legacy inventory, and receipt-drift fences remain green; interpreter/
+  crash semantics and legacy owners are unchanged.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
