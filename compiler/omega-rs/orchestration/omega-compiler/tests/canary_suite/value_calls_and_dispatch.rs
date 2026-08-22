@@ -1962,9 +1962,12 @@ fn runtime_main_source_builder_is_ordinary_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("main-source builder canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("main-source builder canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("main-source builder canary should run");
     assert_eq!(
@@ -2011,9 +2014,12 @@ fn runtime_natural_termination_exit_canary_runs() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-natural-termination-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("natural termination canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("natural termination canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("natural termination canary should run");
     assert_eq!(
