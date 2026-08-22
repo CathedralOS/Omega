@@ -213,9 +213,12 @@ fn runtime_computed_index_match_subject_exit_canary_runs() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-match-subject-index-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("computed-index match subject canary should compile from its authored root");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("computed-index match subject canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("computed-index match subject canary should run");
     assert_eq!(
@@ -305,9 +308,12 @@ fn runtime_u64_guarded_cap_store_exit_canary_runs() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-u64-guarded-cap-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("guarded cap-store canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("guarded cap-store canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("guarded cap-store canary should run");
     assert_eq!(
@@ -328,9 +334,12 @@ fn runtime_proof_only_data_declared_exit_canary_runs() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-proof-only-declared-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("proof-only declaration canary should compile from its authored root");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("proof-only declaration canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("proof-only declaration canary should run");
     assert_eq!(
