@@ -1634,10 +1634,13 @@ fn runtime_enemy_clear_reentry_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("runtime enemy clear reentry canary should compile from its authored root");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("runtime enemy clear reentry canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("runtime enemy clear reentry canary should run");
 
@@ -1667,11 +1670,14 @@ fn runtime_clear_carve_render_string_fields_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.join("out")).expect(
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.join("out")).expect(
         "runtime clear/carve/render string fields canary should compile from its authored root",
     );
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let executable = compilation.checked_native_executable_path().expect(
+        "runtime clear/carve/render string fields canary should retain its executable receipt",
+    );
+    let output = Command::new(executable)
         .output()
         .expect("runtime clear/carve/render string fields canary should run");
 
@@ -1700,11 +1706,14 @@ fn runtime_full_level_wrapper_lookup_string_field_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.join("out")).expect(
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.join("out")).expect(
         "runtime full-level wrapper carrier lookup canary should compile from its authored root",
     );
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let executable = compilation.checked_native_executable_path().expect(
+        "runtime full-level wrapper carrier lookup canary should retain its executable receipt",
+    );
+    let output = Command::new(executable)
         .output()
         .expect("runtime full-level wrapper carrier lookup canary should run");
 
@@ -1727,10 +1736,13 @@ fn runtime_multi_room_reentry_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("runtime multi-room reentry canary should compile from its authored root");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("runtime multi-room reentry canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("runtime multi-room reentry canary should run");
 
@@ -1753,10 +1765,13 @@ fn runtime_mutable_slice_element_write_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("runtime mutable slice write canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("runtime mutable slice write canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("runtime mutable slice write canary should run");
 
