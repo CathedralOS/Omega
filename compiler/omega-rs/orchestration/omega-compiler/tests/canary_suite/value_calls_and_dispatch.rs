@@ -679,10 +679,13 @@ fn runtime_i16_signed_arith_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("i16 signed arithmetic canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("i16 signed arithmetic canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("i16 signed arithmetic canary should run");
 
@@ -708,10 +711,13 @@ fn runtime_u16_field_arith_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("u16 field arithmetic canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("u16 field arithmetic canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("u16 field arithmetic canary should run");
 
@@ -764,10 +770,13 @@ fn runtime_i64_signed_arith_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("isize signed arithmetic canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("i64 signed arithmetic canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("isize signed arithmetic canary should run");
 
