@@ -1434,8 +1434,9 @@ fn runtime_entry_computed_result_exit_canary_runs() {
     let canary = pass_canary("control_flow/runtime_entry_return_field_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-entry-return-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
-        .expect("computed helper return canary should compile");
+    let compilation =
+        compile_rooted_canary_for_native_host_with_auxiliary_artifacts(&canary, build_dir.clone())
+            .expect("computed helper return canary should compile");
     let footprint_artifact = fs::read_to_string(build_dir.join("08_boundary_footprints.json"))
         .expect("computed entry return footprint evidence should be written");
     assert!(
@@ -1443,15 +1444,11 @@ fn runtime_entry_computed_result_exit_canary_runs() {
             && footprint_artifact.contains("\"enumeration_complete\": false"),
         "runtime helper result load must retain result-register evidence without claiming final completeness"
     );
-    let output = Command::new(build_dir.join(executable_name()))
-        .output()
-        .expect("computed entry return canary should run");
-    assert_eq!(
-        output.status.code(),
-        Some(200),
-        "expected main to return computed value 200 as the exit code; got {:?}\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        200,
+        "computed entry-result canary",
+        "the rooted entry should return the computed helper value",
     );
     let _ = fs::remove_dir_all(&build_dir);
 }
@@ -1503,17 +1500,13 @@ fn runtime_entry_cast_result_exit_canary_runs() {
     let canary = pass_canary("control_flow/runtime_entry_cast_result_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-entry-cast-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("runtime cast helper return canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
-        .output()
-        .expect("runtime cast entry return canary should run");
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected widened u8 entry result to exit 70; got {:?}\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        70,
+        "cast entry-result canary",
+        "the rooted entry should return the widened u8 helper value",
     );
     let _ = fs::remove_dir_all(&build_dir);
 
@@ -1548,17 +1541,13 @@ fn runtime_entry_nested_binary_result_exit_canary_runs() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-entry-nested-binary-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("nested binary helper return canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
-        .output()
-        .expect("nested binary entry return canary should run");
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected nested arithmetic entry result to exit 70; got {:?}\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        70,
+        "nested-binary entry-result canary",
+        "the rooted entry should return the nested arithmetic helper value",
     );
     let _ = fs::remove_dir_all(&build_dir);
 }
@@ -1600,17 +1589,13 @@ fn free_standing_helper_result_canary_runs() {
     let canary = pass_canary("calls/free_standing_machine_helper_compile");
     let build_dir = std::env::temp_dir().join(format!("omega-entry-helper-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("free-standing terminal helper should compile");
-    let output = Command::new(build_dir.join(executable_name()))
-        .output()
-        .expect("free-standing terminal helper should run");
-    assert_eq!(
-        output.status.code(),
-        Some(7),
-        "expected add_i32(3, 4) to return exit 7; got {:?}\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        7,
+        "free-standing helper-result canary",
+        "the free-standing add helper should return its exact result",
     );
     let _ = fs::remove_dir_all(&build_dir);
 }
@@ -1624,19 +1609,13 @@ fn runtime_loop_patterns_exit_canary_runs() {
     let scratch = std::env::temp_dir().join(format!("omega-loop-patterns-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("loop-patterns canary should compile");
-
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("loop-patterns canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected a 10000-iteration counting loop + nested loops to self-check (exit 70), got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        70,
+        "loop-patterns canary",
+        "the iterative counting and nested loops should self-check",
     );
 
     let _ = fs::remove_dir_all(&scratch);
