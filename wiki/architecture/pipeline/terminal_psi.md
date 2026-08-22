@@ -261,7 +261,12 @@ a scalar-runtime row retains its scalar result type and links one canonical
 `Call`. The verifier requires each linked operation to occur in the declared
 caller, have the declared result shape, and call the linked callee; a missing,
 spurious, unknown, wrong-kind, wrong-caller, or mismatched-callee link rejects.
-The proof row adds no operation or fuel beyond that ordinary call. Outcome
+For a generic callee, the target-machine identity composes the checked
+specialization fingerprint, which includes every concrete type, `const`,
+static-machine, and closed conformance selection. The proof row therefore
+cannot alias another application that happens to retain the same post-
+specialization callable shape. The proof row adds no operation or fuel beyond
+that ordinary call. Outcome
 guards expose selectors only in applicable arms.
 A selected generic conformance is already closed before Terminal Psi: its
 identity retains the declared package-scoped name, complete normalized

@@ -6831,7 +6831,7 @@ reach or trust, and private proof improvements do not change public identity.
   header before mutating the ordinal, rather than accidentally changing an
   earlier stack-evidence duplicate. The unchanged decoder rejects the targeted
   drift, and all 16 projected Unit-call integration tests pass.
-  The terminal-conditional identity golden reflects vocabulary 24's canonical
+  The terminal-conditional identity golden reflects vocabulary 25's canonical
   FloatMeaning equality table. Its empty table count is still
   part of the domain-separated semantic bytes, so the refreshed fingerprint
   pins the intentional identity change; conditional, nested-conditional,
@@ -6873,18 +6873,20 @@ Remaining N6/N8 work:
   produced witness remains distinct. Codec and verifier tamper gates cover the
   argument, source, proposition, and forwarding disposition.
 
-  Implement the remaining slices in order:
+  Closed generic producers are also live. The proof-output target identity
+  composes the selected machine's checked specialization fingerprint, including
+  the exact closed conformance application; two applications with the same
+  callable shape but different conformance selections cannot collide. All
+  non-lifetime conformance arguments remain explicit and ordinary lifetime
+  elision resolves before this identity is recorded.
 
-  1. accept the already-implemented closed generic application identity in this
-     call path (all non-lifetime arguments explicit; ordinary lifetime elision);
-  2. capture outcome-guarded outputs only in their applicable arm and retain the
-     exact guard through checked and Terminal Psi.
+  Remaining slice: capture outcome-guarded outputs only in their applicable arm
+  and retain the exact guard through checked and Terminal Psi.
 
   Never infer evidence from visible facts or attached state names. Runtime Type
   results retain their own multiplicity independently of the proof lane, and
   proposition, term, and provenance identities remain distinct. Acceptance:
-  generic-application and outcome-guard tampering each reject independently;
-  omitted copyable outputs add no runtime
+  outcome-guard tampering rejects independently; omitted copyable outputs add no runtime
   work, cleanup, or fuel. The complete contract is in
   [`law_bearing_relations_and_quotients.md`](wiki/design_briefs/law_bearing_relations_and_quotients.md).
 - Add `Respects` over compiler-derived positional call telescopes, deriving its

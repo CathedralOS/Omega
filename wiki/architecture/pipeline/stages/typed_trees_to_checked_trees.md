@@ -532,7 +532,10 @@ Current ownership is:
   input and output proposition. Explicit erased inputs retain exact target
   position and caller source term; an ensured term forwarded from one of those
   inputs preserves that witness identity, while a producer-backed result stays
-  distinct. Each ensured
+  distinct. A generic proof-output target is accepted only after ordinary
+  specialization has closed its static telescope; its checked specialization
+  fingerprint retains the complete conformance application independently of
+  the callable's post-specialization name. Each ensured
   terminal lane retains the public proof-output
   selector beside its exact term ID; required lanes have no output selector. A
   proof-static `term.member` binder argument resolves in its named-contract
