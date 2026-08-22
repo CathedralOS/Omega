@@ -844,6 +844,24 @@ Owners:
   fragment. Validation rejection only borrows the carriers, preserving complete
   retry ownership; no consumer semantics or publication authority is
   established.
+  Written-but-still-unpublished external-root writer destinations now expose a
+  checked recovery transition. The external-root and compiler-bound consumers
+  independently replay the exact invocation, lowered fragment, provider
+  execution, installed realization, mapping, and destination preparation
+  before returning the sealed prepared/bound invocation with its exact
+  destination for retry. Rejection returns the complete non-clonable written
+  carrier unchanged; success preserves the current unpublished bytes and
+  establishes neither consumer semantics nor publication authority. Compact
+  fingerprints remain replayed identity only and create no authority.
+  External-root post-handoff writer preparation now binds the admitted entry to
+  one exact canonical provider-resolved source slot. A copied pre-resolved
+  numeric entry cannot substitute for sealed provider resolution. The selected
+  entry identity and source-slot correspondence remain attached through
+  prepared, written, and recovered non-clonable carriers, and each consumer
+  independently replays them; drift rejects while preserving the complete
+  carrier for corrected retry. This establishes no provider-operation
+  authority, consumer semantics, publication, or native execution, and compact
+  fingerprints remain identity rather than authority.
 
 Acceptance: UART/MMIO, shared-page IPC, and ordinary RAM use one extent/layout
 foundation with different profiles. Misalignment, insufficient rights,
@@ -2164,6 +2182,47 @@ Remaining:
   orientation/distinctness, proof shape, missing/reused/cyclic/redirected/
   mistyped rejection, and the exact two-alias frontier are unchanged; no third
   alias, depth parameter, recursion, or graph search is introduced.
+  Fixed one-alias exact-cast completion now lives in independent side-local
+  `cast_selection/alias/one` modules. Each child adapts only its side's existing
+  exact one-alias transport to cast custody: production retains origin-indexed
+  equality and bound citations plus the single endpoint-substitution proof,
+  while reconstruction independently replays retained facts and the resulting
+  root bound. The alias-family parent preserves one-alias, stronger-bound,
+  landed-literal, then two-alias precedence. Citation order, equality
+  orientation, endpoint order, proof shape, missing/redirected/mistyped
+  rejection, and the exact one-alias frontier are unchanged; no depth
+  parameter, recursion, or graph search is introduced.
+  Fixed two-alias bound completion now lives in independent side-local
+  `alias_transport/two/completion` modules shared only through each side's own
+  private facade. The producer parent retains origin-indexed outer/inner
+  equality citations, distinct same-carrier value custody, cycle/reuse
+  rejection, and endpoint-indexed relation discovery, then its completion alone
+  nests inner followed by outer `IntegerLessOrEqualSubstitution` nodes.
+  Reconstruction independently retains equality order/distinctness and bound
+  indexing, then substitutes the same exact endpoint before invoking its
+  consumer. Cast and affine consumers, citation and endpoint order, nested proof
+  shape, rejection behavior, and the exact two-alias frontier are unchanged;
+  no third alias, recursion, or graph search is introduced.
+  Fixed one-alias bound completion now lives in independent side-local
+  `alias_transport/one/completion` modules. The producer parent retains origin-
+  indexed equality and bound citations, same-carrier distinctness, equality
+  orientation, and endpoint-indexed relation discovery, then its completion
+  alone constructs the single `IntegerLessOrEqualSubstitution` node.
+  Reconstruction independently retains equality and bound order and substitutes
+  the same exact endpoint before invoking its consumer. Cast and affine
+  consumers, citation and endpoint order, proof shape, missing/redirected/
+  mistyped rejection, and the exact one-alias frontier are unchanged; no depth
+  parameter, recursion, or graph search is introduced.
+  Fixed-alias endpoint-bound indexing now lives in independent side-local
+  `alias_transport/index/bounds` modules. Production preserves citation origins
+  while scanning assumptions then semantic axioms; reconstruction independently
+  scans requirements then semantic axioms. Each inserts a value's left endpoint
+  before its distinct right endpoint, suppresses the duplicate reflexive right
+  entry, preserves per-endpoint ledger order, and uses deterministic `BTreeMap`
+  lookup. Value-identity custody and endpoint substitution remain separate in
+  each index facade. One-/two-alias candidate order, citation identity, proof
+  shapes, rejection behavior, and finite frontiers are unchanged; the index
+  grants no proof authority or graph search.
   Direct retained bounds and direct landed literals remain earlier in each
   parent. Citation orientation, endpoint order, proof shapes, rejection
   behavior, and the finite two-alias frontier are unchanged. Alias-landed-
@@ -3523,6 +3582,30 @@ Owners:
   exact checked-report receipts while retaining literal status 70 and every
   regression-specific diagnostic. The 795 rooted/3 legacy exact-owner pins
   remain stable.
+  Five further authored-root value/result executions—value-call composition,
+  struct-returning calls, Option-returning calls, Result matching, and entity-
+  component state—now launch only from exact checked-report receipts while
+  retaining literal status 70 and every pipeline, sum/error, and nested-field
+  diagnostic. Five further structured-value executions—nested-struct state,
+  array-element struct copies, deep nested value semantics, struct-array
+  literals, and struct-valued enum payloads—use the same receipt-only boundary
+  while retaining status 70 and every copy/layout diagnostic.
+  Five further authored-root enum/nested/indexed-state executions—enum
+  classification and dispatch, nested-field accumulation, indexed-write/
+  constant-read, indexed temporary RMW, and indexed writes beside adjacent
+  fields—now launch only from exact checked-report receipts while retaining
+  literal status 70 and every dispatch, stale-constant, and out-of-bounds
+  diagnostic. Five further bounds/index executions—join-meet bound propagation,
+  dual indexed comparisons, array min/max reduction, indexed guard subjects,
+  and nested payload range narrowing—use the same boundary while retaining
+  status 70 and every bound/element-selection diagnostic; the paced host-timer
+  legacy launch remains intentionally untouched.
+  Five further authored-root arithmetic-policy executions—saturating wide
+  boundaries, saturating parameter carry, saturating expression operands,
+  wrapping guard operands, and signed MIN/-1 divide guards—now launch only from
+  exact checked-report receipts while retaining literal status 70 and every
+  policy-specific diagnostic. Across these cohorts the 795 rooted/3 legacy
+  exact-owner pins remain stable.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
