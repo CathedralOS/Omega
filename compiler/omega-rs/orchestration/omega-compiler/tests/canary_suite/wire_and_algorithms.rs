@@ -1034,10 +1034,13 @@ fn runtime_fixed_vec_round_trip_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-fixed-vec-round-trip-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("fixed vec round trip canary should compile");
 
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("fixed vec round trip canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("fixed vec round trip canary should run");
 
@@ -1110,9 +1113,12 @@ fn runtime_value_call_let_combine_exit_canary_runs() {
     let scratch = std::env::temp_dir().join(format!("omega-vc-letcombine-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("value-call let-combine canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("value-call let-combine canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("value-call let-combine canary should run");
     assert_eq!(
@@ -1182,9 +1188,12 @@ fn runtime_i64_signed_arithmetic_exit_canary_runs() {
     let scratch = std::env::temp_dir().join(format!("omega-i64-signed-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("i64 signed arithmetic canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("i64 signed arithmetic canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("i64 signed arithmetic canary should run");
     assert_eq!(
@@ -1229,9 +1238,12 @@ fn runtime_bitwise_high_ops_exit_canary_runs() {
     let scratch = std::env::temp_dir().join(format!("omega-bitwise-high-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("bitwise high ops canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("bitwise high ops canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("bitwise high ops canary should run");
     assert_eq!(
@@ -1253,9 +1265,12 @@ fn runtime_unsigned_high_comparison_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-unsigned-high-cmp-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("unsigned high comparison canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("unsigned high comparison canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("unsigned high comparison canary should run");
     assert_eq!(
