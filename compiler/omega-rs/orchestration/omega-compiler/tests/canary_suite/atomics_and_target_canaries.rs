@@ -170,9 +170,12 @@ fn runtime_atomic_fetch_and_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-atomic-fetch-and-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("atomic fetch_and canary should compile from its authored root");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("atomic fetch_and canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("atomic fetch_and canary should run");
     assert_eq!(
@@ -204,10 +207,13 @@ fn runtime_atomic_swap_exit_canary_runs() {
     let build_dir = std::env::temp_dir().join(format!("omega-atomic-swap-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("atomic swap canary should compile from its authored root");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("atomic swap canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("atomic swap canary should run");
     assert_eq!(
@@ -243,10 +249,13 @@ fn runtime_atomic_compare_exchange_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-atomic-cmpxchg-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("atomic compare_exchange canary should compile from its authored root");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("atomic compare_exchange canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("atomic compare_exchange canary should run");
 
@@ -657,10 +666,13 @@ fn runtime_dutch_flag_partition_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-dutch-flag-partition-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("dutch flag partition canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("dutch flag partition canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("dutch flag partition canary should run");
 
