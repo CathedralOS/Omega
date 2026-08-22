@@ -2374,6 +2374,14 @@ Remaining:
   nested outer-then-inner proof shape, direct-before-alias precedence,
   rejection behavior, and the fixed one-intermediate-alias frontier remain
   unchanged.
+  Those landing indexes now own the complete indexed join: exact root/alias
+  carrier agreement, outer-versus-inner row nonidentity, and the selected
+  literal. Production independently converts both selected equality citations
+  into the existing outer-then-inner proof pair inside its join authority,
+  while reconstruction retains the matching propositions. Outer alias source/
+  orientation order, completion precedence, nested substitution shape,
+  rejection behavior, and the fixed one-intermediate-alias frontier remain
+  unchanged.
   One-equality transitive affine completion now lives in independent side-local
   `affine_selection/transitive/alias/completion` modules. Each parent retains
   its own ledger-ordered equality discovery, distinct root/alias custody, and
@@ -4714,6 +4722,13 @@ Owners:
   and all detailed descriptor diagnostics. Exact-owner ambiguity, the 795
   rooted/3 legacy inventory, and receipt-drift fences remain green; loop/
   automaton and numeric-conversion owners stay fenced.
+  Five authored-root subslice-index regressions—dynamic, bounded-dynamic, end-
+  bounded dynamic, nested-dynamic, and nested-fixed indexing—now launch solely
+  through exact checked-report executable receipts while preserving literal
+  exits 207, 209, 211, 213, and 215 and detailed descriptor diagnostics. Exact-
+  owner ambiguity, the 795 rooted/3 legacy inventory, and receipt-drift fences
+  remain green; loop/automaton, numeric-conversion, and transition/iteration
+  owners stay fenced.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
@@ -5031,9 +5046,13 @@ Remaining N6/N8 work:
   identity, rejects missing or conflicting constraints, and checks an explicitly
   supplied region against the same call-site constraint; declaration arity alone
   never selects a lifetime.
-  The generic-instance pipeline's 1,185-line unit corpus now lives in a private
-  test child rather than sharing its 4,138-line production coordinator; all 42
-  unit tests and the public specialization surface remain unchanged.
+  The generic-instance pipeline's 1,185-line unit corpus lives in a private test
+  child. Const-proof evaluation, closed-domain indexing, canonical const
+  expression/type identity, template normalization, and declared-width fitting
+  now live in a focused 2,043-line `const_evaluation` child, leaving a 2,109-
+  line specialization coordinator. All 42 unit tests, the 70-function
+  production inventory, diagnostic/evaluation order, and the public
+  specialization surface remain unchanged.
 - Add `Respects` over compiler-derived positional call telescopes, deriving its
   dependent domain, pointwise input relations, and lifted result relation.
   Add the sealed `Quotient::lift<F, Respect>` wrapper and
@@ -5309,6 +5328,11 @@ Remaining N6/N8 work:
   bounded UTF-8/count handling, and nonzero semantic-ID primitives in a focused
   private `wire` child; the public codec API, exact bytes, format marker, and
   144-function inventory remain unchanged.
+  Exact Terminal scalar type/value tags, widths, and little-endian payload
+  codecs now live in a focused private `scalar_wire` child while framing,
+  recursive term structure, validation, and identity remain in the parent.
+  The 199-function codec inventory and externally observable bytes remain
+  unchanged.
   Proof-bundle coding likewise keeps its `PSIPRF`-specific little-endian
   cursor, bounded string/count/index handling, and nonzero semantic-ID
   primitives in a focused private child; its public API, exact bytes and
