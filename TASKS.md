@@ -1026,6 +1026,11 @@ Owners:
   The external-root foundation's 2,299-line unit corpus now lives in a private
   test child rather than sharing its 4,186-line production coordinator; all 28
   unit tests and the public external-root surface remain unchanged.
+  Installed terminal-entry stack-demand composition now lives in a focused
+  714-line child, owning local stack evidence, nesting relations, cycle/reentry
+  rejection, worst-case simultaneous-use peaks, and exact fingerprints. The
+  production coordinator is 3,498 lines; its public root re-exports, exact
+  107-function inventory, validation/error order, and behavior are unchanged.
 
 Acceptance: UART/MMIO, shared-page IPC, and ordinary RAM use one extent/layout
 foundation with different profiles. Misalignment, insufficient rights,
@@ -5430,6 +5435,12 @@ Owners:
   ambiguity, the 795 rooted/3 legacy inventory, and cross-copy receipt-drift
   fences remain green; their compiler/interpreter bodies remain 0.03–0.04s
   while observed 1.4–3s walls were relink or rebuild work.
+  The bounded runtime-indexed array-write regression now launches solely
+  through the exact executable retained by its checked compilation report while
+  preserving `nums[i] = i + 100`, the read-back of 103 at index 3, and literal
+  exit 70. Exact-owner ambiguity, the 795 rooted/3 legacy inventory, and cross-
+  copy receipt-drift fences remain green; its warm compiler/interpreter body is
+  0.03s.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
