@@ -609,10 +609,13 @@ fn domain_field_write_then_read_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("domain field write-then-read canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("domain field write-then-read canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("domain field write-then-read canary should run");
 
@@ -644,10 +647,13 @@ fn runtime_bounded_carrier_write_read_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("bounded carrier write-read canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("bounded carrier write-read canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("bounded carrier write-read canary should run");
 
@@ -677,10 +683,13 @@ fn runtime_bounded_carrier_length_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("bounded carrier length canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("bounded carrier length canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("bounded carrier length canary should run");
 
@@ -710,10 +719,13 @@ fn runtime_bounded_carrier_length_field_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("bounded carrier length field canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("bounded carrier length field canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("bounded carrier length field canary should run");
 
@@ -744,10 +756,13 @@ fn runtime_bounded_carrier_byte_index_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("bounded carrier byte index canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("bounded carrier byte index canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("bounded carrier byte index canary should run");
 
