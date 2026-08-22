@@ -1097,10 +1097,13 @@ fn runtime_indexed_operand_transition_arg_exit_canary_runs() {
     let build_dir = std::env::temp_dir().join(format!("omega-indexed-arg-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("indexed-operand transition-arg canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("indexed-operand transition-arg canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("indexed-operand transition-arg canary should run");
 
@@ -1126,10 +1129,13 @@ fn runtime_shared_ref_param_guard_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-shared-ref-guard-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("shared ref-param guard canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("shared ref-param guard canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("shared ref-param guard canary should run");
 
@@ -1159,10 +1165,13 @@ fn runtime_nested_receiver_distinct_types_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("nested-receiver distinct-types canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("nested-receiver canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("nested-receiver distinct-types canary should run");
 
@@ -1191,10 +1200,13 @@ fn runtime_double_indexed_member_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("double-indexed member canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("double-indexed member canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("double-indexed member canary should run");
 
@@ -1221,10 +1233,13 @@ fn runtime_double_indexed_operand_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("double-indexed operand canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("double-indexed operand canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("double-indexed operand canary should run");
 
