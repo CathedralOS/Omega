@@ -455,9 +455,14 @@ wrong-root children, stale/reordered/malformed definitions, target/carrier
 drift, arithmetic failure, and changed mapped conclusions reject. Proof-bundle
 v16 assigns tag 12, the registered calculus is v13, and the Rust kernel is v5.
 The calculus root and kernel implementation both bind the affine-checker source.
-This is capability only: no producer or reducer trust status changes, and
-producer-side selection of complete root-bound proofs and normalization words
-remains.
+The first complete producer family uses this rule for one prior signed fixed
+affine definition whose exact retained root bound maps directly to a canonical
+safe-divisor arm. Reconstruction independently checks the same one-definition
+witness/conversion; production deterministically selects the root citation and
+definition index and kernel-checks the result. Missing root custody,
+redirected/stale definitions, wrong targets, and noncanonical mapped bounds
+reject. Longer affine words, joins, cast/shift compositions, and correlated
+results remain producer work, so neither complete exact row changes trust.
 
 The contiguous pure-cast core also has a non-serialized checked witness.
 `IntegerCastChainWitness` selects a nonempty, strictly increasing sequence of
