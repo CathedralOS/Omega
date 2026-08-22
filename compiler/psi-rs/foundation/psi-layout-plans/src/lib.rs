@@ -1002,16 +1002,46 @@ pub struct PostHandoffWriterFitConstraint {
 }
 
 /// Invocation-sensitive half of generated writer lowering. This evidence is
-/// intentionally separate from the reusable fragment identity.
+/// intentionally separate from the reusable fragment identity. Only validated
+/// writer lowering constructs it; consumers may inspect but cannot substitute
+/// targets, placement, or fit evidence.
+///
+/// ```compile_fail
+/// use psi_layout_plans::PostHandoffWriterInvocationPlan;
+///
+/// fn discard_fit_evidence(invocation: &mut PostHandoffWriterInvocationPlan) {
+///     invocation.fit_constraints.clear();
+/// }
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PostHandoffWriterInvocationPlan {
-    pub fragment: GeneratedPostHandoffWriterFragmentPlan,
-    pub placement: PlacementConstraints,
-    pub sources: Vec<PostHandoffWriterSourceSlot>,
-    pub fit_constraints: Vec<PostHandoffWriterFitConstraint>,
+    fragment: GeneratedPostHandoffWriterFragmentPlan,
+    placement: PlacementConstraints,
+    sources: Vec<PostHandoffWriterSourceSlot>,
+    fit_constraints: Vec<PostHandoffWriterFitConstraint>,
 }
 
 impl PostHandoffWriterInvocationPlan {
+    pub const fn fragment(&self) -> &GeneratedPostHandoffWriterFragmentPlan {
+        &self.fragment
+    }
+
+    pub const fn placement(&self) -> PlacementConstraints {
+        self.placement
+    }
+
+    pub const fn source_slot_count(&self) -> usize {
+        self.sources.len()
+    }
+
+    pub fn sources(&self) -> &[PostHandoffWriterSourceSlot] {
+        &self.sources
+    }
+
+    pub fn fit_constraints(&self) -> &[PostHandoffWriterFitConstraint] {
+        &self.fit_constraints
+    }
+
     pub fn validate_source_values(
         &self,
         source_values: &[u64],
@@ -4091,7 +4121,7 @@ mod tests {
         let invocation = writer
             .lower_reusable_fragment()
             .expect("stored-integer fit remains invocation evidence");
-        assert_eq!(invocation.fit_constraints.len(), 1);
+        assert_eq!(invocation.fit_constraints().len(), 1);
 
         let site = PlacementSite {
             base_address: 0,

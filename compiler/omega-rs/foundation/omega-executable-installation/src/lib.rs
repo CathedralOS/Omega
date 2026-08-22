@@ -1041,10 +1041,10 @@ impl std::fmt::Debug for ResolvedPostHandoffEntryWriterContext {
             .field("installed_code", &self.installed_code)
             .field("artifact", &self.artifact)
             .field("destination_len", &self.destination_len)
-            .field("source_slot_count", &self.invocation.sources.len())
+            .field("source_slot_count", &self.invocation.sources().len())
             .field(
                 "normalized_fragment_fingerprint",
-                &format_args!("{:016x}", self.invocation.fragment.fingerprint()),
+                &format_args!("{:016x}", self.invocation.fragment().fingerprint()),
             )
             .field("fingerprint", &format_args!("{:016x}", self.fingerprint))
             .finish()
@@ -1061,7 +1061,7 @@ impl ResolvedPostHandoffEntryWriterContext {
     }
 
     pub const fn source_slot_count(&self) -> usize {
-        self.invocation.sources.len()
+        self.invocation.source_slot_count()
     }
 
     pub const fn packed_byte_len(&self) -> usize {
@@ -1073,11 +1073,11 @@ impl ResolvedPostHandoffEntryWriterContext {
     }
 
     pub const fn context_abi(&self) -> u64 {
-        self.invocation.fragment.context_abi()
+        self.invocation.fragment().context_abi()
     }
 
     pub const fn normalized_fragment_fingerprint(&self) -> u64 {
-        self.invocation.fragment.fingerprint()
+        self.invocation.fragment().fingerprint()
     }
 
     /// Report whether this opaque, once-resolved context is the invocation
@@ -1182,8 +1182,8 @@ impl InstalledCode {
         destination_site: PlacementSite,
     ) -> Result<Vec<u64>, MaterializationDiagnostic> {
         plan.validate(destination_len, destination_site)?;
-        let mut source_values = Vec::with_capacity(invocation.sources.len());
-        for slot in &invocation.sources {
+        let mut source_values = Vec::with_capacity(invocation.sources().len());
+        for slot in invocation.sources() {
             let value = match slot.source {
                 PostHandoffWriterSource::Resolve(target) => {
                     if target != slot.target || !self.contains_entry_target(target) {
@@ -1240,7 +1240,7 @@ impl InstalledCode {
             destination_site,
         )?;
 
-        let mut packed_words = Vec::with_capacity(invocation.sources.len() + 1);
+        let mut packed_words = Vec::with_capacity(invocation.sources().len() + 1);
         packed_words.push(destination_site.base_address);
         packed_words.extend(source_values);
         let fingerprint = fingerprint_post_handoff_entry_writer_context(
@@ -1279,7 +1279,7 @@ impl InstalledCode {
             || context.invocation != invocation
             || context.context_abi() != POST_HANDOFF_WRITER_CONTEXT_ABI_V1
             || context.packed_words.first().copied() != Some(destination_site.base_address)
-            || context.packed_words.len() != context.invocation.sources.len() + 1
+            || context.packed_words.len() != context.invocation.sources().len() + 1
         {
             return Err(MaterializationDiagnostic(
                 "populated post-handoff writer context does not bind the exact installed code, plan, destination, and packed geometry"
@@ -1290,7 +1290,7 @@ impl InstalledCode {
         plan.execute(destination, destination_site, |target| {
             context
                 .invocation
-                .sources
+                .sources()
                 .iter()
                 .zip(&context.packed_words[1..])
                 .find_map(|(slot, value)| {
@@ -1408,9 +1408,9 @@ fn fingerprint_post_handoff_entry_writer_context(
     mix(artifact.normalized_identity());
     mix(destination_site.base_address);
     mix(destination_len as u64);
-    mix(invocation.fragment.fingerprint());
-    mix(invocation.sources.len() as u64);
-    for PostHandoffWriterSourceSlot { target, source } in &invocation.sources {
+    mix(invocation.fragment().fingerprint());
+    mix(invocation.sources().len() as u64);
+    for PostHandoffWriterSourceSlot { target, source } in invocation.sources() {
         match target {
             RelocationTarget::Entry(entry) => {
                 mix(1);
@@ -1433,8 +1433,8 @@ fn fingerprint_post_handoff_entry_writer_context(
             }
         }
     }
-    mix(invocation.fit_constraints.len() as u64);
-    for constraint in &invocation.fit_constraints {
+    mix(invocation.fit_constraints().len() as u64);
+    for constraint in invocation.fit_constraints() {
         mix(constraint.source_slot as u64);
         mix(constraint.fit.source_width_bits.into());
         mix(constraint.fit.stored_width_bits.into());
@@ -2317,7 +2317,7 @@ mod tests {
         assert!(context.binds_invocation(&invocation));
         assert_eq!(
             context.normalized_fragment_fingerprint(),
-            invocation.fragment.fingerprint()
+            invocation.fragment().fingerprint()
         );
         assert_ne!(context.fingerprint(), 0);
         let context_debug = format!("{context:?}");

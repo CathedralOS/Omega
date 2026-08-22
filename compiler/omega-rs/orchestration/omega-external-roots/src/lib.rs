@@ -1940,7 +1940,7 @@ impl ProviderExecution {
             .map_err(|error| ExternalRootDiagnostic(error.0))?;
         let selected_entry = RelocationTarget::Entry(self.entry);
         if !invocation
-            .sources
+            .sources()
             .iter()
             .any(|source| source.target == selected_entry)
         {
