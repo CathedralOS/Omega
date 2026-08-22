@@ -4092,7 +4092,12 @@ Owners:
   result shapes and targets remain fail-closed. Explicit provider views now
   borrow one linear validity claim: consuming invalidation is accepted after
   the view's last use and rejected while the view remains live. Projected/
-  content-bearing result calls remain fail-closed.
+  content-bearing result calls remain fail-closed. Provider-view invalidation
+  remains checked-only: native custody needs a Terminal-Psi validity-claim/
+  invalidation identity carrier and the complete projected/content-bearing
+  boundary-result vertical. Physical external-loan receipts additionally lack
+  an authored correlation to terminal completion claims; an Omega-only bridge
+  would invent custody semantics.
 - **WRITE-ONLY-BORROW — implement the settled `&write T` access mode.** Parse
   and resolve the third borrow kind; preserve its exclusive loan and restricted
   operation set through type checking, reborrows, projections, calls, provider
