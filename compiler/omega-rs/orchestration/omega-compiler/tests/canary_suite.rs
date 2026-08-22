@@ -2357,7 +2357,7 @@ fn check_canary(canary_dir: &Path) -> Result<(), Vec<Diagnostic>> {
 static CANARY_UMBRELLA_LOCK: Mutex<()> = Mutex::new(());
 
 const DEFAULT_CANARY_INNER_WORKERS: usize = 1;
-const DEFAULT_CANARY_OUTER_JOB_CAP: usize = 8;
+const DEFAULT_CANARY_OUTER_JOB_CAP: usize = 12;
 
 fn configured_canary_worker_count(
     variable: &str,
@@ -2381,11 +2381,12 @@ fn default_canary_outer_job_count(available_parallelism: usize) -> usize {
         .min(DEFAULT_CANARY_OUTER_JOB_CAP)
 }
 
-/// Prefer independent canary compiles over inner backend fan-out. On the fixed
-/// 112-compile mixed corpus, outer 8 / inner 1 reduced wall time from 21.26s to
-/// 13.00s versus outer 4 / inner 2. The eight-job cap retains the measured
-/// throughput point; outer 12 / inner 1 was no faster and consumed more memory.
-/// The override remains an explicit profiling seam, not a CI requirement.
+/// Prefer independent canary compiles over inner backend fan-out. On the
+/// current 215-compile pass umbrella, outer 12 / inner 1 reduced test time from
+/// 51.60s to 46.15s versus outer 8 / inner 1. The corpus has outgrown the prior
+/// 112-compile measurement where twelve jobs were flat; keep the override as an
+/// explicit profiling seam rather than multiplying each compile's backend
+/// worker count.
 fn canary_backend_worker_count() -> usize {
     configured_canary_worker_count(
         "OMEGA_CANARY_INNER_WORKERS",
@@ -2450,7 +2451,7 @@ where
 #[test]
 fn canary_parallelism_defaults_and_overrides_are_pinned() {
     assert_eq!(DEFAULT_CANARY_INNER_WORKERS, 1);
-    assert_eq!(default_canary_outer_job_count(14), 8);
+    assert_eq!(default_canary_outer_job_count(14), 12);
     assert_eq!(default_canary_outer_job_count(4), 4);
     assert_eq!(default_canary_outer_job_count(0), 1);
     assert_eq!(configured_canary_worker_count("TEST_WORKERS", None, 8), 8);
