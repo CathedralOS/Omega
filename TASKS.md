@@ -3934,6 +3934,13 @@ Owners:
   report receipts while preserving literal statuses 73/10/70 and exact domain/
   content diagnostics. Exceptional, interactive, report-bearing, float/cast,
   policy, and automaton owners remain excluded; exact-owner pins remain stable.
+  Five further authored-root byte-carrier executions—runtime-indexed reads and
+  writes, indexed reads as value operands, the carrier cipher loop, and
+  constant-byte writes at runtime indices—now launch solely through checked-
+  report receipts while preserving status 70 and exact byte-level diagnostics.
+  Numeric-conversion and all exceptional, interactive, report-bearing, float/
+  cast, policy, and automaton owners remain excluded; exact-owner pins remain
+  stable.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
