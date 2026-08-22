@@ -1880,19 +1880,13 @@ fn runtime_xorshift_prng_exit_canary_runs() {
     let scratch = std::env::temp_dir().join(format!("omega-xorshift-prng-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("xorshift prng canary should compile");
-
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("xorshift prng canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected xorshift32 (XOR + shifts composed) to draw 99 and self-check (exit 70), got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        70,
+        "xorshift PRNG canary",
+        "the composed xor and shifts should produce the exact seeded draw",
     );
 
     let _ = fs::remove_dir_all(&scratch);
@@ -1904,19 +1898,13 @@ fn runtime_bitwise_guard_exit_canary_runs() {
     let scratch = std::env::temp_dir().join(format!("omega-bitwise-guard-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("bitwise guard canary should compile");
-
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("bitwise guard canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected bitwise guard SUBJECTS (`flags & 2 == 0`, `& 4 == 4`, `| 2 == 7`, `^ 5 == 0`; exit 70), got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        70,
+        "bitwise-guard canary",
+        "bitwise expressions should remain valid dispatch-guard subjects",
     );
 
     let _ = fs::remove_dir_all(&scratch);
@@ -1931,19 +1919,13 @@ fn integer_literal_suffix_exit_canary_runs() {
     ));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("integer literal suffix canary should compile");
-
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("integer literal suffix canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected suffixed integer literals (i64/u32/usize) to round-trip (exit 70), got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        70,
+        "integer literal-suffix canary",
+        "the i64, u32, and usize suffixes should roundtrip exactly",
     );
 
     let _ = fs::remove_dir_all(&scratch);
@@ -1958,19 +1940,13 @@ fn runtime_value_position_branching_call_exit_canary_runs() {
     ));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("value-position branching call canary should compile");
-
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("value-position branching call canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected `let r = self.classify(x)` to bind the selected arm value (exit 70), got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        70,
+        "value-position branching-call canary",
+        "the value binding should receive the selected call arm",
     );
 
     let _ = fs::remove_dir_all(&scratch);
@@ -1989,19 +1965,13 @@ fn runtime_free_machine_value_call_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-free-machine-value-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("free-machine value call canary should compile");
-
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("free-machine value call canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected `let n = pick(self.v)` / `self.low = pick(self.v)` on a free machine to bind the selected arm value (exit 70), got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        70,
+        "free-machine value-call canary",
+        "both local and field targets should receive the selected free-machine arm value",
     );
 
     let _ = fs::remove_dir_all(&scratch);
