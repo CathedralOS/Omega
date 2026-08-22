@@ -2116,8 +2116,16 @@ Remaining:
   landed-literal custody remains preferred. Equality/citation order and
   distinctness, endpoint orientation, nested proof shape, missing, reused,
   redirected, or mistyped rejection, and the fixed one-intermediate-alias
-  frontier are unchanged; no recursive alias search is introduced. One-
-  equality transitive affine completion now lives in independent side-local
+  frontier are unchanged; no recursive alias search is introduced.
+  Source-ordered one-alias transitive affine candidate traversal now lives in
+  paired, side-local `affine_selection/transitive/alias/candidates` modules.
+  Producer and reconstruction independently enumerate assumptions before
+  semantic axioms, both equality orientations, and the existing ordered exact
+  two-citation chains; the producer alone materializes citation proofs, while
+  reconstruction retains proposition references only. Completion, affine
+  custody, proof shape, rejection, and the fixed non-recursive frontier remain
+  unchanged.
+  One-equality transitive affine completion now lives in independent side-local
   `affine_selection/transitive/alias/completion` modules. Each parent retains
   its own ledger-ordered equality discovery, distinct root/alias custody, and
   exact two-citation chain enumeration; production alone constructs the
