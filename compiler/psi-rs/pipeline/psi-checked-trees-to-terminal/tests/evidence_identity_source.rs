@@ -93,6 +93,49 @@ const PROOF_OUTPUT_SOURCE: &str = r#"
     }
 "#;
 
+const ARGUMENTED_PROOF_OUTPUT_SOURCE: &str = r#"
+    trait Evidence {}
+    proposition carries(value: i32) evidence Evidence;
+    data Root {}
+
+    machine Root::produce(value: i32)
+    requires incoming: carries(value)
+    ensures copied: carries(value)
+    {
+        copied = incoming;
+    }
+
+    machine Root::relay()
+    requires source: carries(7)
+    ensures relayed: carries(7)
+    {
+        let (; copied: local) = Root::produce(7; source);
+        relayed = local;
+    }
+"#;
+
+const DUPLICATE_ARGUMENTED_PROOF_OUTPUT_SOURCE: &str = r#"
+    trait Evidence {}
+    proposition ready() evidence Evidence;
+    data Root {}
+
+    machine Root::produce()
+    requires first: ready()
+    requires second: ready()
+    ensures copied: ready()
+    {
+        copied = second;
+    }
+
+    machine Root::relay()
+    requires source: ready()
+    ensures relayed: ready()
+    {
+        let (; copied: local) = Root::produce(; source, source);
+        relayed = local;
+    }
+"#;
+
 const RUNTIME_UNIT_PROOF_OUTPUT_SOURCE: &str = r#"
     trait Evidence {}
     proposition ready() evidence Evidence;
@@ -886,6 +929,85 @@ fn source_producer_provenance_is_separate_canonical_verified_proof_data() {
 }
 
 #[test]
+fn argumented_proof_output_retains_substitution_and_erased_input_identity() {
+    let checked = check(ARGUMENTED_PROOF_OUTPUT_SOURCE);
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::relay")
+        .expect("argumented proof-output call should cross terminal Psi");
+    let [invocation] = lowered.semantic_module.proof_output_calls.as_slice() else {
+        panic!("one terminal proof-output invocation expected")
+    };
+    let [argument] = invocation.evidence_arguments.as_slice() else {
+        panic!("one terminal erased input expected")
+    };
+    let [output] = invocation.outputs.as_slice() else {
+        panic!("one terminal proof output expected")
+    };
+    let term = |id| {
+        lowered
+            .semantic_module
+            .evidence_terms
+            .iter()
+            .find(|term| term.id == id)
+            .expect("proof-output term identity")
+    };
+    assert_eq!(argument.input_position, 0);
+    assert_eq!(
+        term(argument.source).proposition,
+        argument.instantiated_proposition
+    );
+    assert_ne!(
+        argument.callee_proposition, argument.instantiated_proposition,
+        "formal and call-substituted propositions remain distinct"
+    );
+    assert_eq!(
+        term(output.output.expect("captured output")).proposition,
+        output.instantiated_proposition
+    );
+    assert_eq!(output.callee_output, None);
+    assert_ne!(output.callee_proposition, output.instantiated_proposition);
+
+    let bytes = encode_module(&lowered.semantic_module).expect("argumented proof output encodes");
+    assert_eq!(decode_module(&bytes), Ok(lowered.semantic_module.clone()));
+    psi_terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("argument substitution and erased evidence input verify together");
+
+    let mut wrong_input = lowered.semantic_module.clone();
+    wrong_input.proof_output_calls[0].evidence_arguments[0].instantiated_proposition =
+        argument.callee_proposition;
+    assert!(psi_terminal_verifier::validate_module_representation(&wrong_input).is_err());
+
+    let mut wrong_output = lowered.semantic_module.clone();
+    wrong_output.proof_output_calls[0].outputs[0].instantiated_proposition =
+        output.callee_proposition;
+    assert!(psi_terminal_verifier::validate_module_representation(&wrong_output).is_err());
+}
+
+#[test]
+fn forwarded_proof_output_retains_the_exact_duplicate_input_lane() {
+    let checked = check(DUPLICATE_ARGUMENTED_PROOF_OUTPUT_SOURCE);
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::relay")
+        .expect("duplicate proof inputs should retain exact lane identity");
+    let [invocation] = lowered.semantic_module.proof_output_calls.as_slice() else {
+        panic!("one terminal proof-output invocation expected")
+    };
+    let [output] = invocation.outputs.as_slice() else {
+        panic!("one terminal proof output expected")
+    };
+    assert_eq!(invocation.evidence_arguments.len(), 2);
+    assert_eq!(output.forwarded_input_position, Some(1));
+    psi_terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("forwarding the second duplicate witness lane should verify");
+}
+
+#[test]
 fn proof_output_is_canonical_verified_and_runtime_erased() {
     let checked = check(PROOF_OUTPUT_SOURCE);
     let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::relay")
@@ -899,7 +1021,10 @@ fn proof_output_is_canonical_verified_and_runtime_erased() {
     };
     assert_eq!(output.output_position, 0);
     assert_eq!(output.output_field, "outgoing");
-    assert_ne!(output.callee_output, output.output.expect("bound output"));
+    assert_ne!(
+        output.callee_output.expect("producer-backed callee output"),
+        output.output.expect("bound output")
+    );
     assert_eq!(lowered.proof_bundle.evidence_producers.len(), 1);
 
     let bytes = encode_module(&lowered.semantic_module).expect("proof-output module encodes");
@@ -932,7 +1057,7 @@ fn proof_output_is_canonical_verified_and_runtime_erased() {
 
     let mut forged = lowered.semantic_module.clone();
     forged.proof_output_calls[0].outputs[0].output =
-        Some(forged.proof_output_calls[0].outputs[0].callee_output);
+        forged.proof_output_calls[0].outputs[0].callee_output;
     assert!(matches!(
         psi_terminal_verifier::validate_module_representation(&forged),
         Err(psi_terminal_verifier::ModuleError::InvalidProofOutputCall { .. })
@@ -1264,11 +1389,11 @@ fn multi_field_proof_output_is_complete_canonical_and_runtime_erased() {
         ("first", "second")
     );
     assert_ne!(
-        first.callee_output,
+        first.callee_output.expect("first producer-backed output"),
         first.output.expect("first bound output")
     );
     assert_ne!(
-        second.callee_output,
+        second.callee_output.expect("second producer-backed output"),
         second.output.expect("second bound output")
     );
     assert_ne!(first.output, second.output);

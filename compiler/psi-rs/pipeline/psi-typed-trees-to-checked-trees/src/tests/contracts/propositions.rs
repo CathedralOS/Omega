@@ -526,6 +526,128 @@ fn immediate_proof_output_completely_binds_multiple_fresh_terms() {
 }
 
 #[test]
+fn argumented_proof_output_substitutes_value_arguments_and_binds_erased_inputs() {
+    let source = r#"
+        trait Evidence {}
+        proposition carries(value: i32) evidence Evidence;
+
+        machine produce(value: i32)
+        requires incoming: carries(value)
+        ensures copied: carries(value)
+        {
+            copied = incoming;
+        }
+
+        machine relay(input: i32)
+        requires source: carries(input)
+        ensures relayed: carries(input)
+        {
+            let (; copied: local) = produce(input; source);
+            relayed = local;
+        }
+    "#;
+
+    let checked = lower_typed_trees(parse_typed_trees(source))
+        .expect("proof-output calls substitute value arguments and bind exact erased inputs");
+    let invocation = checked
+        .facts
+        .proof
+        .proof_output_calls
+        .iter()
+        .next()
+        .map(|(_, invocation)| invocation)
+        .expect("one checked proof-output invocation");
+    let [argument] = invocation.evidence_arguments.as_slice() else {
+        panic!("one erased proof-output input expected")
+    };
+    assert_eq!(argument.input_position, 0);
+    assert_eq!(argument.instantiated_proposition.arguments, ["input"]);
+    assert_eq!(
+        checked
+            .facts
+            .proof
+            .evidence_terms
+            .get(argument.source)
+            .proposition,
+        argument.instantiated_proposition
+    );
+    let [output] = invocation.outputs.as_slice() else {
+        panic!("one proof output expected")
+    };
+    assert_eq!(output.instantiated_proposition.arguments, ["input"]);
+    assert_eq!(
+        checked
+            .facts
+            .proof
+            .evidence_terms
+            .get(output.output.expect("captured output"))
+            .proposition,
+        output.instantiated_proposition
+    );
+}
+
+#[test]
+fn argumented_proof_output_rejects_wrong_erased_input_after_substitution() {
+    let source = r#"
+        trait Evidence {}
+        proposition carries(value: i32) evidence Evidence;
+
+        machine produce(value: i32)
+        requires incoming: carries(value)
+        ensures copied: carries(value)
+        {
+            copied = incoming;
+        }
+
+        machine relay(input: i32, other: i32)
+        requires wrong: carries(other)
+        {
+            let (; copied: local) = produce(input; wrong);
+        }
+    "#;
+
+    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+        .expect_err("the erased input must inhabit the call-substituted proposition");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains(
+                "does not inhabit erased requires position 0 of proof-output call `produce`"
+            )),
+        "unexpected diagnostics: {diagnostics:#?}"
+    );
+}
+
+#[test]
+fn discarded_argumented_proof_output_contributes_the_substituted_fact() {
+    let source = r#"
+        trait Evidence {}
+        proposition carries(value: i32) evidence Evidence;
+
+        machine produce(value: i32)
+        requires incoming: carries(value)
+        ensures copied: carries(value)
+        {
+            copied = incoming;
+        }
+
+        machine consume(value: i32)
+        requires carries(value)
+        {}
+
+        machine relay(input: i32)
+        requires source: carries(input)
+        {
+            let (; copied: _) = produce(input; source);
+            consume(input);
+        }
+    "#;
+
+    lower_typed_trees(parse_typed_trees(source))
+        .expect("a discarded output contributes its call-substituted proposition fact");
+}
+
+#[test]
 fn proof_output_lane_allows_selective_capture() {
     let source = r#"
         trait Evidence {}

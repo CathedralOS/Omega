@@ -237,13 +237,18 @@ input and output aliases project the same opaque identity while separate terms
 remain distinct. The verifier requires the term and exact row to exist in the
 retained interface; diagnostic display spelling is never an identity oracle.
 A dense invocation table retains the canonical caller and ordinal, normalized
-callee-machine identity, and the selected proof-output lanes in callee order.
-Each selected public selector binds one callee declaration to one distinct
-caller-local term with the same proposition and interface. Omitted selectors
-mint no term but their propositions still enter the caller's fact catalog.
-Repeated calls share callee terms and producers while minting fresh caller
-terms for captured lanes. Source coordinates and caller-local display names
-erase. The execution shape is explicit: an erased proof-only row has no
+callee-machine identity, explicit erased input lanes, and the selected
+proof-output lanes in callee order. Each input names its target position,
+formal proposition, exact caller source term, and call-substituted proposition.
+Each output independently retains its formal and substituted propositions.
+A producer-backed selector binds a distinct caller-local term and retains its
+callee producer term. A selector that directly forwards one input instead
+names that input position and aliases the exact supplied witness; it does not
+invent producer provenance. Omitted selectors mint no caller term but their
+substituted propositions still enter the caller's fact catalog. Repeated calls
+share formal lanes and producers while retaining invocation-specific
+substitution. Source coordinates and caller-local display names erase. The
+execution shape is explicit: an erased proof-only row has no
 runtime operation or fuel; a Unit-runtime row links one canonical `CallUnit`;
 a scalar-runtime row retains its scalar result type and links one canonical
 `Call`. The verifier requires each linked operation to occur in the declared

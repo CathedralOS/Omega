@@ -527,7 +527,12 @@ Current ownership is:
   provenance affects proof identity, never terminal semantic identity or
   execution. A pure Unit proof producer erases; if that producer contains
   runtime body work, typed lowering retains one ordinary Unit call and checked
-  proof facts bind the output row to its exact call coordinate. Each ensured
+  proof facts bind the output row to its exact call coordinate. Argumented
+  proof-output calls apply the ordinary call-contract substitution to every
+  input and output proposition. Explicit erased inputs retain exact target
+  position and caller source term; an ensured term forwarded from one of those
+  inputs preserves that witness identity, while a producer-backed result stays
+  distinct. Each ensured
   terminal lane retains the public proof-output
   selector beside its exact term ID; required lanes have no output selector. A
   proof-static `term.member` binder argument resolves in its named-contract

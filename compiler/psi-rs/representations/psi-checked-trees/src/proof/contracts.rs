@@ -155,7 +155,20 @@ pub struct ProofOutputCallFact {
     pub runtime_call: Option<ProofOutputRuntimeCallFact>,
     pub target_machine_symbol: SymbolHandle,
     pub target_state_symbol: SymbolHandle,
+    /// Exact erased inputs supplied to the callee's named `requires` lane.
+    /// These remain separate from an ordinary runtime call because a pure
+    /// proof producer may erase completely.
+    pub evidence_arguments: Vec<ProofOutputEvidenceArgumentFact>,
     pub outputs: Vec<ProofOutputFact>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProofOutputEvidenceArgumentFact {
+    pub input_position: usize,
+    pub callee_input: Handle<CheckedEvidenceTerm>,
+    pub source: Handle<CheckedEvidenceTerm>,
+    pub instantiated_proposition: crate::CheckedPropositionApplication,
+    pub instantiated_identity: String,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -172,6 +185,11 @@ pub struct ProofOutputRuntimeCallFact {
 pub struct ProofOutputFact {
     pub output_position: usize,
     pub callee_output: Handle<CheckedEvidenceTerm>,
+    /// The callee proposition after substituting this call's ordinary value
+    /// arguments. It differs from `callee_output` whenever formal names and
+    /// caller expressions differ, including when the output is not captured.
+    pub instantiated_proposition: crate::CheckedPropositionApplication,
+    pub instantiated_identity: String,
     pub output: Option<Handle<CheckedEvidenceTerm>>,
 }
 

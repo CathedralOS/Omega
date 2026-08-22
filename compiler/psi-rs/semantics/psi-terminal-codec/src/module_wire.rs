@@ -11,9 +11,9 @@ use psi_terminal::{
     EvidenceContractLaneKind, EvidenceTermDeclaration, FloatMeaningEqualityProposition,
     FloatMeaningProjection, FloatMeaningProjectionOperation, FloatProjectionInput,
     FloatProjectionInputId, InstallationReachDependency, ProofOnlyValueType, ProofOutput,
-    ProofOutputCall, ProofOutputRuntimeCall, ProofOutputRuntimeResult, ProofPropositionId,
-    ProofValueDeclaration, ProofValueId, ServiceDeclaration, StructuralDomainDeclaration,
-    TerminalModule, TerminalRootServiceReach, VocabularyMarker,
+    ProofOutputCall, ProofOutputEvidenceArgument, ProofOutputRuntimeCall, ProofOutputRuntimeResult,
+    ProofPropositionId, ProofValueDeclaration, ProofValueId, ServiceDeclaration,
+    StructuralDomainDeclaration, TerminalModule, TerminalRootServiceReach, VocabularyMarker,
 };
 
 use super::machine_wire::{decode_machine, encode_machine};
@@ -173,11 +173,30 @@ pub(super) fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError>
             writer.id(runtime_call.operation);
             writer.id(runtime_call.callee);
         }
+        writer.len(
+            "proof-output evidence arguments",
+            invocation.evidence_arguments.len(),
+        )?;
+        for argument in &invocation.evidence_arguments {
+            writer.u32(argument.input_position);
+            writer.id(argument.callee_proposition);
+            writer.id(argument.source);
+            writer.id(argument.instantiated_proposition);
+        }
         writer.len("proof outputs", invocation.outputs.len())?;
         for output in &invocation.outputs {
             writer.u32(output.output_position);
             writer.string("proof-output field", &output.output_field)?;
-            writer.id(output.callee_output);
+            writer.id(output.callee_proposition);
+            writer.boolean(output.callee_output.is_some());
+            if let Some(callee_output) = output.callee_output {
+                writer.id(callee_output);
+            }
+            writer.id(output.instantiated_proposition);
+            writer.boolean(output.forwarded_input_position.is_some());
+            if let Some(position) = output.forwarded_input_position {
+                writer.u32(position);
+            }
             writer.boolean(output.output.is_some());
             if let Some(output) = output.output {
                 writer.id(output);
@@ -366,11 +385,28 @@ pub(super) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
                     })
                 })
                 .transpose()?,
+            evidence_arguments: decode_counted(reader, |reader| {
+                Ok(ProofOutputEvidenceArgument {
+                    input_position: reader.u32()?,
+                    callee_proposition: reader.id("PropositionId")?,
+                    source: reader.id("EvidenceTermId")?,
+                    instantiated_proposition: reader.id("PropositionId")?,
+                })
+            })?,
             outputs: decode_counted(reader, |reader| {
                 Ok(ProofOutput {
                     output_position: reader.u32()?,
                     output_field: reader.string("proof-output field")?,
-                    callee_output: reader.id("EvidenceTermId")?,
+                    callee_proposition: reader.id("PropositionId")?,
+                    callee_output: reader
+                        .boolean()?
+                        .then(|| reader.id("EvidenceTermId"))
+                        .transpose()?,
+                    instantiated_proposition: reader.id("PropositionId")?,
+                    forwarded_input_position: reader
+                        .boolean()?
+                        .then(|| reader.u32())
+                        .transpose()?,
                     output: reader
                         .boolean()?
                         .then(|| reader.id("EvidenceTermId"))

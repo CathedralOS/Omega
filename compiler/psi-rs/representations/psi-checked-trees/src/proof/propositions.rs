@@ -34,7 +34,7 @@ pub enum CheckedPropositionEvidence {
     Witness { evidence_type: String },
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CheckedPropositionApplication {
     pub declaration: SymbolHandle,
     pub binder_arguments: Vec<CheckedPropositionBinderArgument>,
