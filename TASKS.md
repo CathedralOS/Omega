@@ -2269,6 +2269,14 @@ Remaining:
   requirements-before-semantic-axioms traversal. Exact shared-middle lookup,
   same-fact rejection, chain reuse across alias candidates, completion order,
   proof shapes, and the fixed two-citation frontier remain unchanged.
+  Source-ordered oriented equality catalogs now live at the paired side-local
+  affine-selection boundary and are reused by direct/one-alias landed-literal
+  selection and one-alias transitive selection. Production independently
+  retains citation custody while reconstruction independently retains
+  propositions; both preserve assumptions or requirements before semantic
+  axioms and left-before-right orientation. Literal landing indexes, equality
+  distinctness, direct-before-alias precedence, two-citation chain order, proof
+  shapes, rejection behavior, and every fixed affine frontier remain unchanged.
   One-equality transitive affine completion now lives in independent side-local
   `affine_selection/transitive/alias/completion` modules. Each parent retains
   its own ledger-ordered equality discovery, distinct root/alias custody, and
@@ -4479,6 +4487,12 @@ Owners:
   and all exhaustiveness, payload-binding, substituted-range, overflow, and
   indexed-element diagnostics. Existing `OutputOnly` policy, the 795 rooted/3
   legacy exact-owner pins, and all established fences remain unchanged.
+  Five authored-root dependent-proof executions—dependent subtraction,
+  ordering-chain indexing, requires-backed subtraction, guarded requires
+  calls, and sibling-length indexing—now launch solely through exact checked-
+  report executable receipts while preserving literal statuses 2, 7, 0, 6,
+  and 7 and all established diagnostics. Exact-owner ambiguity, the 795
+  rooted/3 legacy inventory, and receipt-drift fences remain green.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
@@ -5067,6 +5081,10 @@ Remaining N6/N8 work:
   bounded UTF-8/count handling, and nonzero semantic-ID primitives in a focused
   private `wire` child; the public codec API, exact bytes, format marker, and
   144-function inventory remain unchanged.
+  Proof-bundle coding likewise keeps its `PSIPRF`-specific little-endian
+  cursor, bounded string/count/index handling, and nonzero semantic-ID
+  primitives in a focused private child; its public API, exact bytes and
+  identities, error domain, and 71-function inventory remain unchanged.
 - Then migrate suffix law discovery to propositions plus explicit conformances,
   and expand the checked `Nat`/`Int`/`Rat`/Cauchy/approximation corpus. `Real`
   remains proof-only and core-level.
