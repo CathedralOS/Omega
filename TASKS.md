@@ -705,7 +705,20 @@ Owners:
   with the complete placement authority; drift rejects without consuming the
   specialization, repair/retry preserves the same provenance, ordinary
   storage remains correspondence-free, and no device operation or target
-  lowering is established.
+  lowering is established. Corresponded borrowed placed views now retire
+  transactionally: retirement independently replays the correspondence-to-
+  view plan/profile identity and the exact loan/plan/admitted-profile/resource
+  join, returns the original loan and non-Clone correspondence as distinct
+  authorities on success, and returns the complete view on drift for corrected
+  retry. Coordinated copied-receipt drift and correspondence drift fail closed;
+  retirement establishes no content or device operation. Ordinary borrowed
+  placed views now retire through a checked loan-release transition that
+  independently replays the exact loan, placement, admitted profile/receipt,
+  and resource compatibility. Drift returns the complete view for corrected
+  retry; success returns the original loan with its origin, lineage, geometry,
+  and polarity unchanged and establishes no content, vacancy, or destruction.
+  Corresponded retirement reuses the same placement replay before returning
+  its separate non-Clone correspondence.
 
 #### L6c — symbolic materialization
 
@@ -1809,7 +1822,17 @@ Remaining:
   custody. Non-order goals still reject in each parent, and direct evidence
   remains preferred before landed-literal and fixed alias transport. Citation
   and endpoint order, cast proof shape, missing, redirected, or mistyped
-  rejection, and every fixed cast evidence frontier are unchanged. Cast-
+  rejection, and every fixed cast evidence frontier are unchanged. Direct
+  landed-literal cast completion now lives in independent side-local
+  `cast_selection/literal/completion` modules. Each parent retains its own
+  requirements-before-semantic-axioms equality discovery, orientation, and
+  typed value/literal filtering; production alone remaps the source endpoint,
+  constructs the closed relation and one substitution proof, then completes
+  the cast, while reconstruction independently replays the same endpoint,
+  closed-order, root-bound, and cast checks. Direct-root, landed-literal, then
+  alias precedence, citation order, endpoint orientation, proof shape, unsafe,
+  redirected, or mistyped rejection, and the fixed evidence frontier are
+  unchanged. Cast-
   specific alias transport now lives in independent
   side-local `alias_transport/cast` modules. Production alone constructs the
   closed-strengthening and alias-landed-literal substitution proofs before cast
@@ -3166,7 +3189,16 @@ Owners:
   and self-terminal delivery, and guarded effectful transition arguments—also
   launch only from exact receipts while retaining literal status 70. Existing
   interpreter and diagnostic-status assertions remain unchanged, and the 795
-  rooted/3 legacy exact-owner pins remain stable.
+  rooted/3 legacy exact-owner pins remain stable. Four further authored-root
+  ABI/value-call executions—nested-entry value calls, shared-name variant
+  payload delivery, struct-payload cast fields, and branch-leaf multiple named
+  conversions—now launch only from exact checked-report receipts while
+  retaining literal status 70. Five further ABI/process-control executions—
+  entry-host-state payload delivery, a contained health loop, sequential stdin
+  buffering, Full artifact-backed text storage, and stderr writing—use the same
+  receipt-only launch boundary while retaining literal statuses 70/75, 0, 0,
+  0, and 70. All interpreter, stdin/stdout/stderr, and backend-report assertions
+  remain unchanged, and the 795 rooted/3 legacy exact-owner pins remain stable.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
@@ -3720,8 +3752,12 @@ Remaining N6/N8 work:
   central scalar float paths consume these rows rather than choosing f32/f64
   projection ad hoc. Payload-distinct NaNs collapse while signed zeros and
   infinities remain distinct in focused tests, and the runtime float-operation
-  canary remains green. Source-operator, Terminal, and independent-verifier
-  binding to the catalog remains open.
+  canary remains green. Source-operator binding now consumes the catalog's
+  complete `Float::meaning32`/`Float::meaning64` identities and rejects a
+  drifted canonical declaration unless it is the exact ordinary tokenless
+  `f32`/`f64` to `FloatMeaning` signature, without lifetime/type parameters or
+  receiver qualification. Leaf spelling alone grants no projection semantics.
+  Terminal and independent-verifier binding to the catalog remains open.
 - Then migrate suffix law discovery to propositions plus explicit conformances,
   and expand the checked `Nat`/`Int`/`Rat`/Cauchy/approximation corpus. `Real`
   remains proof-only and core-level.

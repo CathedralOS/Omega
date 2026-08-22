@@ -22,6 +22,27 @@ pub struct FloatProjectionRule {
 }
 
 impl FloatProjectionOperation {
+    pub const fn source_namespace(self) -> &'static str {
+        "Float"
+    }
+
+    pub const fn source_name(self) -> &'static str {
+        match self {
+            Self::Meaning32 => "meaning32",
+            Self::Meaning64 => "meaning64",
+        }
+    }
+
+    /// Select only one exact source-visible projection identity. Leaf spelling
+    /// alone never selects a proof projection.
+    pub fn from_source_identity(namespace: &str, name: &str) -> Option<Self> {
+        match (namespace, name) {
+            ("Float", "meaning32") => Some(Self::Meaning32),
+            ("Float", "meaning64") => Some(Self::Meaning64),
+            _ => None,
+        }
+    }
+
     pub const fn rule(self) -> FloatProjectionRule {
         FloatProjectionRule {
             source_format: match self {
@@ -69,6 +90,30 @@ mod tests {
             FloatProjectionOperation::Meaning64
                 .project_f32(1.0)
                 .is_none()
+        );
+    }
+
+    #[test]
+    fn source_identities_are_exact_and_closed() {
+        for operation in [
+            FloatProjectionOperation::Meaning32,
+            FloatProjectionOperation::Meaning64,
+        ] {
+            assert_eq!(
+                FloatProjectionOperation::from_source_identity(
+                    operation.source_namespace(),
+                    operation.source_name(),
+                ),
+                Some(operation),
+            );
+        }
+        assert_eq!(
+            FloatProjectionOperation::from_source_identity("Other", "meaning32"),
+            None,
+        );
+        assert_eq!(
+            FloatProjectionOperation::from_source_identity("Float", "meaning"),
+            None,
         );
     }
 
