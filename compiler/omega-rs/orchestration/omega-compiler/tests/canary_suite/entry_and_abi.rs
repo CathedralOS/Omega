@@ -90,7 +90,7 @@ fn production_check_accepts_entry_agnostic_semantic_corpus() {
     .expect("check-only compilation must not require or infer a runtime entry");
 
     assert!(!report.wrote_output());
-    assert_eq!(report.program_storage_entry, None);
+    assert!(report.program_storage_entry().is_none());
     assert!(build_dir.join("04_typed_trees.json").is_file());
     assert!(build_dir.join("05_machine_contracts.json").is_file());
     let _ = fs::remove_dir_all(build_dir);
@@ -173,12 +173,10 @@ fn uefi_program_entry_retains_exact_storage_root_binding() {
     })
     .expect("UEFI program-storage entry should bind its generated captures");
     let binding = report
-        .program_storage_entry
-        .as_ref()
+        .program_storage_entry()
         .expect("UEFI entry should retain a program-storage binding");
     let bridge = report
-        .program_storage_entry_bridge
-        .as_ref()
+        .program_storage_entry_bridge()
         .expect("UEFI entry should retain its emitted native-bridge handoff");
 
     assert!(

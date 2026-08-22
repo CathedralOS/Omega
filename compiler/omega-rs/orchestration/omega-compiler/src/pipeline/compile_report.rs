@@ -138,10 +138,10 @@ pub struct CompileReport {
     /// Exact target root-slot/schema/ABI-capture binding for a program-storage
     /// entry. Hosted compatibility entries and unmigrated name discovery have
     /// no such authority-bearing artifact.
-    pub program_storage_entry: Option<super::ProgramStorageEntryPlanBinding>,
+    program_storage_entry: Option<super::ProgramStorageEntryPlanBinding>,
     /// Emitted object-entry handoff awaiting concrete environment supply and
     /// runtime installation. This is not an installation receipt.
-    pub program_storage_entry_bridge: Option<super::ProgramStorageEntryNativeBridgePlan>,
+    program_storage_entry_bridge: Option<super::ProgramStorageEntryNativeBridgePlan>,
     /// Deterministic accounting from the transitional typed-tree build
     /// evaluator. This is explicitly not terminal-Psi fuel.
     pub build_evaluation_usage: Option<super::build_config::BuildEvaluationUsage>,
@@ -202,15 +202,23 @@ impl CompileReport {
         self.app_bundle_publication.as_ref()
     }
 
+    pub fn program_storage_entry(&self) -> Option<&super::ProgramStorageEntryPlanBinding> {
+        self.program_storage_entry.as_ref()
+    }
+
+    pub fn program_storage_entry_bridge(
+        &self,
+    ) -> Option<&super::ProgramStorageEntryNativeBridgePlan> {
+        self.program_storage_entry_bridge.as_ref()
+    }
+
     pub fn has_consistent_program_storage_entry_custody(&self) -> bool {
-        match (
+        optional_exact_pair_matches(
             self.program_storage_entry.as_ref(),
-            self.program_storage_entry_bridge.as_ref(),
-        ) {
-            (None, None) => true,
-            (Some(binding), Some(bridge)) => binding == bridge.binding(),
-            (None, Some(_)) | (Some(_), None) => false,
-        }
+            self.program_storage_entry_bridge
+                .as_ref()
+                .map(super::ProgramStorageEntryNativeBridgePlan::binding),
+        )
     }
 
     /// Replays the only valid relationship between the flat executable and an
@@ -271,6 +279,14 @@ impl CompileReport {
     }
 }
 
+fn optional_exact_pair_matches<T: PartialEq>(left: Option<&T>, right: Option<&T>) -> bool {
+    match (left, right) {
+        (None, None) => true,
+        (Some(left), Some(right)) => left == right,
+        (None, Some(_)) | (Some(_), None) => false,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
@@ -307,6 +323,12 @@ mod tests {
 
     #[test]
     fn executable_publication_pair_rejects_every_cross_copy_drift() {
+        assert!(super::optional_exact_pair_matches::<u8>(None, None));
+        assert!(super::optional_exact_pair_matches(Some(&1), Some(&1)));
+        assert!(!super::optional_exact_pair_matches(Some(&1), Some(&2)));
+        assert!(!super::optional_exact_pair_matches(Some(&1), None));
+        assert!(!super::optional_exact_pair_matches(None, Some(&1)));
+
         let flat = receipt(
             ExecutablePublicationDestination::FlatOutput,
             "build/main",
