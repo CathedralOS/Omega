@@ -141,6 +141,54 @@ pub fn normalized_layout_plan_fingerprint(layout: &LayoutPlanReport) -> u64 {
     if hash == 0 { 1 } else { hash }
 }
 
+/// Exact, hash-free equality for replaying one retained validated layout.
+///
+/// Numbered member names are presentation and may change. Every semantic
+/// identity, placement, fixed/dynamic size, alignment, and derived offsets
+/// projection must otherwise agree. Callers use this relation for acceptance;
+/// the compact fingerprint remains report/cache identity only.
+pub fn layout_plan_reports_match_for_replay(
+    current: &LayoutPlanReport,
+    retained: &LayoutPlanReport,
+) -> bool {
+    if validate_materialization_field_identities(current).is_err()
+        || validate_materialization_field_identities(retained).is_err()
+        || current.schema_identity != retained.schema_identity
+        || current.offsets != retained.offsets
+        || current.size != retained.size
+        || current.align != retained.align
+        || current.entries.len() != retained.entries.len()
+    {
+        return false;
+    }
+
+    let mut current_entries = current.entries.iter().collect::<Vec<_>>();
+    current_entries.sort_unstable_by(|left, right| {
+        member_sort_key(left)
+            .cmp(&member_sort_key(right))
+            .then_with(|| {
+                placement_sort_key(&left.placement).cmp(&placement_sort_key(&right.placement))
+            })
+    });
+    let mut retained_entries = retained.entries.iter().collect::<Vec<_>>();
+    retained_entries.sort_unstable_by(|left, right| {
+        member_sort_key(left)
+            .cmp(&member_sort_key(right))
+            .then_with(|| {
+                placement_sort_key(&left.placement).cmp(&placement_sort_key(&right.placement))
+            })
+    });
+
+    current_entries
+        .into_iter()
+        .zip(retained_entries)
+        .all(|(current, retained)| {
+            current.member_identity == retained.member_identity
+                && (current.member_identity.is_some() || current.field == retained.field)
+                && current.placement == retained.placement
+        })
+}
+
 fn member_sort_key(entry: &LayoutFieldEntryReport) -> (u8, u64, &str) {
     match entry.member_identity {
         Some(identity) => (0, identity, ""),
@@ -2590,6 +2638,30 @@ mod tests {
             normalized_layout_plan_fingerprint(&original),
             normalized_layout_plan_fingerprint(&renamed)
         );
+        assert!(layout_plan_reports_match_for_replay(&original, &renamed));
+
+        let mut reordered = renamed.clone();
+        reordered.entries.reverse();
+        assert!(layout_plan_reports_match_for_replay(&original, &reordered));
+
+        let mut shifted = renamed.clone();
+        let LayoutPlacementReport::Bits { container, .. } = &mut shifted.entries[0].placement
+        else {
+            unreachable!("split layout uses bit fragments")
+        };
+        *container = 4;
+        assert!(!layout_plan_reports_match_for_replay(&original, &shifted));
+
+        let mut changed_projection = renamed.clone();
+        changed_projection.offsets = Some(vec![0]);
+        assert!(!layout_plan_reports_match_for_replay(
+            &original,
+            &changed_projection
+        ));
+
+        let mut aliased = original.clone();
+        aliased.entries[0].field = "forged_alias".into();
+        assert!(!layout_plan_reports_match_for_replay(&aliased, &aliased));
 
         let mut changed_schema = renamed;
         changed_schema.schema_identity = 0x45;
@@ -2597,6 +2669,20 @@ mod tests {
             normalized_layout_plan_fingerprint(&original),
             normalized_layout_plan_fingerprint(&changed_schema)
         );
+        assert!(!layout_plan_reports_match_for_replay(
+            &original,
+            &changed_schema
+        ));
+
+        let positional = split_layout();
+        let mut renamed_positional = positional.clone();
+        for entry in &mut renamed_positional.entries {
+            entry.field = "renamed_address".into();
+        }
+        assert!(!layout_plan_reports_match_for_replay(
+            &positional,
+            &renamed_positional
+        ));
     }
 
     #[test]
