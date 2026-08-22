@@ -1096,20 +1096,13 @@ fn runtime_slice_length_local_binding_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-slice-len-local-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("slice length local binding canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
-        .output()
-        .expect("slice length local binding canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(5),
-        "expected `let n = s.len` (as_slice-local) to materialize the length so \
-         `n == 5` matches -> exit 5, got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        5,
+        "slice-length local-binding canary",
+        "the as-slice local should materialize its length into the value binding",
     );
 
     let _ = fs::remove_dir_all(&build_dir);
@@ -1127,20 +1120,13 @@ fn runtime_slice_length_local_param_binding_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-slice-len-param-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("slice length local param binding canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
-        .output()
-        .expect("slice length local param binding canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(6),
-        "expected `let n: usize = s.len` (slice param) to read the descriptor's \
-         full 8-byte length so `n == 6` matches -> exit 6, got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        6,
+        "slice-length parameter-binding canary",
+        "the slice parameter should materialize its full-width length",
     );
 
     let _ = fs::remove_dir_all(&build_dir);
@@ -1158,20 +1144,13 @@ fn runtime_subslice_length_local_binding_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-subslice-len-local-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("subslice length local binding canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
-        .output()
-        .expect("subslice length local binding canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(3),
-        "expected `let n = sub.len` (sub = a literal `arr[1..4]` subslice) to fold to \
-         the window length 3 so `n == 3` matches -> exit 3, got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        3,
+        "subslice-length local-binding canary",
+        "the literal-bounded subslice should materialize its window length",
     );
 
     let _ = fs::remove_dir_all(&build_dir);
@@ -1189,20 +1168,13 @@ fn runtime_inline_subslice_length_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-inline-subslice-len-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("inline subslice length canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
-        .output()
-        .expect("inline subslice length canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(3),
-        "expected `let n = (self.arr[1..4]).len` to fold to the window length 3 so \
-         `n == 3` matches -> exit 3, got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        3,
+        "inline subslice-length canary",
+        "the inline literal-bounded subslice should fold to its window length",
     );
 
     let _ = fs::remove_dir_all(&build_dir);
@@ -1220,20 +1192,13 @@ fn runtime_end_fixed_array_subslice_local_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-rt-end-subslice-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("runtime-end fixed-array subslice local canary should compile");
-
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("runtime-end fixed-array subslice local canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(3),
-        "expected `let sub = self.arr[1..self.hi]` (hi=4) to seed-and-shrink the \
-         descriptor so `sub.len == 3` matches -> exit 3, got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        3,
+        "runtime-end fixed-array subslice canary",
+        "the runtime end should shrink the seeded fixed-array descriptor",
     );
 
     let _ = fs::remove_dir_all(&scratch);
