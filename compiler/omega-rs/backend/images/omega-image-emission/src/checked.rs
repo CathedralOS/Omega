@@ -567,6 +567,30 @@ fn validate_compiler_function_object_binding(
             function.byte_offset.saturating_add(function.byte_count),
         )));
     }
+    let is_callback = function.identity.callback_thunk_placement_index().is_some();
+    let expected_name = if symbol_handle == object.layout.entry_symbol {
+        if is_callback {
+            return Err(Diagnostic::error(format!(
+                "compiler function #{function_index} callback identity cannot own the object entry symbol"
+            )));
+        }
+        Some(omega_object_file::entry_symbol_name(object.target))
+    } else if is_callback {
+        // Callback spelling also binds the placement row and evaluated plan,
+        // so it is rederived by the callback-specific final-emission join.
+        None
+    } else {
+        omega_object_file::private_function_symbol_name(function.identity)
+    };
+    if expected_name
+        .as_deref()
+        .is_some_and(|expected| symbol.name != expected)
+    {
+        return Err(Diagnostic::error(format!(
+            "compiler function #{function_index} object linkage name `{}` does not match its canonical identity-derived name",
+            symbol.name
+        )));
+    }
     Ok(symbol_handle)
 }
 
