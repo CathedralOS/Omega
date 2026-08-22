@@ -690,7 +690,22 @@ Owners:
   established carrier retains correspondence beside the placed view but
   deliberately exposes no projection or inner-view escape until primitive
   requests can carry and replay that evidence; no content, field access, device
-  operation, or target lowering is established.
+  operation, or target lowering is established. Corresponded borrowed views
+  now project through a distinct lifetime-bound placement-authority variant
+  that retains the exact admitted schema/device correspondence through field
+  projection, authorization, primitive requests, and External specialization
+  preflight. Each boundary independently replays provider/device/revision
+  evidence against the retained view placement/profile; ordinary views remain
+  correspondence-free. Drift rejects without consuming the view/request, and
+  no Terminal, device operation, or target-lowering authority is established.
+  Stable primitive/compound, External primitive, and Atomic primitive outward
+  specialization carriers now expose the exact lifetime-bound admitted schema/
+  device correspondence retained by their sealed primitive request when one
+  exists. Their borrowed preflights independently replay that correspondence
+  with the complete placement authority; drift rejects without consuming the
+  specialization, repair/retry preserves the same provenance, ordinary
+  storage remains correspondence-free, and no device operation or target
+  lowering is established.
 
 #### L6c — symbolic materialization
 
@@ -1619,7 +1634,26 @@ Remaining:
   modules. Production and reconstruction independently preserve the exact
   preference order across direct, literal-landed, fixed one-/two-alias, and
   exactly-two-leg transitive custody before invoking affine completion; no
-  generic path search or additional evidence shape is introduced. Exact two-
+  generic path search or additional evidence shape is introduced. Direct
+  affine-root custody now lives in independent side-local
+  `affine_selection/direct` modules. Production alone retains the exact root-
+  bound citation and tries its left then right value endpoints before
+  constructing affine completion; reconstruction independently scans
+  requirements then semantic axioms, tries the same endpoint order, and
+  rechecks the retained root bound through affine custody. Direct evidence
+  remains preferred before landed literals, one-alias transport, direct and
+  alias-substituted two-leg transitivity, and two-alias transport. Citation and
+  endpoint order, proof shapes, missing, redirected, or mistyped rejection, and
+  every finite evidence frontier are unchanged. Fixed affine root-alias
+  completion now lives in independent side-local `affine_selection/alias`
+  modules. Production alone adapts the existing origin-indexed one- and two-
+  alias substitution proofs into affine completion; reconstruction
+  independently adapts its reconstructed root bounds and rechecks affine
+  custody. Direct, landed-literal, one-alias, direct-transitive, alias-
+  transitive, then two-alias precedence is unchanged. Equality/citation order
+  and distinctness, nested substitution shapes, missing, reused, cyclic, or
+  mistyped rejection, and the explicit one-/two-alias frontier remain
+  unchanged; no hop parameter or graph search is introduced. Exact two-
   citation affine-chain custody now lives in independent side-local
   `affine_selection/transitive/chains` modules. Production preserves citation
   identities while reconstruction independently retains propositions; each
@@ -1767,7 +1801,16 @@ Remaining:
   existing sorted-ready topological schedule, per-block all-incoming fact
   intersection, and final all-return fact intersection. The parent retains
   operation-before-terminator traversal; no successor, fact, exit, proof, or
-  search order changes. Cast-specific alias transport now lives in independent
+  search order changes. Direct cast-root custody now lives in independent side-
+  local `cast_selection/direct` modules. Production alone retains the exact
+  root-bound citation and tries its left then right value endpoints before
+  checked cast completion; reconstruction independently scans requirements
+  then semantic axioms, tries the same endpoint order, and rechecks cast
+  custody. Non-order goals still reject in each parent, and direct evidence
+  remains preferred before landed-literal and fixed alias transport. Citation
+  and endpoint order, cast proof shape, missing, redirected, or mistyped
+  rejection, and every fixed cast evidence frontier are unchanged. Cast-
+  specific alias transport now lives in independent
   side-local `alias_transport/cast` modules. Production alone constructs the
   closed-strengthening and alias-landed-literal substitution proofs before cast
   completion; reconstruction independently enumerates and rechecks the same
@@ -3110,7 +3153,20 @@ Owners:
   runtime-local and constant self-array indexing, and a deep post-entry chain—
   now launch only from exact checked-report receipts while retaining literal
   statuses 70, 24, 99, 99, and 30. Existing interpreter assertions remain
-  unchanged, and the 795 rooted/3 legacy exact-owner pins remain stable.
+  unchanged, and the 795 rooted/3 legacy exact-owner pins remain stable. Five
+  further authored-root ABI/value-call executions—chained post-entry lets,
+  cross-callee division, same-named cross-callee lets, nested value-call guards,
+  and two-site struct results—now launch only from exact checked-report
+  receipts while retaining literal statuses 2, 70, 70, 70, and 70. Five more—
+  same-callee multi-site results, guarded and straight-line transition
+  arguments, straight-line shared-slot results, and enum-self methods—retain
+  literal statuses 70, 70, 12, 22, and 70 through the same receipt-only launch
+  boundary. Five further ABI/dispatch executions—dispatch-bodied results,
+  literal-length arm guards, value-call guard subjects, effectful guard/local
+  and self-terminal delivery, and guarded effectful transition arguments—also
+  launch only from exact receipts while retaining literal status 70. Existing
+  interpreter and diagnostic-status assertions remain unchanged, and the 795
+  rooted/3 legacy exact-owner pins remain stable.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
@@ -3650,8 +3706,13 @@ Remaining N6/N8 work:
   shift-count law; division retains zero-divisor and signed-minimum/-1 as
   distinct traps, and Trapping shifts do not collapse count failure into
   generic overflow. Concrete and abstract specification shift-count validation
-  now consume those rows instead of duplicating the policy match. Remaining
-  arithmetic producer, Terminal, and independent-verifier consumers stay open.
+  now consume those rows instead of duplicating the policy match. General
+  expression analysis now also consumes the catalog's exact-result formation
+  and Trapping result-overflow predicates for add, subtract, multiply, and left
+  shift while preserving its established interval refinements, warnings, and
+  diagnostics. Exact division remains in its dedicated specification-
+  definedness lane. Remaining arithmetic producer, Terminal, and independent-
+  verifier consumers stay open.
   A separate shared float-projection catalog now owns the exact `meaning32`
   and `meaning64` rows. Each row fixes its source format, exact nonzero-rational
   finite projection, signed-zero and signed-infinity preservation, and NaN-
