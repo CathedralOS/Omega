@@ -557,6 +557,20 @@ Owners:
   authorization joins directly through the retained state symbol rather than
   presentation names. Operation or target substitution rejects fail closed;
   Atomic access remains on its distinct typed carrier.
+  Compiler-derived placed field plans now retain the exact generated accessor
+  data symbol independently from its diagnostic name. Build-time binding and
+  validation replay that symbol against the exact synthesized field type, and
+  Omega layout recognizes opaque accessor carriers by symbol rather than
+  presentation spelling. Accessor-data substitution rejects fail closed;
+  Atomic specialized carriers remain fenced behind their distinct typed
+  operation law.
+  Compiler-derived placed field plans also retain the exact synthesized
+  accessor type reference independently from diagnostic spelling. Shell-aware
+  typed lookup rejoins through that handle, while validation replays it against
+  the exact synthesized view field and retained accessor-data symbol.
+  Presentation-name substitution cannot redirect lookup; accessor-type
+  substitution rejects fail closed. Atomic specialized carriers retain their
+  separate typed operation fence.
 - Keep alias-exclusion admission separate from access rights; `&mut` does not
   claim exclusivity against a device. Sealed primitive events now specialize
   linearly into Stable read/take/write/swap, External read/take/write, or one
@@ -3356,6 +3370,10 @@ Remaining:
   the complete pass umbrella remain green. The exact pass umbrella fell from
   125.09s to 51.84s; auxiliary viewers were already disabled and were not the
   source of the exponential work.
+  The pass-canary scheduler now defaults to twelve independent outer compiles
+  with one backend worker each. On the current 215-compile umbrella this
+  reduced exact test time from 51.60s at outer eight to 46.15s at outer twelve;
+  the explicit overrides remain available for host-specific profiling.
   Default-domain validation now delegates conservative symbolic values,
   literal/sequence measures, valuation folding, canonical symbolic equality,
   and recursive call detection to a focused 281-line child while state walking,
