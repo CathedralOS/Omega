@@ -2,6 +2,8 @@
 
 use psi_core::{Proposition, ScalarTerm};
 
+use super::super::eligibility;
+
 pub(super) fn any<'a>(
     requirements: &'a [Proposition],
     semantic_axioms: &'a [Proposition],
@@ -15,9 +17,7 @@ pub(super) fn any<'a>(
             _ => None,
         })
         .any(|(root_bound, root_left, root_right)| {
-            [root_left, root_right]
-                .into_iter()
-                .filter(|root| matches!(root, ScalarTerm::Value { .. }))
+            eligibility::ordered_value_endpoints(root_left, root_right)
                 .any(|root| complete(root, root_bound))
         })
 }

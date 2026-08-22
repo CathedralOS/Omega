@@ -4,6 +4,7 @@ use psi_core::{Proposition, PropositionContext, ScalarTerm};
 use psi_proof_kernel::ProofNode;
 
 use super::super::super::affine_custody::{self, DefinitionIndex};
+use super::super::eligibility;
 
 mod bound;
 
@@ -20,10 +21,7 @@ pub(super) fn prove(
     right_proof: ProofNode,
 ) -> Option<ProofNode> {
     let root_bound = bound::prove(left, right, left_proof, right_proof);
-    for root in [left, right]
-        .into_iter()
-        .filter(|root| matches!(root, ScalarTerm::Value { .. }))
-    {
+    for root in eligibility::ordered_value_endpoints(left, right) {
         if let Some(proof) = affine_custody::prove_from_root(
             context,
             goal,
