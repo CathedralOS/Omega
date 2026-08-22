@@ -103,7 +103,7 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
         write_output: true,
     })
     .expect("declared filesystem+console build.omg should compile (console rows are SERVED, not backstopped)");
-    assert!(report.wrote_output);
+    assert!(report.wrote_output());
     assert_eq!(report.build_evaluation_usage, Some(checked_usage));
 
     let staged = std::fs::read_to_string(stage.join("asset.bin"))
