@@ -721,6 +721,14 @@ operation is emitted until compiler-derived relations, correspondence, and
 contracts are independently validated. The retired bare call pilot cannot
 recover authority through structural proof-machine discovery.
 
+The representation-observer fence is explicit at resolved-to-typed lowering.
+A quotient cannot declare `Equatable`, participate as a field in synthesized
+container equality, or use runtime `==`/`!=`; all three would compare retained
+representative bytes. Equality in a proof-fact position stays as a logical fact
+for the exact quotient-congruence judge and is never lowered to a structural
+compare. Executable equality still requires a named lifted operation and its
+separate `DecidesEquivalence` law.
+
 For a request that is the direct terminal expression of a state, validation
 now derives a non-authoritative relation plan when every selected quotient
 relation is monomorphic: `RA` records the exact quotient type and relation at
