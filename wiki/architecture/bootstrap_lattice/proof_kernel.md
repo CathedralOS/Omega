@@ -587,7 +587,9 @@ reject. One fixed two-alias sibling may instead transport one directly cited
 canonical bound through exactly two distinct same-carrier value equalities. It
 nests two `IntegerLessOrEqualSubstitution` nodes under `IntegerCastBound`;
 producer and reconstruction independently enumerate that exact three-citation
-shape, prefer every one-alias family, and perform no recursive alias walk.
+shape through their own local indexed constructor shared by cast and affine
+completion. They prefer every one-alias family and perform no recursive or
+parameterized alias walk.
 Missing, reused, redirected, crossed, cyclic, mistyped, or weaker facts reject.
 A third alias, literal landing through two aliases, affine/cast, shift/cast,
 joins, and correlated results remain outside this sibling; neither complete

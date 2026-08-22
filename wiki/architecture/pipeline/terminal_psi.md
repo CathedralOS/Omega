@@ -2013,7 +2013,9 @@ sibling. One separate fixed two-alias sibling may transport one directly cited
 canonical bound through exactly two distinct same-carrier value equalities. It
 nests two `IntegerLessOrEqualSubstitution` nodes under `IntegerCastBound`;
 production and verification independently enumerate that exact three-citation
-shape, prefer every one-alias family, and perform no recursive alias walk.
+shape through their own local indexed constructor shared by cast and affine
+completion. They prefer every one-alias family and perform no recursive or
+parameterized alias walk.
 Missing, reused, redirected, crossed, cyclic, mistyped, or weaker facts reject.
 A third alias and literal landing through two aliases remain outside. Neither
 complete exact row changes trust and `fully-derived false` remains.
