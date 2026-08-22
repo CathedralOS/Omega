@@ -1,6 +1,8 @@
 //! Exact root-alias/alias-literal join eligibility for reconstruction.
 
-use psi_core::{Proposition, ScalarTerm, ScalarType};
+use psi_core::{Proposition, ScalarTerm};
+
+use super::super::super::eligibility;
 
 pub(super) fn eligible(
     outer_equality: &Proposition,
@@ -11,8 +13,5 @@ pub(super) fn eligible(
     if std::ptr::eq(outer_equality, inner_equality) {
         return false;
     }
-    let Some((integer_type, _)) = literal.integer_value() else {
-        unreachable!("literal index contains only integer landings")
-    };
-    root.scalar_type() == ScalarType::Integer(integer_type)
+    eligibility::exact_value_binding(root, literal)
 }

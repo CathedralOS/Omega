@@ -2,9 +2,9 @@
 
 use psi_core::{Proposition, ScalarTerm};
 
-mod eligibility;
 mod equalities;
 
+use super::super::eligibility;
 use equalities::OrientedEqualities;
 
 pub(super) struct DirectLiteralCandidates<'a> {
@@ -22,7 +22,8 @@ impl<'a> DirectLiteralCandidates<'a> {
         &self,
         mut complete: impl FnMut(&'a ScalarTerm, &'a ScalarTerm) -> bool,
     ) -> bool {
-        self.equalities
-            .any(|root, literal| eligibility::eligible(root, literal) && complete(root, literal))
+        self.equalities.any(|root, literal| {
+            eligibility::exact_value_binding(root, literal) && complete(root, literal)
+        })
     }
 }
