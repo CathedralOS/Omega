@@ -589,7 +589,12 @@ Remaining:
   structural-case codec now owns sum-case counts, ordered identities, and
   nested field catalogs. Exact shape tags, case/field bytes, capacity guards,
   literal diagnostics and precedence, public APIs, validation, and admission
-  replay remain unchanged. The installation parent is now 2,761
+  replay remain unchanged. The structural-record codec now likewise owns
+  record field counts, capacity guards, ordered allocation, and exact field-row
+  replay. The prior byte-for-byte duplicate record decoder shares the
+  established field codec; tags, bytes, literal diagnostics and precedence,
+  public APIs, validation, and admission replay remain unchanged. The
+  installation parent is now 2,640
   lines. This is
   custody, not
   authorization. The remaining
@@ -4283,7 +4288,10 @@ Remaining:
   structural ownership/frontier cleanup (750), per-machine
   registration/orchestration (716), scalar crash/frontier and Boolean-predicate
   custody (674),
-  content-conservation validation/replay (534), operation operand/type custody
+  content-conservation validation/replay (465) with equality/separate algebra,
+  exact projection selection, entry/current structural-place reconstruction,
+  identity replay, and qualification normalization in a focused 545-line child,
+  operation operand/type custody
   (522), partial/nominal affine cleanup custody (473), evidence/proposition
   custody (410), control-flow/dominance validation (301), proposition-root
   projection (146), contract proposition scope (120), and call-graph acyclicity
