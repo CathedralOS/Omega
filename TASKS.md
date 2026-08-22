@@ -534,7 +534,11 @@ Remaining:
   bounds-checked private wire layer for cursor advancement, little-endian u16/
   u32/u64 writes, and boolean-tag decoding. Facade APIs, byte order,
   truncation/error precedence, canonical re-encoding, validation, and admission
-  replay remain unchanged. The installation parent is now 3,204
+  replay remain unchanged. One private fingerprint codec now owns the domain-
+  separated installed-image and installation-record SHA-256 digests, including
+  length framing and canonical hexadecimal rendering. Digest domains and bytes,
+  public identity types, validation comparisons, literal errors, and admission
+  replay remain unchanged. The installation parent is now 3,179
   lines. This is
   custody, not
   authorization. The remaining
@@ -740,6 +744,11 @@ Owners:
   accessor type/data symbols, and unique operation targets retain fail-closed
   diagnostic order; the statement-use coordinator is now 378 lines with the
   exact 17-function inventory unchanged.
+  Declared member-path resolution now lives in a focused 323-line owner. Local,
+  parameter, and attached-data roots, nested record and sum-payload traversal,
+  missing-field diagnosis, receiver-type recovery, and exact data-definition
+  lookup retain their original resolution and diagnostic order; the place
+  coordinator is now 374 lines with the exact 21-function inventory unchanged.
   Post-typing placed-view plan replay and installation now live in a focused
   208-line build-time owner. Policy data/machine, schema/view data, complete
   admitted field inventory, stable member identity, accessor type/data identity,
