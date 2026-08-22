@@ -170,6 +170,17 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
         let Some(data) = data_definition_by_name(program, &type_name) else {
             return Ok(None);
         };
+        if data.quotient.is_some() {
+            if self.fact_position {
+                // Logical quotient equality is owned by the exact retained
+                // relation and the quotient-congruence judge. Keep the raw
+                // fact expression; never lower it to representative bytes.
+                return Ok(None);
+            }
+            return Err(Diagnostic::error(format!(
+                "cannot compare quotient `{type_name}` values with `==`/`!=`: retained representatives are opaque and have no synthesized structural equality; call a named lifted equality operation"
+            )));
+        }
         if data_equality_shape(program, data) != DataEqualityShape::Structural {
             return Ok(None);
         }

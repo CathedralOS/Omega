@@ -165,6 +165,13 @@ pub(crate) fn field_equality<'program>(
         )));
     };
 
+    if field_data.quotient.is_some() {
+        return Err(Diagnostic::error(format!(
+            "conformance `{conforming_type} satisfies Equatable`: field `{}` of `{owner}` has quotient type `{base_name}`; quotient representatives have no synthesized structural equality, so use a named lifted equality operation instead",
+            field.name
+        )));
+    }
+
     match data_equality_shape(program, field_data) {
         DataEqualityShape::Implicit => Ok(FieldEquality::Direct),
         DataEqualityShape::Structural => {
@@ -196,6 +203,11 @@ pub(crate) fn validate_equatable_conformances(
         let Some(data) = data_definition_by_name(program, type_name) else {
             continue;
         };
+        if data.quotient.is_some() {
+            return Err(Diagnostic::error(format!(
+                "conformance `{type_name} satisfies Equatable` cannot synthesize equality for a quotient type; quotient representatives are opaque, so equality requires a named lifted operation"
+            )));
+        }
 
         let mut visiting = vec![type_name.to_owned()];
         validate_equatable_data(program, type_name, data, &mut visiting)?;
