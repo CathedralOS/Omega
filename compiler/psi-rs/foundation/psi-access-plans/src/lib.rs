@@ -2510,6 +2510,25 @@ impl<'view, 'extent> PlacementAuthorityRef<'view, 'extent> {
         }
     }
 
+    fn replay_resident_content(self, transition: &str) -> Result<(), AccessPlanDiagnostic> {
+        let replay = match self {
+            Self::Borrowed(_) => return Ok(()),
+            Self::BorrowedResident(established) => validate_provider_content_binding(
+                established.placement_plan(),
+                established.loan(),
+                established.content(),
+            ),
+            Self::EstablishedOwned(established) => {
+                validate_owned_content_binding(&established.admission, &established.content)
+            }
+        };
+        replay.map_err(|diagnostic| {
+            AccessPlanDiagnostic(format!(
+                "{transition} could not replay the retained resident content grant: {diagnostic}"
+            ))
+        })
+    }
+
     const fn resources(self) -> &'view PlacementResourceCompatibility {
         match self {
             Self::Borrowed(view) => &view.resources,
@@ -2597,6 +2616,7 @@ fn project_placed_field<'view, 'extent>(
                 .into(),
         ));
     }
+    authority.replay_resident_content("placed field projection")?;
     let descriptor = plan.access.field_descriptor(key).cloned().ok_or_else(|| {
         AccessPlanDiagnostic(format!(
             "field key in canonical slot {} does not expose a placed accessor",
@@ -2824,6 +2844,7 @@ impl<'view, 'extent> PlacedFieldProjection<'view, 'extent> {
                     .into(),
             ));
         }
+        authority.replay_resident_content("placed field authorization")?;
 
         let descriptor_address = authority
             .base()
@@ -3180,6 +3201,7 @@ impl PrimitiveAccessRequest<'_, '_> {
                     .into(),
             ));
         }
+        authority.replay_resident_content("primitive lowering")?;
 
         if authority.source_loan() != self.source_loan
             || authority.resident_claim() != self.resident_claim
@@ -6484,6 +6506,10 @@ mod tests {
             let (_coincident_extent, coincident_content) =
                 provider_existing_content(&plan, 0xa100, 4, 215, 216);
             let correct_content = borrowed.replace_content_for_test(&coincident_content);
+            let diagnostic = borrowed
+                .project(field_key(plan.access(), "word"))
+                .expect_err("borrowed projection must replay the exact resident content grant");
+            assert!(diagnostic.0.contains("resident content grant"));
             let rejection = borrowed
                 .retire()
                 .expect_err("shared retirement must replay the exact borrowed content grant");
@@ -6773,6 +6799,63 @@ mod tests {
         drop(request);
         assert_eq!(established.validity_receipt().normalized_identity(), 169);
         assert_eq!(established.custody_receipt().normalized_identity(), 170);
+    }
+
+    #[test]
+    fn placed_authorization_and_specialization_replay_resident_content_grant() {
+        let (plan, established) = established_stable_word(0xad50, 220, 221, 223);
+
+        let (replacement_extent, replacement_content) =
+            provider_existing_content(&plan, 0xad50, 4, 224, 225);
+        let replacement_profile = stable_word_profile(&replacement_extent);
+        let replacement_admission = admit_owned_placement(
+            PlacementAdmissionId::from_normalized_identity(223).expect("matching admission"),
+            replacement_extent,
+            &plan,
+            &replacement_profile,
+        )
+        .expect("matching replacement placement");
+        let replacement_dormant = adopt_owned_stable(replacement_admission, replacement_content)
+            .expect("replacement resident adoption");
+        let mut corrupt = replacement_dormant
+            .view(
+                PlacedOccurrenceId::from_normalized_identity(10_223).expect("matching occurrence"),
+            )
+            .expect("replacement resident view");
+        let (_unrelated_extent, unrelated_content) =
+            provider_existing_content(&plan, 0xad50, 4, 228, 229);
+        corrupt.content = unrelated_content;
+
+        let mut projection = established
+            .project(field_key(plan.access(), "word"))
+            .expect("shared Stable projection");
+        projection._authority = PlacementAuthorityRef::EstablishedOwned(&corrupt);
+        projection.resident_claim = Some(corrupt.resident_claim());
+        projection.placed_occurrence = Some(corrupt.occurrence());
+        let diagnostic = projection
+            .read()
+            .expect_err("authorization must replay resident content beyond copied identities");
+        assert!(diagnostic.0.contains("resident content grant"));
+
+        projection._authority = PlacementAuthorityRef::EstablishedOwned(&established);
+        projection.resident_claim = Some(established.resident_claim());
+        projection.placed_occurrence = Some(established.occurrence());
+        let mut request = projection
+            .read()
+            .expect("repaired projection remains authorizable")
+            .into_primitive_request();
+        request._authority = PlacementAuthorityRef::EstablishedOwned(&corrupt);
+        request.resident_claim = Some(corrupt.resident_claim());
+        request.placed_occurrence = Some(corrupt.occurrence());
+        request = expect_exact_stable_primitive_rejection(request, "resident content grant");
+
+        request._authority = PlacementAuthorityRef::EstablishedOwned(&established);
+        request.resident_claim = Some(established.resident_claim());
+        request.placed_occurrence = Some(established.occurrence());
+        let stable = request
+            .into_stable_primitive_access()
+            .expect("repaired resident content authority supports specialization");
+        assert_eq!(stable.primitive_address(), 0xad50);
     }
 
     #[test]
