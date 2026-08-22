@@ -8,6 +8,140 @@ use omega_image_emission::{
 use omega_object_file::{ObjectContainerInput, emit_omega_object_container};
 use psi_diagnostics::Diagnostic;
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ExecutablePublicationEvidence {
+    certificate_fingerprint: u64,
+    inventory_fingerprint: u64,
+    file_name: String,
+    format: String,
+    container_byte_count: usize,
+    container_fingerprint: u64,
+    final_text_byte_count: usize,
+    final_text_fingerprint: u64,
+    evidence_fingerprint: u64,
+}
+
+impl ExecutablePublicationEvidence {
+    fn current(
+        image: &omega_image::EmittedImageOutput,
+        certificate: &omega_image::FinalFootprintCertificate,
+    ) -> Result<Self, Diagnostic> {
+        certificate.validate_identity()?;
+        if image.compiler_text_validation != Some(certificate.compiler_text_validation)
+            || image.compiler_function_validation != Some(certificate.compiler_function_validation)
+            || image.compiler_entry_footprint_binding
+                != certificate.compiler_entry_footprint_binding
+            || image.executable_regions != certificate.inventory
+        {
+            return Err(Diagnostic::error(
+                "executable publication image does not match its final footprint certificate",
+            ));
+        }
+        omega_image::validate_placed_executable_region_inventory(
+            &image.executable_regions,
+            &image.final_text_bytes,
+        )?;
+        let mut evidence = Self {
+            certificate_fingerprint: certificate.certificate_fingerprint,
+            inventory_fingerprint: image.executable_regions.inventory_fingerprint,
+            file_name: image.file_name.clone(),
+            format: image.format.clone(),
+            container_byte_count: image.bytes.len(),
+            container_fingerprint: byte_fingerprint(&image.bytes),
+            final_text_byte_count: image.final_text_bytes.len(),
+            final_text_fingerprint: byte_fingerprint(&image.final_text_bytes),
+            evidence_fingerprint: 0,
+        };
+        evidence.evidence_fingerprint = evidence.recomputed_fingerprint();
+        Ok(evidence)
+    }
+
+    fn validate(
+        &self,
+        image: &omega_image::EmittedImageOutput,
+        certificate: &omega_image::FinalFootprintCertificate,
+    ) -> Result<(), Diagnostic> {
+        let expected = Self::current(image, certificate)?;
+        if *self != expected {
+            return Err(Diagnostic::error(
+                "executable publication evidence does not match the exact container candidate",
+            ));
+        }
+        Ok(())
+    }
+
+    fn recomputed_fingerprint(&self) -> u64 {
+        let mut hash = FNV_OFFSET;
+        fingerprint_into(&mut hash, b"omega.executable-publication-evidence.v1");
+        fingerprint_into(&mut hash, &self.certificate_fingerprint.to_le_bytes());
+        fingerprint_into(&mut hash, &self.inventory_fingerprint.to_le_bytes());
+        fingerprint_into(&mut hash, &(self.file_name.len() as u64).to_le_bytes());
+        fingerprint_into(&mut hash, self.file_name.as_bytes());
+        fingerprint_into(&mut hash, &(self.format.len() as u64).to_le_bytes());
+        fingerprint_into(&mut hash, self.format.as_bytes());
+        fingerprint_into(&mut hash, &(self.container_byte_count as u64).to_le_bytes());
+        fingerprint_into(&mut hash, &self.container_fingerprint.to_le_bytes());
+        fingerprint_into(
+            &mut hash,
+            &(self.final_text_byte_count as u64).to_le_bytes(),
+        );
+        fingerprint_into(&mut hash, &self.final_text_fingerprint.to_le_bytes());
+        hash
+    }
+}
+
+struct ValidatedExecutablePublication<'a> {
+    image: &'a omega_image::EmittedImageOutput,
+    certificate: &'a omega_image::FinalFootprintCertificate,
+    evidence: ExecutablePublicationEvidence,
+}
+
+impl<'a> ValidatedExecutablePublication<'a> {
+    fn new(
+        image: &'a omega_image::EmittedImageOutput,
+        certificate: &'a omega_image::FinalFootprintCertificate,
+    ) -> Result<Self, Diagnostic> {
+        let evidence = ExecutablePublicationEvidence::current(image, certificate)?;
+        evidence.validate(image, certificate)?;
+        Ok(Self {
+            image,
+            certificate,
+            evidence,
+        })
+    }
+
+    fn validate_identity(&self) -> Result<(), Diagnostic> {
+        self.evidence.validate(self.image, self.certificate)
+    }
+
+    fn bytes(&self) -> &[u8] {
+        &self.image.bytes
+    }
+
+    fn file_name(&self) -> &str {
+        &self.image.file_name
+    }
+
+    fn certificate(&self) -> &omega_image::FinalFootprintCertificate {
+        self.certificate
+    }
+}
+
+const FNV_OFFSET: u64 = 0xcbf2_9ce4_8422_2325;
+
+fn byte_fingerprint(bytes: &[u8]) -> u64 {
+    let mut hash = FNV_OFFSET;
+    fingerprint_into(&mut hash, bytes);
+    hash
+}
+
+fn fingerprint_into(hash: &mut u64, bytes: &[u8]) {
+    for byte in bytes {
+        *hash ^= u64::from(*byte);
+        *hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
+    }
+}
+
 pub(super) fn write_output(
     options: &CompileOptions,
     executable_tcb_authorization: &ExecutableTcbInstallationAuthorization,
@@ -87,12 +221,17 @@ pub(super) fn write_output(
             image.compiler_entry_footprint_binding,
             &image.executable_regions,
         )?;
-        let output_path = build_dir.join(&image.file_name);
-        write_output_file(&output_path, &image.bytes, true)
+        let publication = ValidatedExecutablePublication::new(&image, &final_footprint_certificate)
+            .map_err(|diagnostic| vec![diagnostic])?;
+        publication
+            .validate_identity()
+            .map_err(|diagnostic| vec![diagnostic])?;
+        let output_path = build_dir.join(publication.file_name());
+        write_output_file(&output_path, publication.bytes(), true)
             .map_err(|diagnostic| vec![diagnostic])?;
         write_executable_region_inventory(
             options,
-            &final_footprint_certificate,
+            publication.certificate(),
             emit_auxiliary_artifacts,
         )?;
 
@@ -106,7 +245,15 @@ pub(super) fn write_output(
         if emitted.target.object_format == omega_target::ObjectFormat::MachO
             && emitted.subsystem == GUI_SUBSYSTEM
         {
-            write_macos_app_bundle(options, &build_dir, &image.file_name, &image.bytes)?;
+            publication
+                .validate_identity()
+                .map_err(|diagnostic| vec![diagnostic])?;
+            write_macos_app_bundle(
+                options,
+                &build_dir,
+                publication.file_name(),
+                publication.bytes(),
+            )?;
         }
         return Ok(output_path);
     }
@@ -509,7 +656,10 @@ fn mark_executable_if_needed(_path: &std::path::Path) -> Result<(), Diagnostic> 
 
 #[cfg(test)]
 mod tests {
-    use super::build_final_footprint_certificate;
+    use super::{
+        ExecutablePublicationEvidence, FNV_OFFSET, build_final_footprint_certificate,
+        fingerprint_into,
+    };
 
     fn compiler_text_validation() -> omega_image::CompilerTextValidationEvidence {
         omega_image::CompilerTextValidationEvidence {
@@ -545,13 +695,41 @@ mod tests {
     }
 
     fn inventory() -> omega_image::PlacedExecutableRegionInventory {
+        let text_fingerprint = FNV_OFFSET;
+        let mut inventory_fingerprint = FNV_OFFSET;
+        fingerprint_into(&mut inventory_fingerprint, &0x1000u64.to_le_bytes());
+        fingerprint_into(&mut inventory_fingerprint, &0u64.to_le_bytes());
+        fingerprint_into(&mut inventory_fingerprint, &text_fingerprint.to_le_bytes());
         omega_image::PlacedExecutableRegionInventory {
             text_address: 0x1000,
             text_byte_count: 0,
-            text_fingerprint: 9,
-            inventory_fingerprint: 10,
+            text_fingerprint,
+            inventory_fingerprint,
             regions: Vec::new(),
             unclassified_gaps: Vec::new(),
+        }
+    }
+
+    fn image() -> omega_image::EmittedImageOutput {
+        omega_image::EmittedImageOutput {
+            bytes: vec![0x7f, b'O', b'M', b'G'],
+            final_text_bytes: Vec::new(),
+            file_name: "main".into(),
+            format: "test".into(),
+            kind: omega_image::ImageOutputKind::DirectExecutable,
+            text_bytes: 0,
+            data_bytes: 0,
+            bss_bytes: 0,
+            symbols: 0,
+            relocations: 0,
+            final_image_symbols: 0,
+            final_image_imports: 0,
+            final_image_relocations: 0,
+            executable_regions: inventory(),
+            compiler_text_validation: Some(compiler_text_validation()),
+            compiler_function_validation: Some(compiler_function_validation()),
+            compiler_entry_region_binding: None,
+            compiler_entry_footprint_binding: None,
         }
     }
 
@@ -581,5 +759,35 @@ mod tests {
             )
             .is_err()
         );
+    }
+
+    #[test]
+    fn executable_publication_evidence_rejects_container_candidate_drift() {
+        let image = image();
+        let certificate = build_final_footprint_certificate(
+            &omega_target_operations::BoundaryFootprintPlan::default(),
+            compiler_text_validation(),
+            compiler_function_validation(),
+            None,
+            &image.executable_regions,
+        )
+        .expect("certificate");
+        let evidence = ExecutablePublicationEvidence::current(&image, &certificate)
+            .expect("exact publication evidence");
+        evidence
+            .validate(&image, &certificate)
+            .expect("unchanged candidate");
+
+        let mut changed_bytes = image.clone();
+        changed_bytes.bytes[3] ^= 1;
+        assert!(evidence.validate(&changed_bytes, &certificate).is_err());
+
+        let mut changed_name = image.clone();
+        changed_name.file_name = "redirected".into();
+        assert!(evidence.validate(&changed_name, &certificate).is_err());
+
+        let mut changed_format = image;
+        changed_format.format = "redirected".into();
+        assert!(evidence.validate(&changed_format, &certificate).is_err());
     }
 }
