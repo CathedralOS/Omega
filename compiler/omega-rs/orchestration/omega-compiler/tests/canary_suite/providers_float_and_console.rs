@@ -1125,10 +1125,13 @@ fn bool_value_call_return_canary_runs() {
 
     let scratch = std::env::temp_dir().join(format!("omega-bool-vcall-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("bool value-call canary should compile");
 
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("bool value-call canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("bool value-call canary should run");
 
@@ -1164,10 +1167,13 @@ fn struct_literal_transition_arg_canary_runs() {
 
     let scratch = std::env::temp_dir().join(format!("omega-struct-arg-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("struct-literal arg canary should compile");
 
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("struct-literal arg canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("struct-literal arg canary should run");
 
@@ -1204,10 +1210,13 @@ fn runtime_indexed_element_copy_write_canary_runs() {
 
     let scratch = std::env::temp_dir().join(format!("omega-idx-elem-write-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("indexed element write canary should compile");
 
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("indexed element write canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("indexed element write canary should run");
 
