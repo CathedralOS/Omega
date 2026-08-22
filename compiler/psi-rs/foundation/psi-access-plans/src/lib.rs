@@ -2797,10 +2797,73 @@ impl<'view, 'extent> PlacedFieldProjection<'view, 'extent> {
         ))
     }
 
+    fn validate_authority_binding(&self) -> Result<(), AccessPlanDiagnostic> {
+        let authority = self._authority;
+        let placement = authority.placement_plan();
+        if placement.identity() != self.plan
+            || authority.profile_receipt() != self.profile_receipt
+            || authority.profile().receipt() != self.profile_receipt
+            || authority.admission() != self.admission
+            || placement.reach() != &self.reach
+            || authority.source_loan() != self.source_loan
+            || authority.resident_claim() != self.resident_claim
+            || authority.placed_occurrence() != self.placed_occurrence
+        {
+            return Err(AccessPlanDiagnostic(
+                "placed field authorization requires copied placement, profile, admission, reach, loan, and resident identities to match the retained authority"
+                    .into(),
+            ));
+        }
+
+        let replayed_resources = authority.replay_resources().map_err(|diagnostic| {
+            AccessPlanDiagnostic(format!(
+                "placed field authorization could not replay the retained placement authority: {diagnostic}"
+            ))
+        })?;
+        if &replayed_resources != authority.resources()
+            || authority.resources().placement != placement.identity()
+            || authority.resources().field(self.descriptor.key()) != Some(&self.supply)
+            || placement.access().field_descriptor(self.descriptor.key()) != Some(&self.descriptor)
+        {
+            return Err(AccessPlanDiagnostic(
+                "placed field authorization requires the exact replayed resource row and descriptor from the retained placement authority"
+                    .into(),
+            ));
+        }
+
+        let descriptor_address = authority
+            .base()
+            .checked_add(self.descriptor.container_byte_offset())
+            .ok_or_else(|| {
+                AccessPlanDiagnostic(
+                    "placed field authorization descriptor address overflows the retained authority base"
+                        .into(),
+                )
+            })?;
+        let supply_address = authority
+            .base()
+            .checked_add(self.supply.offset())
+            .ok_or_else(|| {
+                AccessPlanDiagnostic(
+                    "placed field authorization supply address overflows the retained authority base"
+                        .into(),
+                )
+            })?;
+        if descriptor_address != self.primitive_address || supply_address != self.primitive_address
+        {
+            return Err(AccessPlanDiagnostic(
+                "placed field authorization requires descriptor and supply geometry to reproduce the projected primitive address"
+                    .into(),
+            ));
+        }
+        Ok(())
+    }
+
     fn authorize<'access>(
         &'access self,
         operation: AccessOperation,
     ) -> Result<PlacedFieldAccess<'access, 'extent>, AccessPlanDiagnostic> {
+        self.validate_authority_binding()?;
         authorize_descriptor(
             &self.descriptor,
             self.current_borrow,
@@ -6508,6 +6571,52 @@ mod tests {
         drop(request);
         assert_eq!(established.validity_receipt().normalized_identity(), 161);
         assert_eq!(established.custody_receipt().normalized_identity(), 162);
+    }
+
+    #[test]
+    fn placed_field_authorization_replays_projection_authority_and_allows_retry() {
+        let (plan, established) = established_stable_word(0xad20, 164, 165, 167);
+        let mut projection = established
+            .project(field_key(plan.access(), "word"))
+            .expect("shared Stable projection");
+
+        projection.plan.0 ^= 1;
+        let diagnostic = projection
+            .read()
+            .expect_err("authorization must reject copied placement identity drift");
+        assert!(diagnostic.0.contains("placed field authorization"));
+        assert!(diagnostic.0.contains("retained authority"));
+        projection.plan = plan.identity();
+
+        projection.supply.offset = 4;
+        let diagnostic = projection
+            .read()
+            .expect_err("authorization must reject copied supply-row drift");
+        assert!(diagnostic.0.contains("replayed resource row"));
+        projection.supply.offset = 0;
+
+        projection.primitive_address += 4;
+        let diagnostic = projection
+            .read()
+            .expect_err("authorization must reject copied primitive-address drift");
+        assert!(
+            diagnostic
+                .0
+                .contains("reproduce the projected primitive address")
+        );
+        projection.primitive_address -= 4;
+
+        let request = projection
+            .read()
+            .expect("repaired projection remains authorizable")
+            .into_primitive_request();
+        let stable = request
+            .into_stable_primitive_access()
+            .expect("repaired projection remains valid through specialization");
+        assert_eq!(stable.primitive_address(), 0xad20);
+        let request = stable.into_primitive_request();
+        assert_eq!(request.plan(), plan.identity());
+        assert_eq!(request.admission().normalized_identity(), 167);
     }
 
     #[test]
