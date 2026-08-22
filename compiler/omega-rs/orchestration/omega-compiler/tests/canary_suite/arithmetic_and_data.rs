@@ -2691,10 +2691,13 @@ fn compound_assignment_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-compound-assignment-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("compound assignment canary should compile");
 
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("compound assignment canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("compound assignment canary should run");
 
@@ -2717,10 +2720,13 @@ fn runtime_chained_field_mutation_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("chained field mutation canary should compile");
 
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("chained field mutation canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("chained field mutation canary should run");
 
@@ -2743,10 +2749,13 @@ fn runtime_comparison_guard_signedness_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("comparison guard signedness canary should compile");
 
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("comparison guard signedness canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("comparison guard signedness canary should run");
 
@@ -2769,10 +2778,13 @@ fn runtime_comparison_value_signedness_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("comparison value signedness canary should compile");
 
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("comparison value signedness canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("comparison value signedness canary should run");
 
