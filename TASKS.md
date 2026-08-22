@@ -2285,6 +2285,14 @@ Remaining:
   Equality/citation order, same-fact rejection, direct-before-alias precedence,
   proof shapes, completion rejection, and every fixed affine frontier remain
   unchanged.
+  Ordered affine `Value`-endpoint eligibility now lives in paired side-local
+  affine-selection authorities and is reused by direct retained-bound
+  candidates and direct two-citation completion. Producer and reconstruction
+  independently retain left-before-right endpoint order and skip non-`Value`
+  endpoints before their distinct custody/proposition handoffs. Citation
+  order, root-bound construction, proof cloning and shapes, completion
+  precedence, rejection behavior, and the fixed affine frontier remain
+  unchanged.
   One-equality transitive affine completion now lives in independent side-local
   `affine_selection/transitive/alias/completion` modules. Each parent retains
   its own ledger-ordered equality discovery, distinct root/alias custody, and
@@ -4501,6 +4509,13 @@ Owners:
   report executable receipts while preserving literal statuses 2, 7, 0, 6,
   and 7 and all established diagnostics. Exact-owner ambiguity, the 795
   rooted/3 legacy inventory, and receipt-drift fences remain green.
+  Five authored-root alias/call-expansion executions—guarded-transition alias
+  writes, loop-forwarded reference parameters, dispatched value calls through
+  aliases, nested value calls in substates, and calls in inlined substates—now
+  launch solely through exact checked-report executable receipts while
+  preserving literal status 70 and all detailed diagnostics. Exact-owner
+  ambiguity, the 795 rooted/3 legacy inventory, and receipt-drift fences remain
+  green.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
@@ -5002,13 +5017,17 @@ Remaining N6/N8 work:
   exact unsigned-widening/coupling gates form a separate 260-line
   `dependent_products` child. Flow-sensitive interval/fact state and its
   merge/invalidation rules now live in a 424-line `value_environment` child;
+  the checked interval lattice, including overflow-failing arithmetic, shifts,
+  division/remainder bounds, union/intersection, and containment, now lives in
+  a focused 319-line pure `interval` child;
   concrete and abstract total-proposition formation lives in a 976-line
   `total_specification` child; and the recursive operand-domain/interval walk
   lives in a 789-line `expression_analysis` child. Entry-precondition,
   branch/fall-through, out-parameter, and incoming-edge fact construction now
   lives in a 1,207-line `guard_narrowing` child with two sibling-only query
   seams. The production parent is now 1,814 lines, down from 5,166 before these
-  responsibility splits. No
+  responsibility splits, and delegates this interval algebra from a 1,498-line
+  coordinator without changing the combined 63-function inventory. No
   accepted relation, call-write fence, interval, judgment, or diagnostic
   ordering changed. Fixed-width
   integer and address
