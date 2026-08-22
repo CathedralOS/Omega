@@ -673,7 +673,14 @@ symbol handle, final-region index/symbol/address/interval/bytes, inventory
 identity, and complete function-region binding identity. The projection has
 its own replayed fingerprint, so identity, handle, row, or custody drift
 rejects before mutating the inventory; entry evidence is no longer attached by
-linkage spelling alone.
+linkage spelling alone. The mutation itself returns a checked custody receipt
+binding that sealed entry projection and the complete function-region join to
+the prior inventory identity, exact composed footprint, and resulting
+inventory identity. Final footprint certification requires that receipt
+whenever a boundary contract is present and folds it into both placement and
+certificate identity. A certificate can therefore neither pair pre-attachment
+function evidence with an unrelated post-attachment inventory nor omit the
+only authorized post-validation inventory mutation.
 Final relocation replay also builds one exact owner map from every retained
 selected-instruction identity to that function symbol. A selected instruction
 retained twice, an instruction relocation naming another function, or an

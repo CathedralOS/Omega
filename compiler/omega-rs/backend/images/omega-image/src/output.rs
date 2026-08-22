@@ -33,6 +33,7 @@ pub struct EmittedImageOutput {
     pub compiler_text_validation: Option<CompilerTextValidationEvidence>,
     pub compiler_function_validation: Option<CompilerFunctionValidationEvidence>,
     pub compiler_entry_region_binding: Option<CompilerEntryRegionBindingEvidence>,
+    pub compiler_entry_footprint_binding: Option<CompilerEntryFootprintBindingEvidence>,
 }
 
 /// Exact final-region custody for the object entry's compiler-private
@@ -117,6 +118,44 @@ impl CompilerEntryRegionBindingEvidence {
             &self.final_region_binding_fingerprint.to_le_bytes(),
         );
         hash
+    }
+}
+
+/// Receipt for the sole authorized inventory mutation performed after final
+/// region validation: attaching the checked boundary footprint to the exact
+/// compiler entry row.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CompilerEntryFootprintBindingEvidence {
+    pub entry_region_evidence_fingerprint: u64,
+    pub final_region_binding_fingerprint: u64,
+    pub prior_inventory_fingerprint: u64,
+    pub footprint_fingerprint: u64,
+    pub resulting_inventory_fingerprint: u64,
+    pub evidence_fingerprint: u64,
+}
+
+impl CompilerEntryFootprintBindingEvidence {
+    pub fn recomputed_evidence_fingerprint(self) -> u64 {
+        let mut hash = 0xcbf2_9ce4_8422_2325u64;
+        for value in [
+            self.entry_region_evidence_fingerprint,
+            self.final_region_binding_fingerprint,
+            self.prior_inventory_fingerprint,
+            self.footprint_fingerprint,
+            self.resulting_inventory_fingerprint,
+        ] {
+            fingerprint_bytes(&mut hash, &value.to_le_bytes());
+        }
+        hash
+    }
+
+    pub fn validate_identity(self) -> bool {
+        self.entry_region_evidence_fingerprint != 0
+            && self.final_region_binding_fingerprint != 0
+            && self.prior_inventory_fingerprint != 0
+            && self.footprint_fingerprint != 0
+            && self.resulting_inventory_fingerprint != 0
+            && self.evidence_fingerprint == self.recomputed_evidence_fingerprint()
     }
 }
 
@@ -220,5 +259,6 @@ pub fn emitted_direct_executable_output(output: ExecutableImageOutput) -> Emitte
         compiler_text_validation: None,
         compiler_function_validation: None,
         compiler_entry_region_binding: None,
+        compiler_entry_footprint_binding: None,
     }
 }

@@ -1,6 +1,6 @@
 use crate::{
-    CompilerFunctionValidationEvidence, CompilerTextValidationEvidence,
-    PlacedExecutableRegionInventory,
+    CompilerEntryFootprintBindingEvidence, CompilerFunctionValidationEvidence,
+    CompilerTextValidationEvidence, PlacedExecutableRegionInventory,
 };
 use psi_diagnostics::Diagnostic;
 
@@ -190,6 +190,7 @@ pub struct FinalFootprintCertificate {
     pub implementation_fragment_count: usize,
     pub compiler_text_validation: CompilerTextValidationEvidence,
     pub compiler_function_validation: CompilerFunctionValidationEvidence,
+    pub compiler_entry_footprint_binding: Option<CompilerEntryFootprintBindingEvidence>,
     pub inventory: PlacedExecutableRegionInventory,
     pub boundary_placement_binding_fingerprint: u64,
 }
@@ -201,6 +202,7 @@ impl FinalFootprintCertificate {
         implementation_fragment_count: usize,
         compiler_text_validation: CompilerTextValidationEvidence,
         compiler_function_validation: CompilerFunctionValidationEvidence,
+        compiler_entry_footprint_binding: Option<CompilerEntryFootprintBindingEvidence>,
         inventory: PlacedExecutableRegionInventory,
     ) -> Result<Self, Diagnostic> {
         if !inventory.unclassified_gaps.is_empty() {
@@ -226,6 +228,13 @@ impl FinalFootprintCertificate {
                 "final call-return footprint evidence names a different boundary contract",
             ));
         }
+        validate_entry_footprint_binding(
+            boundary_contract_fingerprint,
+            implementation_evidence_fingerprint,
+            compiler_function_validation,
+            compiler_entry_footprint_binding,
+            &inventory,
+        )?;
         let coverage = FinalFootprintCoverage::current();
         coverage.validate_normalized()?;
         let coverage_fingerprint = coverage.fingerprint();
@@ -234,6 +243,9 @@ impl FinalFootprintCertificate {
             implementation_evidence_fingerprint,
             compiler_text_validation.derivation_fingerprint,
             compiler_function_validation.evidence_fingerprint(),
+            compiler_entry_footprint_binding
+                .map(|binding| binding.evidence_fingerprint)
+                .unwrap_or_default(),
             inventory.inventory_fingerprint,
         );
         let certificate_fingerprint = certificate_fingerprint(
@@ -241,6 +253,9 @@ impl FinalFootprintCertificate {
             boundary_placement_binding_fingerprint,
             compiler_text_validation.derivation_fingerprint,
             compiler_function_validation.evidence_fingerprint(),
+            compiler_entry_footprint_binding
+                .map(|binding| binding.evidence_fingerprint)
+                .unwrap_or_default(),
             inventory.inventory_fingerprint,
         );
         Ok(Self {
@@ -253,6 +268,7 @@ impl FinalFootprintCertificate {
             implementation_fragment_count,
             compiler_text_validation,
             compiler_function_validation,
+            compiler_entry_footprint_binding,
             inventory,
             boundary_placement_binding_fingerprint,
         })
@@ -299,6 +315,13 @@ impl FinalFootprintCertificate {
                 "region-complete final footprint certificate retains executable gaps",
             ));
         }
+        validate_entry_footprint_binding(
+            self.boundary_contract_fingerprint,
+            self.implementation_evidence_fingerprint,
+            self.compiler_function_validation,
+            self.compiler_entry_footprint_binding,
+            &self.inventory,
+        )?;
         let expected_coverage = self.coverage.fingerprint();
         if self.coverage_fingerprint != expected_coverage {
             return Err(Diagnostic::error(
@@ -310,6 +333,9 @@ impl FinalFootprintCertificate {
             self.implementation_evidence_fingerprint,
             self.compiler_text_validation.derivation_fingerprint,
             self.compiler_function_validation.evidence_fingerprint(),
+            self.compiler_entry_footprint_binding
+                .map(|binding| binding.evidence_fingerprint)
+                .unwrap_or_default(),
             self.inventory.inventory_fingerprint,
         );
         if self.boundary_placement_binding_fingerprint != expected_binding {
@@ -322,6 +348,9 @@ impl FinalFootprintCertificate {
             expected_binding,
             self.compiler_text_validation.derivation_fingerprint,
             self.compiler_function_validation.evidence_fingerprint(),
+            self.compiler_entry_footprint_binding
+                .map(|binding| binding.evidence_fingerprint)
+                .unwrap_or_default(),
             self.inventory.inventory_fingerprint,
         );
         if self.certificate_fingerprint != expected_certificate {
@@ -333,11 +362,44 @@ impl FinalFootprintCertificate {
     }
 }
 
+fn validate_entry_footprint_binding(
+    boundary_contract_fingerprint: Option<u64>,
+    implementation_evidence_fingerprint: u64,
+    compiler_function_validation: CompilerFunctionValidationEvidence,
+    binding: Option<CompilerEntryFootprintBindingEvidence>,
+    inventory: &PlacedExecutableRegionInventory,
+) -> Result<(), Diagnostic> {
+    match (boundary_contract_fingerprint, binding) {
+        (None, None) => Ok(()),
+        (None, Some(_)) => Err(Diagnostic::error(
+            "final footprint certificate retains entry-footprint custody without a boundary contract",
+        )),
+        (Some(_), None) => Err(Diagnostic::error(
+            "final footprint certificate lacks exact entry-footprint mutation custody",
+        )),
+        (Some(_), Some(binding)) => {
+            if !binding.validate_identity()
+                || binding.footprint_fingerprint != implementation_evidence_fingerprint
+                || binding.final_region_binding_fingerprint
+                    != compiler_function_validation.final_region_binding_fingerprint
+                || binding.resulting_inventory_fingerprint != inventory.inventory_fingerprint
+                || binding.prior_inventory_fingerprint == binding.resulting_inventory_fingerprint
+            {
+                return Err(Diagnostic::error(
+                    "final footprint certificate entry-footprint mutation custody drifted",
+                ));
+            }
+            Ok(())
+        }
+    }
+}
+
 fn placement_binding_fingerprint(
     boundary_contract_fingerprint: Option<u64>,
     implementation_evidence_fingerprint: u64,
     compiler_text_derivation_fingerprint: u64,
     compiler_function_validation_fingerprint: u64,
+    compiler_entry_footprint_binding_fingerprint: u64,
     inventory_fingerprint: u64,
 ) -> u64 {
     let mut hash = FNV_OFFSET;
@@ -368,6 +430,10 @@ fn placement_binding_fingerprint(
         &mut hash,
         &compiler_function_validation_fingerprint.to_le_bytes(),
     );
+    fingerprint_bytes(
+        &mut hash,
+        &compiler_entry_footprint_binding_fingerprint.to_le_bytes(),
+    );
     fingerprint_bytes(&mut hash, &inventory_fingerprint.to_le_bytes());
     hash
 }
@@ -377,6 +443,7 @@ fn certificate_fingerprint(
     boundary_placement_binding_fingerprint: u64,
     compiler_text_derivation_fingerprint: u64,
     compiler_function_validation_fingerprint: u64,
+    compiler_entry_footprint_binding_fingerprint: u64,
     inventory_fingerprint: u64,
 ) -> u64 {
     let mut hash = FNV_OFFSET;
@@ -394,6 +461,10 @@ fn certificate_fingerprint(
         &mut hash,
         &compiler_function_validation_fingerprint.to_le_bytes(),
     );
+    fingerprint_bytes(
+        &mut hash,
+        &compiler_entry_footprint_binding_fingerprint.to_le_bytes(),
+    );
     fingerprint_bytes(&mut hash, &inventory_fingerprint.to_le_bytes());
     hash
 }
@@ -410,6 +481,19 @@ fn fingerprint_bytes(hash: &mut u64, bytes: &[u8]) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn entry_footprint_binding() -> CompilerEntryFootprintBindingEvidence {
+        let mut binding = CompilerEntryFootprintBindingEvidence {
+            entry_region_evidence_fingerprint: 20,
+            final_region_binding_fingerprint: 19,
+            prior_inventory_fingerprint: 12,
+            footprint_fingerprint: 2,
+            resulting_inventory_fingerprint: 13,
+            evidence_fingerprint: 0,
+        };
+        binding.evidence_fingerprint = binding.recomputed_evidence_fingerprint();
+        binding
+    }
 
     fn certificate() -> FinalFootprintCertificate {
         FinalFootprintCertificate::current(
@@ -443,6 +527,7 @@ mod tests {
                 final_region_binding_fingerprint: 19,
                 validation_fingerprint: 11,
             },
+            Some(entry_footprint_binding()),
             PlacedExecutableRegionInventory {
                 text_address: 0x1000,
                 text_byte_count: 4,
@@ -499,6 +584,20 @@ mod tests {
                 value
                     .compiler_function_validation
                     .final_region_binding_fingerprint = 99;
+                value
+            },
+            {
+                let mut value = certificate.clone();
+                value
+                    .compiler_entry_footprint_binding
+                    .as_mut()
+                    .expect("entry binding")
+                    .prior_inventory_fingerprint = 99;
+                value
+            },
+            {
+                let mut value = certificate.clone();
+                value.compiler_entry_footprint_binding = None;
                 value
             },
             {
@@ -585,6 +684,7 @@ mod tests {
                     final_region_binding_fingerprint: 0,
                     validation_fingerprint: 0,
                 },
+                None,
                 inventory,
             )
             .is_err()
