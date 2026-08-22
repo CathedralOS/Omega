@@ -84,6 +84,7 @@ step "beta  — REFERENCE: asm_ref.py agrees with the lattice assembler over the
 step "Beta  — language compiler (on-ramp) + corpus"   beta-lang-rs test.sh
 step "bc    — Beta compiler in Beta self-hosts"       beta-lang   selfhost.sh
 step "bc    — per-feature gate"                       beta-lang   test.sh
+step "bc    — checked source-arena exhaustion"        beta-lang   source-exhaustion.sh beta-lang-rs beta
 step "bc    — CORRECTNESS: reference interpreter (beta_interp.py) == compile+run, random programs" beta-lang-py beta-correctness-fuzz.sh beta-lang-rs beta
 step "bc    — EXHAUSTIVE I/O: interpret == compile+run over ALL 256 input bytes per program" beta-lang-py beta-io-exhaust.sh beta-lang-rs beta
 step "proof kernel — certificate checker"                    proof-kernel       test.sh

@@ -12,6 +12,7 @@ source-to-artifact validation remains open.
 bc.beta       the Beta compiler, in Beta:  reads .beta on stdin, emits Alpha asm
 selfhost.sh   THE gate: bc compiles bc.beta -> bc1; assert bc1(bc.beta) == bc(bc.beta)
 test.sh       per-feature gate: bc compiles + runs small programs across slices 1-6
+source-exhaustion.sh  exact source-arena boundary + checked oversized-input failure
 ```
 
 ## How it bootstraps
@@ -51,6 +52,13 @@ fixed point. Built slice by slice, mirroring `beta-lang-rs`:
 
 `sh selfhost.sh` is the fixed-point gate; `sh test.sh` is the per-feature gate. bc's self-tape
 is ~45 KB — well within the 256 KB arm64 hole (see below).
+
+The complete cold-start correspondence target is specified in
+[`BOOTSTRAP_OBSERVABLE.md`](BOOTSTRAP_OBSERVABLE.md). It includes the complete
+output byte stream and distinct halt, trap, checked-exhaustion, and divergence
+outcomes; low-byte exit agreement or a finite corpus is not that claim. The
+compiler now reserves its full 1 MiB source arena explicitly and returns the
+checked source-exhaustion projection before emitting a truncated artifact.
 
 ### The hole (resolved)
 

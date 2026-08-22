@@ -276,9 +276,14 @@ from attractive but deferrable language work.
   compiler through the preceding audited rung or validate the complete artifact
   against `bc.beta` using authority rooted below `bc`. Fixed-point or
   cross-compiler byte agreement is not acceptance evidence.
-  - [ ] Specify the compiler observable as the complete output byte stream plus
+  - [x] Specify the compiler observable as the complete output byte stream plus
     halt, trap, divergence, and checked resource exhaustion—not merely an exit
-    byte or a finite set of executions.
+    byte or a finite set of executions. `compiler/beta-lang/BOOTSTRAP_OBSERVABLE.md`
+    fixes the quantified input/resource profile, maximal trace, terminal
+    classifications, and independently reconstructed closure obligation.
+  - [x] Make `bc.beta` reject source-arena exhaustion before it can overwrite
+    adjacent compiler tables or emit a truncated Alpha assembly artifact. The
+    exact 1 MiB boundary and empty-output failure projection are gated.
   - [ ] Implement the exact `bc.beta` bootstrap profile in an Alpha-written Beta
     compiler assembled and run only through the audited Alpha/Beta seed path.
     The current Python symbolic model cannot cover `bc.beta`'s data-dependent
