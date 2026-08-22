@@ -718,7 +718,13 @@ Owners:
   retry; success returns the original loan with its origin, lineage, geometry,
   and polarity unchanged and establishes no content, vacancy, or destruction.
   Corresponded retirement reuses the same placement replay before returning
-  its separate non-Clone correspondence.
+  its separate non-Clone correspondence. Every Stable primitive/compound,
+  External primitive, and Atomic primitive outward specialization now exposes
+  a shared borrow of its exact sealed primitive request. Consumers can inspect
+  the complete lifetime-bound placement, authorization, resident, and optional
+  schema/device provenance without copied-identity reconstruction or mutation;
+  rejection preserves that same carrier, repaired replay reproduces it exactly,
+  and no transfer, device operation, or target lowering is established.
 
 #### L6c — symbolic materialization
 
@@ -1839,7 +1845,18 @@ Remaining:
   completion; reconstruction independently enumerates and rechecks the same
   retained facts. Generic one-/two-alias transport remains in each parent, and
   citation order, endpoint precedence, proof shapes, rejection behavior, and
-  the finite search frontier are unchanged. Fixed transitive affine evidence
+  the finite search frontier are unchanged. Fixed-depth alias transport now
+  lives in independent side-local `alias_transport/one` and
+  `alias_transport/two` modules. Production alone retains origin-indexed
+  equality and bound citations and constructs respectively one substitution or
+  the exact inner-then-outer two-substitution proof; reconstruction
+  independently scans and indexes retained facts and rebuilds the same root
+  bounds without importing producer authority. The facade retains separate
+  named one-/two-alias entry points and exposes no depth parameter, recursion,
+  or graph search. Requirements-before-semantic-axioms order, equality
+  orientation/distinctness, endpoint-index order, proof shapes, missing,
+  reused, cyclic, or mistyped rejection, and both finite frontiers are
+  unchanged. Fixed transitive affine evidence
   now lives in independent side-local `affine_selection/transitive` modules.
   Production alone constructs the exact two-citation transitivity proof and
   its optional single equality substitution before affine completion;
@@ -1854,7 +1871,16 @@ Remaining:
   equalities and typed literals. Direct-bound, literal, one-alias, transitive,
   alias-transitive, then two-alias precedence, citation and endpoint order,
   rejection behavior, proof shapes, and the finite search frontier are
-  unchanged. Fixed one-intermediate-alias affine literal custody now lives in
+  unchanged. Direct landed-literal affine-root custody now lives in independent
+  side-local `affine_selection/literal/direct` modules. Production alone
+  preserves exact equality citation origin and orientation, constructs the
+  closed reflexive relation plus one endpoint substitution, and completes the
+  affine proof; reconstruction independently scans requirements then semantic
+  axioms and rechecks the same typed literal, root-bound orientations, and
+  affine custody. Direct literal landing remains preferred before the fixed
+  one-intermediate-alias sibling. Citation/order orientation, proof shape,
+  unsafe, missing, redirected, or mistyped rejection, and both finite literal
+  frontiers are unchanged. Fixed one-intermediate-alias affine literal custody now lives in
   independent side-local `affine_selection/literal/alias` modules. Production
   alone retains the distinct root-alias and alias-literal citation identities
   and constructs the closed reflexive relation followed by two exact
@@ -2405,7 +2431,15 @@ Remaining:
   140ms. The exact canary still exits 70. This profile gives no support to a
   shared mutable `PagedArena`; the next useful optimization boundary is an
   indexed or worker-local/deterministically merged implementation inside those
-  three measured semantic phases.
+  three measured semantic phases. A subsequent exact native stack sample of
+  `runtime_float_operations_exit` placed all 375 validation samples in default-
+  domain analysis, including 150 in repeated state/call-frame summary
+  recursion. The immutable call-frame resolver now uses a genuinely lazy memo:
+  it caches only a statement call's complete-or-opaque normalized frame under
+  its exact owning-machine and program-node identity, behind a concurrency-safe
+  lock. Default-domain samples fell to 152 and the warmed exact canary moved
+  from 4.75s to 4.08–4.12s while retaining exit 70. No eager whole-program
+  summary or shared mutable arena was introduced.
   Corpus-level bounded parallelism is viable at the harness boundary: the
   differential runner now defaults to four independent jobs with one native
   backend worker each, retains deterministic corpus-order reporting, and
@@ -3198,6 +3232,15 @@ Owners:
   buffering, Full artifact-backed text storage, and stderr writing—use the same
   receipt-only launch boundary while retaining literal statuses 70/75, 0, 0,
   0, and 70. All interpreter, stdin/stdout/stderr, and backend-report assertions
+  remain unchanged, and the 795 rooted/3 legacy exact-owner pins remain stable.
+  Fifteen further authored-root ABI text executions now use exact checked-
+  report receipts: LF/CRLF line reads and indexed slice-string guards retain
+  statuses 0, 0, 77, 70, and 72; string places across machine fields, local
+  arrays, slices, and pointees retain 70, 70, 89, 70, and 70; mutable parameter,
+  wrapped write-line, and struct-field concatenation retain 77, 77, 77, 77, and
+  188. Five more string-assembly rows—stored suffix, lookup/large-frame/room
+  lookup concatenation, and a call-argument slice alias—retain 193, 190, 192,
+  200, and 77. Exact interpreter, stdout, and content-comparison assertions
   remain unchanged, and the 795 rooted/3 legacy exact-owner pins remain stable.
   Final
   replay now also retains an exact
