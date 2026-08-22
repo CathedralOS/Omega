@@ -2330,6 +2330,9 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
 // Cross-compile their exact authored root on every development host instead
 // of selecting the development host or substituting the legacy entry seam.
 const ROOTED_TARGET_BACKEND_PASS_CANARIES: &[(&str, &str)] = &[
+    ("filesystem/windows_raw_breadth_exit", "windows_x64"),
+    ("filesystem/windows_raw_roundtrip_exit", "windows_x64"),
+    ("host/runtime_user32_key_state_exit", "windows_x64"),
     ("time/runtime_time_host_native_exit", "windows_x64"),
     ("time/runtime_time_host_native_darwin_exit", "macos_arm64"),
     ("providers/external_leaf_syscall_compile", "linux_x64"),
@@ -3111,10 +3114,8 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "calls/runtime_branch_leaf_multiple_named_conversion_exit",
     "calls/runtime_value_call_transition_args_exit",
     "calls/runtime_value_call_transition_args_straight_line_exit",
-    "filesystem/windows_raw_breadth_exit",
     "filesystem/windows_wrapper_breadth_exit",
     "filesystem/runtime_local_host_result_dispatch_exit",
-    "filesystem/windows_raw_roundtrip_exit",
     "filesystem/windows_wrapper_results_exit",
     "filesystem/windows_wrapper_dark_methods_exit",
     "filesystem/repeated_dir_walk_scan_exit",
@@ -3644,7 +3645,6 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "generics/runtime_generic_param_position_inference_exit",
     "generics/runtime_generic_multiple_specializations_exit",
     "host/runtime_tick_count_monotonic_exit",
-    "host/runtime_user32_key_state_exit",
     "host/runtime_tick_paced_marquee_exit",
     "host/runtime_gui_window_blit_exit",
     "host/runtime_gui_window_lifecycle_exit",

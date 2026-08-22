@@ -1690,13 +1690,25 @@ fn discovered_exact_native_coverage_is_consistent() {
         coverage.rooted_owner_count("ownership/linear_state_call_handoff"),
         0
     );
-    let legacy_positive = coverage
-        .unique_legacy_owner("host/runtime_user32_key_state_exit")
-        .expect("known legacy exact-native owner should be discovered");
-    assert_eq!(legacy_positive.expected_status, 70);
+    #[cfg(windows)]
+    {
+        let rooted_windows_positive = coverage
+            .unique_rooted_owner("host/runtime_user32_key_state_exit")
+            .expect("known rooted Windows exact-native owner should be discovered");
+        assert_eq!(rooted_windows_positive.expected_status, 70);
+        assert_eq!(
+            rooted_windows_positive.test_name,
+            "runtime_user32_key_state_exit_canary_runs"
+        );
+    }
+    #[cfg(not(windows))]
     assert_eq!(
-        legacy_positive.test_name,
-        "runtime_user32_key_state_exit_canary_runs"
+        coverage.rooted_owner_count("host/runtime_user32_key_state_exit"),
+        0
+    );
+    assert_eq!(
+        coverage.legacy_owner_count("host/runtime_user32_key_state_exit"),
+        0
     );
     assert_eq!(
         coverage.legacy_owner_count("traits/boundary_trait_effects_host_call"),

@@ -1,0 +1,6 @@
+// Windows raw-filesystem breadth proof: select the exact Windows entry.
+target windows_x64 { }
+
+machine build(b: &mut Build) {
+    b.roots.bind(windows_x86_64::ProgramEntry, Main::main);
+}

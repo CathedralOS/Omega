@@ -710,13 +710,8 @@ fn windows_fs_raw_breadth_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-fs-win-breadth-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("windows fs breadth canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("windows fs breadth canary should compile from its authored root");
 
     // Run from the temp build dir so probe files/dirs land there, not the repo.
     let output = Command::new(build_dir.join(executable_name()))

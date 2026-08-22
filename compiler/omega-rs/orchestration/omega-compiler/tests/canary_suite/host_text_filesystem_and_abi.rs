@@ -260,13 +260,8 @@ fn windows_fs_raw_roundtrip_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-fs-win-roundtrip-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("windows fs roundtrip canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("windows fs roundtrip canary should compile from its authored root");
 
     // Run from the temp build dir so the probe file lands there, not the repo.
     let output = Command::new(build_dir.join(executable_name()))
