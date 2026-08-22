@@ -30,6 +30,9 @@ moves to `bootstrap/omega0/compiler/`.
 - `BOOTSTRAP_PROFILES.md` freezes the Delta implementation profile for Omega0
   and the first Omega console canary profile. The production-self-host profile
   remains open until a production compiler source tree exists in Omega.
+- `OMEGA0_BUNDLE.md` specifies the canonical length-delimited multi-source
+  artifact; `omega0_bundle.py` and `omega0-bundle-test.sh` are untrusted packing
+  and conformance tools for that format.
 
 These are seed pieces for the first Omega compiler, not that compiler itself.
 No Delta-written Omega lexer, parser, checker, terminal-Psi lowering, or native
