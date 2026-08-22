@@ -805,7 +805,10 @@ Owners:
   focused 243-line owner while the carrier and replay fields remain root-
   private. Effective-supply, descriptor/footprint, retained placement/
   correspondence/resident, and authorization replay preserve their validation
-  and diagnostic order before specialization. These extractions leave a 1,851-
+  and diagnostic order before specialization. The four-form private placement-
+  authority witness and its independent resource, correspondence, resident-
+  content, loan, admission, claim, and occurrence replay now live in a focused
+  177-line owner without a public re-export. These extractions leave a 1,696-
   line coordinator. All 81
   unit tests, the current 440-function production inventory, diagnostics,
   custody, retry behavior, and the public surface remain unchanged.
