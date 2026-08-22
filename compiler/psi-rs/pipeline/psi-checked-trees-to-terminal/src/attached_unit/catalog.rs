@@ -423,6 +423,81 @@ pub(super) fn lower_unit_services(
     Ok((declarations, service_ids))
 }
 
+pub(crate) fn lower_root_service_reach(
+    checked: &CheckedTrees,
+    entry: psi_symbols::SymbolHandle,
+    service_ids: &[(ServiceReachId, ServiceId)],
+) -> Result<psi_terminal::TerminalRootServiceReach, LoweringError> {
+    let Some(reach) = checked.facts.service_reaches.for_machine(entry) else {
+        return Ok(psi_terminal::TerminalRootServiceReach::default());
+    };
+    let mut concrete = checked
+        .facts
+        .service_reaches
+        .rows
+        .services(reach.concrete_effective)
+        .iter()
+        .map(|service| lookup_service_id(service_ids, *service))
+        .collect::<Result<Vec<_>, LoweringError>>()?;
+    concrete.sort();
+    concrete.dedup();
+
+    let mut installation_dependencies = reach
+        .unresolved_installation_reaches
+        .iter()
+        .map(|dependency| {
+            let matches = checked
+                .typed
+                .traits()
+                .iter()
+                .flat_map(|owner| {
+                    checked
+                        .typed
+                        .trait_machine_signatures(owner)
+                        .iter()
+                        .filter(move |requirement| requirement.symbol == dependency.requirement)
+                        .map(move |requirement| (owner, requirement))
+                })
+                .collect::<Vec<_>>();
+            let [(owner, requirement)] = matches.as_slice() else {
+                return unsupported(
+                    "terminal installation reach does not resolve to one exact typed requirement",
+                );
+            };
+            let requirement_identity = checked
+                .typed
+                .normalized_trait_requirement_overload_identity(owner, requirement)
+                .identity();
+            let mut upper_bound = checked
+                .facts
+                .service_reaches
+                .rows
+                .services(dependency.upper_bound)
+                .iter()
+                .map(|service| lookup_service_id(service_ids, *service))
+                .collect::<Result<Vec<_>, LoweringError>>()?;
+            upper_bound.sort();
+            upper_bound.dedup();
+            Ok(InstallationReachDependency {
+                requirement_identity,
+                upper_bound,
+            })
+        })
+        .collect::<Result<Vec<_>, LoweringError>>()?;
+    installation_dependencies
+        .sort_by(|left, right| left.requirement_identity.cmp(&right.requirement_identity));
+    if installation_dependencies
+        .windows(2)
+        .any(|pair| pair[0].requirement_identity == pair[1].requirement_identity)
+    {
+        return unsupported("terminal installation reach contains duplicate requirements");
+    }
+    Ok(psi_terminal::TerminalRootServiceReach {
+        concrete,
+        installation_dependencies,
+    })
+}
+
 pub(crate) fn collect_contract_services(
     rows: &psi_language_semantics::ServiceReachRowTable,
     contract: ServiceReachPlan,

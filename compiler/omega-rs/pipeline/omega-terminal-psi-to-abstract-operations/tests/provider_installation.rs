@@ -242,6 +242,7 @@ fn provider_module() -> TerminalModule {
             identity: "Signal".into(),
             parents: Vec::new(),
         }],
+        root_service_reach: Default::default(),
         boundary_machines: vec![BoundaryMachineDeclaration {
             id: boundary_id(1),
             identity: REQUIREMENT.into(),

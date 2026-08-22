@@ -6528,11 +6528,17 @@ state through a raw address.
     requirement identity with its conservative upper bound rather than
     pretending the bound is the selected provider row. Postselection manifests
     join those identities to the exact selected rows and provider-plan
-    identities, rejecting absent resolutions or bound drift.
-  - **Remaining:** encode the exact dependencies in source-handle-free terminal
-    root closures; reject unresolved rows escaping through ordinary callable
-    package or component contracts; feed the terminal closure into root
-    admission.
+    identities, rejecting absent resolutions or bound drift. Attached Unit
+    roots now lower a source-handle-free Terminal Psi closure containing the
+    concrete row separately from exact bounded dependencies. The canonical
+    codec and verifier retain and validate both, and final root admission
+    resolves that closure against selected provider facts while rejecting an
+    absent selection or changed bound; it never reconstructs concrete reach by
+    subtracting bounds.
+  - **Remaining:** prove the retained concrete row exact against the Terminal
+    executable call graph, including legitimate overlap with abstract bounds;
+    carry the closure through the other root-capable Terminal producers; reject
+    unresolved rows escaping ordinary callable package or component contracts.
   - **Constraints:** `+` is union. Do not infer one shared row from equal sets or
     add negation, subtraction, lower bounds, exclusive-or, named row variables,
     or cross-requirement correlation.

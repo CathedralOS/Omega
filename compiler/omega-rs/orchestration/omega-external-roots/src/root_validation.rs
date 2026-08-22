@@ -6,6 +6,7 @@ use omega_calling_conventions::{
 };
 use omega_effects::{InstallationReachResolution, SelectedProviderPlanFacts};
 use psi_layout_plans::EntryStubId;
+use psi_terminal::{ServiceDeclaration, TerminalModule, TerminalRootServiceReach};
 
 use super::stack_demand::fingerprint_entry_stack;
 use super::{
@@ -72,6 +73,70 @@ pub struct ResolvedRootServiceReach {
 }
 
 impl ResolvedRootServiceReach {
+    /// Close the exact source-free Terminal Psi root reach against the selected
+    /// provider plans. The dependency bound carried by the semantic artifact
+    /// must agree with the selected-resolution bound; installation never
+    /// reconstructs concrete reach by subtracting conservative bounds.
+    pub fn from_terminal_module(
+        module: &TerminalModule,
+        selected: &SelectedProviderPlanFacts,
+    ) -> Result<Self, ExternalRootDiagnostic> {
+        Self::from_terminal_root_service_reach(
+            &module.root_service_reach,
+            &module.services,
+            selected,
+        )
+    }
+
+    pub fn from_terminal_root_service_reach(
+        root_reach: &TerminalRootServiceReach,
+        services: &[ServiceDeclaration],
+        selected: &SelectedProviderPlanFacts,
+    ) -> Result<Self, ExternalRootDiagnostic> {
+        let service_identity = |service| {
+            services
+                .iter()
+                .find(|declaration| declaration.id == service)
+                .map(|declaration| declaration.identity.clone())
+                .ok_or_else(|| {
+                    ExternalRootDiagnostic(
+                        "terminal root service reach references an unknown service identity".into(),
+                    )
+                })
+        };
+        let concrete = root_reach
+            .concrete
+            .iter()
+            .map(|service| service_identity(*service))
+            .collect::<Result<Vec<_>, _>>()?;
+        let mut requirements = Vec::with_capacity(root_reach.installation_dependencies.len());
+        for dependency in &root_reach.installation_dependencies {
+            let mut terminal_bound = dependency
+                .upper_bound
+                .iter()
+                .map(|service| service_identity(*service))
+                .collect::<Result<Vec<_>, _>>()?;
+            terminal_bound.sort();
+            terminal_bound.dedup();
+            let resolution = selected
+                .installation_reach_resolution(&dependency.requirement_identity)
+                .ok_or_else(|| {
+                    ExternalRootDiagnostic(format!(
+                        "installation reach requirement `{}` remains unresolved at final admission",
+                        dependency.requirement_identity
+                    ))
+                })?;
+            if resolution.upper_bound != terminal_bound {
+                return Err(ExternalRootDiagnostic(format!(
+                    "installation reach requirement `{}` changed its published upper bound before final admission",
+                    dependency.requirement_identity
+                )));
+            }
+            requirements.push(dependency.requirement_identity.clone());
+        }
+        Self::from_selected_provider_closure(concrete, requirements, selected)
+    }
+
     pub fn from_selected_provider_closure(
         mut concrete: Vec<String>,
         mut installation_requirements: Vec<String>,

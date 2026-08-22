@@ -868,6 +868,7 @@ fn lower_structural_scalar_return_machine_in_namespace(
             structural_types,
             structural_domains: Vec::new(),
             services: Vec::new(),
+            root_service_reach: Default::default(),
             boundary_machines: Vec::new(),
             provider_candidates: Vec::new(),
             float_meaning_projections: Vec::new(),

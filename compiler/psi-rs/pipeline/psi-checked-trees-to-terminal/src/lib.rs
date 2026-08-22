@@ -64,7 +64,7 @@ use psi_terminal::{
     EvidenceContractLane, EvidenceContractLaneKind, EvidenceInterfaceIdentity,
     EvidencePackageInvocation, EvidencePackageOutputBinding, EvidencePackageRuntimeCall,
     EvidenceProjectionIdentity, EvidenceRequirementIdentity, EvidenceTermDeclaration,
-    MachineContract, NominalAffineCleanup, Operation, OperationKind,
+    InstallationReachDependency, MachineContract, NominalAffineCleanup, Operation, OperationKind,
     PropositionApplicationIdentity, PropositionBinderArgumentIdentity,
     PropositionBinderArgumentKind, PropositionBinderDeclaration, PropositionBinderKind,
     PropositionDeclaration, PropositionEvidence, ProviderCandidateConformance,
@@ -106,6 +106,8 @@ mod structural_scalar_return;
 mod structural_types;
 mod structural_unit_control;
 mod unit_cleanup;
+#[cfg(test)]
+use attached_unit::lower_root_service_reach;
 use attached_unit::{
     checked_unit_boundary_identity, checked_unit_call_closure_including,
     checked_unit_target_reach_matches, collect_contract_services, collect_service_summary,

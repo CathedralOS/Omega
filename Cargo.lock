@@ -792,6 +792,7 @@ dependencies = [
  "omega-artifacts",
  "omega-calling-conventions",
  "omega-compiler",
+ "omega-effects",
  "omega-executable-installation",
  "omega-external-roots",
  "omega-instruction-selection",

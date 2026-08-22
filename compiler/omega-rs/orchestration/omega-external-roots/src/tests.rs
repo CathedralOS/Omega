@@ -24,6 +24,7 @@ use psi_layout_plans::{
     PlacementConstraints, PlacementPhase, PlacementSite, PostHandoffWriterPlan,
     PostHandoffWriterSource, PostHandoffWriterStep, RelocationTarget,
 };
+use psi_terminal::{InstallationReachDependency, ServiceDeclaration, TerminalRootServiceReach};
 
 fn root_id<T>(identity: u64, constructor: fn(u64) -> Result<T, ExternalRootDiagnostic>) -> T {
     constructor(identity).expect("normalized external-root identity")
@@ -395,6 +396,54 @@ fn root_service_reach_substitutes_selected_rows_and_rejects_absence() {
     )
     .expect_err("an installed root cannot retain an unresolved reach row");
     assert!(error.0.contains("remains unresolved at final admission"));
+}
+
+#[test]
+fn terminal_root_service_reach_closes_without_frontend_handles_or_bound_subtraction() {
+    let selected = selected_interrupt_completion();
+    let timer = psi_core::ServiceId::new(1).expect("service identity");
+    let machine_control = psi_core::ServiceId::new(2).expect("service identity");
+    let port_io = psi_core::ServiceId::new(3).expect("service identity");
+    let services = vec![
+        ServiceDeclaration {
+            id: timer,
+            identity: "Timer".into(),
+            parents: Vec::new(),
+        },
+        ServiceDeclaration {
+            id: machine_control,
+            identity: "MachineControl".into(),
+            parents: Vec::new(),
+        },
+        ServiceDeclaration {
+            id: port_io,
+            identity: "PortIo".into(),
+            parents: Vec::new(),
+        },
+    ];
+    let closure = TerminalRootServiceReach {
+        concrete: vec![timer],
+        installation_dependencies: vec![InstallationReachDependency {
+            requirement_identity: "InterruptCompletion::complete".into(),
+            upper_bound: vec![machine_control, port_io],
+        }],
+    };
+    let reach =
+        ResolvedRootServiceReach::from_terminal_root_service_reach(&closure, &services, &selected)
+            .expect("terminal closure resolves at final admission");
+    assert_eq!(reach.effective(), ["PortIo", "Timer"]);
+
+    let drifted = TerminalRootServiceReach {
+        installation_dependencies: vec![InstallationReachDependency {
+            requirement_identity: "InterruptCompletion::complete".into(),
+            upper_bound: vec![port_io],
+        }],
+        ..closure
+    };
+    let error =
+        ResolvedRootServiceReach::from_terminal_root_service_reach(&drifted, &services, &selected)
+            .expect_err("terminal and selected provider bounds must agree exactly");
+    assert!(error.0.contains("changed its published upper bound"));
 }
 
 fn slot() -> RootSlotAuthority {

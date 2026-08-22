@@ -235,6 +235,7 @@ fn call_composition_ledger_fixture() -> TerminalModule {
             carrier: resource,
         }],
         services: Vec::new(),
+        root_service_reach: Default::default(),
         boundary_machines: vec![BoundaryMachineDeclaration {
             id: boundary_machine_id(10),
             identity: "Spike::Resource::settle".into(),
@@ -445,6 +446,7 @@ fn structural_effect_ledger_fixture() -> TerminalModule {
             identity: "PortSpace".into(),
             parents: Vec::new(),
         }],
+        root_service_reach: Default::default(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         float_meaning_projections: Vec::new(),
@@ -869,6 +871,7 @@ fn ledger_spike_fixture(asymmetric: bool) -> TerminalModule {
         structural_types: Vec::new(),
         structural_domains: Vec::new(),
         services: Vec::new(),
+        root_service_reach: Default::default(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         float_meaning_projections: Vec::new(),

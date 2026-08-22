@@ -265,6 +265,13 @@ fn validate_structural_foundation(module: &TerminalModule) -> Result<(), CodecEr
         }
     }
     validate_service_parent_graph(module)?;
+    require_known_services(module, &module.root_service_reach.concrete)?;
+    for dependency in &module.root_service_reach.installation_dependencies {
+        if dependency.requirement_identity.is_empty() {
+            return malformed("installation reach requirement identity must be nonempty");
+        }
+        require_known_services(module, &dependency.upper_bound)?;
+    }
     for boundary in &module.boundary_machines {
         if boundary
             .attachment
