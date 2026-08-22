@@ -7,17 +7,16 @@ use omega_image::CompilerTextValidationEvidence;
 use omega_target::{Architecture, NativeTarget, ObjectFormat};
 use omega_terminal_machine_code::{
     TerminalBoundaryResultRecord, TerminalBoundarySettlementRecord,
-    TerminalCompletionProviderCustodyBinding, TerminalNativeFuelAttribution,
-    TerminalNativeFuelSite, TerminalPortEffectRecord, TerminalStructuralReturnRecord,
+    TerminalCompletionProviderCustodyBinding, TerminalNativeFuelSite, TerminalPortEffectRecord,
+    TerminalStructuralReturnRecord,
 };
 use omega_terminal_target_operations::{
     TerminalBoundaryRealization, TerminalCallSiteOwner, TerminalDirectPortReadU8Realization,
     TerminalMetadataOnlyPortRealization,
 };
 use psi_core::{
-    BoundaryMachineId, ClaimId, EdgeId, FuelScheduleIdentity, MachineId, OperationId, PlaceId,
-    ProfileDecisionId, ServiceId, StructuralCaseId, StructuralDomainId, StructuralFieldId,
-    StructuralTypeId,
+    BoundaryMachineId, ClaimId, EdgeId, MachineId, OperationId, PlaceId, ProfileDecisionId,
+    ServiceId, StructuralCaseId, StructuralDomainId, StructuralFieldId, StructuralTypeId,
 };
 use psi_terminal::{
     CompletionReceipt, SemanticFingerprint, StructuralMultiplicity, StructuralParameterDeclaration,
@@ -38,6 +37,7 @@ use crate::{
 mod boundary_result_scalar_codec;
 mod call_site_owner_codec;
 mod completion_custody_codec;
+mod fuel_attribution_codec;
 mod function_affine_cleanup_codec;
 mod function_parameter_codec;
 mod function_stack_codec;
@@ -50,6 +50,7 @@ use boundary_result_scalar_codec::{
     decode_boundary_result_scalar_type, encode_boundary_result_scalar_type,
 };
 use completion_custody_codec::{decode_completion_claim_source, encode_completion_claim_source};
+use fuel_attribution_codec::{decode_fuel_attributions, encode_fuel_attributions};
 use function_affine_cleanup_codec::{
     decode_scalar_control_affine_cleanups, decode_unit_affine_cleanup,
     encode_scalar_control_affine_cleanups, encode_unit_affine_cleanup,
@@ -673,45 +674,7 @@ pub fn encode_terminal_installation_record(
     for installed in &record.internal_unit_calls {
         encode_internal_unit_call(&mut bytes, installed)?;
     }
-    push_u32(&mut bytes, fuel_attribution_count);
-    for installed in &record.fuel_attribution {
-        let attribution = &installed.attribution;
-        push_u64(&mut bytes, installed.machine.get());
-        push_u32(&mut bytes, attribution.schedule.marker());
-        match attribution.site {
-            TerminalNativeFuelSite::Operation(operation) => {
-                bytes.push(1);
-                bytes.extend_from_slice(&[0; 3]);
-                push_u64(&mut bytes, operation.get());
-            }
-            TerminalNativeFuelSite::Edge(edge) => {
-                bytes.push(2);
-                bytes.extend_from_slice(&[0; 3]);
-                push_u64(&mut bytes, edge.get());
-            }
-        }
-        push_u64(&mut bytes, attribution.units);
-        push_u64(
-            &mut bytes,
-            u64::try_from(attribution.operation_ordinal)
-                .map_err(|_| TerminalInstallationError::FuelAttributionOffsetNotRepresentable)?,
-        );
-        push_u64(
-            &mut bytes,
-            u64::try_from(installed.text_offset)
-                .map_err(|_| TerminalInstallationError::FuelAttributionOffsetNotRepresentable)?,
-        );
-        push_u64(
-            &mut bytes,
-            u64::try_from(attribution.code_offset)
-                .map_err(|_| TerminalInstallationError::FuelAttributionOffsetNotRepresentable)?,
-        );
-        push_u64(
-            &mut bytes,
-            u64::try_from(attribution.byte_count)
-                .map_err(|_| TerminalInstallationError::FuelAttributionOffsetNotRepresentable)?,
-        );
-    }
+    encode_fuel_attributions(&mut bytes, fuel_attribution_count, &record.fuel_attribution)?;
     push_u32(&mut bytes, port_effect_count);
     for installed in &record.port_effects {
         let effect = &installed.effect;
@@ -1006,54 +969,7 @@ pub fn decode_terminal_installation_record(
     for _ in 0..internal_unit_call_count {
         internal_unit_calls.push(decode_internal_unit_call(&mut reader)?);
     }
-    let fuel_attribution_count = usize::try_from(reader.u32()?)
-        .map_err(|_| TerminalInstallationError::TooManyFuelAttributions)?;
-    if fuel_attribution_count > reader.remaining() / 64 {
-        return Err(TerminalInstallationError::UnexpectedEnd);
-    }
-    let mut fuel_attribution = Vec::with_capacity(fuel_attribution_count);
-    for _ in 0..fuel_attribution_count {
-        let machine = MachineId::new(reader.u64()?).ok_or(
-            TerminalInstallationError::ZeroFuelAttributionIdentity("MachineId"),
-        )?;
-        let schedule = FuelScheduleIdentity::new(reader.u32()?)
-            .ok_or(TerminalInstallationError::ZeroFuelScheduleIdentity)?;
-        let site_tag = reader.u8()?;
-        if reader.take(3)? != [0; 3] {
-            return Err(TerminalInstallationError::NonzeroReservedField);
-        }
-        let site_identity = reader.u64()?;
-        let site = match site_tag {
-            1 => TerminalNativeFuelSite::Operation(OperationId::new(site_identity).ok_or(
-                TerminalInstallationError::ZeroFuelAttributionIdentity("OperationId"),
-            )?),
-            2 => TerminalNativeFuelSite::Edge(EdgeId::new(site_identity).ok_or(
-                TerminalInstallationError::ZeroFuelAttributionIdentity("EdgeId"),
-            )?),
-            _ => return Err(TerminalInstallationError::InvalidFuelSiteTag(site_tag)),
-        };
-        let units = reader.u64()?;
-        let operation_ordinal = usize::try_from(reader.u64()?)
-            .map_err(|_| TerminalInstallationError::FuelAttributionOffsetNotRepresentable)?;
-        let text_offset = usize::try_from(reader.u64()?)
-            .map_err(|_| TerminalInstallationError::FuelAttributionOffsetNotRepresentable)?;
-        let code_offset = usize::try_from(reader.u64()?)
-            .map_err(|_| TerminalInstallationError::FuelAttributionOffsetNotRepresentable)?;
-        let byte_count = usize::try_from(reader.u64()?)
-            .map_err(|_| TerminalInstallationError::FuelAttributionOffsetNotRepresentable)?;
-        fuel_attribution.push(TerminalObjectFuelAttribution {
-            machine,
-            attribution: TerminalNativeFuelAttribution {
-                schedule,
-                site,
-                units,
-                operation_ordinal,
-                code_offset,
-                byte_count,
-            },
-            text_offset,
-        });
-    }
+    let fuel_attribution = decode_fuel_attributions(&mut reader)?;
     let port_effect_count = usize::try_from(reader.u32()?)
         .map_err(|_| TerminalInstallationError::TooManyPortEffects)?;
     if port_effect_count > reader.remaining() / 60 {
