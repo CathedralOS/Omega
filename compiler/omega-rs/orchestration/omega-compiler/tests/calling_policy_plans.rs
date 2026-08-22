@@ -1551,6 +1551,16 @@ machine build(builder: &mut Build) {
         .program_storage_entry_bridge()
         .cloned()
         .expect("receiver-free UEFI entry bridge");
+    assert_eq!(
+        bridge
+            .emitted_wrapper_evidence()
+            .expect("written bridge final evidence")
+            .executable_inventory_fingerprint(),
+        report
+            .executable_publication()
+            .expect("written bridge publication receipt")
+            .inventory_fingerprint(),
+    );
     let unwritten_report = compile(CompileOptions {
         root_path: directory.join("main.omg"),
         build_dir: Some(directory.join("unwritten-build")),
@@ -1559,6 +1569,7 @@ machine build(builder: &mut Build) {
     })
     .expect("the same receiver-free entry should compile without publishing an image");
     assert!(unwritten_report.has_consistent_program_storage_entry_custody());
+    assert!(unwritten_report.executable_publication().is_none());
     let unwritten_bridge = unwritten_report
         .program_storage_entry_bridge()
         .cloned()

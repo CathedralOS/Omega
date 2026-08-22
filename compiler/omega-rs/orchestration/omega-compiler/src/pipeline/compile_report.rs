@@ -223,6 +223,14 @@ impl CompileReport {
             self.program_storage_entry_bridge
                 .as_ref()
                 .map(|bridge| bridge.emitted_wrapper_evidence().is_some()),
+        ) && emitted_inventory_matches_publication(
+            self.executable_publication
+                .as_ref()
+                .map(ExecutablePublicationReceipt::inventory_fingerprint),
+            self.program_storage_entry_bridge
+                .as_ref()
+                .and_then(super::ProgramStorageEntryNativeBridgePlan::emitted_wrapper_evidence)
+                .map(|evidence| evidence.executable_inventory_fingerprint()),
         )
     }
 
@@ -306,6 +314,14 @@ fn program_storage_emission_matches_output_kind(
     }
 }
 
+fn emitted_inventory_matches_publication(
+    publication_inventory_fingerprint: Option<u64>,
+    emitted_inventory_fingerprint: Option<u64>,
+) -> bool {
+    emitted_inventory_fingerprint
+        .is_none_or(|emitted| publication_inventory_fingerprint == Some(emitted))
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
@@ -380,6 +396,17 @@ mod tests {
         assert!(!super::program_storage_emission_matches_output_kind(
             CompileOutputKind::ObjectContainer,
             Some(true),
+        ));
+        assert!(super::emitted_inventory_matches_publication(None, None));
+        assert!(super::emitted_inventory_matches_publication(Some(1), None));
+        assert!(super::emitted_inventory_matches_publication(
+            Some(1),
+            Some(1),
+        ));
+        assert!(!super::emitted_inventory_matches_publication(None, Some(1),));
+        assert!(!super::emitted_inventory_matches_publication(
+            Some(1),
+            Some(2),
         ));
 
         let flat = receipt(
