@@ -752,6 +752,11 @@ before report return.
 The retained binding and bridge are outwardly read-only after that check.
 Consumers can inspect or clone their evidence through accessors, but cannot
 mutate one side of the report pair into a post-validation mismatch.
+Report construction also joins bridge phase to output category. A check-only
+bridge must remain pending without final wrapper evidence, a native-executable
+bridge must retain that evidence, and object-container fallback cannot carry a
+program-storage bridge. Missing or premature evidence therefore rejects at the
+same return boundary.
 Final relocation replay also builds one exact owner map from every retained
 selected-instruction identity to that function symbol. A selected instruction
 retained twice, an instruction relocation naming another function, or an

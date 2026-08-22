@@ -218,6 +218,11 @@ impl CompileReport {
             self.program_storage_entry_bridge
                 .as_ref()
                 .map(super::ProgramStorageEntryNativeBridgePlan::binding),
+        ) && program_storage_emission_matches_output_kind(
+            self.output_kind,
+            self.program_storage_entry_bridge
+                .as_ref()
+                .map(|bridge| bridge.emitted_wrapper_evidence().is_some()),
         )
     }
 
@@ -287,6 +292,20 @@ fn optional_exact_pair_matches<T: PartialEq>(left: Option<&T>, right: Option<&T>
     }
 }
 
+fn program_storage_emission_matches_output_kind(
+    output_kind: CompileOutputKind,
+    bridge_has_emitted_evidence: Option<bool>,
+) -> bool {
+    match (output_kind, bridge_has_emitted_evidence) {
+        (_, None) => true,
+        (CompileOutputKind::CheckOnly, Some(false)) => true,
+        (CompileOutputKind::NativeExecutable, Some(true)) => true,
+        (CompileOutputKind::CheckOnly, Some(true))
+        | (CompileOutputKind::NativeExecutable, Some(false))
+        | (CompileOutputKind::ObjectContainer, Some(_)) => false,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
@@ -328,6 +347,40 @@ mod tests {
         assert!(!super::optional_exact_pair_matches(Some(&1), Some(&2)));
         assert!(!super::optional_exact_pair_matches(Some(&1), None));
         assert!(!super::optional_exact_pair_matches(None, Some(&1)));
+        for output_kind in [
+            CompileOutputKind::CheckOnly,
+            CompileOutputKind::NativeExecutable,
+            CompileOutputKind::ObjectContainer,
+        ] {
+            assert!(super::program_storage_emission_matches_output_kind(
+                output_kind,
+                None,
+            ));
+        }
+        assert!(super::program_storage_emission_matches_output_kind(
+            CompileOutputKind::CheckOnly,
+            Some(false),
+        ));
+        assert!(!super::program_storage_emission_matches_output_kind(
+            CompileOutputKind::CheckOnly,
+            Some(true),
+        ));
+        assert!(super::program_storage_emission_matches_output_kind(
+            CompileOutputKind::NativeExecutable,
+            Some(true),
+        ));
+        assert!(!super::program_storage_emission_matches_output_kind(
+            CompileOutputKind::NativeExecutable,
+            Some(false),
+        ));
+        assert!(!super::program_storage_emission_matches_output_kind(
+            CompileOutputKind::ObjectContainer,
+            Some(false),
+        ));
+        assert!(!super::program_storage_emission_matches_output_kind(
+            CompileOutputKind::ObjectContainer,
+            Some(true),
+        ));
 
         let flat = receipt(
             ExecutablePublicationDestination::FlatOutput,
