@@ -11,7 +11,7 @@ use omega_terminal_machine_code::{
     TerminalInternalCallRelocation, TerminalInternalUnitCallArgumentRecord,
     TerminalInternalUnitCallRecord, TerminalNativeFuelAttribution, TerminalNativeFuelSite,
     TerminalPortEffectRecord, TerminalStackAdjustmentPair, TerminalUnitCallStackEvidence,
-    TerminalUnitStackEvidence,
+    TerminalUnitStackEvidence, derive_completion_provider_custody,
 };
 use omega_terminal_target_operations::TerminalCallSiteOwner;
 use psi_core::MachineId;
@@ -258,14 +258,22 @@ pub(super) fn emit_unit_body(
                 completion_receipts,
             } => {
                 operation_site = Some(*psi_operation);
+                let provider_execution = (*provider_execution).into();
+                let completion_provider_custody = derive_completion_provider_custody(
+                    provider_execution,
+                    completion_claim_sources,
+                    completion_receipts,
+                )
+                .ok_or(EmissionError::InvalidCompletionProviderCustody)?;
                 boundary_settlements.push(TerminalBoundarySettlementRecord {
                     psi_operation: *psi_operation,
                     boundary: *boundary,
-                    provider_execution: (*provider_execution).into(),
+                    provider_execution,
                     realization: *realization,
                     arguments: arguments.clone(),
                     completion_claim_sources: completion_claim_sources.clone(),
                     completion_receipts: completion_receipts.clone(),
+                    completion_provider_custody,
                     native_result: None,
                     operation_ordinal,
                     code_offset: bytes.len(),

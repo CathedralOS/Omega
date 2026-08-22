@@ -197,6 +197,11 @@ pub struct TerminalBoundarySettlementRecord {
     /// reconstruct the exact successful-completion receipt set.
     pub completion_claim_sources: Vec<TerminalCompletionClaimSource>,
     pub completion_receipts: Vec<CompletionReceipt>,
+    /// Exact structural join between each successful-completion receipt, its
+    /// retained caller source, and the admitted provider execution that owns
+    /// this settlement. This is custody evidence only: it does not authorize
+    /// content introduction, prove backing, or derive residual geometry.
+    pub completion_provider_custody: Vec<TerminalCompletionProviderCustodyBinding>,
     /// Exact terminal value identity, scalar type, native placement, and
     /// returning edge consumed by a result-bearing realization. Metadata-only
     /// settlements retain `None` and cannot manufacture a result after
@@ -210,6 +215,39 @@ pub struct TerminalBoundarySettlementRecord {
     /// Zero for metadata-only settlements; otherwise the exact provider
     /// instruction interval that produces the boundary result.
     pub byte_count: usize,
+}
+
+/// Non-authoritative artifact custody for one exact completion receipt.
+///
+/// The row deliberately repeats the exact source and provider-execution
+/// records instead of replacing either with a producer-authored aggregate or
+/// authorization fingerprint. Object and installation validation rederive the
+/// complete ordered catalog from the enclosing settlement.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalCompletionProviderCustodyBinding {
+    pub source: TerminalCompletionClaimSource,
+    pub receipt: CompletionReceipt,
+    pub provider_execution: TerminalProviderExecutionRecord,
+}
+
+pub fn derive_completion_provider_custody(
+    provider_execution: TerminalProviderExecutionRecord,
+    sources: &[TerminalCompletionClaimSource],
+    receipts: &[CompletionReceipt],
+) -> Option<Vec<TerminalCompletionProviderCustodyBinding>> {
+    receipts
+        .iter()
+        .map(|receipt| {
+            let source = sources
+                .iter()
+                .find(|source| source.claim() == receipt.claim)?;
+            Some(TerminalCompletionProviderCustodyBinding {
+                source: source.clone(),
+                receipt: *receipt,
+                provider_execution,
+            })
+        })
+        .collect()
 }
 
 /// Non-authoritative serialized projection of an admitted provider execution.
