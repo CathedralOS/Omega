@@ -131,6 +131,8 @@ normalized_id!(
 
 mod fixed_fuel;
 pub use fixed_fuel::*;
+mod epoch_stack_demand;
+pub use epoch_stack_demand::*;
 mod native_fuel;
 pub use native_fuel::*;
 mod opaque_callback_replacement;
