@@ -785,10 +785,13 @@ fn runtime_carrier_indexed_read_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-carrier-indexed-read-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("carrier indexed read canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("carrier indexed read canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("carrier indexed read canary should run");
 
@@ -878,10 +881,13 @@ fn runtime_carrier_indexed_write_exit_canary_runs() {
     ));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("carrier indexed write canary should compile");
 
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("carrier indexed write canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("carrier indexed write canary should run");
 
@@ -903,10 +909,13 @@ fn runtime_carrier_indexed_read_operand_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-carrier-read-operand-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("carrier indexed-read-operand canary should compile");
 
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("carrier indexed-read-operand canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("carrier indexed-read-operand canary should run");
 
@@ -927,10 +936,13 @@ fn runtime_carrier_cipher_exit_canary_runs() {
     let scratch = std::env::temp_dir().join(format!("omega-carrier-cipher-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("carrier cipher canary should compile");
 
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("carrier cipher canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("carrier cipher canary should run");
 
@@ -952,10 +964,13 @@ fn runtime_carrier_indexed_const_write_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-carrier-const-write-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("carrier const-write canary should compile");
 
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("carrier const-write canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("carrier const-write canary should run");
 
