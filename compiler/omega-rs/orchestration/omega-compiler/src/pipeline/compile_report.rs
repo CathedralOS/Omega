@@ -755,6 +755,16 @@ mod tests {
         );
         assert!(!changed.has_consistent_executable_publication_custody());
         assert!(changed.checked_native_executable_path().is_none());
+        let mut changed = flat.clone();
+        changed.compiler_function_validation_fingerprint ^= 1;
+        let changed = report(
+            true,
+            CompileOutputKind::NativeExecutable,
+            Some(changed),
+            Some(bundle.clone()),
+        );
+        assert!(!changed.has_consistent_executable_publication_custody());
+        assert!(changed.checked_native_executable_path().is_none());
         let retained = report(
             true,
             CompileOutputKind::NativeExecutable,

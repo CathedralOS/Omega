@@ -1,5 +1,26 @@
 use super::*;
 
+fn assert_native_exit_code(
+    report: &CompileReport,
+    expected: i32,
+    fixture: &str,
+    expectation: &str,
+) {
+    let executable = report
+        .checked_native_executable_path()
+        .unwrap_or_else(|| panic!("{fixture} lost its exact executable publication receipt"));
+    let output = Command::new(executable)
+        .output()
+        .unwrap_or_else(|error| panic!("{fixture} should run: {error}"));
+    assert_eq!(
+        output.status.code(),
+        Some(expected),
+        "{expectation}; expected exit {expected}, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
 #[test]
 fn runtime_referenced_local_outlives_sibling_guard_call_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_referenced_local_outlives_sibling_guard_call_exit");
@@ -17,21 +38,13 @@ fn runtime_referenced_local_outlives_sibling_guard_call_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("referenced-local-outlives-sibling-guard-call canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
-        .output()
-        .expect("referenced-local-outlives-sibling-guard-call canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected a `&mut local` pointee to survive a sibling state's value-call guard chain \
-         (hall_two must run and write room_count = 8 -> exit 70; exit 2 means the dispatch \
-         silently fell through after the guard), got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        70,
+        "referenced-local sibling-guard canary",
+        "a `&mut local` pointee should survive its sibling value-call guard chain",
     );
 
     let _ = fs::remove_dir_all(&build_dir);
@@ -46,21 +59,13 @@ fn runtime_view_linked_input_unrelated_ref_write_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("view-linked-input-unrelated-ref-write canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
-        .output()
-        .expect("view-linked-input-unrelated-ref-write canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected the elision-linked view (borrowing `a` only) to coexist with a write to the \
-         unlinked ref input `b` (lifetimes stage 1 win), and both writes to land \
-         (first.cells[2]=7 + second.cells[0]=1 -> exit 70), got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        70,
+        "view-linked-input unrelated-ref-write canary",
+        "an elision-linked view of `a` should coexist with the write to unlinked `b`",
     );
 
     let _ = fs::remove_dir_all(&build_dir);
@@ -84,21 +89,13 @@ fn runtime_value_call_single_execution_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("value-call single-execution canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
-        .output()
-        .expect("value-call single-execution canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected each written call to execute its callee exactly once (two calls -> \
-         two increments -> exit 70; exit 2/3 means the splice and branch prelude both \
-         ran the callee body), got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        70,
+        "value-call single-execution canary",
+        "each written value call should execute exactly once",
     );
 
     let _ = fs::remove_dir_all(&build_dir);
@@ -113,21 +110,13 @@ fn runtime_explicit_discard_executes_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("explicit-discard canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
-        .output()
-        .expect("explicit-discard canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected `_ = self.roll(&mut self.tally);` to EXECUTE the callee exactly once          (tally 40 -> 41 -> exit 70; exit 10 means the discard dropped the call, exit 3          means it ran twice), got {:?}
-stderr:
-{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        70,
+        "explicit-discard single-execution canary",
+        "an explicitly discarded value call should execute exactly once",
     );
 
     let _ = fs::remove_dir_all(&build_dir);
@@ -142,21 +131,13 @@ fn runtime_transition_subject_call_single_evaluation_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("transition-subject single-evaluation canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
-        .output()
-        .expect("transition-subject single-evaluation canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected the transition guard subject call to run its callee exactly ONCE \
-         (one increment -> exit 70; exit 2 means the callee ran per arm or its body \
-         was emitted twice), got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        70,
+        "transition-subject single-evaluation canary",
+        "a transition guard subject call should execute exactly once",
     );
 
     let _ = fs::remove_dir_all(&build_dir);
