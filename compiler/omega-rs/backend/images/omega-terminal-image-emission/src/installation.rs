@@ -38,8 +38,12 @@ use crate::{
     completion_receipts::{CompletionCustodyError, validate_completion_custody},
 };
 
+mod boundary_result_scalar_codec;
 mod completion_custody_codec;
 mod structural_argument_codec;
+use boundary_result_scalar_codec::{
+    decode_boundary_result_scalar_type, encode_boundary_result_scalar_type,
+};
 use completion_custody_codec::{decode_completion_claim_source, encode_completion_claim_source};
 use structural_argument_codec::{decode_structural_argument, encode_structural_argument};
 
@@ -921,51 +925,6 @@ fn encode_call_site_owner(bytes: &mut Vec<u8>, owner: TerminalCallSiteOwner) {
             push_u32(bytes, action_ordinal);
             push_u32(bytes, 0);
         }
-    }
-}
-
-fn encode_boundary_result_scalar_type(bytes: &mut Vec<u8>, scalar_type: psi_core::ScalarType) {
-    match scalar_type {
-        psi_core::ScalarType::Boolean => bytes.extend_from_slice(&[1, 0, 0, 0, 0, 0]),
-        psi_core::ScalarType::Integer(integer) => {
-            bytes.push(2);
-            bytes.push(u8::from(integer.is_address()));
-            bytes.push(u8::from(matches!(
-                integer.sign(),
-                psi_core::IntegerSign::Signed
-            )));
-            bytes.push(0);
-            push_u16(bytes, integer.bits());
-        }
-    }
-}
-
-fn decode_boundary_result_scalar_type(
-    reader: &mut Reader<'_>,
-) -> Result<psi_core::ScalarType, TerminalInstallationError> {
-    let tag = reader.u8()?;
-    let is_address = decode_boolean(reader.u8()?)?;
-    let signed = decode_boolean(reader.u8()?)?;
-    if reader.u8()? != 0 {
-        return Err(TerminalInstallationError::NonzeroReservedField);
-    }
-    let bits = reader.u16()?;
-    match tag {
-        1 if !is_address && !signed && bits == 0 => Ok(psi_core::ScalarType::Boolean),
-        2 if is_address && !signed => psi_core::IntegerType::address(bits)
-            .map(psi_core::ScalarType::Integer)
-            .map_err(|_| TerminalInstallationError::InvalidBoundaryResult),
-        2 if !is_address => psi_core::IntegerType::new(
-            if signed {
-                psi_core::IntegerSign::Signed
-            } else {
-                psi_core::IntegerSign::Unsigned
-            },
-            bits,
-        )
-        .map(psi_core::ScalarType::Integer)
-        .map_err(|_| TerminalInstallationError::InvalidBoundaryResult),
-        _ => Err(TerminalInstallationError::InvalidBoundaryResult),
     }
 }
 
