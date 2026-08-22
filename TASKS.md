@@ -379,7 +379,12 @@ Remaining:
   and leaf expansion now fire as one inner-first bundle after every local,
   host-call, or mutation effect in the contiguous callee splice, matching the
   interpreter instead of letting the parent entry mutation overwrite a nested
-  leaf mutation. The bounded-product index probe now retains its exact runtime
+  leaf mutation. That ordering now distinguishes the newly deferred nested
+  statement-call prelude from assignment-value, transition-result, and host-
+  argument preludes that must still run at the call site: their declaration-
+  time local capture is preserved while their straight-line and leaf result
+  selection waits for the contiguous splice. The bounded-product index probe
+  now retains its exact runtime
   coupling under an authored root: the contract widens each u32 factor to u64
   so the proposition is total without citing itself as overflow evidence, and
   both typed validation and resolved hoist synthesis project only independently
@@ -574,7 +579,15 @@ Owners:
   resident-view establishment now independently replays retained owned
   placement/profile/resource authority before activating a requested
   occurrence; rejection returns the exact dormant resident and occurrence for
-  corrected retry, without claiming global occurrence freshness.
+  corrected retry, without claiming global occurrence freshness. Resident-
+  preserving retirement now independently replays the active carrier's
+  retained owned placement/profile/resource authority before returning dormant
+  custody; rejection returns the exact active occurrence, resident claim,
+  receipts, and Extent authority for corrected retry. Shared and exclusive
+  borrowed-resident view establishment likewise replays the lender's retained
+  owned placement/profile/resource authority before creating a whole-range
+  loan; rejection consumes nothing, leaving the exact dormant resident
+  authority available for repair and retry.
 - Implement `Extent::Resident<P, T>` as the owned exact-range dormant-content
   qualification, including invariant type indices, mutual exclusion with
   `Vacant`, split/merge rejection, borrow versus owned-view continuity,
@@ -1530,7 +1543,13 @@ Remaining:
   existing sorted-ready topological schedule, per-block all-incoming fact
   intersection, and final all-return fact intersection. The parent retains
   operation-before-terminator traversal; no successor, fact, exit, proof, or
-  search order changes. A
+  search order changes. Cast-specific alias transport now lives in independent
+  side-local `alias_transport/cast` modules. Production alone constructs the
+  closed-strengthening and alias-landed-literal substitution proofs before cast
+  completion; reconstruction independently enumerates and rechecks the same
+  retained facts. Generic one-/two-alias transport remains in each parent, and
+  citation order, endpoint precedence, proof shapes, rejection behavior, and
+  the finite search frontier are unchanged. A
   single exact prior value equality may also transport a completed affine bound
   from its checked target alias to the canonical goal endpoint. The producer
   replaces that one endpoint, constructs the bounded affine relation directly,
@@ -2644,7 +2663,16 @@ Owners:
   Five further runtime executions—called-machine loop search, looping
   value/cast returns, the slice-length guard, and sleep—now use receipt-only
   launch. The 795 owner pin stays stable, and flat/bundle compiler-text
-  validation drift exposes no executable path.
+  validation drift exposes no executable path. Five additional authored-root
+  native executions—write without newline, runtime exit code, borrow-carrying
+  data-field access, and u8/i8 field arithmetic—now launch only from their
+  exact checked-report receipts. The 795 exact-owner pin remains stable, and
+  flat/bundle publication-evidence drift exposes no executable path. The first
+  five authored-root range/storage executions likewise launch only from their
+  exact checked-report receipts while retaining literal statuses 1, 1, 15, 7,
+  and 9 and the guarded-binary cross-target check. The 795 exact-owner pin
+  remains stable, and flat/bundle container-byte-count drift exposes no
+  executable path.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
