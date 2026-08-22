@@ -145,6 +145,110 @@ pub fn place_executable_regions(
     })
 }
 
+/// Independently replay a placed executable inventory against the final text
+/// bytes it claims to classify. This prevents a stored summary, span address,
+/// or fingerprint from becoming authority merely because it survived image
+/// construction.
+pub fn validate_placed_executable_region_inventory(
+    inventory: &PlacedExecutableRegionInventory,
+    final_text_bytes: &[u8],
+) -> Result<(), Diagnostic> {
+    if inventory.text_byte_count != final_text_bytes.len() {
+        return Err(Diagnostic::error(format!(
+            "final executable inventory records {} text byte(s), but final text contains {}",
+            inventory.text_byte_count,
+            final_text_bytes.len()
+        )));
+    }
+    let text_fingerprint = byte_fingerprint(final_text_bytes);
+    if inventory.text_fingerprint != text_fingerprint {
+        return Err(Diagnostic::error(
+            "final executable inventory text fingerprint does not match final text",
+        ));
+    }
+
+    let mut expected_gaps = Vec::new();
+    let mut cursor = 0usize;
+    for region in &inventory.regions {
+        if region.byte_count == 0 {
+            return Err(Diagnostic::error(format!(
+                "placed executable region `{}` has zero width",
+                region.symbol
+            )));
+        }
+        let end = region
+            .section_offset
+            .checked_add(region.byte_count)
+            .filter(|end| *end <= final_text_bytes.len())
+            .ok_or_else(|| {
+                Diagnostic::error(format!(
+                    "placed executable region `{}` exceeds final text",
+                    region.symbol
+                ))
+            })?;
+        if region.section_offset < cursor {
+            return Err(Diagnostic::error(format!(
+                "placed executable region `{}` is out of order or overlaps a preceding region",
+                region.symbol
+            )));
+        }
+        if region.section_offset > cursor {
+            expected_gaps.push(placed_gap_from_bytes(
+                inventory.text_address,
+                final_text_bytes,
+                cursor,
+                region.section_offset - cursor,
+            )?);
+        }
+        let expected_address = inventory
+            .text_address
+            .checked_add(region.section_offset as u64)
+            .ok_or_else(|| Diagnostic::error("placed executable region address overflows"))?;
+        if region.address != expected_address {
+            return Err(Diagnostic::error(format!(
+                "placed executable region `{}` address does not match its final text offset",
+                region.symbol
+            )));
+        }
+        if region.byte_fingerprint
+            != byte_fingerprint(&final_text_bytes[region.section_offset..end])
+        {
+            return Err(Diagnostic::error(format!(
+                "placed executable region `{}` byte fingerprint does not match final text",
+                region.symbol
+            )));
+        }
+        cursor = end;
+    }
+    if cursor < final_text_bytes.len() {
+        expected_gaps.push(placed_gap_from_bytes(
+            inventory.text_address,
+            final_text_bytes,
+            cursor,
+            final_text_bytes.len() - cursor,
+        )?);
+    }
+    if inventory.unclassified_gaps != expected_gaps {
+        return Err(Diagnostic::error(
+            "final executable inventory gap partition does not match final text regions",
+        ));
+    }
+
+    let inventory_fingerprint = executable_inventory_fingerprint(
+        inventory.text_address,
+        inventory.text_byte_count,
+        inventory.text_fingerprint,
+        &inventory.regions,
+        &inventory.unclassified_gaps,
+    );
+    if inventory.inventory_fingerprint != inventory_fingerprint {
+        return Err(Diagnostic::error(
+            "final executable inventory fingerprint does not match its retained rows",
+        ));
+    }
+    Ok(())
+}
+
 /// Attach retained compiler boundary evidence to its exact final entry span.
 /// The association is part of the typed inventory and its fingerprint, rather
 /// than a presentation-only annotation added while serializing an artifact.
@@ -202,8 +306,21 @@ fn placed_gap(
     section_offset: usize,
     byte_count: usize,
 ) -> Result<PlacedExecutableGap, Diagnostic> {
-    let address = layout
-        .text_address
+    placed_gap_from_bytes(
+        layout.text_address,
+        &image.memory.text,
+        section_offset,
+        byte_count,
+    )
+}
+
+fn placed_gap_from_bytes(
+    text_address: u64,
+    text_bytes: &[u8],
+    section_offset: usize,
+    byte_count: usize,
+) -> Result<PlacedExecutableGap, Diagnostic> {
+    let address = text_address
         .checked_add(section_offset as u64)
         .ok_or_else(|| Diagnostic::error("final executable gap address overflows"))?;
     Ok(PlacedExecutableGap {
@@ -211,7 +328,7 @@ fn placed_gap(
         address,
         byte_count,
         byte_fingerprint: byte_fingerprint(
-            &image.memory.text[section_offset..section_offset + byte_count],
+            &text_bytes[section_offset..section_offset + byte_count],
         ),
     })
 }
@@ -408,5 +525,80 @@ mod tests {
         )
         .expect_err("retained evidence must not float without its entry span");
         assert!(diagnostic.message.contains("found 0"));
+    }
+
+    #[test]
+    fn placed_inventory_is_replayed_from_final_text_and_exact_partition() {
+        let mut image = FinalImage::with_capacity(
+            NativeTarget::host(),
+            crate::FinalImageMemory {
+                text: (0..12).collect(),
+                ..crate::FinalImageMemory::default()
+            },
+            Default::default(),
+            0,
+            0,
+            0,
+        );
+        image.executable_regions.extend([
+            FinalExecutableRegion {
+                origin: FinalExecutableRegionOrigin::CompilerFunction,
+                section_offset: 0,
+                byte_count: 4,
+                symbol: "entry".into(),
+                footprint: None,
+            },
+            FinalExecutableRegion {
+                origin: FinalExecutableRegionOrigin::ImportThunk,
+                section_offset: 8,
+                byte_count: 4,
+                symbol: "host_call".into(),
+                footprint: None,
+            },
+        ]);
+        let inventory = place_executable_regions(
+            &image,
+            FinalImageLayout {
+                text_address: 0x1000,
+                ..FinalImageLayout::default()
+            },
+        )
+        .expect("valid executable regions should place");
+
+        validate_placed_executable_region_inventory(&inventory, &image.memory.text)
+            .expect("the exact placed inventory should replay");
+
+        let mut corrupted = inventory.clone();
+        corrupted.regions[0].address += 1;
+        assert!(
+            validate_placed_executable_region_inventory(&corrupted, &image.memory.text).is_err()
+        );
+        let mut corrupted = inventory.clone();
+        corrupted.regions[0].byte_fingerprint ^= 1;
+        assert!(
+            validate_placed_executable_region_inventory(&corrupted, &image.memory.text).is_err()
+        );
+        let mut corrupted = inventory.clone();
+        corrupted.unclassified_gaps[0].byte_count -= 1;
+        assert!(
+            validate_placed_executable_region_inventory(&corrupted, &image.memory.text).is_err()
+        );
+        let mut corrupted = inventory.clone();
+        corrupted.regions[0].origin = FinalExecutableRegionOrigin::ImportThunk;
+        assert!(
+            validate_placed_executable_region_inventory(&corrupted, &image.memory.text).is_err()
+        );
+        let mut corrupted = inventory.clone();
+        corrupted.inventory_fingerprint ^= 1;
+        assert!(
+            validate_placed_executable_region_inventory(&corrupted, &image.memory.text).is_err()
+        );
+        assert!(
+            validate_placed_executable_region_inventory(&inventory, &image.memory.text[..11])
+                .is_err()
+        );
+        let mut changed_text = image.memory.text.clone();
+        changed_text[1] ^= 1;
+        assert!(validate_placed_executable_region_inventory(&inventory, &changed_text).is_err());
     }
 }

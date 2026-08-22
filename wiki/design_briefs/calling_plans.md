@@ -652,7 +652,15 @@ and exact object symbol to one compiler-function region. Symbol, section
 offset, placed address, byte count, and final-byte fingerprint must all match;
 missing, duplicated, renamed, reclassified, redirected, or byte-drifted
 regions reject. Import thunks remain in their separate executable-region
-namespace and cannot satisfy a compiler-function row.
+namespace and cannot satisfy a compiler-function row. Before that join can
+consume the inventory, checked emission independently replays the inventory
+from final text: the text size and fingerprint, ordered region intervals,
+derived addresses, per-region byte fingerprints, exact complementary gap
+partition, origin/footprint-bearing rows, and aggregate inventory fingerprint
+must agree. Thus a forged summary, reordered or overlapping span, altered
+origin, or missing/changed gap rejects rather than becoming final placement
+authority. This replay retains identity only; it neither synthesizes callback
+bytes nor chooses registration-relocation placement.
 Final relocation replay also builds one exact owner map from every retained
 selected-instruction identity to that function symbol. A selected instruction
 retained twice, an instruction relocation naming another function, or an

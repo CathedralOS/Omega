@@ -247,6 +247,10 @@ pub fn emit_checked_executable_image(
         compiler_text_validation.derivation_fingerprint = derivation_fingerprint;
         emitted_output.compiler_text_validation = Some(compiler_text_validation);
         emitted_output.compiler_function_validation = Some(compiler_function_validation);
+        omega_image::validate_placed_executable_region_inventory(
+            &emitted_output.executable_regions,
+            &emitted_output.final_text_bytes,
+        )?;
         validate_executable_region_enumeration(
             &emitted_output.executable_regions,
             encoded_machine_code,
