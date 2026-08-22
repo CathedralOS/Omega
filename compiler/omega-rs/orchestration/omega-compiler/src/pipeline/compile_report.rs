@@ -121,7 +121,7 @@ impl ExecutablePublicationReceipt {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CompileReport {
-    pub root_path: PathBuf,
+    pub(crate) root_path: PathBuf,
     pub source_file_count: usize,
     pub(crate) wrote_output: bool,
     /// Exact output category selected by orchestration. This distinguishes a
@@ -148,6 +148,10 @@ pub struct CompileReport {
 }
 
 impl CompileReport {
+    pub fn root_path(&self) -> &std::path::Path {
+        &self.root_path
+    }
+
     pub const fn wrote_output(&self) -> bool {
         self.wrote_output
     }
@@ -314,6 +318,7 @@ mod tests {
             Some(bundle.clone()),
         );
         assert!(retained.wrote_output());
+        assert_eq!(retained.root_path(), std::path::Path::new("Main/main.omg"));
         assert_eq!(retained.output_kind(), CompileOutputKind::NativeExecutable);
         assert_eq!(retained.executable_publication(), Some(&flat));
         assert_eq!(retained.app_bundle_publication(), Some(&bundle));
