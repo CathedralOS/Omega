@@ -727,13 +727,16 @@ The representation-observer fence is explicit at resolved-to-typed lowering.
 A quotient cannot declare `Equatable`, participate as a field in synthesized
 container equality, use runtime `==`/`!=`, or appear as the target of proof-only
 `zero_value<T>()`; those surfaces would compare or choose retained
-representative bytes without a checked law. Record and arm destructuring also
-reject quotient subjects before field or case analysis, including empty/rest
-patterns. Struct and case literals cannot mint a quotient by naming its nominal
-type; only the exact carrier-to-quotient cast may construct one. Equality in a
-proof-fact position stays as a logical fact for the exact quotient-congruence
-judge and is never lowered to a structural compare. Executable equality still
-requires a named lifted operation and its separate `DecidesEquivalence` law.
+representative bytes without a checked law. Build-time layout/access schema
+reflection rejects quotient roots and nested quotient record layouts instead
+of exposing or inventing a zero-byte representative shape. Record and arm
+destructuring also reject quotient subjects before field or case analysis,
+including empty/rest patterns. Struct and case literals cannot mint a quotient
+by naming its nominal type; only the exact carrier-to-quotient cast may
+construct one. Equality in a proof-fact position stays as a logical fact for
+the exact quotient-congruence judge and is never lowered to a structural
+compare. Executable equality still requires a named lifted operation and its
+separate `DecidesEquivalence` law.
 
 For a request that is the direct terminal expression of a state, validation
 now derives a non-authoritative relation plan when every selected quotient
