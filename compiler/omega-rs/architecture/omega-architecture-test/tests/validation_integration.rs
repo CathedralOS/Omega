@@ -367,6 +367,126 @@ fn admitted_local_progress_receipt_discharges_the_selected_call_premise() {
 }
 
 #[test]
+fn progress_subject_identity_threads_through_named_state_transitions() {
+    let typed = typed_program_from_source(
+        r#"
+        data SchedulerHandle {}
+        domain SchedulerHandle::WeakFair
+        satisfies ProgressProfile
+        established by SchedulerAdmission::grant;
+        boundary trait SchedulerAdmission {
+            machine grant(scheduler: SchedulerHandle) -> SchedulerHandle in WeakFair
+            ensures result in SchedulerHandle::WeakFair
+            terminates;
+        }
+        boundary trait SchedulerRuntime {
+            machine wait(scheduler: SchedulerHandle)
+            requires scheduler in WeakFair
+            terminates;
+        }
+        machine process(
+            runtime: &mut SchedulerRuntime,
+            scheduler: SchedulerHandle
+        )
+        requires scheduler in WeakFair
+        terminates
+        {
+            transition { _ -> waiting(runtime, scheduler) }
+
+            state waiting(
+                runtime: &mut SchedulerRuntime,
+                scheduler: SchedulerHandle in WeakFair
+            ) {
+                runtime.wait(scheduler);
+            }
+        }
+        "#,
+    );
+
+    let checked = psi_typed_trees_to_checked_trees::lower_typed_trees(typed)
+        .expect("the transition should preserve the exact public progress subject");
+    let process = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "process")
+        .expect("process machine");
+    let plan = checked
+        .facts
+        .termination
+        .for_machine(process.symbol)
+        .expect("checked termination plan");
+    let psi_language_semantics::TerminationGuarantee::Terminates { premises } =
+        &plan.checked_summary
+    else {
+        panic!("process should retain a checked termination summary")
+    };
+    assert_eq!(premises.len(), 1);
+}
+
+#[test]
+fn progress_subject_alternatives_across_state_predecessors_remain_explicit() {
+    let typed = typed_program_from_source(
+        r#"
+        data SchedulerHandle {}
+        domain SchedulerHandle::WeakFair
+        satisfies ProgressProfile
+        established by SchedulerAdmission::grant;
+        boundary trait SchedulerAdmission {
+            machine grant(scheduler: SchedulerHandle) -> SchedulerHandle in WeakFair
+            ensures result in SchedulerHandle::WeakFair
+            terminates;
+        }
+        boundary trait SchedulerRuntime {
+            machine wait(scheduler: SchedulerHandle)
+            requires scheduler in WeakFair
+            terminates;
+        }
+        machine process(
+            runtime: &mut SchedulerRuntime,
+            first: SchedulerHandle,
+            second: SchedulerHandle,
+            choose_first: bool
+        )
+        requires first in WeakFair
+        requires second in WeakFair
+        terminates
+        {
+            transition choose_first {
+                true -> waiting(runtime, first)
+                false -> waiting(runtime, second)
+            }
+
+            state waiting(
+                runtime: &mut SchedulerRuntime,
+                scheduler: SchedulerHandle in WeakFair
+            ) {
+                runtime.wait(scheduler);
+            }
+        }
+        "#,
+    );
+
+    let checked = psi_typed_trees_to_checked_trees::lower_typed_trees(typed)
+        .expect("both exact predecessor subjects are covered by the public contract");
+    let process = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "process")
+        .expect("process machine");
+    let plan = checked
+        .facts
+        .termination
+        .for_machine(process.symbol)
+        .expect("checked termination plan");
+    let psi_language_semantics::TerminationGuarantee::Terminates { premises } =
+        &plan.checked_summary
+    else {
+        panic!("process should retain a checked termination summary")
+    };
+    assert_eq!(premises.len(), 2);
+}
+
+#[test]
 fn inherited_progress_schema_substitutes_implementation_parameter_identity() {
     let typed = typed_program_from_source(
         r#"

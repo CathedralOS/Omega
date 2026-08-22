@@ -111,6 +111,18 @@ fn derive_machine_summary(
         return Some(TerminationGuarantee::NoGuarantee);
     }
 
+    let parameter_lineage = state_parameter_lineage(program, flow, machine);
+    let entry_parameter_roots = program
+        .machine_states(machine)
+        .first()
+        .map(|state| {
+            program
+                .state_parameters(state)
+                .iter()
+                .map(|parameter| parameter.symbol)
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
     let mut premises = Vec::new();
     for (_, state_flow) in flow
         .control
@@ -119,6 +131,12 @@ fn derive_machine_summary(
         .filter(|(_, state)| state.machine_symbol == machine.symbol)
     {
         for call in flow.control.calls.span_or_empty(state_flow.calls) {
+            if is_local_state_transition(program, machine, state_flow, call) {
+                // Named transitions are edges within this activation, not
+                // nested calls. Their argument correspondence is folded into
+                // `parameter_lineage` above.
+                continue;
+            }
             let guarantee = selected_call_guarantee(program, call.target_symbol, summaries)?;
             let TerminationGuarantee::Terminates {
                 premises: callee_premises,
@@ -127,20 +145,30 @@ fn derive_machine_summary(
                 return Some(TerminationGuarantee::NoGuarantee);
             };
             for callee_premise in callee_premises {
-                let instance =
+                let local_instance =
                     instantiate_call_premise(program, machine, state_flow, call, callee_premise)?;
-                if admitted_receipt_covers(program, flow, semantic, state_flow, call, &instance) {
+                if admitted_receipt_covers(
+                    program,
+                    flow,
+                    semantic,
+                    state_flow,
+                    call,
+                    &local_instance,
+                ) {
                     continue;
                 }
-                if !machine_parameter_roots(program, machine).contains(&instance.subject.root) {
-                    // A private local/build-bound subject cannot silently
-                    // become a caller premise. Local admitted receipts are
-                    // discharged above; manifest-bound provider discharge is
-                    // the remaining TPR6 slice.
-                    return Some(TerminationGuarantee::NoGuarantee);
-                }
-                if !premises.contains(&instance) {
-                    premises.push(instance);
+                let instances = resolve_through_state_lineage(&parameter_lineage, local_instance)?;
+                for instance in instances {
+                    if !entry_parameter_roots.contains(&instance.subject.root) {
+                        // A private local/build-bound subject cannot silently
+                        // become a caller premise. Local admitted receipts are
+                        // discharged above; manifest-bound provider discharge
+                        // is the remaining TPR6 slice.
+                        return Some(TerminationGuarantee::NoGuarantee);
+                    }
+                    if !premises.contains(&instance) {
+                        premises.push(instance);
+                    }
                 }
             }
         }
@@ -188,6 +216,24 @@ fn instantiate_call_premise(
     call: &FlowCallFact,
     premise: &ProgressPremise,
 ) -> Option<ProgressPremise> {
+    let mut subject =
+        call_argument_subject(program, machine, state_flow, call, premise.subject.root)?;
+    subject
+        .projections
+        .extend(premise.subject.projections.iter().copied());
+    Some(ProgressPremise {
+        profile: premise.profile,
+        subject,
+    })
+}
+
+fn call_argument_subject(
+    program: &psi_typed_trees::TypedTrees,
+    machine: &psi_typed_trees::machine::Machine,
+    state_flow: &FlowStateFact,
+    call: &FlowCallFact,
+    parameter_symbol: SymbolHandle,
+) -> Option<ProgressSubject> {
     let call_site = find_call_site(
         program,
         machine.symbol,
@@ -198,7 +244,7 @@ fn instantiate_call_premise(
     let parameters = call_target_parameters(program, call.target_symbol)?;
     let parameter_index = parameters
         .iter()
-        .position(|parameter| parameter.symbol == premise.subject.root)?;
+        .position(|parameter| parameter.symbol == parameter_symbol)?;
     let arguments = call_site_argument_expressions(program, &call_site);
     let non_self_count = parameters
         .iter()
@@ -230,14 +276,185 @@ fn instantiate_call_premise(
             *arguments.get(argument_index)?,
         )?
     };
-    let mut subject = subject_from_place(place.root, &place.segments)?;
-    subject
-        .projections
-        .extend(premise.subject.projections.iter().copied());
-    Some(ProgressPremise {
-        profile: premise.profile,
-        subject,
-    })
+    subject_from_place(place.root, &place.segments)
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum ParameterLineage {
+    Unseen,
+    Exact(Vec<ProgressSubject>),
+    Ambiguous,
+}
+
+fn state_parameter_lineage(
+    program: &psi_typed_trees::TypedTrees,
+    flow: &FlowFacts,
+    machine: &psi_typed_trees::machine::Machine,
+) -> Vec<(SymbolHandle, ParameterLineage)> {
+    let states = program.machine_states(machine);
+    let mut lineage = states
+        .iter()
+        .flat_map(|state| program.state_parameters(state))
+        .map(|parameter| (parameter.symbol, ParameterLineage::Unseen))
+        .collect::<Vec<_>>();
+    if let Some(entry) = states.first() {
+        for parameter in program.state_parameters(entry) {
+            set_parameter_lineage(
+                &mut lineage,
+                parameter.symbol,
+                ParameterLineage::Exact(vec![ProgressSubject {
+                    root: parameter.symbol,
+                    projections: Vec::new(),
+                }]),
+            );
+        }
+    }
+
+    loop {
+        let previous = lineage.clone();
+        for (_, state_flow) in flow
+            .control
+            .states
+            .iter()
+            .filter(|(_, state)| state.machine_symbol == machine.symbol)
+        {
+            for call in flow.control.calls.span_or_empty(state_flow.calls) {
+                let Some(target) =
+                    local_state_transition_target(program, machine, state_flow, call)
+                else {
+                    continue;
+                };
+                for parameter in program.state_parameters(target) {
+                    let incoming =
+                        call_argument_subject(program, machine, state_flow, call, parameter.symbol)
+                            .map(|subject| resolve_subject_lineage(&previous, subject))
+                            .unwrap_or(ParameterLineage::Ambiguous);
+                    merge_parameter_lineage(&mut lineage, parameter.symbol, incoming);
+                }
+            }
+        }
+        if lineage == previous {
+            break;
+        }
+    }
+
+    lineage
+}
+
+fn is_local_state_transition(
+    program: &psi_typed_trees::TypedTrees,
+    machine: &psi_typed_trees::machine::Machine,
+    state: &FlowStateFact,
+    call: &FlowCallFact,
+) -> bool {
+    local_state_transition_target(program, machine, state, call).is_some()
+}
+
+fn local_state_transition_target<'program>(
+    program: &'program psi_typed_trees::TypedTrees,
+    machine: &psi_typed_trees::machine::Machine,
+    state: &FlowStateFact,
+    call: &FlowCallFact,
+) -> Option<&'program psi_typed_trees::state::State> {
+    let call_site = find_call_site(
+        program,
+        machine.symbol,
+        state.state_symbol,
+        call.statement_index,
+        call.call_ordinal,
+    )?;
+    if !matches!(call_site, crate::CallSite::TransitionNamed { .. }) {
+        return None;
+    }
+    crate::find_state_in_machine(program, machine.symbol, call.target_symbol)
+}
+
+fn resolve_subject_lineage(
+    lineage: &[(SymbolHandle, ParameterLineage)],
+    subject: ProgressSubject,
+) -> ParameterLineage {
+    let Some((_, root)) = lineage.iter().find(|(symbol, _)| *symbol == subject.root) else {
+        return ParameterLineage::Ambiguous;
+    };
+    match root {
+        ParameterLineage::Unseen => ParameterLineage::Unseen,
+        ParameterLineage::Ambiguous => ParameterLineage::Ambiguous,
+        ParameterLineage::Exact(roots) => ParameterLineage::Exact(
+            roots
+                .iter()
+                .map(|root| {
+                    let mut resolved = root.clone();
+                    resolved
+                        .projections
+                        .extend(subject.projections.iter().copied());
+                    resolved
+                })
+                .collect(),
+        ),
+    }
+}
+
+fn resolve_through_state_lineage(
+    lineage: &[(SymbolHandle, ParameterLineage)],
+    premise: ProgressPremise,
+) -> Option<Vec<ProgressPremise>> {
+    let ParameterLineage::Exact(subjects) = resolve_subject_lineage(lineage, premise.subject)
+    else {
+        return None;
+    };
+    Some(
+        subjects
+            .into_iter()
+            .map(|subject| ProgressPremise {
+                profile: premise.profile,
+                subject,
+            })
+            .collect(),
+    )
+}
+
+fn set_parameter_lineage(
+    lineage: &mut [(SymbolHandle, ParameterLineage)],
+    symbol: SymbolHandle,
+    value: ParameterLineage,
+) {
+    if let Some((_, retained)) = lineage
+        .iter_mut()
+        .find(|(candidate, _)| *candidate == symbol)
+    {
+        *retained = value;
+    }
+}
+
+fn merge_parameter_lineage(
+    lineage: &mut [(SymbolHandle, ParameterLineage)],
+    symbol: SymbolHandle,
+    incoming: ParameterLineage,
+) {
+    let Some((_, retained)) = lineage
+        .iter_mut()
+        .find(|(candidate, _)| *candidate == symbol)
+    else {
+        return;
+    };
+    match (&*retained, incoming) {
+        (_, ParameterLineage::Unseen) => {}
+        (ParameterLineage::Unseen, value) => *retained = value,
+        (ParameterLineage::Exact(_), ParameterLineage::Exact(right)) => {
+            let ParameterLineage::Exact(retained) = retained else {
+                unreachable!()
+            };
+            for subject in right {
+                if !retained.contains(&subject) {
+                    retained.push(subject);
+                }
+            }
+        }
+        (ParameterLineage::Exact(_), ParameterLineage::Ambiguous) => {
+            *retained = ParameterLineage::Ambiguous;
+        }
+        (ParameterLineage::Ambiguous, _) => {}
+    }
 }
 
 fn admitted_receipt_covers(
@@ -316,18 +533,6 @@ fn subject_from_place(root: PlaceRoot, segments: &[PlaceSegment]) -> Option<Prog
         }
     }
     Some(ProgressSubject { root, projections })
-}
-
-fn machine_parameter_roots(
-    program: &psi_typed_trees::TypedTrees,
-    machine: &psi_typed_trees::machine::Machine,
-) -> Vec<SymbolHandle> {
-    program
-        .machine_states(machine)
-        .iter()
-        .flat_map(|state| program.state_parameters(state))
-        .map(|parameter| parameter.symbol)
-        .collect()
 }
 
 fn profile_label(

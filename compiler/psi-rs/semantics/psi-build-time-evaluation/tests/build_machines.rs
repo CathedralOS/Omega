@@ -139,6 +139,51 @@ fn prepared_build_program_specializes_static_machine_helpers() {
     );
 }
 
+#[test]
+fn admission_rejects_a_transitive_progress_premise_before_interpretation() {
+    let typed = typed(
+        r#"
+        data SchedulerHandle {}
+        domain SchedulerHandle::WeakFair
+        satisfies ProgressProfile
+        established by SchedulerAdmission::grant;
+
+        boundary trait SchedulerAdmission {
+            machine grant(scheduler: SchedulerHandle) -> SchedulerHandle in WeakFair
+            ensures result in SchedulerHandle::WeakFair
+            terminates;
+        }
+
+        boundary trait SchedulerRuntime {
+            machine wait(scheduler: SchedulerHandle)
+            requires scheduler in WeakFair
+            terminates;
+        }
+
+        machine build(
+            runtime: &mut SchedulerRuntime,
+            scheduler: SchedulerHandle
+        ) {
+            runtime.wait(scheduler);
+        }
+        "#,
+    );
+    let machine = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "build")
+        .expect("build machine");
+    let error = psi_build_time_evaluation::BuildTimeAdmissionPlan::infer(&typed)
+        .require_common_floor(&typed, machine)
+        .expect_err("pre-check evaluation has no proof context for the progress premise");
+
+    assert!(
+        error.contains("has an authored `requires` premise"),
+        "{error}"
+    );
+    assert!(error.contains("callable contract `wait`"), "{error}");
+}
+
 fn typed(source: &str) -> psi_typed_trees::TypedTrees {
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");

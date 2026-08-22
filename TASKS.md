@@ -6600,20 +6600,19 @@ compiler concept is introduced.
   receiver-first parameter/field subject path, and that schema enters contract
   and provider-plan identity. Checked lowering now instantiates those schemas
   only from exact selected calls, substitutes identity-preserving parameter and
-  field paths through directly called private helpers to a fixed point, checks
+  field paths through directly called private helpers to a fixed point, threads
+  exact subject identity through named-state transition arguments, checks
   exported bodies against their authored schemas, and discharges exact locally
   admitted qualification receipts. Merely carrying a qualified value adds no
-  premise.
+  premise. Pre-check build-time admission already rejects authored premises
+  anywhere in the reachable call closure before interpretation.
 
   Remaining: export build-bound provider subjects as unresolved manifest
   premises and discharge them against the selected provider occurrence at
-  composition. Add cross-state and authored qualification-preserving transition
-  correspondence beyond direct parameter/field identity; unknown, indexed, and
-  local correspondence remains fail closed. Keep nominal static-machine binder
-  premises pinned to the named requirement contract and ranking witnesses
-  outside public identity. Align the pre-checked build-time termination query
-  with the same selected-call closure so semantic evaluation cannot treat a
-  premised body as unconditionally terminating.
+  composition. Add authored qualification-preserving correspondence beyond
+  direct parameter/field identity; unknown, indexed, and local correspondence
+  remains fail closed. Keep nominal static-machine binder premises pinned to
+  the named requirement contract and ranking witnesses outside public identity.
 Acceptance: contract axes normalize independently, wrappers cannot launder
 reach or trust, and private proof improvements do not change public identity.
 
