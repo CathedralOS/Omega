@@ -2247,10 +2247,13 @@ fn runtime_match_value_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-runtime-match-value-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("match value canary should compile");
 
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("match value canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("match value canary should run");
 
@@ -2273,9 +2276,12 @@ fn runtime_flat_boolean_logic_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-flat-boolean-logic-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("flat-boolean-logic canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("flat boolean logic canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("flat-boolean-logic canary should run");
     assert_eq!(
@@ -2296,10 +2302,13 @@ fn runtime_enum_match_breadth_exit_canary_runs() {
     let canary = pass_canary("expressions/runtime_enum_match_breadth_exit");
     let scratch =
         std::env::temp_dir().join(format!("omega-enum-match-breadth-{}", std::process::id()));
-    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("enum match breadth canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("enum match breadth canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("enum match breadth canary should run");
 
