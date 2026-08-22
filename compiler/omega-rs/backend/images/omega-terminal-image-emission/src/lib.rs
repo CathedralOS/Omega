@@ -16,6 +16,7 @@
 mod installation;
 mod instruction_loads;
 mod scalar_stack_mutation;
+mod structural_condition_layout;
 mod structural_return;
 mod unit_call_custody;
 mod unit_stack;
@@ -27,6 +28,7 @@ use scalar_stack_mutation::{
     aarch64_control_flow_instruction, aarch64_unsupported_sp_write, replay_scalar_mutation,
     validate_aarch64_scalar_mutation, validate_x86_scalar_mutation,
 };
+use structural_condition_layout::replay_boolean_field_offset;
 use structural_return::validate_structural_return_record;
 use unit_call_custody::{expected_projected_copy_bytes, validate_internal_unit_call_custody};
 use unit_stack::{
@@ -35,9 +37,7 @@ use unit_stack::{
     validate_unit_call_stack, validate_unit_function_stack,
 };
 
-use omega_calling_conventions::{
-    IndirectPointerLocation, ValueLocation, ValuePlacement, ValueShape,
-};
+use omega_calling_conventions::{IndirectPointerLocation, ValueLocation, ValuePlacement};
 use omega_image::{
     CompilerTextValidationEvidence, EmittedImageOutput, FinalExecutableRegionOrigin,
     FinalImageInput, emitted_direct_executable_output, validate_final_text_relocation_envelope,
@@ -60,7 +60,7 @@ use omega_terminal_machine_code::{
 use omega_terminal_target_operations::{
     TerminalBoundaryRealization, TerminalCallSiteOwner, TerminalPsiProvenance,
 };
-use psi_core::{MachineId, ScalarType};
+use psi_core::MachineId;
 use psi_diagnostics::Diagnostic;
 use psi_terminal::StructuralPathSegment;
 use psi_terminal::TerminalPsiIdentity;
@@ -1611,138 +1611,6 @@ fn bounded_nominal_receiver_shape(shape: omega_calling_conventions::ValueShape) 
             && shape.byte_size != 0
             && matches!(shape.alignment, 1 | 2 | 4 | 8)
             && shape.byte_size % shape.alignment == 0
-}
-
-fn checked_align_up(value: u32, alignment: u32) -> Option<u32> {
-    value
-        .checked_add(alignment.checked_sub(1)?)
-        .map(|value| value / alignment * alignment)
-}
-
-fn replay_structural_shape(
-    structural_type: psi_core::StructuralTypeId,
-    declarations: &std::collections::BTreeMap<
-        psi_core::StructuralTypeId,
-        &psi_terminal::StructuralTypeDeclaration,
-    >,
-    cache: &mut std::collections::BTreeMap<psi_core::StructuralTypeId, ValueShape>,
-    active: &mut std::collections::BTreeSet<psi_core::StructuralTypeId>,
-) -> Option<ValueShape> {
-    if let Some(shape) = cache.get(&structural_type) {
-        return Some(*shape);
-    }
-    if !active.insert(structural_type) {
-        return None;
-    }
-    let declaration = declarations.get(&structural_type)?;
-    let shape = match &declaration.shape {
-        psi_terminal::StructuralTypeShape::Record { fields } => {
-            let mut byte_size = 0_u32;
-            let mut alignment = 1_u16;
-            for field in fields.iter().filter(|field| !field.relevance.is_erased()) {
-                let field_shape =
-                    replay_structural_field_shape(&field.field_type, declarations, cache, active)?;
-                alignment = alignment.max(field_shape.alignment);
-                byte_size = checked_align_up(byte_size, u32::from(field_shape.alignment))?
-                    .checked_add(u32::from(field_shape.byte_size))?;
-            }
-            byte_size = checked_align_up(byte_size, u32::from(alignment))?;
-            ValueShape::integer(u16::try_from(byte_size).ok()?, alignment)
-        }
-        psi_terminal::StructuralTypeShape::FixedArray { element, length } => {
-            if *length == 0 {
-                return None;
-            }
-            let element = replay_structural_shape(*element, declarations, cache, active)?;
-            let stride =
-                checked_align_up(u32::from(element.byte_size), u32::from(element.alignment))?;
-            let byte_size = u64::from(stride)
-                .checked_mul(*length)
-                .and_then(|size| u16::try_from(size).ok())?;
-            ValueShape::integer(byte_size, element.alignment)
-        }
-        psi_terminal::StructuralTypeShape::Sum { .. } => return None,
-    };
-    active.remove(&structural_type);
-    cache.insert(structural_type, shape);
-    Some(shape)
-}
-
-fn replay_structural_field_shape(
-    field_type: &psi_terminal::StructuralFieldType,
-    declarations: &std::collections::BTreeMap<
-        psi_core::StructuralTypeId,
-        &psi_terminal::StructuralTypeDeclaration,
-    >,
-    cache: &mut std::collections::BTreeMap<psi_core::StructuralTypeId, ValueShape>,
-    active: &mut std::collections::BTreeSet<psi_core::StructuralTypeId>,
-) -> Option<ValueShape> {
-    match field_type {
-        psi_terminal::StructuralFieldType::Scalar(ScalarType::Boolean) => {
-            Some(ValueShape::integer(1, 1))
-        }
-        psi_terminal::StructuralFieldType::Scalar(ScalarType::Integer(integer)) => {
-            let size = integer.bits().div_ceil(8);
-            Some(ValueShape::integer(size, size.next_power_of_two().min(16)))
-        }
-        psi_terminal::StructuralFieldType::IeeeFloat(psi_core::IeeeFloatFormat::Binary32) => {
-            Some(ValueShape::float(4))
-        }
-        psi_terminal::StructuralFieldType::IeeeFloat(psi_core::IeeeFloatFormat::Binary64) => {
-            Some(ValueShape::float(8))
-        }
-        psi_terminal::StructuralFieldType::ByteSequence(carrier) => {
-            let byte_size = match carrier {
-                psi_terminal::ByteSequenceCarrier::BorrowedView => 16,
-                psi_terminal::ByteSequenceCarrier::BoundedOwned { capacity } => {
-                    capacity.checked_add(8)?.try_into().ok()?
-                }
-            };
-            Some(ValueShape::integer(byte_size, 8))
-        }
-        psi_terminal::StructuralFieldType::Structural(nested) => {
-            replay_structural_shape(*nested, declarations, cache, active)
-        }
-        psi_terminal::StructuralFieldType::Erased { .. } => None,
-    }
-}
-
-fn replay_boolean_field_offset(
-    structural_type: psi_core::StructuralTypeId,
-    field: psi_core::StructuralFieldId,
-    declarations: &std::collections::BTreeMap<
-        psi_core::StructuralTypeId,
-        &psi_terminal::StructuralTypeDeclaration,
-    >,
-) -> Option<(u32, ValueShape)> {
-    let declaration = declarations.get(&structural_type)?;
-    let psi_terminal::StructuralTypeShape::Record { fields } = &declaration.shape else {
-        return None;
-    };
-    let mut cache = std::collections::BTreeMap::new();
-    let mut active = std::collections::BTreeSet::new();
-    let mut offset = 0_u32;
-    for candidate in fields.iter().filter(|field| !field.relevance.is_erased()) {
-        let shape = replay_structural_field_shape(
-            &candidate.field_type,
-            declarations,
-            &mut cache,
-            &mut active,
-        )?;
-        offset = checked_align_up(offset, u32::from(shape.alignment))?;
-        if candidate.id == field {
-            return matches!(
-                candidate.field_type,
-                psi_terminal::StructuralFieldType::Scalar(ScalarType::Boolean)
-            )
-            .then_some((
-                offset,
-                replay_structural_shape(structural_type, declarations, &mut cache, &mut active)?,
-            ));
-        }
-        offset = offset.checked_add(u32::from(shape.byte_size))?;
-    }
-    None
 }
 
 fn condition_stack_depth_before(
