@@ -5,6 +5,10 @@
 //! deterministic `CallPlan`; inbound roots pair it with a `StatePlan`.
 //! Backend footprint evidence is deliberately a different artifact.
 
+use crate::callback_materializations::{
+    CallbackMaterialization, CallbackMaterializationContext, NativePlace,
+    validate_callback_materializations,
+};
 use omega_target::Architecture;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -260,6 +264,7 @@ pub struct CallPlan {
     pub policy: CallingPolicy,
     pub parameters: Vec<ValuePlacement>,
     pub result: Option<ValuePlacement>,
+    pub callback_materializations: Vec<CallbackMaterialization>,
     pub ordinary_clobbers: RegisterSet,
     pub stack_alignment: u16,
     pub shadow_bytes: u16,
@@ -667,6 +672,28 @@ pub fn validate_boundary_entry_plan(
 ) -> Result<ValidatedBoundaryEntryPlan, PlanDiagnostic> {
     canonicalize_boundary_entry_plan(&mut plan);
     validate_call_plan(&plan.call, signature)?;
+    validate_boundary_state_plan(plan, signature)
+}
+
+/// Validate a registrar boundary whose outbound plan carries private callback
+/// materialization rows. The context is deliberately required: a bare plan
+/// cannot establish that nominal binder, native-parameter, or layout-slot
+/// identities exist or are compatible.
+pub fn validate_boundary_entry_plan_with_callback_materializations(
+    mut plan: BoundaryEntryPlan,
+    signature: &CallSignature,
+    context: &CallbackMaterializationContext,
+) -> Result<ValidatedBoundaryEntryPlan, PlanDiagnostic> {
+    canonicalize_boundary_entry_plan(&mut plan);
+    validate_call_plan_structure(&plan.call, signature)?;
+    validate_callback_materializations(&plan.call.callback_materializations, context)?;
+    validate_boundary_state_plan(plan, signature)
+}
+
+fn validate_boundary_state_plan(
+    plan: BoundaryEntryPlan,
+    _signature: &CallSignature,
+) -> Result<ValidatedBoundaryEntryPlan, PlanDiagnostic> {
     if plan.call.policy.architecture() != plan.state.initial_regime.architecture() {
         return Err(PlanDiagnostic(
             "calling policy and initial machine regime name different architectures".into(),
@@ -741,6 +768,9 @@ fn canonicalize_boundary_entry_plan(plan: &mut BoundaryEntryPlan) {
     {
         placement.locations.sort_by_key(value_location_byte_offset);
     }
+    plan.call
+        .callback_materializations
+        .sort_by_key(|row| row.binder);
 }
 
 fn value_location_byte_offset(location: &ValueLocation) -> u16 {
@@ -996,6 +1026,20 @@ fn machine_state_for_registers(registers: &RegisterSet) -> MachineStateSet {
 }
 
 pub fn validate_call_plan(
+    plan: &CallPlan,
+    signature: &CallSignature,
+) -> Result<(), PlanDiagnostic> {
+    validate_call_plan_structure(plan, signature)?;
+    if !plan.callback_materializations.is_empty() {
+        return Err(PlanDiagnostic(
+            "callback materializations require their nominal binder and native-place context"
+                .into(),
+        ));
+    }
+    Ok(())
+}
+
+fn validate_call_plan_structure(
     plan: &CallPlan,
     signature: &CallSignature,
 ) -> Result<(), PlanDiagnostic> {
@@ -1334,6 +1378,7 @@ fn evaluate_microsoft_x64(signature: &CallSignature) -> Result<CallPlan, PlanDia
                 MachineRegister::X86Xmm(index)
             })?
         },
+        callback_materializations: Vec::new(),
         ordinary_clobbers: RegisterSet::new(
             [
                 MachineRegister::X86Rax,
@@ -1717,6 +1762,7 @@ fn evaluate_split_bank_call(
         policy,
         parameters,
         result: result_placement(signature.result, integer_results, float_register)?,
+        callback_materializations: Vec::new(),
         ordinary_clobbers,
         stack_alignment,
         shadow_bytes: 0,
@@ -1863,6 +1909,7 @@ fn evaluate_syscall(
         policy,
         parameters,
         result,
+        callback_materializations: Vec::new(),
         ordinary_clobbers,
         stack_alignment: 16,
         shadow_bytes: 0,
@@ -1997,6 +2044,10 @@ impl Fnv1a {
         self.bytes(&value.to_le_bytes());
     }
 
+    fn u64(&mut self, value: u64) {
+        self.bytes(&value.to_le_bytes());
+    }
+
     fn call_plan(&mut self, plan: &CallPlan) {
         self.u8(match plan.policy {
             CallingPolicy::MicrosoftX64 => 0,
@@ -2020,6 +2071,39 @@ impl Fnv1a {
             None => self.u8(0),
         }
         self.register_set(&plan.ordinary_clobbers);
+        // Empty catalogs preserve the identity of ordinary plans created
+        // before callback materialization existed. A nonempty catalog is a
+        // new observable ABI commitment and receives its own domain tag.
+        if !plan.callback_materializations.is_empty() {
+            self.bytes(b"omega.callback-materializations.v1");
+            self.u32(plan.callback_materializations.len() as u32);
+            for row in &plan.callback_materializations {
+                self.u64(row.binder.get());
+                self.native_place(&row.destination);
+            }
+        }
+    }
+
+    fn native_place(&mut self, place: &NativePlace) {
+        match place {
+            NativePlace::Parameter(parameter) => {
+                self.u8(0);
+                self.u64(parameter.get());
+            }
+            NativePlace::Field {
+                parameter,
+                layout,
+                field_path,
+            } => {
+                self.u8(1);
+                self.u64(parameter.get());
+                self.u64(layout.get());
+                self.u32(field_path.len() as u32);
+                for slot in field_path {
+                    self.u64(slot.get());
+                }
+            }
+        }
     }
 
     fn state_plan(&mut self, plan: &StatePlan) {
