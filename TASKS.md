@@ -5352,6 +5352,12 @@ Remaining N6/N8 work:
   sequence, carrier, and canonical path tags while recursive structural-type
   framing and validation remain in the parent. The parent is 4,881 lines and
   the exact 199-function codec inventory remains unchanged.
+  Canonical structural-type declaration encoding/decoding now lives in a
+  focused private `structural_type_wire` child, owning exact record, fixed-
+  array, and sum tags, identities, lengths, and ordered case payload envelopes
+  while module ordering and foundation validation remain in the parent. The
+  parent is 4,815 lines and the exact 199-function codec inventory remains
+  unchanged.
   Proof-bundle coding likewise keeps its `PSIPRF`-specific little-endian
   cursor, bounded string/count/index handling, and nonzero semantic-ID
   primitives in a focused private child; its public API, exact bytes and
