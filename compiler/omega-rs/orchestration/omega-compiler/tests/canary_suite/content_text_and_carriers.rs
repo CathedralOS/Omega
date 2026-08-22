@@ -866,10 +866,13 @@ fn runtime_decimal_to_number_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-decimal-to-number-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("decimal-to-number canary should compile");
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("decimal-to-number canary should retain its executable receipt");
 
-    let output = Command::new(scratch.join(executable_name()))
+    let output = Command::new(executable)
         .output()
         .expect("decimal-to-number canary should run");
 
