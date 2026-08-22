@@ -4092,8 +4092,12 @@ Owners:
   retains its exact returning terminal edge through machine settlement and
   canonical installation format 29; object and installation replay bind that
   edge to the unique one-unit return-instruction fuel interval and reject edge
-  drift independently from value, type, and placement. Other
-  result shapes and targets remain fail-closed. Explicit provider views now
+  drift independently from value, type, and placement. Other result shapes and
+  targets remain fail-closed. AArch64 `u8` ABI result placement exists, but the
+  sole result-bearing Terminal provider is the x86 `in`-port realization;
+  AArch64 needs an admitted target operation/provider contract with exact
+  hardware authority and state footprint before result/receipt/edge custody can
+  land as one vertical. Explicit provider views now
   borrow one linear validity claim: consuming invalidation is accepted after
   the view's last use and rejected while the view remains live. Projected/
   content-bearing result calls remain fail-closed. Provider-view invalidation
