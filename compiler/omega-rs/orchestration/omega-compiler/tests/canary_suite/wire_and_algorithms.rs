@@ -1364,9 +1364,12 @@ fn runtime_gcd_euclid_exit_canary_runs() {
     let scratch = std::env::temp_dir().join(format!("omega-gcd-euclid-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("gcd euclid canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("gcd euclid canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("gcd euclid canary should run");
     assert_eq!(
@@ -1387,9 +1390,12 @@ fn runtime_rpn_evaluator_exit_canary_runs() {
     let scratch = std::env::temp_dir().join(format!("omega-rpn-eval-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("rpn evaluator canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("rpn evaluator canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("rpn evaluator canary should run");
     assert_eq!(
@@ -1412,9 +1418,12 @@ fn runtime_activity_selection_greedy_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-activity-greedy-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("activity selection canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("activity selection canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("activity selection canary should run");
     assert_eq!(
@@ -1436,9 +1445,12 @@ fn runtime_maze_pathfind_exit_canary_runs() {
     let scratch = std::env::temp_dir().join(format!("omega-maze-pathfind-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("maze pathfind canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("maze pathfind canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("maze pathfind canary should run");
     assert_eq!(
@@ -1514,9 +1526,12 @@ fn runtime_bfs_traversal_exit_canary_runs() {
     let scratch = std::env::temp_dir().join(format!("omega-bfs-traversal-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("bfs traversal canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("bfs traversal canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("bfs traversal canary should run");
     assert_eq!(
