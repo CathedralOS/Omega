@@ -6149,7 +6149,11 @@ compiler concept is introduced.
   the suspension and blocking roots, including mixed-axis checked bodies. The
   published checked operational root is retired; its plan remains only as a
   transient validation and independent-fact construction input.
-  Continue removing umbrella carriers after their remaining consumers migrate.
+  A complete consumer audit now finds only transient validation, normalized
+  call-topology/service inference, independent checked-fact projection, and
+  typed-report projection; no checked or Omega artifact retains the umbrella.
+  Operational-carrier retirement is complete. Continue only the remaining
+  independent axis publication and trust/qualification consumers.
 - **TPR4/TPR6 — design blocked on owner Q4.** Choose how an ordinary domain or
   routed requirement is classified and attached as a progress premise before
   connecting progress-profile grants and receipts. Generic routed/domain
