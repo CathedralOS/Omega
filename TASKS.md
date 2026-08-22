@@ -5395,6 +5395,12 @@ Owners:
   checks and literal exit 70. Exact-owner ambiguity, the 795 rooted/3 legacy
   inventory, and cross-copy receipt-drift fences remain green; their warm
   compiler/interpreter bodies remain 0.02s.
+  The finite forward-array and decreasing-index loop regressions now launch
+  solely through the exact executables retained by their checked compilation
+  reports while preserving sum-to-100/backward-sum-to-10 self-checks and
+  literal exit 70. Exact-owner ambiguity, the 795 rooted/3 legacy inventory,
+  and cross-copy receipt-drift fences remain green; warm compiler/interpreter
+  bodies remain 0.02s.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
@@ -5707,6 +5713,11 @@ reach or trust, and private proof improvements do not change public identity.
   555-line `scalar_conditional_stack` child. The 1,997-line parent retains
   terminal image orchestration, with crate linkage, native byte/error order,
   and the 69-function inventory unchanged.
+  Exact Boolean structural-condition identity, field geometry/read bytes, join
+  replay, and shared-cleanup region validation now live in a cohesive 325-line
+  `scalar_shared_convergence` child. The 1,690-line parent retains terminal
+  image orchestration, with crate linkage, native byte/error order, and the 69-
+  function inventory unchanged.
   The installed-cleanup ordinal-tamper regression now locates the authoritative
   internal-call custody row by its complete machine/text-offset/owner/target
   header before mutating the ordinal, rather than accidentally changing an
