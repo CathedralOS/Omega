@@ -4359,6 +4359,13 @@ Owners:
   specialization, and conformance diagnostics. Exact-owner pins and
   established trapping/GUI/platform/float/cast/coercion/report/interactive
   fences remain unchanged.
+  Independent affine-literal reconstruction now keeps its fixed root-bound
+  orientation directly in the common `affine_selection/literal/completion`
+  authority. The one-use verifier `literal/root_bounds` wrapper is removed;
+  completion still checks `literal <= root` before `root <= literal`,
+  independently of producer proof construction. Direct-before-alias
+  precedence, source/citation and endpoint order, proof shapes, rejection
+  behavior, and the fixed affine-literal frontier remain unchanged.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
