@@ -1346,6 +1346,18 @@ impl SymbolicMaterializationPlan {
             )));
         }
 
+        for action in &self.actions {
+            let MaterializationAction::ResolvedWrite {
+                write,
+                source_value,
+            } = action
+            else {
+                unreachable!("unresolved actions were rejected above")
+            };
+            validate_write(self.byte_len, write)?;
+            validate_write_source_value(write, *source_value, "resolved symbolic")?;
+        }
+
         let mut staged = destination[..self.byte_len].to_vec();
         for action in &self.actions {
             let MaterializationAction::ResolvedWrite {
@@ -3953,6 +3965,22 @@ mod tests {
         )
         .expect("a resolved fitting symbolic value supplies a concrete fit proof");
         let mut bytes = [0xa5_u8; 4];
+
+        let mut tampered = plan.clone();
+        let MaterializationAction::ResolvedWrite { source_value, .. } = &mut tampered.actions[0]
+        else {
+            panic!("resolved derivation must retain a resolved write")
+        };
+        *source_value = 1_u64 << 32;
+        let error = tampered
+            .materialize_resolved_into(&mut bytes)
+            .expect_err("resolved execution must replay retained stored-integer fit evidence");
+        assert!(error.0.contains("does not fit"), "{}", error.0);
+        assert_eq!(
+            bytes, [0xa5; 4],
+            "tampered resolved values reject before destination mutation"
+        );
+
         plan.materialize_resolved_into(&mut bytes)
             .expect("the resolved value should use the exact stored width");
         assert_eq!(bytes, [0x78, 0x56, 0x34, 0x12]);
