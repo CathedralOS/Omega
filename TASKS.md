@@ -2985,6 +2985,15 @@ Remaining:
   independent witness construction and proof-kernel replay. Definition-word
   order, proof shape, rejection behavior, and the fixed four-layer frontier
   remain unchanged.
+  Unique earlier affine-sibling literal-landing discovery now lives in paired,
+  side-local `affine_custody/frontier/prefix/literals/landing` modules. Producer
+  and reconstruction independently validate and scan only the semantic-axiom
+  prefix before the current definition, preserve source-row order and both
+  equality orientations, and require exactly one same-carrier `Value`-to-
+  signed-literal match. Their `literals` parents retain definition-word replay,
+  arithmetic-step orientation, sibling position, and target completion.
+  Witness bytes, missing/late/redirected/ambiguous rejection, and the fixed
+  four-definition frontier remain unchanged.
   Source-ordered `Value`-keyed affine candidate storage now lives in paired,
   side-local `affine_selection/value_index` modules and is reused by literal-
   landing and two-citation right-leg catalogs. Producer and reconstruction
