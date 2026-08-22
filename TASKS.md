@@ -1385,6 +1385,13 @@ Remaining:
   same exact identity selection. A missing, redirected, crossed, or mistyped
   target equality rejects. The affine relation builder cannot recurse into
   another target alias, so this adds one wrapper only and no alias-chain search.
+  One fixed sibling may instead carry a completed affine bound across exactly
+  two distinct same-carrier target equalities. It nests two
+  `IntegerLessOrEqualSubstitution` nodes outside `IntegerAffineBound`; missing,
+  reused, redirected, cyclic, or mistyped equalities reject. The constructor
+  builds the affine relation directly at the final alias and never recurses
+  through the general order prover, so a third target alias remains outside the
+  family.
   One bounded mixed root-custody sibling may instead compose exactly two prior
   order citations at an alias endpoint, transport that completed bound through
   exactly one retained value equality to the affine root, and then apply
@@ -1915,7 +1922,7 @@ Remaining:
   storage/place, 866-line outbound-call, and 512-line buffer/wire/text
   responsibilities. A
   separate instruction-selection boundary-footprint owner has begun the same
-  split: its 2,947-line `entry.rs` parent delegates all eleven compact-binary
+  split: its 2,255-line `entry.rs` parent delegates all eleven compact-binary
   append/read footprint derivations to a 433-line `entry/wire.rs` child, while
   a separate 373-line `entry/text.rs` child owns bounded-buffer, string-
   descriptor, and runtime-text assembly footprints. A focused 152-line
@@ -1940,8 +1947,11 @@ Remaining:
   `entry/direct_imports.rs` child owns all sixteen direct-import footprint
   classifications and their shared retained-plan evaluator. A 121-line
   `entry/indirect_calls.rs` child owns table/vtable call footprints without
-  conflating them with direct import relocation. The public re-export surface,
-  validation order, and 135-function inventory are unchanged; the
+  conflating them with direct import relocation. A 709-line
+  `entry/syscalls.rs` child owns the complete simple, relocatable-argument,
+  result, and timespec syscall footprint family plus its closed-shape test. The
+  public re-export surface, validation order, and 135-function inventory are
+  unchanged; the
   children depend only on retained instructions/operands, the validated
   boundary plan, place-shape classification where applicable, and architecture
   encoder clobber/state facts. A
@@ -2661,7 +2671,11 @@ Remaining N6/N8 work:
   structural matcher substitutes retained bindings through representative
   runtime parameter and result types, including const-parametric array lengths,
   without mutating the checked type arena; unsupported constrained/dynamic
-  shapes fail closed unless already canonically identical. A direct `define`
+  shapes fail closed unless already canonically identical. The general
+  contract-entailment root now delegates structural proof-term construction,
+  constant unfolding, selected-machine application identity, and the occurs
+  check to a focused 301-line child without changing the proof language or
+  judgment order. A direct `define`
   request now also requires exact
   positional runtime correspondence: public parameter symbols in order,
   one-to-one unique runtime identities, quotient-carrier/representative-type or
