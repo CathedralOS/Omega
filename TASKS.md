@@ -1042,6 +1042,12 @@ Owners:
   1,906-line coordinator retains root validation, admission publication,
   interrupt lifecycle, and ledger orchestration; public re-exports,
   diagnostics, behavior, and the 107-function inventory remain unchanged.
+  External-root candidate schema, canonical validation, and exact normalized
+  root fingerprinting now live in a focused 425-line `root_validation` child.
+  The remaining 1,496-line coordinator is the cohesive admission-publication,
+  interrupt-lifecycle, and installed-root-ledger owner; public re-exports,
+  diagnostics/order, behavior, and the 107-function inventory remain
+  unchanged. This is the natural modularization boundary for that crate.
 
 Acceptance: UART/MMIO, shared-page IPC, and ordinary RAM use one extent/layout
 foundation with different profiles. Misalignment, insufficient rights,
@@ -5446,6 +5452,12 @@ Owners:
   preserving the `"12345"` to 12345 self-check and literal exit 70. Exact-owner
   ambiguity, the 795 rooted/3 legacy inventory, and cross-copy receipt-drift
   fences remain green; its warm compiler/interpreter body is 0.28s.
+  The computed carrier-byte width-coercion regression now launches solely
+  through the exact executable retained by its checked compilation report while
+  preserving interpreter/native parity for computed 300 to `u8` low byte 44
+  and literal exit 70. Exact-owner ambiguity, the 795 rooted/3 legacy
+  inventory, and cross-copy receipt-drift fences remain green; its warm body is
+  0.04s.
   The finite forward-array and decreasing-index loop regressions now launch
   solely through the exact executables retained by their checked compilation
   reports while preserving sum-to-100/backward-sum-to-10 self-checks and
