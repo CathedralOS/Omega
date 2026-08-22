@@ -56,6 +56,8 @@ pub use pipeline::{
     SelectedExternalRootProviderPlan, SelectedExternalRootWriterPreparationError,
     SelectedProgramEntrySourceSignature, SelectedProgramStorageEntryPlan, SymbolicFieldValue,
     SymbolicMaterializationPlan, ValidatedAccessPlan, ValidatedPlacementPlan,
+    ValidatedWrittenBoundExternalRootPostHandoffWriterDestination,
+    WrittenBoundExternalRootConsumerValidationError,
     WrittenBoundExternalRootPostHandoffWriterDestination,
     WrittenBoundExternalRootWriterRecoveryError, bind_emitted_program_storage_entry_native_bridge,
     bind_external_root_post_handoff_writer_invocation, bind_generated_program_storage_entry_plan,
