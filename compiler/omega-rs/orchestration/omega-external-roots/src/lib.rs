@@ -1573,7 +1573,7 @@ pub struct ExternalRootCandidate {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidatedExternalRoot {
     candidate: ExternalRootCandidate,
-    boundary: BoundaryEntryPlan,
+    boundary: ValidatedBoundaryEntryPlan,
     boundary_contract_fingerprint: u64,
     normalized_identity: u64,
 }
@@ -1608,11 +1608,13 @@ impl OpaqueProviderExitAssurance {
             ));
         }
         if let Self::AcceptedClaim { realization, .. } = self {
-            validate_provider_exit_realization(&root.boundary, &realization).map_err(|error| {
-                ExternalRootDiagnostic(format!(
-                    "opaque provider exit claim violates the admitted boundary: {error}"
-                ))
-            })?;
+            validate_provider_exit_realization(root.boundary.plan(), &realization).map_err(
+                |error| {
+                    ExternalRootDiagnostic(format!(
+                        "opaque provider exit claim violates the admitted boundary: {error}"
+                    ))
+                },
+            )?;
         }
         Ok(self)
     }
@@ -1641,7 +1643,7 @@ impl ValidatedExternalRoot {
     }
 
     pub const fn boundary(&self) -> &BoundaryEntryPlan {
-        &self.boundary
+        self.boundary.plan()
     }
 
     pub const fn boundary_contract_fingerprint(&self) -> u64 {
@@ -1831,7 +1833,7 @@ impl PreparedExternalRootPostHandoffWriterInvocation {
     }
 
     pub fn selected_boundary_parameter_count(&self) -> usize {
-        self.root_evidence.boundary.call.parameters.len()
+        self.root_evidence.boundary.plan().call.parameters.len()
     }
 
     pub const fn selected_boundary_contract_fingerprint(&self) -> u64 {
@@ -1972,7 +1974,7 @@ impl<'mapping, 'bytes> WrittenExternalRootPostHandoffWriterDestination<'mapping,
     }
 
     pub fn selected_boundary_parameter_count(&self) -> usize {
-        self.root_evidence.boundary.call.parameters.len()
+        self.root_evidence.boundary.plan().call.parameters.len()
     }
 
     pub const fn selected_boundary_contract_fingerprint(&self) -> u64 {
@@ -2230,6 +2232,41 @@ impl omega_terminal_installation_evidence::TerminalProviderExecutionEvidence for
     }
 }
 
+fn fingerprint_provider_execution(
+    identity: ProviderExecutionId,
+    root: &ValidatedExternalRoot,
+    exit_assurance_fingerprint: u64,
+) -> u64 {
+    let candidate = root.candidate();
+    let mut hash = Fnv1a::new();
+    hash.u64(identity.normalized_identity());
+    hash.u64(candidate.provider_plan.normalized_identity());
+    hash.u64(candidate.identity.normalized_identity());
+    hash.u64(root.normalized_identity());
+    hash.u64(candidate.provider.normalized_identity());
+    hash.u64(candidate.entry.normalized_identity());
+    hash.u64(root.boundary_contract_fingerprint());
+    hash.u64(
+        candidate
+            .stack
+            .realization
+            .artifact_composition_fingerprint(),
+    );
+    hash.u64(candidate.stack.realization.composition_fingerprint());
+    hash.u64(candidate.logical_fuel.realization.composition_fingerprint());
+    hash.u64(
+        candidate
+            .machine_state
+            .validation_receipt
+            .normalized_identity(),
+    );
+    hash.u64(exit_assurance_fingerprint);
+    for effect in &candidate.effects {
+        hash.u64(effect.normalized_identity());
+    }
+    hash.finish()
+}
+
 impl ProviderExecution {
     /// Provider/trust admission creates this binding only after selecting the
     /// exact provider plan that will execute the validated root.
@@ -2248,32 +2285,8 @@ impl ProviderExecution {
             .validate(root)?;
         let exit_assurance_fingerprint = exit_assurance.fingerprint();
         let candidate = root.candidate();
-        let mut hash = Fnv1a::new();
-        hash.u64(identity.normalized_identity());
-        hash.u64(candidate.provider_plan.normalized_identity());
-        hash.u64(candidate.identity.normalized_identity());
-        hash.u64(root.normalized_identity());
-        hash.u64(candidate.provider.normalized_identity());
-        hash.u64(candidate.entry.normalized_identity());
-        hash.u64(root.boundary_contract_fingerprint());
-        hash.u64(
-            candidate
-                .stack
-                .realization
-                .artifact_composition_fingerprint(),
-        );
-        hash.u64(candidate.stack.realization.composition_fingerprint());
-        hash.u64(candidate.logical_fuel.realization.composition_fingerprint());
-        hash.u64(
-            candidate
-                .machine_state
-                .validation_receipt
-                .normalized_identity(),
-        );
-        hash.u64(exit_assurance_fingerprint);
-        for effect in &candidate.effects {
-            hash.u64(effect.normalized_identity());
-        }
+        let normalized_identity =
+            fingerprint_provider_execution(identity, root, exit_assurance_fingerprint);
         Ok(Self {
             identity,
             root_evidence: root.clone(),
@@ -2293,7 +2306,7 @@ impl ProviderExecution {
             exit_assurance,
             exit_assurance_fingerprint,
             effects: candidate.effects.clone(),
-            normalized_identity: hash.finish(),
+            normalized_identity,
         })
     }
 
@@ -2314,7 +2327,7 @@ impl ProviderExecution {
     }
 
     pub fn selected_boundary_parameter_count(&self) -> usize {
-        self.root_evidence.boundary.call.parameters.len()
+        self.root_evidence.boundary.plan().call.parameters.len()
     }
 
     pub const fn selected_boundary_contract_fingerprint(&self) -> u64 {
@@ -2336,6 +2349,37 @@ impl ProviderExecution {
             normalized_root_identity: self.normalized_root_identity,
             boundary_contract_fingerprint: self.boundary_contract_fingerprint,
         }
+    }
+
+    /// Independently replay the complete admitted root, execution-to-root
+    /// binding, exit assurance, and normalized execution identity before an
+    /// installed resolver observes symbolic writer sources.
+    pub fn validate_for_writer_preparation(&self) -> Result<(), ExternalRootDiagnostic> {
+        let replayed_root = validate_external_root(
+            self.root_evidence.candidate.clone(),
+            &self.root_evidence.boundary,
+        )?;
+        if replayed_root != self.root_evidence || !self.matches_root(&replayed_root) {
+            return Err(ExternalRootDiagnostic(
+                "post-handoff writer provider execution does not retain its exact validated root evidence"
+                    .into(),
+            ));
+        }
+        self.exit_assurance.validate(&replayed_root)?;
+        let exit_assurance_fingerprint = self.exit_assurance.fingerprint();
+        if exit_assurance_fingerprint != self.exit_assurance_fingerprint
+            || fingerprint_provider_execution(
+                self.identity,
+                &replayed_root,
+                exit_assurance_fingerprint,
+            ) != self.normalized_identity
+        {
+            return Err(ExternalRootDiagnostic(
+                "post-handoff writer provider execution identity fails exact structural replay"
+                    .into(),
+            ));
+        }
+        Ok(())
     }
 
     /// Prepare one post-handoff writer invocation only when it contains this
@@ -2360,6 +2404,7 @@ impl ProviderExecution {
                     .into(),
             ));
         }
+        self.validate_for_writer_preparation()?;
         self.validate_installed_entry_binding(installed_code)?;
 
         let invocation = writer
@@ -2598,7 +2643,7 @@ pub fn validate_external_root(
     let normalized_identity = fingerprint_root(&candidate, boundary_contract_fingerprint);
     Ok(ValidatedExternalRoot {
         candidate,
-        boundary: boundary.plan().clone(),
+        boundary: boundary.clone(),
         boundary_contract_fingerprint,
         normalized_identity,
     })
@@ -3562,7 +3607,7 @@ impl InstalledRootLedger {
             acknowledgement_parameter_index: root.candidate.acknowledgement_parameter_index,
             interrupt_mask_guard_claim: root.candidate.interrupt_mask_guard_claim,
             boundary_contract_fingerprint: root.boundary_contract_fingerprint,
-            boundary: root.boundary,
+            boundary: root.boundary.plan().clone(),
             provider: root.candidate.provider,
             effects: root.candidate.effects,
             trust_receipts: root.candidate.trust_receipts,
@@ -5150,7 +5195,7 @@ mod tests {
         let entry = entry_id(1001);
         let code = installed_code(1, entry);
         let validated = validate_external_root(candidate(entry), &boundary()).expect("root plan");
-        let execution = provider_execution(&validated);
+        let mut execution = provider_execution(&validated);
         let writer = entry_writer(entry);
         let selected_plan = execution.provider_plan();
 
@@ -5159,6 +5204,22 @@ mod tests {
             .prepare_post_handoff_entry_writer(wrong_plan, &code, &writer, 16, writer_site(0x8000))
             .expect_err("a different selected provider closure must reject");
         assert!(error.0.contains("selected provider plan"));
+
+        execution.normalized_identity ^= 1;
+        let error = execution
+            .prepare_post_handoff_entry_writer(
+                selected_plan,
+                &code,
+                &writer,
+                16,
+                writer_site(0x8000),
+            )
+            .expect_err("execution fingerprint drift must reject before source resolution");
+        assert!(error.0.contains("identity fails exact structural replay"));
+        execution.normalized_identity ^= 1;
+        execution
+            .validate_for_writer_preparation()
+            .expect("repaired execution evidence supports exact preparation retry");
 
         let wrong_writer = entry_writer(entry_id(1002));
         let error = execution
