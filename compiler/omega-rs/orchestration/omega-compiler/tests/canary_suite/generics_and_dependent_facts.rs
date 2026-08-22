@@ -2044,9 +2044,12 @@ fn runtime_indexed_rmw_loop_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_indexed_rmw_loop_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-indexed-rmw-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("indexed RMW loop canary should compile from its authored root");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("indexed RMW canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("indexed RMW loop canary should run");
     assert_eq!(
@@ -2070,9 +2073,12 @@ fn runtime_computed_indexed_write_exit_canary_runs() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-computed-indexed-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("computed indexed-write canary should compile from its authored root");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("computed indexed-write canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("computed indexed-write canary should run");
     assert_eq!(
@@ -2096,9 +2102,12 @@ fn runtime_nested_const_product_index_exit_canary_runs() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-nested-product-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("nested const-product index canary should compile from its authored root");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("nested const-product index canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("nested const-product index canary should run");
     assert_eq!(
@@ -2120,9 +2129,12 @@ fn runtime_hoisted_index_write_exit_canary_runs() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-hoisted-write-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("hoisted-index write canary should compile from its authored root");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("hoisted-index write canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("hoisted-index write canary should run");
     assert_eq!(
@@ -2141,9 +2153,12 @@ fn runtime_let_mut_reassign_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_let_mut_reassign_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-let-mut-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("let-mut canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("let-mut canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("let-mut canary should run");
     assert_eq!(
