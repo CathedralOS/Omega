@@ -32,15 +32,12 @@ impl<'a> TwoCitationChains<'a> {
             self.requirements,
             self.semantic_axioms,
             |left_fact, left, middle| {
-                for &(right_fact, right) in self.right_legs.candidates(middle) {
-                    if !fact_identity::distinct(left_fact, right_fact) {
-                        continue;
-                    }
-                    if complete(left, right) {
-                        return true;
-                    }
-                }
-                false
+                self.right_legs
+                    .candidates(middle)
+                    .iter()
+                    .any(|&(right_fact, right)| {
+                        fact_identity::distinct(left_fact, right_fact) && complete(left, right)
+                    })
             },
         )
     }
