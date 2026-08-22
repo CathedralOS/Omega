@@ -1692,10 +1692,13 @@ fn runtime_subslice_dynamic_index_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("runtime subslice dynamic index canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("subslice dynamic-index canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("runtime subslice dynamic index canary should run");
 
@@ -1719,10 +1722,13 @@ fn runtime_subslice_bounded_dynamic_index_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("runtime bounded subslice dynamic index canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("bounded subslice dynamic-index canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("runtime bounded subslice dynamic index canary should run");
 
@@ -1746,10 +1752,13 @@ fn runtime_subslice_end_dynamic_index_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("runtime end subslice dynamic index canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("end subslice dynamic-index canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("runtime end subslice dynamic index canary should run");
 
@@ -1773,10 +1782,13 @@ fn runtime_nested_subslice_dynamic_index_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("runtime nested subslice dynamic index canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("nested subslice dynamic-index canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("runtime nested subslice dynamic index canary should run");
 
@@ -1800,10 +1812,13 @@ fn runtime_nested_subslice_fixed_index_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("runtime nested subslice fixed index canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("nested subslice fixed-index canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("runtime nested subslice fixed index canary should run");
 
