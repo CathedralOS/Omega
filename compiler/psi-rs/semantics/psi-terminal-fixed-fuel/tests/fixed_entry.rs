@@ -1874,6 +1874,7 @@ fn unit_effect_fixture() -> TerminalModule {
             id: boundary_id(1),
             identity: "test::boundary".into(),
             attachment: None,
+            scalar_parameters: Vec::new(),
             structural_parameters: Vec::new(),
             result: None,
             requires: Vec::new(),
@@ -1960,6 +1961,7 @@ fn unit_effect_fixture() -> TerminalModule {
                         result: OperationResult::Unit,
                         kind: OperationKind::BoundaryCall {
                             boundary: boundary_id(1),
+                            arguments: Vec::new(),
                             structural_arguments: Vec::new(),
                             completion_receipts: Vec::new(),
                             requirement_obligations: Vec::new(),
