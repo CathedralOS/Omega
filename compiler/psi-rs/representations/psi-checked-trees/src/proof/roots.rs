@@ -21,6 +21,8 @@ pub struct ProofFacts {
     /// Proof-only float projections bound to actual validated source calls.
     /// Rows retain only plan-local value identities and exact landed formats.
     pub float_meaning_projections: Vec<crate::CheckedFloatMeaningProjection>,
+    /// Proof-position equalities over exact float-meaning projection results.
+    pub float_meaning_equalities: Vec<crate::CheckedFloatMeaningEqualityProposition>,
     /// Canonical nominal proposition declarations and applications after
     /// transparent aliases and source handles have been eliminated.
     pub proposition_vocabulary: crate::CheckedPropositionVocabulary,
@@ -39,6 +41,7 @@ impl ProofFacts {
         contract_exits: Arena<ContractExitFact>,
         contract_operator_uses: Arena<ContractOperatorUseFact>,
         float_meaning_projections: Vec<crate::CheckedFloatMeaningProjection>,
+        float_meaning_equalities: Vec<crate::CheckedFloatMeaningEqualityProposition>,
         proposition_vocabulary: crate::CheckedPropositionVocabulary,
     ) -> Self {
         Self {
@@ -53,6 +56,7 @@ impl ProofFacts {
             contract_exits,
             contract_operator_uses,
             float_meaning_projections,
+            float_meaning_equalities,
             proposition_vocabulary,
         }
     }
@@ -80,6 +84,7 @@ mod tests {
         let contract_exits = Arena::<ContractExitFact>::with_capacity(5);
         let contract_operator_uses = Arena::<ContractOperatorUseFact>::with_capacity(6);
         let float_meaning_projections = Vec::new();
+        let float_meaning_equalities = Vec::new();
         let proposition_vocabulary = crate::CheckedPropositionVocabulary::default();
 
         let facts = ProofFacts::with_roots(
@@ -94,6 +99,7 @@ mod tests {
             contract_exits.clone(),
             contract_operator_uses.clone(),
             float_meaning_projections.clone(),
+            float_meaning_equalities.clone(),
             proposition_vocabulary.clone(),
         );
 
@@ -114,6 +120,7 @@ mod tests {
         assert_eq!(facts.contract_exits, contract_exits);
         assert_eq!(facts.contract_operator_uses, contract_operator_uses);
         assert_eq!(facts.float_meaning_projections, float_meaning_projections);
+        assert_eq!(facts.float_meaning_equalities, float_meaning_equalities);
         assert_eq!(facts.proposition_vocabulary, proposition_vocabulary);
     }
 }

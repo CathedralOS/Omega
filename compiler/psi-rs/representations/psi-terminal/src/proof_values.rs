@@ -10,6 +10,9 @@ use psi_core::IeeeFloatFormat;
 pub struct ProofValueId(pub u32);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ProofPropositionId(pub u32);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct FloatProjectionInputId(pub u32);
 
 /// Closed Terminal identity for the format-specific public projection. This
@@ -48,4 +51,13 @@ pub struct FloatMeaningProjection {
     pub result: ProofValueDeclaration,
     pub source: FloatProjectionInput,
     pub operation: FloatMeaningProjectionOperation,
+}
+
+/// One source-independent proof-only equality over retained projection
+/// results. This row is not a runtime Boolean and cannot occur in a block.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FloatMeaningEqualityProposition {
+    pub id: ProofPropositionId,
+    pub left: ProofValueId,
+    pub right: ProofValueId,
 }

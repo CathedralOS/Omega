@@ -65,6 +65,7 @@ pub(crate) fn build_check_facts(
         program,
         &mut proof,
         &validation_facts.float_meaning_projection_invocations,
+        &validation_facts.float_meaning_equality_propositions,
     )?;
     crate::proof::bind_evidence_package_invocation_facts(program, &mut proof)?;
     crate::proof::bind_evidence_forwarding_facts(program, &mut proof)?;

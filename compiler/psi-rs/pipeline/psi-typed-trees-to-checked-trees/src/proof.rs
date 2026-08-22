@@ -101,6 +101,7 @@ pub(crate) fn build_proof_facts_with_operators(
         contract_exits,
         contract_operator_uses,
         Vec::new(),
+        Vec::new(),
         proposition_vocabulary,
     )
 }
