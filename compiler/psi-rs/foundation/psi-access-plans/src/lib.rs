@@ -2574,6 +2574,35 @@ fn project_placed_field<'view, 'extent>(
     required_observation: Option<ObservationModel>,
     authority: PlacementAuthorityRef<'view, 'extent>,
 ) -> Result<PlacedFieldProjection<'view, 'extent>, AccessPlanDiagnostic> {
+    if authority.placement_plan() != plan
+        || authority.profile_receipt() != profile_receipt
+        || authority.resources() != resources
+        || authority.admission() != admission
+        || authority.base() != base
+        || authority.source_loan() != source_loan
+    {
+        return Err(AccessPlanDiagnostic(
+            "placed field projection arguments do not match the retained placement authority"
+                .into(),
+        ));
+    }
+    if authority.profile().receipt() != profile_receipt {
+        return Err(AccessPlanDiagnostic(
+            "placed field projection profile receipt differs from its retained admitted profile"
+                .into(),
+        ));
+    }
+    let replayed_resources = authority.replay_resources().map_err(|diagnostic| {
+        AccessPlanDiagnostic(format!(
+            "placed field projection could not replay the retained placement authority: {diagnostic}"
+        ))
+    })?;
+    if &replayed_resources != resources {
+        return Err(AccessPlanDiagnostic(
+            "placed field projection replayed resource compatibility differs from the retained authority"
+                .into(),
+        ));
+    }
     let descriptor = plan.access.field_descriptor(key).cloned().ok_or_else(|| {
         AccessPlanDiagnostic(format!(
             "field key in canonical slot {} does not expose a placed accessor",
@@ -6690,7 +6719,19 @@ mod tests {
             resources,
             loan,
         };
-        let view = place(repaired).expect("returned admission supports corrected retry");
+        let mut view = place(repaired).expect("returned admission supports corrected retry");
+        let retained_profile = view.profile.clone();
+        let coincident = uart_extent_with_lineage(0xad7c, 4, 203);
+        view.profile = stable_word_profile(&coincident);
+        let diagnostic = view
+            .project(field_key(plan.access(), "word"))
+            .expect_err("field projection must replay retained placement authority");
+        assert!(diagnostic.0.contains("field projection"));
+        assert!(diagnostic.0.contains("retained placement authority"));
+        assert_eq!(view.admission(), admission_id);
+        assert_eq!(view.base(), 0xad7c);
+        assert_eq!(view.length(), 4);
+        view.profile = retained_profile;
         let projection = view
             .project(field_key(plan.access(), "word"))
             .expect("shared Stable projection");
