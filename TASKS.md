@@ -2447,6 +2447,14 @@ Remaining:
   logic; invalid goals still reject before frontier replay, while witness order,
   kernel checking, proof shapes, rejection behavior, and the four-definition
   frontier remain unchanged.
+  One-layer affine frontier expansion now lives in paired, side-local
+  `affine_custody/frontier/layer` modules. Producer and reconstruction
+  independently retain each prefix word, next admissible source index, and
+  current exact `Value` endpoint; each layer advances through its own ordered
+  definition index and invokes its own kernel-checked prefix replay. Frontier
+  parents retain the exact four-layer limit and accumulated word order, so
+  candidate order, witness/proof shape, rejection behavior, and the fixed
+  frontier remain unchanged.
   One-equality transitive affine completion now lives in independent side-local
   `affine_selection/transitive/alias/completion` modules. Each parent retains
   its own ledger-ordered equality discovery, distinct root/alias custody, and
@@ -4885,6 +4893,14 @@ Owners:
   status 70 and the detailed 71–74 wrong-arm diagnostics. Exact-owner
   ambiguity, the 795 rooted/3 legacy inventory, and receipt-drift fences remain
   green; loop, float, trapping, and legacy owners remain separate.
+  Three authored-root payload-layout regressions—multi-field case arithmetic,
+  same-named fields across case payloads, and sum tag/payload field-storage
+  round-trip—now launch `OutputOnly` native execution solely through exact
+  checked-report executable receipts while preserving literal status 70,
+  interpreter parity where present, and detailed wrong-field/tag/payload
+  diagnostics. Exact-owner ambiguity, the 795 rooted/3 legacy inventory, and
+  receipt-drift fences remain green; nested-loop and mixed-width payload owners
+  remain separate.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
@@ -5536,6 +5552,11 @@ Remaining N6/N8 work:
   discard order, tags, and error behavior while recursive proposition bytes
   remain parent-owned. The parent is 3,959 lines and the exact 199-function
   codec inventory remains unchanged.
+  Recursive canonical proposition encoding/decoding now lives in a focused
+  private `proposition_wire` child, preserving all 13 exact variant tags,
+  nesting bounds, operand order, invalid-tag/error behavior, and sibling-owned
+  scalar, content, and structural-field payload bytes. The parent is 3,798
+  lines and the exact 199-function codec inventory remains unchanged.
   Proof-bundle coding likewise keeps its `PSIPRF`-specific little-endian
   cursor, bounded string/count/index handling, and nonzero semantic-ID
   primitives in a focused private child; its public API, exact bytes and
