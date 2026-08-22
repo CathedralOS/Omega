@@ -4194,6 +4194,34 @@ Owners:
   all base/index-confusion diagnostics. Exact-owner pins remain stable; the
   adjacent float section and all profiled, exceptional, interactive, report-
   bearing, slow, rendering, coercion, and automaton owners remain fenced.
+  Exact direct affine-literal eligibility now lives in paired, side-local
+  `affine_selection/literal/direct/candidates/eligibility` modules. Producer
+  and reconstruction independently require a Value root, an exact integer
+  literal, and identical integer carriers before completion. Source-ordered
+  oriented equality discovery, producer-only citation custody, proof shape,
+  rejection behavior, direct-before-one-alias precedence, and the fixed affine-
+  literal frontier remain unchanged.
+  Five authored-root scalar/indexed-storage executions—scoped constants,
+  `u64::MAX`, guarded and direct computed indexing, and dual-indexed copying—
+  now launch solely through exact checked-report executable receipts while
+  preserving literal statuses 70, 70, 30, 1, and 50 and all width/index/copy
+  diagnostics. Exact-owner pins remain stable; time-host and all other fenced
+  owners remain unchanged.
+  Fixed affine-literal root-bound orientation now lives in paired, side-local
+  `affine_selection/literal/root_bounds` modules. Producer and reconstruction
+  independently preserve `literal <= value` before `value <= literal`; the
+  producer additionally binds substitution endpoint 1 then 0 for its existing
+  direct and nested alias proof constructors. Direct and one-intermediate-alias
+  completion now consume that common side-local order without sharing
+  authority across the trust boundary. Direct-before-alias precedence, proof
+  shapes, rejection behavior, and the fixed affine-literal frontier remain
+  unchanged.
+  Five authored-root indexed-container executions—double-indexed writes,
+  generic setter and method-instance matrices, frame-resident double-indexed
+  reads, and double-indexed read-modify-write—now launch solely through exact
+  checked-report executable receipts while preserving literal status 1 and all
+  placement, specialization, and stale-fold diagnostics. Exact-owner pins
+  remain stable; all existing fenced owners remain unchanged.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
