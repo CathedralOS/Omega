@@ -1,5 +1,26 @@
 use super::*;
 
+fn assert_native_exit_code(
+    report: &CompileReport,
+    expected: i32,
+    fixture: &str,
+    expectation: &str,
+) {
+    let executable = report
+        .checked_native_executable_path()
+        .unwrap_or_else(|| panic!("{fixture} lost its exact executable publication receipt"));
+    let output = Command::new(executable)
+        .output()
+        .unwrap_or_else(|error| panic!("{fixture} should run: {error}"));
+    assert_eq!(
+        output.status.code(),
+        Some(expected),
+        "{expectation}; expected exit {expected}, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
 #[test]
 fn explicit_program_entry_binding_owns_capability_manifest_identity() {
     let canary = pass_canary("build/explicit_program_entry_binding");
@@ -2332,7 +2353,7 @@ fn entry_run_args_bytes_canary_runs() {
     let canary = pass_canary("targets/entry_run_args_bytes");
     let build_dir = std::env::temp_dir().join(format!("omega-run-args-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_with_auxiliary_artifacts(CompileOptions {
+    let compilation = compile_with_auxiliary_artifacts(CompileOptions {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
@@ -2348,16 +2369,11 @@ fn entry_run_args_bytes_canary_runs() {
             && footprint_artifact.contains("\"enumeration_complete\": false"),
         "bytes handoff must retain entry-storage, descriptor, and exit-register evidence without claiming final completeness"
     );
-    let output = Command::new(build_dir.join(executable_name()))
-        .output()
-        .expect("entry run-args canary should run");
-    assert_eq!(
-        output.status.code(),
-        Some(5),
-        "expected args.len == 32 (the bytes handoff bound, exit 5); got {:?}
-{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        5,
+        "entry run-args canary",
+        "the canonical byte-view argument should retain its 32-byte handoff bound",
     );
     let _ = fs::remove_dir_all(&build_dir);
 }
@@ -2371,18 +2387,13 @@ fn runtime_utf16_literal_exit_canary_runs() {
     let canary = pass_canary("text/runtime_utf16_literal_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-utf16-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("utf16 literal canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
-        .output()
-        .expect("utf16 literal canary should run");
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected the utf16 greeting's code units to verify (exit 70); got {:?}
-{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        70,
+        "Utf16 literal canary",
+        "the greeting's exact Utf16 code units should verify",
     );
     let _ = fs::remove_dir_all(&build_dir);
 }
@@ -2396,17 +2407,13 @@ fn runtime_case_array_element_write_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_case_array_element_write_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-case-array-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("case-array element write canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
-        .output()
-        .expect("case-array element write canary should run");
-    assert_eq!(
-        output.status.code(),
-        Some(36),
-        "expected both case payloads to read back (exit 36); got {:?}: {}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        36,
+        "case-array element-write canary",
+        "both constant- and runtime-indexed case payloads should read back",
     );
     let _ = fs::remove_dir_all(&build_dir);
 }
@@ -2421,17 +2428,13 @@ fn runtime_wire_policy_authored_plan_exit_canary_runs() {
     let canary = pass_canary("wire/runtime_wire_policy_authored_plan_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-wire-policy-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("policy-authored wire plan canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
-        .output()
-        .expect("policy-authored wire plan canary should run");
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected the policy-authored roundtrip to hold byte-for-byte (exit 70); got {:?}: {}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        70,
+        "policy-authored wire-plan canary",
+        "the authored plan should roundtrip its exact bytes",
     );
     let _ = fs::remove_dir_all(&build_dir);
 }
@@ -2445,17 +2448,13 @@ fn runtime_wire_policy_authored_nested_exit_canary_runs() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-wire-policy-nested-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("policy-authored nested wire plan canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
-        .output()
-        .expect("policy-authored nested wire plan canary should run");
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected the policy-authored NESTED roundtrip to hold byte-for-byte (exit 70); got {:?}: {}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        70,
+        "policy-authored nested wire-plan canary",
+        "the parent and child authored plans should roundtrip their exact nested bytes",
     );
     let _ = fs::remove_dir_all(&build_dir);
 
