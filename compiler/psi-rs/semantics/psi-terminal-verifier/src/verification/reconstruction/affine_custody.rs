@@ -30,3 +30,33 @@ pub(super) fn retained_from_root(
         |witness| completion::retained(context, goal, semantic_axioms, root_bound, &witness),
     )
 }
+
+pub(super) fn retained_from_root_after(
+    context: &PropositionContext,
+    goal: &Proposition,
+    semantic_axioms: &[Proposition],
+    definitions: &DefinitionIndex,
+    root: &ScalarTerm,
+    minimum_axiom: usize,
+    root_bound: &Proposition,
+) -> bool {
+    candidates::any(
+        context,
+        goal,
+        semantic_axioms,
+        definitions,
+        root,
+        |witness| {
+            witness
+                .definition_axioms
+                .iter()
+                .all(|&index| index > minimum_axiom)
+                && witness
+                    .literal_axioms
+                    .iter()
+                    .flatten()
+                    .all(|&index| index > minimum_axiom)
+                && completion::retained(context, goal, semantic_axioms, root_bound, &witness)
+        },
+    )
+}

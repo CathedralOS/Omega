@@ -2065,9 +2065,19 @@ cast source, an affine definition or landing at/after the first cast, an
 unrepresentable endpoint, or either failed kernel check rejects. Direct,
 literal, and fixed alias cast families retain precedence. No rule or proof
 schema beyond proof-bundle v19 is added. This bounded composition does not
-promote either whole row: shift/cast, joins, correlated results, and all other
-affine/cast shapes remain trusted-reducer work, and `fully-derived false` is
-unchanged.
+promote either whole row. The bounded dual may start from one directly cited
+same-carrier source bound, replay a unique nonempty partial-cast spine, and then
+complete one later finite affine word. Production remaps the cited literal into
+the cast target, constructs `IntegerCastBound` directly from that exact
+assumption, and accepts `IntegerAffineBound` only when every affine definition
+and optional literal landing lies strictly after the final cast. Reconstruction
+independently repeats those steps and the same strict boundary. Existing affine
+families retain precedence. Missing source custody, an ambiguous cast spine,
+unrepresentable endpoints, or an affine definition/landing at or before the
+final cast rejects. The proof is exactly
+`IntegerAffineBound(IntegerCastBound(Assumption))`; no rule or v19 schema field
+is added. Shift/cast, joins, correlated results, and all other affine/cast
+shapes remain trusted-reducer work, and `fully-derived false` is unchanged.
 
 The cast root-bound child may also be reconstructed from exactly one retained
 same-carrier `root == literal` fact when that literal equals or strengthens the

@@ -1723,6 +1723,89 @@ fn exact_division_goal_composes_landed_affine_source_through_partial_cast() {
 }
 
 #[test]
+fn exact_division_goal_composes_direct_partial_cast_into_landed_affine_suffix() {
+    let i8_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+    let i16_type = IntegerType::new(IntegerSign::Signed, 16).expect("i16");
+    let context = PropositionContext::from_value_types([
+        (ValueId::new(1).unwrap(), ScalarType::Integer(i8_type)),
+        (ValueId::new(2).unwrap(), ScalarType::Integer(i8_type)),
+        (ValueId::new(3).unwrap(), ScalarType::Integer(i16_type)),
+        (ValueId::new(4).unwrap(), ScalarType::Integer(i8_type)),
+        (ValueId::new(5).unwrap(), ScalarType::Integer(i8_type)),
+    ])
+    .expect("mixed post-cast context");
+    let divisor = value(2, i8_type);
+    let goal = Proposition::Disjunction(vec![
+        Proposition::LessOrEqual(divisor.clone(), integer(i8_type, -2)),
+        Proposition::LessOrEqual(integer(i8_type, 1), divisor.clone()),
+        Proposition::Conjunction(vec![
+            Proposition::LessOrEqual(divisor, integer(i8_type, -1)),
+            Proposition::LessOrEqual(integer(i8_type, -127), value(1, i8_type)),
+        ]),
+    ]);
+    let root_bound = Proposition::LessOrEqual(integer(i16_type, 0), value(3, i16_type));
+    let cast = Proposition::Equal(
+        value(4, i8_type),
+        ScalarTerm::integer_exact_cast(i16_type, i8_type, value(3, i16_type)).expect("exact cast"),
+    );
+    let landing = Proposition::Equal(value(5, i8_type), integer(i8_type, 1));
+    let affine = Proposition::Equal(
+        value(2, i8_type),
+        ScalarTerm::exact_integer_add(i8_type, value(4, i8_type), value(5, i8_type))
+            .expect("exact add"),
+    );
+
+    let proof = prove_canonical_integer_proposition(
+        &context,
+        &goal,
+        std::slice::from_ref(&root_bound),
+        &[cast.clone(), landing.clone(), affine.clone()],
+    )
+    .expect("direct cast bound composes into one later affine word");
+    let ProofRule::DisjunctionIntroduction { disjunct, index: 1 } = proof.rule else {
+        panic!("post-cast affine divisor selects the positive arm")
+    };
+    let ProofRule::IntegerAffineBound {
+        root_bound: cast_bound,
+        witness: affine_witness,
+    } = disjunct.rule
+    else {
+        panic!("outer affine custody is explicit")
+    };
+    let ProofRule::IntegerCastBound {
+        witness: cast_witness,
+        ..
+    } = cast_bound.rule
+    else {
+        panic!("affine child independently retains direct cast custody")
+    };
+    assert_eq!(cast_witness.definition_axioms, [0]);
+    assert_eq!(affine_witness.definition_axioms, [2]);
+    assert_eq!(affine_witness.literal_axioms, [Some(1)]);
+
+    assert!(
+        prove_canonical_integer_proposition(
+            &context,
+            &goal,
+            &[],
+            &[cast.clone(), landing.clone(), affine.clone()],
+        )
+        .is_none(),
+        "the cast source bound is mandatory",
+    );
+    assert!(
+        prove_canonical_integer_proposition(
+            &context,
+            &goal,
+            std::slice::from_ref(&root_bound),
+            &[landing, affine, cast],
+        )
+        .is_none(),
+        "the affine word and landing must follow the complete cast",
+    );
+}
+
+#[test]
 fn exact_division_goal_relaxes_stronger_affine_endpoint_bounds() {
     let signed = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
     let context = PropositionContext::from_value_types((1..=3).map(|id| {
