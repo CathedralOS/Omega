@@ -587,6 +587,65 @@ fn argumented_proof_output_substitutes_value_arguments_and_binds_erased_inputs()
 }
 
 #[test]
+fn closed_generic_proof_output_retains_its_concrete_application() {
+    let source = r#"
+        trait Evidence {}
+        trait Marker {}
+        proposition ready() evidence Evidence;
+        data Card {}
+        data Root { card: Card; }
+        CardMarker: Card satisfies Marker {}
+
+        machine produce<Element, Selection: Element satisfies Marker>(value: &Element)
+        requires incoming: ready()
+        ensures copied: ready()
+        {
+            copied = incoming;
+        }
+
+        machine Root::relay(&self)
+        requires source: ready()
+        ensures relayed: ready()
+        {
+            let (; copied: local) = produce<Card, CardMarker>(&self.card; source);
+            relayed = local;
+        }
+    "#;
+
+    let checked = lower_typed_trees(parse_typed_trees(source))
+        .expect("a fully explicit closed generic proof-output call should check");
+    let invocation = checked
+        .facts
+        .proof
+        .proof_output_calls
+        .iter()
+        .next()
+        .map(|(_, invocation)| invocation)
+        .expect("one checked proof-output invocation");
+    let [argument] = invocation.evidence_arguments.as_slice() else {
+        panic!("one erased proof-output input expected")
+    };
+    let [output] = invocation.outputs.as_slice() else {
+        panic!("one proof output expected")
+    };
+    let specialization = checked
+        .machine_specializations
+        .iter()
+        .find(|specialization| specialization.instance == invocation.target_machine_symbol)
+        .expect("the proof-output target should retain its closed generic specialization");
+    assert_eq!(
+        specialization.type_argument_identities,
+        ["named(name(Card))"]
+    );
+    assert_eq!(specialization.conformance_applications.len(), 1);
+    assert_ne!(specialization.conformance_applications[0].fingerprint, 0);
+    assert_eq!(
+        output.instantiated_proposition,
+        argument.instantiated_proposition
+    );
+}
+
+#[test]
 fn argumented_proof_output_rejects_wrong_erased_input_after_substitution() {
     let source = r#"
         trait Evidence {}

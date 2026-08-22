@@ -987,6 +987,97 @@ fn argumented_proof_output_retains_substitution_and_erased_input_identity() {
 }
 
 #[test]
+fn generic_proof_output_target_identity_binds_the_closed_conformance_application() {
+    fn source(selection: &str) -> String {
+        format!(
+            r#"
+                trait Evidence {{}}
+                trait Marker {{}}
+                proposition ready() evidence Evidence;
+                data Card {{}}
+                data Root {{ card: Card; }}
+                {selection}: Card satisfies Marker {{}}
+
+                machine produce<Element, Selection: Element satisfies Marker>(value: &Element)
+                requires incoming: ready()
+                ensures copied: ready()
+                {{ copied = incoming; }}
+
+                machine Root::relay(&self)
+                requires source: ready()
+                ensures relayed: ready()
+                {{
+                    let (; copied: local) = produce<Card, {selection}>(&self.card; source);
+                    relayed = local;
+                }}
+            "#
+        )
+    }
+    fn selected_fingerprint(checked: &psi_checked_trees::CheckedTrees) -> u64 {
+        let target = checked
+            .facts
+            .proof
+            .proof_output_calls
+            .iter()
+            .next()
+            .map(|(_, invocation)| invocation.target_machine_symbol)
+            .expect("one checked generic proof-output call");
+        checked
+            .machine_specializations
+            .iter()
+            .find(|specialization| specialization.instance == target)
+            .map(|specialization| specialization.fingerprint)
+            .expect("the target should retain its checked specialization")
+    }
+
+    let first = check(&source("FirstMarker"));
+    let second = check(&source("SecondMarker"));
+    let first_fingerprint = selected_fingerprint(&first);
+    let second_fingerprint = selected_fingerprint(&second);
+    assert_ne!(first_fingerprint, second_fingerprint);
+    let first = psi_checked_trees_to_terminal::lower_machine(&first, "Root::relay")
+        .expect("first closed generic proof output should lower");
+    let second = psi_checked_trees_to_terminal::lower_machine(&second, "Root::relay")
+        .expect("second closed generic proof output should lower");
+    let [first_call] = first.semantic_module.proof_output_calls.as_slice() else {
+        panic!("one first proof-output call expected")
+    };
+    let [second_call] = second.semantic_module.proof_output_calls.as_slice() else {
+        panic!("one second proof-output call expected")
+    };
+    assert!(
+        first_call
+            .target_machine_identity
+            .starts_with("specialized-machine|")
+    );
+    assert!(
+        first_call
+            .target_machine_identity
+            .ends_with(&format!("application={first_fingerprint:016x}"))
+    );
+    assert!(
+        second_call
+            .target_machine_identity
+            .ends_with(&format!("application={second_fingerprint:016x}"))
+    );
+    assert_ne!(
+        first_call.target_machine_identity, second_call.target_machine_identity,
+        "different closed conformance selections are different proof-output targets"
+    );
+    let baseline = semantic_fingerprint(&first.semantic_module).expect("generic target identity");
+    let mut tampered = first.semantic_module.clone();
+    let identity = &mut tampered.proof_output_calls[0].target_machine_identity;
+    let last = identity.len() - 1;
+    let replacement = if identity.ends_with('0') { "1" } else { "0" };
+    identity.replace_range(last.., replacement);
+    assert_ne!(
+        semantic_fingerprint(&tampered).expect("tampered generic target remains canonical"),
+        baseline,
+        "the exact closed application enters terminal semantic identity"
+    );
+}
+
+#[test]
 fn forwarded_proof_output_retains_the_exact_duplicate_input_lane() {
     let checked = check(DUPLICATE_ARGUMENTED_PROOF_OUTPUT_SOURCE);
     let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::relay")

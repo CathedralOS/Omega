@@ -1233,7 +1233,7 @@ fn checked_evidence_machine_identity(
     if matches.next().is_some() {
         return unsupported("evidence producer row has an ambiguous realization machine");
     }
-    let identity = checked
+    let mut identity = checked
         .typed
         .normalized_machine_overload_identity(machine)
         .ok_or(LoweringError::Unsupported(
@@ -1242,6 +1242,25 @@ fn checked_evidence_machine_identity(
         .identity();
     if identity.is_empty() {
         return unsupported("evidence producer realization has an empty machine identity");
+    }
+    let mut specializations = checked
+        .typed
+        .machine_specializations
+        .iter()
+        .filter(|specialization| specialization.instance == machine.symbol);
+    if let Some(specialization) = specializations.next() {
+        if specializations.next().is_some() {
+            return unsupported("evidence machine has ambiguous generic application identity");
+        }
+        if specialization.fingerprint == 0 {
+            return unsupported("evidence machine has an empty generic application identity");
+        }
+        identity = format!(
+            "specialized-machine|callable={}:{}|application={:016x}",
+            identity.len(),
+            identity,
+            specialization.fingerprint
+        );
     }
     Ok(identity)
 }
