@@ -1076,3 +1076,15 @@ after replaying both the complete publication graph and optional
 program-storage bridge custody; check-only, object-container, or internally
 drifted reports return no executable path. The `omega-run` probe consumes only
 that checked receipt path.
+
+The shared report-and-capability native execution helper now takes the checked
+compile report rather than a build directory. Its current ten executions all
+resolve the command directly from retained publication custody, so those tests
+cannot pass by guessing a conventional executable leaf after losing or
+redirecting the receipt.
+
+The one-pass exact-native coverage index recognizes this form only when the
+same local is bound by an exact rooted compile helper and passed to the checked
+runner with one literal status. That admits seven newly unique stronger owners;
+the repeated linear-transfer fixture has two owners and remains deliberately
+unelided under the existing ambiguity fence.

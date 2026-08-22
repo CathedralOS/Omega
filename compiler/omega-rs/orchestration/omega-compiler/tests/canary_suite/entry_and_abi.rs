@@ -1685,8 +1685,14 @@ fn discovered_exact_native_coverage_is_consistent() {
             .ends_with("canary_suite/arithmetic_and_data.rs")
     );
     assert_eq!(
-        coverage.rooted_owner_count("ownership/linear_state_call_handoff"),
-        0
+        coverage.rooted_owner_count("ownership/linear_transfer_and_consume"),
+        2,
+        "the repeated linear-transfer fixture must remain ambiguous and unelided",
+    );
+    assert!(
+        coverage
+            .unique_rooted_owner("ownership/linear_transfer_and_consume")
+            .is_none()
     );
     #[cfg(windows)]
     {
