@@ -5136,6 +5136,13 @@ Owners:
   exit 70 and existing mismatch diagnostics remain unchanged; exact-owner
   ambiguity, the 795 rooted/3 legacy inventory, and receipt-drift fences remain
   green.
+  Four authored-root trait/structural-equality regressions—written conformance
+  validation and synthesized equality for record, payload-sum, and mixed
+  shapes—now launch `OutputOnly` native execution solely through exact checked-
+  report executable receipts while preserving literal exit 70 and each
+  structural-omission diagnostic. Exact-owner ambiguity, the 795 rooted/3
+  legacy inventory, and receipt-drift fences remain green; crash semantics and
+  legacy owners are unchanged.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
@@ -5376,6 +5383,11 @@ reach or trust, and private proof improvements do not change public identity.
   call-span containment while orchestration and relocation remain in the 4,859-
   line parent. API, error, byte order, and the 140-function inventory remain
   unchanged.
+  Exact x86-64/AArch64 scalar stack-mutation byte validation, depth replay, and
+  AArch64 rejection classifiers now live in a focused
+  `scalar_stack_mutation` child while higher scalar-control accounting remains
+  in the 4,739-line parent. Public APIs, validation/error order, and native
+  bytes remain unchanged.
   The installed-cleanup ordinal-tamper regression now locates the authoritative
   internal-call custody row by its complete machine/text-offset/owner/target
   header before mutating the ordinal, rather than accidentally changing an
