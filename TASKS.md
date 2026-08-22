@@ -5681,7 +5681,12 @@ Owners:
   both fingerprints, and flat/app-bundle receipt replay requires equality.
   Callback identity drift therefore invalidates destination custody even when
   certificate and container fields are otherwise copied consistently, without
-  choosing private registration placement. The
+  choosing private registration placement. This structural-to-installation
+  chain is complete at the summary boundary: further independent replay would
+  require widening the report to retain the whole final certificate, or adding
+  a redundant hash minted from the same copied values. Remaining callback work
+  stays on the separately listed resource, body, lease, cross-target, and
+  private-relocation frontiers. The
   remaining slices are
   resource-ceiling aggregation, multi-entry/re-entrant target instruction
   lowering, and the
