@@ -526,29 +526,8 @@ impl<'extent> SchemaCorrespondedPlacedView<'extent> {
 
     fn validate_retirement(&self) -> Result<(), AccessPlanDiagnostic> {
         self.validate_correspondence()?;
-        if self.view.profile.receipt() != self.view.profile_receipt {
-            return Err(AccessPlanDiagnostic(
-                "corresponded placed-view retirement could not replay the exact admitted resource-profile receipt"
-                    .into(),
-            ));
-        }
-        let replayed = validate_placement_admission(
-            &self.view.loan,
-            &self.view.plan,
-            &self.view.profile,
-        )
-        .map_err(|diagnostic| {
-            AccessPlanDiagnostic(format!(
-                "corresponded placed-view retirement could not replay the retained placement authority: {diagnostic}"
-            ))
-        })?;
-        if replayed != self.view.resources {
-            return Err(AccessPlanDiagnostic(
-                "corresponded placed-view retirement replayed resource compatibility differs from the retained view"
-                    .into(),
-            ));
-        }
-        Ok(())
+        self.view
+            .validate_authority("corresponded placed-view retirement")
     }
 
     #[cfg(test)]
