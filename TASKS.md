@@ -6855,15 +6855,16 @@ Owner: `wiki/design_briefs/law_bearing_relations_and_quotients.md`.
 Remaining N6/N8 work:
 
 - **SELECTED-WITNESS-EVIDENCE — finish executable proof-output calls.** The
-  settled binding lanes are live: `let (value; public_slot: local_term) =
+  unconditional lane is implemented. `let (value; public_slot: local_term) =
   call()` selectively captures copyable Prop outputs, `let (; ...)` supports an
   empty Type lane, and omitted selectors contribute facts without minting local
   terms. The retired aggregate-package spelling rejects with directed guidance.
-  Checked and Terminal Psi retain exact call, selector, proposition/interface,
-  producer provenance, and optional caller-local term identity. Pure Unit proof
-  producers erase; runtime Unit and scalar producers retain exactly one linked
-  ordinary call. Terminal format 22 distinguishes all three shapes and rejects
-  a missing or mismatched runtime link.
+  Checked and Terminal Psi retain the exact call, selector,
+  proposition/interface, producer provenance, and optional caller-local term
+  identity. Pure Unit proof producers erase; runtime Unit and scalar producers
+  retain exactly one linked ordinary call. The canonical Terminal
+  representation distinguishes all three shapes and rejects a missing or
+  mismatched runtime link.
 
   Ordinary value-argument substitution and explicit erased `requires` inputs
   are implemented through checked and Terminal Psi. Each input retains its
@@ -6880,142 +6881,67 @@ Remaining N6/N8 work:
   non-lifetime conformance arguments remain explicit and ordinary lifetime
   elision resolves before this identity is recorded.
 
-  Remaining slice: capture outcome-guarded outputs only in their applicable arm
-  and retain the exact guard through checked and Terminal Psi.
+  Remaining outcome-specific slice is blocked on the owner question **How does
+  a named guarantee declare its result-case guard?** Once settled, implement it
+  in three bounded stages:
+
+  1. parse and resolve the explicit guard on a named `ensures`, normalize it to
+     one exact case of the declared result sum, and include it in public
+     signature compatibility;
+  2. extend result-arm patterns with the existing `runtime payload; named proof
+     selectors` split, binding selected terms and omitted facts only under the
+     exact matching case while checking producer definite assignment per case;
+  3. retain the case guard in checked and Terminal proof-output rows, canonical
+     codec identity, and verifier replay without adding runtime operations.
 
   Never infer evidence from visible facts or attached state names. Runtime Type
   results retain their own multiplicity independently of the proof lane, and
   proposition, term, and provenance identities remain distinct. Acceptance:
-  outcome-guard tampering rejects independently; omitted copyable outputs add no runtime
-  work, cleanup, or fuel. The complete contract is in
+  outcome-guard tampering rejects independently; a selector is unavailable in
+  every nonmatching arm; omitted copyable outputs add no runtime work, cleanup,
+  or fuel. The complete contract is in
   [`law_bearing_relations_and_quotients.md`](wiki/design_briefs/law_bearing_relations_and_quotients.md).
-- Add `Respects` over compiler-derived positional call telescopes, deriving its
-  dependent domain, pointwise input relations, and lifted result relation.
-  Add the sealed `Quotient::lift<F, Respect>` wrapper and
-  `Quotient::define<F, Respect>` faithful-definition operations. Both select one
-  exact named conformance in the quotient owner's ordinary body; `lift` checks
-  public-precondition implication, while `define` checks equivalence, exact
-  position-preserving runtime argument correspondence, and unchanged result
-  flow over normalized IR. Retain the representative machine application,
-  derived `RA`/`RR`, complete conformance application, correspondence,
-  lift/define kind, and contract proof in checked and terminal identity. Add no
-  `lifts` clause, quotient operation map, visibility discovery, or per-call
-  selection.
+- **QUOTIENT-RESPECT — admit explicit lifted operations.** The settled source
+  form is an ordinary quotient-owner body containing
+  `Quotient::lift<F, Respect>(...)` or `Quotient::define<F, Respect>(...)`.
+  Both select one exact representative machine application and one exact named
+  conformance. `lift` proves public-precondition implication; `define` proves
+  equivalence, position-preserving runtime argument correspondence, and
+  unchanged result flow. There is no `lifts` clause, operation map, visibility
+  discovery, structural witness search, or call-site selection.
 
-  The first post-ruling representation rung is implemented without granting
-  admission. Typed calls recognize only the sealed
-  `Quotient::lift<F, Respect>` / `Quotient::define<F, Respect>` spelling and
-  retain the exact resolved representative entry, exact named conformance
-  application, and operation kind. Wrong-category, unresolved, wrong-arity,
-  and shadowed selections reject; structural proof-machine discovery is not a
-  fallback. The request remains deliberately non-executable until formation,
-  compiler-derived `RA`/`RR`, contract correspondence, and (for `define`)
-  positional/result-flow checks are implemented. The former bare
-  free/attached-call pilot and its implicit quotient return retagging are
-  retired rather than treated as a compatibility path.
+  The fail-closed planning spine is implemented. Quotient formation requires
+  one explicit closed `Equivalence<C, R>` conformance and checks its sealed
+  Reflexive/Symmetric/Transitive rows plus transitive anti-axiom provenance.
+  Typed lift/define requests retain their exact operation kind, representative
+  entry, and conformance application. Checked planning derives `RA` over every
+  normalized runtime position (attached `self` is position zero; proof-static
+  binders are excluded), derives result relation `RR`, closes type/`const`/
+  static-machine substitution, and retains the exact representative telescope.
+  Direct `define` additionally checks one-to-one parameter correspondence,
+  mode/multiplicity and carrier agreement, exact alpha-renamed `Q`/`P`
+  precondition equivalence, and unchanged result flow through a straight-line
+  immutable alias chain or a finite unconditional sibling-state graph. The
+  representative's whole checked call closure must be pure and unconditionally
+  terminating. Unsupported, adapted, open, ambiguous, cyclic, conditional, or
+  representation-observing shapes reject.
 
-  Quotient formation is now migrated to the exact static selection. `%`
-  requires a proposition relation plus the declaration's one explicitly named,
-  subjectless, closed, nongeneric `Equivalence<C, R>` conformance. The selected
-  sealed toolchain interface and exact Reflexive/Symmetric/Transitive row
-  contracts are checked without Boolean or structural fallback; strengthened
-  or vacuous premises reject. Anti-axiom provenance follows checked row
-  dependencies transitively through contracts, values, statements, guards,
-  transitions, and continuations. Generic relation applications retain exact
-  binder symbols, categories, and order. Formation and congruence canaries cover
-  ordinary, independently indexed generic, and static-machine carrier families;
-  authored lookalikes, missing selections, Boolean relations, admitted nested
-  dependencies, strengthened laws, and swapped generic binders reject. The
-  retained lift/define request remains deliberately non-executable until
-  compiler-derived `RA`/`RR`, contract correspondence, positional arguments,
-  and normalized result flow are independently certified.
-  The first relation-planning prerequisite is now implemented without granting
-  admission. A monomorphic request at the exact root of one state's final
-  expression statement
-  derives a non-authoritative plan whose `RA` retains every operand: exact
-  quotient type and relation identity for quotient positions, and exact typed
-  equality for ordinary positions. `RR` retains the exact quotient result type
-  and relation. Untyped or adapted arguments and nonquotient results reject;
-  indexed relation applications wait for the fully instantiated representative
-  operation telescope rather than guessing binder applications from the
-  quotient type. The same plan now resolves exactly one representative
-  machine/state and retains its ordered runtime telescope (including attached
-  `self`, excluding proof-static `const` binders), parameter symbols/types/
-  mutability, result type, and machine/state contract spans. Missing or
-  duplicate state identities, open generic/static applications, and unresolved
-  results reject. Closed type, literal-`const`, and static-machine applications
-  retain exact parameter/argument bindings on the telescope. The 2,422-line
-  relation/result-flow parent delegates closed static-application validation
-  and immutable declaration-type substitution to a focused 355-line child. Its
-  structural matcher substitutes retained bindings through representative
-  runtime parameter and result types, including const-parametric array lengths,
-  without mutating the checked type arena; unsupported constrained/dynamic
-  shapes fail closed unless already canonically identical. The general
-  contract-entailment root now delegates structural proof-term construction,
-  constant unfolding, selected-machine application identity, and the occurs
-  check to a focused 301-line child without changing the proof language or
-  judgment order. A direct `define`
-  request now also requires exact
-  positional runtime correspondence: public parameter symbols in order,
-  one-to-one unique runtime identities, quotient-carrier/representative-type or
-  ordinary exact-type agreement, mutable/borrow mode and multiplicity
-  preservation, and an exact representative-result carrier match. Attached
-  representative `self` participates positionally without requiring a public
-  parameter spelled `self`; reorder, duplication, locals/literals, arity,
-  borrowed-shell, type, and result drift reject. Owner static/const and
-  contract-fact substitution remain explicitly unresolved. For exact direct
-  `define` correspondence, quotient-facing machine/state `requires` facts are
-  partitioned into `Q` versus fixed facts, while representative machine/state
-  `requires` facts are partitioned into `P` versus fixed facts. Both use complete
-  expression dependency on the corresponding quotient-bearing runtime
-  positions; exact side/owner/contract/fact coordinates are retained and
-  unresolved value identities reject. The first exact equivalence rung now
-  alpha-renames both runtime telescopes by their retained position map and
-  requires a bijection between the corresponding dependent facts. Fixed ambient
-  facts remain ordinary call obligations outside `Q` and `P`. The plan retains
-  both exact fact coordinates; missing, duplicated, category-drifted, or
-  redirected facts reject. This proves only exact normalized fact identity, not
-  general entailment or any `Respects` clause. The relation-plan coordinator
-  now delegates `Q`/`P` dependency partitioning, exact fact lookup, positional
-  alpha-renaming, and bijection matching to a focused 416-line precondition
-  judgment child. Exact public-parameter order, mode, quotient-carrier matching,
-  and representative static substitution now form a separate 212-line runtime-
-  correspondence child. Exact representative entry lookup, runtime telescope,
-  and the existing whole-call-graph purity and unconditional-termination
-  certificates form a separate 213-line representative child. None of these
-  extractions duplicate or broaden the proof language. The
-  exact final-expression call
-  additionally retains one unchanged state-fallthrough result edge. The same
-  single edge may
-  now pass through a complete straight-line chain of exact immutable,
-  result-typed local aliases when the sealed request is the first initializer
-  and the state's final expression is the last local. Mutable/type-drifted,
-  nested, interrupted, reassigned, cyclic, transition, and state-forwarded
-  shapes cannot claim that edge. When the owner machine and state identities
-  are each exact-unique, the machine has exactly that one state, and its body
-  contains no transition, the plan now records that this fallthrough path
-  exhausts the owner's normal result exits. Duplicate identities, another
-  state, or any transition retain no single-state coverage claim. A finite
-  sibling-state graph now also proves complete coverage when every non-result
-  state contains exactly one unconditional ordinary named transition, every
-  target is a unique state in the same machine, every path reaches the result
-  state, and that state retains the unchanged transition-free fallthrough root.
-  Conditional/crash transitions, continuations, extra statements, foreign or
-  missing targets, cycles, and duplicate state identities reject. This is one
-  bounded graph walk, not a hop-count permutation ladder. These result-flow
-  certificates prove no effect, contract, or `Respects` obligation. The
-  relation-plan parent now delegates the whole alias/finite-graph judgment to a
-  focused 289-line child instead of accumulating hop-specific verification
-  functions. Its 1,850-line regression harness now lives in a test-only child,
-  leaving the production relation-plan coordinator at 449 lines without
-  changing judgment ownership.
-  Every request still rejects as non-executable until all remaining obligations
-  are checked and retained in checked/terminal identity. Executable admission
-  is blocked on one concrete vocabulary decision: the source/core surface has
-  no sealed `Respects` declaration or compiler evidence carrier capable of the
-  ruled variadic positional telescope. Authored empty lookalikes cannot supply
-  that authority, and an arity-indexed `Respects1`/`Respects2` ladder is
-  explicitly rejected.
+  Every request intentionally remains non-executable. Admission is blocked on
+  the owner question **What source authority expresses variadic `Respects`
+  evidence?** After that decision:
+
+  1. form the selected `Respects<F, RA, RR>` application from the checked plan
+     and verify its complete named conformance without arity-indexed traits;
+  2. finish general `Q => P` checking for `lift` while keeping `define` at
+     `Q <=> P`, and retain the exact proof/correspondence certificate; and
+  3. lower the admitted operation and its representative application,
+     `RA`/`RR`, conformance, operation kind, contract correspondence, and result
+     flow into canonical Terminal identity with independent verifier replay.
+
+  Acceptance: changing any representative argument, positional relation,
+  selected conformance, precondition correspondence, or result-flow edge
+  rejects independently; no quotient operation observes representative
+  structure or acquires effects/custody beyond the initial integration fence.
 - Suppress every synthesized representation observer on quotient formation.
   Resolved-to-typed lowering now rejects runtime `==`/`!=`, a direct
   `Equatable` conformance, and synthesized container equality through a quotient
