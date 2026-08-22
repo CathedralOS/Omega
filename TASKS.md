@@ -2873,6 +2873,14 @@ Remaining:
   changes no citation order, proof shape, rejection, or search frontier. The
   complete checked-to-Terminal package suite consequently fell from 401.56s to
   35.68s wall while all tests remained enabled and green.
+  Syntactic affine-definition discovery now lives in paired, side-local
+  `affine_custody/definition_index/candidates` modules. Producer and
+  reconstruction independently retain semantic-row order, both equality
+  orientations, exact Value-target eligibility, and add/multiply left-before-
+  right versus subtract-left input projection; the invocation-local
+  `DefinitionIndex` remains responsible for ordered per-input insertion and
+  adjacent-row deduplication. Proof shape, rejection behavior, and the fixed
+  frontier are unchanged.
   Exact affine relaxation mapping now lives in paired, side-local
   `affine_custody/relaxation/mapping` modules. Producer and reconstruction
   independently derive the mapped literal endpoint, carrier, sign reversal,
