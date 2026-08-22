@@ -9,10 +9,13 @@ fn runtime_stdin_command_branch_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("runtime stdin command branch canary should compile from its authored root");
 
-    let mut child = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("runtime stdin command branch canary should retain its executable receipt");
+    let mut child = Command::new(executable)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .spawn()
@@ -574,10 +577,13 @@ fn runtime_qualified_case_value_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-qualified-case-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("qualified-case-value canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("qualified-case-value canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("qualified-case-value canary should run");
 
@@ -620,10 +626,13 @@ fn single_target_internal_machine_skipped_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("single-target internal canary should compile from its authored root");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("single-target internal canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("single-target internal canary should run");
 
@@ -661,10 +670,13 @@ fn target_machine_gating_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-target-machine-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("target-machine canary should compile from its authored root");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("target-machine canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("target-machine canary should run");
 
@@ -748,10 +760,13 @@ fn ring_requirement_satisfies_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-ring-requirement-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("ring-requirement canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("ring-requirement canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("ring-requirement canary should run");
 
