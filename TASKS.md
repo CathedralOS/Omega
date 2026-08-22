@@ -627,7 +627,15 @@ Owners:
   independently replays the sealed invocation, target architecture, exact
   re-encoded bytes, state footprint, normalized fragment identity, and emitted
   fingerprint; every rejection returns the unchanged lowered writer evidence
-  for corrected retry without regeneration. Writer
+  for corrected retry without regeneration. External-root prepared-writer
+  execution independently replays the retained invocation structure,
+  writer-derived invocation, opaque context binding, and exact installed-code,
+  artifact, and architecture identities before destination mutation; rejection
+  returns both the exact prepared invocation and destination for corrected
+  retry. External-root writer binding independently replays retained lowered
+  invocation structure, canonical bytes, footprint, and emitted identity;
+  every bind rejection returns the exact lowered fragment and non-clonable
+  provider preparation for corrected retry. Writer
   derivation, lowering, validation, and execution uniformly require at least
   one retained fragment; an empty provider program cannot claim materialization.
   Validation also binds every supplied source word to any exact pre-resolved
@@ -1488,7 +1496,19 @@ Remaining:
   equalities before rewritten facts, and deduplicates propagated facts. The
   reconstruction parent still owns traversal, merge intersection, and
   certificate selection; this extraction grants no proof authority and changes
-  no fact order. A
+  no fact order. Per-operation obligation reconstruction now lives in a
+  side-local `operation_facts` module. It preserves the exact goal-free,
+  proof-bearing, structural-effect, then call dispatch order; only the
+  proof-bearing branch may choose canonical certificate custody or trusted
+  sufficient reduction before recording the pre-result axiom snapshot. CFG
+  traversal and return intersection remain in the parent, and an unclaimed
+  validated operation still fails closed. Terminator custody now lives in a
+  side-local `terminator_facts` module. It owns the exact
+  Jump/Conditional/return/crash dispatch, successor fact propagation,
+  scalar-result equality, nominal-cleanup obligations, structural-return facts,
+  and the rule that Crash contributes no normal exit. CFG scheduling and final
+  all-return intersection remain in the parent; cleanup order, axiom snapshots,
+  and noncanonical cleanup status are unchanged. A
   single exact prior value equality may also transport a completed affine bound
   from its checked target alias to the canonical goal endpoint. The producer
   replaces that one endpoint, constructs the bounded affine relation directly,
@@ -2589,6 +2609,10 @@ Owners:
   through their checked reports rather than reconstructing `out/<executable>`;
   their literal-status exact-owner identities remain unique, so the 795 pin is
   unchanged. Output-kind tampering is pinned to expose no native path.
+  The first five authored-root value-call/dispatch executions likewise consume
+  only the exact checked-report path; the 795 unique-owner pin remains stable,
+  and compiler-function fingerprint drift between the flat and bundle copies
+  exposes no executable path.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
