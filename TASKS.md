@@ -900,6 +900,16 @@ Owners:
   binding transfers the original schema/context pair through bound, written,
   and recovery custody. This grants no provider-operation authority and
   establishes no device event, publication, or native execution.
+  Selected external-root writer preparation now consumes the exact AOT-lowered
+  fragment and preflights its canonical structure, target architecture, and
+  invocation against the retained provider writer plan before the installed
+  resolver may observe any symbolic source. The non-clonable preparation seals
+  selected source schema, lowered fragment, and provider-populated context
+  together; binding accepts only that carrier and independently replays all
+  three. Early schema/lowering drift and later destination-preparation rejection
+  return the exact selected schema and lowered fragment for corrected retry.
+  This establishes no provider-operation authority, consumer semantics,
+  publication, or native execution.
 
 Acceptance: UART/MMIO, shared-page IPC, and ordinary RAM use one extent/layout
 foundation with different profiles. Misalignment, insufficient rights,
@@ -2762,6 +2772,29 @@ Remaining:
   changes no citation order, proof shape, rejection, or search frontier. The
   complete checked-to-Terminal package suite consequently fell from 401.56s to
   35.68s wall while all tests remained enabled and green.
+  Exact affine relaxation mapping now lives in paired, side-local
+  `affine_custody/relaxation/mapping` modules. Producer and reconstruction
+  independently derive the mapped literal endpoint, carrier, sign reversal,
+  and overflow-checked coefficient/offset image. The producer parent retains
+  affine-proof construction and the closed transitivity bridge;
+  reconstruction independently rechecks kernel conversion and closed-order
+  relaxation. Candidate order, proof shape, rejection, and the fixed affine
+  frontier are unchanged.
+  Closed affine-relaxation completion now lives in paired, side-local
+  `affine_custody/relaxation/completion` modules. After their independent mapped-
+  endpoint derivations, the producer child constructs the exact closed-order
+  bridge and `IntegerLessOrEqualTransitivity` proof, while reconstruction
+  independently checks the same endpoint alignment and closed relation.
+  Mapping, kernel affine conversion, citation order, proof shape, rejection,
+  and the fixed affine frontier are unchanged.
+  Per-witness affine custody completion now lives in paired, side-local
+  `affine_custody/completion` modules. The producer independently constructs and
+  kernel-checks the direct `IntegerAffineBound` proof before its existing
+  relaxed fallback; reconstruction independently normalizes the same enumerated
+  witness and checks direct conversion before its own relaxation replay. Parent
+  custody retains exact goal-endpoint and source-ordered definition-word
+  enumeration, so precedence, proof shape, rejection, and the four-definition
+  frontier are unchanged.
   Corpus-level bounded parallelism is viable at the harness boundary: the
   differential runner now defaults to four independent jobs with one native
   backend worker each, retains deterministic corpus-order reporting, and
@@ -3711,6 +3744,24 @@ Owners:
   through checked-report executable receipts while preserving literal status
   70 and all byte-shape diagnostics. Exact-owner inventory pins remain
   unchanged.
+  Five further authored-root wire owners—wrong-era rejection, exact String and
+  byte-slice encoding, zero-copy byte-slice decoding, and decoded-slice
+  indexing—now execute solely from checked-report receipts while preserving
+  status 70 and all byte-canonicality assertions. The adjacent auxiliary-report
+  consumer remains on its report-bearing path, and exact-owner pins remain
+  unchanged.
+  Five further fast authored-root executions—decoded byte-slice length access,
+  call-result binary composition, multi-arm value selection, unsigned value
+  guards, and compile-time-sized array execution—now launch solely from checked-
+  report receipts while preserving literal status 70 and their original
+  failure diagnostics. Report-bearing and float/cast owners remain deliberately
+  outside this cohort; exact-owner pins remain unchanged.
+  Five further fast authored-root executions—fixed-vector roundtrip, eager
+  combination of distinct value-call results, signed i64 arithmetic, high-bit
+  bitwise operations, and unsigned high-value comparisons—now launch
+  exclusively through checked-report receipts while preserving status 70 and
+  all behavioral diagnostics. Report-bearing and known slow float/cast/policy
+  owners remain deliberately excluded; exact-owner pins remain stable.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
