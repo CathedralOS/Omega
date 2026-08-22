@@ -1009,6 +1009,42 @@ pub struct WrittenPostHandoffWriterDestination<'mapping, 'bytes> {
     context: ResolvedPostHandoffEntryWriterContext,
 }
 
+/// A still-unpublished written destination whose exact installed context,
+/// activated mapping, provider receipt, placement, and byte geometry have
+/// been replayed before observation.
+#[derive(Debug)]
+#[must_use = "validated written destination retains mapping and byte custody"]
+pub struct ValidatedWrittenPostHandoffWriterDestination<'mapping, 'bytes> {
+    written: WrittenPostHandoffWriterDestination<'mapping, 'bytes>,
+}
+
+/// Validation rejection preserves the complete written destination so its
+/// exact retained evidence can be repaired and retried without reconstruction.
+#[derive(Debug)]
+pub struct WrittenPostHandoffWriterConsumerValidationError<'mapping, 'bytes> {
+    written: WrittenPostHandoffWriterDestination<'mapping, 'bytes>,
+    diagnostic: InstallationDiagnostic,
+}
+
+impl<'mapping, 'bytes> WrittenPostHandoffWriterConsumerValidationError<'mapping, 'bytes> {
+    pub const fn diagnostic(&self) -> &InstallationDiagnostic {
+        &self.diagnostic
+    }
+
+    pub fn into_written(self) -> WrittenPostHandoffWriterDestination<'mapping, 'bytes> {
+        self.written
+    }
+
+    pub fn into_prepared_parts(
+        self,
+    ) -> (
+        ResolvedPostHandoffEntryWriterContext,
+        PreparedPostHandoffWriterDestination<'mapping, 'bytes>,
+    ) {
+        self.written.into_prepared_parts()
+    }
+}
+
 impl<'mapping, 'bytes> WrittenPostHandoffWriterDestination<'mapping, 'bytes> {
     pub const fn installed_code(&self) -> InstalledCodeId {
         self.context.installed_code()
@@ -1026,12 +1062,12 @@ impl<'mapping, 'bytes> WrittenPostHandoffWriterDestination<'mapping, 'bytes> {
         self.context.fingerprint()
     }
 
-    pub const fn context(&self) -> &ResolvedPostHandoffEntryWriterContext {
-        &self.context
+    pub fn binds_invocation(&self, invocation: &PostHandoffWriterInvocationPlan) -> bool {
+        self.context.binds_invocation(invocation)
     }
 
-    pub fn bytes(&self) -> &[u8] {
-        self.bytes
+    pub const fn normalized_fragment_fingerprint(&self) -> u64 {
+        self.context.normalized_fragment_fingerprint()
     }
 
     /// Independently replay the exact non-clonable writer context and
@@ -1055,10 +1091,28 @@ impl<'mapping, 'bytes> WrittenPostHandoffWriterDestination<'mapping, 'bytes> {
         )
     }
 
+    /// Consume this still-unpublished destination only after exact replay.
+    /// Rejection exposes no context or bytes and returns complete custody.
+    pub fn into_validated_for_consumer(
+        self,
+        installed_code: &InstalledCode,
+    ) -> Result<
+        ValidatedWrittenPostHandoffWriterDestination<'mapping, 'bytes>,
+        Box<WrittenPostHandoffWriterConsumerValidationError<'mapping, 'bytes>>,
+    > {
+        if let Err(diagnostic) = self.validate_for_consumer(installed_code) {
+            return Err(Box::new(WrittenPostHandoffWriterConsumerValidationError {
+                written: self,
+                diagnostic,
+            }));
+        }
+        Ok(ValidatedWrittenPostHandoffWriterDestination { written: self })
+    }
+
     /// Recover the exact non-clonable context and still-unpublished prepared
     /// destination when a later consumer rejects validation. No byte or
     /// authority is reconstructed by this transition.
-    pub fn into_prepared_parts(
+    fn into_prepared_parts(
         self,
     ) -> (
         ResolvedPostHandoffEntryWriterContext,
@@ -1082,7 +1136,7 @@ impl<'mapping, 'bytes> WrittenPostHandoffWriterDestination<'mapping, 'bytes> {
         )
     }
 
-    pub fn into_parts(
+    fn into_parts(
         self,
     ) -> (
         MappedExtent<'mapping>,
@@ -1091,6 +1145,41 @@ impl<'mapping, 'bytes> WrittenPostHandoffWriterDestination<'mapping, 'bytes> {
         &'bytes mut [u8],
     ) {
         (self.mapping, self.receipt, self.site, self.bytes)
+    }
+}
+
+impl<'mapping, 'bytes> ValidatedWrittenPostHandoffWriterDestination<'mapping, 'bytes> {
+    pub const fn context(&self) -> &ResolvedPostHandoffEntryWriterContext {
+        &self.written.context
+    }
+
+    /// Bytes remain unpublished; this is observation after exact replay.
+    pub fn bytes(&self) -> &[u8] {
+        self.written.bytes
+    }
+
+    pub fn into_written(self) -> WrittenPostHandoffWriterDestination<'mapping, 'bytes> {
+        self.written
+    }
+
+    pub fn into_prepared_parts(
+        self,
+    ) -> (
+        ResolvedPostHandoffEntryWriterContext,
+        PreparedPostHandoffWriterDestination<'mapping, 'bytes>,
+    ) {
+        self.written.into_prepared_parts()
+    }
+
+    pub fn into_parts(
+        self,
+    ) -> (
+        MappedExtent<'mapping>,
+        DestinationPreparationReceipt,
+        PlacementSite,
+        &'bytes mut [u8],
+    ) {
+        self.written.into_parts()
     }
 }
 
@@ -2572,23 +2661,27 @@ mod tests {
         assert_eq!(written.artifact(), installed.artifact());
         assert_eq!(written.site(), site);
         assert_eq!(written.writer_context_fingerprint(), context_fingerprint);
+        assert!(written.binds_invocation(&invocation));
+        written.context.fingerprint ^= 1;
+        let error = written
+            .into_validated_for_consumer(&installed)
+            .expect_err("consumer replay must reject context corruption");
+        assert!(
+            error
+                .diagnostic()
+                .0
+                .contains("fingerprint fails exact replay")
+        );
+        let mut written = (*error).into_written();
+        written.context.fingerprint ^= 1;
+        let written = written
+            .into_validated_for_consumer(&installed)
+            .expect("repaired exact context supports consumer retry");
         assert!(written.context().binds_invocation(&invocation));
-        written
-            .validate_for_consumer(&installed)
-            .expect("written destination independently replays exact context");
         assert_eq!(
             u64::from_le_bytes(written.bytes().try_into().unwrap()),
             0x8010
         );
-        written.context.fingerprint ^= 1;
-        let diagnostic = written
-            .validate_for_consumer(&installed)
-            .expect_err("consumer replay must reject context corruption");
-        assert!(diagnostic.0.contains("fingerprint fails exact replay"));
-        written.context.fingerprint ^= 1;
-        written
-            .validate_for_consumer(&installed)
-            .expect("repaired exact context supports consumer retry");
         let (_mapping, receipt, returned_site, returned_bytes) = written.into_parts();
         assert_eq!(receipt.identity().normalized_identity(), 170);
         assert_eq!(returned_site, site);
@@ -2678,6 +2771,9 @@ mod tests {
         let written = installed
             .write_prepared_post_handoff_destination(context, &writer, destination)
             .expect("returned context and destination support corrected retry");
+        let written = written
+            .into_validated_for_consumer(&installed)
+            .expect("corrected retry validates before byte observation");
         assert_eq!(
             u64::from_le_bytes(written.bytes().try_into().unwrap()),
             0x8010

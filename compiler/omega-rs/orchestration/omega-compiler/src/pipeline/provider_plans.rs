@@ -360,7 +360,7 @@ impl<'installed, 'mapping, 'bytes>
             installed_code,
             written,
         } = self;
-        match written.recover_for_retry(installed_code) {
+        match written.recover_for_retry() {
             Ok((prepared, destination)) => Ok(BoundExternalRootPostHandoffWriterInvocation {
                 selected_provider,
                 lowered,
