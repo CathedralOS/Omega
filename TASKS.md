@@ -949,6 +949,14 @@ Owners:
   during preparation while returning the selected schema, lowering, and
   destination intact for corrected retry. This establishes no provider-
   operation authority, consumer semantics, publication, or native execution.
+  Compiler-bound written external-root destinations now require a consuming
+  outward-consumer replay against the exact retained installed realization
+  before bytes or decomposed written state are observable. An equal-looking
+  substitute installation rejects before observation and returns the complete
+  non-clonable carrier for corrected retry; only the validated still-
+  unpublished carrier exposes bytes, parts, and recovery. This establishes no
+  provider-operation authority, consumer semantics, publication, device event,
+  or native execution.
 
 Acceptance: UART/MMIO, shared-page IPC, and ordinary RAM use one extent/layout
 foundation with different profiles. Misalignment, insufficient rights,
