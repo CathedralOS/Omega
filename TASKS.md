@@ -758,7 +758,11 @@ Owners:
   judgment now lives in a focused 430-line child: retained-layout/cardinality
   replay, policy/transfer widths, exact whole/fragmented geometry, External and
   destructive whole-container rules, and Atomic overlap exclusion preserve
-  their ordering. These extractions leave a 3,362-line coordinator. All 81
+  their ordering. Provider resource-profile normalization now lives in a
+  focused 159-line child, retaining canonical region sort/merge, bounds and
+  overlap rejection, External/Atomic transfer-rule normalization, and exact
+  empty/duplicate/invalid capability diagnostic order. These extractions leave
+  a 3,211-line coordinator. All 81
   unit tests, the current 440-function production inventory, diagnostics,
   custody, retry behavior, and the public surface remain unchanged.
 - Implement `Extent::Resident<P, T>` as the owned exact-range dormant-content
