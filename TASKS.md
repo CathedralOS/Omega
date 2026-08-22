@@ -2532,6 +2532,12 @@ Remaining:
   and construct accepted successor cursors. Layer parents retain kernel prefix
   replay and accepted-word accumulation. Source order, witness/proof shape,
   rejection behavior, and the fixed four-layer frontier remain unchanged.
+  Affine selection dispatch now expresses its complete fixed precedence as one
+  lazy side-local short-circuit chain. Producer and reconstruction independently
+  retain direct bound, landed literal, one-alias, direct two-citation, one-alias
+  two-citation, then two-alias order without an imperative first-branch special
+  case. Evidence custody, proof shapes, rejection behavior, and every fixed
+  frontier remain unchanged.
   One-equality transitive affine completion now lives in independent side-local
   `affine_selection/transitive/alias/completion` modules. Each parent retains
   its own ledger-ordered equality discovery, distinct root/alias custody, and
@@ -5076,6 +5082,14 @@ Owners:
   receipts while preserving literal exit 70 and the existing Exact-bound
   diagnostics. Exact-owner ambiguity, the 795 rooted/3 legacy inventory, and
   receipt-drift fences remain green; crash semantics and legacy owners are
+  unchanged.
+  Four authored-root arithmetic-domain regressions—trapping multiply overflow,
+  signed saturation, `requires`-proven Exact addition, and range-proven Exact
+  addition—now launch `OutputOnly` native execution solely through exact
+  checked-report executable receipts while preserving exit 70 for successful
+  owners and the unconditional-trap diagnostic plus abnormal-exit-before-
+  transition semantics for overflow. Exact-owner ambiguity, the 795 rooted/3
+  legacy inventory, and receipt-drift fences remain green; legacy owners are
   unchanged.
   Final
   replay now also retains an exact
