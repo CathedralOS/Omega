@@ -681,6 +681,15 @@ order, strict definition boundaries, proof shapes, rejection behavior, and the
 fixed witness frontier do not change, and no authority crosses the producer/
 verifier boundary.
 
+Boundary-aware affine custody is also owned by matching side-local modules.
+Producer and verifier `affine_custody/boundary` modules independently complete
+strict post-boundary roots, and their `affine_custody/mapped` siblings
+independently map exact pre-boundary roots to the requested target. Parent
+modules retain ordinary root completion and unchanged re-exported APIs.
+Citation order, strict boundary tests, proof shapes, rejection, and the fixed
+four-definition frontier remain unchanged; the verifier does not consume the
+producer's mapped proposition as authority.
+
 The root-bound child may also come from exactly one retained same-carrier
 `root == literal` fact when that literal equals or strengthens the canonical
 bound endpoint. The producer remaps the endpoint into the source carrier,

@@ -2104,6 +2104,15 @@ completion, the fixed two-affine composition, and typed literal remapping.
 Citation order, strict cast boundaries, proof shapes, rejection behavior, and
 the finite frontier are unchanged; neither side shares evidence authority.
 
+Boundary-aware affine custody is likewise split behind unchanged parent APIs.
+Independent producer and verifier `affine_custody/boundary` modules own strict
+post-boundary completion, while side-local `affine_custody/mapped` modules own
+exact pre-boundary mapping to a requested target. The parents retain ordinary
+root completion. Definition and literal citation order, strict inequalities,
+mapped propositions, proof shapes, rejection behavior, and the fixed
+four-definition frontier are unchanged; reconstruction still derives and
+checks its mapped proposition independently.
+
 The cast root-bound child may also be reconstructed from exactly one retained
 same-carrier `root == literal` fact when that literal equals or strengthens the
 canonical bound endpoint. Production remaps the endpoint into the source
