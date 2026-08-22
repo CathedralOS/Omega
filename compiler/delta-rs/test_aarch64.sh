@@ -160,6 +160,7 @@ run "recursion (fact(5))" samples/recursion.alp 120
 run "data (self fields, sum 1..5)" samples/data.alp 15
 # Slice 7b: array fields + self/method calls + bounds-checked indexing.
 run "methods (stack in self, 7*10+5)" samples/methods.alp 75
+run "bootstrap storage (aligned bump allocation + reset)" samples/bootstrap-storage.alp 42
 cat > "$T/ib.alp" <<'EOF'
 boundary trait Console { machine exit_process(return_code: i32); }
 data Main { console: Console; arr: [i32; 4]; }
@@ -476,6 +477,19 @@ wrap_test "lowermachine keeps the outer operator across a call with an operator-
   PASS=$((PASS+1)); echo "  ok  self-compile FIXPOINT: lowermachine.alp emits itself byte-identical"
 else
   FAIL=$((FAIL+1)); echo "  FAIL self-compile fixpoint: not byte-identical"
+fi
+
+# The Delta-written compiler must never accept a prefix after silently dropping
+# the source tail. Its current fixed backing is explicit and exhaustion is a
+# checked failure until that buffer is replaced by the scalable storage profile.
+set +e
+dd if=/dev/zero bs=262145 count=1 2>/dev/null | "$T/lmx" > /dev/null 2>&1
+source_overflow=$?
+set -e
+if [ "$source_overflow" = 2 ]; then
+  PASS=$((PASS+1)); echo "  ok  lowermachine rejects source larger than its fixed backing"
+else
+  FAIL=$((FAIL+1)); echo "  FAIL lowermachine source overflow: exit $source_overflow, expected 2"
 fi
 
 # SECOND-ORDER self-hosting: the byte-identical lowermachine ($T/lmx) compiles rpn.alp -- another

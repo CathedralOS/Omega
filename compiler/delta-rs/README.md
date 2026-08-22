@@ -127,6 +127,14 @@ arenas/buffers as self fields, and lexer/parser/emitter helper machines mutate
 them through `self.*` method calls. **`lowermachine.alp` self-compiles** (the
 byte-identical fixed point), so the Rust on-ramp is discardable from steady state.
 
+`samples/bootstrap-storage.alp` fixes the first Omega0 storage convention over
+that surface: runtime-sized, aligned reservations return integer offsets into an
+explicit fixed backing array; exhaustion preserves allocator state; and a mark
+and reset pair provides bulk reclamation. `lowermachine.alp` still uses dedicated
+fixed tables, but source-buffer exhaustion is now an explicit exit failure
+instead of silent tail truncation. The frozen D0 contract is recorded in
+[`../omega/BOOTSTRAP_PROFILES.md`](../omega/BOOTSTRAP_PROFILES.md).
+
 ## Language additions (beyond slice 9)
 
 Each is on both backends and keeps the self-compile fixed point byte-identical

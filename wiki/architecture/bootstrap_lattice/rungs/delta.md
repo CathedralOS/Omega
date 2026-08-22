@@ -29,6 +29,11 @@ That compiler then builds the full optimizing Omega compiler from Omega source.
   `delta-meaning-diamond.sh` gate compares that path with native execution.
 - `compiler/delta/` contains the checked-in bootstrap binaries produced by this
   work.
+- `compiler/delta-rs/samples/bootstrap-storage.alp` is the first fixed-backing
+  storage profile canary. It uses checked integer-offset reservations and bulk
+  reset without adding pointers or a general heap to Delta.
+- `compiler/omega/BOOTSTRAP_PROFILES.md` freezes the Delta D0 implementation
+  profile and Omega O0 vertical-canary input profile in their transitional home.
 
 ## Relationship to Psi and Omega
 
@@ -69,3 +74,6 @@ explicit boundary surfaces and remain in the platform trust ledger.
 - Use bootstrap Omega to build and validate the full Omega-source production
   compiler.
 - Continue widening the Delta-to-Gamma meaning route and its differential gates.
+- Replace `lowermachine`'s remaining dedicated fixed tables with logical arenas
+  over the checked D0 backing convention. Its source extent now fails explicitly
+  on exhaustion rather than silently truncating the input.

@@ -27,6 +27,9 @@ moves to `bootstrap/omega0/compiler/`.
   artifact-bound claims and refinement evidence.
 - convergence and certificate gates run emitted evidence through the low-rung
   proof kernel and negative controls.
+- `BOOTSTRAP_PROFILES.md` freezes the Delta implementation profile for Omega0
+  and the first Omega console canary profile. The production-self-host profile
+  remains open until a production compiler source tree exists in Omega.
 
 These are seed pieces for the first Omega compiler, not that compiler itself.
 No Delta-written Omega lexer, parser, checker, terminal-Psi lowering, or native

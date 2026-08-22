@@ -140,10 +140,22 @@ story.
   compiler accepts. The Omega profile must be sufficient to express the full
   Omega-source production compiler; it need not accept every convenience before
   that source uses it.
+  - [x] Freeze Delta implementation profile D0 and Omega vertical-canary profile
+    O0 in `compiler/omega/BOOTSTRAP_PROFILES.md`.
+  - [ ] Freeze the production-self-host Omega profile against the actual Omega
+    compiler source tree. No such source tree exists yet, so O0 must not be
+    mislabeled as sufficient evidence.
 - [ ] **Add scalable compiler storage to Delta.** Implement the explicit
   fixed-backing allocator, runtime-sized byte/source storage, and indexed arenas;
   gate deterministic allocation, alignment, exhaustion, and bulk reset. Remove
   silent fixed-capacity truncation from the compiler path.
+  - [x] Gate the D0 fixed-backing allocator convention for deterministic aligned
+    allocation, indexed handles, exhaustion-state preservation, and bulk reset
+    across native and Delta-to-Gamma meaning routes.
+  - [x] Make `lowermachine.alp` reject source-buffer exhaustion instead of
+    silently compiling a truncated prefix.
+  - [ ] Replace `lowermachine`'s dedicated fixed source/table arrays with logical
+    byte and typed arenas over explicit backing, preserving checked exhaustion.
 - [ ] **Choose and gate source packaging.** Support deterministic multi-file
   input directly or define the audited bundling format used by the bootstrap
   compiler.
@@ -181,9 +193,27 @@ from attractive but deferrable language work.
   compiler through the preceding audited rung or validate the complete artifact
   against `bc.beta` using authority rooted below `bc`. Fixed-point or
   cross-compiler byte agreement is not acceptance evidence.
+  - [ ] Specify the compiler observable as the complete output byte stream plus
+    halt, trap, divergence, and checked resource exhaustion—not merely an exit
+    byte or a finite set of executions.
+  - [ ] Implement the exact `bc.beta` bootstrap profile in an Alpha-written Beta
+    compiler assembled and run only through the audited Alpha/Beta seed path.
+    The current Python symbolic model cannot cover `bc.beta`'s data-dependent
+    branching, word memory, or full-stream emission and is not this authority.
+  - [ ] Persist the resulting lattice-built `bc` artifact, run its self-build and
+    Beta corpus gates, then switch proof-kernel, Gamma, Delta, and Omega gates
+    away from the ephemeral Rust-produced `bc0`.
+  - [ ] Enlarge or replace the x64 seed's current 32 KiB image extent before
+    claiming cross-platform closure; the present self-hosted tape is about 48
+    KiB. The arm64 seed's 256 KiB extent is sufficient for the current artifact.
 - [ ] **Make gate paths relocatable.** Replace hard-coded sibling-relative paths
   with a single repository-root/path helper so ownership moves can be mechanical
   and independently reviewable.
+  - [ ] Convert all executable gates as one mechanical checkpoint; partial
+    conversion does not unlock a move. Include `verify-lattice.sh`, its stable
+    cache location, and the cwd-sensitive Python refinement helpers.
+  - [ ] Add a static path-hygiene gate and verify representative gates from both
+    the repository root and an unrelated working directory before moving files.
 - [ ] **Create the `bootstrap/` ownership root.** Move rungs first without
   changing behavior; retain temporary compatibility wrappers where external
   entry points require them.
