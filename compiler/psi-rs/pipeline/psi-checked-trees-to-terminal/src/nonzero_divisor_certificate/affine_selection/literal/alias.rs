@@ -16,7 +16,9 @@ pub(super) fn prove(
     semantic_axioms: &[Proposition],
     definitions: &DefinitionIndex,
 ) -> Option<ProofNode> {
-    candidates::LiteralAliasCandidates::new(assumptions, semantic_axioms).find(
+    candidates::find(
+        assumptions,
+        semantic_axioms,
         |root, alias, literal, outer_equality, inner_equality| {
             completion::prove(
                 context,

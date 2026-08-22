@@ -15,7 +15,7 @@ pub(super) fn retained(
     semantic_axioms: &[Proposition],
     definitions: &DefinitionIndex,
 ) -> bool {
-    candidates::DirectLiteralCandidates::new(requirements, semantic_axioms).any(|root, literal| {
+    candidates::any(requirements, semantic_axioms, |root, literal| {
         completion::retained(context, goal, semantic_axioms, definitions, root, literal)
     })
 }
