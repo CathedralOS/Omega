@@ -1987,8 +1987,12 @@ retains tag 13; the registered calculus is v15 and the Rust kernel v7. Producer
 and reconstruction independently follow the unique exact-cast SSA definition
 spine backward from the goal, reject ambiguous target definitions, and require
 its source-ordered ledger word. They perform no recursive path or permutation
-search. This completes contiguous
-cast-chain custody for exact divide/remainder goals but does not promote either
+search. Cast-chain custody now lives in dedicated, side-local `cast_custody`
+modules. Production and verification independently own unique-spine selection,
+exact witness/kernel replay, and final `IntegerCastBound` completion; the
+broader evidence selectors retain their existing order and proof shapes. This
+completes contiguous cast-chain custody for exact divide/remainder goals but
+does not promote either
 whole row: affine/cast, shift/cast, joins, and correlated results remain
 trusted-reducer work, and `fully-derived false` is unchanged.
 

@@ -8,9 +8,7 @@ use std::collections::BTreeMap;
 use psi_core::{Proposition, PropositionContext, ScalarTerm};
 use psi_proof_kernel::{ProofNode, ProofRule};
 
-use super::{
-    cited_facts, closed_integer_relation, prove_cast_bound_from_root, remap_integer_literal,
-};
+use super::{cast_custody, cited_facts, closed_integer_relation, remap_integer_literal};
 
 pub(super) fn prove_one(
     assumptions: &[Proposition],
@@ -232,7 +230,7 @@ fn prove_cast_from_stronger_bound(
             endpoint,
         },
     };
-    prove_cast_bound_from_root(
+    cast_custody::prove_from_root(
         context,
         goal,
         assumptions,
@@ -354,7 +352,7 @@ fn prove_cast_from_landed_literal(
                 endpoint,
             },
         };
-        if let Some(proof) = prove_cast_bound_from_root(
+        if let Some(proof) = cast_custody::prove_from_root(
             context,
             goal,
             assumptions,

@@ -3,10 +3,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use psi_core::{Proposition, PropositionContext, ScalarTerm, ValueId};
-use psi_proof_kernel::{
-    IntegerCastChainWitness, Obligation, ObligationClass, check_integer_cast_bound_conversion,
-    check_integer_cast_chain_witness,
-};
+use psi_proof_kernel::{Obligation, ObligationClass};
 use psi_terminal::{OperationKind, TerminalMachine, TerminalModule, Terminator};
 use psi_terminal_semantics::{
     CanonicalScalarGoal, OperationSemanticError, OperationSemanticTag,
@@ -25,6 +22,7 @@ use super::sufficient_reduction::reduce_proof_bearing_scalar_goal;
 mod affine_custody;
 mod affine_selection;
 mod alias_transport;
+mod cast_custody;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReconstructedOperationObligation {
@@ -587,7 +585,13 @@ fn retained_cast_chain_bound(
                 .into_iter()
                 .filter(|root| matches!(root, ScalarTerm::Value { .. }))
                 .any(|root| {
-                    retained_cast_bound_from_root(context, goal, semantic_axioms, root, root_bound)
+                    cast_custody::retained_from_root(
+                        context,
+                        goal,
+                        semantic_axioms,
+                        root,
+                        root_bound,
+                    )
                 })
         })
     {
@@ -632,7 +636,7 @@ fn retained_alias_substituted_cast_bound(
     semantic_axioms: &[Proposition],
 ) -> bool {
     if alias_transport::retained_one(requirements, semantic_axioms, |root, root_bound| {
-        retained_cast_bound_from_root(context, goal, semantic_axioms, root, root_bound)
+        cast_custody::retained_from_root(context, goal, semantic_axioms, root, root_bound)
     }) {
         return true;
     }
@@ -653,7 +657,7 @@ fn retained_two_alias_substituted_cast_bound(
     semantic_axioms: &[Proposition],
 ) -> bool {
     alias_transport::retained_two(requirements, semantic_axioms, |root, root_bound| {
-        retained_cast_bound_from_root(context, goal, semantic_axioms, root, root_bound)
+        cast_custody::retained_from_root(context, goal, semantic_axioms, root, root_bound)
     })
 }
 
@@ -691,7 +695,7 @@ fn retained_cast_bound_from_landed_literal(
             } else {
                 Proposition::LessOrEqual(root.clone(), source_endpoint)
             };
-            retained_cast_bound_from_root(context, goal, semantic_axioms, root, &root_bound)
+            cast_custody::retained_from_root(context, goal, semantic_axioms, root, &root_bound)
         })
 }
 
@@ -702,84 +706,6 @@ fn retained_remap_integer_literal(
     let (source_type, value) = literal.integer_value()?;
     let value = source_type.exact_cast_value_to(target_type, value)?;
     ScalarTerm::integer(target_type, value).ok()
-}
-
-fn retained_cast_bound_from_root(
-    context: &PropositionContext,
-    goal: &Proposition,
-    semantic_axioms: &[Proposition],
-    root: &ScalarTerm,
-    root_bound: &Proposition,
-) -> bool {
-    let Proposition::LessOrEqual(goal_left, goal_right) = goal else {
-        return false;
-    };
-    [goal_left, goal_right]
-        .into_iter()
-        .filter(|target| matches!(target, ScalarTerm::Value { .. }))
-        .any(|target| {
-            let Some(definition_axioms) =
-                retained_exact_cast_chain_axioms(root, target, semantic_axioms)
-            else {
-                return false;
-            };
-            check_integer_cast_chain_witness(
-                context,
-                semantic_axioms,
-                &IntegerCastChainWitness {
-                    root: root.clone(),
-                    target: target.clone(),
-                    definition_axioms,
-                },
-            )
-            .is_ok_and(|chain| {
-                check_integer_cast_bound_conversion(&chain, root_bound, goal).is_ok()
-            })
-        })
-}
-
-/// Independently reconstruct the unique exact-cast SSA definition spine.
-///
-/// This follows one definition per reached target and never explores alternate
-/// paths or permutations. The proof-kernel witness checker still owns all cast
-/// legality, continuity, and carrier validation.
-fn retained_exact_cast_chain_axioms(
-    root: &ScalarTerm,
-    target: &ScalarTerm,
-    semantic_axioms: &[Proposition],
-) -> Option<Vec<usize>> {
-    if root == target {
-        return None;
-    }
-    let mut current = target.clone();
-    let mut reversed = Vec::new();
-    while &current != root {
-        if reversed.len() >= semantic_axioms.len() {
-            return None;
-        }
-        let mut definitions = semantic_axioms
-            .iter()
-            .enumerate()
-            .filter_map(|(index, axiom)| {
-                let Proposition::Equal(output, ScalarTerm::IntegerExactCast { operand, .. }) =
-                    axiom
-                else {
-                    return None;
-                };
-                (output == &current).then(|| (index, operand.as_ref().clone()))
-            });
-        let (index, operand) = definitions.next()?;
-        if definitions.next().is_some() || reversed.contains(&index) {
-            return None;
-        }
-        reversed.push(index);
-        current = operand;
-    }
-    reversed.reverse();
-    reversed
-        .windows(2)
-        .all(|pair| pair[0] < pair[1])
-        .then_some(reversed)
 }
 
 fn retained_equality_substituted_integer_bound(
