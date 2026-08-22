@@ -780,19 +780,13 @@ fn runtime_frame_mixed_index_pair_copy_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-frame-mi-pair-copy-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("mixed-index frame pair-copy canary should compile");
-
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("mixed-index frame pair-copy canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(1),
-        "expected mixed machine/frame indices to copy complete frame-inline aggregate values, got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        1,
+        "mixed-index frame pair-copy canary",
+        "mixed machine/frame indices should copy complete frame-inline aggregates",
     );
 
     let _ = fs::remove_dir_all(&scratch);
@@ -807,19 +801,13 @@ fn runtime_cross_region_indexed_pair_copy_exit_canary_runs() {
     ));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("cross-region indexed-pair canary should compile");
-
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("cross-region indexed-pair canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(1),
-        "expected machine/frame indexed arrays to exchange complete aggregate values, got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        1,
+        "cross-region indexed-pair canary",
+        "machine and frame arrays should exchange complete indexed aggregate values",
     );
 
     let _ = fs::remove_dir_all(&scratch);
@@ -834,19 +822,13 @@ fn runtime_cross_region_double_indexed_pair_copy_exit_canary_runs() {
     ));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("cross-region double-indexed-pair canary should compile");
-
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("cross-region double-indexed-pair canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(1),
-        "expected machine/frame 2D arrays to exchange complete aggregate values, got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        1,
+        "cross-region double-indexed pair canary",
+        "machine and frame 2D arrays should exchange complete aggregate values",
     );
 
     let _ = fs::remove_dir_all(&scratch);
@@ -861,19 +843,13 @@ fn constant_nested_index_guard_exit_canary_runs() {
     ));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("constant nested-index guard canary should compile");
-
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("constant nested-index guard canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(1),
-        "expected a constant nested-index guard to read the authored element, got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        1,
+        "constant nested-index guard canary",
+        "the constant nested-index guard should read the authored element",
     );
 
     let _ = fs::remove_dir_all(&scratch);
@@ -887,21 +863,13 @@ fn runtime_dual_mixed_index_copy_exit_canary_runs() {
     let scratch = std::env::temp_dir().join(format!("omega-dual-mi-copy-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("dual mixed-index copy canary should compile");
-
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("dual mixed-index copy canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(1),
-        "expected `arr[k]=arr[self.j]` then `arr[self.j]=arr[m]` to land on the right          elements and exit 1, got {:?}
-stderr:
-{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        1,
+        "dual mixed-index copy canary",
+        "the opposing frame/machine index pairs should select the intended elements",
     );
 
     let _ = fs::remove_dir_all(&scratch);
