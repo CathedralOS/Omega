@@ -2786,9 +2786,12 @@ fn runtime_saturating_wide_boundaries_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_saturating_wide_boundaries_exit");
     let scratch = std::env::temp_dir().join(format!("omega-satwide-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("wide saturating boundaries canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("wide saturating boundaries canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("wide saturating boundaries canary should run");
     assert_eq!(
@@ -2812,9 +2815,12 @@ fn runtime_saturating_param_carry_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_saturating_param_carry_exit");
     let scratch = std::env::temp_dir().join(format!("omega-satcarry-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("saturating param-carry canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("saturating param-carry canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("saturating param-carry canary should run");
     assert_eq!(
@@ -2836,9 +2842,12 @@ fn runtime_saturating_expression_domain_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_saturating_expression_domain_exit");
     let scratch = std::env::temp_dir().join(format!("omega-satexpr-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("saturating expression-domain canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("saturating expression-domain canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("saturating expression-domain canary should run");
     assert_eq!(
@@ -2858,9 +2867,12 @@ fn runtime_wrapping_expression_guard_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_wrapping_expression_guard_exit");
     let scratch = std::env::temp_dir().join(format!("omega-wrapexpr-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("wrapping expression-guard canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("wrapping expression-guard canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("wrapping expression-guard canary should run");
     assert_eq!(
@@ -2882,9 +2894,12 @@ fn runtime_divide_min_edge_guard_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_divide_min_edge_guard_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-divmin-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("divide min-edge guard canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("divide min-edge guard canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("divide min-edge guard canary should run");
     assert_eq!(
