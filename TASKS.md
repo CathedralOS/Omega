@@ -2381,7 +2381,13 @@ Remaining:
   custody remains preferred in each parent. Equality order, citation
   identities, endpoint orientation, proof shape, missing, reused, redirected,
   mistyped, or cyclic rejection, and the exact two-equality frontier are
-  unchanged; a third alias remains outside. Exact two-fact integer-order
+  unchanged; a third alias remains outside. Those established
+  `integer_selection/substitution/two` APIs now act as facades over independent
+  side-local `two/selection` owners. Outer equality, orientation, distinct
+  inner equality, final-alias affine-relation order, exact fact non-reuse,
+  endpoint identity, inner-then-outer substitution proof bytes, rejection,
+  one-before-two precedence, and the exact two-equality frontier remain
+  unchanged. Exact two-fact integer-order
   custody now lives in independent side-local
   `integer_selection/order/transitive` modules. Production alone retains the
   ordered left/right citation identities and constructs one
@@ -7084,7 +7090,13 @@ checked-result arithmetic decision listed below.
   proof-fact order, and diagnostics remain unchanged. The natural 122-line
   coordinator now owns only concrete-membership discovery and transactional
   fact replacement; public APIs and the 107-function production inventory are
-  unchanged.
+  unchanged. The wire-policy value bridge now lives in a focused 153-line
+  private owner. Exact schema-fact materialization, fixed-capacity padding,
+  common-floor policy admission, returned `FieldPlan` decoding, full-width tag
+  preservation, diagnostics, and tag-sorted agreement remain unchanged. Its
+  cohesive 191-line parent retains schema classification, derived-plan
+  comparison, encode-obligation construction, and transactional installation;
+  public APIs and the 107-function production inventory are unchanged.
 - Finish member reflection (`Self::fields` and field/case splices), constant
   positions, and proof checking of generator-expanded bodies.
 - Complete the ordinary `Build` API/executor with exact dependency aliases,
