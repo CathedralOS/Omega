@@ -2754,11 +2754,14 @@ fn runtime_mutable_dynamic_indexed_machine_owned_parameter_write_exit_canary_run
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
         "runtime mutable dynamic indexed machine-owned parameter write canary should compile",
     );
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation.checked_native_executable_path().expect(
+        "dynamic machine-owned indexed parameter canary should retain its executable receipt",
+    );
+    let output = Command::new(executable)
         .output()
         .expect("runtime mutable dynamic indexed machine-owned parameter write canary should run");
 
@@ -2782,10 +2785,13 @@ fn runtime_dispatch_local_index_binary_write_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("runtime local index binary write canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("local index binary write canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("runtime local index binary write canary should run");
 
@@ -2809,11 +2815,14 @@ fn runtime_dispatch_helper_local_alias_add_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
         "runtime dispatch helper local alias add canary should compile from its authored root",
     );
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("helper local alias-add canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("runtime dispatch helper local alias add canary should run");
 
@@ -2837,10 +2846,13 @@ fn runtime_slice_alias_indexed_field_write_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("runtime slice alias indexed field write canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("slice alias indexed field write canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("runtime slice alias indexed field write canary should run");
 
@@ -2881,7 +2893,7 @@ fn runtime_slice_indexed_binary_rmw_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
+    let compilation = compile(CompileOptions {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
@@ -2889,7 +2901,10 @@ fn runtime_slice_indexed_binary_rmw_exit_canary_runs() {
     })
     .expect("slice indexed binary RMW canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("slice indexed binary RMW canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("slice indexed binary RMW canary should run");
 
