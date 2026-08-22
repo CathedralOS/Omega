@@ -635,7 +635,11 @@ Owners:
   retry. External-root writer binding independently replays retained lowered
   invocation structure, canonical bytes, footprint, and emitted identity;
   every bind rejection returns the exact lowered fragment and non-clonable
-  provider preparation for corrected retry. Writer
+  provider preparation for corrected retry. Bound external-root writer
+  execution independently replays the retained lowered fragment and exact
+  provider preparation/context relationship before destination consumption;
+  rejection returns the complete bound carrier and exact destination for
+  corrected retry. Writer
   derivation, lowering, validation, and execution uniformly require at least
   one retained fragment; an empty provider program cannot claim materialization.
   Validation also binds every supplied source word to any exact pre-resolved
@@ -1508,7 +1512,13 @@ Remaining:
   scalar-result equality, nominal-cleanup obligations, structural-return facts,
   and the rule that Crash contributes no normal exit. CFG scheduling and final
   all-return intersection remain in the parent; cleanup order, axiom snapshots,
-  and noncanonical cleanup status are unchanged. A
+  and noncanonical cleanup status are unchanged. Immutable machine
+  reconstruction context now lives in a side-local `machine_context` module.
+  It alone derives the existing path-fact enablement predicate, exact
+  value-type proposition context, machine-parameter custody set, and
+  block/machine identity indexes. Traversal consumes that read-only context;
+  operation and terminator modules retain their independent decision authority,
+  and no dispatch, fact, proof, or search order changes. A
   single exact prior value equality may also transport a completed affine bound
   from its checked target alias to the canonical goal endpoint. The producer
   replaces that one endpoint, constructs the bounded affine relation directly,
@@ -2613,6 +2623,15 @@ Owners:
   only the exact checked-report path; the 795 unique-owner pin remains stable,
   and compiler-function fingerprint drift between the flat and bundle copies
   exposes no executable path.
+  The next five authored-root dispatch executions through the mixed return-type
+  probe now use the same receipt-only launch boundary; the exact-owner pin stays
+  795, and flat/bundle boundary-contract drift exposes no executable path.
+  The following five value-call executions through the post-splice mutation
+  probe also use the exact report receipt; the 795 pin remains unchanged, and
+  flat/bundle executable-inventory drift exposes no executable path.
+  The next five runtime value-call executions through the slice-length guard
+  probe now use receipt-only launch; the 795 owner pin stays stable, and
+  flat/bundle compiler-text validation drift exposes no executable path.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
