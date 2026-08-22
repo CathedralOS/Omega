@@ -14,18 +14,16 @@ pub(super) fn retained(
     semantic_axioms: &[Proposition],
     definitions: &DefinitionIndex,
 ) -> bool {
-    candidates::AliasedTransitiveCandidates::new(requirements, semantic_axioms).any(
-        |root, alias, left, right| {
-            completion::retained(
-                context,
-                goal,
-                semantic_axioms,
-                definitions,
-                root,
-                alias,
-                left,
-                right,
-            )
-        },
-    )
+    candidates::any(requirements, semantic_axioms, |root, alias, left, right| {
+        completion::retained(
+            context,
+            goal,
+            semantic_axioms,
+            definitions,
+            root,
+            alias,
+            left,
+            right,
+        )
+    })
 }
