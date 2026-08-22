@@ -581,6 +581,7 @@ name = "omega-image-elf"
 version = "0.1.0"
 dependencies = [
  "omega-image",
+ "omega-object-file",
  "psi-arena",
  "psi-diagnostics",
 ]

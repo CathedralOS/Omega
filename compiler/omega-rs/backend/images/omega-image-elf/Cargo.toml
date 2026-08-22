@@ -12,3 +12,4 @@ path = "src/lib.rs"
 psi-arena = { path = "../../../../psi-rs/foundation/psi-arena" }
 psi-diagnostics = { path = "../../../../psi-rs/foundation/psi-diagnostics" }
 omega-image = { path = "../omega-image" }
+omega-object-file = { path = "../../object/omega-object-file" }
