@@ -6516,8 +6516,15 @@ state through a raw address.
   runs in an ordinary task.
 - **BOUNDED-INSTALLATION-REACH-ROWS.** Implement bounded installation reach
   rows spelled `reaches <= Bound` on installation-bound boundary requirements.
-  Give each row the exact normalized
-  requirement path as identity, retain its `+`-union upper bound and internal
+  The source form and its normalized marker are live through syntax,
+  symbol-resolved, typed, and typed-snapshot representations. The parser
+  accepts it only on bodyless boundary-trait requirements and rejects empty,
+  mixed, default-body, ordinary-trait, and structural-binder uses.
+  Remaining work starts at checked semantics: give each unresolved row the
+  exact normalized requirement path as identity, prove each selected
+  realization row is a subset of its bound, and retain that resolution through
+  manifests, root closure, and final admission.
+  Retain its `+`-union upper bound and internal
   dependency closure, reject escape through ordinary callable package or
   component contracts, expose unresolved rows and bounds in preselection
   manifests, substitute the selected provider row throughout the root closure,

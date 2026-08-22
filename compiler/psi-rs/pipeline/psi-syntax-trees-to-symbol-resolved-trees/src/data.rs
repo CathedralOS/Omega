@@ -212,6 +212,7 @@ pub(crate) fn lower_type_parameters(
                             contract.parameters,
                             contract.return_type,
                             contract.is_default,
+                            false,
                             contract.service_reaches,
                             contract.invokes,
                             contract.suspends,

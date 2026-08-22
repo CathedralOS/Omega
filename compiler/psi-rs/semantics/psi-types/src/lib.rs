@@ -277,6 +277,8 @@ pub fn build_type_surface_report(syntax_trees: &SyntaxTrees) -> TypeSurfaceRepor
                             is_default: signature.is_default,
                             parameters: signature.parameters,
                             return_type: signature.return_type,
+                            service_reach_is_installation_bound: signature
+                                .service_reach_is_installation_bound,
                             service_reaches: signature.service_reaches,
                             invokes: signature.invokes,
                             suspends: signature.suspends,

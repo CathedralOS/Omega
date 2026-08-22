@@ -383,13 +383,26 @@ fn parse_machine_parameter_contracts_in<'tokens, 'source>(
             false,
         )?;
         let (
-            (service_reaches, invokes, suspends, blocks, contracts, terminates_guarantee),
+            (
+                service_reaches,
+                service_reach_is_installation_bound,
+                invokes,
+                suspends,
+                blocks,
+                contracts,
+                terminates_guarantee,
+            ),
             mut rest,
         ) = crate::parser::trait_definition::parse_signature_clauses(
             syntax_trees,
             after_nested_contracts,
             false,
         )?;
+        if service_reach_is_installation_bound {
+            return Err(rest.error_here(
+                "`reaches <= Bound` is installation-selected and cannot appear on a structural machine parameter",
+            ));
+        }
         // Permit a separator after the requirement. The semicolon belongs to
         // this `where machine` signature, never to the generic machine body.
         if rest.at_punctuation(PunctuationKind::Semicolon) {
@@ -404,6 +417,7 @@ fn parse_machine_parameter_contracts_in<'tokens, 'source>(
             is_default: false,
             parameters,
             return_type,
+            service_reach_is_installation_bound: false,
             service_reaches,
             invokes,
             suspends,

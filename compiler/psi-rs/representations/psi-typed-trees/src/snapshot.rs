@@ -740,6 +740,7 @@ pub struct StateSignatureSnapshot {
     pub return_type: Option<TypeReferenceSnapshot>,
     pub invokes: Vec<String>,
     pub service_reach: Vec<String>,
+    pub service_reach_is_installation_bound: bool,
     pub suspends: bool,
     pub blocks: bool,
     pub contracts: Vec<SignatureContractSnapshot>,
@@ -1478,6 +1479,7 @@ fn state_signature_snapshot(
             .map(ToString::to_string)
             .collect(),
         service_reach: service_reach_names(program, signature.service_reach_row),
+        service_reach_is_installation_bound: signature.service_reach_is_installation_bound,
         suspends: signature.suspends,
         blocks: signature.blocks,
         contracts: program
