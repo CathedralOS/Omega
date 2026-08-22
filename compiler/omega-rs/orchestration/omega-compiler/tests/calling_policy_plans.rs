@@ -1546,18 +1546,23 @@ machine build(builder: &mut Build) {
         write_output: true,
     })
     .expect("receiver-free UEFI entry should retain its source ABI");
+    assert!(report.has_consistent_program_storage_entry_custody());
     let bridge = report
         .program_storage_entry_bridge
         .expect("receiver-free UEFI entry bridge");
-    let unwritten_bridge = compile(CompileOptions {
+    let mut unwritten_report = compile(CompileOptions {
         root_path: directory.join("main.omg"),
         build_dir: Some(directory.join("unwritten-build")),
         target_name: Some("uefi_x64".into()),
         write_output: false,
     })
-    .expect("the same receiver-free entry should compile without publishing an image")
-    .program_storage_entry_bridge
-    .expect("unwritten receiver-free UEFI entry bridge");
+    .expect("the same receiver-free entry should compile without publishing an image");
+    assert!(unwritten_report.has_consistent_program_storage_entry_custody());
+    unwritten_report.program_storage_entry = None;
+    assert!(!unwritten_report.has_consistent_program_storage_entry_custody());
+    let unwritten_bridge = unwritten_report
+        .program_storage_entry_bridge
+        .expect("unwritten receiver-free UEFI entry bridge");
     assert_eq!(unwritten_bridge.binding(), bridge.binding());
     assert!(unwritten_bridge.emitted_wrapper_evidence().is_none());
     assert!(matches!(
