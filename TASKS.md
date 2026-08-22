@@ -1482,6 +1482,13 @@ Remaining:
   host-native gates are green. No inverse/alias search, schema, trust-status,
   or fixed-frontier change is made. Shift/cast, joins, correlated, and broader
   affine/cast shapes remain trusted, with fully-derived false unchanged.
+  The next landed-literal affine/cast/affine sibling stops at source
+  integration: contract equality fails checked transitive-plan construction,
+  while branch-local equality is not materialized as a canonical pre-site
+  Value-to-literal row before proof selection. Its producer/verifier prototype
+  was fully removed. Shift conversion separately lacks a ruled overflow/
+  preimage proposition and versioned bound proof; correlated conversion still
+  lacks dedicated proposition authority.
   The corresponding direct same-carrier family now retains all four nonempty
   divide/remainder-to-affine/shift compositions without a cast. A leading
   divide/remainder chain supplies its complete verifier-owned carrier hull to
