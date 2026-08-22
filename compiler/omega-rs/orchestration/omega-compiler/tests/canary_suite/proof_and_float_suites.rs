@@ -900,10 +900,13 @@ fn runtime_cross_array_indexed_guard_compare_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-cross-idx-guard-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("cross-array indexed guard-compare canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("cross-array indexed guard canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("cross-array indexed guard-compare canary should run");
 
@@ -927,10 +930,13 @@ fn runtime_dual_indexed_guard_equality_exit_canary_runs() {
     let build_dir = std::env::temp_dir().join(format!("omega-dual-idx-eq-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("dual-indexed guard-equality canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("dual-indexed guard-equality canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("dual-indexed guard-equality canary should run");
 
@@ -955,10 +961,13 @@ fn runtime_dual_indexed_guard_compare_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-dual-idx-guard-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("dual-indexed guard-compare canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("dual-indexed guard-compare canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("dual-indexed guard-compare canary should run");
 
