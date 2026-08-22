@@ -3035,6 +3035,10 @@ Remaining:
   invariant-window lifecycle, diagnostics, and crash evidence remain separate.
   Its 2,016-line parent retains the same API, 45-function inventory, accepted
   judgments, and diagnostic order.
+  Standing reader-hypothesis interval derivation now lives in a focused 279-
+  line `where_fact_intervals` child, preserving the crate-visible query,
+  recursive depth cap, declared-range/product guards, and fail-closed behavior
+  while leaving write analysis and diagnostic order in a 1,739-line parent.
   The measured nominal affine integer-comparison reconstruction hotspot now
   uses independent producer- and verifier-local affine-definition indexes.
   Each immutable invocation maps an exact current Value term to source-ordered
