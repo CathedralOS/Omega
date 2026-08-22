@@ -1088,3 +1088,8 @@ same local is bound by an exact rooted compile helper and passed to the checked
 runner with one literal status. That admits seven newly unique stronger owners;
 the repeated linear-transfer fixture has two owners and remains deliberately
 unelided under the existing ambiguity fence.
+
+The five authored-root native executions in the value/type-check cohort now
+use the same checked-report runner boundary. They retain their exact literal
+exit-status assertions while removing every conventional `out/<executable>`
+reconstruction; the strict source index preserves the same unique-owner count.

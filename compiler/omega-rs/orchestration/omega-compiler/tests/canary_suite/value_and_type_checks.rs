@@ -1,5 +1,21 @@
 use super::*;
 
+fn assert_native_exit_code(report: &CompileReport, expected: i32, fixture: &str) {
+    let executable = report
+        .checked_native_executable_path()
+        .unwrap_or_else(|| panic!("{fixture} lost its exact executable publication receipt"));
+    let output = Command::new(executable)
+        .output()
+        .unwrap_or_else(|error| panic!("{fixture} should run: {error}"));
+    assert_eq!(
+        output.status.code(),
+        Some(expected),
+        "{fixture} should exit {expected}, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
 #[test]
 fn value_call_as_host_arg_exit_canary_runs() {
     let canary = pass_canary("calls/value_call_as_host_arg_exit");
@@ -7,19 +23,9 @@ fn value_call_as_host_arg_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-value-call-host-arg-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
 
-    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("nested value call used as a host argument should compile");
-
-    let output = Command::new(scratch.join("out").join(executable_name()))
-        .output()
-        .expect("nested value-call host argument canary should run");
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected `exit_process(self.dbl(35))` to exit 70, got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_native_exit_code(&compilation, 70, "nested value-call host argument canary");
 
     let _ = fs::remove_dir_all(&scratch);
 }
@@ -31,19 +37,9 @@ fn computed_host_arg_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-computed-host-arg-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
 
-    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("computed scalar host argument should compile");
-
-    let output = Command::new(scratch.join("out").join(executable_name()))
-        .output()
-        .expect("computed scalar host argument canary should run");
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected direct `self.a + self.b` host argument to exit 70, got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_native_exit_code(&compilation, 70, "computed scalar host argument canary");
 
     let _ = fs::remove_dir_all(&scratch);
 
@@ -63,19 +59,9 @@ fn computed_host_cast_arg_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-computed-host-cast-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
 
-    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("computed cast host argument should compile");
-
-    let output = Command::new(scratch.join("out").join(executable_name()))
-        .output()
-        .expect("computed cast host argument canary should run");
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected direct `self.value as i32` host argument to exit 70, got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_native_exit_code(&compilation, 70, "computed cast host argument canary");
     let _ = fs::remove_dir_all(&scratch);
 }
 
@@ -88,19 +74,9 @@ fn computed_host_builtin_arg_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&scratch);
 
-    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("computed builtin host argument should compile");
-
-    let output = Command::new(scratch.join("out").join(executable_name()))
-        .output()
-        .expect("computed builtin host argument canary should run");
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected direct `max(self.low, self.high)` host argument to exit 70, got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_native_exit_code(&compilation, 70, "computed builtin host argument canary");
     let _ = fs::remove_dir_all(&scratch);
 }
 
@@ -113,19 +89,9 @@ fn computed_host_indexed_arg_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&scratch);
 
-    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("runtime-indexed host argument should compile");
-
-    let output = Command::new(scratch.join("out").join(executable_name()))
-        .output()
-        .expect("runtime-indexed host argument canary should run");
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected direct `view[self.index]` host argument to exit 70, got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_native_exit_code(&compilation, 70, "runtime-indexed host argument canary");
     let _ = fs::remove_dir_all(&scratch);
 }
 
