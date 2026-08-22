@@ -417,7 +417,7 @@ recursive `LessOrEqual`/conjunction/disjunction shape rather than maintaining
 separate safe-divisor and exceptional selectors. Redirected goals, reordered
 joint conjunctions, and wrong operands reject. No result equation participates.
 The existing
-proof rules and proof-bundle v15 codec need no vocabulary change.
+proof rules and proof-bundle v16 codec need no further vocabulary change.
 All other exact divide/remainder reconstruction remains on its trusted reducer
 until an untrusted producer can materialize kernel-checkable certificates for
 the accepted affine/correlated families without importing operation evidence.
@@ -446,7 +446,18 @@ coefficients reverse it, and zero coefficients use the root-bound orientation
 to select one of the two sound constant-bound directions. The checker
 recomputes the mapped endpoint with checked arithmetic and rejects malformed
 root/literal/target shapes, overflow, or an endpoint outside the carrier. It
-accepts no proof or citation authority and is not a `ProofRule`.
+accepts no proof or citation authority by itself. `IntegerAffineBound` is the
+versioned composition rule around those two existing checks. It owns one
+recursively checked root-bound child and one `IntegerAffineWitness`; the kernel
+rechecks the ordered definition word, maps the child conclusion, and records
+every selected semantic axiom in accepted premise closure. Non-order or
+wrong-root children, stale/reordered/malformed definitions, target/carrier
+drift, arithmetic failure, and changed mapped conclusions reject. Proof-bundle
+v16 assigns tag 12, the registered calculus is v13, and the Rust kernel is v5.
+The calculus root and kernel implementation both bind the affine-checker source.
+This is capability only: no producer or reducer trust status changes, and
+producer-side selection of complete root-bound proofs and normalization words
+remains.
 
 The contiguous pure-cast core also has a non-serialized checked witness.
 `IntegerCastChainWitness` selects a nonempty, strictly increasing sequence of
@@ -494,12 +505,12 @@ type or root drift, constant collapse, one-sided bounds, and arithmetic failure
 all reject. The checked result retains exact branch, landing, bound, interval,
 forbidden-root, and conclusion identities but accepts no proof authority.
 
-An intentionally versioned recursive proof-rule integration must still bind
-the root-bound proof and every normalization equality into the accepted premise
-closure. A certificate conversion for the checked correlated result also
-remains producer work before either exact divide/remainder row can leave
+A certificate conversion for the checked correlated result remains producer
+work: `IntegerAffineBound` covers one affine target bound, not the correlated
+two-branch lattice conclusion. Producer selection of complete root-bound proofs
+and definition words also remains before either exact divide/remainder row can leave
 `TrustedJudgment`. Because no serialized proof rule or deployed reconstruction
-path changed, proof-bundle v15, terminal codec v18, installation record v24,
+path changed, proof-bundle v16, terminal codec v18, installation record v24,
 and the current trust statuses remain unchanged.
 
 The consolidated divide/remainder cross-cast rule admits a nonempty landed-

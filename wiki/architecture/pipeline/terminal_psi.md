@@ -1302,7 +1302,7 @@ verifier independently requires both resolved leaves to have byte-sequence
 carrier types, and call substitution rebases both roots. The bounded slice
 admits field-to-field whole-record equality for `&[u8] in Domain` and
 `[u8; N] in Domain`; text literals and direct text `!=` remain fenced. Semantic
-codec v18, proof-bundle v15, and installation-record v24 encode this vocabulary.
+codec v18, proof-bundle v16, and installation-record v24 encode this vocabulary.
 A
 genuinely zero-member record instead normalizes equality to the
 existing Boolean `true` term; inequality uses the existing negation, and calls,
@@ -1836,8 +1836,8 @@ recursive `LessOrEqual`/conjunction/disjunction shape as the producer instead of
 separate safe-divisor and exceptional selectors. Redirected goals, reordered
 joint conjunctions, or wrong operands reject. No operation-result equation is
 available as proof authority. The existing proof
-rules and proof-bundle v15 codec carry these certificates without a vocabulary
-change. All other exact divide/remainder families remain
+rules and proof-bundle v16 codec carry these certificates without a further
+vocabulary change. All other exact divide/remainder families remain
 on their explicitly trusted sufficient reducer, and both complete rows retain
 their current trust status. Their canonical proposition is settled, and the
 existing kernel rules can check direct bound, disjunction, conjunction,
@@ -1868,8 +1868,17 @@ recomputed with checked arithmetic and must inhabit the same carrier; wrong
 root or literal shape, wrong target relation, arithmetic overflow, and
 out-of-carrier endpoints reject. This conversion accepts no proof authority:
 its caller must independently establish the supplied root-bound proposition.
-It remains a non-serialized prerequisite API, not a `ProofRule` or certificate
-leaf.
+`IntegerAffineBound` now composes those checks into one certificate node. Its
+recursively checked child proves the exact root bound, while its
+`IntegerAffineWitness` binds the root, target, and strictly ordered semantic
+definition indices. The kernel replays normalization, maps the child
+conclusion, and records every definition in accepted premise closure.
+Non-order or wrong-root children, stale/reordered/malformed words,
+target/carrier drift, arithmetic failure, or changed mapped conclusions reject.
+Proof-bundle v16 assigns tag 12; the registered calculus is v13 and the Rust
+kernel v5, with the affine checker included in both trust-graph source sets.
+This is capability only: no producer emits it yet and no exact row or reducer
+changes trust.
 
 The common pure-cast spine now has the same kind of producer-visible custody.
 `IntegerCastChainWitness` binds one or more contiguous partial fixed-native
@@ -1910,8 +1919,9 @@ definitions, discontinuity, cycles, and target drift reject.
 
 The shift checker accepts no proof authority, does not establish machine-root
 custody, and proves neither left-shift overflow safety nor any surrounding
-preimage or interval claim. Affine and cast witnesses likewise remain
-non-certificate custody.
+preimage or interval claim. Cast witnesses remain non-certificate custody;
+affine witnesses become certificate premises only inside a checked
+`IntegerAffineBound` node.
 
 The correlated affine exact-divide/remainder family now has one complete
 non-serialized `IntegerCorrelatedForbiddenRootWitness`. It independently
@@ -1931,13 +1941,14 @@ constant branches, and checked arithmetic failure reject.
 
 This forbidden-root checker accepts no proposition as authority and does not
 turn its checked sufficient conclusion or selected bounds into a certificate
-premise. Affine certificate production still needs
-an intentionally versioned proof-rule integration that recursively checks the
-root-bound citation and binds every normalization equality into the accepted
-premise closure. Until that integration and the correlated conversions cover
-every accepted family, neither exact row switches reconstruction or gains an
+premise. `IntegerAffineBound` covers one mapped affine target bound, not this
+correlated two-branch lattice conclusion. Producer selection of complete affine
+root proofs/definition words and a dedicated correlated conversion still
+remain. Until those conversions cover every accepted family, neither exact row
+switches reconstruction or gains an
 evidence-dependent fallback. No proof vocabulary, schema, or reducer node is
-promoted, and terminal closure remains `fully-derived false`.
+further promoted by the correlated custody form, and terminal closure remains
+`fully-derived false`.
 
 Proof-bundle v15 additionally carries exact fixed-integer `<=` endpoint
 substitution. One recursively checked relation child, one recursively checked

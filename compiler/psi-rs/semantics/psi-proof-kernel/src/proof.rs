@@ -1,6 +1,10 @@
 use psi_core::{Proposition, PropositionContext};
 
-use crate::{KernelError, PrimitiveJudgment, decide_primitive};
+use crate::{
+    IntegerAffineBoundConversionError, IntegerAffineWitness, IntegerAffineWitnessError,
+    KernelError, PrimitiveJudgment, check_integer_affine_bound_conversion,
+    check_integer_affine_witness, decide_primitive,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProofNode {
@@ -47,6 +51,12 @@ pub enum ProofRule {
         equality: Box<ProofNode>,
         endpoint: usize,
     },
+    /// Map one independently proved root bound through an exact, ordered
+    /// affine-definition witness whose semantic-axiom custody is rechecked.
+    IntegerAffineBound {
+        root_bound: Box<ProofNode>,
+        witness: IntegerAffineWitness,
+    },
 }
 
 /// Proof-rule families exercised by one accepted certificate. The set is a
@@ -64,6 +74,7 @@ pub enum AcceptedProofRule {
     EqualityTransitivity,
     IntegerLessOrEqualTransitivity,
     IntegerLessOrEqualSubstitution,
+    IntegerAffineBound,
 }
 
 /// One premise that materially participates in an accepted derivation.
@@ -487,6 +498,32 @@ fn check_node(
             }
             Ok(())
         }
+        ProofRule::IntegerAffineBound {
+            root_bound,
+            witness,
+        } => {
+            acceptance
+                .rules
+                .insert(AcceptedProofRule::IntegerAffineBound);
+            check_node(
+                context,
+                assumptions,
+                semantic_axioms,
+                root_bound,
+                acceptance,
+            )?;
+            let form = check_integer_affine_witness(context, semantic_axioms, witness)
+                .map_err(ProofError::IntegerAffineWitness)?;
+            check_integer_affine_bound_conversion(&form, &root_bound.conclusion, &proof.conclusion)
+                .map_err(ProofError::IntegerAffineBoundConversion)?;
+            for &index in &witness.definition_axioms {
+                let proposition = semantic_axioms
+                    .get(index)
+                    .ok_or(ProofError::UnknownSemanticAxiom(index))?;
+                acceptance.record_semantic_axiom(index, proposition);
+            }
+            Ok(())
+        }
     }
 }
 
@@ -513,6 +550,8 @@ pub enum ProofError {
     UnknownIntegerOrderEndpoint(usize),
     IntegerOrderUnchangedEndpointMismatch,
     IntegerOrderSubstitutionMismatch,
+    IntegerAffineWitness(IntegerAffineWitnessError),
+    IntegerAffineBoundConversion(IntegerAffineBoundConversionError),
     CertificateConclusionMismatch,
     RuleConclusionMismatch(&'static str),
     RulePremiseMismatch(&'static str),
@@ -999,6 +1038,122 @@ mod tests {
                 std::slice::from_ref(&equality),
             ),
             Err(ProofError::UnknownSemanticAxiom(1)),
+        );
+    }
+
+    #[test]
+    fn integer_affine_bound_checks_root_proof_normalization_and_exact_custody() {
+        use psi_core::{IntegerSign, IntegerType, IntegerValue, ScalarTerm, ScalarType, ValueId};
+
+        let integer = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+        let root = ScalarTerm::value(ValueId::new(1).expect("root"), ScalarType::Integer(integer));
+        let target = ScalarTerm::value(
+            ValueId::new(2).expect("target"),
+            ScalarType::Integer(integer),
+        );
+        let literal =
+            |value| ScalarTerm::integer(integer, IntegerValue::Signed(value)).expect("i8 literal");
+        let context = PropositionContext::from_value_types([
+            (ValueId::new(1).expect("root"), ScalarType::Integer(integer)),
+            (
+                ValueId::new(2).expect("target"),
+                ScalarType::Integer(integer),
+            ),
+        ])
+        .expect("context");
+        let root_bound = Proposition::LessOrEqual(literal(1), root.clone());
+        let definition = Proposition::Equal(
+            target.clone(),
+            ScalarTerm::exact_integer_add(integer, root.clone(), literal(2)).expect("exact add"),
+        );
+        let conclusion = Proposition::LessOrEqual(literal(3), target.clone());
+        let proof = |definition_axioms, conclusion: Proposition| ProofNode {
+            conclusion,
+            rule: ProofRule::IntegerAffineBound {
+                root_bound: Box::new(ProofNode {
+                    conclusion: root_bound.clone(),
+                    rule: ProofRule::Assumption { index: 0 },
+                }),
+                witness: IntegerAffineWitness {
+                    root: root.clone(),
+                    target: target.clone(),
+                    definition_axioms,
+                },
+            },
+        };
+
+        let accepted = accept_certificate(
+            &context,
+            &conclusion,
+            std::slice::from_ref(&root_bound),
+            std::slice::from_ref(&definition),
+            &proof(vec![0], conclusion.clone()),
+        )
+        .expect("root proof and exact affine definition prove the mapped bound");
+        assert_eq!(
+            accepted.rules,
+            vec![
+                AcceptedProofRule::Assumption,
+                AcceptedProofRule::IntegerAffineBound,
+            ]
+        );
+        assert_eq!(
+            accepted.semantic_axioms,
+            vec![AcceptedPremise {
+                index: 0,
+                proposition: definition.clone(),
+            }]
+        );
+        assert_eq!(
+            check_certificate(
+                &context,
+                &conclusion,
+                std::slice::from_ref(&root_bound),
+                std::slice::from_ref(&definition),
+                &proof(vec![1], conclusion.clone()),
+            ),
+            Err(ProofError::IntegerAffineWitness(
+                IntegerAffineWitnessError::UnknownSemanticAxiom(1),
+            )),
+        );
+        let wrong_conclusion = Proposition::LessOrEqual(literal(2), target.clone());
+        assert_eq!(
+            check_certificate(
+                &context,
+                &wrong_conclusion,
+                std::slice::from_ref(&root_bound),
+                std::slice::from_ref(&definition),
+                &proof(vec![0], wrong_conclusion.clone()),
+            ),
+            Err(ProofError::IntegerAffineBoundConversion(
+                IntegerAffineBoundConversionError::ConclusionMismatch,
+            )),
+        );
+        let non_order_proof = ProofNode {
+            conclusion: conclusion.clone(),
+            rule: ProofRule::IntegerAffineBound {
+                root_bound: Box::new(ProofNode {
+                    conclusion: Proposition::Truth,
+                    rule: ProofRule::Primitive(PrimitiveJudgment::Truth),
+                }),
+                witness: IntegerAffineWitness {
+                    root,
+                    target,
+                    definition_axioms: vec![0],
+                },
+            },
+        };
+        assert_eq!(
+            check_certificate(
+                &context,
+                &conclusion,
+                std::slice::from_ref(&root_bound),
+                std::slice::from_ref(&definition),
+                &non_order_proof,
+            ),
+            Err(ProofError::IntegerAffineBoundConversion(
+                IntegerAffineBoundConversionError::RootBoundNotLessOrEqual,
+            )),
         );
     }
 

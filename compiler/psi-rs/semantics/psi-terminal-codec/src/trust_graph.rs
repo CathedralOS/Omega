@@ -78,6 +78,8 @@ const PROOF_KERNEL_EVIDENCE_SOURCE: &[u8] =
     include_bytes!("../../psi-proof-kernel/src/evidence.rs");
 const PROOF_KERNEL_KERNEL_SOURCE: &[u8] = include_bytes!("../../psi-proof-kernel/src/kernel.rs");
 const PROOF_KERNEL_PROOF_SOURCE: &[u8] = include_bytes!("../../psi-proof-kernel/src/proof.rs");
+const PROOF_KERNEL_INTEGER_AFFINE_SOURCE: &[u8] =
+    include_bytes!("../../psi-proof-kernel/src/integer_affine.rs");
 const PROOF_CODEC_SOURCE: &[u8] = include_bytes!("proof_bundle.rs");
 const PROPOSITION_SOURCE: &[u8] = include_bytes!("../../../foundation/psi-core/src/proposition.rs");
 const TERMINAL_MODEL_SOURCE: &[u8] =
@@ -512,11 +514,11 @@ fn registered_roots() -> Vec<TrustDependencyNode> {
             &[("psi-terminal/module.rs", TERMINAL_MODEL_SOURCE)],
         ),
         TrustDependencyNode::new(
-            "root:canonical-proof-calculus-v12",
+            "root:canonical-proof-calculus-v13",
             TrustDependencyKind::RegisteredRoot,
             TrustDependencyStatus::Registered,
             "terminal-Psi proof bundle and primitive calculus",
-            "proof-bundle-format-15",
+            "proof-bundle-format-16",
             "Psi proof-kernel architecture",
             "portable terminal-Psi proof checking",
             "The current small proof calculus is an explicit registered semantic root.",
@@ -526,6 +528,10 @@ fn registered_roots() -> Vec<TrustDependencyNode> {
                 ("psi-core/proposition.rs", PROPOSITION_SOURCE),
                 ("psi-proof-kernel/evidence.rs", PROOF_KERNEL_EVIDENCE_SOURCE),
                 ("psi-proof-kernel/kernel.rs", PROOF_KERNEL_KERNEL_SOURCE),
+                (
+                    "psi-proof-kernel/integer_affine.rs",
+                    PROOF_KERNEL_INTEGER_AFFINE_SOURCE,
+                ),
                 ("psi-proof-kernel/lib.rs", PROOF_KERNEL_LIB_SOURCE),
                 ("psi-proof-kernel/proof.rs", PROOF_KERNEL_PROOF_SOURCE),
                 ("psi-terminal-codec/proof_bundle.rs", PROOF_CODEC_SOURCE),
@@ -569,19 +575,23 @@ fn proof_kernel_node() -> TrustDependencyNode {
         TrustDependencyKind::TrustedImplementation,
         TrustDependencyStatus::TrustedJudgment,
         "Rust implementation of the current terminal proof calculus",
-        "rust-proof-kernel-v4",
+        "rust-proof-kernel-v5",
         "psi-proof-kernel",
         "portable proof bundle acceptance",
         "The current Rust kernel remains trusted until the independent low-rung checker closes the diamond.",
         TrustAcceptingPolicy::ExplicitMigrationTrust,
         dependencies(&[
-            "root:canonical-proof-calculus-v12",
+            "root:canonical-proof-calculus-v13",
             "root:explicit-rust-migration-policy",
         ]),
         &[
             ("psi-proof-kernel/lib.rs", PROOF_KERNEL_LIB_SOURCE),
             ("psi-proof-kernel/evidence.rs", PROOF_KERNEL_EVIDENCE_SOURCE),
             ("psi-proof-kernel/kernel.rs", PROOF_KERNEL_KERNEL_SOURCE),
+            (
+                "psi-proof-kernel/integer_affine.rs",
+                PROOF_KERNEL_INTEGER_AFFINE_SOURCE,
+            ),
             ("psi-proof-kernel/proof.rs", PROOF_KERNEL_PROOF_SOURCE),
         ],
     )
@@ -1119,19 +1129,19 @@ mod tests {
         let proof_calculus = graph
             .nodes()
             .iter()
-            .find(|node| node.identity() == "root:canonical-proof-calculus-v12")
+            .find(|node| node.identity() == "root:canonical-proof-calculus-v13")
             .expect("current proof-calculus root");
-        assert_eq!(proof_calculus.version(), "proof-bundle-format-15");
+        assert_eq!(proof_calculus.version(), "proof-bundle-format-16");
         let rust_kernel = graph
             .nodes()
             .iter()
             .find(|node| node.identity() == "implementation:rust-proof-kernel")
             .expect("current Rust proof kernel");
-        assert_eq!(rust_kernel.version(), "rust-proof-kernel-v4");
+        assert_eq!(rust_kernel.version(), "rust-proof-kernel-v5");
         assert!(
             rust_kernel
                 .dependencies()
-                .contains(&"root:canonical-proof-calculus-v12".to_owned())
+                .contains(&"root:canonical-proof-calculus-v13".to_owned())
         );
         assert_eq!(
             graph
