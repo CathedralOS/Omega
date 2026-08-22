@@ -135,12 +135,9 @@ fn collect_text_argument_data(
     };
 
     let offset = data_plan.bytes.len();
-    let byte_span = data_plan.bytes.insert_many(
-        text.as_bytes()
-            .iter()
-            .copied()
-            .chain(append_newline.then_some(b'\n')),
-    );
+    let byte_span = data_plan
+        .bytes
+        .insert_many(text.iter().copied().chain(append_newline.then_some(b'\n')));
     let symbol_index = data_plan.objects.len() + 1;
 
     data_plan.objects.insert(TargetDataObject {

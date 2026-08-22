@@ -267,7 +267,7 @@ impl omega_target_operations::RuntimeValueOperandSource for AssignedTargetOperat
         handle: omega_target_operations::RuntimeValueOperandHandle,
     ) -> Option<(
         omega_target_operations::RuntimeValueOperandHandle,
-        String,
+        std::sync::Arc<[u8]>,
         bool,
     )> {
         match &AssignedTargetOperationPlan::runtime_value_operand(self, handle)?.kind {

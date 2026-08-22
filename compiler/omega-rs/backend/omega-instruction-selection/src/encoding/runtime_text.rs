@@ -161,7 +161,7 @@ fn validate_aarch64_runtime_import_plan(
 
 pub fn encode_runtime_text_literal_compare(
     architecture: Architecture,
-    literal: &str,
+    literal: &[u8],
     failure_branch_distances: impl ExactSizeIterator<Item = isize>,
     delimiter_failure_branch_distance: isize,
 ) -> Result<Vec<u8>, Diagnostic> {
@@ -207,7 +207,7 @@ pub fn encode_runtime_text_storage_compare_bytes(
 
 pub fn encode_runtime_text_literal_write(
     architecture: Architecture,
-    literal: &str,
+    literal: &[u8],
 ) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
         Architecture::Aarch64 => aarch64::encode_runtime_text_literal_write(literal),
@@ -218,7 +218,7 @@ pub fn encode_runtime_text_literal_write(
 pub fn encode_runtime_text_literal_segment_write(
     architecture: Architecture,
     byte_offset: usize,
-    literal: &str,
+    literal: &[u8],
 ) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
         Architecture::Aarch64 => {
@@ -425,7 +425,7 @@ pub fn encode_runtime_text_literal_append(
     architecture: Architecture,
     buffer_offset: usize,
     target_offset: usize,
-    literal: &str,
+    literal: &[u8],
 ) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
         Architecture::Aarch64 => {
@@ -443,7 +443,7 @@ pub fn encode_runtime_text_literal_append_to_runtime_pointee(
     buffer_offset: usize,
     pointer_byte_offset: usize,
     field_byte_offset: usize,
-    literal: &str,
+    literal: &[u8],
 ) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
         Architecture::Aarch64 => aarch64::encode_runtime_text_literal_append_to_runtime_pointee(
@@ -471,7 +471,7 @@ pub fn encode_runtime_text_literal_append_to_runtime_frame_indexed(
     index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
-    literal: &str,
+    literal: &[u8],
 ) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
         Architecture::Aarch64 => {
@@ -502,7 +502,7 @@ pub fn encode_runtime_text_literal_append_to_runtime_frame_indexed(
 pub fn encode_runtime_text_literal_append_to_place(
     architecture: Architecture,
     target: &omega_target_operations::Place,
-    literal: &str,
+    literal: &[u8],
 ) -> Result<Vec<u8>, Diagnostic> {
     use crate::{WritePlaceShape, classify_write_place_shape};
 
@@ -781,7 +781,7 @@ pub fn x86_64_encode_runtime_text_buffer_materialize_to_place_with_sites(
 
 pub fn x86_64_encode_runtime_text_literal_append_to_place_with_sites(
     target: &omega_target_operations::Place,
-    literal: &str,
+    literal: &[u8],
 ) -> Result<(Vec<u8>, x86_64::PlaceCopySites, usize), Diagnostic> {
     x86_64::encode_place_text_literal_append(target, literal)
 }

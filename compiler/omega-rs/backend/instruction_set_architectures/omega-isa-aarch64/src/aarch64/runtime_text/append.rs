@@ -381,7 +381,7 @@ pub fn runtime_text_literal_append_additional_machine_state() -> MachineStateSet
 pub fn encode_runtime_text_literal_append(
     buffer_offset: usize,
     target_offset: usize,
-    literal: &str,
+    literal: &[u8],
 ) -> Result<Vec<u8>, Diagnostic> {
     let mut bytes = Vec::with_capacity(runtime_text_literal_append_width(target_offset, literal));
     bytes.extend(encode_adrp_placeholder(16));
@@ -392,7 +392,7 @@ pub fn encode_runtime_text_literal_append(
     bytes.extend(encode_move_x_register(20, 16));
     bytes.extend(encode_add_x_register(16, 16, 22));
 
-    for (byte_index, byte) in literal.as_bytes().iter().enumerate() {
+    for (byte_index, byte) in literal.iter().enumerate() {
         let _ = byte_index;
         bytes.extend(encode_movz_w(26, u16::from(*byte)));
         bytes.extend(encode_store_byte_w_post_increment(26, 16, 1)?);
@@ -409,7 +409,7 @@ pub fn encode_runtime_text_literal_append_to_runtime_pointee(
     buffer_offset: usize,
     pointer_byte_offset: usize,
     field_byte_offset: usize,
-    literal: &str,
+    literal: &[u8],
 ) -> Result<Vec<u8>, Diagnostic> {
     let mut bytes = Vec::with_capacity(runtime_text_literal_append_to_runtime_pointee_width(
         pointer_byte_offset,
@@ -428,7 +428,7 @@ pub fn encode_runtime_text_literal_append_to_runtime_pointee(
     bytes.extend(encode_move_x_register(20, 16));
     bytes.extend(encode_add_x_register(16, 16, 22));
 
-    for (byte_index, byte) in literal.as_bytes().iter().enumerate() {
+    for (byte_index, byte) in literal.iter().enumerate() {
         let _ = byte_index;
         bytes.extend(encode_movz_w(26, u16::from(*byte)));
         bytes.extend(encode_store_byte_w_post_increment(26, 16, 1)?);
@@ -448,7 +448,7 @@ pub fn encode_runtime_text_literal_append_to_runtime_frame_indexed(
     index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
-    literal: &str,
+    literal: &[u8],
 ) -> Result<Vec<u8>, Diagnostic> {
     let mut bytes = Vec::with_capacity(runtime_text_literal_append_to_runtime_frame_indexed_width(
         element_byte_size,
@@ -469,7 +469,7 @@ pub fn encode_runtime_text_literal_append_to_runtime_frame_indexed(
     bytes.extend(encode_move_x_register(20, 17));
     bytes.extend(encode_add_x_register(17, 17, 22));
 
-    for (byte_index, byte) in literal.as_bytes().iter().enumerate() {
+    for (byte_index, byte) in literal.iter().enumerate() {
         let _ = byte_index;
         bytes.extend(encode_movz_w(26, u16::from(*byte)));
         bytes.extend(encode_store_byte_w_post_increment(26, 17, 1)?);
@@ -489,7 +489,7 @@ pub fn encode_runtime_text_literal_append_to_runtime_frame_base_indexed(
     index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
-    literal: &str,
+    literal: &[u8],
 ) -> Result<Vec<u8>, Diagnostic> {
     let mut bytes = Vec::with_capacity(
         runtime_text_literal_append_to_runtime_frame_base_indexed_width(
@@ -518,7 +518,7 @@ pub fn encode_runtime_text_literal_append_to_runtime_frame_base_indexed(
     bytes.extend(encode_move_x_register(20, 17));
     bytes.extend(encode_add_x_register(17, 17, 22));
 
-    for byte in literal.as_bytes() {
+    for byte in literal {
         bytes.extend(encode_movz_w(26, u16::from(*byte)));
         bytes.extend(encode_store_byte_w_post_increment(26, 17, 1)?);
     }
@@ -552,7 +552,7 @@ pub fn encode_runtime_text_literal_append_to_runtime_frame_base_double_indexed(
     inner_index_byte_size: usize,
     inner_stride: usize,
     field_byte_offset: usize,
-    literal: &str,
+    literal: &[u8],
 ) -> Result<Vec<u8>, Diagnostic> {
     let expected_width =
         runtime_text_literal_append_to_runtime_frame_base_double_indexed_width(literal);
@@ -573,7 +573,7 @@ pub fn encode_runtime_text_literal_append_to_runtime_frame_base_double_indexed(
     bytes.extend(encode_add_page_offset_placeholder(17));
     bytes.extend(encode_move_x_register(20, 17));
     bytes.extend(encode_add_x_register(17, 17, 22));
-    for byte in literal.as_bytes() {
+    for byte in literal {
         bytes.extend(encode_movz_w(26, u16::from(*byte)));
         bytes.extend(encode_store_byte_w_post_increment(26, 17, 1)?);
     }
@@ -1045,7 +1045,7 @@ mod tests {
                 index_byte_size,
                 24,
                 8,
-                "!",
+                b"!",
             )
             .expect("AArch64 frame-base-indexed literal-text append");
             assert_eq!(
@@ -1056,7 +1056,7 @@ mod tests {
                     index_byte_size,
                     24,
                     8,
-                    "!",
+                    b"!",
                 )
             );
 
@@ -1092,12 +1092,12 @@ mod tests {
             runtime_text_stored_place_append_to_runtime_frame_base_double_indexed_width(16)
         );
         let literal = encode_runtime_text_literal_append_to_runtime_frame_base_double_indexed(
-            0, 32, 64, 8, 48, 72, 8, 16, 8, "!",
+            0, 32, 64, 8, 48, 72, 8, 16, 8, b"!",
         )
         .expect("AArch64 frame-double literal-text append");
         assert_eq!(
             literal.len(),
-            runtime_text_literal_append_to_runtime_frame_base_double_indexed_width("!")
+            runtime_text_literal_append_to_runtime_frame_base_double_indexed_width(b"!")
         );
         let materialize =
             encode_runtime_text_buffer_materialize_to_runtime_frame_base_double_indexed(

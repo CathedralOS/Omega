@@ -157,9 +157,7 @@ fn collect_static_string_expression_data(
             let byte_span = if value.is_empty() {
                 data_plan.bytes.insert_many(std::iter::once(0))
             } else {
-                let span = data_plan
-                    .bytes
-                    .insert_many(value.as_bytes().iter().copied());
+                let span = data_plan.bytes.insert_many(value.iter().copied());
                 // NUL-terminate for C-string consumers (`_open`/`_unlink` path
                 // arguments). The terminator is inserted right after the content
                 // but is NOT part of the object's span, so length-based consumers
@@ -225,9 +223,7 @@ fn collect_static_string_expression_data(
             // literals (which non-folded builder shapes still reference).
             if let Some(folded) = fold_static_string_expression(expressions, expression) {
                 let offset = data_plan.bytes.len();
-                let byte_span = data_plan
-                    .bytes
-                    .insert_many(folded.as_bytes().iter().copied());
+                let byte_span = data_plan.bytes.insert_many(folded.iter().copied());
                 let symbol_index = data_plan.objects.len() + 1;
                 data_plan.objects.insert(TargetDataObject {
                     symbol: format!("omega_string_literal_{symbol_index}").into(),
@@ -310,12 +306,12 @@ fn collect_static_string_expression_data(
 fn fold_static_string_expression(
     expressions: &ExpressionTable,
     expression: ExpressionHandle,
-) -> Option<String> {
+) -> Option<Vec<u8>> {
     match expressions.expression(expression) {
-        ExpressionNode::String(value) => Some(value.to_string()),
+        ExpressionNode::String(value) => Some(value.to_vec()),
         ExpressionNode::Binary(binary) if binary.operator == BinaryOperator::Add => {
             let mut folded = fold_static_string_expression(expressions, binary.left)?;
-            folded.push_str(&fold_static_string_expression(expressions, binary.right)?);
+            folded.extend_from_slice(&fold_static_string_expression(expressions, binary.right)?);
             Some(folded)
         }
         _ => None,

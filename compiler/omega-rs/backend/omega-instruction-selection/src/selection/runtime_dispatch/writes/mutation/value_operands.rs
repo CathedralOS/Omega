@@ -1142,8 +1142,8 @@ pub(in crate::selection::runtime_dispatch) fn resolve_runtime_text_equals_operan
         expressions.expression(left_expression),
         expressions.expression(right_expression),
     ) {
-        (ExpressionNode::String(literal), _) => Some((right_expression, literal.to_string())),
-        (_, ExpressionNode::String(literal)) => Some((left_expression, literal.to_string())),
+        (ExpressionNode::String(literal), _) => Some((right_expression, literal.clone())),
+        (_, ExpressionNode::String(literal)) => Some((left_expression, literal.clone())),
         _ => None,
     };
     let text_equals = if let Some((place_expression, literal)) = literal_pairing {

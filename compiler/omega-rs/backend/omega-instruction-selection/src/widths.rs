@@ -680,7 +680,7 @@ pub fn dispatch_guard_compare_static_width(
     }
 }
 
-pub fn runtime_text_literal_compare_width(architecture: Architecture, literal: &str) -> usize {
+pub fn runtime_text_literal_compare_width(architecture: Architecture, literal: &[u8]) -> usize {
     match architecture {
         Architecture::Aarch64 => aarch64::runtime_text_literal_compare_width(literal),
         Architecture::X86_64 => x86_64::runtime_text_literal_compare_width(literal),
@@ -742,7 +742,7 @@ pub fn runtime_text_storage_compare_delimiter_branch_offset(
     }
 }
 
-pub fn runtime_text_literal_write_width(architecture: Architecture, literal: &str) -> usize {
+pub fn runtime_text_literal_write_width(architecture: Architecture, literal: &[u8]) -> usize {
     match architecture {
         Architecture::Aarch64 => aarch64::runtime_text_literal_write_width(literal),
         Architecture::X86_64 => 0,
@@ -751,7 +751,7 @@ pub fn runtime_text_literal_write_width(architecture: Architecture, literal: &st
 
 pub fn runtime_text_literal_segment_write_width(
     architecture: Architecture,
-    literal: &str,
+    literal: &[u8],
 ) -> usize {
     match architecture {
         Architecture::Aarch64 => aarch64::runtime_text_literal_segment_write_width(literal),
@@ -905,7 +905,7 @@ pub fn runtime_text_stored_place_append_to_runtime_pointee_width(
 pub fn runtime_text_literal_append_width(
     architecture: Architecture,
     target_offset: usize,
-    literal: &str,
+    literal: &[u8],
 ) -> usize {
     match architecture {
         Architecture::Aarch64 => aarch64::runtime_text_literal_append_width(target_offset, literal),
@@ -917,7 +917,7 @@ pub fn runtime_text_literal_append_to_runtime_pointee_width(
     architecture: Architecture,
     pointer_byte_offset: usize,
     field_byte_offset: usize,
-    literal: &str,
+    literal: &[u8],
 ) -> usize {
     match architecture {
         Architecture::Aarch64 => aarch64::runtime_text_literal_append_to_runtime_pointee_width(
@@ -937,7 +937,7 @@ pub fn runtime_text_literal_append_to_runtime_frame_indexed_width(
     index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
-    literal: &str,
+    literal: &[u8],
 ) -> usize {
     match architecture {
         Architecture::Aarch64 => {
@@ -959,7 +959,7 @@ pub fn runtime_text_literal_append_to_runtime_frame_indexed_width(
 pub fn runtime_text_literal_append_to_place_width(
     architecture: Architecture,
     target: &omega_target_operations::Place,
-    literal: &str,
+    literal: &[u8],
 ) -> usize {
     use crate::{WritePlaceShape, classify_write_place_shape};
 
@@ -2216,7 +2216,7 @@ pub fn runtime_machine_bounded_buffer_source_append_width(
 pub fn runtime_machine_bounded_buffer_literal_append_width(
     architecture: Architecture,
     target_byte_offset: usize,
-    literal: &str,
+    literal: &[u8],
 ) -> usize {
     match architecture {
         Architecture::Aarch64 => aarch64::runtime_machine_bounded_buffer_literal_append_width(

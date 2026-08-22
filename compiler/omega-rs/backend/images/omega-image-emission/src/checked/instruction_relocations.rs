@@ -136,11 +136,11 @@ pub(super) enum CompilerInstructionRelocationRecipe {
     },
     PlaceBoundedBufferWrite {
         target: omega_target_operations::Place,
-        literal: std::sync::Arc<str>,
+        literal: std::sync::Arc<[u8]>,
     },
     PlaceBoundedBufferLiteralAppend {
         target: omega_target_operations::Place,
-        literal: std::sync::Arc<str>,
+        literal: std::sync::Arc<[u8]>,
     },
     PlaceBoundedBufferSourceAppend {
         target: omega_target_operations::Place,

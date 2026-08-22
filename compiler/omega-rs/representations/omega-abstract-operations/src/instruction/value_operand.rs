@@ -150,7 +150,7 @@ pub enum ValueOperand {
     /// place's pointer.
     TextEqualsLiteral {
         place: ValueOperandHandle,
-        literal: String,
+        literal: std::sync::Arc<[u8]>,
         /// The `place` is an owned `[u8; N]` bounded byte carrier (`{len, bytes}`
         /// inline) rather than a `{ptr, len}` text descriptor: the content bytes
         /// are at `place_address + pointer_size` (computed, not a stored pointer)

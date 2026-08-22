@@ -33,7 +33,7 @@ pub enum TargetOperationKind {
     },
     CompareRuntimeTextLiteral {
         buffer: TargetDataObjectHandle,
-        literal: std::sync::Arc<str>,
+        literal: std::sync::Arc<[u8]>,
     },
     CompareRuntimeTextStorage {
         buffer: TargetDataObjectHandle,
@@ -66,12 +66,12 @@ pub enum TargetOperationKind {
     },
     WriteRuntimeTextLiteral {
         buffer: TargetDataObjectHandle,
-        literal: std::sync::Arc<str>,
+        literal: std::sync::Arc<[u8]>,
     },
     WriteRuntimeTextLiteralSegment {
         buffer: TargetDataObjectHandle,
         byte_offset: usize,
-        literal: std::sync::Arc<str>,
+        literal: std::sync::Arc<[u8]>,
     },
     AppendRuntimeTextStoredSuffix {
         buffer: TargetDataObjectHandle,
@@ -102,7 +102,7 @@ pub enum TargetOperationKind {
     AppendTextLiteralToPlace {
         buffer: TargetDataObjectHandle,
         target: Place,
-        literal: std::sync::Arc<str>,
+        literal: std::sync::Arc<[u8]>,
     },
     /// compact_binary v0 wire framing: store one compile-time byte into the
     /// encode buffer at the stored cursor (the caller's `written` slot), then
@@ -407,7 +407,7 @@ pub enum TargetOperationKind {
     /// abstract-operations twin.
     AppendPlaceBoundedBufferLiteral {
         target: Place,
-        literal: std::sync::Arc<str>,
+        literal: std::sync::Arc<[u8]>,
     },
     ReadRuntimeTextLine {
         buffer: TargetDataObjectHandle,
@@ -492,7 +492,7 @@ pub enum TargetOperationKind {
     /// *BoundedBuffer write variants' survivor); content is immediate.
     WritePlaceBoundedBuffer {
         target: Place,
-        literal: std::sync::Arc<str>,
+        literal: std::sync::Arc<[u8]>,
     },
 
     /// Task #131: the place-shaped address write (the six

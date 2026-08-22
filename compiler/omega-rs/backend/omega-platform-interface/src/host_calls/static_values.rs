@@ -9,7 +9,7 @@ use std::sync::Arc;
 pub(crate) enum StaticValue {
     Integer(i64),
     Expression(ExpressionHandle),
-    Text(Arc<str>),
+    Text(Arc<[u8]>),
 }
 
 const INLINE_STATIC_VALUE_COUNT: usize = 8;

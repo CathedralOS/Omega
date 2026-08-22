@@ -98,7 +98,7 @@ pub(super) fn select_runtime_string_mutation_write_in_table(
                 indexed_target.inner_index_byte_size,
                 indexed_target.inner_stride,
                 indexed_target.field_byte_offset,
-                std::sync::Arc::from(value.to_string()),
+                value.clone(),
             ),
         );
     }
@@ -122,7 +122,7 @@ pub(super) fn select_runtime_string_mutation_write_in_table(
                 indexed_target.element_byte_size,
                 indexed_target.field_byte_offset,
             ),
-            literal: std::sync::Arc::from(value.to_string()),
+            literal: value.clone(),
         });
     }
 
@@ -149,7 +149,7 @@ pub(super) fn select_runtime_string_mutation_write_in_table(
             return Some(crate::selection::runtime_dispatch::write_place_bounded_buffer_pointee(
                 pointer_target.pointer_byte_offset,
                 pointer_target.field_byte_offset,
-                std::sync::Arc::from(value.to_string()),
+                value.clone(),
             ));
         }
         if let Some(pointer_target) = resolve_runtime_pointee_slot_offset_in_table(
@@ -162,7 +162,7 @@ pub(super) fn select_runtime_string_mutation_write_in_table(
             return Some(crate::selection::runtime_dispatch::write_place_bounded_buffer_pointee(
                 pointer_target.pointer_byte_offset,
                 pointer_target.field_byte_offset,
-                std::sync::Arc::from(value.to_string()),
+                value.clone(),
             ));
         }
         return None;

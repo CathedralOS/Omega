@@ -169,7 +169,7 @@ pub fn dispatch_guard_compare_static_width(
         + load_data_offset_width(byte_offset, byte_size)
 }
 
-pub fn runtime_text_literal_compare_width(literal: &str) -> usize {
+pub fn runtime_text_literal_compare_width(literal: &[u8]) -> usize {
     8 + literal.len() * 12 + runtime_text_input_delimiter_check_width()
 }
 
@@ -222,11 +222,11 @@ pub(in crate::aarch64) fn runtime_text_input_delimiter_check_width() -> usize {
     32
 }
 
-pub fn runtime_text_literal_write_width(literal: &str) -> usize {
+pub fn runtime_text_literal_write_width(literal: &[u8]) -> usize {
     8 + literal.len() * 8
 }
 
-pub fn runtime_text_literal_segment_write_width(literal: &str) -> usize {
+pub fn runtime_text_literal_segment_write_width(literal: &[u8]) -> usize {
     runtime_text_literal_write_width(literal)
 }
 
@@ -288,7 +288,7 @@ pub fn runtime_text_stored_place_append_to_runtime_pointee_width(
         + runtime_text_descriptor_store_pair_width(0)
 }
 
-pub fn runtime_text_literal_append_width(target_offset: usize, literal: &str) -> usize {
+pub fn runtime_text_literal_append_width(target_offset: usize, literal: &[u8]) -> usize {
     24 + load_data_offset_width(target_offset + 8, 8)
         + runtime_text_descriptor_store_pair_width(target_offset)
         + add_constant_width(literal.len())
@@ -298,7 +298,7 @@ pub fn runtime_text_literal_append_width(target_offset: usize, literal: &str) ->
 pub fn runtime_text_literal_append_to_runtime_pointee_width(
     pointer_byte_offset: usize,
     field_byte_offset: usize,
-    literal: &str,
+    literal: &[u8],
 ) -> usize {
     24 + load_data_offset_width(pointer_byte_offset, 8)
         + add_constant_width(field_byte_offset)
@@ -311,7 +311,7 @@ pub fn runtime_text_literal_append_to_runtime_pointee_width(
 pub fn runtime_text_literal_append_to_runtime_frame_indexed_width(
     element_byte_size: usize,
     field_byte_offset: usize,
-    literal: &str,
+    literal: &[u8],
 ) -> usize {
     runtime_frame_index_setup_width(element_byte_size, field_byte_offset)
         + 28
@@ -325,7 +325,7 @@ pub fn runtime_text_literal_append_to_runtime_frame_base_indexed_width(
     index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
-    literal: &str,
+    literal: &[u8],
 ) -> usize {
     runtime_frame_base_indexed_string_data_address_offset(
         base_byte_offset,
@@ -391,7 +391,7 @@ pub const fn runtime_text_frame_base_double_indexed_materialize_buffer_address_o
 }
 
 pub fn runtime_text_literal_append_to_runtime_frame_base_double_indexed_width(
-    literal: &str,
+    literal: &[u8],
 ) -> usize {
     8 + 36 + 28 + add_constant_width(literal.len()) + literal.len() * 8
 }
@@ -1355,7 +1355,7 @@ pub fn runtime_machine_string_write_width(byte_length: usize) -> usize {
 /// instruction, so the total is inherently 4-aligned -- unlike the x86_64 width
 /// (variable-length instructions with inline immediate bytes) it previously
 /// borrowed, which produced non-instruction-aligned branch distances.
-pub fn runtime_machine_bounded_buffer_write_width(byte_offset: usize, literal: &str) -> usize {
+pub fn runtime_machine_bounded_buffer_write_width(byte_offset: usize, literal: &[u8]) -> usize {
     8 + add_constant_width(byte_offset)
         + unsigned_immediate_width(literal.len() as u64)
         + 4
@@ -1364,15 +1364,14 @@ pub fn runtime_machine_bounded_buffer_write_width(byte_offset: usize, literal: &
 
 /// Per-content-byte cost shared by the carrier write/append encoders: a `movz`
 /// (or `movz`+`movk`s) materializing the byte plus one 4-byte store.
-fn bounded_buffer_literal_bytes_width(literal: &str) -> usize {
+fn bounded_buffer_literal_bytes_width(literal: &[u8]) -> usize {
     literal
-        .as_bytes()
         .iter()
         .map(|byte| unsigned_immediate_width(u64::from(*byte)) + 4)
         .sum::<usize>()
 }
 
-fn bounded_buffer_literal_tail_width(literal: &str) -> usize {
+fn bounded_buffer_literal_tail_width(literal: &[u8]) -> usize {
     unsigned_immediate_width(literal.len() as u64) + 4 + bounded_buffer_literal_bytes_width(literal)
 }
 
@@ -1380,7 +1379,7 @@ pub fn runtime_frame_indexed_bounded_buffer_write_width(
     index_region: omega_target_operations::RuntimeStorageRegion,
     element_byte_size: usize,
     field_byte_offset: usize,
-    literal: &str,
+    literal: &[u8],
 ) -> usize {
     runtime_frame_indexed_string_data_address_offset_with_index_region(
         index_region,
@@ -1395,7 +1394,7 @@ pub fn runtime_frame_base_indexed_bounded_buffer_write_width(
     index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
-    literal: &str,
+    literal: &[u8],
 ) -> usize {
     runtime_frame_base_indexed_bounded_buffer_write_with_index_region_width(
         base_byte_offset,
@@ -1416,7 +1415,7 @@ pub fn runtime_frame_base_indexed_bounded_buffer_write_with_index_region_width(
     index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
-    literal: &str,
+    literal: &[u8],
 ) -> usize {
     runtime_frame_base_indexed_string_data_address_offset_with_index_region(
         base_byte_offset,
@@ -1435,7 +1434,7 @@ pub fn runtime_machine_indexed_bounded_buffer_write_width(
     index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
-    literal: &str,
+    literal: &[u8],
 ) -> usize {
     runtime_machine_indexed_string_data_address_offset_with_index_region(
         base_byte_offset,
@@ -1450,7 +1449,7 @@ pub fn runtime_machine_indexed_bounded_buffer_write_width(
 pub fn runtime_machine_double_indexed_bounded_buffer_write_width(
     outer_index_region: omega_target_operations::RuntimeStorageRegion,
     inner_index_region: omega_target_operations::RuntimeStorageRegion,
-    literal: &str,
+    literal: &[u8],
 ) -> usize {
     runtime_machine_double_indexed_string_data_address_offset(
         outer_index_region,
@@ -1458,16 +1457,16 @@ pub fn runtime_machine_double_indexed_bounded_buffer_write_width(
     ) + bounded_buffer_literal_tail_width(literal)
 }
 
-pub fn runtime_frame_base_double_indexed_bounded_buffer_write_width(literal: &str) -> usize {
+pub fn runtime_frame_base_double_indexed_bounded_buffer_write_width(literal: &[u8]) -> usize {
     8 + 36 + bounded_buffer_literal_tail_width(literal)
 }
 
-fn bounded_buffer_literal_append_tail_width(literal: &str) -> usize {
+fn bounded_buffer_literal_append_tail_width(literal: &[u8]) -> usize {
     20 + bounded_buffer_literal_bytes_width(literal)
 }
 
 pub fn runtime_frame_base_double_indexed_bounded_buffer_literal_append_width(
-    literal: &str,
+    literal: &[u8],
 ) -> usize {
     8 + 36 + bounded_buffer_literal_append_tail_width(literal)
 }
@@ -1476,7 +1475,7 @@ pub fn runtime_frame_indexed_bounded_buffer_literal_append_width(
     index_region: omega_target_operations::RuntimeStorageRegion,
     element_byte_size: usize,
     field_byte_offset: usize,
-    literal: &str,
+    literal: &[u8],
 ) -> usize {
     runtime_frame_indexed_string_data_address_offset_with_index_region(
         index_region,
@@ -1491,7 +1490,7 @@ pub fn runtime_frame_base_indexed_bounded_buffer_literal_append_width(
     index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
-    literal: &str,
+    literal: &[u8],
 ) -> usize {
     runtime_frame_base_indexed_bounded_buffer_literal_append_with_index_region_width(
         base_byte_offset,
@@ -1512,7 +1511,7 @@ pub fn runtime_frame_base_indexed_bounded_buffer_literal_append_with_index_regio
     index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
-    literal: &str,
+    literal: &[u8],
 ) -> usize {
     runtime_frame_base_indexed_string_data_address_offset_with_index_region(
         base_byte_offset,
@@ -1531,7 +1530,7 @@ pub fn runtime_machine_indexed_bounded_buffer_literal_append_width(
     index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
-    literal: &str,
+    literal: &[u8],
 ) -> usize {
     runtime_machine_indexed_string_data_address_offset_with_index_region(
         base_byte_offset,
@@ -1546,7 +1545,7 @@ pub fn runtime_machine_indexed_bounded_buffer_literal_append_width(
 pub fn runtime_machine_double_indexed_bounded_buffer_literal_append_width(
     outer_index_region: omega_target_operations::RuntimeStorageRegion,
     inner_index_region: omega_target_operations::RuntimeStorageRegion,
-    literal: &str,
+    literal: &[u8],
 ) -> usize {
     runtime_machine_double_indexed_string_data_address_offset(
         outer_index_region,
@@ -1561,7 +1560,7 @@ pub fn runtime_machine_double_indexed_bounded_buffer_literal_append_width(
 pub fn runtime_pointee_bounded_buffer_write_width(
     pointer_byte_offset: usize,
     field_byte_offset: usize,
-    literal: &str,
+    literal: &[u8],
 ) -> usize {
     8 + add_constant_width(pointer_byte_offset)
         + 4
@@ -1578,7 +1577,7 @@ pub fn runtime_pointee_bounded_buffer_write_width(
 /// post-increment stores, and the new-length add + store (8).
 pub fn runtime_machine_bounded_buffer_literal_append_width(
     target_byte_offset: usize,
-    literal: &str,
+    literal: &[u8],
 ) -> usize {
     8 + 4
         + add_constant_width(target_byte_offset + 8)
@@ -3145,7 +3144,7 @@ pub fn runtime_text_equals_operand_width() -> usize {
 pub fn runtime_text_equals_literal_operand_width(
     runtime_value_operands: &impl RuntimeValueOperandSource,
     place: RuntimeValueOperandHandle,
-    literal: &str,
+    literal: &[u8],
 ) -> usize {
     let place_setup_width = if let Some((_, byte_offset, _)) = runtime_value_operands.storage(place)
     {

@@ -13,7 +13,7 @@ pub(super) fn encode_runtime_text_literal_compare(
     input: MachineEmissionContext<'_>,
     machine_instructions: &[LaidOutMachineInstruction],
     machine_instruction_index: usize,
-    literal: &str,
+    literal: &[u8],
 ) -> Result<Vec<u8>, Diagnostic> {
     architecture::encode_runtime_text_literal_compare(
         input.target.architecture,
@@ -35,7 +35,7 @@ pub(super) fn encode_runtime_text_literal_compare(
 
 pub(super) fn encode_runtime_text_literal_write(
     input: MachineEmissionContext<'_>,
-    literal: &str,
+    literal: &[u8],
 ) -> Result<Vec<u8>, Diagnostic> {
     architecture::encode_runtime_text_literal_write(input.target.architecture, literal)
 }
@@ -43,7 +43,7 @@ pub(super) fn encode_runtime_text_literal_write(
 pub(super) fn encode_runtime_text_literal_segment_write(
     input: MachineEmissionContext<'_>,
     byte_offset: usize,
-    literal: &str,
+    literal: &[u8],
 ) -> Result<Vec<u8>, Diagnostic> {
     architecture::encode_runtime_text_literal_segment_write(
         input.target.architecture,

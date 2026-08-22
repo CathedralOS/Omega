@@ -37,7 +37,7 @@ use crate::aarch64::widths::{
 /// misleading "b.ne target is not instruction aligned".
 pub fn encode_runtime_machine_bounded_buffer_write(
     byte_offset: usize,
-    literal: &str,
+    literal: &[u8],
 ) -> Result<Vec<u8>, Diagnostic> {
     let mut bytes = Vec::with_capacity(runtime_machine_bounded_buffer_write_width(
         byte_offset,
@@ -51,7 +51,7 @@ pub fn encode_runtime_machine_bounded_buffer_write(
     append_add_x_constant(&mut bytes, 16, 16, byte_offset, 15)?;
     append_unsigned_immediate(&mut bytes, 17, literal.len() as u64);
     bytes.extend(encode_store_x_to_x(17, 16, 0)?); // [carrier] = len word
-    for (index, byte) in literal.as_bytes().iter().enumerate() {
+    for (index, byte) in literal.iter().enumerate() {
         append_unsigned_immediate(&mut bytes, 17, u64::from(*byte));
         bytes.extend(encode_store_byte_w_to_x(17, 16, 8 + index)?);
     }
@@ -71,7 +71,7 @@ pub fn encode_runtime_machine_bounded_buffer_write(
 pub fn encode_runtime_pointee_bounded_buffer_write(
     pointer_byte_offset: usize,
     field_byte_offset: usize,
-    literal: &str,
+    literal: &[u8],
 ) -> Result<Vec<u8>, Diagnostic> {
     let mut bytes = Vec::with_capacity(runtime_pointee_bounded_buffer_write_width(
         pointer_byte_offset,
@@ -93,7 +93,7 @@ pub fn encode_runtime_pointee_bounded_buffer_write(
     }
     append_unsigned_immediate(&mut bytes, 17, literal.len() as u64);
     bytes.extend(encode_store_x_to_x(17, 16, 0)?); // [*ptr + field] = len word
-    for (index, byte) in literal.as_bytes().iter().enumerate() {
+    for (index, byte) in literal.iter().enumerate() {
         append_unsigned_immediate(&mut bytes, 17, u64::from(*byte));
         bytes.extend(encode_store_byte_w_to_x(17, 16, 8 + index)?);
     }
@@ -106,11 +106,11 @@ pub fn encode_runtime_pointee_bounded_buffer_write(
 
 fn append_bounded_buffer_literal_at_x16(
     bytes: &mut Vec<u8>,
-    literal: &str,
+    literal: &[u8],
 ) -> Result<(), Diagnostic> {
     append_unsigned_immediate(bytes, 17, literal.len() as u64);
     bytes.extend(encode_store_x_to_x(17, 16, 0)?);
-    for (index, byte) in literal.as_bytes().iter().enumerate() {
+    for (index, byte) in literal.iter().enumerate() {
         append_unsigned_immediate(bytes, 17, u64::from(*byte));
         bytes.extend(encode_store_byte_w_to_x(17, 16, 8 + index)?);
     }
@@ -119,12 +119,12 @@ fn append_bounded_buffer_literal_at_x16(
 
 fn append_bounded_buffer_literal_to_x16(
     bytes: &mut Vec<u8>,
-    literal: &str,
+    literal: &[u8],
 ) -> Result<(), Diagnostic> {
     bytes.extend(encode_load_x_from_x(15, 16, 0)?);
     append_add_x_constant(bytes, 14, 16, 8, 13)?;
     bytes.extend(encode_add_x_register(14, 14, 15));
-    for byte in literal.as_bytes() {
+    for byte in literal {
         append_unsigned_immediate(bytes, 17, u64::from(*byte));
         bytes.extend(encode_store_byte_w_post_increment(17, 14, 1)?);
     }
@@ -141,7 +141,7 @@ pub fn encode_runtime_frame_indexed_bounded_buffer_write(
     index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
-    literal: &str,
+    literal: &[u8],
 ) -> Result<Vec<u8>, Diagnostic> {
     let mut bytes = Vec::with_capacity(
         crate::aarch64::widths::runtime_frame_indexed_bounded_buffer_write_width(
@@ -183,7 +183,7 @@ pub fn encode_runtime_frame_base_indexed_bounded_buffer_write(
     index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
-    literal: &str,
+    literal: &[u8],
 ) -> Result<Vec<u8>, Diagnostic> {
     encode_runtime_frame_base_indexed_bounded_buffer_write_with_index_region(
         base_byte_offset,
@@ -204,7 +204,7 @@ pub fn encode_runtime_frame_base_indexed_bounded_buffer_write_with_index_region(
     index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
-    literal: &str,
+    literal: &[u8],
 ) -> Result<Vec<u8>, Diagnostic> {
     let mut bytes = Vec::with_capacity(
         crate::aarch64::widths::runtime_frame_base_indexed_bounded_buffer_write_with_index_region_width(
@@ -253,7 +253,7 @@ pub fn encode_runtime_machine_indexed_bounded_buffer_write(
     index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
-    literal: &str,
+    literal: &[u8],
 ) -> Result<Vec<u8>, Diagnostic> {
     let mut bytes = Vec::with_capacity(
         crate::aarch64::widths::runtime_machine_indexed_bounded_buffer_write_width(
@@ -303,7 +303,7 @@ pub fn encode_runtime_machine_double_indexed_bounded_buffer_write(
     inner_index_byte_size: usize,
     inner_stride: usize,
     field_byte_offset: usize,
-    literal: &str,
+    literal: &[u8],
 ) -> Result<Vec<u8>, Diagnostic> {
     let mut bytes = Vec::with_capacity(
         crate::aarch64::widths::runtime_machine_double_indexed_bounded_buffer_write_width(
@@ -348,7 +348,7 @@ pub fn encode_runtime_frame_base_double_indexed_bounded_buffer_write(
     inner_index_byte_size: usize,
     inner_stride: usize,
     field_byte_offset: usize,
-    literal: &str,
+    literal: &[u8],
 ) -> Result<Vec<u8>, Diagnostic> {
     let expected_width =
         crate::aarch64::widths::runtime_frame_base_double_indexed_bounded_buffer_write_width(
@@ -384,7 +384,7 @@ pub fn encode_runtime_frame_base_double_indexed_bounded_buffer_literal_append(
     inner_index_byte_size: usize,
     inner_stride: usize,
     field_byte_offset: usize,
-    literal: &str,
+    literal: &[u8],
 ) -> Result<Vec<u8>, Diagnostic> {
     let expected_width =
         crate::aarch64::widths::runtime_frame_base_double_indexed_bounded_buffer_literal_append_width(
@@ -421,7 +421,7 @@ pub fn encode_runtime_frame_indexed_bounded_buffer_literal_append(
     index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
-    literal: &str,
+    literal: &[u8],
 ) -> Result<Vec<u8>, Diagnostic> {
     let mut bytes = Vec::with_capacity(
         crate::aarch64::widths::runtime_frame_indexed_bounded_buffer_literal_append_width(
@@ -463,7 +463,7 @@ pub fn encode_runtime_frame_base_indexed_bounded_buffer_literal_append(
     index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
-    literal: &str,
+    literal: &[u8],
 ) -> Result<Vec<u8>, Diagnostic> {
     encode_runtime_frame_base_indexed_bounded_buffer_literal_append_with_index_region(
         base_byte_offset,
@@ -484,7 +484,7 @@ pub fn encode_runtime_frame_base_indexed_bounded_buffer_literal_append_with_inde
     index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
-    literal: &str,
+    literal: &[u8],
 ) -> Result<Vec<u8>, Diagnostic> {
     let mut bytes = Vec::with_capacity(
         crate::aarch64::widths::runtime_frame_base_indexed_bounded_buffer_literal_append_with_index_region_width(
@@ -533,7 +533,7 @@ pub fn encode_runtime_machine_indexed_bounded_buffer_literal_append(
     index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
-    literal: &str,
+    literal: &[u8],
 ) -> Result<Vec<u8>, Diagnostic> {
     let mut bytes = Vec::with_capacity(
         crate::aarch64::widths::runtime_machine_indexed_bounded_buffer_literal_append_width(
@@ -583,7 +583,7 @@ pub fn encode_runtime_machine_double_indexed_bounded_buffer_literal_append(
     inner_index_byte_size: usize,
     inner_stride: usize,
     field_byte_offset: usize,
-    literal: &str,
+    literal: &[u8],
 ) -> Result<Vec<u8>, Diagnostic> {
     let mut bytes = Vec::with_capacity(
         crate::aarch64::widths::runtime_machine_double_indexed_bounded_buffer_literal_append_width(
@@ -850,7 +850,7 @@ pub const fn place_bounded_buffer_write_additional_machine_state() -> MachineSta
 /// (`len + literal.len`) is stored last.
 pub fn encode_runtime_machine_bounded_buffer_literal_append(
     target_byte_offset: usize,
-    literal: &str,
+    literal: &[u8],
 ) -> Result<Vec<u8>, Diagnostic> {
     let mut bytes = Vec::with_capacity(runtime_machine_bounded_buffer_literal_append_width(
         target_byte_offset,
@@ -861,7 +861,7 @@ pub fn encode_runtime_machine_bounded_buffer_literal_append(
     bytes.extend(encode_load_x_from_x(15, 16, target_byte_offset)?); // x15 = running len
     append_add_x_constant(&mut bytes, 14, 16, target_byte_offset + 8, 13)?; // x14 = bytes base
     bytes.extend(encode_add_x_register(14, 14, 15)); // x14 = write cursor (bytes + len)
-    for byte in literal.as_bytes() {
+    for byte in literal {
         append_unsigned_immediate(&mut bytes, 17, u64::from(*byte));
         bytes.extend(encode_store_byte_w_post_increment(17, 14, 1)?);
     }

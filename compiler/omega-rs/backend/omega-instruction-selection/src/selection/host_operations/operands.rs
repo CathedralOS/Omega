@@ -2061,7 +2061,7 @@ fn aliased_literal_data_object(
         &mut expressions,
     );
     let value = expressions.string_literal_value(resolved.expression)?;
-    let bytes = value.as_bytes();
+    let bytes = value.as_ref();
     let object_bytes_match = |object: &AbstractDataObject| -> bool {
         input
             .data

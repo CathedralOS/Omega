@@ -42,7 +42,7 @@ use std::sync::Arc;
 
 struct RuntimeTextLiteralGuard {
     buffer: TargetDataObjectHandle,
-    literal: Arc<str>,
+    literal: Arc<[u8]>,
 }
 
 #[derive(Clone, Copy)]
@@ -980,7 +980,7 @@ fn runtime_text_equals_literal_guard_in_table(
     };
     let text_equals = runtime_value_operands.insert(RuntimeValueOperand::TextEqualsLiteral {
         place,
-        literal: literal.to_string(),
+        literal: literal.clone(),
         place_is_bounded_buffer,
     });
     let expected_true = runtime_value_operands.insert(RuntimeValueOperand::Immediate(1));
@@ -1799,7 +1799,7 @@ fn static_guard_value_in_table(
             if member.member.as_str() == "len"
                 && let Some(value) = expressions.string_literal_value(receiver)
             {
-                return i64::try_from(value.as_bytes().len()).ok();
+                return i64::try_from(value.len()).ok();
             }
             let ExpressionNode::StructLiteral(struct_literal) = expressions.expression(receiver)
             else {

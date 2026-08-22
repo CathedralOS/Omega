@@ -10,7 +10,7 @@ use std::sync::Arc;
 
 pub(in crate::selection) struct RuntimeTextLiteralWrite {
     pub buffer: AbstractDataObjectHandle,
-    pub literal: Arc<str>,
+    pub literal: Arc<[u8]>,
 }
 
 pub(in crate::selection) fn runtime_text_literal_write_for_host_call(
@@ -28,7 +28,7 @@ pub(in crate::selection) fn runtime_text_literal_write_for_host_call(
 pub(in crate::selection::host_operations) fn runtime_text_literal_for_host_call(
     input: &InstructionSelectionInput<'_>,
     host_call: &HostCall,
-) -> Option<Arc<str>> {
+) -> Option<Arc<[u8]>> {
     let append_newline = match host_call.data {
         PlatformCallData::FirstTextArgument { append_newline } => append_newline,
         PlatformCallData::MutableOutputBuffer { .. }
@@ -107,8 +107,8 @@ pub(in crate::selection::host_operations) fn runtime_text_literal_for_host_call(
 
     let literal = latest_static_text?;
     if append_newline {
-        let mut literal = String::from(literal.as_ref());
-        literal.push('\n');
+        let mut literal = literal.to_vec();
+        literal.push(b'\n');
         return Some(Arc::from(literal));
     }
 

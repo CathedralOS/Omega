@@ -97,15 +97,42 @@ fn copy_text_value_folding_static_concat(
     plan_expressions.copy_from(source_expressions, value)
 }
 
-fn fold_static_text_value(table: &ExpressionTable, expression: ExpressionHandle) -> Option<String> {
+fn fold_static_text_value(
+    table: &ExpressionTable,
+    expression: ExpressionHandle,
+) -> Option<Vec<u8>> {
     match table.expression(expression) {
-        ExpressionNode::String(value) => Some(value.to_string()),
+        ExpressionNode::String(value) => Some(value.to_vec()),
         ExpressionNode::Binary(binary) if binary.operator == BinaryOperator::Add => {
             let mut folded = fold_static_text_value(table, binary.left)?;
-            folded.push_str(&fold_static_text_value(table, binary.right)?);
+            folded.extend_from_slice(&fold_static_text_value(table, binary.right)?);
             Some(folded)
         }
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use psi_checked_trees::expression::TableBinaryExpression;
+    use std::sync::Arc;
+
+    #[test]
+    fn static_concat_fold_retains_non_utf8_bytes() {
+        let mut expressions = ExpressionTable::default();
+        let left = expressions.insert(ExpressionNode::String(Arc::from(&[0x80][..])));
+        let right = expressions.insert(ExpressionNode::String(Arc::from(&b"A"[..])));
+        let concat = expressions.insert(ExpressionNode::Binary(TableBinaryExpression {
+            left,
+            operator: BinaryOperator::Add,
+            right,
+        }));
+
+        assert_eq!(
+            fold_static_text_value(&expressions, concat),
+            Some(vec![0x80, b'A'])
+        );
     }
 }
 

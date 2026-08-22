@@ -150,7 +150,7 @@ pub(in crate::selection) fn select_runtime_string_descriptor_write(
     dispatch_index: u32,
     statement_index: usize,
     resolved_target: &Expression,
-    value: &str,
+    value: &[u8],
     selected_instructions: &mut SelectedInstructionSink,
 ) {
     if let Some(target) = resolve_runtime_frame_base_indexed_target_with_index_region(
@@ -328,7 +328,7 @@ pub(in crate::selection) fn string_literal_data_handle(
     input: &InstructionSelectionInput<'_>,
     source_key: StateKey,
     statement_index: usize,
-    value: &str,
+    value: &[u8],
 ) -> TargetDataObjectHandle {
     string_literal_data_object(input, source_key, statement_index, value)
 }
@@ -337,7 +337,7 @@ fn string_literal_data_object(
     input: &InstructionSelectionInput<'_>,
     source_key: StateKey,
     statement_index: usize,
-    value: &str,
+    value: &[u8],
 ) -> TargetDataObjectHandle {
     let exact = input.data.objects.iter().find(|(_, data_object)| {
         data_object.source_key == source_key
@@ -346,9 +346,7 @@ fn string_literal_data_object(
                 .data
                 .bytes
                 .span(data_object.bytes)
-                .is_some_and(|bytes| {
-                    bytes == value.as_bytes() || (value.is_empty() && bytes == [0])
-                })
+                .is_some_and(|bytes| bytes == value || (value.is_empty() && bytes == [0]))
     });
     exact
         .or_else(|| {
@@ -357,9 +355,7 @@ fn string_literal_data_object(
                     .data
                     .bytes
                     .span(data_object.bytes)
-                    .is_some_and(|bytes| {
-                        bytes == value.as_bytes() || (value.is_empty() && bytes == [0])
-                    })
+                    .is_some_and(|bytes| bytes == value || (value.is_empty() && bytes == [0]))
             })
         })
         .map(|(handle, _)| handle)

@@ -13,6 +13,6 @@ pub(super) use evaluation::{resolve_static_value, select_transition};
 pub(super) enum StaticValue {
     Boolean(bool),
     Integer(i64),
-    String(Arc<str>),
+    String(Arc<[u8]>),
     Symbol(SymbolHandle),
 }

@@ -182,14 +182,14 @@ pub fn encode_runtime_text_stored_suffix_append(
     Ok(bytes)
 }
 
-pub fn runtime_text_literal_compare_width(literal: &str) -> usize {
+pub fn runtime_text_literal_compare_width(literal: &[u8]) -> usize {
     10 + literal.len() * 15 + 36
 }
 
 // Write a literal's bytes into a runtime text buffer at a fixed byte offset
 // (the first segment of a concatenation). r15 = buffer (reloc @ +2); store each
 // literal byte at [r15 + byte_offset + i].
-pub fn runtime_text_literal_segment_write_width(literal: &str) -> usize {
+pub fn runtime_text_literal_segment_write_width(literal: &[u8]) -> usize {
     10 + literal.len() * 8
 }
 
@@ -203,11 +203,11 @@ pub fn runtime_text_literal_segment_write_additional_machine_state() -> MachineS
 
 pub fn encode_runtime_text_literal_segment_write(
     byte_offset: usize,
-    literal: &str,
+    literal: &[u8],
 ) -> Result<Vec<u8>, Diagnostic> {
     let mut bytes = Vec::with_capacity(runtime_text_literal_segment_write_width(literal));
     append_mov_r15_imm64(&mut bytes, 0); // buffer base (reloc @ +2)
-    for (i, byte) in literal.as_bytes().iter().enumerate() {
+    for (i, byte) in literal.iter().enumerate() {
         let disp = disp32(byte_offset + i)?;
         bytes.extend([0x41, 0xc6, 0x87]); // mov byte [r15 + disp32], imm8
         bytes.extend(disp.to_le_bytes());
@@ -226,7 +226,7 @@ pub fn encode_runtime_text_literal_segment_write(
 // descriptor.ptr = buffer, descriptor.len += literal.len.
 pub const RUNTIME_TEXT_LITERAL_APPEND_TARGET_IMM_OFFSET: usize = 10;
 
-pub fn runtime_text_literal_append_width(literal: &str) -> usize {
+pub fn runtime_text_literal_append_width(literal: &[u8]) -> usize {
     // mov r15,imm64 (10) + mov r14,imm64 (10) + mov rax,[r14+len] (7) = 27
     // + per byte: mov cl,imm8 (2) + mov [r15+rax],cl (4) + inc rax (3) = 9
     // + mov [r14+ptr],r15 (7) + mov [r14+len],rax (7) = 14
@@ -248,7 +248,7 @@ pub fn runtime_text_literal_append_additional_machine_state() -> MachineStateSet
 
 pub fn encode_runtime_text_literal_append(
     target_offset: usize,
-    literal: &str,
+    literal: &[u8],
 ) -> Result<Vec<u8>, Diagnostic> {
     let ptr_disp = disp32(target_offset)?;
     let len_disp = disp32(target_offset + 8)?;
@@ -265,7 +265,7 @@ pub fn encode_runtime_text_literal_append(
     bytes.extend([0x49, 0x8b, 0x86]); // mov rax, [r14 + len_disp]
     bytes.extend(len_disp.to_le_bytes());
     // append bytes at buffer[rax]; rax advances per byte.
-    for byte in literal.as_bytes() {
+    for byte in literal {
         bytes.extend([0xb1, *byte]); // mov cl, imm8
         bytes.extend([0x41, 0x88, 0x0c, 0x07]); // mov [r15+rax], cl
         bytes.extend([0x48, 0xff, 0xc0]); // inc rax
@@ -282,7 +282,7 @@ pub fn encode_runtime_text_literal_append(
     Ok(bytes)
 }
 
-pub fn runtime_text_literal_append_to_runtime_pointee_width(literal: &str) -> usize {
+pub fn runtime_text_literal_append_to_runtime_pointee_width(literal: &[u8]) -> usize {
     // Like the non-pointee literal append (41 + len*9) plus one extra
     // `mov r14, [r14 + disp32]` (7) to dereference the runtime pointer.
     48 + literal.len() * 9
@@ -296,7 +296,7 @@ pub fn runtime_text_literal_append_to_runtime_pointee_width(literal: &str) -> us
 pub fn encode_runtime_text_literal_append_to_runtime_pointee(
     pointer_byte_offset: usize,
     field_byte_offset: usize,
-    literal: &str,
+    literal: &[u8],
 ) -> Result<Vec<u8>, Diagnostic> {
     let ptr_disp = disp32(field_byte_offset)?;
     let len_disp = disp32(field_byte_offset + 8)?;
@@ -310,7 +310,7 @@ pub fn encode_runtime_text_literal_append_to_runtime_pointee(
     bytes.extend([0x49, 0x8b, 0x86]); // mov rax, [r14 + len_disp]
     bytes.extend(len_disp.to_le_bytes());
     // append bytes at buffer[rax]; rax advances per byte.
-    for byte in literal.as_bytes() {
+    for byte in literal {
         bytes.extend([0xb1, *byte]); // mov cl, imm8
         bytes.extend([0x41, 0x88, 0x0c, 0x07]); // mov [r15+rax], cl
         bytes.extend([0x48, 0xff, 0xc0]); // inc rax
@@ -550,7 +550,7 @@ pub fn runtime_text_literal_compare_additional_machine_state() -> MachineStateSe
 }
 
 pub fn encode_runtime_text_literal_compare(
-    literal: &str,
+    literal: &[u8],
     failure_branch_distances: impl ExactSizeIterator<Item = isize>,
     delimiter_failure_branch_distance: isize,
 ) -> Result<Vec<u8>, Diagnostic> {
@@ -564,11 +564,8 @@ pub fn encode_runtime_text_literal_compare(
 
     let mut bytes = Vec::with_capacity(runtime_text_literal_compare_width(literal));
     append_mov_r15_imm64(&mut bytes, 0);
-    for (byte_index, (expected_byte, failure_branch_distance)) in literal
-        .as_bytes()
-        .iter()
-        .zip(failure_branch_distances)
-        .enumerate()
+    for (byte_index, (expected_byte, failure_branch_distance)) in
+        literal.iter().zip(failure_branch_distances).enumerate()
     {
         append_load_al_from_r15(&mut bytes, byte_index)?;
         bytes.extend([0x3c, *expected_byte]); // cmp al, imm8
@@ -863,7 +860,7 @@ pub fn runtime_text_literal_append_to_runtime_frame_indexed_width(
     index_byte_size: usize,
     _element_byte_size: usize,
     _field_byte_offset: usize,
-    literal: &str,
+    literal: &[u8],
 ) -> usize {
     // width-aware prefix + mov r15,imm64 buffer (10)
     // + mov r11,[rax+field+8] len (7)
@@ -890,7 +887,7 @@ pub fn encode_runtime_text_literal_append_to_runtime_frame_indexed(
     index_byte_size: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
-    literal: &str,
+    literal: &[u8],
 ) -> Result<Vec<u8>, Diagnostic> {
     let mut bytes = Vec::with_capacity(runtime_text_literal_append_to_runtime_frame_indexed_width(
         index_byte_size,
@@ -909,7 +906,7 @@ pub fn encode_runtime_text_literal_append_to_runtime_frame_indexed(
     append_mov_r15_imm64(&mut bytes, 0);
     append_load_r11_from_rax(&mut bytes, field_byte_offset + 8)?;
     // append bytes at buffer[len]; r11 advances per byte.
-    for byte in literal.as_bytes() {
+    for byte in literal {
         bytes.extend([0xb1, *byte]); // mov cl, imm8
         bytes.extend([0x43, 0x88, 0x0c, 0x1f]); // mov [r15+r11], cl
         bytes.extend([0x49, 0xff, 0xc3]); // inc r11
@@ -1534,7 +1531,7 @@ pub fn encode_runtime_machine_bounded_buffer_source_append(
 // bytes are written as immediates at `[rdi + i]`; store new len = old + lit.len.
 // One relocation (the base); fixed width (no per-byte loop -- the bytes are
 // unrolled immediate stores).
-pub fn runtime_machine_bounded_buffer_literal_append_width(literal: &str) -> usize {
+pub fn runtime_machine_bounded_buffer_literal_append_width(literal: &[u8]) -> usize {
     // mov r15,imm64 (10) + mov rax,[r15+t] (7) + lea rdi,[r15+t+8] (7)
     // + add rdi,rax (3) + per byte: mov byte [rdi+disp8],imm8 (4)
     // + add rax,imm32 (`48 05`+imm32 = 6) + mov [r15+t],rax (7) = 40 + 4*len
@@ -1543,11 +1540,11 @@ pub fn runtime_machine_bounded_buffer_literal_append_width(literal: &str) -> usi
 
 pub fn encode_runtime_machine_bounded_buffer_literal_append(
     target_byte_offset: usize,
-    literal: &str,
+    literal: &[u8],
 ) -> Result<Vec<u8>, Diagnostic> {
     let target = disp32(target_byte_offset)?;
     let target_bytes = disp32(target_byte_offset + 8)?;
-    let literal_bytes = literal.as_bytes();
+    let literal_bytes = literal;
     let literal_len = u32::try_from(literal_bytes.len()).map_err(|_| {
         Diagnostic::error(format!(
             "X86_64 encoder cannot append a carrier literal of {} bytes",
