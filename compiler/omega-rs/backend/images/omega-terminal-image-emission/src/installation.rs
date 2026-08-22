@@ -39,6 +39,7 @@ use crate::{
 mod boundary_result_scalar_codec;
 mod call_site_owner_codec;
 mod completion_custody_codec;
+mod function_parameter_codec;
 mod function_stack_codec;
 mod provider_execution_codec;
 mod structural_argument_codec;
@@ -47,6 +48,10 @@ use boundary_result_scalar_codec::{
     decode_boundary_result_scalar_type, encode_boundary_result_scalar_type,
 };
 use completion_custody_codec::{decode_completion_claim_source, encode_completion_claim_source};
+use function_parameter_codec::{
+    decode_scalar_parameter_homes, decode_scalar_parameter_records, decode_unit_parameter_homes,
+    decode_unit_parameter_records, encode_parameter_homes, encode_parameter_records,
+};
 use function_stack_codec::{decode_function_stack_facts, encode_function_stack_facts};
 use provider_execution_codec::{decode_provider_execution, encode_provider_execution};
 use structural_argument_codec::{decode_structural_argument, encode_structural_argument};
@@ -624,34 +629,8 @@ pub fn encode_terminal_installation_record(
         encode_function_stack_facts(&mut bytes, function)?;
         bytes.push(u8::from(function.unit_body));
         bytes.extend_from_slice(&[0; 3]);
-        push_u32(
-            &mut bytes,
-            u32::try_from(function.unit_parameters.len())
-                .map_err(|_| TerminalInstallationError::TooManyStructuralReturnParameters)?,
-        );
-        for parameter in &function.unit_parameters {
-            push_u64(&mut bytes, parameter.place.get());
-            push_u64(&mut bytes, parameter.structural_type.get());
-            bytes.push(multiplicity_tag(parameter.multiplicity));
-            bytes.extend_from_slice(&[0; 3]);
-            encode_shape(&mut bytes, parameter.shape)?;
-        }
-        push_u32(
-            &mut bytes,
-            u32::try_from(function.unit_parameter_homes.len())
-                .map_err(|_| TerminalInstallationError::TooManyStructuralReturnParameters)?,
-        );
-        for home in &function.unit_parameter_homes {
-            push_u64(&mut bytes, home.place.get());
-            push_u64(&mut bytes, home.structural_type.get());
-            bytes.push(multiplicity_tag(home.multiplicity));
-            bytes.extend_from_slice(&[0; 3]);
-            encode_shape(&mut bytes, home.shape)?;
-            encode_direct_placement(&mut bytes, &home.source)?;
-            push_u32(&mut bytes, home.byte_offset);
-            bytes.push(u8::from(home.indirect));
-            bytes.extend_from_slice(&[0; 3]);
-        }
+        encode_parameter_records(&mut bytes, &function.unit_parameters)?;
+        encode_parameter_homes(&mut bytes, &function.unit_parameter_homes)?;
         match &function.unit_affine_cleanup {
             Some(cleanup) => {
                 bytes.push(1);
@@ -958,60 +937,8 @@ pub fn decode_terminal_installation_record(
         if reader.take(3)? != [0; 3] {
             return Err(TerminalInstallationError::NonzeroReservedField);
         }
-        let parameter_count = usize::try_from(reader.u32()?)
-            .map_err(|_| TerminalInstallationError::TooManyStructuralReturnParameters)?;
-        let mut unit_parameters = Vec::with_capacity(parameter_count);
-        for _ in 0..parameter_count {
-            let place = PlaceId::new(reader.u64()?).ok_or(
-                TerminalInstallationError::ZeroStructuralReturnIdentity("Unit parameter place"),
-            )?;
-            let structural_type = StructuralTypeId::new(reader.u64()?).ok_or(
-                TerminalInstallationError::ZeroStructuralReturnIdentity("Unit parameter type"),
-            )?;
-            let multiplicity = decode_multiplicity(reader.u8()?)?;
-            if reader.take(3)? != [0; 3] {
-                return Err(TerminalInstallationError::NonzeroReservedField);
-            }
-            unit_parameters.push(omega_terminal_machine_code::TerminalUnitParameterRecord {
-                place,
-                structural_type,
-                multiplicity,
-                shape: decode_shape(&mut reader)?,
-            });
-        }
-        let home_count = usize::try_from(reader.u32()?)
-            .map_err(|_| TerminalInstallationError::TooManyStructuralReturnParameters)?;
-        let mut unit_parameter_homes = Vec::with_capacity(home_count);
-        for _ in 0..home_count {
-            let place = PlaceId::new(reader.u64()?).ok_or(
-                TerminalInstallationError::ZeroStructuralReturnIdentity("Unit home place"),
-            )?;
-            let structural_type = StructuralTypeId::new(reader.u64()?).ok_or(
-                TerminalInstallationError::ZeroStructuralReturnIdentity("Unit home type"),
-            )?;
-            let multiplicity = decode_multiplicity(reader.u8()?)?;
-            if reader.take(3)? != [0; 3] {
-                return Err(TerminalInstallationError::NonzeroReservedField);
-            }
-            let shape = decode_shape(&mut reader)?;
-            let source = decode_direct_placement(&mut reader)?;
-            let byte_offset = reader.u32()?;
-            let indirect = decode_boolean(reader.u8()?)?;
-            if reader.take(3)? != [0; 3] {
-                return Err(TerminalInstallationError::NonzeroReservedField);
-            }
-            unit_parameter_homes.push(
-                omega_terminal_machine_code::TerminalUnitParameterHomeRecord {
-                    place,
-                    structural_type,
-                    multiplicity,
-                    shape,
-                    source,
-                    byte_offset,
-                    indirect,
-                },
-            );
-        }
+        let unit_parameters = decode_unit_parameter_records(&mut reader)?;
+        let unit_parameter_homes = decode_unit_parameter_homes(&mut reader)?;
         functions.push(TerminalInstalledFunction {
             machine,
             attachment,
@@ -1039,8 +966,8 @@ pub fn decode_terminal_installation_record(
                 }
                 tag => return Err(TerminalInstallationError::InvalidBoolean(tag)),
             },
-            scalar_structural_parameters: decode_parameter_records(&mut reader)?,
-            scalar_structural_parameter_homes: decode_parameter_homes(&mut reader)?,
+            scalar_structural_parameters: decode_scalar_parameter_records(&mut reader)?,
+            scalar_structural_parameter_homes: decode_scalar_parameter_homes(&mut reader)?,
             scalar_affine_cleanup: match reader.u8()? {
                 0 => {
                     if reader.take(3)? != [0; 3] {
@@ -3048,48 +2975,6 @@ fn encode_internal_unit_call(
     Ok(())
 }
 
-fn encode_parameter_records(
-    bytes: &mut Vec<u8>,
-    parameters: &[omega_terminal_machine_code::TerminalUnitParameterRecord],
-) -> Result<(), TerminalInstallationError> {
-    push_u32(
-        bytes,
-        u32::try_from(parameters.len())
-            .map_err(|_| TerminalInstallationError::TooManyStructuralReturnParameters)?,
-    );
-    for parameter in parameters {
-        push_u64(bytes, parameter.place.get());
-        push_u64(bytes, parameter.structural_type.get());
-        bytes.push(multiplicity_tag(parameter.multiplicity));
-        bytes.extend_from_slice(&[0; 3]);
-        encode_shape(bytes, parameter.shape)?;
-    }
-    Ok(())
-}
-
-fn encode_parameter_homes(
-    bytes: &mut Vec<u8>,
-    homes: &[omega_terminal_machine_code::TerminalUnitParameterHomeRecord],
-) -> Result<(), TerminalInstallationError> {
-    push_u32(
-        bytes,
-        u32::try_from(homes.len())
-            .map_err(|_| TerminalInstallationError::TooManyStructuralReturnParameters)?,
-    );
-    for home in homes {
-        push_u64(bytes, home.place.get());
-        push_u64(bytes, home.structural_type.get());
-        bytes.push(multiplicity_tag(home.multiplicity));
-        bytes.extend_from_slice(&[0; 3]);
-        encode_shape(bytes, home.shape)?;
-        encode_direct_placement(bytes, &home.source)?;
-        push_u32(bytes, home.byte_offset);
-        bytes.push(u8::from(home.indirect));
-        bytes.extend_from_slice(&[0; 3]);
-    }
-    Ok(())
-}
-
 fn decode_internal_unit_call(
     reader: &mut Reader<'_>,
 ) -> Result<TerminalInstalledInternalUnitCall, TerminalInstallationError> {
@@ -4042,76 +3927,6 @@ fn decode_domains(
         )?);
     }
     Ok(domains)
-}
-
-fn decode_parameter_records(
-    reader: &mut Reader<'_>,
-) -> Result<Vec<omega_terminal_machine_code::TerminalUnitParameterRecord>, TerminalInstallationError>
-{
-    let count = usize::try_from(reader.u32()?)
-        .map_err(|_| TerminalInstallationError::TooManyStructuralReturnParameters)?;
-    let mut parameters = Vec::with_capacity(count);
-    for _ in 0..count {
-        let place = PlaceId::new(reader.u64()?).ok_or(
-            TerminalInstallationError::ZeroStructuralReturnIdentity("scalar parameter place"),
-        )?;
-        let structural_type = StructuralTypeId::new(reader.u64()?).ok_or(
-            TerminalInstallationError::ZeroStructuralReturnIdentity("scalar parameter type"),
-        )?;
-        let multiplicity = decode_multiplicity(reader.u8()?)?;
-        if reader.take(3)? != [0; 3] {
-            return Err(TerminalInstallationError::NonzeroReservedField);
-        }
-        parameters.push(omega_terminal_machine_code::TerminalUnitParameterRecord {
-            place,
-            structural_type,
-            multiplicity,
-            shape: decode_shape(reader)?,
-        });
-    }
-    Ok(parameters)
-}
-
-fn decode_parameter_homes(
-    reader: &mut Reader<'_>,
-) -> Result<
-    Vec<omega_terminal_machine_code::TerminalUnitParameterHomeRecord>,
-    TerminalInstallationError,
-> {
-    let count = usize::try_from(reader.u32()?)
-        .map_err(|_| TerminalInstallationError::TooManyStructuralReturnParameters)?;
-    let mut homes = Vec::with_capacity(count);
-    for _ in 0..count {
-        let place = PlaceId::new(reader.u64()?).ok_or(
-            TerminalInstallationError::ZeroStructuralReturnIdentity("scalar home place"),
-        )?;
-        let structural_type = StructuralTypeId::new(reader.u64()?).ok_or(
-            TerminalInstallationError::ZeroStructuralReturnIdentity("scalar home type"),
-        )?;
-        let multiplicity = decode_multiplicity(reader.u8()?)?;
-        if reader.take(3)? != [0; 3] {
-            return Err(TerminalInstallationError::NonzeroReservedField);
-        }
-        let shape = decode_shape(reader)?;
-        let source = decode_direct_placement(reader)?;
-        let byte_offset = reader.u32()?;
-        let indirect = decode_boolean(reader.u8()?)?;
-        if reader.take(3)? != [0; 3] {
-            return Err(TerminalInstallationError::NonzeroReservedField);
-        }
-        homes.push(
-            omega_terminal_machine_code::TerminalUnitParameterHomeRecord {
-                place,
-                structural_type,
-                multiplicity,
-                shape,
-                source,
-                byte_offset,
-                indirect,
-            },
-        );
-    }
-    Ok(homes)
 }
 
 fn multiplicity_tag(value: StructuralMultiplicity) -> u8 {
