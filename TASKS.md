@@ -5691,7 +5691,14 @@ Owners:
   require widening the report to retain the whole final certificate, or adding
   a redundant hash minted from the same copied values. Remaining callback work
   stays on the separately listed resource, body, lease, cross-target, and
-  private-relocation frontiers. The
+  private-relocation frontiers. Resource-ceiling aggregation currently stops at
+  the checked-envelope boundary: the realized callback envelope has no checked
+  stack/fuel/state resource carrier, while the existing three-column rows are
+  installation-owned external-root evidence and cannot be promoted backward
+  into callback admission. Add and validate the checked resource representation
+  first; then bind its exact receipt through callback placement. This does not
+  relax the private-placement decision or infer resources from
+  `BoundaryEntryPlan`. The
   remaining slices are
   resource-ceiling aggregation, multi-entry/re-entrant target instruction
   lowering, and the
