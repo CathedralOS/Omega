@@ -2497,10 +2497,13 @@ fn runtime_join_meet_bound_exit_canary_runs() {
     let canary = pass_canary("slices/runtime_join_meet_bound_exit");
     let scratch =
         std::env::temp_dir().join(format!("omega-join-meet-bound-{}", std::process::id()));
-    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("join-meet-bound canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("join-meet-bound canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("join-meet-bound canary should run");
 
@@ -2524,9 +2527,12 @@ fn runtime_dual_indexed_comparison_guard_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_dual_indexed_comparison_guard_exit");
     let scratch = std::env::temp_dir().join(format!("omega-dual-idx-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("dual-indexed comparison guard canary should compile from its authored root");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("dual-indexed comparison guard canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("dual-indexed comparison guard canary should run");
     assert_eq!(
@@ -2547,9 +2553,12 @@ fn runtime_array_min_max_builtin_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_array_min_max_builtin_exit");
     let scratch = std::env::temp_dir().join(format!("omega-minmax-red-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("min/max reduction canary should compile from its authored root");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("min/max reduction canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("min/max reduction canary should run");
     assert_eq!(
@@ -2570,9 +2579,12 @@ fn runtime_indexed_guard_subject_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_indexed_guard_subject_exit");
     let scratch = std::env::temp_dir().join(format!("omega-guard-subj-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("runtime-indexed guard-subject canary should compile from its authored root");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("runtime-indexed guard-subject canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("runtime-indexed guard-subject canary should run");
     assert_eq!(
@@ -2713,9 +2725,12 @@ fn runtime_nested_payload_range_narrowing_exit_canary_runs() {
     // scaled arg discriminates at runtime (dx=7 -> 70). Exit 70.
     let canary = pass_canary("arithmetic/runtime_nested_payload_range_narrowing_exit");
     let scratch = std::env::temp_dir().join(format!("omega-npr-{}", std::process::id()));
-    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("nested payload range narrowing canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("nested payload range narrowing canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("nested payload range narrowing canary should run");
     assert_eq!(
