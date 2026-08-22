@@ -2331,10 +2331,13 @@ fn runtime_conformance_item_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("conformance item canary should compile");
 
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("conformance item canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("conformance item canary should run");
 
@@ -2360,10 +2363,13 @@ fn equatable_record_equality_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("equatable record equality canary should compile");
 
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("equatable record canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("equatable record equality canary should run");
 
@@ -2390,10 +2396,13 @@ fn equatable_sum_payload_equality_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("equatable sum payload equality canary should compile");
 
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("equatable sum payload canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("equatable sum payload equality canary should run");
 
@@ -2421,10 +2430,13 @@ fn equatable_mixed_shape_equality_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("equatable mixed shape equality canary should compile");
 
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("equatable mixed shape canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("equatable mixed shape equality canary should run");
 
