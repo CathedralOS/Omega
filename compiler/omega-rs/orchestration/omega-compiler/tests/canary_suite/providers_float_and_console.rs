@@ -1509,9 +1509,12 @@ fn struct_literal_field_coercion_canary_runs() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-struct-lit-coerce-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("struct-literal coercion canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("struct-literal coercion canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("struct-literal coercion canary should run");
     assert_eq!(
@@ -1545,9 +1548,12 @@ fn array_element_write_width_domain_canary_runs() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-array-elem-coerce-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("array-element coercion canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("array-element coercion canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("array-element coercion canary should run");
     assert_eq!(
@@ -1581,9 +1587,12 @@ fn int_transition_arg_width_wrap_canary_runs() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-int-transition-arg-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("int transition-arg width canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("int transition-arg canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("int transition-arg width canary should run");
     assert_eq!(
@@ -1691,10 +1700,13 @@ fn const_fold_cast_signedness_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-const-fold-cast-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("const-fold cast canary should compile");
 
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("const-fold cast canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("const-fold cast canary should run");
 
