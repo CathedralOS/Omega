@@ -1348,14 +1348,14 @@ Remaining:
   reject. Proof-bundle v16 assigns tag 12; the registered calculus is v13 and
   the Rust kernel v5, with the affine checker included in both trust-graph
   source sets. The first bounded producer family now uses the rule for one to
-  three prior signed fixed affine definitions whose exact retained root bound
+  four prior signed fixed affine definitions whose exact retained root bound
   maps directly to a canonical safe-divisor arm. Reconstruction and production
   enumerate shortest words first and advance only prefixes accepted by the
   affine witness checker; within each depth, semantic-axiom indices stay
   strictly ordered. The kernel independently checks continuity, algebra, the
   mapped conclusion, and accepted-premise custody. Missing root custody,
   incomplete, reversed, redirected, or stale words, wrong targets, and
-  noncanonical mapped arms reject. Words of four or more definitions, joins,
+  noncanonical mapped arms reject. Words of five or more definitions, joins,
   cast/shift compositions, and correlated results remain on trusted reduction;
   neither complete exact row changes trust and `fully-derived false` remains. A
   second non-serialized common checker now normalizes the contiguous pure

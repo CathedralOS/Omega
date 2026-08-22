@@ -455,7 +455,7 @@ wrong-root children, stale/reordered/malformed definitions, target/carrier
 drift, arithmetic failure, and changed mapped conclusions reject. Proof-bundle
 v16 assigns tag 12, the registered calculus is v13, and the Rust kernel is v5.
 The calculus root and kernel implementation both bind the affine-checker source.
-The first bounded producer family uses this rule for one to three prior signed
+The first bounded producer family uses this rule for one to four prior signed
 fixed affine definitions whose exact retained root bound maps directly to a
 canonical safe-divisor arm. Reconstruction and production enumerate shortest
 words first and advance only prefixes accepted by the affine witness checker;
@@ -463,7 +463,7 @@ within each depth, semantic-axiom indices remain strictly ordered. The kernel
 independently checks continuity, algebra, the mapped conclusion, and
 accepted-premise custody. Missing root custody, incomplete, reversed,
 redirected, or stale words, wrong targets, and noncanonical mapped bounds
-reject. Words of four or more definitions, joins, cast/shift compositions, and
+reject. Words of five or more definitions, joins, cast/shift compositions, and
 correlated results remain producer work, so neither complete exact row changes
 trust.
 

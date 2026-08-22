@@ -219,7 +219,7 @@ fn affine_definition_words(
     semantic_axioms: &[Proposition],
     root: &psi_core::ScalarTerm,
 ) -> Vec<Vec<usize>> {
-    const MAX_DEFINITIONS: usize = 3;
+    const MAX_DEFINITIONS: usize = 4;
 
     // This is candidate pruning, not proof authority: only prefixes replayed
     // successfully by the kernel advance, and the completed proof is checked
@@ -2039,15 +2039,15 @@ mod tests {
     }
 
     #[test]
-    fn exact_division_goal_proves_three_definition_affine_safe_divisor() {
+    fn exact_division_goal_proves_three_and_four_definition_affine_safe_divisors() {
         let signed = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
-        let context = PropositionContext::from_value_types((1..=5).map(|id| {
+        let context = PropositionContext::from_value_types((1..=6).map(|id| {
             (
                 ValueId::new(id).expect("value id"),
                 ScalarType::Integer(signed),
             )
         }))
-        .expect("five i8 values");
+        .expect("six i8 values");
         let divisor = value(2, signed);
         let goal = Proposition::Disjunction(vec![
             Proposition::LessOrEqual(divisor.clone(), integer(signed, -2)),
@@ -2057,7 +2057,9 @@ mod tests {
                 Proposition::LessOrEqual(integer(signed, -127), value(1, signed)),
             ]),
         ]);
-        let root_bound = Proposition::LessOrEqual(integer(signed, -2), value(3, signed));
+        let three_step_goal = Proposition::LessOrEqual(integer(signed, 1), value(6, signed));
+        let three_step_root_bound = Proposition::LessOrEqual(integer(signed, -2), value(3, signed));
+        let four_step_root_bound = Proposition::LessOrEqual(integer(signed, -3), value(3, signed));
         let definitions = [
             Proposition::Equal(
                 value(4, signed),
@@ -2070,52 +2072,72 @@ mod tests {
                     .expect("second exact add"),
             ),
             Proposition::Equal(
-                value(2, signed),
+                value(6, signed),
                 ScalarTerm::exact_integer_add(signed, value(5, signed), integer(signed, 1))
                     .expect("third exact add"),
             ),
+            Proposition::Equal(
+                value(2, signed),
+                ScalarTerm::exact_integer_add(signed, value(6, signed), integer(signed, 1))
+                    .expect("fourth exact add"),
+            ),
         ];
+
+        let three_step_proof = prove_canonical_integer_proposition(
+            &context,
+            &three_step_goal,
+            std::slice::from_ref(&three_step_root_bound),
+            &definitions,
+        )
+        .expect("three-definition affine word remains selectable first");
+        let ProofRule::IntegerAffineBound { witness, .. } = three_step_proof.rule else {
+            panic!("three-definition affine bound uses the affine-bound rule")
+        };
+        assert_eq!(witness.target, value(6, signed));
+        assert_eq!(witness.definition_axioms, vec![0, 1, 2]);
+
         let proof = prove_canonical_integer_proposition(
             &context,
             &goal,
-            std::slice::from_ref(&root_bound),
+            std::slice::from_ref(&four_step_root_bound),
             &definitions,
         )
-        .expect("three-definition affine word proves the positive divisor arm");
+        .expect("four-definition affine word proves the positive divisor arm");
         let ProofRule::DisjunctionIntroduction { disjunct, index } = proof.rule else {
-            panic!("three-definition affine divisor selects one canonical arm")
+            panic!("four-definition affine divisor selects one canonical arm")
         };
         assert_eq!(index, 1);
         let ProofRule::IntegerAffineBound { witness, .. } = disjunct.rule else {
-            panic!("three-definition affine divisor uses the affine-bound rule")
+            panic!("four-definition affine divisor uses the affine-bound rule")
         };
         assert_eq!(witness.root, value(3, signed));
         assert_eq!(witness.target, value(2, signed));
-        assert_eq!(witness.definition_axioms, vec![0, 1, 2]);
+        assert_eq!(witness.definition_axioms, vec![0, 1, 2, 3]);
 
         assert!(
             prove_canonical_integer_proposition(
                 &context,
                 &goal,
-                std::slice::from_ref(&root_bound),
-                &definitions[..2],
+                std::slice::from_ref(&four_step_root_bound),
+                &definitions[..3],
             )
             .is_none(),
-            "an incomplete three-definition word cannot prove divisor safety",
+            "an incomplete four-definition word cannot prove divisor safety",
         );
         assert!(
             prove_canonical_integer_proposition(
                 &context,
                 &goal,
-                &[root_bound],
+                &[four_step_root_bound],
                 &[
+                    definitions[3].clone(),
                     definitions[2].clone(),
                     definitions[1].clone(),
                     definitions[0].clone(),
                 ],
             )
             .is_none(),
-            "a reversed three-definition word cannot claim canonical custody",
+            "a reversed four-definition word cannot claim canonical custody",
         );
     }
 }
