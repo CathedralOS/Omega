@@ -7,6 +7,9 @@
 
 use psi_diagnostics::Diagnostic;
 use psi_numerics::arithmetic::ArithmeticDomain;
+use psi_numerics::integer_policy::{
+    IntegerFormationCondition, IntegerPolicyPrimitive, integer_policy_bridge,
+};
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use psi_typed_trees::machine::Machine;
@@ -51,6 +54,32 @@ fn may_contain(interval: Option<Interval>, value: i64) -> bool {
         && interval.high().is_none_or(|high| value <= high)
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct ExactDefinednessConditions {
+    nonzero_divisor: bool,
+    signed_result_representable: bool,
+}
+
+fn exact_definedness_conditions(operator: BinaryOperator) -> ExactDefinednessConditions {
+    if operator == BinaryOperator::Divide {
+        let conditions =
+            integer_policy_bridge(IntegerPolicyPrimitive::Divide, ArithmeticDomain::Exact)
+                .formation_conditions;
+        return ExactDefinednessConditions {
+            nonzero_divisor: conditions.contains(&IntegerFormationCondition::NonZeroDivisor),
+            signed_result_representable: conditions
+                .contains(&IntegerFormationCondition::ResultRepresentable),
+        };
+    }
+
+    // Remainder retains its existing explicit hardware-definedness policy. The
+    // settled integer-policy catalog intentionally has no remainder primitive.
+    ExactDefinednessConditions {
+        nonzero_divisor: true,
+        signed_result_representable: true,
+    }
+}
+
 fn report_partial(
     operator: BinaryOperator,
     primitive: PrimitiveType,
@@ -60,11 +89,14 @@ fn report_partial(
     provably_zero_is_prevalidated: bool,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    let conditions = exact_definedness_conditions(operator);
     let proven_nonzero = right.is_some_and(Interval::excludes_zero);
     let provably_zero = right.is_some_and(Interval::is_exactly_zero);
-    let missing_nonzero = !(proven_nonzero || provably_zero_is_prevalidated && provably_zero);
-    let signed_overflow_pair = signed_minimum(primitive)
-        .is_some_and(|minimum| may_contain(left, minimum) && may_contain(right, -1));
+    let missing_nonzero = conditions.nonzero_divisor
+        && !(proven_nonzero || provably_zero_is_prevalidated && provably_zero);
+    let signed_overflow_pair = conditions.signed_result_representable
+        && signed_minimum(primitive)
+            .is_some_and(|minimum| may_contain(left, minimum) && may_contain(right, -1));
     if !missing_nonzero && !signed_overflow_pair {
         return;
     }
@@ -85,6 +117,33 @@ fn report_partial(
         "partial exact {operation} in {owner}: {}; discharge every definedness condition with independently accepted prior facts",
         missing.join(" and "),
     )));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn exact_division_definedness_follows_the_shared_policy_catalog() {
+        assert_eq!(
+            exact_definedness_conditions(BinaryOperator::Divide),
+            ExactDefinednessConditions {
+                nonzero_divisor: true,
+                signed_result_representable: true,
+            }
+        );
+    }
+
+    #[test]
+    fn exact_remainder_definedness_remains_an_explicit_unsettled_policy() {
+        assert_eq!(
+            exact_definedness_conditions(BinaryOperator::Modulo),
+            ExactDefinednessConditions {
+                nonzero_divisor: true,
+                signed_result_representable: true,
+            }
+        );
+    }
 }
 
 #[allow(clippy::too_many_arguments)]

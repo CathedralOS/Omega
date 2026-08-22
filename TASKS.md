@@ -1531,6 +1531,13 @@ Remaining:
   settled. One operation-local allocator replaces repeated policy-specific
   identity arithmetic; obligation identity and Terminal operation shapes are
   unchanged.
+  The dedicated concrete/abstract Exact division definedness checker now also
+  obtains its nonzero-divisor and signed-result-representability requirements
+  from the shared catalog before applying its existing interval/fact analysis.
+  Exact remainder retains the same explicit two-condition hardware-
+  definedness path because the settled catalog has no remainder primitive.
+  Diagnostic ordering, accepted fact frontier, and rejection behavior are
+  unchanged.
   The next bounded proof-calculus parity slice exposes canonical disjunction
   introduction in the production certificate kernel. One
   `DisjunctionIntroduction` node owns exactly one independently checked child
@@ -2795,6 +2802,13 @@ Remaining:
   custody retains exact goal-endpoint and source-ordered definition-word
   enumeration, so precedence, proof shape, rejection, and the four-definition
   frontier are unchanged.
+  The two ordered landed-literal alias root bounds now live in paired, side-
+  local `affine_selection/literal/alias/completion/bound` modules. The producer
+  independently constructs the exact closed reflexive relation and nested
+  inner-alias then outer-root substitutions for endpoint 1 before endpoint 0;
+  reconstruction independently rebuilds the same two root-bound propositions.
+  Completion parents retain affine custody, so equality order, proof shape,
+  rejection, and the fixed definition frontier are unchanged.
   Corpus-level bounded parallelism is viable at the harness boundary: the
   differential runner now defaults to four independent jobs with one native
   backend worker each, retains deterministic corpus-order reporting, and
@@ -3762,6 +3776,12 @@ Owners:
   exclusively through checked-report receipts while preserving status 70 and
   all behavioral diagnostics. Report-bearing and known slow float/cast/policy
   owners remain deliberately excluded; exact-owner pins remain stable.
+  Five further authored-root algorithm executions—Euclidean GCD, RPN stack
+  evaluation, greedy activity selection, maze pathfinding, and graph BFS
+  traversal—now launch exclusively through checked-report receipts while
+  preserving status 70 and each result-specific diagnostic. Report-bearing and
+  known slow float/cast/policy owners remain excluded; exact-owner pins remain
+  stable.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
