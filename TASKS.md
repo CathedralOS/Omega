@@ -492,7 +492,11 @@ Owners:
   distinct symbols and widths. Retained layouts for numbered aggregate fields
   now rejoin the current typed schema by stable member identity rather than
   presentation spelling; a field rename preserves materialization, while
-  missing or drifted identities reject before destination mutation.
+  missing or drifted identities reject before destination mutation. Numbered
+  ordinary scalar materialization and decoding now use the same identity join
+  across whole, stored-integer, and fragmented entries; decoded values retain
+  the current schema spelling, while identity drift or collision rejects
+  transactionally.
   Erased terms remain semantically mandatory but add no bytes, including nested
   records and fixed arrays whose entire runtime shape is erased. Scalar
   placement/access semantics remain fenced for aggregates. Continue beyond
