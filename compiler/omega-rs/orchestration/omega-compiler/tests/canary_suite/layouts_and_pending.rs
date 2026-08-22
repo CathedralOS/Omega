@@ -12,10 +12,13 @@ fn plan_laid_value_field_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-plan-laid-value-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("plan-laid value canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("plan-laid value canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("plan-laid value canary should run");
 
@@ -85,9 +88,12 @@ fn plan_laid_erased_field_is_semantic_but_not_physical() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("plan-laid erased field should compile natively");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("plan-laid erased-field canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("run plan-laid erased-field canary");
     let _ = fs::remove_dir_all(&build_dir);
@@ -135,14 +141,17 @@ fn distinct_closed_erased_generic_sums_run_with_exact_identities() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
+    let compilation = compile(CompileOptions {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
         write_output: true,
     })
     .expect("distinct closed erased sums should compile natively");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("distinct closed erased sums should retain their executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("run distinct closed erased sums canary");
     let _ = fs::remove_dir_all(&build_dir);
@@ -171,14 +180,17 @@ fn mixed_closed_generic_erasure_runs_with_common_and_payload_fields() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
+    let compilation = compile(CompileOptions {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
         write_output: true,
     })
     .expect("mixed closed erased sum should compile natively");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("mixed closed erased sum should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("run mixed closed erased sum canary");
     let _ = fs::remove_dir_all(&build_dir);
@@ -197,14 +209,17 @@ fn generic_erased_literals_use_exact_call_and_return_contexts() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
+    let compilation = compile(CompileOptions {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
         write_output: true,
     })
     .expect("exact call/return contexts should compile natively");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("exact call/return generic canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("run exact call/return generic canary");
     let _ = fs::remove_dir_all(&build_dir);
