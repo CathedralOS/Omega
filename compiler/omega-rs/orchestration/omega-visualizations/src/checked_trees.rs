@@ -14,7 +14,10 @@ use psi_typed_trees::statement::{
 
 mod capability_manifest;
 
-pub use capability_manifest::{capability_manifest_html, capability_manifest_json};
+pub use capability_manifest::{
+    capability_manifest_html, capability_manifest_html_with_selection, capability_manifest_json,
+    capability_manifest_json_with_selection,
+};
 
 pub fn checked_trees_html(program: &CheckedTrees) -> String {
     let mut diagram = PhaseDiagramBuilder::new("checked_trees");

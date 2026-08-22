@@ -6526,11 +6526,13 @@ state through a raw address.
     absent selections, and retains the resolutions in the installed record.
     The preselection capability manifest publishes every unresolved exact
     requirement identity with its conservative upper bound rather than
-    pretending the bound is the selected provider row.
+    pretending the bound is the selected provider row. Postselection manifests
+    join those identities to the exact selected rows and provider-plan
+    identities, rejecting absent resolutions or bound drift.
   - **Remaining:** encode the exact dependencies in source-handle-free terminal
-    root closures; expose exact rows after selection; reject unresolved rows
-    escaping through ordinary callable package or component contracts; feed
-    the terminal closure into root admission.
+    root closures; reject unresolved rows escaping through ordinary callable
+    package or component contracts; feed the terminal closure into root
+    admission.
   - **Constraints:** `+` is union. Do not infer one shared row from equal sets or
     add negation, subtraction, lower bounds, exclusive-or, named row variables,
     or cross-requirement correlation.
