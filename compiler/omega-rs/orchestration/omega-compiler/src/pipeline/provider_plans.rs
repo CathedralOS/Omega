@@ -30,6 +30,70 @@ pub struct BoundExternalRootPostHandoffWriterInvocation {
     prepared: omega_external_roots::PreparedExternalRootPostHandoffWriterInvocation,
 }
 
+/// Still-unpublished destination after one exact bound external-root writer
+/// executes. The AOT-lowered fragment remains attached to the installation
+/// context instead of being reduced to copied fingerprints at this boundary.
+/// This carrier establishes neither consumer semantics nor publication.
+#[derive(Debug)]
+pub struct WrittenBoundExternalRootPostHandoffWriterDestination<'mapping, 'bytes> {
+    lowered: omega_instruction_selection::LoweredPostHandoffWriter,
+    written: omega_executable_installation::WrittenPostHandoffWriterDestination<'mapping, 'bytes>,
+}
+
+impl<'mapping, 'bytes> WrittenBoundExternalRootPostHandoffWriterDestination<'mapping, 'bytes> {
+    pub const fn lowered(&self) -> &omega_instruction_selection::LoweredPostHandoffWriter {
+        &self.lowered
+    }
+
+    pub const fn written(
+        &self,
+    ) -> &omega_executable_installation::WrittenPostHandoffWriterDestination<'mapping, 'bytes> {
+        &self.written
+    }
+
+    /// Independently replay the retained AOT bytes, footprint, invocation,
+    /// opaque installation context, and installed realization. Rejection only
+    /// borrows this carrier, preserving every input for corrected retry.
+    pub fn validate_for_consumer(
+        &self,
+        installed_code: &omega_executable_installation::InstalledCode,
+    ) -> Result<(), psi_layout_plans::MaterializationDiagnostic> {
+        omega_instruction_selection::validate_lowered_post_handoff_writer(&self.lowered).map_err(
+            |diagnostic| psi_layout_plans::MaterializationDiagnostic(diagnostic.message),
+        )?;
+        self.written
+            .validate_for_consumer(installed_code)
+            .map_err(|diagnostic| psi_layout_plans::MaterializationDiagnostic(diagnostic.0))?;
+        if self.lowered.fragment().target().architecture != installed_code.architecture()
+            || !self
+                .written
+                .context()
+                .binds_invocation(self.lowered.invocation())
+            || self.written.context().normalized_fragment_fingerprint()
+                != self.lowered.fragment().normalized_plan_fingerprint()
+        {
+            return Err(psi_layout_plans::MaterializationDiagnostic(
+                "written bound external-root destination does not retain its exact lowered fragment and installation context"
+                    .into(),
+            ));
+        }
+        Ok(())
+    }
+
+    pub fn bytes(&self) -> &[u8] {
+        self.written.bytes()
+    }
+
+    pub fn into_parts(
+        self,
+    ) -> (
+        omega_instruction_selection::LoweredPostHandoffWriter,
+        omega_executable_installation::WrittenPostHandoffWriterDestination<'mapping, 'bytes>,
+    ) {
+        (self.lowered, self.written)
+    }
+}
+
 /// A failed AOT/provider-preparation join returns both exact inputs so callers
 /// can inspect or retry them without regenerating lowered bytes or provider
 /// authority.
@@ -126,7 +190,7 @@ impl BoundExternalRootPostHandoffWriterInvocation {
             'bytes,
         >,
     ) -> Result<
-        omega_executable_installation::WrittenPostHandoffWriterDestination<'mapping, 'bytes>,
+        WrittenBoundExternalRootPostHandoffWriterDestination<'mapping, 'bytes>,
         Box<BoundExternalRootWriterExecutionError<'mapping, 'bytes>>,
     > {
         if let Err(diagnostic) = self.validate_execution() {
@@ -138,7 +202,9 @@ impl BoundExternalRootPostHandoffWriterInvocation {
         }
         let Self { lowered, prepared } = self;
         match prepared.execute(installed_code, destination) {
-            Ok(written) => Ok(written),
+            Ok(written) => {
+                Ok(WrittenBoundExternalRootPostHandoffWriterDestination { lowered, written })
+            }
             Err(prepared_error) => {
                 let diagnostic = prepared_error.diagnostic().clone();
                 let (prepared, destination) = (*prepared_error).into_parts();

@@ -318,11 +318,23 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
     let written = bound_writer
         .execute(&installed_code, destination)
         .expect("recovered bound writer and destination remain usable");
-    assert_eq!(written.installed_code(), installed_code.identity());
+    let diagnostic = written
+        .validate_for_consumer(&colliding_code)
+        .expect_err("written bound carrier must replay its exact installed realization");
+    assert!(diagnostic.0.contains("exact installed artifact"));
+    written
+        .validate_for_consumer(&installed_code)
+        .expect("unchanged written bound carrier supports corrected consumer retry");
+    assert_eq!(
+        written.written().installed_code(),
+        installed_code.identity()
+    );
     assert_eq!(
         u64::from_le_bytes(written.bytes()[..8].try_into().unwrap()),
         0x1010
     );
+    let (retained_lowered, written) = written.into_parts();
+    assert_eq!(retained_lowered, bound_lowered);
     let (_mapping, _receipt, _site, _bytes) = written.into_parts();
 
     let machine = MachineId::new(1).unwrap();
