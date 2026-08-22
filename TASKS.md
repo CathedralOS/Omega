@@ -5634,7 +5634,13 @@ Owners:
   that whole selected entry and rejects segment drift even when the callback
   role, encoded function, and object binding agree with the forged segment.
   This strengthens selected-entry custody only; thunk-body lowering and the
-  private registration relocation remain separate. The
+  private registration relocation remain separate. Callback thunk planning
+  now also seals the complete checked placement identity—site, registration
+  operation, ordinal, selected machine/entry, exact satisfaction row,
+  canonical overload, and calling-plan fingerprint—beside the placement index.
+  Final emission independently rederives that receipt and rejects placement-row
+  drift before accepting otherwise-consistent role, encoded-function, or
+  object-symbol evidence. The
   remaining slices are
   resource-ceiling aggregation, multi-entry/re-entrant target instruction
   lowering, and the
