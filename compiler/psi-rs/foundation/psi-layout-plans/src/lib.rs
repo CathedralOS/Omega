@@ -1053,6 +1053,16 @@ impl PostHandoffWriterInvocationPlan {
                 self.sources.len()
             )));
         }
+        for (slot_index, (slot, supplied)) in self.sources.iter().zip(source_values).enumerate() {
+            if let PostHandoffWriterSource::Resolved(expected) = slot.source
+                && *supplied != expected
+            {
+                return Err(MaterializationDiagnostic(format!(
+                    "post-handoff writer source slot {slot_index} for {:?} supplied {supplied:#x}, but its invocation evidence retains {expected:#x}",
+                    slot.target
+                )));
+            }
+        }
         for constraint in &self.fit_constraints {
             let value = source_values.get(constraint.source_slot).ok_or_else(|| {
                 MaterializationDiagnostic(format!(
@@ -3800,6 +3810,42 @@ mod tests {
             )
             .expect_err("direct execution validates the same source invariant");
         assert!(error.0.contains("inconsistent invocation values"));
+    }
+
+    #[test]
+    fn invocation_source_validation_rejects_preresolved_value_substitution() {
+        let target = entry();
+        let writer = PostHandoffWriterPlan {
+            byte_len: 8,
+            byte_order: ByteOrder::LittleEndian,
+            placement: PlacementConstraints::unconstrained(PlacementPhase::PostHandoff),
+            steps: vec![PostHandoffWriterStep {
+                write: MaterializationWrite {
+                    field: "address".into(),
+                    target,
+                    container_byte_offset: 0,
+                    container_width_bits: 64,
+                    destination_lsb: 0,
+                    source_lsb: 0,
+                    width: 64,
+                    stored_integer_fit: None,
+                },
+                source: PostHandoffWriterSource::Resolved(0x1234),
+            }],
+        };
+        let invocation = writer
+            .lower_reusable_fragment()
+            .expect("valid pre-resolved writer invocation");
+        invocation
+            .validate_source_values(&[0x1234])
+            .expect("the exact retained pre-resolved value remains valid");
+
+        let error = invocation
+            .validate_source_values(&[0x5678])
+            .expect_err("source values cannot substitute pre-resolved invocation evidence");
+        assert!(error.0.contains("source slot 0"), "{}", error.0);
+        assert!(error.0.contains("0x5678"), "{}", error.0);
+        assert!(error.0.contains("0x1234"), "{}", error.0);
     }
 
     #[test]
