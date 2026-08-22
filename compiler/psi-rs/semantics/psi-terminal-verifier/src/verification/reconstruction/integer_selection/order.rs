@@ -2,8 +2,9 @@
 
 use psi_core::Proposition;
 
-use super::super::integer_evidence::{closed_integer_less_or_equal, retained_integer_term_values};
+use super::super::integer_evidence::retained_integer_term_values;
 
+mod closed;
 mod transitive;
 
 pub(super) fn retained_literal_integer_bound(
@@ -48,12 +49,5 @@ pub(super) fn retained_two_fact_transitive_integer_bound(
 }
 
 pub(super) fn closed_transitive_integer_bound(goal: &Proposition, retained: &Proposition) -> bool {
-    let Proposition::LessOrEqual(goal_left, goal_right) = goal else {
-        return false;
-    };
-    let Proposition::LessOrEqual(retained_left, retained_right) = retained else {
-        return false;
-    };
-    (retained_right == goal_right && closed_integer_less_or_equal(goal_left, retained_left))
-        || (retained_left == goal_left && closed_integer_less_or_equal(retained_right, goal_right))
+    closed::retained(goal, retained)
 }
