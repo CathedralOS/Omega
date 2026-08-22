@@ -7,7 +7,7 @@ use crate::LexError;
 pub(in crate::lexer) fn decode_string_literal(
     raw: &str,
     source_start: usize,
-) -> Result<String, LexError> {
+) -> Result<Vec<u8>, LexError> {
     if raw.starts_with('r') {
         return Ok(decode_raw_string_literal(raw));
     }
@@ -15,8 +15,8 @@ pub(in crate::lexer) fn decode_string_literal(
     decode_cooked_string_literal(raw, source_start)
 }
 
-fn decode_cooked_string_literal(raw: &str, source_start: usize) -> Result<String, LexError> {
-    let mut lexeme = String::new();
+fn decode_cooked_string_literal(raw: &str, source_start: usize) -> Result<Vec<u8>, LexError> {
+    let mut lexeme = Vec::new();
     let mut chars = raw.char_indices();
 
     let Some((_, opening_quote)) = chars.next() else {
@@ -38,15 +38,18 @@ fn decode_cooked_string_literal(raw: &str, source_start: usize) -> Result<String
             };
 
             match escaped {
-                '"' => lexeme.push('"'),
-                '\'' => lexeme.push('\''),
-                '\\' => lexeme.push('\\'),
-                'n' => lexeme.push('\n'),
-                'r' => lexeme.push('\r'),
-                't' => lexeme.push('\t'),
-                '0' => lexeme.push('\0'),
+                '"' => lexeme.push(b'"'),
+                '\'' => lexeme.push(b'\''),
+                '\\' => lexeme.push(b'\\'),
+                'n' => lexeme.push(b'\n'),
+                'r' => lexeme.push(b'\r'),
+                't' => lexeme.push(b'\t'),
+                '0' => lexeme.push(b'\0'),
                 'x' => lexeme.push(decode_hex_escape(&mut chars, source_start + index)?),
-                'u' => lexeme.push(decode_unicode_escape(&mut chars, source_start + index)?),
+                'u' => push_character(
+                    &mut lexeme,
+                    decode_unicode_escape(&mut chars, source_start + index)?,
+                ),
                 other => {
                     return Err(LexError::new(
                         format!("unsupported escape sequence `\\{other}`"),
@@ -58,7 +61,7 @@ fn decode_cooked_string_literal(raw: &str, source_start: usize) -> Result<String
                 }
             }
         } else {
-            lexeme.push(character);
+            push_character(&mut lexeme, character);
         }
     }
 
@@ -68,7 +71,7 @@ fn decode_cooked_string_literal(raw: &str, source_start: usize) -> Result<String
     ))
 }
 
-fn decode_raw_string_literal(raw: &str) -> String {
+fn decode_raw_string_literal(raw: &str) -> Vec<u8> {
     let bytes = raw.as_bytes();
     let mut hash_count = 0usize;
 
@@ -78,10 +81,10 @@ fn decode_raw_string_literal(raw: &str) -> String {
 
     let content_start = 1 + hash_count + 1;
     let content_end = raw.len() - hash_count - 1;
-    raw[content_start..content_end].to_owned()
+    raw[content_start..content_end].as_bytes().to_vec()
 }
 
-fn decode_hex_escape(chars: &mut CharIndices<'_>, source_index: usize) -> Result<char, LexError> {
+fn decode_hex_escape(chars: &mut CharIndices<'_>, source_index: usize) -> Result<u8, LexError> {
     let mut value = 0u8;
     for _ in 0..2 {
         let Some((offset, digit)) = chars.next() else {
@@ -102,7 +105,12 @@ fn decode_hex_escape(chars: &mut CharIndices<'_>, source_index: usize) -> Result
         value = (value << 4) | parsed as u8;
     }
 
-    Ok(value as char)
+    Ok(value)
+}
+
+fn push_character(bytes: &mut Vec<u8>, character: char) {
+    let mut encoded = [0u8; 4];
+    bytes.extend_from_slice(character.encode_utf8(&mut encoded).as_bytes());
 }
 
 fn decode_unicode_escape(

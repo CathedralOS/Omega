@@ -148,6 +148,51 @@ fn tokenizes_cooked_and_raw_strings() {
 }
 
 #[test]
+fn hex_escapes_decode_to_exact_bytes() {
+    let mut source = String::from("\"");
+    for byte in u8::MIN..=u8::MAX {
+        source.push_str(&format!("\\x{byte:02x}"));
+    }
+    source.push('"');
+
+    let tokens = Lexer::new(&source)
+        .tokenize()
+        .expect("tokenization should succeed");
+    let expected: Vec<_> = (u8::MIN..=u8::MAX).collect();
+
+    assert_eq!(tokens[0].kind, TokenKind::StringLiteral);
+    assert_eq!(tokens[0].lexeme.as_bytes(), expected);
+    assert_eq!(tokens[0].lexeme.try_as_str(), None);
+}
+
+#[test]
+fn cooked_unicode_and_raw_string_behavior_is_preserved() {
+    let cooked = Lexer::new(r#""café\u{1f600}""#)
+        .tokenize()
+        .expect("tokenization should succeed");
+    let raw = Lexer::new(r##"r#"café\xFF"#"##)
+        .tokenize()
+        .expect("tokenization should succeed");
+
+    assert_eq!(cooked[0].lexeme.as_str(), "café😀");
+    assert_eq!(raw[0].lexeme.as_str(), r#"café\xFF"#);
+}
+
+#[test]
+fn rejects_malformed_hex_escapes() {
+    for (source, expected) in [
+        (r#""\xG0""#, "invalid hex escape digit"),
+        (r#""\x0""#, "invalid hex escape digit"),
+        (r#""\x"#, "unterminated hex escape"),
+    ] {
+        let error = Lexer::new(source)
+            .tokenize()
+            .expect_err("tokenization should fail");
+        assert_eq!(error.message, expected, "source: {source:?}");
+    }
+}
+
+#[test]
 fn tokenizes_integer_and_float_literals_with_metadata() {
     let kinds = semantic_kinds("42 3.14 1. .5 1e10 0xff 0b1010 1_000");
 
