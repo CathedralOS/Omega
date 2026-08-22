@@ -930,6 +930,15 @@ Owners:
   destination bytes, and repaired evidence supports retry through the same
   carrier. This grants no provider-operation, write, publication, consumer-
   semantic, or native-execution authority.
+  Prepared post-handoff destinations now cross symbolic-source resolution
+  through sealed non-clonable validated custody rather than reverting to a raw
+  mapping after borrowed preflight. Consuming validation replays the exact
+  activated mapping, provider receipt, write rights, pinning, unpublished state,
+  placement, and byte geometry; rejection returns the complete raw destination
+  before resolver or write observation. Compiler preparation, external-root
+  execution, write failures, and validated recovery retain that validated
+  carrier end to end. This establishes no provider-operation authority,
+  consumer semantics, publication, device event, or native execution.
   External-root writer preparation now independently replays the complete
   admitted provider execution before symbolic-source resolution: exact
   validated root structure, retained validated boundary carrier, execution-to-
@@ -4099,6 +4108,13 @@ Owners:
   second body to four independent compilations (687ms checked, 727ms native,
   724ms Windows, 727ms Linux), while `CompileReport` currently retains no
   reusable `CheckedTrees` receipt; interpretation itself costs only 0.23ms.
+  Two residual erased-wire owners now launch native executions solely through
+  exact checked-report receipts while preserving in-memory semantic-schema/
+  normalized-placement checks, interpreter parity, and status 70. The profiled
+  plain record-view owner remains fenced because `CompileReport` retains no
+  reusable `CheckedTrees` receipt; exceptional, interactive, report-bearing,
+  slow float/cast/policy, numeric-conversion, rendering, coercion, and automaton
+  owners remain unchanged, with exact-owner pins stable.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
