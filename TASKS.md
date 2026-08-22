@@ -551,6 +551,10 @@ Owners:
   External, and Atomic specialization independently replays copied logical
   extent, concrete footprint, observation, and operation/borrow authorization
   before lowering, with unchanged authority-bearing custody returned on drift.
+  Primitive specialization retains the complete sealed placement witness and
+  independently replays its plan, profile receipt, admission, boundary reach,
+  exact resource row/descriptor, source-loan polarity, resident claim, and
+  placed occurrence; drift returns the unchanged authority-bearing request.
 - Implement `Extent::Resident<P, T>` as the owned exact-range dormant-content
   qualification, including invariant type indices, mutual exclusion with
   `Vacant`, split/merge rejection, borrow versus owned-view continuity,
@@ -1430,8 +1434,12 @@ Remaining:
   cited-fact search is added. Affine completion now lives in dedicated,
   side-local `affine_custody` modules. Production and reconstruction
   independently own the fixed four-definition witness frontier, exact mapped
-  bound, and optional closed relaxation; retained evidence selection remains in
-  their broader engines and no authority is shared. A
+  bound, and optional closed relaxation; no authority is shared. Affine
+  evidence selection now lives in dedicated, side-local `affine_selection`
+  modules. Production and reconstruction independently preserve the exact
+  preference order across direct, literal-landed, fixed one-/two-alias, and
+  exactly-two-leg transitive custody before invoking affine completion; no
+  generic path search or additional evidence shape is introduced. A
   single exact prior value equality may also transport a completed affine bound
   from its checked target alias to the canonical goal endpoint. The producer
   replaces that one endpoint, constructs the bounded affine relation directly,
@@ -2486,7 +2494,11 @@ Owners:
   rejoins the retained selected entry binding's boundary-contract fingerprint
   directly to the native flat receipt. Check-only retains that binding without
   publication, while object-container output cannot carry it; matching arrival
-  evidence therefore cannot conceal a redirected selected binding.
+  evidence therefore cannot conceal a redirected selected binding. Each
+  receipt's installation seal is now independently recomputed from its exact
+  destination role, publication identity, output path, and container byte
+  identity. Flat-only and flat-plus-bundle reports reject a stale or
+  substituted seal without relying on pairwise inequality alone.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
@@ -2980,7 +2992,10 @@ Remaining N6/N8 work:
   reject direct Trapping arithmetic and conversion while preserving total
   comparison, bitwise, classification, Wrapping, and Saturating terms. Same-
   carrier policy erasure retains Exact formation against prior facts without
-  self-justification. Fixed-width integer and address
+  self-justification. The arithmetic-domain regression cases now live in a
+  219-line test-only child instead of sharing the 5,729-line production
+  analysis module; no judgment or diagnostic ordering changed. Fixed-width
+  integer and address
   `embed` returns proof `Int` and contributes exact source-carrier range facts;
   proof `Int as Nat` requires nonnegativity. Make ordinary `Nat - Nat` Exact
   with `right <= left` discharged at formation, rename the bootstrap monus
