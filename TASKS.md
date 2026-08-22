@@ -701,7 +701,15 @@ Owners:
   commits its writer range once. Any late application rejection leaves the
   provider's exact destination bytes unchanged for recovery/retry, while
   successful bytes remain unpublished until the existing consumer-specific
-  validation/publication transition.
+  validation/publication transition. Successful post-handoff destination
+  writing now retains the exact non-clonable resolved context, including sealed
+  invocation, placement, source-slot values, and fingerprint, rather than
+  reducing it to copied report identities. Failure returns both the context and
+  prepared destination intact for corrected retry. The external-root consumer
+  replays that context against the exact installed realization and destination
+  preparation before writing and again before exposing the still-unpublished
+  written carrier; this establishes neither consumer semantics nor publication
+  authority.
 
 Acceptance: UART/MMIO, shared-page IPC, and ordinary RAM use one extent/layout
 foundation with different profiles. Misalignment, insufficient rights,
@@ -1525,12 +1533,40 @@ Remaining:
   cited-fact search is added. Affine completion now lives in dedicated,
   side-local `affine_custody` modules. Production and reconstruction
   independently own the fixed four-definition witness frontier, exact mapped
-  bound, and optional closed relaxation; no authority is shared. Affine
+  bound, and optional closed relaxation; no authority is shared. Fixed affine-
+  witness candidate enumeration now lives in independent side-local
+  `affine_custody/frontier` modules. Production and reconstruction each
+  enumerate shortest definition words first, preserve source-ordered semantic-
+  axiom indices, advance only prefixes independently accepted by the affine
+  witness checker, and stop at the explicit four-definition ceiling. Candidate
+  pruning grants no proof authority: mapped-bound construction, optional closed
+  relaxation, and final proof or retained-bound checking remain in each side's
+  affine-custody parent. Witness order, rejection behavior, proof shapes, and
+  the finite frontier are unchanged. Optional affine endpoint relaxation now
+  lives in independent side-local `affine_custody/relaxation` modules.
+  Production alone maps the checked affine root bound, constructs
+  `IntegerAffineBound`, and places one closed primitive bridge on the exact
+  unchanged endpoint before final certificate checking; reconstruction
+  independently recomputes and kernel-checks the mapped conversion before
+  replaying the same closed relation. Direct affine conversion remains
+  preferred, while witness selection and final acceptance remain in each
+  affine-custody parent. Endpoint orientation, proof shape, nonclosed,
+  mistyped, redirected, or weaker rejection, and the single-bridge frontier
+  are unchanged. Affine
   evidence selection now lives in dedicated, side-local `affine_selection`
   modules. Production and reconstruction independently preserve the exact
   preference order across direct, literal-landed, fixed one-/two-alias, and
   exactly-two-leg transitive custody before invoking affine completion; no
-  generic path search or additional evidence shape is introduced.
+  generic path search or additional evidence shape is introduced. Exact two-
+  citation affine-chain custody now lives in independent side-local
+  `affine_selection/transitive/chains` modules. Production preserves citation
+  identities while reconstruction independently retains propositions; each
+  enumerates left facts in ledger order, indexes right legs by the exact shared
+  value endpoint, and rejects reuse of the same fact before completion. Direct
+  transitive affine custody and its fixed one-equality substitution remain
+  separate consumers with unchanged precedence, endpoint orientation, proof
+  shapes, and rejection behavior. The catalog exposes exactly two legs—no
+  depth parameter, recursion, or generalized path search.
   Prior-evidence primitives now live in dedicated, side-local
   `integer_evidence` modules. Production alone owns citation indices and proof
   nodes; reconstruction independently resolves retained integer literals and
@@ -1735,7 +1771,16 @@ Remaining:
   `IntegerLessOrEqualSubstitution` nodes under `IntegerCastBound`; production
   and reconstruction independently enumerate that exact three-citation shape
   through their own local indexed constructor shared by cast and affine
-  completion. Those fixed one-/two-alias constructors now live in dedicated,
+  completion. Endpoint-indexed alias-bound custody now lives in independent
+  side-local `alias_transport/index` modules. Production preserves ordered
+  citation origin, proposition identity, and endpoint orientation for every
+  retained bound; reconstruction independently catalogs only the retained
+  proposition and endpoint it must recheck. The fixed one- and two-alias
+  constructors consume those separate indexes without sharing authority.
+  Ledger order, same-carrier identity checks, endpoint substitution,
+  citation/proof shapes, rejection behavior, and the finite two-alias frontier
+  are unchanged; no hop-count parameter or recursive search is introduced.
+  Those fixed one-/two-alias constructors now live in dedicated,
   side-local `alias_transport` modules rather than the broader certificate and
   reconstruction engines. The cast-specific closed strengthening and
   alias-landed-literal shapes live beside them while retaining their distinct
@@ -2776,6 +2821,35 @@ Owners:
   remains stable. Certificate drift, flat/bundle substitution or omission,
   swapped destination roles, a dropped native-output flag, and related
   receipt-cardinality drift each expose no executable path.
+  Five further authored-root subslice/carrier executions—runtime-end subslice
+  element access, fixed-array length guarding, runtime-bounded subslice
+  argument delivery, owned bounded-carrier concatenation, and borrowed bounded-
+  carrier alias concatenation—now launch only from exact checked-report
+  receipts while retaining literal statuses 20, 7, 3, 70, and 70. The 795
+  exact-owner pin remains stable, and the existing receipt-drift matrix
+  continues to expose no executable path.
+  Five further authored-root carrier/control executions—frame-local bounded-
+  carrier concatenation, slice-view carrier guarding, slice-view element
+  argument delivery, linear-search early exit, and unary entry-result
+  delivery—now launch only from exact checked-report receipts while retaining
+  literal statuses 70, 70, 70, 70, and 1. The unary fixture retains its
+  `linux_arm64` cross-target emission check, the 795 exact-owner pin remains
+  stable, and the existing receipt-drift matrix continues to expose no
+  executable path.
+  Five further authored-root entry/control executions—computed entry result,
+  widened cast result, nested-binary result, free-standing helper result, and
+  iterative loop patterns—now launch only from exact checked-report receipts
+  while retaining literal statuses 200, 70, 70, 7, and 70. The computed-result
+  fixture retains Full emission for its boundary-footprint assertion, the cast
+  fixture retains its `linux_arm64` output check, and the 795 exact-owner pin
+  remains stable.
+  Five further authored-root control/carrier executions—composite-initializer
+  argument forwarding, captured-local preservation across source-field
+  mutation, bounded-carrier pointee guarding, bounded-carrier slice-field
+  writing, and Utf8 return-view equality—now launch only from exact checked-
+  report receipts while retaining literal status 70 for every row. Stdout-
+  bearing carrier probes remain unchanged, and the 795 exact-owner pin remains
+  stable.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
@@ -3288,9 +3362,15 @@ Remaining N6/N8 work:
   ordering changed. Fixed-width
   integer and address
   `embed` returns proof `Int` and contributes exact source-carrier range facts;
-  proof `Int as Nat` requires nonnegativity. Make ordinary `Nat - Nat` Exact
-  with `right <= left` discharged at formation and keep clamping unavailable
-  through bare `-`. The named monus operation and its complete dependent
+  proof `Int as Nat` requires nonnegativity. Ordinary `Nat - Nat` is now an
+  Exact fixed operator whose `right <= left` contract is discharged at
+  formation; the independently selected structural `Nat::less_or_equal`
+  operator supplies the public order spelling, and missing order custody
+  rejects rather than selecting clamping. Checked software conformance now
+  applies the existing supported contract-entailment gate to ordinary as well
+  as boundary operators, allowing the recursive total provider to implement
+  the exact partial surface without weakening either call form. The named
+  monus operation and its complete dependent
   order/metric/Cauchy/Rat corpus now use `Nat::saturating_sub`; measured-recursion
   recognition and affected pass/fail canaries consume the same final identity.
   Migrate `Granted::content` and the content-projection examples to explicit

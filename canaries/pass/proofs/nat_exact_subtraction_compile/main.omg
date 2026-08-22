@@ -1,0 +1,11 @@
+// Ordinary Nat subtraction is exact: the entry order fact discharges the
+// fixed `-` operator's formation contract, while the selected checked provider
+// remains the separately callable total `Nat::saturating_sub` machine.
+use omega::language::core::nat;
+
+machine remaining(total: Nat, used: Nat) -> Nat
+requires
+    used <= total
+{
+    transition { _ -> (total - used) }
+}

@@ -1082,9 +1082,9 @@ fn trait_application_label(
 
 /// Operator requirements share the ordinary machine `satisfies` spelling with
 /// trait requirements, but resolve by exact overloaded signature rather than
-/// a trait symbol. Boundary leaves retain their admitted-binding rule;
-/// checked ordinary operators may be provided by checked software when the
-/// declaration carries no additional contract to entail.
+/// a trait symbol. Boundary leaves retain their admitted-binding rule; checked
+/// software providers for either boundary or ordinary operators must cover the
+/// selected declaration's supported contract.
 fn validate_machine_operator_conformance(
     program: &TypedTrees,
     machine: &Machine,
@@ -1131,19 +1131,13 @@ fn validate_machine_operator_conformance(
         return true;
     };
 
-    if operator.is_boundary && conformance.external_binding.is_none() {
+    if conformance.external_binding.is_none() {
         crate::contract_entailment::check_operator_contract_conformance(
             program,
             machine,
             operator,
             diagnostics,
         );
-    } else if !operator.is_boundary && !program.operator_contracts(operator).is_empty() {
-        diagnostics.push(Diagnostic::error(format!(
-            "checked machine `{}` satisfies operator `{}`, but checked operator-contract entailment is not implemented for contracted ordinary operators",
-            machine.name,
-            psi_typed_trees::operator::boundary_operator_requirement_identity(program, operator),
-        )));
     }
     true
 }

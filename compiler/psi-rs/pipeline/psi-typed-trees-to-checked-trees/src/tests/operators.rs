@@ -10,6 +10,30 @@ use psi_typed_trees::operator::{
 use psi_typed_trees::types::TypeReferenceHandle;
 
 #[test]
+fn checked_software_may_satisfy_a_contracted_ordinary_operator() {
+    let source = r#"
+        data Amount { value: i32; }
+
+        operator - Amount::subtract(left: Amount, right: Amount) -> Amount
+        requires
+            right == left;
+
+        machine subtract(left: Amount, right: Amount) -> Amount
+        satisfies Amount::subtract
+        {
+            left
+        }
+    "#;
+
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    lower_typed_trees(typed)
+        .expect("a checked provider may ask less than its ordinary operator requirement");
+}
+
+#[test]
 fn signature_requires_selects_domain_operator_without_flow_lookup() {
     let source = r#"
         data Quantity { value: i32; }

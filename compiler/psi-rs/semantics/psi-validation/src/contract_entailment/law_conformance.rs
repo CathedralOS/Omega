@@ -1,8 +1,8 @@
 use super::*;
 
-/// A checked Omega body satisfying an ordinary boundary operator is a software
-/// provider, not an accepted leaf. Its own machine contract is proved by the
-/// ordinary entailment pass above; this gate then checks that the proved
+/// A checked Omega body satisfying an ordinary or boundary operator is a
+/// software provider, not an accepted leaf. Its own machine contract is proved
+/// by the ordinary entailment pass above; this gate then checks that the proved
 /// contract covers the selected operator contract.
 ///
 /// The first checked-software rung deliberately admits the contract language
@@ -83,14 +83,14 @@ pub(crate) fn check_operator_contract_conformance(
 
     if unsupported_requirement {
         diagnostics.push(Diagnostic::error(format!(
-            "checked machine `{}` satisfies boundary operator `{operator_identity}`, whose ensures contract is outside checked operator-contract entailment's equality/`&&` rung",
+            "checked machine `{}` satisfies operator `{operator_identity}`, whose ensures contract is outside checked operator-contract entailment's equality/`&&` rung",
             machine.name,
         )));
         return;
     }
     if unsupported_provider_requires {
         diagnostics.push(Diagnostic::error(format!(
-            "checked operator provider `{}` adds a non-equality requires fact while satisfying `{operator_identity}`; checked providers may not ask more than the boundary requirement",
+            "checked operator provider `{}` adds a non-equality requires fact while satisfying `{operator_identity}`; checked providers may not ask more than the operator requirement",
             machine.name,
         )));
         return;
@@ -143,7 +143,7 @@ pub(crate) fn check_operator_contract_conformance(
             .any(|required| matches(*required, *provider_requires_fact))
         {
             diagnostics.push(Diagnostic::error(format!(
-                "checked operator provider `{}` requires `{}`, which boundary requirement `{operator_identity}` does not require",
+                "checked operator provider `{}` requires `{}`, which operator requirement `{operator_identity}` does not require",
                 machine.name,
                 program.expression_table.display_name(*provider_requires_fact),
             )));
@@ -155,7 +155,7 @@ pub(crate) fn check_operator_contract_conformance(
             .any(|provided| matches(*requirement_ensures_fact, *provided))
         {
             diagnostics.push(Diagnostic::error(format!(
-                "checked operator provider `{}` proves no ensures matching boundary requirement `{operator_identity}` contract `{}`",
+                "checked operator provider `{}` proves no ensures matching operator requirement `{operator_identity}` contract `{}`",
                 machine.name,
                 program.expression_table.display_name(*requirement_ensures_fact),
             )));
