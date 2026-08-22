@@ -1813,7 +1813,15 @@ Remaining:
   pruning grants no proof authority: mapped-bound construction, optional closed
   relaxation, and final proof or retained-bound checking remain in each side's
   affine-custody parent. Witness order, rejection behavior, proof shapes, and
-  the finite frontier are unchanged. Optional affine endpoint relaxation now
+  the finite frontier are unchanged.
+  Ordered affine-witness candidates now live in paired, side-local
+  `affine_custody/candidates` modules. Producer and reconstruction independently
+  require an exact `LessOrEqual` goal, enumerate left-before-right Value targets
+  and the existing definition-word frontier, and construct the same
+  `IntegerAffineWitness`; root-evidence custody and completion remain in their
+  prior side-local authorities. Proof shape, rejection behavior, and the fixed
+  bounded frontier are unchanged.
+  Optional affine endpoint relaxation now
   lives in independent side-local `affine_custody/relaxation` modules.
   Production alone maps the checked affine root bound, constructs
   `IntegerAffineBound`, and places one closed primitive bridge on the exact
@@ -3941,6 +3949,12 @@ Owners:
   Numeric-conversion and all exceptional, interactive, report-bearing, float/
   cast, policy, and automaton owners remain excluded; exact-owner pins remain
   stable.
+  Five further authored-root carrier algorithms—length guarding, FNV-1a
+  hashing, CRC32, Base64 encoding, and run-length encoding—now launch solely
+  through checked-report receipts while preserving status 70 and exact hash/
+  encoding diagnostics. Numeric-conversion, rendering, exceptional,
+  interactive, report-bearing, float/cast, policy, and automaton owners remain
+  excluded; exact-owner pins remain stable.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
