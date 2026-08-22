@@ -930,6 +930,15 @@ Owners:
   destination bytes, and repaired evidence supports retry through the same
   carrier. This grants no provider-operation, write, publication, consumer-
   semantic, or native-execution authority.
+  External-root writer preparation now independently replays the complete
+  admitted provider execution before symbolic-source resolution: exact
+  validated root structure, retained validated boundary carrier, execution-to-
+  root binding, exit assurance, and recomputed normalized execution identity.
+  `ValidatedExternalRoot` preserves `ValidatedBoundaryEntryPlan` rather than
+  downgrading it to raw plan data, while its existing raw-plan accessor remains
+  available. Execution-fingerprint drift rejects before resolver observation;
+  repaired evidence supports retry unchanged. This establishes no provider-
+  operation authority, consumer semantics, publication, or native execution.
   External-root writer preparation now retains the exact borrowed installed-
   code realization beside the selected schema, AOT lowering, activated
   unpublished destination, and provider-populated context before symbolic-
@@ -2076,7 +2085,15 @@ Remaining:
   affine custody. Direct literal landing remains preferred before the fixed
   one-intermediate-alias sibling. Citation/order orientation, proof shape,
   unsafe, missing, redirected, or mistyped rejection, and both finite literal
-  frontiers are unchanged. Direct landed-literal affine completion now lives in
+  frontiers are unchanged.
+  Source-ordered direct landed-literal affine candidates now live in paired,
+  side-local `affine_selection/literal/direct/candidates` modules. Producer and
+  reconstruction independently enumerate requirements before semantic axioms,
+  both equality orientations, and the exact Value/integer carrier eligibility;
+  only the producer materializes the retained equality citation. Completion,
+  affine custody, proof shape, rejection, and the fixed search frontier remain
+  unchanged.
+  Direct landed-literal affine completion now lives in
   independent side-local `affine_selection/literal/direct/completion` modules.
   Each parent retains its own requirements-before-semantic-axioms equality
   discovery, citation and orientation order, value-root custody, and typed-
@@ -3904,6 +3921,12 @@ Owners:
   receipts while preserving status 70 and exact content/domain diagnostics.
   Exceptional, interactive, report-bearing, float/cast, policy, and automaton
   owners remain excluded; exact-owner pins remain stable.
+  Five further authored-root domain/carrier executions—domain field write/read,
+  bounded-carrier content roundtrip, carrier length as both host argument and
+  stored field, and carrier byte indexing—now launch solely through checked-
+  report receipts while preserving literal statuses 73/10/70 and exact domain/
+  content diagnostics. Exceptional, interactive, report-bearing, float/cast,
+  policy, and automaton owners remain excluded; exact-owner pins remain stable.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
