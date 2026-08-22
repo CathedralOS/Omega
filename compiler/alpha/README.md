@@ -14,6 +14,7 @@ alpha_arm64_macos.s      the hand-authored arm64 source it's built from  (audit 
 alpha_arm64_macos.lst    a committed disassembly, to ease reading the binary against the source
 
 seed_env.sh              per-platform seed selection + tape-stamping, sourced by the build scripts
+resize-x64-tape-hole.py  one-purpose audited 32 KiB -> 256 KiB PE extent migration
 
 SEMANTICS.md             the written small-step operational semantics — the meaning a seed is audited AGAINST
 conformance.sh           executable companion: hand-built tapes pinning every opcode + edge; any seed must pass
@@ -24,7 +25,8 @@ verify.sh                the per-platform acceptance gate: provenance + conforma
 
 - **provenance** — re-derives the committed binary from its source and confirms a match
   (arm64: `clang -arch arm64 -Wl,-no_uuid …`, reproducible modulo the OS signature; x64:
-  audit the `.exe` against its `.hex` by hand, as no committed forge ships);
+  audit the `.exe` against its `.hex` by hand; the committed resize helper only changes
+  three documented PE capacity fields and extends the zero-only tape section);
 - **behavior** — `conformance.sh` (every opcode + edge realizes `SEMANTICS.md`);
 - **reproduction** — `../beta/selfhost.sh` (the VM reproduces the canonical assembler bytecode).
 
@@ -60,6 +62,14 @@ Silicon refuses to exec an invalid one, so a stamped seed is re-signed (`codesig
 by `seed_env.sh`. The signature blob is OS-imposed and non-reproducible; the bootstrap's
 byte-identical guarantee therefore lives in the program bytes (the tape), not the
 signature — which is exactly what `selfhost.sh` compares.
+
+Both committed seeds reserve a 256 KiB tape hole; `stamp_seed` rejects the tape
+before copying when its four-byte length prefix would exceed that extent. For
+x64, the one-purpose `resize-x64-tape-hole.py` records the complete migration
+from the old 32 KiB PE:
+`SizeOfImage`, `.tape` virtual size, and `.tape` raw size change, followed only by
+zero extension. It refuses any other input shape, which makes the capacity-only
+change independently reproducible without restoring the historical general forge.
 
 ## Per-platform vs cross-platform
 

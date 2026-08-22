@@ -65,11 +65,10 @@ checked source-exhaustion projection before emitting a truncated artifact.
 `emit` lowers each output byte to ~12 tape bytes, and a compiler is mostly fixed
 output, so bc's tape grew fast. Two things were done: the assembler gained a `db`
 data section (1 byte/char) — but that only trimmed ~12%, because **bc's tape is
-dominated by its own compiled *logic*, not emit strings**. So the arm64 tape hole
-was grown 32 KB → **256 KB** (`.space 0x40000`; `HOLE_SIZE` in `seed_env.sh` is now
-per-platform). The x64 hole stays 32 KB until a forge rebuild matches it — a
-flagged, capacity-only asymmetry (cross-platform behavior agrees for any tape that fits both;
-the self-hosting bc tape is arm64-runnable now, x64 after that one-line catch-up).
+dominated by its own compiled *logic*, not emit strings**. Both platform tape
+holes were then grown 32 KiB → **256 KiB** (`.space 0x40000` on arm64; an
+audited PE extent change plus zero extension on x64). The current self-hosting
+`bc` tape therefore fits both committed seed images.
 
 <details><summary>historical: the compact-asm + db steps</summary>
 

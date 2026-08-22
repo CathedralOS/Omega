@@ -291,7 +291,7 @@ from attractive but deferrable language work.
   - [ ] Persist the resulting lattice-built `bc` artifact, run its self-build and
     Beta corpus gates, then switch proof-kernel, Gamma, Delta, and Omega gates
     away from the ephemeral Rust-produced `bc0`.
-  - [ ] Enlarge or replace the x64 seed's current 32 KiB image extent before
+  - [x] Enlarge or replace the x64 seed's current 32 KiB image extent before
     claiming cross-platform closure; the present self-hosted tape is about 48
     KiB. The arm64 seed's 256 KiB extent is sufficient for the current artifact.
 - [x] **Make gate paths relocatable.** Replace hard-coded sibling-relative paths
@@ -375,9 +375,9 @@ sh compiler/delta-rs/omega0-frontend-meaning.sh
 
 ## Persistent implementation facts
 
-- The Alpha tape hole is platform-specific: arm64 macOS currently has 256 KiB;
-  x64 Windows retains 32 KiB until its seed is rebuilt. Build scripts read
-  `compiler/alpha/seed_env.sh` rather than assuming one universal size.
+- Both committed Alpha seeds have a 256 KiB tape hole. Build scripts still read
+  `compiler/alpha/seed_env.sh` so future platform realizations may declare their
+  audited capacity without embedding a universal assumption elsewhere.
 - The Alpha VM hidden stack stores return addresses. Beta maintains a separate
   explicit data stack with `r15` as stack pointer and `r14` as frame pointer.
 - Build fixed points establish determinism and dependency closure, not compiler

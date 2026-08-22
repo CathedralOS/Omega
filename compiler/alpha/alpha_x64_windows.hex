@@ -1,6 +1,7 @@
 ; ===========================================================================
 ; Hand-assembled Alpha tape VM — Windows x64 PE.  Every instruction byte is
-; hand-authored; build.py resolves label arithmetic.
+; hand-authored; the historical forge resolved label arithmetic. The committed
+; binary is audited directly against this listing.
 ;
 ; The VM carries the program INSIDE itself: a .tape section is a big hole of zeros
 ; (the "binary from god" + a memcpy'd program). On startup the VM copies the embedded
@@ -42,7 +43,7 @@ F0 00
 00 00 00 00
 06 00 00 00
 00 00 00 00
-00 C0 00 04              ; SizeOfImage = 0x400C000 (covers the .tape hole)
+00 40 04 04              ; SizeOfImage = 0x4044000 (covers the .tape hole)
 00 02 00 00              ; SizeOfHeaders
 00 00 00 00
 03 00
@@ -85,9 +86,9 @@ z24
 00 00 00 00
 80 00 00 C0
 2E 74 61 70 65 00 00 00          ; .tape — the embedded-program hole
-00 80 00 00                      ; VirtualSize  0x8000 (32 KB)
+00 00 04 00                      ; VirtualSize  0x40000 (256 KiB)
 00 40 00 04                      ; VirtualAddress 0x4004000
-00 80 00 00                      ; SizeOfRawData 0x8000
+00 00 04 00                      ; SizeOfRawData 0x40000
 00 14 00 00                      ; PointerToRawData 0x1400
 00 00 00 00 00 00 00 00
 00 00 00 00
@@ -403,6 +404,6 @@ dllname:
 .pad 0x1400
 
 ; ===================== .tape (RVA 0x4004000, file 0x1400) =====================
-; The hole: 0x8000 (32 KB) zero bytes. A built program is this exe with [4-byte LE
+; The hole: 0x40000 (256 KiB) zero bytes. A built program is this exe with [4-byte LE
 ; length][tape bytes] memcpy'd in here at file offset 0x1400.
-.pad 0x9400
+.pad 0x41400

@@ -19,7 +19,7 @@ case "$(uname -s)-$(uname -m)" in
     ALPHA_SEED=alpha_x64_windows.exe
     BETA_SEED=beta_x64_windows.exe
     HOLE_OFF=5120
-    HOLE_SIZE=32768      # 32 KB hole; grow to match arm64 when the forge is run
+    HOLE_SIZE=262144     # 256 KB tape hole (audited PE section extent)
     SEED_SIGN=0
     ;;
 esac
@@ -30,6 +30,11 @@ esac
 stamp_seed() {
   tape="$1"; seed="$2"; out="$3"
   L=$(wc -c < "$tape" | tr -d ' ')
+  if [ $((L + 4)) -gt "$HOLE_SIZE" ]; then
+    printf 'stamp_seed: tape (%s bytes plus length) exceeds %s-byte seed hole\n' \
+      "$L" "$HOLE_SIZE" >&2
+    return 1
+  fi
   cp "$seed" "$out"
   printf "$(printf '\\%03o\\%03o\\%03o\\%03o' $((L & 255)) $(((L >> 8) & 255)) $(((L >> 16) & 255)) $(((L >> 24) & 255)))" \
     | dd of="$out" bs=1 seek="$HOLE_OFF" conv=notrunc status=none
