@@ -5105,6 +5105,14 @@ Owners:
   diagnostics plus abnormal-exit-before-transition semantics for overflow.
   Exact-owner ambiguity, the 795 rooted/3 legacy inventory, and receipt-drift
   fences remain green; legacy owners are unchanged.
+  Four authored-root arithmetic-boundary regressions—return-range-proven Exact
+  propagation, trapping constant-fold overflow, constant trapping shift
+  overflow, and dead trapping-`let` overflow—now launch `OutputOnly` native
+  execution solely through exact checked-report executable receipts, including
+  their exact nested `out/` publications. Exit 70, all exact unconditional-trap
+  diagnostics, and abnormal-exit semantics remain unchanged; exact-owner
+  ambiguity, the 795 rooted/3 legacy inventory, and receipt-drift fences remain
+  green.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
@@ -5345,6 +5353,11 @@ reach or trust, and private proof improvements do not change public identity.
   call-span containment while orchestration and relocation remain in the 4,859-
   line parent. API, error, byte order, and the 140-function inventory remain
   unchanged.
+  The installed-cleanup ordinal-tamper regression now locates the authoritative
+  internal-call custody row by its complete machine/text-offset/owner/target
+  header before mutating the ordinal, rather than accidentally changing an
+  earlier stack-evidence duplicate. The unchanged decoder rejects the targeted
+  drift, and all 16 projected Unit-call integration tests pass.
   Provider-sized external adapter/arrival state is design-blocked on
   `OWNER_QUESTIONS.md` Q3: stack-domain ownership across interrupted and
   switched entry must be settled before this can become a complete root
