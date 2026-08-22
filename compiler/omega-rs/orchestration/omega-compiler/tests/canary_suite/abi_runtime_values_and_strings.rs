@@ -761,10 +761,13 @@ fn runtime_value_call_entry_field_write_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-entry-field-write-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("entry-field-write canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("entry-field-write canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("entry-field-write canary should run");
 
@@ -808,10 +811,13 @@ fn runtime_value_callee_post_entry_lets_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-post-entry-lets-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("post-entry-lets canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("post-entry-lets canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("post-entry-lets canary should run");
 
@@ -848,7 +854,7 @@ fn value_machine_self_array_local_index_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-value-machine-index-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
+    let compilation = compile(CompileOptions {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
@@ -856,7 +862,10 @@ fn value_machine_self_array_local_index_exit_canary_runs() {
     })
     .expect("value-machine self-array index canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("value-machine self-array index canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("value-machine self-array index canary should run");
 
@@ -898,7 +907,7 @@ fn value_machine_const_index_self_array_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
+    let compilation = compile(CompileOptions {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
@@ -906,7 +915,10 @@ fn value_machine_const_index_self_array_exit_canary_runs() {
     })
     .expect("value-machine const-index canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("value-machine const-index canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("value-machine const-index canary should run");
 
@@ -941,10 +953,13 @@ fn runtime_post_entry_deep_chain_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-post-entry-deep-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("post-entry deep-chain canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("post-entry deep-chain canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("post-entry deep-chain canary should run");
 
