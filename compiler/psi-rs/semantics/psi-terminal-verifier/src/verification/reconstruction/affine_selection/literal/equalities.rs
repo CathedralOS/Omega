@@ -15,20 +15,16 @@ impl<'a> OrientedEqualities<'a> {
         }
     }
 
-    pub(super) fn any(
+    pub(super) fn iter(
         &self,
-        mut candidate: impl FnMut(&'a Proposition, &'a ScalarTerm, &'a ScalarTerm) -> bool,
-    ) -> bool {
-        for equality in self.requirements.iter().chain(self.semantic_axioms) {
-            let Proposition::Equal(left, right) = equality else {
-                continue;
-            };
-            for (left, right) in [(left, right), (right, left)] {
-                if candidate(equality, left, right) {
-                    return true;
-                }
-            }
-        }
-        false
+    ) -> impl Iterator<Item = (&'a Proposition, &'a ScalarTerm, &'a ScalarTerm)> + '_ {
+        self.requirements
+            .iter()
+            .chain(self.semantic_axioms)
+            .filter_map(|equality| match equality {
+                Proposition::Equal(left, right) => Some((equality, left, right)),
+                _ => None,
+            })
+            .flat_map(|(equality, left, right)| [(equality, left, right), (equality, right, left)])
     }
 }

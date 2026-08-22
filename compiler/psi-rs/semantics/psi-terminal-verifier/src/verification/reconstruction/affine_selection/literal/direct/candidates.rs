@@ -19,7 +19,7 @@ impl<'a> DirectLiteralCandidates<'a> {
         &self,
         mut complete: impl FnMut(&'a ScalarTerm, &'a ScalarTerm) -> bool,
     ) -> bool {
-        self.equalities.any(|_, root, literal| {
+        self.equalities.iter().any(|(_, root, literal)| {
             eligibility::exact_value_binding(root, literal) && complete(root, literal)
         })
     }
