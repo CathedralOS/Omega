@@ -590,8 +590,10 @@ producer and reconstruction independently enumerate that exact three-citation
 shape through their own local indexed constructor shared by cast and affine
 completion. Those fixed one-/two-alias constructors now live in dedicated,
 side-local `alias_transport` modules rather than the broader certificate and
-reconstruction engines. They prefer every one-alias family and perform no
-recursive or parameterized alias walk.
+reconstruction engines. The cast-specific closed strengthening and
+alias-landed-literal shapes live beside them while retaining their distinct
+transitivity and substitution proofs. They prefer every one-alias family and
+perform no recursive or parameterized alias walk.
 Missing, reused, redirected, crossed, cyclic, mistyped, or weaker facts reject.
 A third alias, literal landing through two aliases, affine/cast, shift/cast,
 joins, and correlated results remain outside this sibling; neither complete
