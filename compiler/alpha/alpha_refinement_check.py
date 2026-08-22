@@ -31,7 +31,7 @@ import refinement_loop_gen                              # random data-dependent 
 import refinement_compose_gen                           # random composed programs: pre-loop + loop + post-loop
 import refinement_nested_gen                            # random NESTED loops (recursive summarization)
 import refinement_fork_gen                              # random BRANCHING programs (conditional terms)
-from bc2 import lex, Parser
+from beta_parser import lex, Parser
 ALPHA_REF = os.path.join(HERE, 'alpha_ref.py')
 PROVER = os.path.join(PROOF_KERNEL, 'prover.py')
 CHECK = sys.argv[1]

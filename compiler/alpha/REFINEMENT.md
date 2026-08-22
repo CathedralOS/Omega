@@ -259,7 +259,8 @@ A symbolic trip count `n` can't be unrolled. Both sides recognize the loop and r
 | File | Role |
 | --- | --- |
 | `alpha_symbolic.py` | UNTRUSTED: symbolically executes an alpha tape → the compiled meaning `C`. Dual concrete-int / Peano-term values; concrete-addressed memory + call/ret; loop summarization. |
-| `../beta-lang-py/beta_symbolic.py` | UNTRUSTED: symbolically evaluates a Beta source → the source meaning `M`. The source-side dual; reuses `bc2`'s parser. |
+| `../beta-lang-py/beta_parser.py` | UNTRUSTED: shared Beta source recognition used by the reference and refinement tools; it does not load a compiler backend. |
+| `../beta-lang-py/beta_symbolic.py` | UNTRUSTED: symbolically evaluates a Beta source → the source meaning `M`. The source-side dual; reuses the shared `beta_parser` syntax tree. |
 | `alpha_refinement_check.py` | The gate driver: derives `C`/`M`, differentially pins each, proves `(= C M)`. Curated samples + three fuzz spaces. |
 | `refinement_fuzz_gen.py` | random straight-line arithmetic programs |
 | `refinement_loop_gen.py` | random data-dependent counter loops (`<` / `<=`) |
