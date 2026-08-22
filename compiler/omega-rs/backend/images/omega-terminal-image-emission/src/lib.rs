@@ -13,6 +13,7 @@
 //! resulting sealed image. It does not grant executable authority or replace
 //! the separate native admission, placement, and retirement ladder.
 
+mod boundary_results;
 mod completion_receipts;
 mod final_image_validation;
 mod image_output;
@@ -45,6 +46,7 @@ pub use installation::*;
 pub(crate) use partial_cleanup_partition::exact_partial_cleanup_partition;
 pub use stack_demand::{derive_terminal_stack_demand, derive_terminal_unit_stack_demand};
 
+use boundary_results::boundary_result_placement_is_exact;
 use completion_receipts::completion_receipts_have_exact_custody;
 use scalar_cleanup_preservation::validate_scalar_cleanup_preservation;
 use scalar_conditional_call_paths::{conditional_call_path, conditional_paths_are_exclusive};
@@ -955,7 +957,13 @@ pub fn build_terminal_object_artifact(
                         })
                 }
             };
-            if !valid_realization {
+            if !valid_realization
+                || !boundary_result_placement_is_exact(
+                    plan.target,
+                    settlement.realization,
+                    settlement.native_result_placement.as_ref(),
+                )
+            {
                 return Err(TerminalObjectError::BoundaryRealizationMismatch {
                     machine: function.machine,
                     operation: settlement.psi_operation,

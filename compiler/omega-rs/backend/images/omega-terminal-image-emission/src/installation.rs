@@ -30,11 +30,12 @@ use sha2::{Digest, Sha256};
 
 use crate::{
     TerminalExecutableImage, TerminalObjectBoundarySettlement, TerminalObjectFuelAttribution,
-    TerminalObjectPortEffect, can_emit_terminal_executable_image,
+    TerminalObjectPortEffect, boundary_results::boundary_result_placement_is_exact,
+    can_emit_terminal_executable_image,
     completion_receipts::completion_receipts_have_exact_custody,
 };
 
-pub const TERMINAL_INSTALLATION_FORMAT_MARKER: u16 = 26;
+pub const TERMINAL_INSTALLATION_FORMAT_MARKER: u16 = 27;
 const MAGIC: &[u8; 8] = b"PSIINST\0";
 const IMAGE_DOMAIN: &[u8] = b"omega-terminal-installed-image\0";
 const RECORD_DOMAIN: &[u8] = b"omega-terminal-installation-record\0";
@@ -820,6 +821,14 @@ pub fn encode_terminal_installation_record(
             push_u64(&mut bytes, claim.claim.get());
             push_u32(&mut bytes, claim.argument_index);
         }
+        match &settlement.native_result_placement {
+            Some(placement) => {
+                bytes.push(1);
+                bytes.extend_from_slice(&[0; 3]);
+                encode_placement(&mut bytes, placement)?;
+            }
+            None => bytes.extend_from_slice(&[0; 4]),
+        }
     }
     Ok(bytes)
 }
@@ -1354,6 +1363,13 @@ pub fn decode_terminal_installation_record(
                 argument_index: reader.u32()?,
             });
         }
+        let native_result_present = decode_boolean(reader.u8()?)?;
+        if reader.take(3)? != [0; 3] {
+            return Err(TerminalInstallationError::NonzeroReservedField);
+        }
+        let native_result_placement = native_result_present
+            .then(|| decode_placement(&mut reader))
+            .transpose()?;
         boundary_settlements.push(TerminalObjectBoundarySettlement {
             machine,
             settlement: TerminalBoundarySettlementRecord {
@@ -1364,6 +1380,7 @@ pub fn decode_terminal_installation_record(
                 arguments,
                 completion_claim_sources,
                 completion_receipts,
+                native_result_placement,
                 operation_ordinal,
                 code_offset,
                 byte_count,
@@ -2753,7 +2770,13 @@ fn validate_record_shape(
                     })
             }
         };
-        if !valid_realization {
+        if !valid_realization
+            || !boundary_result_placement_is_exact(
+                record.target,
+                installed.settlement.realization,
+                installed.settlement.native_result_placement.as_ref(),
+            )
+        {
             return Err(TerminalInstallationError::BoundaryRealizationMismatch {
                 machine: installed.machine,
                 operation: installed.settlement.psi_operation,

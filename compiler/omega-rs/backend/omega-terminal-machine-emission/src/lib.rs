@@ -184,6 +184,7 @@ fn emit_function(
             ..
         } => {
             if architecture != Architecture::X86_64
+                || call_plan.result.is_none()
                 || call_plan.parameters.len() < structural_parameters.len()
                 || call_plan.parameters[call_plan.parameters.len() - structural_parameters.len()..]
                     .iter()
@@ -224,6 +225,7 @@ fn emit_function(
                 arguments: arguments.clone(),
                 completion_claim_sources: completion_claim_sources.clone(),
                 completion_receipts: completion_receipts.clone(),
+                native_result_placement: call_plan.result.clone(),
                 operation_ordinal: 0,
                 code_offset: 0,
                 byte_count: read_byte_count,
