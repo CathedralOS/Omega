@@ -568,7 +568,11 @@ Owners:
   through borrowed, owned, and borrowed-resident access; primitive
   specialization independently replays the exact profile/loan/plan join and
   rejects profile-root or compatibility drift while returning the unchanged
-  request.
+  request. Placed field projection now independently replays the retained
+  placement plan, admitted profile/receipt, exact resource compatibility,
+  admission, base, and source-loan polarity before field lookup or address
+  derivation; rejection borrows and therefore preserves the complete placed
+  authority for repair and retry.
   Stable content adoption independently replays that retained profile against
   the exact owned extent and placement before establishing resident custody;
   rejection returns both the unchanged owned admission and provider content
@@ -1549,6 +1553,13 @@ Remaining:
   completion; reconstruction independently enumerates and rechecks the same
   retained facts. Generic one-/two-alias transport remains in each parent, and
   citation order, endpoint precedence, proof shapes, rejection behavior, and
+  the finite search frontier are unchanged. Fixed transitive affine evidence
+  now lives in independent side-local `affine_selection/transitive` modules.
+  Production alone constructs the exact two-citation transitivity proof and
+  its optional single equality substitution before affine completion;
+  reconstruction independently indexes and rechecks those same retained
+  facts. Direct, literal-landed, one-alias, transitive, alias-transitive, then
+  two-alias precedence, citation order, rejection behavior, proof shapes, and
   the finite search frontier are unchanged. A
   single exact prior value equality may also transport a completed affine bound
   from its checked target alias to the canonical goal endpoint. The producer
@@ -2672,6 +2683,11 @@ Owners:
   exact checked-report receipts while retaining literal statuses 1, 1, 15, 7,
   and 9 and the guarded-binary cross-target check. The 795 exact-owner pin
   remains stable, and flat/bundle container-byte-count drift exposes no
+  executable path. Five more authored-root range/arithmetic executions—guarded
+  copy narrowing, ranged divide/modulo, ranged bitwise masking, and declared-
+  range index read/write—now launch only from exact checked-report receipts
+  while retaining literal statuses 7, 4, 3, 30, and 30. The 795 owner pin
+  remains stable, and flat/bundle container-fingerprint drift exposes no
   executable path.
   Final
   replay now also retains an exact
@@ -3168,7 +3184,11 @@ Remaining N6/N8 work:
   carrier policy erasure retains Exact formation against prior facts without
   self-justification. The arithmetic-domain regression cases now live in a
   219-line test-only child instead of sharing the 5,729-line production
-  analysis module; no judgment or diagnostic ordering changed. Fixed-width
+  analysis module. Its closed dependent-subtraction refinement and conservative
+  machine/state field-preservation bridge now live in a separate 313-line
+  `dependent_relations` child, leaving the production parent at 5,423 lines.
+  No accepted relation, call-write fence, interval, judgment, or diagnostic
+  ordering changed. Fixed-width
   integer and address
   `embed` returns proof `Int` and contributes exact source-carrier range facts;
   proof `Int as Nat` requires nonnegativity. Make ordinary `Nat - Nat` Exact
