@@ -1225,6 +1225,7 @@ fn x86_unit_call_port_write_and_settlement_keep_exact_order() {
                             provider_execution,
                             realization,
                             arguments: settlement_arguments.clone(),
+                            completion_claim_sources: Vec::new(),
                             completion_receipts: Vec::new(),
                         },
                         TerminalTargetUnitOperation::Return {

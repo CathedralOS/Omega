@@ -1275,6 +1275,7 @@ version = "0.1.0"
 dependencies = [
  "omega-calling-conventions",
  "omega-target",
+ "omega-terminal-abstract-operations",
  "psi-core",
  "psi-terminal",
 ]

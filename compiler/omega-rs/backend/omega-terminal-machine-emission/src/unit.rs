@@ -254,6 +254,7 @@ pub(super) fn emit_unit_body(
                 provider_execution,
                 realization,
                 arguments,
+                completion_claim_sources,
                 completion_receipts,
             } => {
                 operation_site = Some(*psi_operation);
@@ -263,6 +264,7 @@ pub(super) fn emit_unit_body(
                     provider_execution: (*provider_execution).into(),
                     realization: *realization,
                     arguments: arguments.clone(),
+                    completion_claim_sources: completion_claim_sources.clone(),
                     completion_receipts: completion_receipts.clone(),
                     operation_ordinal,
                     code_offset: bytes.len(),

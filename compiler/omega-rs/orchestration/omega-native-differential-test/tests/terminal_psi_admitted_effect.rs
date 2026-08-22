@@ -24,6 +24,7 @@ use omega_target::NativeTarget;
 use omega_terminal_abstract_operations::{
     TerminalAbstractBlockEntry, TerminalAbstractFunction, TerminalAbstractFunctionResult,
     TerminalAbstractOperation, TerminalAbstractOperationPlan, TerminalAbstractResult,
+    TerminalCompletionClaimSource,
 };
 use omega_terminal_abstract_operations_to_target_operations::{
     AdmittedTerminalBoundarySettlement, lower_to_target_operations_with_provider_executions,
@@ -528,6 +529,7 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
                     result: None,
                     boundary,
                     structural_arguments: settlement_arguments.clone(),
+                    completion_claim_sources: Vec::new(),
                     completion_receipts: Vec::new(),
                 },
                 TerminalAbstractOperation::ReturnUnit {
@@ -693,6 +695,11 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
                     result: Some(result),
                     boundary,
                     structural_arguments: direct_arguments.clone(),
+                    completion_claim_sources: vec![TerminalCompletionClaimSource {
+                        claim: direct_claim,
+                        input: custody_place,
+                        path: Some(Vec::new()),
+                    }],
                     completion_receipts: vec![CompletionReceipt {
                         claim: direct_claim,
                         argument_index: 0,
@@ -719,10 +726,21 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
         &[direct_settlement],
     )
     .expect("direct result lowering");
-    assert!(matches!(
-        direct_target.functions[0].operation,
-        TerminalTargetOperation::ReturnBoundaryPortReadU8 { .. }
-    ));
+    let TerminalTargetOperation::ReturnBoundaryPortReadU8 {
+        completion_claim_sources,
+        ..
+    } = &direct_target.functions[0].operation
+    else {
+        panic!("direct result target operation")
+    };
+    assert_eq!(
+        completion_claim_sources,
+        &[TerminalCompletionClaimSource {
+            claim: direct_claim,
+            input: custody_place,
+            path: Some(Vec::new()),
+        }]
+    );
     assert!(
         lower_to_target_operations_with_provider_executions(
             &direct_plan,
@@ -747,6 +765,10 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
             argument_index: 0,
         }]
     );
+    assert_eq!(
+        direct_machine.functions[0].boundary_settlements[0].completion_claim_sources,
+        completion_claim_sources.as_slice()
+    );
     let direct_object =
         build_terminal_object_artifact(&direct_machine).expect("direct result object");
     let direct_image =
@@ -757,6 +779,13 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
         [&result_execution],
     )
     .expect("direct result installation");
+    assert_eq!(
+        direct_installation.boundary_settlements()[0]
+            .settlement
+            .completion_claim_sources
+            .as_slice(),
+        completion_claim_sources.as_slice()
+    );
     let direct_encoded =
         encode_terminal_installation_record(&direct_installation).expect("direct result encoding");
     let direct_decoded = decode_terminal_installation_record(&direct_encoded)

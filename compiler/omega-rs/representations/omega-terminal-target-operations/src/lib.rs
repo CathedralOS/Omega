@@ -5,6 +5,7 @@
 
 use omega_calling_conventions::{CallPlan, ValuePlacement, ValueShape};
 use omega_target::NativeTarget;
+pub use omega_terminal_abstract_operations::TerminalCompletionClaimSource;
 use psi_core::{
     BoundaryMachineId, ClaimId, EdgeId, IntegerType, IntegerValue, MachineId, OperationId, PlaceId,
     ScalarType, ServiceId, StructuralFieldId, StructuralTypeId, ValueId,
@@ -251,6 +252,7 @@ pub enum TerminalTargetUnitOperation {
         provider_execution: TerminalProviderExecutionBinding,
         realization: TerminalMetadataOnlyPortRealization,
         arguments: Vec<StructuralArgument>,
+        completion_claim_sources: Vec<TerminalCompletionClaimSource>,
         completion_receipts: Vec<CompletionReceipt>,
     },
     Return {
@@ -303,6 +305,7 @@ pub enum TerminalTargetOperation {
         provider_execution: TerminalProviderExecutionBinding,
         realization: TerminalDirectPortReadU8Realization,
         arguments: Vec<StructuralArgument>,
+        completion_claim_sources: Vec<TerminalCompletionClaimSource>,
         completion_receipts: Vec<CompletionReceipt>,
         call_plan: CallPlan,
         structural_parameters: Vec<TerminalTargetStructuralParameter>,

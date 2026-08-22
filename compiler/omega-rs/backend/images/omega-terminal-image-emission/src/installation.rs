@@ -11,8 +11,8 @@ use omega_terminal_machine_code::{
     TerminalPortEffectRecord, TerminalProviderExecutionRecord, TerminalStructuralReturnRecord,
 };
 use omega_terminal_target_operations::{
-    TerminalBoundaryRealization, TerminalCallSiteOwner, TerminalDirectPortReadU8Realization,
-    TerminalMetadataOnlyPortRealization,
+    TerminalBoundaryRealization, TerminalCallSiteOwner, TerminalCompletionClaimSource,
+    TerminalDirectPortReadU8Realization, TerminalMetadataOnlyPortRealization,
 };
 use psi_core::{
     BoundaryMachineId, ClaimId, EdgeId, FuelScheduleIdentity, MachineId, OperationId, PlaceId,
@@ -34,7 +34,7 @@ use crate::{
     completion_receipts::completion_receipts_have_exact_custody,
 };
 
-pub const TERMINAL_INSTALLATION_FORMAT_MARKER: u16 = 25;
+pub const TERMINAL_INSTALLATION_FORMAT_MARKER: u16 = 26;
 const MAGIC: &[u8; 8] = b"PSIINST\0";
 const IMAGE_DOMAIN: &[u8] = b"omega-terminal-installed-image\0";
 const RECORD_DOMAIN: &[u8] = b"omega-terminal-installation-record\0";
@@ -796,6 +796,23 @@ pub fn encode_terminal_installation_record(
         }
         push_u32(
             &mut bytes,
+            u32::try_from(settlement.completion_claim_sources.len())
+                .map_err(|_| TerminalInstallationError::TooManyCompletionClaimSources)?,
+        );
+        for source in &settlement.completion_claim_sources {
+            push_u64(&mut bytes, source.claim.get());
+            bytes.push(u8::from(source.path.is_some()));
+            bytes.extend_from_slice(&[0; 3]);
+            encode_structural_argument(
+                &mut bytes,
+                &StructuralArgument {
+                    place: source.input,
+                    path: source.path.clone().unwrap_or_default(),
+                },
+            )?;
+        }
+        push_u32(
+            &mut bytes,
             u32::try_from(settlement.completion_receipts.len())
                 .map_err(|_| TerminalInstallationError::TooManyCompletionReceipts)?,
         );
@@ -1301,6 +1318,29 @@ pub fn decode_terminal_installation_record(
         for _ in 0..argument_count {
             arguments.push(decode_structural_argument(&mut reader)?);
         }
+        let source_count = usize::try_from(reader.u32()?)
+            .map_err(|_| TerminalInstallationError::TooManyCompletionClaimSources)?;
+        if source_count > reader.remaining() / 24 {
+            return Err(TerminalInstallationError::UnexpectedEnd);
+        }
+        let mut completion_claim_sources = Vec::with_capacity(source_count);
+        for _ in 0..source_count {
+            let claim = ClaimId::new(reader.u64()?)
+                .ok_or(TerminalInstallationError::ZeroSettlementIdentity("ClaimId"))?;
+            let entry_claim = decode_boolean(reader.u8()?)?;
+            if reader.take(3)? != [0; 3] {
+                return Err(TerminalInstallationError::NonzeroReservedField);
+            }
+            let argument = decode_structural_argument(&mut reader)?;
+            if !entry_claim && !argument.path.is_empty() {
+                return Err(TerminalInstallationError::InvalidCompletionClaimSource);
+            }
+            completion_claim_sources.push(TerminalCompletionClaimSource {
+                claim,
+                input: argument.place,
+                path: entry_claim.then_some(argument.path),
+            });
+        }
         let claim_count = usize::try_from(reader.u32()?)
             .map_err(|_| TerminalInstallationError::TooManyCompletionReceipts)?;
         if claim_count > reader.remaining() / 12 {
@@ -1322,6 +1362,7 @@ pub fn decode_terminal_installation_record(
                 provider_execution,
                 realization,
                 arguments,
+                completion_claim_sources,
                 completion_receipts,
                 operation_ordinal,
                 code_offset,
@@ -2664,7 +2705,11 @@ fn validate_record_shape(
                 },
             );
         }
-        if !completion_receipts_have_exact_custody(&installed.settlement.completion_receipts) {
+        if !completion_receipts_have_exact_custody(
+            &installed.settlement.arguments,
+            &installed.settlement.completion_claim_sources,
+            &installed.settlement.completion_receipts,
+        ) {
             return Err(TerminalInstallationError::InvalidCompletionReceiptCustody {
                 machine: installed.machine,
                 operation: installed.settlement.psi_operation,
@@ -4743,6 +4788,7 @@ pub enum TerminalInstallationError {
     TooManySettlementArgumentPathSegments,
     SettlementArgumentFieldTooLong,
     TooManyCompletionReceipts,
+    TooManyCompletionClaimSources,
     SettlementOffsetNotRepresentable,
     FunctionOffsetNotRepresentable,
     StructuralReturnOffsetNotRepresentable,
@@ -4821,6 +4867,7 @@ pub enum TerminalInstallationError {
         machine: MachineId,
         operation: OperationId,
     },
+    InvalidCompletionClaimSource,
     BoundaryRealizationMismatch {
         machine: MachineId,
         operation: OperationId,

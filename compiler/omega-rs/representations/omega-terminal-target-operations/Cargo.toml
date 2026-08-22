@@ -11,5 +11,6 @@ path = "src/lib.rs"
 [dependencies]
 omega-calling-conventions = { path = "../../foundation/omega-calling-conventions" }
 omega-target = { path = "../../foundation/omega-target" }
+omega-terminal-abstract-operations = { path = "../omega-terminal-abstract-operations" }
 psi-core = { path = "../../../psi-rs/foundation/psi-core" }
 psi-terminal = { path = "../../../psi-rs/representations/psi-terminal" }

@@ -108,6 +108,7 @@ fn assign_function(
             provider_execution,
             realization,
             arguments,
+            completion_claim_sources,
             completion_receipts,
             call_plan,
             structural_parameters,
@@ -126,6 +127,7 @@ fn assign_function(
                 provider_execution: *provider_execution,
                 realization: *realization,
                 arguments: arguments.clone(),
+                completion_claim_sources: completion_claim_sources.clone(),
                 completion_receipts: completion_receipts.clone(),
                 call_plan: call_plan.clone(),
                 structural_parameters: structural_parameters.clone(),
@@ -212,6 +214,7 @@ fn assign_function(
                         provider_execution,
                         realization,
                         arguments,
+                        completion_claim_sources,
                         completion_receipts,
                     } => TerminalAssignedUnitOperation::BoundarySettlement {
                         psi_operation: *psi_operation,
@@ -219,6 +222,7 @@ fn assign_function(
                         provider_execution: *provider_execution,
                         realization: (*realization).into(),
                         arguments: arguments.clone(),
+                        completion_claim_sources: completion_claim_sources.clone(),
                         completion_receipts: completion_receipts.clone(),
                     },
                     TerminalTargetUnitOperation::Return {

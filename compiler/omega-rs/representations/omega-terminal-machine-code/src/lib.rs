@@ -6,8 +6,8 @@
 use omega_calling_conventions::{ValuePlacement, ValueShape};
 use omega_target::NativeTarget;
 use omega_terminal_target_operations::{
-    TerminalBoundaryRealization, TerminalCallSiteOwner, TerminalProviderExecutionBinding,
-    TerminalPsiProvenance,
+    TerminalBoundaryRealization, TerminalCallSiteOwner, TerminalCompletionClaimSource,
+    TerminalProviderExecutionBinding, TerminalPsiProvenance,
 };
 use psi_core::{
     BoundaryMachineId, ClaimId, EdgeId, FuelScheduleIdentity, MachineId, OperationId, PlaceId,
@@ -184,6 +184,9 @@ pub struct TerminalBoundarySettlementRecord {
     /// These are provider-settlement evidence and do not describe an internal
     /// Unit-call ABI.
     pub arguments: Vec<StructuralArgument>,
+    /// Complete canonical caller claim-source catalog needed to independently
+    /// reconstruct the exact successful-completion receipt set.
+    pub completion_claim_sources: Vec<TerminalCompletionClaimSource>,
     pub completion_receipts: Vec<CompletionReceipt>,
     /// Position in the verified Unit operation sequence. This remains the
     /// canonical tie-break when multiple metadata rows share a code offset.

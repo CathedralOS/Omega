@@ -1029,6 +1029,7 @@ fn metadata_only_boundary_requires_the_exact_preceding_port_realization() {
                         place: argument_place,
                         path: vec![StructuralPathSegment::FixedIndex(1)],
                     }],
+                    completion_claim_sources: Vec::new(),
                     completion_receipts: Vec::new(),
                 },
                 TerminalAbstractOperation::ReturnUnit {

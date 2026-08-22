@@ -306,6 +306,7 @@ fn lower_function(
             result: Some(boundary_result),
             boundary,
             structural_arguments,
+            completion_claim_sources,
             completion_receipts,
         },
         TerminalAbstractOperation::Return {
@@ -368,6 +369,7 @@ fn lower_function(
                 provider_execution: binding.provider_execution,
                 realization,
                 arguments: structural_arguments.clone(),
+                completion_claim_sources: completion_claim_sources.clone(),
                 completion_receipts: completion_receipts.clone(),
                 call_plan,
                 structural_parameters: target_structural_parameters,
@@ -2218,6 +2220,7 @@ fn lower_unit_function(
                 result,
                 boundary,
                 structural_arguments,
+                completion_claim_sources,
                 completion_receipts,
             } => {
                 if result.is_some() {
@@ -2266,6 +2269,7 @@ fn lower_unit_function(
                     provider_execution: binding.provider_execution,
                     realization: realization.into(),
                     arguments: structural_arguments.clone(),
+                    completion_claim_sources: completion_claim_sources.clone(),
                     completion_receipts: completion_receipts.clone(),
                 });
                 provenance.operations.push(*psi_operation);
