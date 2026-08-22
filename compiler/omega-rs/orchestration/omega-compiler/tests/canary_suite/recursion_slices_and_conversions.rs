@@ -87,9 +87,12 @@ fn runtime_core_rat_declared_exit_canary_runs() {
     let canary = pass_canary("proofs/runtime_core_rat_declared_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-core-rat-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("core Rat canary should compile from its authored root");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("core Rat canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("core Rat canary should run");
     assert_eq!(
@@ -109,9 +112,12 @@ fn runtime_free_const_exit_canary_runs() {
     let canary = pass_canary("constants/runtime_free_const_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-free-const-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("free const canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("free const canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("free const canary should run");
     assert_eq!(
@@ -158,9 +164,12 @@ fn runtime_result_domain_machine_overload_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("result-domain machine overload canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("result-domain overload canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("result-domain machine overload canary should run");
     assert_eq!(
