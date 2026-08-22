@@ -1938,6 +1938,12 @@ selection regressions now live in side-local `tests` modules. Production
 facades are 35 and 608 lines respectively, while every test name and assertion
 is retained; no proof logic, authority, precedence, or search frontier moved
 between sides.
+Verification control-flow evidence propagation now lives in a side-local
+`path_facts` module. It alone decodes retained condition predicates, binds
+successor parameters, emits edge equalities before rewritten facts, and
+deduplicates propagated facts. The reconstruction parent still owns traversal,
+merge intersection, and certificate selection; this extraction grants no proof
+authority and changes no fact order.
 One exact prior value equality may also transport a completed affine bound from
 its checked target alias to the canonical goal endpoint. The producer replaces
 that one endpoint, constructs the bounded affine relation directly, and wraps
