@@ -667,6 +667,21 @@ impl SelectedExternalRootProviderPlan {
         omega_external_roots::PreparedExternalRootPostHandoffWriterInvocation,
         omega_external_roots::ExternalRootDiagnostic,
     > {
+        if self.identity != execution.provider_plan() {
+            return Err(omega_external_roots::ExternalRootDiagnostic(
+                "post-handoff writer selected provider plan does not match the admitted provider execution"
+                    .into(),
+            ));
+        }
+        validate_selected_provider_source(
+            self,
+            execution.selected_requirement_identity(),
+            execution.selected_boundary_parameter_count(),
+            execution.selected_boundary_contract_fingerprint(),
+            execution.selected_entry_claims(),
+            execution.provider_plan().normalized_identity(),
+        )
+        .map_err(|diagnostic| omega_external_roots::ExternalRootDiagnostic(diagnostic.0))?;
         execution.prepare_post_handoff_entry_writer(
             self.identity,
             installed_code,
