@@ -4,10 +4,9 @@ use psi_core::{Proposition, PropositionContext};
 use psi_proof_kernel::{ProofNode, ProofRule};
 
 use super::super::affine_selection;
-use super::super::integer_evidence::{cited_facts, closed_integer_relation};
-use super::order::{
-    prove_exact_or_closed_transitive_integer_bound, prove_two_fact_transitive_integer_bound,
-};
+use super::super::integer_evidence::cited_facts;
+
+mod relation;
 
 pub(super) fn prove(
     context: &PropositionContext,
@@ -40,33 +39,17 @@ pub(super) fn prove(
             } else {
                 continue;
             };
-            if let Some(relation_proof) = prove_exact_or_closed_transitive_integer_bound(
+            if let Some(relation_proof) = relation::prove(
+                context,
                 &relation,
+                replacement.integer_value().is_some(),
                 assumptions,
                 semantic_axioms,
-            )
-            .or_else(|| {
-                prove_two_fact_transitive_integer_bound(&relation, assumptions, semantic_axioms)
-            })
-            .or_else(|| affine_selection::prove(context, &relation, assumptions, semantic_axioms))
-            {
+            ) {
                 return Some(ProofNode {
                     conclusion: goal.clone(),
                     rule: ProofRule::IntegerLessOrEqualSubstitution {
                         relation: Box::new(relation_proof),
-                        equality: Box::new(citation.proof(fact)),
-                        endpoint,
-                    },
-                });
-            }
-            if replacement.integer_value().is_none() {
-                continue;
-            }
-            if let Some(relation) = closed_integer_relation(relation) {
-                return Some(ProofNode {
-                    conclusion: goal.clone(),
-                    rule: ProofRule::IntegerLessOrEqualSubstitution {
-                        relation: Box::new(relation),
                         equality: Box::new(citation.proof(fact)),
                         endpoint,
                     },
