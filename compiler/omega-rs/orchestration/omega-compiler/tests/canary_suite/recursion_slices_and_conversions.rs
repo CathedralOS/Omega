@@ -1575,10 +1575,13 @@ fn runtime_subslice_bounded_range_len_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("runtime bounded subslice range len canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("bounded subslice range-length canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("runtime bounded subslice range len canary should run");
 
@@ -1602,10 +1605,13 @@ fn runtime_subslice_range_pointer_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("runtime subslice range pointer canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("subslice range-pointer canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("runtime subslice range pointer canary should run");
 
@@ -1634,10 +1640,13 @@ fn runtime_local_aggregate_into_let_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("local-aggregate-into-let canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("local aggregate into-let canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("local-aggregate-into-let canary should run");
 
@@ -1665,10 +1674,13 @@ fn runtime_field_array_element_value_operand_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("field-array value-operand canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("field-array value-operand canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("field-array value-operand canary should run");
 
