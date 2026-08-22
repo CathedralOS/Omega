@@ -2316,11 +2316,12 @@ Remaining:
   Direct-root evidence remains before the fixed affine/cast/affine family;
   citation order, strict cast boundaries, endpoint conversion, proof shapes,
   rejection, and fixed frontiers remain unchanged, with no authority shared
-  across the trust boundary. Direct cast-to-affine selection now separates
-  source-ordered cast/root-bound enumeration from resolved completion in
-  independent side-local `affine_selection/cast/direct/completion` modules.
-  Parents preserve cast-root, unique-spine, requirement, and direct-before-
-  sandwich order; assumption identity, endpoint remapping, exact cast and post-
+  across the trust boundary. Direct cast-to-affine candidate enumeration now
+  lives in paired, side-local `affine_selection/cast/direct/candidates`
+  modules, preserving semantic cast-root order, unique source-spine recovery,
+  last-cast identity, and requirement/root-bound order. Resolved completion
+  remains in independent side-local `affine_selection/cast/direct/completion`
+  modules. Direct-before-sandwich order, assumption identity, endpoint remapping, exact cast and post-
   cast affine proof bytes, strict last-cast rejection, and the fixed frontier
   remain unchanged. Fixed affine/cast/affine selection now further
   separates source-ordered candidate enumeration from resolved proof
