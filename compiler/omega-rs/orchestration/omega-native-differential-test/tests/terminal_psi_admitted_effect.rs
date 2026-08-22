@@ -202,39 +202,41 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
         identity: root_id(56, ProviderPlanId::from_normalized_identity),
         schema: selected_provider.schema.clone(),
     };
-    assert!(
-        wrong_selected_provider
-            .prepare_post_handoff_entry_writer(
-                &execution,
-                &installed_code,
-                &writer,
-                16,
-                writer_site(0x8000),
-            )
-            .expect_err("selected provider closure drift must reject")
-            .0
-            .contains("selected provider plan")
-    );
+    let error = wrong_selected_provider
+        .prepare_post_handoff_entry_writer(
+            &execution,
+            &installed_code,
+            &writer,
+            16,
+            writer_site(0x8000),
+        )
+        .expect_err("selected provider closure drift must reject");
+    assert!(error.diagnostic().0.contains("selected provider plan"));
     let mut drifted_selected_schema = selected_provider.clone();
     drifted_selected_schema.schema.methods[0].parameter_count = 2;
     drifted_selected_schema.schema.methods[0]
         .parameter_type_identities
         .push("Test::ExtraBoundaryWord".into());
+    let drifted_selected_snapshot = drifted_selected_schema.clone();
+    let error = drifted_selected_schema
+        .prepare_post_handoff_entry_writer(
+            &execution,
+            &installed_code,
+            &writer,
+            16,
+            writer_site(0x8000),
+        )
+        .expect_err("selected source schema drift must reject before provider preparation");
     assert!(
-        drifted_selected_schema
-            .prepare_post_handoff_entry_writer(
-                &execution,
-                &installed_code,
-                &writer,
-                16,
-                writer_site(0x8000),
-            )
-            .expect_err("selected source schema drift must reject before provider preparation")
+        error
+            .diagnostic()
             .0
             .contains("exact prepared writer requirement")
     );
+    assert_eq!(error.into_selected_provider(), drifted_selected_snapshot);
     assert!(
         selected_provider
+            .clone()
             .prepare_post_handoff_entry_writer(
                 &execution,
                 &installed_code,
@@ -243,11 +245,13 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
                 writer_site(0x8000),
             )
             .expect_err("writer entry drift must reject")
+            .diagnostic()
             .0
             .contains("admitted external-root entry")
     );
     assert!(
         selected_provider
+            .clone()
             .prepare_post_handoff_entry_writer(
                 &execution,
                 &installed_code,
@@ -256,6 +260,7 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
                 writer_site(0x8008),
             )
             .expect_err("destination placement drift must reject")
+            .diagnostic()
             .0
             .contains("align")
     );
@@ -275,52 +280,36 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
     )
     .expect("same reusable geometry with a different symbolic entry");
     let drifted_lowering_snapshot = drifted_lowering.clone();
-    let prepared_provider = drifted_preparation.provider_execution();
-    let error = bind_external_root_post_handoff_writer_invocation(
-        selected_provider,
-        drifted_lowering,
-        drifted_preparation,
-    )
-    .expect_err("lowered writer invocation drift must reject");
+    let prepared_provider = drifted_preparation.prepared().provider_execution();
+    let error =
+        bind_external_root_post_handoff_writer_invocation(drifted_lowering, drifted_preparation)
+            .expect_err("lowered writer invocation drift must reject");
     assert!(
         error
             .diagnostic()
             .message
             .contains("exact lowered post-handoff writer invocation")
     );
-    let (selected_provider, returned_lowering, prepared_writer) = error.into_parts();
+    let (returned_lowering, preparation) = error.into_parts();
     assert_eq!(returned_lowering, drifted_lowering_snapshot);
-    assert_eq!(prepared_writer.provider_execution(), prepared_provider);
+    assert_eq!(
+        preparation.prepared().provider_execution(),
+        prepared_provider
+    );
     let lowered_writer = lower_post_handoff_writer_fragment(
         NativeTarget::linux_x64(),
         MachineRegister::X86Rdi,
         &writer,
     )
     .expect("AOT writer lowering");
-    let mut drifted_selected_provider = selected_provider.clone();
-    drifted_selected_provider.schema.methods[0].requirement_identity = "SiblingRoot::tick".into();
-    let drifted_selected_snapshot = drifted_selected_provider.clone();
-    let error = bind_external_root_post_handoff_writer_invocation(
-        drifted_selected_provider,
-        lowered_writer,
-        prepared_writer,
-    )
-    .expect_err("selected source requirement substitution must reject");
-    assert!(
-        error
-            .diagnostic()
-            .message
-            .contains("exact writer requirement")
+    assert_eq!(
+        lowered_writer.invocation(),
+        preparation.prepared().invocation()
     );
-    let (returned_selected, lowered_writer, prepared_writer) = error.into_parts();
-    assert_eq!(returned_selected, drifted_selected_snapshot);
-    assert_eq!(lowered_writer.invocation(), prepared_writer.invocation());
-    let bound_writer = bind_external_root_post_handoff_writer_invocation(
-        selected_provider,
-        lowered_writer,
-        prepared_writer,
-    )
-    .expect("lowered fragment, selected source schema, and provider preparation should bind");
+    let bound_writer =
+        bind_external_root_post_handoff_writer_invocation(lowered_writer, preparation).expect(
+            "lowered fragment, selected source schema, and provider preparation should bind",
+        );
     assert_eq!(
         bound_writer.prepared().provider_execution(),
         execution.terminal_binding()
