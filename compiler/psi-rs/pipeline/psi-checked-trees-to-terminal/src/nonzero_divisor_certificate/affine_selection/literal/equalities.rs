@@ -17,25 +17,20 @@ impl<'a> OrientedEqualities<'a> {
         }
     }
 
-    pub(super) fn find<T>(
+    pub(super) fn iter(
         &self,
-        mut candidate: impl FnMut(
-            Citation,
-            &'a Proposition,
-            &'a ScalarTerm,
-            &'a ScalarTerm,
-        ) -> Option<T>,
-    ) -> Option<T> {
-        for (citation, equality) in cited_facts(self.assumptions, self.semantic_axioms) {
-            let Proposition::Equal(left, right) = equality else {
-                continue;
-            };
-            for (left, right) in [(left, right), (right, left)] {
-                if let Some(result) = candidate(citation, equality, left, right) {
-                    return Some(result);
-                }
-            }
-        }
-        None
+    ) -> impl Iterator<Item = (Citation, &'a Proposition, &'a ScalarTerm, &'a ScalarTerm)> + '_
+    {
+        cited_facts(self.assumptions, self.semantic_axioms)
+            .filter_map(|(citation, equality)| match equality {
+                Proposition::Equal(left, right) => Some((citation, equality, left, right)),
+                _ => None,
+            })
+            .flat_map(|(citation, equality, left, right)| {
+                [
+                    (citation, equality, left, right),
+                    (citation, equality, right, left),
+                ]
+            })
     }
 }

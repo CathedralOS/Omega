@@ -20,15 +20,17 @@ impl<'a> RootAliases<'a> {
         &self,
         mut join: impl FnMut(Citation, &'a Proposition, &'a ScalarTerm, &'a ScalarTerm) -> Option<T>,
     ) -> Option<T> {
-        self.equalities.find(|citation, equality, root, alias| {
-            if root == alias
-                || !matches!(root, ScalarTerm::Value { .. })
-                || !matches!(alias, ScalarTerm::Value { .. })
-                || root.scalar_type() != alias.scalar_type()
-            {
-                return None;
-            }
-            join(citation, equality, root, alias)
-        })
+        self.equalities
+            .iter()
+            .find_map(|(citation, equality, root, alias)| {
+                if root == alias
+                    || !matches!(root, ScalarTerm::Value { .. })
+                    || !matches!(alias, ScalarTerm::Value { .. })
+                    || root.scalar_type() != alias.scalar_type()
+                {
+                    return None;
+                }
+                join(citation, equality, root, alias)
+            })
     }
 }

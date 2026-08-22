@@ -19,7 +19,7 @@ impl<'a> RootAliases<'a> {
         &self,
         mut join: impl FnMut(&'a Proposition, &'a ScalarTerm, &'a ScalarTerm) -> bool,
     ) -> bool {
-        self.equalities.any(|equality, root, alias| {
+        self.equalities.iter().any(|(equality, root, alias)| {
             root != alias
                 && matches!(root, ScalarTerm::Value { .. })
                 && matches!(alias, ScalarTerm::Value { .. })

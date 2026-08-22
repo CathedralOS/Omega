@@ -4,7 +4,8 @@ use std::collections::BTreeMap;
 
 use psi_core::{Proposition, ScalarTerm};
 
-use super::super::super::super::super::integer_evidence::{Citation, cited_facts};
+use super::super::super::super::super::integer_evidence::Citation;
+use super::super::super::equalities::OrientedEqualities;
 
 pub(super) struct LandingIndex<'a> {
     by_alias: BTreeMap<ScalarTerm, Vec<(Citation, &'a Proposition, &'a ScalarTerm)>>,
@@ -13,19 +14,16 @@ pub(super) struct LandingIndex<'a> {
 impl<'a> LandingIndex<'a> {
     pub(super) fn new(assumptions: &'a [Proposition], semantic_axioms: &'a [Proposition]) -> Self {
         let mut by_alias = BTreeMap::<_, Vec<_>>::new();
-        for (citation, equality) in cited_facts(assumptions, semantic_axioms) {
-            let Proposition::Equal(left, right) = equality else {
-                continue;
-            };
-            for (alias, literal) in [(left, right), (right, left)] {
+        OrientedEqualities::new(assumptions, semantic_axioms)
+            .iter()
+            .for_each(|(citation, equality, alias, literal)| {
                 if matches!(alias, ScalarTerm::Value { .. }) && literal.integer_value().is_some() {
                     by_alias
                         .entry(alias.clone())
                         .or_default()
                         .push((citation, equality, literal));
                 }
-            }
-        }
+            });
         Self { by_alias }
     }
 

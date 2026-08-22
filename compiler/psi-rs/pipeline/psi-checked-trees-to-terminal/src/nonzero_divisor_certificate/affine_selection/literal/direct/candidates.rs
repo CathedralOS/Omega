@@ -20,11 +20,13 @@ impl<'a> DirectLiteralCandidates<'a> {
         &self,
         mut complete: impl FnMut(&'a ScalarTerm, &'a ScalarTerm, ProofNode) -> Option<T>,
     ) -> Option<T> {
-        self.equalities.find(|citation, equality, root, literal| {
-            if !eligibility::exact_value_binding(root, literal) {
-                return None;
-            }
-            complete(root, literal, citation.proof(equality))
-        })
+        self.equalities
+            .iter()
+            .find_map(|(citation, equality, root, literal)| {
+                if !eligibility::exact_value_binding(root, literal) {
+                    return None;
+                }
+                complete(root, literal, citation.proof(equality))
+            })
     }
 }
