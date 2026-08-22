@@ -1276,9 +1276,12 @@ fn runtime_inferred_multipath_return_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-inferred-multipath-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("multi-path inferred return range should let the caller prove Exact");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("multipath return canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("multi-path inferred return canary should run");
     assert_eq!(
@@ -1300,9 +1303,12 @@ fn runtime_inferred_return_range_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-inferred-return-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("inferred return range should let the caller's arithmetic prove Exact");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("inferred return-range canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("inferred return range canary should run");
     assert_eq!(
@@ -1322,9 +1328,12 @@ fn runtime_provable_field_construction_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_provable_field_construction_exit");
     let scratch = std::env::temp_dir().join(format!("omega-provable-field-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("provable non-literal field construction should compile");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("provable field construction canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("provable field construction canary should run");
     assert_eq!(
@@ -1345,10 +1354,13 @@ fn runtime_struct_field_range_narrowing_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-struct-field-range-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone()).expect(
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone()).expect(
         "struct-field range narrowing should compile (constrained field discharges the obligation)",
     );
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("struct-field range canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("struct-field range narrowing canary should run");
     assert_eq!(
