@@ -2178,9 +2178,12 @@ fn runtime_tuple_matrix_exhaustive_exit_canary_runs() {
     let canary = pass_canary("control_flow/runtime_tuple_matrix_exhaustive_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-tuple-matrix-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("tuple-transition canary should compile from its authored root");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("tuple-transition canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("tuple-transition canary should run");
     assert_eq!(
@@ -2201,10 +2204,13 @@ fn runtime_sum_tuple_matrix_exhaustive_exit_canary_runs() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-sum-tuple-matrix-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
         "sum-tuple transition canary should compile from its authored root without a `_` arm",
     );
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("sum-tuple transition canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("sum-tuple transition canary should run");
     assert_eq!(
@@ -2223,9 +2229,12 @@ fn runtime_tuple_case_destructure_exit_canary_runs() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-tuple-destructure-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("tuple case-destructure canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("tuple case-destructure canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("tuple case-destructure canary should run");
     assert_eq!(
@@ -2248,9 +2257,12 @@ fn runtime_dependent_param_range_exit_canary_runs() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-dependent-param-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("dependent param-range canary should compile from its authored root");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("dependent param-range canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("dependent param-range canary should run");
     assert_eq!(
@@ -2272,9 +2284,12 @@ fn runtime_dependent_product_index_exit_canary_runs() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-dependent-product-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("dependent product-index canary should compile from its authored root");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("dependent product-index canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("dependent product-index canary should run");
     assert_eq!(
