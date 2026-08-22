@@ -1064,3 +1064,8 @@ that handoff path to equal the flat receipt's exact installed path;
 object-container output carries neither executable receipt, and check-only
 cannot appear as a written output. The handoff fields are private after this
 check, preventing path/receipt drift between installation and report custody.
+That handoff now applies the same exact optional-bundle relation before it is
+consumed: the bundle must use its canonical root-derived path and bundle role,
+retain the flat publication/certificate/container identities, carry its own
+valid installation seal, and remain distinct from the flat installation. The
+final report independently replays the same relation.
