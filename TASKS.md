@@ -503,8 +503,14 @@ Remaining:
   ordinals, text/code spans, reserved bytes, count/capacity guards, literal
   diagnostics, and offset errors preserve exact bytes and precedence; the
   parent retains upfront count conversion, effect/settlement order, byte
-  validation, function association, and admission replay. The installation
-  parent is now 3,810
+  validation, function association, and admission replay. The ordered boundary-
+  settlement collection now lives in a private 270-line composition codec.
+  Provider execution, realization, structural arguments, completion sources,
+  receipts and provider custody, optional native result, identities, spans,
+  reserved bytes, count/capacity guards, literal diagnostics, and offset errors
+  preserve exact bytes and precedence; the parent retains upfront count
+  conversion, settlement order, validation, and admission replay. The
+  installation parent is now 3,573
   lines. This is
   custody, not
   authorization. The remaining
