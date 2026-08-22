@@ -86,10 +86,10 @@ pub(crate) fn validate_plans(program: &TypedTrees, diagnostics: &mut Vec<Diagnos
             continue;
         };
         let mut field_symbols = Vec::with_capacity(view.fields.len());
-        let mut accessor_names = Vec::with_capacity(view.fields.len());
+        let mut accessor_data_symbols = Vec::with_capacity(view.fields.len());
         for field in &view.fields {
             if field_symbols.contains(&field.field_symbol)
-                || accessor_names.contains(&field.accessor_name)
+                || accessor_data_symbols.contains(&field.accessor_data_symbol)
             {
                 diagnostics.push(Diagnostic::error(format!(
                     "placed view `{}` repeats field or accessor identity for `{}`",
@@ -98,7 +98,7 @@ pub(crate) fn validate_plans(program: &TypedTrees, diagnostics: &mut Vec<Diagnos
                 continue;
             }
             field_symbols.push(field.field_symbol);
-            accessor_names.push(field.accessor_name.clone());
+            accessor_data_symbols.push(field.accessor_data_symbol);
 
             let Some(schema_field) = program
                 .data_members(schema)
@@ -180,15 +180,38 @@ pub(crate) fn validate_plans(program: &TypedTrees, diagnostics: &mut Vec<Diagnos
                         && (field.member_identity.is_some()
                             || candidate.name.as_str() == field.field_name)
                 });
-            if !exact_view_field.is_some_and(|candidate| {
-                program
-                    .named_type_reference(candidate.type_reference)
-                    .is_some_and(|name| name.as_str() == field.accessor_name)
-            }) {
+            if exact_view_field.is_none() {
                 diagnostics.push(Diagnostic::error(format!(
                     "placed view `{}` field `{}` changed its exact synthesized accessor binding",
                     view.data_name, field.field_name
                 )));
+            }
+
+            let has_accessor_data = program
+                .data_definitions()
+                .iter()
+                .any(|definition| definition.symbol == field.accessor_data_symbol);
+            if !has_accessor_data {
+                diagnostics.push(Diagnostic::error(format!(
+                    "placed view `{}` field `{}` no longer names its exact generated accessor data identity",
+                    view.data_name, field.field_name
+                )));
+                continue;
+            }
+            if let Some(candidate) = exact_view_field {
+                let type_symbol = program
+                    .type_reference_table
+                    .type_symbol(candidate.type_reference);
+                if (type_symbol.is_valid() && type_symbol != field.accessor_data_symbol)
+                    || (!type_symbol.is_valid()
+                        && !matches!(field.access, FieldAccess::Atomic { .. }))
+                {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "placed view `{}` field `{}` changed its exact generated accessor data binding",
+                        view.data_name, field.field_name
+                    )));
+                    continue;
+                }
             }
 
             let expected_operations = expected_accessor_operations(&field.access);

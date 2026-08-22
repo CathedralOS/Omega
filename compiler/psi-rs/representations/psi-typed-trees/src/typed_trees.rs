@@ -151,6 +151,9 @@ pub struct PlacedFieldPlan {
     pub member_identity: Option<u64>,
     pub field_symbol: psi_symbols::SymbolHandle,
     pub accessor_name: String,
+    /// Exact generated accessor data definition. `accessor_name` is retained
+    /// for diagnostics and source-oriented artifact presentation only.
+    pub accessor_data_symbol: psi_symbols::SymbolHandle,
     /// Exact generated operation targets for non-atomic placed accessors.
     /// Atomic operations retain their separate typed carrier and therefore
     /// have no cloned `PlacedField` operation target rows here.

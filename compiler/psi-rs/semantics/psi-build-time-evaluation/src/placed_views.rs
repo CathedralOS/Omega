@@ -246,6 +246,31 @@ fn install_placed_view_plan(
                     entry.field()
                 ))]
             })?;
+        let accessor_type_symbol = typed
+            .type_reference_table
+            .type_symbol(view_field.type_reference);
+        let accessor_data = typed
+            .data_definitions()
+            .iter()
+            .filter(|definition| {
+                if accessor_type_symbol.is_valid() {
+                    definition.symbol == accessor_type_symbol
+                } else {
+                    // Atomic synthesized carriers currently retain their
+                    // specialized nominal spelling while their operation law
+                    // remains in the exact Atomic typed carrier.
+                    matches!(entry.access(), FieldAccess::Atomic { .. })
+                        && definition.name.as_str() == accessor_name
+                }
+            })
+            .collect::<Vec<_>>();
+        let [accessor_data] = accessor_data.as_slice() else {
+            return Err(vec![Diagnostic::error(format!(
+                "placed view `{}` field `{}` must retain one exact generated accessor data definition",
+                record.synthetic_name,
+                entry.field()
+            ))]);
+        };
         let mut accessor_targets = Vec::new();
         for operation in accessor_operations(entry.access()) {
             let machines = typed
@@ -288,6 +313,7 @@ fn install_placed_view_plan(
             member_identity: schema_field.identity,
             field_symbol: schema_field.symbol,
             accessor_name,
+            accessor_data_symbol: accessor_data.symbol,
             accessor_targets,
             value_type: schema_field.type_reference,
             access: entry.access().clone(),
