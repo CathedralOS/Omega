@@ -20,9 +20,13 @@ use psi_layout_plans::{
     normalized_layout_plan_fingerprint,
 };
 
+mod corresponded_external;
 mod resident_views;
 mod schema_correspondence;
 
+pub use corresponded_external::{
+    CorrespondedExternalPrimitiveAccessRejection, CorrespondedExternalPrimitiveAccessRequest,
+};
 pub use resident_views::{BorrowedResidentRetirementError, EstablishedBorrowedResidentPlacement};
 pub use schema_correspondence::{
     AdmittedSchemaDeviceCorrespondence, DeviceRevisionPredicateId, RuntimeDeviceRevisionEvidence,
@@ -6457,7 +6461,7 @@ mod tests {
             plan.identity()
         );
         let exact_request = primitive_request_snapshot(&request);
-        let mut external = request
+        let external = request
             .into_external_primitive_access()
             .expect("External specialization replays correspondence");
         assert_eq!(
@@ -6472,32 +6476,62 @@ mod tests {
                 .device(),
             device
         );
-        external.request.plan = PlacementPlanId(plan.identity().0 ^ 1);
-        let rejection = external
-            .validate_for_lowering()
-            .expect_err("outward preflight must replay the retained placement");
-        assert!(rejection.0.contains("copied plan"));
+        let alternate_correspondence = SchemaDeviceCorrespondenceGrant::from_admitted_provider(
+            SchemaCorrespondenceProviderId::from_normalized_identity(259)
+                .expect("alternate correspondence provider"),
+            StableDeviceInstanceId::from_normalized_identity(260).expect("alternate stable device"),
+            SchemaCorrespondenceSourceId::from_normalized_identity(261)
+                .expect("alternate datasheet provenance"),
+            &plan,
+            profile.receipt(),
+            None,
+        )
+        .expect("alternate provider correspondence grant")
+        .admit(&plan, &profile)
+        .expect("alternate schema correspondence admission");
+        let mut corresponded = external
+            .into_corresponded_external_access()
+            .expect("provider/device preflight requires retained correspondence");
+        assert_eq!(corresponded.correspondence().provider(), provider);
         assert_eq!(
-            external
-                .correspondence()
-                .expect("rejection preserves correspondence")
-                .provider(),
-            provider
+            primitive_request_snapshot(corresponded.external_access().primitive_request()),
+            exact_request
         );
+        let retained_correspondence =
+            corresponded.replace_correspondence_for_test(&alternate_correspondence);
+        let rejection = corresponded
+            .validate_for_provider_lowering()
+            .expect_err("a distinct correspondence carrier cannot replace retained authority");
+        assert!(
+            rejection
+                .0
+                .contains("different schema/device correspondence")
+        );
+        corresponded.replace_correspondence_for_test(retained_correspondence);
+        corresponded
+            .validate_for_provider_lowering()
+            .expect("restoring the exact correspondence carrier permits retry");
+
+        corresponded.replace_request_plan_for_test(PlacementPlanId(plan.identity().0 ^ 1));
+        let rejection = corresponded
+            .validate_for_provider_lowering()
+            .expect_err("provider/device preflight must replay the retained placement");
+        assert!(rejection.0.contains("copied plan"));
+        assert_eq!(corresponded.correspondence().provider(), provider);
         assert_eq!(
-            external.primitive_request().plan(),
+            corresponded.external_access().primitive_request().plan(),
             PlacementPlanId(plan.identity().0 ^ 1),
             "borrowed request inspection reflects the still-retained drifted carrier"
         );
-        external.request.plan = plan.identity();
-        external
-            .validate_for_lowering()
+        corresponded.replace_request_plan_for_test(plan.identity());
+        corresponded
+            .validate_for_provider_lowering()
             .expect("repaired outward carrier remains available for retry");
         assert_eq!(
-            primitive_request_snapshot(external.primitive_request()),
+            primitive_request_snapshot(corresponded.external_access().primitive_request()),
             exact_request
         );
-        let request = external.into_primitive_request();
+        let request = corresponded.into_external_access().into_primitive_request();
         assert_eq!(
             request
                 .correspondence()
@@ -6513,13 +6547,28 @@ mod tests {
                 .expect("ordinary placement admission"),
         )
         .expect("ordinary view establishment");
-        assert!(
-            ordinary
-                .project(status)
-                .expect("ordinary projection")
-                .correspondence()
-                .is_none()
+        let ordinary_projection = ordinary.project(status).expect("ordinary projection");
+        assert!(ordinary_projection.correspondence().is_none());
+        let ordinary_request = ordinary_projection
+            .read()
+            .expect("ordinary External read")
+            .into_primitive_request();
+        let ordinary_snapshot = primitive_request_snapshot(&ordinary_request);
+        let rejection = ordinary_request
+            .into_external_primitive_access()
+            .expect("ordinary External specialization remains valid")
+            .into_corresponded_external_access()
+            .expect_err("device/provider preflight must reject correspondence-free storage");
+        assert!(rejection.diagnostic().0.contains("requires admitted"));
+        let (ordinary_external, _) = rejection.into_parts();
+        assert_eq!(
+            primitive_request_snapshot(ordinary_external.primitive_request()),
+            ordinary_snapshot,
+            "rejection must return the exact already-specialized External request"
         );
+        ordinary_external
+            .validate_for_lowering()
+            .expect("returned correspondence-free request remains valid for another consumer");
     }
 
     #[test]
