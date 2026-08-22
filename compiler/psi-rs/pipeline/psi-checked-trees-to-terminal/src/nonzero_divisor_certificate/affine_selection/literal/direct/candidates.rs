@@ -3,19 +3,19 @@
 use psi_core::{Proposition, ScalarTerm};
 use psi_proof_kernel::ProofNode;
 
-use super::super::{eligibility, equalities::OrientedEqualities};
+use super::super::{eligibility, equalities};
 
 pub(super) fn find<'a, T>(
     assumptions: &'a [Proposition],
     semantic_axioms: &'a [Proposition],
     mut complete: impl FnMut(&'a ScalarTerm, &'a ScalarTerm, ProofNode) -> Option<T>,
 ) -> Option<T> {
-    OrientedEqualities::new(assumptions, semantic_axioms)
-        .iter()
-        .find_map(|(citation, equality, root, literal)| {
+    equalities::ordered(assumptions, semantic_axioms).find_map(
+        |(citation, equality, root, literal)| {
             if !eligibility::exact_value_binding(root, literal) {
                 return None;
             }
             complete(root, literal, citation.proof(equality))
-        })
+        },
+    )
 }
