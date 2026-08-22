@@ -978,10 +978,13 @@ fn runtime_local_boolean_transition_argument_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("runtime local boolean transition argument canary should compile");
 
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation.checked_native_executable_path().expect(
+        "runtime local boolean transition argument canary should retain its executable receipt",
+    );
+    let output = Command::new(executable)
         .output()
         .expect("runtime local boolean transition argument canary should run");
 
@@ -1005,10 +1008,13 @@ fn runtime_boolean_transition_argument_after_string_guard_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("runtime boolean transition argument after string guard canary should compile");
 
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation.checked_native_executable_path().expect(
+        "runtime boolean transition argument after string guard canary should retain its executable receipt",
+    );
+    let output = Command::new(executable)
         .output()
         .expect("runtime boolean transition argument after string guard canary should run");
 
@@ -1030,10 +1036,13 @@ fn runtime_machine_owned_indexed_nested_room_copy_exit_canary_runs() {
         "omega-runtime-machine-owned-indexed-nested-room-copy-{}",
         std::process::id()
     ));
-    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("runtime machine-owned indexed nested room copy canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let executable = compilation.checked_native_executable_path().expect(
+        "runtime machine-owned indexed nested room copy canary should retain its executable receipt",
+    );
+    let output = Command::new(executable)
         .output()
         .expect("runtime machine-owned indexed nested room copy canary should run");
 
@@ -1056,10 +1065,13 @@ fn runtime_negated_comparison_guard_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("runtime negated comparison guard canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("runtime negated comparison guard canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("runtime negated comparison guard canary should run");
 
@@ -1084,10 +1096,13 @@ fn runtime_case_member_dispatch_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("runtime case member dispatch canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("runtime case member dispatch canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("runtime case member dispatch canary should run");
 
