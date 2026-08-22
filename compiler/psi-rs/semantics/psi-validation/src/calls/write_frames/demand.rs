@@ -20,6 +20,8 @@ use psi_typed_trees::state::State;
 use psi_typed_trees::statement::{
     StatementNode, TableCall, TransitionGuardNode, TransitionTargetNode,
 };
+use std::collections::HashMap;
+use std::sync::Mutex;
 
 /// Shared conservative call-frame resolver. A complete result is the set of
 /// caller-visible places the call may write; `None` is deliberately opaque and
@@ -32,19 +34,27 @@ use psi_typed_trees::statement::{
 pub struct CallFrameResolver<'program> {
     program: &'program TypedTrees,
     symbols: TopLevelSymbols<'program>,
+    /// Exact statement calls are queried repeatedly by monotone validation
+    /// fixpoints. The program is immutable for this resolver's lifetime, so a
+    /// call-node address plus its owning machine is a stable cache key.
+    statement_calls: Mutex<HashMap<(u32, u32, usize), NormalizedWriteFrame>>,
 }
 
 impl<'program> CallFrameResolver<'program> {
     pub fn new(program: &'program TypedTrees) -> Option<Self> {
         let mut diagnostics = Vec::new();
         let symbols = TopLevelSymbols::build(program, &mut diagnostics);
-        diagnostics.is_empty().then_some(Self { program, symbols })
+        diagnostics.is_empty().then_some(Self {
+            program,
+            symbols,
+            statement_calls: Mutex::new(HashMap::new()),
+        })
     }
 
     pub fn may_write_paths(
         &self,
         current_machine: &'program Machine,
-        call: &TableCall,
+        call: &'program TableCall,
     ) -> Option<Vec<String>> {
         self.may_write_frame(current_machine, call)
             .into_complete_paths()
@@ -53,26 +63,47 @@ impl<'program> CallFrameResolver<'program> {
     pub fn may_write_frame(
         &self,
         current_machine: &'program Machine,
-        call: &TableCall,
+        call: &'program TableCall,
     ) -> NormalizedWriteFrame {
+        let cache_key = (
+            current_machine.symbol.arena_index(),
+            current_machine.symbol.generation(),
+            std::ptr::from_ref(call).addr(),
+        );
+        if let Ok(cache) = self.statement_calls.lock()
+            && let Some(frame) = cache.get(&cache_key)
+        {
+            return frame.clone();
+        }
+
         let mut diagnostics = Vec::new();
         let machine_symbols =
             MachineSymbols::build(self.program, current_machine, &mut diagnostics);
-        if !diagnostics.is_empty() {
-            return NormalizedWriteFrame::opaque();
+        let frame = if diagnostics.is_empty() {
+            known_call_written_paths(
+                self.program,
+                call,
+                current_machine,
+                &machine_symbols,
+                &self.symbols,
+            )
+            .or_else(|| {
+                known_boundary_call_written_paths(
+                    self.program,
+                    &machine_symbols,
+                    &self.symbols,
+                    call,
+                )
+            })
+            .or_else(|| conservative_call_written_paths(self.program, call))
+            .map_or_else(NormalizedWriteFrame::opaque, NormalizedWriteFrame::complete)
+        } else {
+            NormalizedWriteFrame::opaque()
+        };
+        if let Ok(mut cache) = self.statement_calls.lock() {
+            cache.insert(cache_key, frame.clone());
         }
-        let paths = known_call_written_paths(
-            self.program,
-            call,
-            current_machine,
-            &machine_symbols,
-            &self.symbols,
-        )
-        .or_else(|| {
-            known_boundary_call_written_paths(self.program, &machine_symbols, &self.symbols, call)
-        })
-        .or_else(|| conservative_call_written_paths(self.program, call));
-        paths.map_or_else(NormalizedWriteFrame::opaque, NormalizedWriteFrame::complete)
+        frame
     }
 
     /// Conservative aggregate frame of every value-position call nested in
