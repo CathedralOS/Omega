@@ -10,7 +10,8 @@ use crate::functions;
 pub(crate) fn build_machine_instruction_code(
     assigned_target_operations: &AssignedTargetOperationPlan,
 ) -> Result<MachineInstructionCode, Diagnostic> {
-    validate_function_identities(assigned_target_operations)?;
+    let function_identities = validate_function_identities(assigned_target_operations)?;
+    validate_internal_call_targets(assigned_target_operations, &function_identities)?;
     let MachineInstructionPlan { mut code, .. } = MachineInstructionPlan::with_capacity(
         assigned_target_operations.target,
         assigned_target_operations.code.functions.len(),
@@ -40,7 +41,7 @@ pub(crate) fn build_machine_instruction_code(
 /// relying on later object planning to discover it.
 fn validate_function_identities(
     assigned_target_operations: &AssignedTargetOperationPlan,
-) -> Result<(), Diagnostic> {
+) -> Result<HashMap<omega_control_flow::MachineFunctionIdentity, usize>, Diagnostic> {
     let functions = assigned_target_operations.code.functions.storage_slice();
     let mut identities = HashMap::with_capacity(functions.len());
     for (function_index, function) in functions.iter().enumerate() {
@@ -56,6 +57,36 @@ fn validate_function_identities(
                 "assigned functions `{}` and `{}` share compiler-private identity {:?}",
                 earlier.symbol, function.symbol, function.identity
             )));
+        }
+    }
+    Ok(identities)
+}
+
+fn validate_internal_call_targets(
+    assigned_target_operations: &AssignedTargetOperationPlan,
+    function_identities: &HashMap<omega_control_flow::MachineFunctionIdentity, usize>,
+) -> Result<(), Diagnostic> {
+    for (_, function) in assigned_target_operations.code.functions.iter() {
+        let Some(instructions) = assigned_target_operations
+            .code
+            .instructions
+            .span(function.instructions)
+        else {
+            continue;
+        };
+        for instruction in instructions {
+            let omega_assigned_target_operations::AssignedOperationKind::CallInternalFunction {
+                target,
+            } = &instruction.kind
+            else {
+                continue;
+            };
+            if !function_identities.contains_key(target) {
+                return Err(Diagnostic::error(format!(
+                    "assigned function `{}` calls missing compiler-private function identity {:?}",
+                    function.symbol, target
+                )));
+            }
         }
     }
     Ok(())

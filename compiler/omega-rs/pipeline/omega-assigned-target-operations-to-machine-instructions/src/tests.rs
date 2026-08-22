@@ -102,6 +102,82 @@ fn rejects_invalid_or_aliased_function_identity_before_machine_lowering() {
 }
 
 #[test]
+fn internal_call_target_must_resolve_to_one_exact_assigned_function_role() {
+    use omega_assigned_target_operations::{AssignedOperation, AssignedOperationKind};
+
+    let continuation = StateKey {
+        machine: SymbolHandle::from_parts(1, 1),
+        state: SymbolHandle::from_parts(2, 1),
+        segment_index: 0,
+    };
+    let source_identity = MachineFunctionIdentity::source(continuation);
+    let callback_identity = MachineFunctionIdentity::callback_thunk(continuation, 7).unwrap();
+    let mut assigned = AssignedTargetOperationPlan::default();
+    let instructions = assigned.code.instructions.insert_many([AssignedOperation {
+        kind: AssignedOperationKind::CallInternalFunction {
+            target: source_identity,
+        },
+        ..Default::default()
+    }]);
+    assigned
+        .code
+        .functions
+        .insert(AssignedTargetOperationFunction {
+            symbol: Arc::from("__omega_callback_test"),
+            identity: callback_identity,
+            instructions,
+        });
+    assigned
+        .code
+        .functions
+        .insert(AssignedTargetOperationFunction {
+            symbol: Arc::from("selected_source_entry"),
+            identity: source_identity,
+            instructions: Default::default(),
+        });
+
+    let machine = build_machine_instructions(&assigned)
+        .expect("callback thunk may call its exact selected source entry");
+    assert_eq!(machine.code.functions.len(), 2);
+    assert_eq!(
+        machine.code.instructions.storage_slice()[0].source_kind,
+        AssignedOperationKind::CallInternalFunction {
+            target: source_identity
+        }
+    );
+
+    assigned
+        .code
+        .instructions
+        .get_mut(instructions.start())
+        .kind = AssignedOperationKind::CallInternalFunction {
+        target: MachineFunctionIdentity::callback_thunk(continuation, 8).unwrap(),
+    };
+    let diagnostic = build_machine_instructions(&assigned)
+        .expect_err("a missing callback role must not alias the selected source entry");
+    assert!(
+        diagnostic
+            .message
+            .contains("calls missing compiler-private function identity")
+    );
+
+    assigned
+        .code
+        .instructions
+        .get_mut(instructions.start())
+        .kind = AssignedOperationKind::CallInternalFunction {
+        target: MachineFunctionIdentity::source(StateKey {
+            state: SymbolHandle::from_parts(2, 2),
+            ..continuation
+        }),
+    };
+    let diagnostic = build_machine_instructions(&assigned)
+        .expect_err("a stale source-entry generation must not resolve");
+    assert!(diagnostic.message.contains("__omega_callback_test"));
+    assert!(diagnostic.message.contains("generation: 2"));
+}
+
+#[test]
 fn lowers_outgoing_stack_address_to_exact_machine_kind() {
     let mut assigned = AssignedTargetOperationPlan::default();
     assigned.target = omega_target::NativeTarget::uefi_x64();

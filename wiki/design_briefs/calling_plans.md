@@ -612,6 +612,10 @@ role, while final emission independently recomputes it from the placement.
 Target-instruction lowering validates the complete assigned function set
 before selecting any body: an invalid role or two functions claiming one role
 reject rather than surviving until object planning.
+Every retained internal direct-call target must also resolve in that exact
+assigned identity set. Role, placement, continuation-generation, or absence
+drift therefore rejects before placeholder encoding; this pins the call edge a
+future callback body will use without claiming that the body exists yet.
 Native image emission rejects a planned callback unless that exact callback
 identity names one encoded function and one matching private text symbol.
 Emission also rejoins every validated
