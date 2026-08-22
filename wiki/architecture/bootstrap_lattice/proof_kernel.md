@@ -424,6 +424,15 @@ orientation, source citation order, endpoint identity, inner-relation
 precedence, outer `IntegerLessOrEqualSubstitution` shape, rejection, and both
 fixed frontiers remain unchanged; the verifier reconstructs its own evidence.
 
+The one-equality endpoint sibling separates equality enumeration from
+per-orientation completion. Independent producer and reconstruction
+`integer_selection/substitution/one/completion` modules choose the matching
+goal endpoint, rebuild the replacement relation through their own bounded
+relation authority, and construct or replay the outer substitution. Their
+`substitution/one` parents retain source citation and equality-orientation
+order. Inner-relation precedence, substitution proof bytes, rejection, and the
+fixed one-equality frontier remain unchanged.
+
 The fixed two-equality endpoint sibling keeps its established
 `integer_selection/substitution/two` API as a facade over independent
 side-local `two/selection` owners. Each retains outer equality, orientation,

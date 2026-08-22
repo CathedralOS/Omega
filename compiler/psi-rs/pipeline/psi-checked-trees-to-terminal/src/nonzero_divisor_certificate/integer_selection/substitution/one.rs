@@ -1,10 +1,11 @@
 //! Fixed one-equality integer-bound substitution production.
 
 use psi_core::{Proposition, PropositionContext};
-use psi_proof_kernel::{ProofNode, ProofRule};
+use psi_proof_kernel::ProofNode;
 
 use super::super::super::integer_evidence::cited_facts;
-use super::relation;
+
+mod completion;
 
 pub(super) fn prove(
     context: &PropositionContext,
@@ -24,34 +25,18 @@ pub(super) fn prove(
             (equality_left, equality_right),
             (equality_right, equality_left),
         ] {
-            let (endpoint, relation) = if old == goal_left {
-                (
-                    0,
-                    Proposition::LessOrEqual(replacement.clone(), goal_right.clone()),
-                )
-            } else if old == goal_right {
-                (
-                    1,
-                    Proposition::LessOrEqual(goal_left.clone(), replacement.clone()),
-                )
-            } else {
-                continue;
-            };
-            if let Some(relation_proof) = relation::prove(
+            if let Some(proof) = completion::prove(
                 context,
-                &relation,
-                replacement.integer_value().is_some(),
+                goal,
+                goal_left,
+                goal_right,
+                old,
+                replacement,
                 assumptions,
                 semantic_axioms,
+                citation.proof(fact),
             ) {
-                return Some(ProofNode {
-                    conclusion: goal.clone(),
-                    rule: ProofRule::IntegerLessOrEqualSubstitution {
-                        relation: Box::new(relation_proof),
-                        equality: Box::new(citation.proof(fact)),
-                        endpoint,
-                    },
-                });
+                return Some(proof);
             }
         }
     }
