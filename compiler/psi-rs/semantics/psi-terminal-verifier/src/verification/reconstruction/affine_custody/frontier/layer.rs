@@ -16,6 +16,7 @@ pub(super) fn expand(
     root: &ScalarTerm,
     frontier: Vec<Entry>,
     words: &mut Vec<Vec<usize>>,
+    retain_successors: bool,
 ) -> Vec<Entry> {
     let mut next = Vec::new();
     for entry in frontier {
@@ -27,8 +28,12 @@ pub(super) fn expand(
                 &word,
                 &semantic_axioms[index],
             ) {
-                words.push(word.clone());
-                next.push(Entry::advance(word, index, next_target));
+                if retain_successors {
+                    words.push(word.clone());
+                    next.push(Entry::advance(word, index, next_target));
+                } else {
+                    words.push(word);
+                }
             }
         }
     }
