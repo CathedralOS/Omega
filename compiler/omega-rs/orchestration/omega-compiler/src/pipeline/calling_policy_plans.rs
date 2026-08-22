@@ -1683,6 +1683,10 @@ fn decode_call_plan(value: &BuildTimeValue) -> Result<CallPlan, String> {
         result: has_result
             .then(|| decode_value_placement(field(fields, "result", "CallPlan")?))
             .transpose()?,
+        // Source-authored callback materialization rows land in the next
+        // decoder slice. Until then a policy cannot smuggle them through an
+        // ordinal or inferred hidden parameter.
+        callback_materializations: Vec::new(),
         ordinary_clobbers: decode_register_set(field(fields, "ordinary_clobbers", "CallPlan")?)?,
         stack_alignment: u16_value(
             field(fields, "stack_alignment", "CallPlan")?,
