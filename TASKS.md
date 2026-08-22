@@ -4135,6 +4135,20 @@ Owners:
   exact checked-report executable receipts while preserving literal status 0
   and diagnostics. Exact-owner pins remain stable; exceptional and deliberately
   fenced owners remain unchanged.
+  The three recursive call-with-return executions—inline, direct value-call,
+  and statement value-call walks—now launch solely through exact checked-report
+  executable receipts while preserving literal status 70 and separator-count
+  diagnostics. Exact-owner pins remain stable; all profiled, exceptional,
+  interactive, report-bearing, slow float/cast/policy, numeric-conversion,
+  rendering, coercion, and automaton owners remain fenced.
+  Source-ordered affine literal root-alias discovery now lives in paired,
+  side-local `affine_selection/literal/alias/candidates/root_aliases` modules.
+  Producer and reconstruction independently traverse requirements before
+  semantic axioms, preserve left-before-right equality orientation, and require
+  distinct same-carrier Value endpoints; only the producer retains outer
+  citation custody. Landing-index order, same-row rejection, literal carrier
+  checks, proof shape, completion precedence, and the fixed one-intermediate-
+  alias frontier remain unchanged.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
