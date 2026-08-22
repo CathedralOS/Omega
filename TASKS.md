@@ -993,6 +993,15 @@ Owners:
   rather than downgrading evidence between layers. Bytes remain unpublished and
   this establishes no provider-operation authority, consumer semantics, device
   event, or native execution.
+  Written external-root destinations now retain the installation layer's sealed
+  non-clonable validated written custody instead of downgrading it after
+  successful replay. The outer consuming validation independently replays that
+  retained installed-artifact and destination evidence before exposing bytes,
+  while provider/root drift returns the complete outer carrier unchanged for
+  corrected retry. Installed-artifact identity drift and compiler-level exact-
+  realization substitution remain distinct checks. Bytes remain unpublished,
+  and this establishes no provider-operation authority, consumer semantics,
+  device event, or native execution.
 
 Acceptance: UART/MMIO, shared-page IPC, and ordinary RAM use one extent/layout
 foundation with different profiles. Misalignment, insufficient rights,
@@ -4163,6 +4172,28 @@ Owners:
   integer literal exactly. Root-alias order, landing-index order, producer-only
   citation custody, completion precedence, nested proof shape, and the fixed
   one-intermediate-alias frontier remain unchanged.
+  Five authored-root aggregate/collection executions—independent same-type
+  contained fields, sum-field payload storage, argmax indexing, stack bracket
+  matching, and two-pointer palindrome detection—now launch solely through
+  exact checked-report executable receipts while preserving literal status 70
+  and all alias, payload, index, and mismatch diagnostics. Exact-owner pins
+  remain stable; profiled record-view and exceptional, interactive, report-
+  bearing, slow float/cast/policy, rendering, coercion, and automaton owners
+  remain fenced.
+  Source-ordered direct affine-literal equality discovery now lives in paired,
+  side-local `affine_selection/literal/direct/candidates/equalities` modules.
+  Producer and reconstruction independently traverse requirements before
+  semantic axioms and preserve left-before-right equality orientation; only
+  the producer retains citation custody. Exact Value/integer carrier
+  eligibility, completion handoff, proof shape, rejection behavior, direct-
+  before-one-alias precedence, and the fixed affine-literal frontier remain
+  unchanged.
+  Three authored-root indexed-guard executions—cross-array comparison, dual-
+  index equality, and dual-index ordering—now launch solely through exact
+  checked-report executable receipts while preserving literal status 70 and
+  all base/index-confusion diagnostics. Exact-owner pins remain stable; the
+  adjacent float section and all profiled, exceptional, interactive, report-
+  bearing, slow, rendering, coercion, and automaton owners remain fenced.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
