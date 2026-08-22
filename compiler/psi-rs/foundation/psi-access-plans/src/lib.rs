@@ -2700,9 +2700,9 @@ impl<'view, 'extent> PlacedFieldAccess<'view, 'extent> {
             admission: self.admission,
             primitive_address: self.primitive_address,
             key: descriptor.key,
-            field: descriptor.field,
+            field: descriptor.field.clone(),
             transfer_width_bits: descriptor.transfer_width_bits,
-            logical_extent: descriptor.logical_extent,
+            logical_extent: descriptor.logical_extent.clone(),
             effect_footprint: EffectFootprint {
                 address: self.primitive_address,
                 length_bytes: descriptor.effect_footprint.length_bytes,
@@ -2714,6 +2714,7 @@ impl<'view, 'extent> PlacedFieldAccess<'view, 'extent> {
             reach: self.reach,
             resident_claim: self.resident_claim,
             placed_occurrence: self.placed_occurrence,
+            descriptor,
             _authority: self._authority,
         }
     }
@@ -2743,6 +2744,7 @@ pub struct PrimitiveAccessRequest<'view, 'extent> {
     reach: BoundaryReach,
     resident_claim: Option<ResidentClaimId>,
     placed_occurrence: Option<PlacedOccurrenceId>,
+    descriptor: FieldAccessDescriptor,
     _authority: PlacementAuthorityRef<'view, 'extent>,
 }
 
@@ -2864,6 +2866,47 @@ impl PrimitiveAccessRequest<'_, '_> {
         }
         Ok(())
     }
+
+    fn validate_descriptor_binding(&self) -> Result<(), AccessPlanDiagnostic> {
+        if self.descriptor.key != self.key
+            || self.descriptor.field != self.field
+            || self.descriptor.container_byte_offset != self.effective_supply.offset
+            || self.descriptor.transfer_width_bits != self.transfer_width_bits
+            || self.descriptor.logical_extent != self.logical_extent
+            || self.descriptor.observation != self.observation
+        {
+            return Err(AccessPlanDiagnostic(
+                "primitive lowering requires the copied request facts to match the retained validated field descriptor"
+                    .into(),
+            ));
+        }
+
+        let expected_footprint_address = self
+            ._authority
+            .base()
+            .checked_add(self.descriptor.effect_footprint.byte_offset)
+            .ok_or_else(|| {
+                AccessPlanDiagnostic(
+                    "primitive lowering descriptor footprint overflows the retained authority base"
+                        .into(),
+                )
+            })?;
+        if self.effect_footprint.address != expected_footprint_address
+            || self.effect_footprint.length_bytes != self.descriptor.effect_footprint.length_bytes
+        {
+            return Err(AccessPlanDiagnostic(
+                "primitive lowering requires the concrete effect footprint to match the retained validated field descriptor"
+                    .into(),
+            ));
+        }
+
+        authorize_descriptor(
+            &self.descriptor,
+            self.current_borrow,
+            self.source_loan,
+            self.operation,
+        )
+    }
 }
 
 /// Operation subset accepted by ordinary Stable primitive lowering.
@@ -2977,6 +3020,12 @@ impl<'view, 'extent> PrimitiveAccessRequest<'view, 'extent> {
                 diagnostic,
             });
         }
+        if let Err(diagnostic) = self.validate_descriptor_binding() {
+            return Err(StablePrimitiveAccessRejection {
+                request: self,
+                diagnostic,
+            });
+        }
         Ok(StablePrimitiveAccessRequest {
             request: self,
             operation,
@@ -3083,6 +3132,12 @@ impl<'view, 'extent> PrimitiveAccessRequest<'view, 'extent> {
                     "Stable compound lowering accepts only one sealed CompoundMutation event"
                         .into(),
                 ),
+            });
+        }
+        if let Err(diagnostic) = self.validate_descriptor_binding() {
+            return Err(StableCompoundMutationAccessRejection {
+                request: self,
+                diagnostic,
             });
         }
         Ok(StableCompoundMutationAccessRequest { request: self })
@@ -3216,6 +3271,12 @@ impl<'view, 'extent> PrimitiveAccessRequest<'view, 'extent> {
                 diagnostic,
             });
         }
+        if let Err(diagnostic) = self.validate_descriptor_binding() {
+            return Err(ExternalPrimitiveAccessRejection {
+                request: self,
+                diagnostic,
+            });
+        }
         Ok(ExternalPrimitiveAccessRequest {
             request: self,
             operation,
@@ -3323,6 +3384,12 @@ impl<'view, 'extent> PrimitiveAccessRequest<'view, 'extent> {
             });
         };
         if let Err(diagnostic) = validate_operation_ordering(self.operation) {
+            return Err(AtomicPrimitiveAccessRejection {
+                request: self,
+                diagnostic,
+            });
+        }
+        if let Err(diagnostic) = self.validate_descriptor_binding() {
             return Err(AtomicPrimitiveAccessRejection {
                 request: self,
                 diagnostic,
@@ -5247,6 +5314,7 @@ mod tests {
         reach: BoundaryReach,
         resident_claim: Option<ResidentClaimId>,
         placed_occurrence: Option<PlacedOccurrenceId>,
+        descriptor: FieldAccessDescriptor,
         authority_kind: &'static str,
         authority_identity: *const (),
     }
@@ -5285,6 +5353,7 @@ mod tests {
             reach: request.reach.clone(),
             resident_claim: request.resident_claim,
             placed_occurrence: request.placed_occurrence,
+            descriptor: request.descriptor.clone(),
             authority_kind,
             authority_identity,
         }
@@ -5951,6 +6020,37 @@ mod tests {
         drop(request);
         assert_eq!(established.validity_receipt().normalized_identity(), 169);
         assert_eq!(established.custody_receipt().normalized_identity(), 170);
+    }
+
+    #[test]
+    fn stable_primitive_specialization_replays_descriptor_geometry_and_authorization() {
+        let (plan, established) = established_stable_word(0xad60, 172, 173, 175);
+        let projection = established
+            .project(field_key(plan.access(), "word"))
+            .expect("shared Stable projection");
+        let mut request = projection
+            .read()
+            .expect("authorized Stable read")
+            .into_primitive_request();
+
+        request.logical_extent.fragments[0].source_bit_offset ^= 1;
+        request = expect_exact_stable_primitive_rejection(request, "field descriptor");
+        request.logical_extent = request.descriptor.logical_extent.clone();
+
+        request.effect_footprint.address += 4;
+        request = expect_exact_stable_primitive_rejection(request, "effect footprint");
+        request.effect_footprint.address = request.primitive_address;
+
+        request.effect_footprint.length_bytes = 8;
+        request = expect_exact_stable_primitive_rejection(request, "effect footprint");
+        request.effect_footprint.length_bytes = request.descriptor.effect_footprint.length_bytes;
+
+        request.operation = AccessOperation::Write;
+        let request = expect_exact_stable_primitive_rejection(request, "does not permit Write");
+        assert_eq!(request.admission().normalized_identity(), 175);
+        drop(request);
+        assert_eq!(established.validity_receipt().normalized_identity(), 173);
+        assert_eq!(established.custody_receipt().normalized_identity(), 174);
     }
 
     #[test]
