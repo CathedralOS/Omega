@@ -493,6 +493,14 @@ identity selection. A missing, redirected, crossed, or mistyped target equality
 rejects. The affine relation builder cannot recurse into another target alias,
 so this adds one wrapper only and no alias-chain search.
 
+One fixed sibling may instead carry a completed affine bound across exactly two
+distinct same-carrier target equalities. It nests two
+`IntegerLessOrEqualSubstitution` nodes outside `IntegerAffineBound`; missing,
+reused, redirected, cyclic, or mistyped equalities reject. The constructor
+builds the affine relation directly at the final alias and never recurses
+through the general order prover, so a third target alias remains outside the
+family.
+
 One bounded mixed root-custody sibling may instead compose exactly two prior
 order citations at an alias endpoint, transport that completed bound through
 exactly one retained value equality to the affine root, and then apply
