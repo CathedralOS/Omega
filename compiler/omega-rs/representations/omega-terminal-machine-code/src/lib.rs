@@ -179,6 +179,8 @@ pub struct TerminalBoundaryResultRecord {
     pub value: ValueId,
     pub scalar_type: ScalarType,
     pub placement: ValuePlacement,
+    /// Exact terminal edge that returns this boundary-produced value.
+    pub return_edge: EdgeId,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -195,9 +197,10 @@ pub struct TerminalBoundarySettlementRecord {
     /// reconstruct the exact successful-completion receipt set.
     pub completion_claim_sources: Vec<TerminalCompletionClaimSource>,
     pub completion_receipts: Vec<CompletionReceipt>,
-    /// Exact terminal value identity, scalar type, and native placement
-    /// consumed by a result-bearing realization. Metadata-only settlements
-    /// retain `None` and cannot manufacture a result after lowering.
+    /// Exact terminal value identity, scalar type, native placement, and
+    /// returning edge consumed by a result-bearing realization. Metadata-only
+    /// settlements retain `None` and cannot manufacture a result after
+    /// lowering.
     pub native_result: Option<TerminalBoundaryResultRecord>,
     /// Position in the verified Unit operation sequence. This remains the
     /// canonical tie-break when multiple metadata rows share a code offset.
