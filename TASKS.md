@@ -2513,6 +2513,19 @@ Remaining:
   responsible for constructing their invocation-local definition indexes.
   Evidence custody, proof shapes, rejection behavior, and every fixed alias,
   citation, and definition frontier remain unchanged.
+  Start-bounded affine-definition queries now belong to the paired, side-local
+  index owners. Producer and reconstruction independently select the exact
+  source-ordered suffix with `partition_point`, while frontier layers consume
+  that iterator without reaching into raw candidate slices. Prefix replay,
+  witness/proof shape, rejection behavior, and the fixed four-definition
+  frontier remain unchanged.
+  Affine frontier cursor custody now lives in paired, side-local
+  `affine_custody/frontier/layer/entry` modules. Producer and reconstruction
+  independently retain each prefix word, next admissible source index, and
+  current exact `Value`; cursor fields remain private to the owning layer and
+  only root construction is exposed to the frontier parent. Expansion order,
+  prefix replay, witness/proof shape, rejection, and the fixed four-layer
+  frontier remain unchanged.
   One-equality transitive affine completion now lives in independent side-local
   `affine_selection/transitive/alias/completion` modules. Each parent retains
   its own ledger-ordered equality discovery, distinct root/alias custody, and
@@ -5043,6 +5056,14 @@ Owners:
   Exact-proof diagnostics. Exact-owner ambiguity, the 795 rooted/3 legacy
   inventory, and receipt-drift fences remain green; payload-range owners remain
   separate.
+  Four authored-root payload/range regressions—constrained case-payload
+  arithmetic, guarded direct sum-payload pass-through, arithmetic over a
+  guarded bounded payload, and exclusive/inclusive range-constraint syntax—now
+  launch `OutputOnly` native execution solely through exact checked-report
+  executable receipts while preserving literal statuses 70, 20, 70, and 70
+  and their Exact-proof diagnostics. Exact-owner ambiguity, the 795 rooted/3
+  legacy inventory, and receipt-drift fences remain green; crash semantics and
+  legacy owners are unchanged.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
