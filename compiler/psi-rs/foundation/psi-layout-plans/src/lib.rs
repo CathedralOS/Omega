@@ -1207,27 +1207,31 @@ impl PostHandoffWriterPlan {
         let mut resolved_targets = std::collections::BTreeMap::new();
         let mut values = Vec::with_capacity(self.steps.len());
         for step in &self.steps {
-            let value = match step.source {
-                PostHandoffWriterSource::Resolved(value) => value,
-                PostHandoffWriterSource::Resolve(target) => {
-                    if let Some(value) = resolved_targets.get(&target) {
-                        *value
-                    } else {
-                        let value = resolve(target).ok_or_else(|| {
+            let target = step.write.target;
+            let value = if let Some(value) = resolved_targets.get(&target) {
+                *value
+            } else {
+                let value = match step.source {
+                    PostHandoffWriterSource::Resolved(value) => value,
+                    PostHandoffWriterSource::Resolve(target) => {
+                        resolve(target).ok_or_else(|| {
                             MaterializationDiagnostic(format!(
                                 "post-handoff writer could not resolve symbolic target {target:?}"
                             ))
-                        })?;
-                        resolved_targets.insert(target, value);
-                        value
+                        })?
                     }
+                };
+                for candidate in self
+                    .steps
+                    .iter()
+                    .filter(|candidate| candidate.write.target == target)
+                {
+                    validate_write_source_value(&candidate.write, value, "resolved symbolic")?;
                 }
+                resolved_targets.insert(target, value);
+                value
             };
             values.push(value);
-        }
-
-        for (step, value) in self.steps.iter().zip(&values) {
-            validate_write_source_value(&step.write, *value, "resolved symbolic")?;
         }
 
         for (step, value) in self.steps.iter().zip(values) {
@@ -3636,6 +3640,71 @@ mod tests {
             )
             .expect_err("direct execution validates the same source invariant");
         assert!(error.0.contains("inconsistent invocation values"));
+    }
+
+    #[test]
+    fn writer_stops_resolving_after_one_target_fails_value_validation() {
+        let first = entry();
+        let second = RelocationTarget::Entry(
+            EntryStubId::from_normalized_identity(0x66bb).expect("second entry identity"),
+        );
+        let writer = PostHandoffWriterPlan {
+            byte_len: 16,
+            byte_order: ByteOrder::LittleEndian,
+            placement: PlacementConstraints::unconstrained(PlacementPhase::PostHandoff),
+            steps: vec![
+                PostHandoffWriterStep {
+                    write: MaterializationWrite {
+                        field: "narrow".into(),
+                        target: first,
+                        container_byte_offset: 0,
+                        container_width_bits: 8,
+                        destination_lsb: 0,
+                        source_lsb: 0,
+                        width: 8,
+                        stored_integer_fit: Some(StoredIntegerFit {
+                            source_width_bits: 64,
+                            stored_width_bits: 8,
+                            interpretation: IntegerInterpretation::Unsigned,
+                        }),
+                    },
+                    source: PostHandoffWriterSource::Resolve(first),
+                },
+                PostHandoffWriterStep {
+                    write: MaterializationWrite {
+                        field: "later".into(),
+                        target: second,
+                        container_byte_offset: 8,
+                        container_width_bits: 64,
+                        destination_lsb: 0,
+                        source_lsb: 0,
+                        width: 64,
+                        stored_integer_fit: None,
+                    },
+                    source: PostHandoffWriterSource::Resolve(second),
+                },
+            ],
+        };
+        let mut bytes = [0xa5; 16];
+        let mut resolutions = Vec::new();
+        let error = writer
+            .execute(
+                &mut bytes,
+                PlacementSite {
+                    base_address: 0,
+                    phase: PlacementPhase::PostHandoff,
+                    machine_regime: None,
+                    installation_scope: None,
+                },
+                |target| {
+                    resolutions.push(target);
+                    Some(if target == first { 0x100 } else { 0 })
+                },
+            )
+            .expect_err("the first target does not fit its retained stored width");
+        assert!(error.0.contains("does not fit"), "{}", error.0);
+        assert_eq!(resolutions, vec![first]);
+        assert_eq!(bytes, [0xa5; 16]);
     }
 
     #[test]
