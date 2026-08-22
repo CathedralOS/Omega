@@ -441,6 +441,15 @@ constructs the same inner-then-outer substitution bytes; verification
 independently checks the final-alias affine relation. Endpoint identity,
 rejection order, and the exact two-equality frontier remain unchanged.
 
+The two-equality selection owner also separates candidate eligibility from
+per-candidate proof completion. Independent producer and reconstruction
+`integer_selection/substitution/two/selection/completion` modules rebuild the
+final-alias affine relation and construct or replay the inner-then-outer
+endpoint substitutions. Their `two/selection` parents retain outer equality,
+orientation, inner equality, alias eligibility, and exact fact non-reuse.
+Affine precedence, proof bytes, rejection order, and the fixed two-equality
+frontier remain unchanged.
+
 The fixed one-alias order transport keeps its established
 `alias_transport/one` API as a facade over independent side-local
 `one/candidates` owners. Both retain assumptions before semantic axioms,

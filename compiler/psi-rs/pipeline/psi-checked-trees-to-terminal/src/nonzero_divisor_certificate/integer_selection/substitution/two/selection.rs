@@ -1,10 +1,11 @@
 //! Producer-local fixed two-equality affine endpoint selection.
 
 use psi_core::{Proposition, PropositionContext};
-use psi_proof_kernel::{ProofNode, ProofRule};
+use psi_proof_kernel::ProofNode;
 
-use super::super::super::super::affine_selection;
 use super::super::super::super::integer_evidence::cited_facts;
+
+mod completion;
 
 pub(super) fn prove(
     context: &PropositionContext,
@@ -55,37 +56,23 @@ pub(super) fn prove(
                 {
                     continue;
                 }
-                let relation = if endpoint == 0 {
-                    Proposition::LessOrEqual(target_alias.clone(), goal_right.clone())
-                } else {
-                    Proposition::LessOrEqual(goal_left.clone(), target_alias.clone())
-                };
-                let Some(affine) =
-                    affine_selection::prove(context, &relation, assumptions, semantic_axioms)
-                else {
-                    continue;
-                };
-                let middle_relation = if endpoint == 0 {
-                    Proposition::LessOrEqual(middle_alias.clone(), goal_right.clone())
-                } else {
-                    Proposition::LessOrEqual(goal_left.clone(), middle_alias.clone())
-                };
-                let inner = ProofNode {
-                    conclusion: middle_relation,
-                    rule: ProofRule::IntegerLessOrEqualSubstitution {
-                        relation: Box::new(affine),
-                        equality: Box::new(inner_citation.proof(inner_equality)),
-                        endpoint,
-                    },
-                };
-                return Some(ProofNode {
-                    conclusion: goal.clone(),
-                    rule: ProofRule::IntegerLessOrEqualSubstitution {
-                        relation: Box::new(inner),
-                        equality: Box::new(outer_citation.proof(outer_equality)),
-                        endpoint,
-                    },
-                });
+                if let Some(proof) = completion::prove(
+                    context,
+                    goal,
+                    goal_left,
+                    goal_right,
+                    middle_alias,
+                    target_alias,
+                    endpoint,
+                    assumptions,
+                    semantic_axioms,
+                    inner_citation,
+                    inner_equality,
+                    outer_citation,
+                    outer_equality,
+                ) {
+                    return Some(proof);
+                }
             }
         }
     }
