@@ -1031,6 +1031,11 @@ Owners:
   rejection, worst-case simultaneous-use peaks, and exact fingerprints. The
   production coordinator is 3,498 lines; its public root re-exports, exact
   107-function inventory, validation/error order, and behavior are unchanged.
+  Installed terminal entry/segment fuel binding and exact acyclic fixed-fuel
+  provider-graph composition now live in a focused 555-line `fixed_fuel`
+  child. The 2,965-line coordinator retains external-root admission, execution,
+  interrupt lifecycle, and ledger orchestration; public re-exports,
+  diagnostics, behavior, and the 107-function inventory remain unchanged.
 
 Acceptance: UART/MMIO, shared-page IPC, and ordinary RAM use one extent/layout
 foundation with different profiles. Misalignment, insufficient rights,
@@ -5441,6 +5446,18 @@ Owners:
   exit 70. Exact-owner ambiguity, the 795 rooted/3 legacy inventory, and cross-
   copy receipt-drift fences remain green; its warm compiler/interpreter body is
   0.03s.
+  The finite runtime-subslice parameter and bare machine-field subslice-
+  argument regressions now launch solely through the exact executables retained
+  by their checked compilation reports while preserving descriptor/length
+  self-checks and literal exit 70. Exact-owner ambiguity, the 795 rooted/3
+  legacy inventory, and cross-copy receipt-drift fences remain green; their
+  warm compiler/interpreter bodies remain 0.02–0.03s.
+  The dispatch-path slice-index read and cross-transition slice-length
+  regressions now launch solely through the exact executables retained by their
+  checked compilation reports while preserving descriptor/read self-checks and
+  literal exits 43/101. Exact-owner ambiguity, the 795 rooted/3 legacy
+  inventory, and cross-copy receipt-drift fences remain green; Cargo-lock and
+  concurrent-rebuild waits remain distinct from their 0.02–0.04s bodies.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
