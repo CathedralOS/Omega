@@ -280,14 +280,17 @@ fn wire_erased_field_is_semantic_but_not_encoded() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-wire-erased-field-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
+    let compilation = compile(CompileOptions {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
         write_output: true,
     })
     .expect("wire erased field should compile natively");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("wire erased field canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("run wire erased field canary");
     let _ = fs::remove_dir_all(&build_dir);
@@ -308,14 +311,17 @@ fn nested_wire_erased_field_is_not_encoded() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
+    let compilation = compile(CompileOptions {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
         write_output: true,
     })
     .expect("nested erased wire field should compile natively");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("nested erased wire field canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("run nested erased wire field canary");
     let _ = fs::remove_dir_all(&build_dir);
