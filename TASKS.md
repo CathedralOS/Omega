@@ -812,7 +812,12 @@ Owners:
   its exact authority/resource/correspondence/resident replay plus named-
   operation authorization now live in a cohesive 349-line owner; public
   projection remains re-exported while field-access/request construction stays
-  sealed. These extractions leave a 1,364-line coordinator. All 81
+  sealed. That owner now also retains the sealed `PlacedFieldAccess` carrier
+  and its sole transition into `PrimitiveAccessRequest`, completing projection
+  through authorization to request custody behind unchanged re-exports. The
+  1,289-line root has reached its natural boundary of normalized public
+  vocabulary/value APIs, root-owned carrier declarations, and top-level
+  placement validation orchestration. All 81
   unit tests, the current 440-function production inventory, diagnostics,
   custody, retry behavior, and the public surface remain unchanged.
 - Implement `Extent::Resident<P, T>` as the owned exact-range dormant-content
