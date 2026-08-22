@@ -21,7 +21,7 @@ pub enum CallResultRule {
 pub enum CallArgumentRule {
     ScalarPositionalArguments,
     StructuralPositionalArguments,
-    BoundaryStructuralArguments,
+    BoundaryScalarAndStructuralPositionalArguments,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -185,7 +185,7 @@ impl CallCompositionSemanticRow {
             schema: CallCompositionSchema {
                 target: CallTargetRule::ExactBoundaryMachine,
                 result: CallResultRule::BoundaryDeclaredResult,
-                arguments: CallArgumentRule::BoundaryStructuralArguments,
+                arguments: CallArgumentRule::BoundaryScalarAndStructuralPositionalArguments,
                 requirements: CallRequirementRule::ValidateBoundaryRequirements,
                 transfers: CallTransferRule::ExactCompletionReceipts,
                 outcomes: CallOutcomeRule::BoundaryDeclaredCompletion,
@@ -279,7 +279,7 @@ pub fn call_composition_semantic_row(
 mod tests {
     use std::collections::BTreeSet;
 
-    use psi_core::{MachineId, ValueId};
+    use psi_core::{BoundaryMachineId, MachineId, ValueId};
 
     use super::*;
 
@@ -299,6 +299,16 @@ mod tests {
             claim_transfers: Vec::new(),
             requirement_obligations: Vec::new(),
             crash_continuations: Vec::new(),
+        }
+    }
+
+    fn boundary_call() -> OperationKind {
+        OperationKind::BoundaryCall {
+            boundary: BoundaryMachineId::new(1).unwrap(),
+            arguments: vec![ValueId::new(2).unwrap(), ValueId::new(1).unwrap()],
+            structural_arguments: Vec::new(),
+            completion_receipts: Vec::new(),
+            requirement_obligations: Vec::new(),
         }
     }
 
@@ -360,6 +370,19 @@ mod tests {
         assert_eq!(
             structural_scalar.frontier(),
             CallFrontierRule::TransfersStructuralFrontier
+        );
+
+        let boundary = call_composition_semantic_row(&boundary_call())
+            .unwrap()
+            .unwrap()
+            .schema();
+        assert_eq!(
+            boundary.arguments(),
+            CallArgumentRule::BoundaryScalarAndStructuralPositionalArguments,
+        );
+        assert_eq!(
+            boundary.transfers(),
+            CallTransferRule::ExactCompletionReceipts
         );
     }
 

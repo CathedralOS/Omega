@@ -64,13 +64,16 @@ spike, and the terminal-ledger migration remain execution work under P3 in
 [`TASKS.md`](../../../TASKS.md).
 Production optimization remains outside the trusted proof kernel.
 
-The first O0 console canary has one concrete terminal-vocabulary prerequisite:
-canonical boundary declarations and `BoundaryCall` operations currently carry
-structural arguments but no scalar parameter/argument lane. The canary's final
-`exit_process(i32)` cannot be represented faithfully until that lane is added
-through the checked producer, codec, verifier, interpreter, and Omega abstract
-consumer. This is implementation work, not an open language ruling. Target
-lowering must reject the new lane until a following O0 slice supplies a genuine
-process-exit realization; the existing metadata-only port settlement is not
-one. Bootstrap work must extend the canonical representation rather than bypass
-it with a private Omega0 IR or reinterpret the exit effect as an ordinary return.
+The first O0 console canary now has its canonical scalar boundary lane.
+Terminal-Psi vocabulary 23 carries ordered scalar parameter types on boundary
+declarations and ordered scalar values on `BoundaryCall`; the checked producer,
+codec, semantic schema, verifier, interpreter, and Omega abstract consumer all
+preserve that lane. This closed an implementation seam, not a language ruling.
+
+The next boundary is native realization. Omega target lowering intentionally
+rejects nonempty scalar boundary calls until an exact `exit_process(i32)`
+realization is supplied; the existing metadata-only port settlement is not one.
+Bootstrap work must continue through the canonical representation rather than
+bypass it with a private Omega0 IR or reinterpret the exit effect as an ordinary
+return. `write_line` separately needs its exact structural string carrier and
+custody retained through the same path.

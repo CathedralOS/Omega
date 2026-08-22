@@ -291,6 +291,7 @@ fn lower_machine(
                 }
                 OperationKind::BoundaryCall {
                     boundary,
+                    arguments,
                     structural_arguments,
                     completion_receipts,
                     ..
@@ -330,6 +331,7 @@ fn lower_machine(
                                 scalar_type: result.scalar_type,
                             }),
                         boundary,
+                        arguments,
                         structural_arguments,
                         completion_claim_sources,
                         completion_receipts,

@@ -111,6 +111,24 @@ fn lower_to_target_operations_with_settlements(
     {
         return Err(LoweringError::EntryFunctionMissing(plan.entry));
     }
+    for function in &plan.functions {
+        if let Some(TerminalAbstractOperation::BoundaryCall {
+            psi_operation,
+            boundary,
+            arguments: _,
+            ..
+        }) = function.operations.iter().find(
+            |operation| matches!(operation, TerminalAbstractOperation::BoundaryCall { arguments, .. } if !arguments.is_empty()),
+        ) {
+            return Err(
+                LoweringError::ScalarBoundaryArgumentsRequireNativeRealization {
+                    machine: function.machine,
+                    operation: *psi_operation,
+                    boundary: *boundary,
+                },
+            );
+        }
+    }
     let functions_by_machine = plan
         .functions
         .iter()
@@ -305,6 +323,7 @@ fn lower_function(
             psi_operation,
             result: Some(boundary_result),
             boundary,
+            arguments: _,
             structural_arguments,
             completion_claim_sources,
             completion_receipts,
@@ -2219,6 +2238,7 @@ fn lower_unit_function(
                 psi_operation,
                 result,
                 boundary,
+                arguments: _,
                 structural_arguments,
                 completion_claim_sources,
                 completion_receipts,
@@ -3648,6 +3668,11 @@ pub enum LoweringError {
         operation: OperationId,
     },
     ResultBearingBoundarySettlementRequiresNativeRealization {
+        machine: MachineId,
+        operation: OperationId,
+        boundary: BoundaryMachineId,
+    },
+    ScalarBoundaryArgumentsRequireNativeRealization {
         machine: MachineId,
         operation: OperationId,
         boundary: BoundaryMachineId,

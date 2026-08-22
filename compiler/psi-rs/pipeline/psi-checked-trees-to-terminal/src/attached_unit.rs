@@ -152,6 +152,11 @@ pub(super) fn lower_attached_unit_closure_including(
             &domain_ids,
             &mut next_place,
         )?;
+        let scalar_parameters = plan
+            .scalar_parameters
+            .iter()
+            .map(|parameter| terminal_scalar_type(parameter.primitive_type))
+            .collect::<Result<Vec<_>, _>>()?;
         let mut requires = plan
             .domain_requirements
             .iter()
@@ -191,12 +196,13 @@ pub(super) fn lower_attached_unit_closure_including(
                 .as_ref()
                 .map(|identity| lookup_type_id(&type_ids, identity))
                 .transpose()?,
+            scalar_parameters: scalar_parameters.clone(),
             structural_parameters: parameters.clone(),
             result: plan.result_type.map(terminal_scalar_type).transpose()?,
             requires,
             published_service_ceiling,
         });
-        lowered_boundary_parameters.push((plan.machine, id, parameters));
+        lowered_boundary_parameters.push((plan.machine, id, parameters, scalar_parameters));
     }
 
     let mut lowered_machine_parameters = Vec::with_capacity(closure.len());
@@ -358,7 +364,11 @@ pub(super) fn lower_attached_unit_closure_including(
                 })
             })
             .collect::<Result<Vec<_>, LoweringError>>()?;
-        let mut operations = Vec::with_capacity(plan.operations.len().saturating_sub(1));
+        let operation_identity_base = next_operation
+            .checked_sub(1)
+            .expect("terminal operation identity starts at one");
+        let mut operations = OperationBuffer::new(operation_identity_base);
+        let mut next_value_identity = 1_u64;
         for operation in &plan.operations[..plan.operations.len() - 1] {
             let kind = match operation {
                 CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal {
@@ -513,6 +523,7 @@ pub(super) fn lower_attached_unit_closure_including(
                 }
                 CheckedUnitEffectOperationPlan::BoundaryCall {
                     target_machine,
+                    scalar_arguments,
                     structural_arguments,
                     completion_receipts,
                     ..
@@ -545,14 +556,38 @@ pub(super) fn lower_attached_unit_closure_including(
                         &type_ids,
                         &expected_claim_arguments,
                     )?;
-                    let (_, boundary, _) = lowered_boundary_parameters
+                    let (_, boundary, _, target_scalar_parameters) = lowered_boundary_parameters
                         .iter()
-                        .find(|(symbol, _, _)| *symbol == *target_machine)
+                        .find(|(symbol, _, _, _)| *symbol == *target_machine)
                         .ok_or(LoweringError::Unsupported(
                             "boundary Unit call target is absent from the lowered closure",
                         ))?;
+                    if scalar_arguments.len() != target_scalar_parameters.len() {
+                        return unsupported(
+                            "boundary Unit scalar argument count disagrees with its declaration",
+                        );
+                    }
+                    let arguments = scalar_arguments
+                        .iter()
+                        .zip(target_scalar_parameters)
+                        .map(|(argument, target_type)| {
+                            let argument = lower_checked_scalar_expression(argument)?;
+                            if argument.scalar_type() != *target_type {
+                                return unsupported(
+                                    "boundary Unit scalar argument type disagrees with its declaration",
+                                );
+                            }
+                            Ok(emit_direct_expression(
+                                &argument,
+                                &[],
+                                &mut next_value_identity,
+                                &mut operations,
+                            ))
+                        })
+                        .collect::<Result<Vec<_>, LoweringError>>()?;
                     OperationKind::BoundaryCall {
                         boundary: *boundary,
+                        arguments,
                         structural_arguments: lower_structural_arguments(
                             structural_arguments,
                             parameters,
@@ -613,12 +648,14 @@ pub(super) fn lower_attached_unit_closure_including(
                     return unsupported("Unit return is not the final checked operation");
                 }
             };
+            let id = operations.allocate();
             operations.push(Operation {
-                id: operation_id(allocate_dense(&mut next_operation)?),
+                id,
                 result: psi_terminal::OperationResult::Unit,
                 kind,
             });
         }
+        next_operation = operations.next_identity;
         let CheckedUnitEffectOperationPlan::ReturnUnit {
             trivial_affine_local_discard_ordinals,
             trivial_affine_discards,
@@ -709,7 +746,7 @@ pub(super) fn lower_attached_unit_closure_including(
             blocks: vec![Block {
                 id: block,
                 parameters: Vec::new(),
-                operations,
+                operations: operations.operations,
                 terminator: Terminator::ReturnUnit {
                     edge,
                     trivial_affine_discards,
@@ -727,12 +764,17 @@ pub(super) fn lower_attached_unit_closure_including(
     let mut provider_candidates = provider_candidate_plans
         .iter()
         .map(|candidate| {
-            let (_, boundary, parameters) = lowered_boundary_parameters
+            let (_, boundary, parameters, scalar_parameters) = lowered_boundary_parameters
                 .iter()
-                .find(|(symbol, _, _)| *symbol == candidate.boundary)
+                .find(|(symbol, _, _, _)| *symbol == candidate.boundary)
                 .ok_or(LoweringError::Unsupported(
                     "provider candidate references an unlowered Unit boundary requirement",
                 ))?;
+            if !scalar_parameters.is_empty() {
+                return unsupported(
+                    "provider candidate boundary signatures do not yet admit scalar parameters",
+                );
+            }
             let terminal_candidate = lookup_machine_id(&machine_ids, candidate.candidate)?;
             let realized = machines
                 .iter()

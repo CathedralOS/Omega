@@ -979,6 +979,7 @@ fn metadata_only_boundary_requires_the_exact_preceding_port_realization() {
             id: boundary,
             identity: "InterruptAcknowledgement::complete".into(),
             attachment: None,
+            scalar_parameters: Vec::new(),
             structural_parameters: vec![StructuralParameterDeclaration {
                 place: boundary_place,
                 position: 0,
@@ -1025,6 +1026,7 @@ fn metadata_only_boundary_requires_the_exact_preceding_port_realization() {
                     psi_operation: settlement_operation,
                     result: None,
                     boundary,
+                    arguments: Vec::new(),
                     structural_arguments: vec![psi_terminal::StructuralArgument {
                         place: argument_place,
                         path: vec![StructuralPathSegment::FixedIndex(1)],
@@ -1069,6 +1071,38 @@ fn metadata_only_boundary_requires_the_exact_preceding_port_realization() {
             place: argument_place,
             path: vec![StructuralPathSegment::FixedIndex(1)],
         }]
+    );
+
+    let mut scalar_argument = plan.clone();
+    let argument = ValueId::new(1).unwrap();
+    scalar_argument.boundary_machines[0]
+        .scalar_parameters
+        .push(ScalarType::Boolean);
+    scalar_argument.functions[0]
+        .parameters
+        .push(TerminalAbstractParameter {
+            value: argument,
+            scalar_type: ScalarType::Boolean,
+        });
+    let TerminalAbstractOperation::BoundaryCall { arguments, .. } =
+        &mut scalar_argument.functions[0].operations[1]
+    else {
+        unreachable!("fixture contains a boundary call")
+    };
+    arguments.push(argument);
+    assert_eq!(
+        lower_to_target_operations_with_settlements(
+            &scalar_argument,
+            NativeTarget::linux_x64(),
+            &[binding],
+        ),
+        Err(
+            LoweringError::ScalarBoundaryArgumentsRequireNativeRealization {
+                machine,
+                operation: settlement_operation,
+                boundary,
+            }
+        )
     );
 
     let wrong = TerminalBoundarySettlementBinding {

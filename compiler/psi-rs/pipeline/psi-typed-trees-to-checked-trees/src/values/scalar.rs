@@ -71,6 +71,26 @@ pub(crate) fn build_checked_scalar_expression_plans(
                         };
                         let binding_ordinal = u32::try_from(locals.len()).ok();
                         if let Some(binding_ordinal) = binding_ordinal {
+                            if let ExpressionNode::Call(call) =
+                                program.expression_table.expression(local.initial_value)
+                                && let Some(arguments) = lower_boundary_call_arguments(
+                                    program,
+                                    operators,
+                                    state,
+                                    statement_ordinal,
+                                    0,
+                                    &crate::CallSite::Expression {
+                                        expression: local.initial_value,
+                                        call,
+                                    },
+                                    &scalar_parameters,
+                                    &parameter_types,
+                                    &locals,
+                                    exact_integer_casts,
+                                )
+                            {
+                                expressions.extend(arguments);
+                            }
                             if let Some(arguments) = lower_direct_call_binding_arguments(
                                 program,
                                 operators,
@@ -133,6 +153,26 @@ pub(crate) fn build_checked_scalar_expression_plans(
                         });
                     }
                     StatementNode::Expression(expression) => {
+                        if let ExpressionNode::Call(call) =
+                            program.expression_table.expression(*expression)
+                            && let Some(arguments) = lower_boundary_call_arguments(
+                                program,
+                                operators,
+                                state,
+                                statement_ordinal,
+                                0,
+                                &crate::CallSite::Expression {
+                                    expression: *expression,
+                                    call,
+                                },
+                                &scalar_parameters,
+                                &parameter_types,
+                                &locals,
+                                exact_integer_casts,
+                            )
+                        {
+                            expressions.extend(arguments);
+                        }
                         if let Some(result_type) = result_type
                             && let Some(expression) = lower_return_expression(
                                 program,
@@ -151,6 +191,22 @@ pub(crate) fn build_checked_scalar_expression_plans(
                                 role: CheckedScalarExpressionRole::Return,
                                 expression,
                             });
+                        }
+                    }
+                    StatementNode::Call(call) => {
+                        if let Some(arguments) = lower_boundary_call_arguments(
+                            program,
+                            operators,
+                            state,
+                            statement_ordinal,
+                            0,
+                            &crate::CallSite::Statement(call),
+                            &scalar_parameters,
+                            &parameter_types,
+                            &locals,
+                            exact_integer_casts,
+                        ) {
+                            expressions.extend(arguments);
                         }
                     }
                     StatementNode::Transition(transition) => {
@@ -228,6 +284,87 @@ pub(crate) fn build_checked_scalar_expression_plans(
         }
     }
     CheckedScalarExpressionPlans { expressions }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn lower_boundary_call_arguments(
+    program: &TypedTrees,
+    operators: &CheckedOperatorFacts,
+    state: &psi_typed_trees::state::State,
+    statement_ordinal: u32,
+    call_ordinal: usize,
+    call_site: &crate::CallSite<'_>,
+    parameters: &[StateParameter],
+    parameter_types: &[PrimitiveType],
+    locals: &[ScalarLocal],
+    exact_integer_casts: &[psi_validation::ExactIntegerCastFact],
+) -> Option<Vec<CheckedLocatedScalarExpression>> {
+    let target_symbol = match call_site {
+        crate::CallSite::Statement(call) => call.target_symbol,
+        crate::CallSite::Expression { call, .. } => call.target_symbol,
+        crate::CallSite::TransitionNamed { .. } => return None,
+    };
+    let is_boundary = program.machines().iter().any(|machine| {
+        machine.supply_mode.is_boundary_declaration()
+            && program
+                .machine_states(machine)
+                .iter()
+                .any(|candidate| candidate.symbol == target_symbol)
+    }) || program.traits().iter().any(|definition| {
+        definition.is_boundary
+            && program
+                .trait_machine_signatures(definition)
+                .iter()
+                .any(|signature| signature.symbol == target_symbol)
+    });
+    if !is_boundary {
+        return None;
+    }
+
+    let target_parameters = crate::call_target_parameters(program, target_symbol)?;
+    let explicit_arguments = crate::call_site_argument_expressions(program, call_site);
+    let explicit_self = explicit_arguments.len()
+        > target_parameters
+            .iter()
+            .filter(|parameter| !parameter.is_self)
+            .count();
+    let mut explicit_index = 0usize;
+    let mut scalar_index = 0usize;
+    let mut output = Vec::new();
+    for target in target_parameters {
+        if target.is_self && !explicit_self {
+            continue;
+        }
+        let argument = *explicit_arguments.get(explicit_index)?;
+        explicit_index = explicit_index.checked_add(1)?;
+        let Some(expected_type) = program.primitive_type_reference(target.type_reference) else {
+            continue;
+        };
+        if target.is_self || target.is_const || target.is_mutable {
+            return None;
+        }
+        let lowered = lower_return_expression(
+            program,
+            operators,
+            argument,
+            parameters,
+            parameter_types,
+            locals,
+            expected_type,
+            exact_integer_casts,
+        );
+        output.push(CheckedLocatedScalarExpression {
+            state: state.symbol,
+            statement_ordinal,
+            role: CheckedScalarExpressionRole::BoundaryCallArgument {
+                call_ordinal: u32::try_from(call_ordinal).ok()?,
+                argument_ordinal: u32::try_from(scalar_index).ok()?,
+            },
+            expression: lowered?,
+        });
+        scalar_index = scalar_index.checked_add(1)?;
+    }
+    (explicit_index == explicit_arguments.len()).then_some(output)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1549,7 +1686,10 @@ fn lower_return_expression(
         locals,
         exact_integer_casts,
     )?;
-    (scalar_expression_type(&expression)? == result_type).then_some(expression)
+    match scalar_expression_type(&expression) {
+        Some(actual_type) => (actual_type == result_type).then_some(expression),
+        None => land_contextual_integer_literal(expression, result_type),
+    }
 }
 
 fn lower_scalar_expression(
@@ -1786,6 +1926,44 @@ fn retag_exact_integer_literal(
         let minimum = -(1_i128 << (bits - 1));
         let maximum = (1_i128 << (bits - 1)) - 1;
         let value = i128::from(value);
+        minimum <= value && value <= maximum
+    } else {
+        let value = literal.value_u64()?;
+        let bits = landed_type.bit_width();
+        let maximum = if bits == 64 {
+            u64::MAX
+        } else {
+            (1_u64 << bits) - 1
+        };
+        value <= maximum
+    };
+    fits.then(|| CheckedScalarExpression::IntegerLiteral {
+        literal: literal.with_landing(IntegerLanding {
+            landed_type,
+            domain: ArithmeticDomain::Exact,
+        }),
+    })
+}
+
+fn land_contextual_integer_literal(
+    expression: CheckedScalarExpression,
+    primitive_type: PrimitiveType,
+) -> Option<CheckedScalarExpression> {
+    let CheckedScalarExpression::IntegerLiteral { literal } = expression else {
+        return None;
+    };
+    if literal.landing().is_some() {
+        return None;
+    }
+    let landed_type = match primitive_type {
+        PrimitiveType::Addr => LandedIntegerType::Addr,
+        primitive_type => landed_for_primitive(primitive_type)?,
+    };
+    let fits = if landed_type.is_signed() {
+        let value = i128::from(literal.value_i64()?);
+        let bits = landed_type.bit_width();
+        let minimum = -(1_i128 << (bits - 1));
+        let maximum = (1_i128 << (bits - 1)) - 1;
         minimum <= value && value <= maximum
     } else {
         let value = literal.value_u64()?;

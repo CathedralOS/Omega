@@ -169,12 +169,26 @@ pub(super) fn build_call_operation(
         .collect::<Vec<_>>();
     if let [(definition, signature)] = static_boundaries.as_slice() {
         let arguments = crate::call_site_argument_expressions(program, &call_site);
+        let scalar_parameters = program
+            .state_signature_parameters(signature)
+            .iter()
+            .enumerate()
+            .map(|(position, parameter)| {
+                Some(CheckedStructuralScalarParameterPlan {
+                    source_position: u32::try_from(position).ok()?,
+                    primitive_type: program.primitive_type_reference(parameter.type_reference)?,
+                })
+            })
+            .collect::<Option<Vec<_>>>()?;
         if !program.trait_type_parameters(definition).is_empty()
             || !program
                 .state_signature_type_parameters(signature)
                 .is_empty()
-            || !program.state_signature_parameters(signature).is_empty()
-            || !arguments.is_empty()
+            || program
+                .state_signature_parameters(signature)
+                .iter()
+                .any(|parameter| parameter.is_self || parameter.is_const || parameter.is_mutable)
+            || arguments.len() != scalar_parameters.len()
             || !call.has_receiver
             || call.receiver_symbol != definition.symbol
             || match expected_boundary_result {
@@ -198,6 +212,12 @@ pub(super) fn build_call_operation(
             target_state: signature.symbol,
             target_contract_fingerprint: capsule.target_contract_fingerprint(),
             service_reach: call.service_reach,
+            scalar_arguments: checked_boundary_scalar_arguments(
+                facts,
+                state.symbol,
+                coordinate,
+                &scalar_parameters,
+            )?,
             structural_arguments: Vec::new(),
             completion_receipts: Vec::new(),
         });
@@ -243,6 +263,30 @@ pub(super) fn build_call_operation(
         true,
         allow_field_path_projection,
     )?;
+    let scalar_parameters = program
+        .state_parameters(target_state)
+        .iter()
+        .enumerate()
+        .filter_map(|(position, parameter)| {
+            program
+                .primitive_type_reference(parameter.type_reference)
+                .map(|primitive_type| (position, parameter, primitive_type))
+        })
+        .map(|(position, parameter, primitive_type)| {
+            if parameter.is_self || parameter.is_const || parameter.is_mutable {
+                return None;
+            }
+            Some(CheckedStructuralScalarParameterPlan {
+                source_position: u32::try_from(position).ok()?,
+                primitive_type,
+            })
+        })
+        .collect::<Option<Vec<_>>>()?;
+    let scalar_arguments = if boundary {
+        checked_boundary_scalar_arguments(facts, state.symbol, coordinate, &scalar_parameters)?
+    } else {
+        Vec::new()
+    };
     if !boundary
         && !ordinary_projected_call_is_supported(
             program,
@@ -280,6 +324,7 @@ pub(super) fn build_call_operation(
             target_state: target_state.symbol,
             target_contract_fingerprint: target_contract.fingerprint,
             service_reach: call.service_reach.clone(),
+            scalar_arguments,
             structural_arguments,
             completion_receipts: transfers,
         })
@@ -294,6 +339,30 @@ pub(super) fn build_call_operation(
             claim_transfers: transfers,
         })
     }
+}
+
+fn checked_boundary_scalar_arguments(
+    facts: &CheckFacts,
+    caller_state: SymbolHandle,
+    coordinate: CheckedUnitCallCoordinate,
+    parameters: &[CheckedStructuralScalarParameterPlan],
+) -> Option<Vec<CheckedScalarExpression>> {
+    parameters
+        .iter()
+        .enumerate()
+        .map(|(argument_index, parameter)| {
+            let expression = facts.values.scalar_expressions.expression_at(
+                caller_state,
+                coordinate.statement_index,
+                CheckedScalarExpressionRole::BoundaryCallArgument {
+                    call_ordinal: coordinate.call_ordinal,
+                    argument_ordinal: u32::try_from(argument_index).ok()?,
+                },
+            )?;
+            (crate::values::scalar_expression_type(expression)? == parameter.primitive_type)
+                .then(|| expression.clone())
+        })
+        .collect()
 }
 
 pub(super) fn ordinary_projected_call_is_supported(
@@ -622,6 +691,17 @@ pub(super) fn structural_call_arguments(
     let mut output = Vec::new();
 
     for target in target_parameters {
+        if program
+            .primitive_type_reference(target.type_reference)
+            .is_some()
+        {
+            if target.is_self {
+                return None;
+            }
+            explicit_arguments.get(explicit_index)?;
+            explicit_index = explicit_index.checked_add(1)?;
+            continue;
+        }
         let place = if target.is_self {
             if is_reference(program, target.type_reference) {
                 continue;

@@ -149,6 +149,12 @@ pub enum CheckedScalarExpressionRole {
         binding_ordinal: u32,
         argument_ordinal: u32,
     },
+    /// Primitive argument to a bodyless boundary call, keyed by the exact
+    /// call coordinate within its statement and dense scalar-parameter order.
+    BoundaryCallArgument {
+        call_ordinal: u32,
+        argument_ordinal: u32,
+    },
     Return,
     Guard,
     TransitionArgument {

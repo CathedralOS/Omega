@@ -160,6 +160,7 @@ pub enum TerminalEffect {
     BoundaryCall {
         operation: OperationId,
         boundary: BoundaryMachineId,
+        arguments: Vec<TerminalScalarValue>,
         structural_arguments: Vec<TerminalStructuralValue>,
         completion_receipts: Vec<CompletionReceipt>,
         result: Option<ScalarType>,
@@ -841,12 +842,33 @@ impl TerminalExecution {
                     }
                     OperationKind::BoundaryCall {
                         boundary,
+                        arguments: scalar_argument_ids,
                         structural_arguments,
                         completion_receipts,
                         ..
                     } => {
+                        let boundary_declaration = self.boundary_machines.get(&boundary).ok_or(
+                            TerminalInterpretError::VerifiedBoundaryMachineMissing(boundary),
+                        )?;
+                        let scalar_arguments = scalar_argument_ids
+                            .iter()
+                            .map(|argument| {
+                                self.values
+                                    .get(argument)
+                                    .copied()
+                                    .ok_or(TerminalInterpretError::VerifiedValueMissing(*argument))
+                            })
+                            .collect::<Result<Vec<_>, _>>()?;
+                        bind_boundary_arguments(
+                            &boundary_declaration.scalar_parameters,
+                            &scalar_arguments,
+                        )?;
                         if self.provider_candidates.contains(&boundary) {
-                            if !structural_arguments.is_empty() || !completion_receipts.is_empty() {
+                            if !scalar_argument_ids.is_empty()
+                                || !boundary_declaration.scalar_parameters.is_empty()
+                                || !structural_arguments.is_empty()
+                                || !completion_receipts.is_empty()
+                            {
                                 return Err(TerminalInterpretError::VerifiedOperationMalformed);
                             }
                             let callee_id =
@@ -888,9 +910,6 @@ impl TerminalExecution {
                             self.next_operation = 0;
                             continue;
                         }
-                        let boundary_declaration = self.boundary_machines.get(&boundary).ok_or(
-                            TerminalInterpretError::VerifiedBoundaryMachineMissing(boundary),
-                        )?;
                         let arguments = resolve_structural_arguments(
                             &self.structural_types,
                             &self.structural_values,
@@ -910,6 +929,7 @@ impl TerminalExecution {
                         let effect = TerminalEffect::BoundaryCall {
                             operation: operation.id,
                             boundary,
+                            arguments: scalar_arguments,
                             structural_arguments: arguments,
                             completion_receipts,
                             result: boundary_declaration.result,
@@ -2242,6 +2262,21 @@ fn bind_arguments(
         values.insert(parameter.id, *argument);
     }
     Ok(values)
+}
+
+fn bind_boundary_arguments(
+    parameters: &[ScalarType],
+    arguments: &[TerminalScalarValue],
+) -> Result<(), TerminalInterpretError> {
+    if arguments.len() != parameters.len()
+        || parameters
+            .iter()
+            .zip(arguments)
+            .any(|(parameter, argument)| *parameter != argument.scalar_type())
+    {
+        return Err(TerminalInterpretError::VerifiedOperationMalformed);
+    }
+    Ok(())
 }
 
 fn bind_structural_arguments(

@@ -494,6 +494,7 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
             id: boundary,
             identity: "TimerRoot::tick".into(),
             attachment: None,
+            scalar_parameters: Vec::new(),
             structural_parameters: vec![StructuralParameterDeclaration {
                 place: boundary_place,
                 position: 0,
@@ -538,6 +539,7 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
                     psi_operation: settlement_operation,
                     result: None,
                     boundary,
+                    arguments: Vec::new(),
                     structural_arguments: settlement_arguments.clone(),
                     completion_claim_sources: Vec::new(),
                     completion_receipts: Vec::new(),
@@ -684,6 +686,7 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
             id: boundary,
             identity: "KeyboardController::read_status".into(),
             attachment: None,
+            scalar_parameters: Vec::new(),
             structural_parameters: vec![StructuralParameterDeclaration {
                 place: boundary_place,
                 position: 0,
@@ -722,6 +725,7 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
                     psi_operation: settlement_operation,
                     result: Some(result),
                     boundary,
+                    arguments: Vec::new(),
                     structural_arguments: direct_arguments.clone(),
                     completion_claim_sources: vec![direct_content_source.clone()],
                     completion_receipts: vec![CompletionReceipt {

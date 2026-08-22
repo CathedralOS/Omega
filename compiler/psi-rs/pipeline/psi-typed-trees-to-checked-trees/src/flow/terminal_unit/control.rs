@@ -513,8 +513,8 @@ pub(super) fn build_boundary_machine(
         return None;
     }
     let binders = machine_binders(program, machine);
-    let (attachment_type_identity, structural_parameters) =
-        structural_signature(program, shapes, machine, state, &binders)?;
+    let (attachment_type_identity, structural_parameters, scalar_parameters) =
+        structural_scalar_signature(program, shapes, machine, state, &binders)?;
     let domain_requirements = boundary_domain_requirements(
         program,
         facts,
@@ -532,6 +532,7 @@ pub(super) fn build_boundary_machine(
         state: state.symbol,
         attachment_type_identity: Some(attachment_type_identity),
         structural_parameters,
+        scalar_parameters,
         result_type,
         domain_requirements,
         contract_fingerprint: contract.fingerprint,
@@ -560,7 +561,17 @@ pub(super) fn build_static_boundary_requirements(
                     program
                         .state_signature_type_parameters(signature)
                         .is_empty()
-                        && program.state_signature_parameters(signature).is_empty()
+                        && program
+                            .state_signature_parameters(signature)
+                            .iter()
+                            .all(|parameter| {
+                                !parameter.is_self
+                                    && !parameter.is_const
+                                    && !parameter.is_mutable
+                                    && program
+                                        .primitive_type_reference(parameter.type_reference)
+                                        .is_some()
+                            })
                         && is_unit(program, signature.return_type)
                         && program.state_signature_contracts(signature).is_empty()
                         && !signature.suspends
@@ -594,6 +605,18 @@ pub(super) fn build_static_boundary_requirements(
                         state: signature.symbol,
                         attachment_type_identity: None,
                         structural_parameters: Vec::new(),
+                        scalar_parameters: program
+                            .state_signature_parameters(signature)
+                            .iter()
+                            .enumerate()
+                            .map(|(position, parameter)| {
+                                Some(CheckedStructuralScalarParameterPlan {
+                                    source_position: u32::try_from(position).ok()?,
+                                    primitive_type: program
+                                        .primitive_type_reference(parameter.type_reference)?,
+                                })
+                            })
+                            .collect::<Option<Vec<_>>>()?,
                         result_type: None,
                         domain_requirements: Vec::new(),
                         contract_fingerprint: capsule.target_contract_fingerprint(),

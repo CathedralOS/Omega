@@ -104,12 +104,17 @@ pub(super) fn encode_block(writer: &mut Writer, block: &Block) -> Result<(), Cod
             }
             OperationKind::BoundaryCall {
                 boundary,
+                arguments,
                 structural_arguments,
                 completion_receipts,
                 requirement_obligations,
             } => {
                 writer.u8(35);
                 writer.id(boundary);
+                writer.len("boundary scalar arguments", arguments.len())?;
+                for argument in arguments {
+                    writer.id(argument);
+                }
                 encode_structural_arguments(writer, &structural_arguments)?;
                 writer.len("boundary claim settlements", completion_receipts.len())?;
                 for settlement in completion_receipts {
@@ -678,6 +683,7 @@ pub(super) fn decode_block(reader: &mut Reader<'_>) -> Result<Block, CodecError>
             },
             35 => OperationKind::BoundaryCall {
                 boundary: reader.id("BoundaryMachineId")?,
+                arguments: decode_ids(reader, "ValueId")?,
                 structural_arguments: decode_structural_arguments(reader)?,
                 completion_receipts: decode_counted(reader, |reader| {
                     Ok(CompletionReceipt {

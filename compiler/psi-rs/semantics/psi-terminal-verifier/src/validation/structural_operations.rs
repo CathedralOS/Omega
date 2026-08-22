@@ -209,6 +209,7 @@ pub(super) fn validate_unit_operation_static(
         }
         OperationKind::BoundaryCall {
             boundary,
+            arguments: _,
             structural_arguments,
             completion_receipts,
             requirement_obligations,

@@ -81,6 +81,7 @@ fn attached_unit_hard_root_lowers_exact_checked_closure_with_dense_identities() 
         structural_arguments,
         completion_receipts,
         requirement_obligations,
+        ..
     } = &settlement.kind
     else {
         panic!("helper settlement should be BoundaryCall")
