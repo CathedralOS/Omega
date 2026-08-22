@@ -127,7 +127,7 @@ pub struct SchemaDeviceCorrespondenceGrant {
     provider: SchemaCorrespondenceProviderId,
     device: StableDeviceInstanceId,
     source: SchemaCorrespondenceSourceId,
-    placement: PlacementPlanId,
+    placement: ValidatedPlacementPlan,
     profile_receipt: ResourceProfileReceiptId,
     revision: Option<RuntimeDeviceRevisionEvidence>,
 }
@@ -137,7 +137,7 @@ impl SchemaDeviceCorrespondenceGrant {
         provider: SchemaCorrespondenceProviderId,
         device: StableDeviceInstanceId,
         source: SchemaCorrespondenceSourceId,
-        placement: PlacementPlanId,
+        placement: &ValidatedPlacementPlan,
         profile_receipt: ResourceProfileReceiptId,
         revision: Option<RuntimeDeviceRevisionEvidence>,
     ) -> Result<Self, SchemaDeviceCorrespondenceGrantError> {
@@ -158,7 +158,7 @@ impl SchemaDeviceCorrespondenceGrant {
             provider,
             device,
             source,
-            placement,
+            placement: placement.clone(),
             profile_receipt,
             revision,
         })
@@ -172,7 +172,7 @@ impl SchemaDeviceCorrespondenceGrant {
         placement: &ValidatedPlacementPlan,
         profile: &AdmittedResourceProfile,
     ) -> Result<AdmittedSchemaDeviceCorrespondence, SchemaDeviceCorrespondenceAdmissionError> {
-        admit_schema_device_correspondence(self, placement.identity(), profile.receipt())
+        admit_schema_device_correspondence(self, placement, profile.receipt())
     }
 }
 
@@ -201,7 +201,7 @@ pub struct AdmittedSchemaDeviceCorrespondence {
     provider: SchemaCorrespondenceProviderId,
     device: StableDeviceInstanceId,
     source: SchemaCorrespondenceSourceId,
-    placement: PlacementPlanId,
+    placement: ValidatedPlacementPlan,
     profile_receipt: ResourceProfileReceiptId,
     revision: Option<RuntimeDeviceRevisionEvidence>,
 }
@@ -220,7 +220,11 @@ impl AdmittedSchemaDeviceCorrespondence {
     }
 
     pub const fn placement(&self) -> PlacementPlanId {
-        self.placement
+        self.placement.identity()
+    }
+
+    pub const fn placement_plan(&self) -> &ValidatedPlacementPlan {
+        &self.placement
     }
 
     pub const fn profile_receipt(&self) -> ResourceProfileReceiptId {
@@ -250,7 +254,7 @@ impl AdmittedSchemaDeviceCorrespondence {
         &mut self,
         placement: PlacementPlanId,
     ) -> PlacementPlanId {
-        std::mem::replace(&mut self.placement, placement)
+        std::mem::replace(&mut self.placement.identity, placement)
     }
 
     #[cfg(test)]
@@ -282,7 +286,7 @@ impl SchemaDeviceCorrespondenceAdmissionError {
 
 fn admit_schema_device_correspondence(
     grant: SchemaDeviceCorrespondenceGrant,
-    placement: PlacementPlanId,
+    placement: &ValidatedPlacementPlan,
     profile_receipt: ResourceProfileReceiptId,
 ) -> Result<AdmittedSchemaDeviceCorrespondence, SchemaDeviceCorrespondenceAdmissionError> {
     if grant.revision.as_ref().is_some_and(|revision| {
@@ -298,7 +302,7 @@ fn admit_schema_device_correspondence(
             ),
         });
     }
-    if grant.placement != placement {
+    if grant.placement != *placement {
         return Err(SchemaDeviceCorrespondenceAdmissionError {
             grant,
             diagnostic: AccessPlanDiagnostic(
@@ -513,7 +517,7 @@ impl<'extent> SchemaCorrespondedPlacedView<'extent> {
 
     pub(super) fn validate_correspondence(&self) -> Result<(), AccessPlanDiagnostic> {
         self.correspondence.validate_structure()?;
-        if self.correspondence.placement != self.view.plan.identity()
+        if self.correspondence.placement != self.view.plan
             || self.correspondence.profile_receipt != self.view.profile_receipt
         {
             return Err(AccessPlanDiagnostic(
@@ -651,7 +655,7 @@ fn validate_schema_correspondence_placement_binding(
     correspondence: &AdmittedSchemaDeviceCorrespondence,
 ) -> Result<(), AccessPlanDiagnostic> {
     correspondence.validate_structure()?;
-    if correspondence.placement != admission.placement_plan.identity()
+    if correspondence.placement != admission.placement_plan
         || correspondence.profile_receipt != admission.profile_receipt
         || admission.profile.receipt() != admission.profile_receipt
     {
@@ -682,6 +686,8 @@ fn validate_schema_correspondence_placement_binding(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{AccessPlan, BoundaryReach, PlacementPlan, validate_placement_plan};
+    use psi_layout_plans::LayoutPlanReport;
 
     fn provider_id(identity: u64) -> SchemaCorrespondenceProviderId {
         SchemaCorrespondenceProviderId::from_normalized_identity(identity).expect("provider")
@@ -697,6 +703,23 @@ mod tests {
 
     fn receipt_id(identity: u64) -> ResourceProfileReceiptId {
         ResourceProfileReceiptId::from_normalized_identity(identity).expect("profile receipt")
+    }
+
+    fn test_placement(schema_identity: u64) -> ValidatedPlacementPlan {
+        let layout = LayoutPlanReport {
+            schema_identity,
+            entries: Vec::new(),
+            offsets: Some(Vec::new()),
+            size: Some(0),
+            align: 1,
+        };
+        let access = AccessPlan::inaccessible(&layout).expect("empty inaccessible access plan");
+        validate_placement_plan(PlacementPlan {
+            layout,
+            access,
+            reach: BoundaryReach::default(),
+        })
+        .expect("empty validated placement")
     }
 
     fn revision(
@@ -719,22 +742,23 @@ mod tests {
         let provider = provider_id(7);
         let device = device_id(8);
         let receipt = receipt_id(9);
+        let placement = test_placement(11);
         let grant = SchemaDeviceCorrespondenceGrant::from_admitted_provider(
             provider,
             device,
             source(10),
-            PlacementPlanId(11),
+            &placement,
             receipt,
             Some(revision(provider, device, receipt)),
         )
         .expect("provider correspondence grant");
 
-        let admitted = admit_schema_device_correspondence(grant, PlacementPlanId(11), receipt)
+        let admitted = admit_schema_device_correspondence(grant, &placement, receipt)
             .expect("exact placement/profile join");
         assert_eq!(admitted.provider(), provider);
         assert_eq!(admitted.device(), device);
         assert_eq!(admitted.source().normalized_identity(), 10);
-        assert_eq!(admitted.placement(), PlacementPlanId(11));
+        assert_eq!(admitted.placement_plan(), &placement);
         assert_eq!(admitted.profile_receipt(), receipt);
         let revision = admitted.revision().expect("revision evidence");
         assert_eq!(revision.observed_revision(), 0x17);
@@ -748,13 +772,14 @@ mod tests {
         let provider = provider_id(17);
         let device = device_id(18);
         let receipt = receipt_id(19);
+        let placement = test_placement(21);
         let revision = revision(provider_id(99), device, receipt);
         let revision_observation = revision.observation();
         let rejection = SchemaDeviceCorrespondenceGrant::from_admitted_provider(
             provider,
             device,
             source(20),
-            PlacementPlanId(21),
+            &placement,
             receipt,
             Some(revision),
         )
@@ -770,23 +795,23 @@ mod tests {
             provider,
             device,
             source(20),
-            PlacementPlanId(21),
+            &placement,
             receipt,
             None,
         )
         .expect("unconditional provider correspondence grant");
-        let rejection = admit_schema_device_correspondence(grant, PlacementPlanId(22), receipt)
+        let drifted_placement = test_placement(22);
+        let rejection = admit_schema_device_correspondence(grant, &drifted_placement, receipt)
             .expect_err("placement drift must reject");
         assert!(rejection.diagnostic().0.contains("validated placement"));
         let (grant, _) = rejection.into_parts();
 
-        let rejection =
-            admit_schema_device_correspondence(grant, PlacementPlanId(21), receipt_id(23))
-                .expect_err("profile-grant drift must reject");
+        let rejection = admit_schema_device_correspondence(grant, &placement, receipt_id(23))
+            .expect_err("profile-grant drift must reject");
         assert!(rejection.diagnostic().0.contains("resource-profile grant"));
         let (grant, _) = rejection.into_parts();
 
-        let admitted = admit_schema_device_correspondence(grant, PlacementPlanId(21), receipt)
+        let admitted = admit_schema_device_correspondence(grant, &placement, receipt)
             .expect("returned provider grant supports corrected retry");
         assert_eq!(admitted.provider(), provider);
         assert_eq!(admitted.device(), device);
@@ -798,18 +823,19 @@ mod tests {
         let provider = provider_id(27);
         let device = device_id(28);
         let receipt = receipt_id(29);
+        let placement = test_placement(31);
         let mut grant = SchemaDeviceCorrespondenceGrant::from_admitted_provider(
             provider,
             device,
             source(30),
-            PlacementPlanId(31),
+            &placement,
             receipt,
             Some(revision(provider, device, receipt)),
         )
         .expect("provider correspondence grant");
         grant.revision.as_mut().expect("revision evidence").device = device_id(99);
 
-        let rejection = admit_schema_device_correspondence(grant, PlacementPlanId(31), receipt)
+        let rejection = admit_schema_device_correspondence(grant, &placement, receipt)
             .expect_err("admission must independently replay revision binding");
         assert!(rejection.diagnostic().0.contains("could not replay"));
         let (mut grant, _) = rejection.into_parts();
@@ -819,7 +845,7 @@ mod tests {
             .expect("returned revision evidence")
             .device = device;
 
-        let admitted = admit_schema_device_correspondence(grant, PlacementPlanId(31), receipt)
+        let admitted = admit_schema_device_correspondence(grant, &placement, receipt)
             .expect("repaired grant remains valid for retry");
         assert_eq!(admitted.device(), device);
         assert_eq!(
