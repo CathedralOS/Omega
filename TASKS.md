@@ -2506,6 +2506,13 @@ Remaining:
   discovery and prefix replay remain independently implemented. Source order,
   witness/proof shape, rejection behavior, and the fixed four-definition
   frontier remain unchanged.
+  Exact affine evidence precedence now lives in paired, side-local
+  `affine_selection/dispatch` modules. Producer and reconstruction
+  independently retain direct bound, landed literal, one-alias, direct two-
+  citation, one-alias two-citation, then two-alias order; entry modules remain
+  responsible for constructing their invocation-local definition indexes.
+  Evidence custody, proof shapes, rejection behavior, and every fixed alias,
+  citation, and definition frontier remain unchanged.
   One-equality transitive affine completion now lives in independent side-local
   `affine_selection/transitive/alias/completion` modules. Each parent retains
   its own ledger-ordered equality discovery, distinct root/alias custody, and
@@ -5020,6 +5027,22 @@ Owners:
   through exact checked-report executable receipts while preserving literal
   status 70 and detailed diagnostics. Exact-owner ambiguity, the 795 rooted/3
   legacy inventory, and receipt-drift fences remain green.
+  Two authored-root float-breadth regressions—negative comparisons plus
+  integer/float and f32/f64 casts with nested-field arithmetic, and broad f64/
+  f32 arithmetic/cast/local-field coverage—now launch `OutputOnly` native
+  execution solely through exact checked-report executable receipts while
+  preserving literal status 70 and detailed diagnostics. Exact-owner ambiguity,
+  the 795 rooted/3 legacy inventory, and receipt-drift fences remain green;
+  trapping/crash semantics are unchanged. Both owners retain a measured 4.0–
+  4.2s warm compiler-body cost for later phase-level profiling.
+  Four authored-root range-inference regressions—multipath return-union
+  inference, an inferred callee return bound, construction of a range-refined
+  field from a provable non-literal value, and plain struct-field fact
+  narrowing—now launch `OutputOnly` native execution solely through exact
+  checked-report executable receipts while preserving literal status 70 and
+  Exact-proof diagnostics. Exact-owner ambiguity, the 795 rooted/3 legacy
+  inventory, and receipt-drift fences remain green; payload-range owners remain
+  separate.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
@@ -5246,6 +5269,13 @@ reach or trust, and private proof improvements do not change public identity.
   composition and object/image orchestration remain in the 5,465-line parent.
   Public APIs, error order, exact bytes, and the 140-function crate inventory
   remain unchanged.
+  Exact whole-root structural-return replay now lives in a focused 228-line
+  `structural_return` child, independently validating native ABI placements,
+  Terminal-Psi provenance, fuel attribution, place/type/multiplicity/
+  qualification identity, affine discard order, and final x86-64/AArch64 return
+  bytes. Object construction and stack/image orchestration remain in the 5,255-
+  line parent; APIs, errors, bytes, order, and the 140-function inventory remain
+  unchanged.
   Provider-sized external adapter/arrival state is design-blocked on
   `OWNER_QUESTIONS.md` Q3: stack-domain ownership across interrupted and
   switched entry must be settled before this can become a complete root
