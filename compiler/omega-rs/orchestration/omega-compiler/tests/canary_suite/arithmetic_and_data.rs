@@ -3193,10 +3193,13 @@ fn const_fold_saturating_narrow_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("saturating narrow const-fold canary should compile");
 
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("saturating narrow const-fold canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("saturating narrow const-fold canary should run");
 
@@ -3233,10 +3236,13 @@ fn const_fold_wrapping_narrow_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("wrapping narrow const-fold canary should compile");
 
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("wrapping narrow const-fold canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("wrapping narrow const-fold canary should run");
 
