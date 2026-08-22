@@ -1,21 +1,27 @@
 //! Final native result-placement replay for admitted boundary realizations.
 
-use omega_calling_conventions::{MachineRegister, ValueLocation, ValuePlacement, ValueShape};
+use omega_calling_conventions::{MachineRegister, ValueLocation, ValueShape};
 use omega_target::{Architecture, NativeTarget};
+use omega_terminal_machine_code::TerminalBoundaryResultRecord;
 use omega_terminal_target_operations::TerminalBoundaryRealization;
+use psi_core::{IntegerSign, IntegerType, ScalarType};
 
-pub(super) fn boundary_result_placement_is_exact(
+pub(super) fn boundary_result_is_exact(
     target: NativeTarget,
     realization: TerminalBoundaryRealization,
-    placement: Option<&ValuePlacement>,
+    result: Option<&TerminalBoundaryResultRecord>,
 ) -> bool {
     match realization {
-        TerminalBoundaryRealization::MetadataOnlyPort(_) => placement.is_none(),
+        TerminalBoundaryRealization::MetadataOnlyPort(_) => result.is_none(),
         TerminalBoundaryRealization::DirectPortReadU8(_) => {
             target.architecture == Architecture::X86_64
-                && placement.is_some_and(|placement| {
-                    placement.shape == ValueShape::integer(1, 1)
-                        && placement.locations.as_slice()
+                && result.is_some_and(|result| {
+                    result.scalar_type
+                        == ScalarType::Integer(
+                            IntegerType::new(IntegerSign::Unsigned, 8).expect("u8 is valid"),
+                        )
+                        && result.placement.shape == ValueShape::integer(1, 1)
+                        && result.placement.locations.as_slice()
                             == [ValueLocation::Register {
                                 register: MachineRegister::X86Rax,
                                 value_byte_offset: 0,
@@ -29,6 +35,7 @@ pub(super) fn boundary_result_placement_is_exact(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use omega_calling_conventions::ValuePlacement;
     use omega_terminal_target_operations::{
         TerminalDirectPortReadU8Realization, TerminalMetadataOnlyPortRealization,
     };
@@ -49,20 +56,34 @@ mod tests {
                 byte_size: 1,
             }],
         };
-        assert!(boundary_result_placement_is_exact(
+        let result = TerminalBoundaryResultRecord {
+            value: psi_core::ValueId::new(1).expect("value"),
+            scalar_type: ScalarType::Integer(
+                IntegerType::new(IntegerSign::Unsigned, 8).expect("u8"),
+            ),
+            placement: placement.clone(),
+        };
+        assert!(boundary_result_is_exact(
             NativeTarget::linux_x64(),
             direct,
-            Some(&placement),
+            Some(&result),
         ));
-        assert!(!boundary_result_placement_is_exact(
+        assert!(!boundary_result_is_exact(
             NativeTarget::linux_arm64(),
             direct,
-            Some(&placement),
+            Some(&result),
         ));
-        assert!(!boundary_result_placement_is_exact(
+        assert!(!boundary_result_is_exact(
             NativeTarget::linux_x64(),
             direct,
             None,
+        ));
+        let mut wrong_type = result.clone();
+        wrong_type.scalar_type = ScalarType::Boolean;
+        assert!(!boundary_result_is_exact(
+            NativeTarget::linux_x64(),
+            direct,
+            Some(&wrong_type),
         ));
 
         let metadata =
@@ -72,15 +93,15 @@ mod tests {
                 port: 0x20,
                 value: 0x20,
             });
-        assert!(boundary_result_placement_is_exact(
+        assert!(boundary_result_is_exact(
             NativeTarget::linux_x64(),
             metadata,
             None,
         ));
-        assert!(!boundary_result_placement_is_exact(
+        assert!(!boundary_result_is_exact(
             NativeTarget::linux_x64(),
             metadata,
-            Some(&placement),
+            Some(&result),
         ));
     }
 }

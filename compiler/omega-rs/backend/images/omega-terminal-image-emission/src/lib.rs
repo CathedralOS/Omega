@@ -46,7 +46,7 @@ pub use installation::*;
 pub(crate) use partial_cleanup_partition::exact_partial_cleanup_partition;
 pub use stack_demand::{derive_terminal_stack_demand, derive_terminal_unit_stack_demand};
 
-use boundary_results::boundary_result_placement_is_exact;
+use boundary_results::boundary_result_is_exact;
 use completion_receipts::completion_receipts_have_exact_custody;
 use scalar_cleanup_preservation::validate_scalar_cleanup_preservation;
 use scalar_conditional_call_paths::{conditional_call_path, conditional_paths_are_exclusive};
@@ -958,10 +958,10 @@ pub fn build_terminal_object_artifact(
                 }
             };
             if !valid_realization
-                || !boundary_result_placement_is_exact(
+                || !boundary_result_is_exact(
                     plan.target,
                     settlement.realization,
-                    settlement.native_result_placement.as_ref(),
+                    settlement.native_result.as_ref(),
                 )
             {
                 return Err(TerminalObjectError::BoundaryRealizationMismatch {

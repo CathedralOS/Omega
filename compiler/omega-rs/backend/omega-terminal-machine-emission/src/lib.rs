@@ -21,9 +21,9 @@ use omega_terminal_machine_code::{
     TerminalStackAdjustmentPair, TerminalUnitCallStackEvidence, TerminalUnitStackEvidence,
 };
 use omega_terminal_machine_code::{
-    TerminalBoundarySettlementRecord, TerminalMachineCodeFunction, TerminalMachineCodePlan,
-    TerminalNativeFuelAttribution, TerminalNativeFuelSite, TerminalScalarControlFlowEvidence,
-    TerminalStructuralReturnRecord,
+    TerminalBoundaryResultRecord, TerminalBoundarySettlementRecord, TerminalMachineCodeFunction,
+    TerminalMachineCodePlan, TerminalNativeFuelAttribution, TerminalNativeFuelSite,
+    TerminalScalarControlFlowEvidence, TerminalStructuralReturnRecord,
 };
 use omega_terminal_target_operations::MachineRegister;
 #[cfg(test)]
@@ -173,6 +173,7 @@ fn emit_function(
         TerminalAssignedOperation::ReturnBoundaryPortReadU8 {
             psi_edge,
             psi_operation,
+            source_value,
             boundary,
             provider_execution,
             realization,
@@ -225,7 +226,14 @@ fn emit_function(
                 arguments: arguments.clone(),
                 completion_claim_sources: completion_claim_sources.clone(),
                 completion_receipts: completion_receipts.clone(),
-                native_result_placement: call_plan.result.clone(),
+                native_result: Some(TerminalBoundaryResultRecord {
+                    value: *source_value,
+                    scalar_type: psi_core::ScalarType::Integer(
+                        psi_core::IntegerType::new(psi_core::IntegerSign::Unsigned, 8)
+                            .expect("u8 is valid"),
+                    ),
+                    placement: call_plan.result.clone().expect("checked above"),
+                }),
                 operation_ordinal: 0,
                 code_offset: 0,
                 byte_count: read_byte_count,
