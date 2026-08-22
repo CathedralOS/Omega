@@ -910,6 +910,17 @@ Owners:
   return the exact selected schema and lowered fragment for corrected retry.
   This establishes no provider-operation authority, consumer semantics,
   publication, or native execution.
+  External-root writer preparation now consumes and seals the exact activated,
+  pinned, writable, unpublished destination before the installed resolver
+  observes symbolic sources. The destination's non-clonable mapping,
+  preparation receipt, placement, and mutable byte view remain joined to the
+  selected schema, exact AOT lowering, and provider-populated context through
+  binding and execution. Preparation rejection returns the selected schema,
+  lowering, and destination intact; execution rejection and written recovery
+  return the complete bound carrier with that same destination, preventing
+  same-geometry destination substitution after resolution. This establishes no
+  provider-operation authority, consumer semantics, publication, or native
+  execution.
 
 Acceptance: UART/MMIO, shared-page IPC, and ordinary RAM use one extent/layout
 foundation with different profiles. Misalignment, insufficient rights,
@@ -2809,6 +2820,20 @@ Remaining:
   reconstruction independently rebuilds the same two root-bound propositions.
   Completion parents retain affine custody, so equality order, proof shape,
   rejection, and the fixed definition frontier are unchanged.
+  Direct two-citation affine root-bound construction now lives in paired, side-
+  local `affine_selection/transitive/completion/bound` modules. The producer
+  independently constructs the exact `IntegerLessOrEqualTransitivity` node from
+  the ordered citations, while reconstruction independently rebuilds the same
+  `left <= right` proposition. Completion parents retain left-then-right value-
+  root traversal and affine custody, so citation order, proof shape, rejection,
+  and the fixed definition frontier are unchanged.
+  The two ordered direct landed-literal affine root bounds now live in paired,
+  side-local `affine_selection/literal/direct/completion/bound` modules. The
+  producer independently constructs the closed reflexive relation and endpoint
+  substitution for endpoint 1 before endpoint 0; reconstruction independently
+  rebuilds the same two root-bound propositions. Completion parents retain
+  affine custody, so equality order, proof shape, rejection, and the fixed
+  definition frontier are unchanged.
   Corpus-level bounded parallelism is viable at the harness boundary: the
   differential runner now defaults to four independent jobs with one native
   backend worker each, retains deterministic corpus-order reporting, and
@@ -3782,6 +3807,18 @@ Owners:
   preserving status 70 and each result-specific diagnostic. Report-bearing and
   known slow float/cast/policy owners remain excluded; exact-owner pins remain
   stable.
+  Five further authored-root collection executions—coin-change dynamic
+  programming, open-addressed hashing, matrix multiplication, ring-buffer
+  queuing, and bubble sorting—now launch solely through checked-report receipts
+  while preserving status 70 and their exact result diagnostics. Report-
+  bearing, known slow float/cast/policy, and exceptional historical-hang owners
+  remain excluded; exact-owner pins remain stable.
+  Five further authored-root indexed/container executions—2D transpose, guarded
+  indexed access, binary search, two-pointer palindrome checking, and nested
+  struct-array field access—now launch solely through checked-report receipts
+  while preserving status 70 and exact result diagnostics. Exceptional
+  historical-hang, report-bearing, float/cast, and policy owners remain
+  excluded; exact-owner pins remain stable.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
