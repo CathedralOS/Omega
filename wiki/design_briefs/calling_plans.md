@@ -1093,3 +1093,9 @@ The five authored-root native executions in the value/type-check cohort now
 use the same checked-report runner boundary. They retain their exact literal
 exit-status assertions while removing every conventional `out/<executable>`
 reconstruction; the strict source index preserves the same unique-owner count.
+
+The first five authored-root value-call/dispatch executions now also launch
+only from the checked report's flat publication receipt. Their exact literal
+status and unique source-owner identities remain unchanged; compiler-function
+fingerprint drift between the flat and bundle copies is pinned to suppress the
+executable path before any probe can run.
