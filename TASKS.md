@@ -481,8 +481,13 @@ Remaining:
   records and scalar-control cleanup lists now share a private 203-line codec.
   Function-row presence fields and order, structural/local/action bytes,
   literal identity diagnostics, count/capacity guards, cleanup canonicality,
-  fuel/call validation, and admission replay remain unchanged. The installation
-  parent is now 4,385
+  fuel/call validation, and admission replay remain unchanged. Each installed
+  structural-return row now lives in a private 158-line codec. Machine/edge
+  identity, ordered parameters and placements, source/result declarations,
+  returned claims, trivial affine locals and discards, offsets, literal
+  diagnostics, representability errors, exact bytes, and precedence remain
+  unchanged; the parent retains function association, validation, and
+  admission replay. The installation parent is now 4,244
   lines. This is
   custody, not
   authorization. The remaining
