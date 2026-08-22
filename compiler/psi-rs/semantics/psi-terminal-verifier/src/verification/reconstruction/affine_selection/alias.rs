@@ -2,10 +2,9 @@
 
 use psi_core::{Proposition, PropositionContext};
 
-use super::super::{
-    affine_custody::{self, DefinitionIndex},
-    alias_transport,
-};
+use super::super::{affine_custody::DefinitionIndex, alias_transport};
+
+mod completion;
 
 pub(super) fn retained_one(
     context: &PropositionContext,
@@ -15,7 +14,7 @@ pub(super) fn retained_one(
     definitions: &DefinitionIndex,
 ) -> bool {
     alias_transport::retained_one(requirements, semantic_axioms, |root, root_bound| {
-        affine_custody::retained_from_root(
+        completion::retained(
             context,
             goal,
             semantic_axioms,
@@ -34,7 +33,7 @@ pub(super) fn retained_two(
     definitions: &DefinitionIndex,
 ) -> bool {
     alias_transport::retained_two(requirements, semantic_axioms, |root, root_bound| {
-        affine_custody::retained_from_root(
+        completion::retained(
             context,
             goal,
             semantic_axioms,

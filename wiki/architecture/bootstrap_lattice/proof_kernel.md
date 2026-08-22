@@ -871,6 +871,14 @@ A third alias, literal landing through two aliases, affine/cast, shift/cast,
 joins, and correlated results remain outside this sibling; neither complete
 exact row changes trust and `fully-derived false` remains.
 
+The fixed one- and two-alias affine branches share one side-local custody
+handoff after their distinct bounded selectors finish. Independent producer
+and reconstruction `affine_selection/alias/completion` modules accept the
+selected root and transported bound and invoke their own affine custody. The
+`affine_selection/alias` parents retain one-alias before two-alias dispatch;
+alias enumeration, citation identity, substitution proof bytes, rejection, and
+both fixed frontiers remain unchanged.
+
 The shared exact-shift core has a matching non-serialized checked witness.
 `IntegerShiftChainWitness` selects a nonempty, strictly ordered sequence of
 canonical exact-left or exact-right shift equalities from one fixed-native SSA
