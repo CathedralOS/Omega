@@ -149,6 +149,10 @@ fn reject_quotient_operation_requests(program: &TypedTrees, diagnostics: &mut Ve
                         .render_public_precondition()
                         .map(|value| format!(" plus exact {value}"))
                         .unwrap_or_default();
+                    let precondition_correspondence = plan
+                        .render_define_precondition_correspondence()
+                        .map(|value| format!(" plus exact {value}"))
+                        .unwrap_or_default();
                     let result_path = if result_root.alias_count == 0 {
                         "the exact result root".to_owned()
                     } else {
@@ -176,7 +180,7 @@ fn reject_quotient_operation_requests(program: &TypedTrees, diagnostics: &mut Ve
                         ", and all normalized result exits"
                     };
                     diagnostics.push(Diagnostic::error(format!(
-                        "`Quotient::{operation}` has compiler-derived {plan_kind} relations {} and {} plus exact representative telescope {}{correspondence}{public_precondition}{precondition} and {result_flow}, but executable quotient operations are not admitted until complete operation/static correspondence, the selected `Respects` contract, effect/termination fences{remaining_result_fence} are independently checked",
+                        "`Quotient::{operation}` has compiler-derived {plan_kind} relations {} and {} plus exact representative telescope {}{correspondence}{public_precondition}{precondition}{precondition_correspondence} and {result_flow}, but executable quotient operations are not admitted until complete operation/static correspondence, the selected `Respects` contract, effect/termination fences{remaining_result_fence} are independently checked",
                         plan.render_ra(program),
                         plan.render_rr(program),
                         plan.render_representative_telescope(program),
