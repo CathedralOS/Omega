@@ -3477,6 +3477,11 @@ Remaining:
   writes, stale-file removal, and executable-container encoding. Report
   rendering remains in the 2,855-line parent and focused renderer children;
   public methods, exact outputs, and the 79-function inventory are unchanged.
+  Human-readable target, contract, unchecked-policy, and capability-blast-
+  radius presentation now lives in a focused 112-line `boundary_report` child.
+  The 2,751-line parent retains artifact carriers and general report
+  orchestration; public methods, exact output, and the 79-function inventory
+  are unchanged.
   Development and test profiles now both omit full DWARF by default, with an
   explicit `CARGO_PROFILE_{DEV,TEST}_DEBUG=2` escape hatch for debugger
   sessions. On the same macOS host, rebuilding the development CLI after the
@@ -5260,6 +5265,13 @@ Owners:
   rooted/3 legacy inventory, and receipt-drift fences remain green; cyclic/
   loop-heavy, report-bearing, slow-float, crash-specific, timer, and explicit
   legacy owners remain untouched.
+  The authored-root integer-only narrow/widen conversion regression now
+  launches `OutputOnly` native execution solely through its exact checked-
+  report executable receipt while preserving literal exit 70 and the named-
+  conversion/policy-qualified `u8` zero-extension plus `i8` sign-extension
+  diagnostic. Exact-owner ambiguity, the 795 rooted/3 legacy inventory, and
+  receipt-drift fences remain green; cyclic/loop-heavy, report-bearing, slow-
+  float, crash-specific, timer, and explicit legacy owners remain untouched.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
@@ -5533,6 +5545,11 @@ reach or trust, and private proof improvements do not change public identity.
   in a focused 128-line `stack_demand` child behind the unchanged crate-root
   re-export. The 3,950-line parent retains terminal image orchestration, with
   native bytes, validation order, and the 69-function inventory unchanged.
+  Final import/relocation closure, executable-region coverage, exact function-
+  span binding, and relocation-envelope replay now live in a focused 72-line
+  `final_image_validation` child. The 3,892-line parent retains construction
+  and terminal orchestration, with native bytes, validation order, and the 69-
+  function inventory unchanged.
   The installed-cleanup ordinal-tamper regression now locates the authoritative
   internal-call custody row by its complete machine/text-offset/owner/target
   header before mutating the ordinal, rather than accidentally changing an
