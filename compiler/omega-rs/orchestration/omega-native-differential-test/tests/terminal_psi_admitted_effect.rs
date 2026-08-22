@@ -208,14 +208,14 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
         identity: root_id(56, ProviderPlanId::from_normalized_identity),
         schema: selected_provider.schema.clone(),
     };
+    let mut wrong_provider_bytes = [0u8; 16];
     let error = wrong_selected_provider
         .prepare_post_handoff_entry_writer(
             lowered_writer.clone(),
             &execution,
             &installed_code,
             &writer,
-            16,
-            writer_site(0x8000),
+            prepared_writer_destination(0x8000, &mut wrong_provider_bytes),
         )
         .expect_err("selected provider closure drift must reject");
     assert!(error.diagnostic().0.contains("selected provider plan"));
@@ -225,14 +225,14 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
         .parameter_type_identities
         .push("Test::ExtraBoundaryWord".into());
     let drifted_selected_snapshot = drifted_selected_schema.clone();
+    let mut drifted_schema_bytes = [0u8; 16];
     let error = drifted_selected_schema
         .prepare_post_handoff_entry_writer(
             lowered_writer.clone(),
             &execution,
             &installed_code,
             &writer,
-            16,
-            writer_site(0x8000),
+            prepared_writer_destination(0x8000, &mut drifted_schema_bytes),
         )
         .expect_err("selected source schema drift must reject before provider preparation");
     assert!(
@@ -241,9 +241,12 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
             .0
             .contains("exact prepared writer requirement")
     );
-    let (returned_selected, returned_lowered) = error.into_parts();
+    let (returned_selected, returned_lowered, returned_destination) = error.into_parts();
     assert_eq!(returned_selected, drifted_selected_snapshot);
     assert_eq!(returned_lowered, lowered_writer);
+    assert_eq!(returned_destination.site(), writer_site(0x8000));
+    assert_eq!(returned_destination.len(), 16);
+    let mut wrong_writer_bytes = [0u8; 16];
     assert!(
         selected_provider
             .clone()
@@ -252,8 +255,7 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
                 &execution,
                 &installed_code,
                 &entry_writer(EntryStubId::from_normalized_identity(13).unwrap()),
-                16,
-                writer_site(0x8000),
+                prepared_writer_destination(0x8000, &mut wrong_writer_bytes),
             )
             .expect_err("writer entry drift must reject")
             .diagnostic()
@@ -262,6 +264,7 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
     );
     let selected_provider_snapshot = selected_provider.clone();
     let lowered_writer_snapshot = lowered_writer.clone();
+    let mut drifted_placement_bytes = [0u8; 16];
     let error = selected_provider
         .clone()
         .prepare_post_handoff_entry_writer(
@@ -269,14 +272,15 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
             &execution,
             &installed_code,
             &writer,
-            16,
-            writer_site(0x8008),
+            prepared_writer_destination(0x8008, &mut drifted_placement_bytes),
         )
         .expect_err("destination placement drift must reject");
     assert!(error.diagnostic().0.contains("align"));
-    let (returned_selected, returned_lowered) = error.into_parts();
+    let (returned_selected, returned_lowered, returned_destination) = error.into_parts();
     assert_eq!(returned_selected, selected_provider_snapshot);
     assert_eq!(returned_lowered, lowered_writer_snapshot);
+    assert_eq!(returned_destination.site(), writer_site(0x8008));
+    assert_eq!(returned_destination.len(), 16);
     let drifted_lowering = lower_post_handoff_writer_fragment(
         NativeTarget::linux_x64(),
         MachineRegister::X86Rdi,
@@ -285,34 +289,38 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
     .expect("same reusable geometry with a different symbolic entry");
     let drifted_lowering_snapshot = drifted_lowering.clone();
     let selected_provider_snapshot = selected_provider.clone();
+    let mut drifted_lowering_bytes = [0u8; 16];
     let error = selected_provider
         .prepare_post_handoff_entry_writer(
             drifted_lowering,
             &execution,
             &installed_code,
             &writer,
-            16,
-            writer_site(0x8000),
+            prepared_writer_destination(0x8000, &mut drifted_lowering_bytes),
         )
         .expect_err("lowered writer drift must reject before provider preparation");
     assert!(error.diagnostic().0.contains("exact provider writer plan"));
-    let (selected_provider, returned_lowering) = error.into_parts();
+    let (selected_provider, returned_lowering, returned_destination) = error.into_parts();
     assert_eq!(selected_provider, selected_provider_snapshot);
     assert_eq!(returned_lowering, drifted_lowering_snapshot);
+    assert_eq!(returned_destination.site(), writer_site(0x8000));
+    assert_eq!(returned_destination.len(), 16);
+    let mut destination_bytes = [0u8; 16];
     let preparation = selected_provider
         .prepare_post_handoff_entry_writer(
             lowered_writer,
             &execution,
             &installed_code,
             &writer,
-            16,
-            writer_site(0x8000),
+            prepared_writer_destination(0x8000, &mut destination_bytes),
         )
         .expect("selected provider closure should prepare its exact AOT writer");
     assert_eq!(
         preparation.lowered().invocation(),
         preparation.prepared().invocation()
     );
+    assert_eq!(preparation.destination().site(), writer_site(0x8000));
+    assert_eq!(preparation.destination().len(), 16);
     let bound_writer = bind_external_root_post_handoff_writer_invocation(preparation)
         .expect("lowered fragment, selected source schema, and provider preparation should bind");
     assert_eq!(
@@ -323,28 +331,6 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
         bound_writer.selected_provider().schema.methods[0].requirement_identity,
         "TimerRoot::tick"
     );
-    let mapping = activated_writer_mapping(0x8000, 16);
-    let destination_receipt = DestinationPreparationReceipt::from_admitted_provider(
-        installation_id(
-            210,
-            DestinationPreparationReceiptId::from_normalized_identity,
-        ),
-        &mapping.receipt_context(),
-        ExtentRights::from_normalized_identities([extent_identity(
-            204,
-            ExtentRightId::from_normalized_identity,
-        )]),
-        true,
-        true,
-    );
-    let mut destination_bytes = [0u8; 16];
-    let destination = PreparedPostHandoffWriterDestination::claim(
-        mapping,
-        destination_receipt,
-        writer_site(0x8000),
-        &mut destination_bytes,
-    )
-    .expect("exact activated, pinned, writable, unpublished destination");
     let colliding_code = install_entry_artifact(
         EntryStubId::from_normalized_identity(13).expect("colliding artifact entry"),
     );
@@ -352,20 +338,20 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
     let bound_provider = bound_writer.prepared().provider_execution();
     let bound_context_fingerprint = bound_writer.prepared().context().fingerprint();
     let error = bound_writer
-        .execute(&colliding_code, destination)
+        .execute(&colliding_code)
         .expect_err("exact installed entry evidence outranks colliding report identities");
     assert!(error.diagnostic().0.contains("exact installed artifact"));
-    let (bound_writer, destination) = (*error).into_parts();
+    let bound_writer = (*error).into_bound();
     assert_eq!(bound_writer.lowered(), &bound_lowered);
     assert_eq!(bound_writer.prepared().provider_execution(), bound_provider);
     assert_eq!(
         bound_writer.prepared().context().fingerprint(),
         bound_context_fingerprint
     );
-    assert_eq!(destination.site(), writer_site(0x8000));
-    assert_eq!(destination.len(), 16);
+    assert_eq!(bound_writer.destination().site(), writer_site(0x8000));
+    assert_eq!(bound_writer.destination().len(), 16);
     let written = bound_writer
-        .execute(&installed_code, destination)
+        .execute(&installed_code)
         .expect("recovered bound writer and destination remain usable");
     let error = written
         .recover_for_retry(&colliding_code)
@@ -390,15 +376,15 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
         u64::from_le_bytes(written.bytes()[..8].try_into().unwrap()),
         0x1010
     );
-    let (bound_writer, destination) = written
+    let bound_writer = written
         .recover_for_retry(&installed_code)
         .expect("exact written carrier returns to its sealed retry state");
     assert_eq!(bound_writer.lowered(), &bound_lowered);
     assert_eq!(bound_writer.prepared().provider_execution(), bound_provider);
-    assert_eq!(destination.site(), writer_site(0x8000));
-    assert_eq!(destination.len(), 16);
+    assert_eq!(bound_writer.destination().site(), writer_site(0x8000));
+    assert_eq!(bound_writer.destination().len(), 16);
     let written = bound_writer
-        .execute(&installed_code, destination)
+        .execute(&installed_code)
         .expect("recovered writer and destination execute again");
     let (retained_selected_provider, retained_lowered, written) = written.into_parts();
     assert_eq!(
@@ -898,6 +884,28 @@ fn activated_writer_mapping(base: u64, length: u64) -> psi_extents::MappedExtent
         [activation],
     );
     pending.complete(receipt).unwrap()
+}
+
+fn prepared_writer_destination<'bytes>(
+    base: u64,
+    bytes: &'bytes mut [u8],
+) -> PreparedPostHandoffWriterDestination<'static, 'bytes> {
+    let mapping = activated_writer_mapping(base, bytes.len() as u64);
+    let receipt = DestinationPreparationReceipt::from_admitted_provider(
+        installation_id(
+            210,
+            DestinationPreparationReceiptId::from_normalized_identity,
+        ),
+        &mapping.receipt_context(),
+        ExtentRights::from_normalized_identities([extent_identity(
+            204,
+            ExtentRightId::from_normalized_identity,
+        )]),
+        true,
+        true,
+    );
+    PreparedPostHandoffWriterDestination::claim(mapping, receipt, writer_site(base), bytes)
+        .expect("exact activated, pinned, writable, unpublished destination")
 }
 
 fn install_entry_artifact(entry: EntryStubId) -> InstalledCode {
