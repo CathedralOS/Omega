@@ -500,6 +500,12 @@ Prior-evidence primitives now live in dedicated, side-local
 nodes; reconstruction independently resolves retained integer literals and
 replays closed order. Selectors depend on these leaf helpers without sharing
 authority, changing precedence, or expanding the search frontier.
+Canonical integer coordination now lives in dedicated, side-local
+`integer_selection` modules. The producer independently builds the recursive
+Truth/conjunction/disjunction/order proof shape before the public entry applies
+the kernel check; reconstruction independently replays canonical proposition
+shape and fixed bound dispatch. Each preserves its prior precedence and finite
+evidence frontier.
 One exact prior value equality may also transport a completed affine bound from
 its checked target alias to the canonical goal endpoint. The producer replaces
 that one endpoint, constructs the bounded affine relation directly, and wraps
