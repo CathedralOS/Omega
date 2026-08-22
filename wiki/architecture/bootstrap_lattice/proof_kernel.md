@@ -700,6 +700,14 @@ order, strict definition boundaries, proof shapes, rejection behavior, and the
 fixed witness frontier do not change, and no authority crosses the producer/
 verifier boundary.
 
+The fixed affine/cast/affine sibling likewise separates candidate enumeration
+from completion. Matching producer and verifier `cast/sandwich` parents retain
+cast-root, source-spine, requirement, and root-endpoint order; independent
+`cast/sandwich/completion` modules own the mapped-prefix, exact-cast, then
+affine-suffix composition. Citation identity, strict first/last-cast
+boundaries, nested proof shape, rejection, and the fixed frontier are
+unchanged.
+
 Boundary-aware affine custody is also owned by matching side-local modules.
 Producer and verifier `affine_custody/boundary` modules independently complete
 strict post-boundary roots, and their `affine_custody/mapped` siblings

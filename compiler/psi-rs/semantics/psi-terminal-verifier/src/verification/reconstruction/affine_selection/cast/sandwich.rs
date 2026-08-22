@@ -3,8 +3,9 @@
 use psi_core::{Proposition, PropositionContext, ScalarTerm, ScalarType};
 
 use super::super::super::affine_custody::DefinitionIndex;
-use super::super::super::{affine_custody, cast_custody};
-use super::endpoint;
+use super::super::super::cast_custody;
+
+mod completion;
 
 pub(super) fn retained(
     context: &PropositionContext,
@@ -39,35 +40,18 @@ pub(super) fn retained(
                 if !matches!(root, ScalarTerm::Value { .. }) || root == &source {
                     return false;
                 }
-                let Some(source_bound) = affine_custody::retained_mapped_to_target_before(
+                completion::retained(
                     context,
+                    goal,
                     semantic_axioms,
                     definitions,
                     root,
                     &source,
                     first_cast,
-                    root_bound,
-                ) else {
-                    return false;
-                };
-                let Some(cast_goal) = endpoint::remap(&source_bound, &source, cast_root, cast_type)
-                else {
-                    return false;
-                };
-                cast_custody::retained_from_root(
-                    context,
-                    &cast_goal,
-                    semantic_axioms,
-                    &source,
-                    &source_bound,
-                ) && affine_custody::retained_from_root_after(
-                    context,
-                    goal,
-                    semantic_axioms,
-                    definitions,
                     cast_root,
+                    cast_type,
                     last_cast,
-                    &cast_goal,
+                    root_bound,
                 )
             })
         })
