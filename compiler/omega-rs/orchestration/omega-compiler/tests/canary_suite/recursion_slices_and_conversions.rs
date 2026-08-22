@@ -438,9 +438,12 @@ fn runtime_loop_counter_init_hoisted_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_loop_counter_init_hoisted_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-init-hoisted-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("init-hoisted loop canary should compile from its authored root");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("init-hoisted loop canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("init-hoisted loop canary should run");
     assert_eq!(
@@ -463,9 +466,12 @@ fn runtime_write_first_loop_index_exit_canary_runs() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-write-first-loop-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("write-first loop canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("write-first loop canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("write-first loop canary should run");
     assert_eq!(
