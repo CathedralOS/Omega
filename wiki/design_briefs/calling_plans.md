@@ -712,6 +712,11 @@ For a Mach-O GUI build, the compiler report retains the app-bundle executable
 receipt separately from the flat executable receipt. Both consume the same
 sealed publication and container, while their exact destination paths remain
 distinct; non-bundle targets retain no second receipt.
+The orchestration return independently validates this pair. A bundle receipt
+requires one flat receipt, identical certificate, inventory, publication,
+container, and output-leaf identities, plus distinct destination paths and
+installation identities. Missing, substituted, or self-aliased pairs reject
+instead of reaching the outward compiler report.
 Final relocation replay also builds one exact owner map from every retained
 selected-instruction identity to that function symbol. A selected instruction
 retained twice, an instruction relocation naming another function, or an

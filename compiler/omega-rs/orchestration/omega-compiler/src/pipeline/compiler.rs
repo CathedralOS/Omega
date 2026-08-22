@@ -969,7 +969,7 @@ impl Compiler {
             write_pipeline_shell(&self.options)?;
         }
 
-        Ok(CompileReport {
+        let report = CompileReport {
             root_path: self.options.root_path,
             source_file_count,
             wrote_output: self.options.write_output,
@@ -980,7 +980,13 @@ impl Compiler {
                 .map(|bridge| bridge.binding().clone()),
             program_storage_entry_bridge,
             build_evaluation_usage,
-        })
+        };
+        if !report.has_consistent_executable_publication_custody() {
+            return Err(vec![Diagnostic::error(
+                "compiler report retained inconsistent executable publication receipts",
+            )]);
+        }
+        Ok(report)
     }
 }
 
