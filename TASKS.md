@@ -510,6 +510,10 @@ Owners:
   alignment, offsets, and canonical identity sets. Authored entry order and
   numbered-member presentation renames are nonsemantic; compact fingerprints
   remain report/cache identity and cannot hide geometry drift.
+  The layout-plan foundation's 1,965-line unit corpus now lives in a private
+  test child rather than sharing its 2,801-line production coordinator; all 33
+  unit tests, the integration test, and the public layout-plan surface remain
+  unchanged.
   Erased terms remain semantically mandatory but add no bytes, including nested
   records and fixed arrays whose entire runtime shape is erased. Scalar
   placement/access semantics remain fenced for aggregates. Continue beyond
@@ -4583,6 +4587,12 @@ Owners:
   while preserving literal status 70 and all detailed diagnostics. Exact-owner
   ambiguity, the 795 rooted/3 legacy inventory, and receipt-drift fences remain
   green; intervening timer/control-flow owners remain untouched.
+  Five authored-root dispatched-result delivery executions—alias-read
+  terminals, slice-element terminals, binary terminals, multi-arm results, and
+  guard-subject results—now launch solely through exact checked-report
+  executable receipts while preserving literal status 70 and all detailed
+  result-shape diagnostics. Exact-owner ambiguity, the 795 rooted/3 legacy
+  inventory, and receipt-drift fences remain green.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
