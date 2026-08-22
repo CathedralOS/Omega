@@ -2300,7 +2300,13 @@ Remaining:
   bound; only production materializes and kernel-checks the proof. The `mapped`
   parents retain requested-target and definition-word order, so proof bytes,
   candidate rejection, and the fixed four-definition frontier remain
-  unchanged. Direct
+  unchanged. Post-boundary affine-custody completion now lives in paired, side-
+  local `affine_custody/boundary/completion` modules. Producer and reconstruction
+  independently enforce strict definition- and literal-axiom boundaries before
+  delegating every eligible witness to ordinary affine custody; only production
+  materializes and kernel-checks the proof. The `boundary` parents retain goal-
+  target and definition-word order, so proof bytes, candidate rejection, and
+  the fixed four-definition frontier remain unchanged. Direct
   affine-root custody now lives in independent side-local
   `affine_selection/direct` modules. Production alone retains the exact root-
   bound citation and tries its left then right value endpoints before
@@ -7051,6 +7057,13 @@ Remaining F7 work:
 - retain equally target-specific semantic-edge evidence for every other
   admitted hardware realization; and
 - complete the wider proof/`Real` connection under N6/N8.
+
+Proof-only Exact float-to-integer cast admission now lives in a focused 399-
+line private owner. Finite expression intervals, declared range projection,
+all-incoming guard meets, strict next-float bounds, comparison polarity, and
+exact target-range checks retain fail-closed behavior and diagnostic order. The
+expression-type coordinator is now 1,409 lines; public APIs and the exact 51-
+function inventory remain unchanged.
 
 Checked-result float/integer conversion remains blocked on the separate
 checked-result arithmetic decision listed below.
