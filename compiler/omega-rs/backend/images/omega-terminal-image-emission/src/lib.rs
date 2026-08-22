@@ -16,6 +16,7 @@
 mod installation;
 mod instruction_loads;
 mod scalar_cleanup_preservation;
+mod scalar_conditional_call_paths;
 mod scalar_conditional_regions;
 mod scalar_stack_mutation;
 mod structural_condition_layout;
@@ -29,6 +30,7 @@ pub use installation::*;
 use scalar_cleanup_preservation::{
     validate_scalar_cleanup_preservation, validate_scalar_cleanup_preservation_record,
 };
+use scalar_conditional_call_paths::{conditional_call_path, conditional_paths_are_exclusive};
 use scalar_conditional_regions::{
     collect_conditional_tree_regions, division_branches_in_region, validate_division_branch_regions,
 };
@@ -2947,78 +2949,6 @@ fn replay_scalar_conditional_terminal_region(
         validated_calls,
         None,
     )
-}
-
-fn conditional_call_path(
-    architecture: Architecture,
-    bytes: &[u8],
-    stack: Option<&TerminalScalarStackEvidence>,
-    call: &omega_terminal_machine_code::TerminalInternalCallRelocation,
-) -> Option<Vec<(usize, bool)>> {
-    let TerminalScalarControlFlowEvidence::ConditionalTree { decisions, .. } = &stack?.control_flow
-    else {
-        return None;
-    };
-    let call_offset = match architecture {
-        Architecture::X86_64 => call.offset.checked_sub(1)?,
-        Architecture::Aarch64 => call.offset,
-    };
-    if call_offset >= bytes.len() {
-        return None;
-    }
-    conditional_call_path_in_region(call_offset, 0, bytes.len(), decisions, &mut Vec::new())
-}
-
-fn conditional_call_path_in_region(
-    call_offset: usize,
-    start: usize,
-    end: usize,
-    decisions: &[TerminalScalarConditionalBranchEvidence],
-    path: &mut Vec<(usize, bool)>,
-) -> Option<Vec<(usize, bool)>> {
-    let Some((root, descendants)) = decisions.split_first() else {
-        return (start <= call_offset && call_offset < end).then(|| path.clone());
-    };
-    if start <= call_offset && call_offset < root.branch_offset {
-        return Some(path.clone());
-    }
-    let branch_end = root.branch_offset.checked_add(root.branch_byte_count)?;
-    let true_decision_count =
-        descendants.partition_point(|branch| branch.branch_offset < root.false_arm_offset);
-    let (true_decisions, false_decisions) = descendants.split_at(true_decision_count);
-    if branch_end <= call_offset && call_offset < root.false_arm_offset {
-        path.push((root.branch_offset, true));
-        let result = conditional_call_path_in_region(
-            call_offset,
-            branch_end,
-            root.false_arm_offset,
-            true_decisions,
-            path,
-        );
-        path.pop();
-        return result;
-    }
-    if root.false_arm_offset <= call_offset && call_offset < end {
-        path.push((root.branch_offset, false));
-        let result = conditional_call_path_in_region(
-            call_offset,
-            root.false_arm_offset,
-            end,
-            false_decisions,
-            path,
-        );
-        path.pop();
-        return result;
-    }
-    None
-}
-
-fn conditional_paths_are_exclusive(left: &[(usize, bool)], right: &[(usize, bool)]) -> bool {
-    left.iter().any(|(left_decision, left_outcome)| {
-        right.iter().any(|(right_decision, right_outcome)| {
-            left_decision == right_decision && left_outcome != right_outcome
-        })
-    })
 }
 
 #[allow(clippy::too_many_arguments)]
