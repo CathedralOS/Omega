@@ -171,6 +171,81 @@ fn prove_integer_bound(
             }
         }
     }
+
+    for (outer_citation, outer_equality) in cited_facts(assumptions, semantic_axioms) {
+        let Proposition::Equal(outer_left, outer_right) = outer_equality else {
+            continue;
+        };
+        for (old, middle_alias) in [(outer_left, outer_right), (outer_right, outer_left)] {
+            let endpoint = if old == goal_left {
+                0
+            } else if old == goal_right {
+                1
+            } else {
+                continue;
+            };
+            if !matches!(old, psi_core::ScalarTerm::Value { .. })
+                || !matches!(middle_alias, psi_core::ScalarTerm::Value { .. })
+                || old == middle_alias
+                || old.scalar_type() != middle_alias.scalar_type()
+            {
+                continue;
+            }
+            for (inner_citation, inner_equality) in cited_facts(assumptions, semantic_axioms) {
+                if std::ptr::eq(outer_equality, inner_equality) {
+                    continue;
+                }
+                let Proposition::Equal(inner_left, inner_right) = inner_equality else {
+                    continue;
+                };
+                let target_alias = if inner_left == middle_alias {
+                    inner_right
+                } else if inner_right == middle_alias {
+                    inner_left
+                } else {
+                    continue;
+                };
+                if !matches!(target_alias, psi_core::ScalarTerm::Value { .. })
+                    || target_alias == old
+                    || target_alias == middle_alias
+                    || target_alias.scalar_type() != old.scalar_type()
+                {
+                    continue;
+                }
+                let relation = if endpoint == 0 {
+                    Proposition::LessOrEqual(target_alias.clone(), goal_right.clone())
+                } else {
+                    Proposition::LessOrEqual(goal_left.clone(), target_alias.clone())
+                };
+                let Some(affine) =
+                    prove_bounded_affine_bound(context, &relation, assumptions, semantic_axioms)
+                else {
+                    continue;
+                };
+                let middle_relation = if endpoint == 0 {
+                    Proposition::LessOrEqual(middle_alias.clone(), goal_right.clone())
+                } else {
+                    Proposition::LessOrEqual(goal_left.clone(), middle_alias.clone())
+                };
+                let inner = ProofNode {
+                    conclusion: middle_relation,
+                    rule: ProofRule::IntegerLessOrEqualSubstitution {
+                        relation: Box::new(affine),
+                        equality: Box::new(inner_citation.proof(inner_equality)),
+                        endpoint,
+                    },
+                };
+                return Some(ProofNode {
+                    conclusion: goal.clone(),
+                    rule: ProofRule::IntegerLessOrEqualSubstitution {
+                        relation: Box::new(inner),
+                        equality: Box::new(outer_citation.proof(outer_equality)),
+                        endpoint,
+                    },
+                });
+            }
+        }
+    }
     prove_bounded_affine_bound(context, goal, assumptions, semantic_axioms)
 }
 
@@ -3009,6 +3084,144 @@ mod tests {
             )
             .is_none(),
             "a redirected target equality cannot transport the affine bound",
+        );
+    }
+
+    #[test]
+    fn exact_division_goal_transports_affine_bound_through_two_target_aliases() {
+        let signed = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+        let context = PropositionContext::from_value_types((1..=6).map(|id| {
+            (
+                ValueId::new(id).expect("value id"),
+                ScalarType::Integer(signed),
+            )
+        }))
+        .expect("six i8 values");
+        let divisor = value(2, signed);
+        let goal = Proposition::Disjunction(vec![
+            Proposition::LessOrEqual(divisor.clone(), integer(signed, -2)),
+            Proposition::LessOrEqual(integer(signed, 1), divisor.clone()),
+            Proposition::Conjunction(vec![
+                Proposition::LessOrEqual(divisor, integer(signed, -1)),
+                Proposition::LessOrEqual(integer(signed, -127), value(1, signed)),
+            ]),
+        ]);
+        let outer_alias = Proposition::Equal(value(2, signed), value(4, signed));
+        let inner_alias = Proposition::Equal(value(4, signed), value(5, signed));
+        let positive_root_bound = Proposition::LessOrEqual(integer(signed, 0), value(3, signed));
+        let positive_definition = Proposition::Equal(
+            value(5, signed),
+            ScalarTerm::exact_integer_add(signed, value(3, signed), integer(signed, 1))
+                .expect("exact add"),
+        );
+        let proof = prove_canonical_integer_proposition(
+            &context,
+            &goal,
+            &[
+                positive_root_bound.clone(),
+                outer_alias.clone(),
+                inner_alias.clone(),
+            ],
+            std::slice::from_ref(&positive_definition),
+        )
+        .expect("two exact target aliases transport the positive affine bound");
+        let ProofRule::DisjunctionIntroduction { disjunct, index } = proof.rule else {
+            panic!("two-target-alias divisor selects one canonical arm")
+        };
+        assert_eq!(index, 1);
+        let ProofRule::IntegerLessOrEqualSubstitution {
+            relation,
+            equality,
+            endpoint,
+        } = disjunct.rule
+        else {
+            panic!("the canonical target uses the outer substitution")
+        };
+        assert_eq!(endpoint, 1);
+        assert!(matches!(equality.rule, ProofRule::Assumption { index: 1 }));
+        let ProofRule::IntegerLessOrEqualSubstitution {
+            relation,
+            equality,
+            endpoint,
+        } = relation.rule
+        else {
+            panic!("the middle target uses the inner substitution")
+        };
+        assert_eq!(endpoint, 1);
+        assert!(matches!(equality.rule, ProofRule::Assumption { index: 2 }));
+        assert!(matches!(
+            relation.rule,
+            ProofRule::IntegerAffineBound { .. }
+        ));
+
+        let negative_root_bound = Proposition::LessOrEqual(value(3, signed), integer(signed, 0));
+        let negative_definition = Proposition::Equal(
+            value(5, signed),
+            ScalarTerm::exact_integer_subtract(signed, value(3, signed), integer(signed, 2))
+                .expect("exact subtract"),
+        );
+        let negative = prove_canonical_integer_proposition(
+            &context,
+            &goal,
+            &[
+                negative_root_bound,
+                outer_alias.clone(),
+                inner_alias.clone(),
+            ],
+            std::slice::from_ref(&negative_definition),
+        )
+        .expect("two exact target aliases transport the negative affine bound");
+        let ProofRule::DisjunctionIntroduction { disjunct, index } = negative.rule else {
+            panic!("negative two-target-alias divisor selects one canonical arm")
+        };
+        assert_eq!(index, 0);
+        assert!(matches!(
+            disjunct.rule,
+            ProofRule::IntegerLessOrEqualSubstitution { endpoint: 0, .. }
+        ));
+
+        assert!(
+            prove_canonical_integer_proposition(
+                &context,
+                &goal,
+                &[positive_root_bound.clone(), outer_alias.clone()],
+                std::slice::from_ref(&positive_definition),
+            )
+            .is_none(),
+            "a missing inner target equality cannot reach the affine bound",
+        );
+        assert!(
+            prove_canonical_integer_proposition(
+                &context,
+                &goal,
+                &[
+                    positive_root_bound.clone(),
+                    outer_alias.clone(),
+                    Proposition::Equal(value(4, signed), value(6, signed)),
+                ],
+                std::slice::from_ref(&positive_definition),
+            )
+            .is_none(),
+            "a redirected inner target equality cannot reach the affine bound",
+        );
+        assert!(
+            prove_canonical_integer_proposition(
+                &context,
+                &goal,
+                &[
+                    positive_root_bound,
+                    outer_alias,
+                    inner_alias,
+                    Proposition::Equal(value(5, signed), value(6, signed)),
+                ],
+                &[Proposition::Equal(
+                    value(6, signed),
+                    ScalarTerm::exact_integer_add(signed, value(3, signed), integer(signed, 1),)
+                        .expect("exact add"),
+                )],
+            )
+            .is_none(),
+            "a third target alias is outside the fixed two-equality family",
         );
     }
 
