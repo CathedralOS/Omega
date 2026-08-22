@@ -3,6 +3,7 @@
 use psi_core::Proposition;
 
 use super::super::super::integer_evidence::Citation;
+use super::super::eligibility;
 
 mod left_legs;
 mod right_index;
@@ -33,7 +34,7 @@ impl<'a> TwoCitationChains<'a> {
             self.semantic_axioms,
             |left_citation, left_fact, middle| {
                 for &(right_citation, right_fact) in self.right_legs.candidates(middle) {
-                    if std::ptr::eq(left_fact, right_fact) {
+                    if !eligibility::distinct_facts(left_fact, right_fact) {
                         continue;
                     }
                     if let Some(result) =

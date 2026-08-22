@@ -1,9 +1,17 @@
 //! Exact affine root and alias eligibility for independent reconstruction.
 
-use psi_core::{Proposition, ScalarTerm, ScalarType};
+use psi_core::{IntegerType, Proposition, ScalarTerm, ScalarType};
 
 pub(super) fn is_value(term: &ScalarTerm) -> bool {
     matches!(term, ScalarTerm::Value { .. })
+}
+
+pub(super) fn integer_literal_type(term: &ScalarTerm) -> Option<IntegerType> {
+    term.integer_value().map(|(integer_type, _)| integer_type)
+}
+
+pub(super) fn distinct_facts(left: &Proposition, right: &Proposition) -> bool {
+    !std::ptr::eq(left, right)
 }
 
 pub(super) fn ordered_value_endpoints<'a>(
@@ -21,9 +29,8 @@ pub(super) fn distinct_value_alias(root: &ScalarTerm, alias: &ScalarTerm) -> boo
 
 pub(super) fn exact_value_binding(root: &ScalarTerm, literal: &ScalarTerm) -> bool {
     is_value(root)
-        && literal.integer_value().is_some_and(|(integer_type, _)| {
-            root.scalar_type() == ScalarType::Integer(integer_type)
-        })
+        && integer_literal_type(literal)
+            .is_some_and(|integer_type| root.scalar_type() == ScalarType::Integer(integer_type))
 }
 
 pub(super) fn one_alias_join(
@@ -32,5 +39,5 @@ pub(super) fn one_alias_join(
     inner_equality: &Proposition,
     literal: &ScalarTerm,
 ) -> bool {
-    !std::ptr::eq(outer_equality, inner_equality) && exact_value_binding(root, literal)
+    distinct_facts(outer_equality, inner_equality) && exact_value_binding(root, literal)
 }

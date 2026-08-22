@@ -15,7 +15,9 @@ impl<'a> LandingIndex<'a> {
         let mut by_alias = BTreeMap::<_, Vec<_>>::new();
         equalities::ordered(requirements, semantic_axioms).for_each(
             |(equality, alias, literal)| {
-                if eligibility::is_value(alias) && literal.integer_value().is_some() {
+                if eligibility::is_value(alias)
+                    && eligibility::integer_literal_type(literal).is_some()
+                {
                     by_alias
                         .entry(alias.clone())
                         .or_default()
