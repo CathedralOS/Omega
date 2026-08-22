@@ -650,10 +650,13 @@ fn executable_imported_domain_membership_intersection_value_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("executable imported domain membership intersection value canary should compile");
 
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation.checked_native_executable_path().expect(
+        "executable imported domain membership intersection value canary should retain its executable receipt",
+    );
+    let output = Command::new(executable)
         .output()
         .expect("executable imported domain membership intersection value canary should run");
 
@@ -676,10 +679,13 @@ fn runtime_local_boolean_or_value_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("runtime local boolean or value canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("runtime local boolean or value canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("runtime local boolean or value canary should run");
 
@@ -707,10 +713,13 @@ fn runtime_straight_line_terminal_local_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("straight-line terminal local canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("straight-line terminal local canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("straight-line terminal local canary should run");
 
@@ -737,10 +746,13 @@ fn runtime_straight_line_terminal_field_readback_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("straight-line terminal field read-back canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation.checked_native_executable_path().expect(
+        "straight-line terminal field read-back canary should retain its executable receipt",
+    );
+    let output = Command::new(executable)
         .output()
         .expect("straight-line terminal field read-back canary should run");
 
@@ -792,10 +804,13 @@ fn runtime_negated_boolean_place_guard_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("runtime negated boolean place guard canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("runtime negated boolean place guard canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("runtime negated boolean place guard canary should run");
 
