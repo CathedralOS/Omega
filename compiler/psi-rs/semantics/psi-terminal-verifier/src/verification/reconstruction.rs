@@ -603,6 +603,7 @@ fn retained_bounded_affine_bound(
             requirements,
             semantic_axioms,
         )
+        || retained_two_alias_substituted_affine_bound(context, goal, requirements, semantic_axioms)
 }
 
 fn retained_landed_literal_affine_bound(
@@ -707,6 +708,100 @@ fn retained_alias_substituted_affine_bound(
                             )
                         })
                     })
+                })
+        })
+}
+
+fn retained_two_alias_substituted_affine_bound(
+    context: &PropositionContext,
+    goal: &Proposition,
+    requirements: &[Proposition],
+    semantic_axioms: &[Proposition],
+) -> bool {
+    let facts = || requirements.iter().chain(semantic_axioms);
+    let mut bounds_by_endpoint = BTreeMap::<_, Vec<_>>::new();
+    for fact in facts() {
+        let Proposition::LessOrEqual(left, right) = fact else {
+            continue;
+        };
+        if matches!(left, ScalarTerm::Value { .. }) {
+            bounds_by_endpoint
+                .entry(left.clone())
+                .or_default()
+                .push((fact, 0));
+        }
+        if right != left && matches!(right, ScalarTerm::Value { .. }) {
+            bounds_by_endpoint
+                .entry(right.clone())
+                .or_default()
+                .push((fact, 1));
+        }
+    }
+
+    facts()
+        .filter_map(|outer_equality| match outer_equality {
+            Proposition::Equal(left, right) => Some((outer_equality, left, right)),
+            _ => None,
+        })
+        .any(|(outer_equality, outer_left, outer_right)| {
+            [(outer_left, outer_right), (outer_right, outer_left)]
+                .into_iter()
+                .filter(|(root, middle_alias)| {
+                    root != middle_alias
+                        && matches!(root, ScalarTerm::Value { .. })
+                        && matches!(middle_alias, ScalarTerm::Value { .. })
+                        && root.scalar_type() == middle_alias.scalar_type()
+                })
+                .any(|(root, middle_alias)| {
+                    facts()
+                        .filter(|inner_equality| !std::ptr::eq(outer_equality, *inner_equality))
+                        .filter_map(|inner_equality| match inner_equality {
+                            Proposition::Equal(left, right) => Some((left, right)),
+                            _ => None,
+                        })
+                        .any(|(inner_left, inner_right)| {
+                            let bound_alias = if inner_left == middle_alias {
+                                inner_right
+                            } else if inner_right == middle_alias {
+                                inner_left
+                            } else {
+                                return false;
+                            };
+                            if bound_alias == root
+                                || bound_alias == middle_alias
+                                || !matches!(bound_alias, ScalarTerm::Value { .. })
+                                || bound_alias.scalar_type() != root.scalar_type()
+                            {
+                                return false;
+                            }
+                            bounds_by_endpoint.get(bound_alias).is_some_and(|bounds| {
+                                bounds.iter().any(|(relation, endpoint)| {
+                                    let Proposition::LessOrEqual(relation_left, relation_right) =
+                                        relation
+                                    else {
+                                        unreachable!("only integer bounds are indexed")
+                                    };
+                                    let root_bound = if *endpoint == 0 {
+                                        Proposition::LessOrEqual(
+                                            root.clone(),
+                                            relation_right.clone(),
+                                        )
+                                    } else {
+                                        Proposition::LessOrEqual(
+                                            relation_left.clone(),
+                                            root.clone(),
+                                        )
+                                    };
+                                    retained_affine_bound_from_root(
+                                        context,
+                                        goal,
+                                        semantic_axioms,
+                                        root,
+                                        &root_bound,
+                                    )
+                                })
+                            })
+                        })
                 })
         })
 }
@@ -2562,6 +2657,91 @@ mod tests {
             &[
                 Proposition::Equal(value(5, signed), value(4, signed)),
                 alias_bound,
+            ],
+        ));
+    }
+
+    #[test]
+    fn exact_division_selects_bound_through_two_affine_root_aliases() {
+        let signed = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+        let context = PropositionContext::from_value_types((1..=7).map(|id| {
+            (
+                ValueId::new(id).expect("value id"),
+                ScalarType::Integer(signed),
+            )
+        }))
+        .expect("seven i8 values");
+        let goal = CanonicalScalarGoal::ExactDivisionDefined {
+            integer_type: signed,
+            left: value(1, signed),
+            right: value(2, signed),
+        };
+        let root_to_middle_alias = Proposition::Equal(value(3, signed), value(4, signed));
+        let middle_to_bound_alias = Proposition::Equal(value(4, signed), value(5, signed));
+        let lower_bound = Proposition::LessOrEqual(
+            ScalarTerm::integer(signed, IntegerValue::Signed(0)).expect("i8 zero"),
+            value(5, signed),
+        );
+        let definition = Proposition::Equal(
+            value(2, signed),
+            ScalarTerm::exact_integer_add(
+                signed,
+                value(3, signed),
+                ScalarTerm::integer(signed, IntegerValue::Signed(1)).expect("i8 one"),
+            )
+            .expect("exact add"),
+        );
+        assert!(exact_division_has_prior_certificate(
+            &context,
+            &goal,
+            std::slice::from_ref(&definition),
+            &[
+                root_to_middle_alias.clone(),
+                middle_to_bound_alias.clone(),
+                lower_bound.clone(),
+            ],
+        ));
+        assert!(exact_division_has_prior_certificate(
+            &context,
+            &goal,
+            std::slice::from_ref(&definition),
+            &[
+                root_to_middle_alias.clone(),
+                middle_to_bound_alias.clone(),
+                Proposition::LessOrEqual(
+                    value(5, signed),
+                    ScalarTerm::integer(signed, IntegerValue::Signed(-3)).expect("i8 -3"),
+                ),
+            ],
+        ));
+        assert!(!exact_division_has_prior_certificate(
+            &context,
+            &goal,
+            std::slice::from_ref(&definition),
+            &[root_to_middle_alias.clone(), lower_bound.clone()],
+        ));
+        assert!(!exact_division_has_prior_certificate(
+            &context,
+            &goal,
+            std::slice::from_ref(&definition),
+            &[
+                root_to_middle_alias.clone(),
+                Proposition::Equal(value(4, signed), value(6, signed)),
+                lower_bound,
+            ],
+        ));
+        assert!(!exact_division_has_prior_certificate(
+            &context,
+            &goal,
+            &[definition],
+            &[
+                root_to_middle_alias,
+                middle_to_bound_alias,
+                Proposition::Equal(value(5, signed), value(6, signed)),
+                Proposition::LessOrEqual(
+                    ScalarTerm::integer(signed, IntegerValue::Signed(0)).expect("i8 zero"),
+                    value(6, signed),
+                ),
             ],
         ));
     }
