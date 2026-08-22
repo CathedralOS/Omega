@@ -513,6 +513,7 @@ fn sibling_argument_for<'plan>(
 
 pub fn build_proof_plan(program: &TypedTrees) -> ProofPlan<'_> {
     let mut proof_plan = ProofPlan::new(program);
+    let call_frames = psi_validation::CallFrameResolver::new(program);
 
     for machine in program.machines() {
         for owned_data in program.machine_owned_data(machine) {
@@ -588,6 +589,7 @@ pub fn build_proof_plan(program: &TypedTrees) -> ProofPlan<'_> {
                             assignment,
                             table_statements,
                             statement_index,
+                            call_frames.as_ref(),
                             &mut proof_plan,
                         );
                         continue;
@@ -793,6 +795,7 @@ fn collect_bounded_assignment_obligation(
     assignment: &TableAssignment,
     statements: &[StatementNode],
     statement_index: usize,
+    call_frames: Option<&psi_validation::CallFrameResolver<'_>>,
     proof_plan: &mut ProofPlan<'_>,
 ) {
     // R4 containment intake: the INCLUSIVE upper bounds boundary-call
@@ -800,7 +803,7 @@ fn collect_bounded_assignment_obligation(
     // Resolved calls preserve bounds outside their shared R5 may-write frame;
     // opaque calls invalidate everything and overlapping writes drop a bound.
     let ensures_witness_bounds =
-        ensures_witness_bounds_at(program, machine, statements, statement_index);
+        ensures_witness_bounds_at(program, machine, statements, statement_index, call_frames);
     let target = assignment.target;
     let Some(target_type) = expression_type_reference(program, machine, state, target) else {
         return;
@@ -891,17 +894,16 @@ fn ensures_witness_bounds_at(
     machine: &Machine,
     statements: &[StatementNode],
     upto: usize,
+    call_frames: Option<&psi_validation::CallFrameResolver<'_>>,
 ) -> Vec<(String, i64)> {
     use psi_typed_trees::domain::ProofFact;
     use psi_typed_trees::signature::SignatureContractKind;
-    let call_frames = psi_validation::CallFrameResolver::new(program);
     let mut witnesses: Vec<(String, i64)> = Vec::new();
     for statement in &statements[..upto] {
         match statement {
             StatementNode::Call(call) => {
-                if let Some(written) = call_frames
-                    .as_ref()
-                    .and_then(|frames| frames.may_write_paths(machine, call))
+                if let Some(written) =
+                    call_frames.and_then(|frames| frames.may_write_paths(machine, call))
                 {
                     witnesses.retain(|(place, _)| {
                         written
