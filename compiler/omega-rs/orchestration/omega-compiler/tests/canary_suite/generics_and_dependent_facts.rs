@@ -70,9 +70,12 @@ fn aggregate_transition_args_exit_canary_runs() {
     let canary = pass_canary("structs/aggregate_transition_args_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-aggarg-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("aggregate transition-arg canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("aggregate transition-arg canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("aggregate transition-arg canary should run");
     assert_eq!(
@@ -91,9 +94,12 @@ fn deep_nested_write_paths_exit_canary_runs() {
     let canary = pass_canary("structs/deep_nested_write_paths_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-deepw-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("deep nested write canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("deep nested write canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("deep nested write canary should run");
     assert_eq!(
@@ -112,9 +118,12 @@ fn zii_default_composite_exit_canary_runs() {
     let canary = pass_canary("core/zii_default_composite_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-ziicomp-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("zii composite canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("zii composite canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("zii composite canary should run");
     assert_eq!(
@@ -138,9 +147,12 @@ fn zii_string_host_write_exit_canary_runs() {
     assert_eq!(outcome.stdout, b"\nafter-zii\n".to_vec());
     let build_dir = std::env::temp_dir().join(format!("omega-ziihost-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("zii host-write canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("zii host-write canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("zii host-write canary should run");
     assert_eq!(
@@ -169,9 +181,12 @@ fn zii_default_string_equality_exit_canary_runs() {
     );
     let build_dir = std::env::temp_dir().join(format!("omega-ziistr-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("zii string equality canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("zii string equality canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("zii string equality canary should run");
     assert_eq!(
