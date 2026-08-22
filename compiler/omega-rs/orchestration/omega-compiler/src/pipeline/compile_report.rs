@@ -847,15 +847,14 @@ mod tests {
         assert!(changed.checked_native_executable_path().is_none());
         let mut changed = bundle.clone();
         changed.compiler_text_validation_fingerprint ^= 1;
-        assert!(
-            !report(
-                true,
-                CompileOutputKind::NativeExecutable,
-                Some(flat.clone()),
-                Some(changed),
-            )
-            .has_consistent_executable_publication_custody()
+        let changed = report(
+            true,
+            CompileOutputKind::NativeExecutable,
+            Some(flat.clone()),
+            Some(changed),
         );
+        assert!(!changed.has_consistent_executable_publication_custody());
+        assert!(changed.checked_native_executable_path().is_none());
         let mut changed = bundle.clone();
         changed.compiler_function_validation_fingerprint ^= 1;
         assert!(
