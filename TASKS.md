@@ -463,7 +463,13 @@ Remaining:
   Migrate the current `ExtentCompilerProvisioning`/`sealed_declaration`
   implementation carrier to route-position, capacity-schema, occurrence,
   cardinality, and epoch identities. Preserve provider issuance as a distinct
-  admitted origin. Add source, terminal, artifact, and installation canaries for
+  admitted origin. The current installation seam only checks that provisioning
+  is present; it does not bind route, capacity, or qualification to a selected
+  parameter, and `MappingEraId` is not a lifecycle epoch. Terminal Psi must
+  first provide the canonical requirement-position, qualification, projection/
+  algebra, capacity/family-instance, and artifact-scope schema; installation can
+  then join exact slot occurrences, cardinality, artifact instance, and epoch.
+  Add source, terminal, artifact, and installation canaries for
   a one-root introduction, a finite multi-instance aggregate, an ordinary-call
   mint attempt, an unbounded installation shape, understated producer totals,
   cross-origin composition, stale epoch replay, and coexistence-peak reporting.
@@ -625,6 +631,12 @@ Owners:
   a record. Missing retained rows, extra synthesized members, or case-bearing
   drift reject fail closed before field lookup; no new placement or access
   authority is established.
+  Post-typing placed-view plan replay and installation now live in a focused
+  208-line build-time owner. Policy data/machine, schema/view data, complete
+  admitted field inventory, stable member identity, accessor type/data identity,
+  and unique operation machine/state targets rejoin in the same order before
+  the sealed typed plan is installed; the 107-function package inventory and
+  public behavior remain unchanged, leaving a 590-line coordinator.
   Plan-laid value layouts now retain the exact synthesized data symbol and
   ordered runtime field-symbol inventory independently from their diagnostic
   name. Interpreter record views, recast/relevance validation, boundary ABI
