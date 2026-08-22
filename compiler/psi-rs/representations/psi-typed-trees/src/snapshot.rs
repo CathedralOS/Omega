@@ -40,6 +40,8 @@ pub struct TypedTreesSnapshot {
     pub roots: TypedRootsSnapshot,
     pub tables: TypedTableSnapshot,
     #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub external_bindings: Vec<ExternalBindingSnapshot>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub evidence_forwardings: Vec<EvidenceForwardingSnapshot>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub evidence_package_invocations: Vec<EvidencePackageInvocationSnapshot>,
@@ -137,6 +139,41 @@ impl TypedTreesSnapshot {
                 type_reference_count: program.type_reference_table.type_reference_count(),
                 type_constraint_count: program.type_reference_table.constraint_count(),
             },
+            external_bindings: program
+                .external_bindings
+                .identities()
+                .map(|(identity, binding)| ExternalBindingSnapshot {
+                    identity: identity.0,
+                    binding: match binding {
+                        psi_language_semantics::ExternalBindingIdentity::Import {
+                            library,
+                            symbol,
+                        } => ExternalBindingValueSnapshot::Import {
+                            library: library.clone(),
+                            symbol: symbol.clone(),
+                        },
+                        psi_language_semantics::ExternalBindingIdentity::Syscall { number } => {
+                            ExternalBindingValueSnapshot::Syscall { number: *number }
+                        }
+                        psi_language_semantics::ExternalBindingIdentity::CompilerIntrinsic => {
+                            ExternalBindingValueSnapshot::CompilerIntrinsic
+                        }
+                        psi_language_semantics::ExternalBindingIdentity::VtableSlot { index } => {
+                            ExternalBindingValueSnapshot::VtableSlot { index: *index }
+                        }
+                        psi_language_semantics::ExternalBindingIdentity::VtableField { field } => {
+                            ExternalBindingValueSnapshot::VtableField {
+                                field: field.clone(),
+                            }
+                        }
+                        psi_language_semantics::ExternalBindingIdentity::TableFunction {
+                            field,
+                        } => ExternalBindingValueSnapshot::TableFunction {
+                            field: field.clone(),
+                        },
+                    },
+                })
+                .collect(),
             evidence_forwardings: program
                 .evidence_forwardings
                 .iter()
@@ -184,6 +221,24 @@ impl TypedTreesSnapshot {
     pub fn to_json(&self) -> Result<String, serde_json::Error> {
         serde_json::to_string(self)
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct ExternalBindingSnapshot {
+    pub identity: u32,
+    #[serde(flatten)]
+    pub binding: ExternalBindingValueSnapshot,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum ExternalBindingValueSnapshot {
+    Import { library: String, symbol: String },
+    Syscall { number: i64 },
+    CompilerIntrinsic,
+    VtableSlot { index: i64 },
+    VtableField { field: String },
+    TableFunction { field: String },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]

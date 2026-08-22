@@ -2699,7 +2699,10 @@ conformance cannot change token meaning; and no accepted source contains a
   conformance rows retain the exact `ExternalBindingId` instead of a copied
   rendering; the complete structural binding table now survives into typed
   trees and exposes a fail-closed identity lookup, so consumers can migrate
-  away from syntax rescans without reintroducing a text parser. Provider-plan
+  away from syntax rescans without reintroducing a text parser. Typed public
+  snapshots publish each table id with its closed structural mechanism and
+  fields; a payloadless intrinsic snapshot therefore cannot invent a machine
+  name. Provider-plan
   candidate derivation now walks only typed machines, exact conformance/supply
   identities, and that table; its API accepts no syntax tree that could
   redirect a retained binding.

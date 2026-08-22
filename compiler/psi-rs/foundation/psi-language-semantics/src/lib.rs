@@ -639,6 +639,15 @@ impl ExternalBindingTable {
         let index = usize::try_from(binding.0).ok()?.checked_sub(1)?;
         self.identities.get(index)
     }
+
+    pub fn identities(
+        &self,
+    ) -> impl ExactSizeIterator<Item = (ExternalBindingId, &ExternalBindingIdentity)> {
+        self.identities
+            .iter()
+            .enumerate()
+            .map(|(index, identity)| (ExternalBindingId(index as u32 + 1), identity))
+    }
 }
 
 /// Decision 19/22 (STR4 checked plans, slice 1): the deterministic

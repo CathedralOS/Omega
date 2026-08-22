@@ -145,6 +145,9 @@ fn snapshots_normalized_domain_constraint_identity_and_roles() {
 #[test]
 fn snapshots_normalized_machine_supply_including_external_binding_identity() {
     let mut program = TypedTrees::default();
+    let binding = program
+        .external_bindings
+        .intern(psi_language_semantics::ExternalBindingIdentity::CompilerIntrinsic);
     program.push_machine(Machine {
         name: Identifier::generated("checked"),
         ..Machine::default()
@@ -152,7 +155,7 @@ fn snapshots_normalized_machine_supply_including_external_binding_identity() {
     program.push_machine(Machine {
         name: Identifier::generated("leaf"),
         supply_mode: psi_language_semantics::MachineSupplyMode::ExternalRealization {
-            binding: psi_language_semantics::ExternalBindingId(17),
+            binding,
             mechanism: psi_language_semantics::ExternalBindingMechanism::CompilerIntrinsic,
         },
         ..Machine::default()
@@ -166,11 +169,18 @@ fn snapshots_normalized_machine_supply_including_external_binding_identity() {
     assert_eq!(
         snapshot.roots.machines[1].supply,
         MachineSupplySnapshot::ExternalRealization {
-            binding: 17,
+            binding: 1,
             mechanism: "compiler_intrinsic"
         }
     );
+    assert_eq!(snapshot.external_bindings.len(), 1);
+    assert_eq!(snapshot.external_bindings[0].identity, 1);
+    assert_eq!(
+        snapshot.external_bindings[0].binding,
+        super::ExternalBindingValueSnapshot::CompilerIntrinsic
+    );
     let json = snapshot.to_json_pretty().expect("snapshot JSON");
     assert!(json.contains("\"kind\": \"external_realization\""));
-    assert!(json.contains("\"binding\": 17"));
+    assert!(json.contains("\"binding\": 1"));
+    assert!(json.contains("\"kind\": \"compiler_intrinsic\""));
 }
