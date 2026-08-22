@@ -142,12 +142,33 @@ data EntryControl {
     case InterruptReturn;
 }
 
+// These fields carry compiler-issued nominal identities. Publishing the
+// binder/signature and validated layout-demand catalogs that supply them is a
+// separate compiler step; a policy cannot establish an identity by inventing
+// an integer, and unknown values reject during plan validation.
+data NativePlace {
+    case Parameter(parameter: u64);
+    case Field(
+        parameter: u64,
+        layout: u64,
+        field_path: [u64; 16],
+        field_path_count: u64 [1..=16]
+    );
+}
+
+data CallbackMaterialization {
+    binder: u64;
+    destination: NativePlace;
+}
+
 data CallPlan {
     convention: CallingConvention;
     parameters: [ValuePlacement; 32];
     parameter_count: u64 [0..=32];
     has_result: bool;
     result: ValuePlacement;
+    callback_materializations: [CallbackMaterialization; 32];
+    callback_materialization_count: u64 [0..=32];
     ordinary_clobbers: RegisterSet;
     stack_alignment: u64;
     shadow_bytes: u64;

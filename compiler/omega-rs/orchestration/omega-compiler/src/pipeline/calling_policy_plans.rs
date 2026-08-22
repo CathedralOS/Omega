@@ -5,9 +5,10 @@
 //! behind the closed normalized-plan validator.
 
 use omega_calling_conventions::{
-    BoundaryEntryPlan, BoundaryPlanResult, CallPlan, CallSignature, CallingPolicy,
-    CallingPolicyRejection, EntryControl, EntryStack, IndirectPointerLocation, MachineRegime,
-    MachineRegister, MachineState, MachineStateSet, Preemption, RegisterSet, StatePlan,
+    BoundaryEntryPlan, BoundaryPlanResult, CallPlan, CallSignature, CallbackMaterialization,
+    CallingPolicy, CallingPolicyRejection, EntryControl, EntryStack, IndirectPointerLocation,
+    LayoutPlanId, LayoutSlotId, MachineRegime, MachineRegister, MachineState, MachineStateSet,
+    NativeParameterId, NativePlace, Preemption, RegisterSet, StatePlan, StaticMachineBinderId,
     SystemVEightbyteClass, ValidatedBoundaryEntryPlan, ValueClass, ValueLocation, ValuePlacement,
     ValueShape, evaluate_ordinary_boundary_entry_plan, validate_boundary_plan_result,
 };
@@ -21,6 +22,8 @@ const VALUE_SHAPE_CAPACITY: usize = 256;
 const VALUE_FIELD_CAPACITY: usize = 256;
 const LOCATION_CAPACITY: usize = 16;
 const REGISTER_CAPACITY: usize = 64;
+const CALLBACK_MATERIALIZATION_CAPACITY: usize = 32;
+const CALLBACK_FIELD_PATH_CAPACITY: usize = 16;
 
 #[derive(Clone)]
 struct TraitTypeBinding {
@@ -1677,16 +1680,23 @@ fn decode_call_plan(value: &BuildTimeValue) -> Result<CallPlan, String> {
         decode_value_placement,
     )?;
     let has_result = bool_value(field(fields, "has_result", "CallPlan")?, "has_result")?;
+    let callback_materializations = decode_counted_array(
+        field(fields, "callback_materializations", "CallPlan")?,
+        uint(
+            field(fields, "callback_materialization_count", "CallPlan")?,
+            "callback_materialization_count",
+        )?,
+        CALLBACK_MATERIALIZATION_CAPACITY,
+        "CallPlan.callback_materializations",
+        decode_callback_materialization,
+    )?;
     Ok(CallPlan {
         policy: decode_calling_convention(field(fields, "convention", "CallPlan")?)?,
         parameters,
         result: has_result
             .then(|| decode_value_placement(field(fields, "result", "CallPlan")?))
             .transpose()?,
-        // Source-authored callback materialization rows land in the next
-        // decoder slice. Until then a policy cannot smuggle them through an
-        // ordinal or inferred hidden parameter.
-        callback_materializations: Vec::new(),
+        callback_materializations,
         ordinary_clobbers: decode_register_set(field(fields, "ordinary_clobbers", "CallPlan")?)?,
         stack_alignment: u16_value(
             field(fields, "stack_alignment", "CallPlan")?,
@@ -1695,6 +1705,71 @@ fn decode_call_plan(value: &BuildTimeValue) -> Result<CallPlan, String> {
         shadow_bytes: u16_value(field(fields, "shadow_bytes", "CallPlan")?, "shadow_bytes")?,
         entry_control: decode_entry_control(field(fields, "entry_control", "CallPlan")?)?,
     })
+}
+
+fn decode_callback_materialization(
+    value: &BuildTimeValue,
+) -> Result<CallbackMaterialization, String> {
+    let fields = struct_parts(value, "CallbackMaterialization")?;
+    let binder = uint(
+        field(fields, "binder", "CallbackMaterialization")?,
+        "CallbackMaterialization.binder",
+    )?;
+    Ok(CallbackMaterialization {
+        binder: StaticMachineBinderId::new(binder).ok_or_else(|| {
+            "CallbackMaterialization.binder must be a nonzero compiler-issued identity".to_owned()
+        })?,
+        destination: decode_native_place(field(fields, "destination", "CallbackMaterialization")?)?,
+    })
+}
+
+fn decode_native_place(value: &BuildTimeValue) -> Result<NativePlace, String> {
+    let (variant, payload) = case_parts(value, "NativePlace")?;
+    let parameter = |payload: &[(String, BuildTimeValue)]| {
+        let identity = uint(
+            field(payload, "parameter", "NativePlace")?,
+            "NativePlace.parameter",
+        )?;
+        NativeParameterId::new(identity)
+            .ok_or_else(|| "NativePlace.parameter must be a nonzero nominal identity".to_owned())
+    };
+    match variant {
+        "Parameter" => Ok(NativePlace::Parameter(parameter(payload)?)),
+        "Field" => {
+            let layout = uint(
+                field(payload, "layout", "NativePlace::Field")?,
+                "NativePlace::Field.layout",
+            )?;
+            let field_path = decode_counted_array(
+                field(payload, "field_path", "NativePlace::Field")?,
+                uint(
+                    field(payload, "field_path_count", "NativePlace::Field")?,
+                    "NativePlace::Field.field_path_count",
+                )?,
+                CALLBACK_FIELD_PATH_CAPACITY,
+                "NativePlace::Field.field_path",
+                |value| {
+                    let identity = uint(value, "NativePlace::Field.field_path slot")?;
+                    LayoutSlotId::new(identity).ok_or_else(|| {
+                        "NativePlace::Field.field_path contains a zero slot identity".to_owned()
+                    })
+                },
+            )?;
+            if field_path.is_empty() {
+                return Err("NativePlace::Field.field_path cannot be empty".to_owned());
+            }
+            Ok(NativePlace::Field {
+                parameter: parameter(payload)?,
+                layout: LayoutPlanId::new(layout).ok_or_else(|| {
+                    "NativePlace::Field.layout must be a nonzero nominal identity".to_owned()
+                })?,
+                field_path,
+            })
+        }
+        other => Err(format!(
+            "NativePlace case `{other}` is outside the compiler-owned vocabulary"
+        )),
+    }
 }
 
 fn decode_calling_convention(value: &BuildTimeValue) -> Result<CallingPolicy, String> {
@@ -2094,6 +2169,57 @@ fn u32_value(value: &BuildTimeValue, context: &str) -> Result<u32, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn callback_native_place_decoder_preserves_nominal_field_path() {
+        let direct = case(
+            "Parameter",
+            vec![("parameter".to_owned(), BuildTimeValue::Int(7))],
+        );
+        assert_eq!(
+            decode_native_place(&direct).expect("direct native place"),
+            NativePlace::Parameter(NativeParameterId::new(7).unwrap())
+        );
+
+        let field = case(
+            "Field",
+            vec![
+                ("parameter".to_owned(), BuildTimeValue::Int(7)),
+                ("layout".to_owned(), BuildTimeValue::Int(11)),
+                (
+                    "field_path".to_owned(),
+                    BuildTimeValue::Array(vec![BuildTimeValue::Int(13), BuildTimeValue::Int(17)]),
+                ),
+                ("field_path_count".to_owned(), BuildTimeValue::Int(2)),
+            ],
+        );
+        assert_eq!(
+            decode_native_place(&field).expect("nested native place"),
+            NativePlace::Field {
+                parameter: NativeParameterId::new(7).unwrap(),
+                layout: LayoutPlanId::new(11).unwrap(),
+                field_path: vec![
+                    LayoutSlotId::new(13).unwrap(),
+                    LayoutSlotId::new(17).unwrap(),
+                ],
+            }
+        );
+
+        let mut empty = field;
+        let BuildTimeValue::Case { payload, .. } = &mut empty else {
+            unreachable!()
+        };
+        payload
+            .iter_mut()
+            .find(|(name, _)| name == "field_path_count")
+            .expect("field path count")
+            .1 = BuildTimeValue::Int(0);
+        assert!(
+            decode_native_place(&empty)
+                .expect_err("empty native field path")
+                .contains("cannot be empty")
+        );
+    }
 
     fn nominal_callback_fixture() -> (
         psi_checked_trees::CheckedTrees,
