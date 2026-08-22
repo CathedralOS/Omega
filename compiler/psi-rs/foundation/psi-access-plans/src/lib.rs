@@ -2148,6 +2148,31 @@ pub struct DormantOwnedResident {
     custody_receipt: ExtentContentCustodyReceiptId,
 }
 
+/// Failed owned resident-view establishment preserves the complete dormant
+/// content authority and the exact requested occurrence for corrected retry.
+#[derive(Debug)]
+pub struct OwnedResidentViewEstablishmentError {
+    resident: DormantOwnedResident,
+    occurrence: PlacedOccurrenceId,
+    diagnostic: AccessPlanDiagnostic,
+}
+
+impl OwnedResidentViewEstablishmentError {
+    pub const fn diagnostic(&self) -> &AccessPlanDiagnostic {
+        &self.diagnostic
+    }
+
+    pub fn into_parts(
+        self,
+    ) -> (
+        DormantOwnedResident,
+        PlacedOccurrenceId,
+        AccessPlanDiagnostic,
+    ) {
+        (self.resident, self.occurrence, self.diagnostic)
+    }
+}
+
 impl DormantOwnedResident {
     pub const fn admission(&self) -> PlacementAdmissionId {
         self.admission.identity
@@ -2181,17 +2206,39 @@ impl DormantOwnedResident {
         self.resident_claim
     }
 
-    /// Transfer dormant resident custody into one fresh active placed
-    /// occurrence. The resident claim and provider receipts are forwarded
-    /// unchanged; the occurrence identifies only this active view lifetime.
-    pub fn view(self, occurrence: PlacedOccurrenceId) -> EstablishedOwnedPlacement {
-        EstablishedOwnedPlacement {
+    /// Transfer dormant resident custody into one requested active placed
+    /// occurrence after replaying the retained owned placement authority.
+    /// The resident claim and provider receipts are forwarded unchanged; the
+    /// occurrence issuer remains responsible for global freshness.
+    pub fn view(
+        self,
+        occurrence: PlacedOccurrenceId,
+    ) -> Result<EstablishedOwnedPlacement, OwnedResidentViewEstablishmentError> {
+        let replayed_resources = replay_owned_admission_resources(&self.admission);
+        let diagnostic = match replayed_resources {
+            Ok(resources) if resources == self.admission.resources => None,
+            Ok(_) => Some(AccessPlanDiagnostic(
+                "owned resident view replayed resource compatibility differs from the retained admission"
+                    .into(),
+            )),
+            Err(diagnostic) => Some(AccessPlanDiagnostic(format!(
+                "owned resident view could not replay the retained placement authority: {diagnostic}"
+            ))),
+        };
+        if let Some(diagnostic) = diagnostic {
+            return Err(OwnedResidentViewEstablishmentError {
+                resident: self,
+                occurrence,
+                diagnostic,
+            });
+        }
+        Ok(EstablishedOwnedPlacement {
             admission: self.admission,
             resident_claim: self.resident_claim,
             occurrence,
             validity_receipt: self.validity_receipt,
             custody_receipt: self.custody_receipt,
-        }
+        })
     }
 }
 
@@ -5763,10 +5810,12 @@ mod tests {
         .expect("owned Stable admission");
         let dormant =
             adopt_owned_stable(admission, content).expect("provider-evidenced Stable adoption");
-        let established = dormant.view(
-            PlacedOccurrenceId::from_normalized_identity(admission_identity + 10_000)
-                .expect("placed occurrence"),
-        );
+        let established = dormant
+            .view(
+                PlacedOccurrenceId::from_normalized_identity(admission_identity + 10_000)
+                    .expect("placed occurrence"),
+            )
+            .expect("owned resident-view establishment");
         (plan, established)
     }
 
@@ -5953,7 +6002,8 @@ mod tests {
         assert_eq!(dormant.custody_receipt().normalized_identity(), 94);
 
         let established = dormant
-            .view(PlacedOccurrenceId::from_normalized_identity(96).expect("placed occurrence"));
+            .view(PlacedOccurrenceId::from_normalized_identity(96).expect("placed occurrence"))
+            .expect("owned resident-view establishment");
         assert_eq!(established.admission().normalized_identity(), 95);
         assert_eq!(established.placement_plan().identity(), plan.identity());
         assert_eq!(established.extent().base(), 0xa000);
@@ -6049,7 +6099,8 @@ mod tests {
             &profile,
         )
         .expect("owned Stable admission");
-        let dormant = adopt_owned_stable(admission, content).expect("provider resident adoption");
+        let mut dormant =
+            adopt_owned_stable(admission, content).expect("provider resident adoption");
         let claim = dormant.resident_claim();
         let validity = dormant.validity_receipt();
         let custody = dormant.custody_receipt();
@@ -6057,7 +6108,29 @@ mod tests {
 
         let first_occurrence =
             PlacedOccurrenceId::from_normalized_identity(102).expect("first occurrence");
-        let first = dormant.view(first_occurrence);
+        let coincident = uart_extent_with_lineage(0xa080, 4, 199);
+        dormant.admission.profile = stable_word_profile(&coincident);
+        let rejection = dormant
+            .view(first_occurrence)
+            .expect_err("owned resident view must replay retained placement authority");
+        assert!(
+            rejection
+                .diagnostic()
+                .0
+                .contains("could not replay the retained placement authority"),
+            "{}",
+            rejection.diagnostic()
+        );
+        let (mut dormant, returned_occurrence, _) = rejection.into_parts();
+        assert_eq!(returned_occurrence, first_occurrence);
+        assert_eq!(dormant.resident_claim(), claim);
+        assert_eq!(dormant.validity_receipt(), validity);
+        assert_eq!(dormant.custody_receipt(), custody);
+        assert_eq!(dormant.extent().base(), 0xa080);
+        dormant.admission.profile = profile;
+        let first = dormant
+            .view(returned_occurrence)
+            .expect("first owned resident-view establishment");
         assert_eq!(first.resident_claim(), claim);
         assert_eq!(first.occurrence(), first_occurrence);
         {
@@ -6083,7 +6156,9 @@ mod tests {
 
         let second_occurrence =
             PlacedOccurrenceId::from_normalized_identity(103).expect("second occurrence");
-        let second = dormant.view(second_occurrence);
+        let second = dormant
+            .view(second_occurrence)
+            .expect("second owned resident-view establishment");
         assert_eq!(second.resident_claim(), claim);
         assert_eq!(second.occurrence(), second_occurrence);
         assert_ne!(second.occurrence(), first_occurrence);
@@ -6175,7 +6250,9 @@ mod tests {
         assert_eq!(dormant.extent().base(), 0xa100);
         let owned_occurrence =
             PlacedOccurrenceId::from_normalized_identity(111).expect("owned occurrence");
-        let owned = dormant.view(owned_occurrence);
+        let owned = dormant
+            .view(owned_occurrence)
+            .expect("owned resident-view establishment");
         assert_eq!(owned.resident_claim(), claim);
         assert_eq!(owned.occurrence(), owned_occurrence);
     }
