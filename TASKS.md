@@ -761,8 +761,12 @@ Owners:
   their ordering. Provider resource-profile normalization now lives in a
   focused 159-line child, retaining canonical region sort/merge, bounds and
   overlap rejection, External/Atomic transfer-rule normalization, and exact
-  empty/duplicate/invalid capability diagnostic order. These extractions leave
-  a 3,211-line coordinator. All 81
+  empty/duplicate/invalid capability diagnostic order. Versioned normalized
+  identities for access plans, placement plans, and resource profiles now live
+  in a focused 198-line private owner; exact prefixes, tags, byte order, reach,
+  transfer rows, and reserved-zero remapping cross only three typed-ID sibling
+  contracts, and identity remains evidence rather than authority. These
+  extractions leave a 3,026-line coordinator. All 81
   unit tests, the current 440-function production inventory, diagnostics,
   custody, retry behavior, and the public surface remain unchanged.
 - Implement `Extent::Resident<P, T>` as the owned exact-range dormant-content
