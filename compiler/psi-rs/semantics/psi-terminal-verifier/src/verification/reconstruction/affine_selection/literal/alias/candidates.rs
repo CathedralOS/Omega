@@ -4,8 +4,7 @@ use psi_core::{Proposition, ScalarTerm};
 
 mod landing_index;
 
-use super::super::super::equalities;
-use super::super::eligibility;
+use super::super::super::{eligibility, equalities};
 use landing_index::LandingIndex;
 
 pub(super) fn any<'a>(
@@ -15,9 +14,7 @@ pub(super) fn any<'a>(
 ) -> bool {
     let landings = LandingIndex::new(requirements, semantic_axioms);
     equalities::ordered(requirements, semantic_axioms).any(|(outer_equality, root, alias)| {
-        if root == alias
-            || !matches!(root, ScalarTerm::Value { .. })
-            || !matches!(alias, ScalarTerm::Value { .. })
+        if !eligibility::distinct_value_alias(root, alias)
             || root.scalar_type() != alias.scalar_type()
         {
             return false;

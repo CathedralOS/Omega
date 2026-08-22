@@ -2,7 +2,7 @@
 
 use psi_core::{Proposition, ScalarTerm};
 
-use super::super::super::equalities;
+use super::super::super::{eligibility, equalities};
 use super::super::TwoCitationChains;
 
 pub(super) fn any<'a>(
@@ -12,11 +12,7 @@ pub(super) fn any<'a>(
 ) -> bool {
     let chains = TwoCitationChains::new(requirements, semantic_axioms);
     equalities::ordered(requirements, semantic_axioms)
-        .filter(|(_, root, alias)| {
-            root != alias
-                && matches!(root, ScalarTerm::Value { .. })
-                && matches!(alias, ScalarTerm::Value { .. })
-        })
+        .filter(|(_, root, alias)| eligibility::distinct_value_alias(root, alias))
         .any(|(_, root, alias)| {
             chains.any(|left_fact, right_fact| {
                 let Proposition::LessOrEqual(left, _) = left_fact else {

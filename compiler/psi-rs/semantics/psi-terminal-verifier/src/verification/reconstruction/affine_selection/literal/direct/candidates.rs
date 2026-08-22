@@ -2,8 +2,7 @@
 
 use psi_core::{Proposition, ScalarTerm};
 
-use super::super::super::equalities;
-use super::super::eligibility;
+use super::super::super::{eligibility, equalities};
 
 pub(super) fn any<'a>(
     requirements: &'a [Proposition],
