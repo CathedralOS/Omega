@@ -17,6 +17,7 @@ use psi_typed_trees::machine::Machine;
 use psi_typed_trees::name::Identifier;
 use psi_typed_trees::signature::{SignatureContract, SignatureContractKind};
 use psi_typed_trees::state::State;
+use psi_typed_trees::statement::StatementNode;
 use psi_typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 use std::fmt;
 
@@ -71,6 +72,14 @@ pub(super) struct ImmutableAliasFallthroughRoot {
 pub(super) struct CompleteSingleStateResultFlow {
     pub(super) machine_symbol: SymbolHandle,
     pub(super) state_symbol: SymbolHandle,
+    pub(super) root: ImmutableAliasFallthroughRoot,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) struct CompleteOneHopStateForwardingResultFlow {
+    pub(super) machine_symbol: SymbolHandle,
+    pub(super) forwarding_state_symbol: SymbolHandle,
+    pub(super) result_state_symbol: SymbolHandle,
     pub(super) root: ImmutableAliasFallthroughRoot,
 }
 
@@ -505,6 +514,73 @@ pub(super) fn complete_single_state_result_flow(
     Some(CompleteSingleStateResultFlow {
         machine_symbol: machine.symbol,
         state_symbol: state.symbol,
+        root,
+    })
+}
+
+/// Prove complete normal-result coverage for exactly two states when the only
+/// other state performs one unconditional ordinary forwarding transition into
+/// the state owning the unchanged quotient result root.
+pub(super) fn complete_one_hop_state_forwarding_result_flow(
+    program: &TypedTrees,
+    machine: &Machine,
+    result_state: &State,
+    root: ImmutableAliasFallthroughRoot,
+) -> Option<CompleteOneHopStateForwardingResultFlow> {
+    if !machine.symbol.is_valid() || !result_state.symbol.is_valid() {
+        return None;
+    }
+    let exact_machine = program
+        .machines()
+        .iter()
+        .filter(|candidate| candidate.symbol == machine.symbol)
+        .collect::<Vec<_>>();
+    if exact_machine.as_slice() != [machine] {
+        return None;
+    }
+    let states = program.machine_states(machine);
+    if states.len() != 2
+        || states
+            .iter()
+            .filter(|state| state.symbol == result_state.symbol)
+            .count()
+            != 1
+        || fallthrough_result_root(program, result_state) != Some(root)
+        || program
+            .statement_table
+            .statements(result_state.statement_nodes)
+            .iter()
+            .any(|statement| matches!(statement, StatementNode::Transition(_)))
+    {
+        return None;
+    }
+    let forwarding_state = states
+        .iter()
+        .find(|state| state.symbol != result_state.symbol)?;
+    let [StatementNode::Transition(transition)] = program
+        .statement_table
+        .statements(forwarding_state.statement_nodes)
+    else {
+        return None;
+    };
+    if transition.guard != psi_typed_trees::statement::TransitionGuardNode::Always
+        || transition.exit != psi_typed_trees::statement::TransitionExit::Ordinary
+        || transition.continuation.is_valid()
+    {
+        return None;
+    }
+    let psi_typed_trees::statement::TransitionTargetNode::Named { path, .. } =
+        program.statement_table.transition_target(transition.target)
+    else {
+        return None;
+    };
+    if path.symbol != result_state.symbol {
+        return None;
+    }
+    Some(CompleteOneHopStateForwardingResultFlow {
+        machine_symbol: machine.symbol,
+        forwarding_state_symbol: forwarding_state.symbol,
+        result_state_symbol: result_state.symbol,
         root,
     })
 }
@@ -1281,11 +1357,12 @@ mod tests {
         RepresentativeContractFactLocation, RepresentativeContractOwner,
         RepresentativeRuntimeParameter, RepresentativeStaticApplication,
         RepresentativeStaticBindingKind, RepresentativeTelescope,
-        complete_single_state_result_flow, derive_define_precondition_correspondence,
-        derive_direct_terminal_plan, derive_exact_representative_static_application,
-        derive_public_precondition_partition, derive_representative_precondition_partition,
-        derive_representative_telescope, fallthrough_result_root, immutable_alias_fallthrough_root,
-        substituted_type_matches, unconditional_representative_termination,
+        complete_one_hop_state_forwarding_result_flow, complete_single_state_result_flow,
+        derive_define_precondition_correspondence, derive_direct_terminal_plan,
+        derive_exact_representative_static_application, derive_public_precondition_partition,
+        derive_representative_precondition_partition, derive_representative_telescope,
+        fallthrough_result_root, immutable_alias_fallthrough_root, substituted_type_matches,
+        unconditional_representative_termination,
     };
     use psi_arena::HandleSpan;
     use psi_symbols::SymbolHandle;
@@ -2734,6 +2811,86 @@ mod tests {
         assert_eq!(
             complete_single_state_result_flow(&program, &machine, state, root),
             None
+        );
+    }
+
+    #[test]
+    fn complete_result_flow_accepts_exact_one_hop_state_forwarding() {
+        let mut program = TypedTrees::default();
+        let return_type = program.type_reference_table.insert(TypeReferenceNode::Unit);
+        let arguments = program
+            .expression_table
+            .insert_expression_handles(std::iter::empty());
+        let mut call = call_with_arguments(arguments);
+        call.quotient_operation = Some(request_with_representative(SymbolHandle::invalid()));
+        let request = program.expression_table.insert(ExpressionNode::Call(call));
+
+        let mut result_state = State {
+            symbol: symbol(52),
+            return_type,
+            ..Default::default()
+        };
+        program.statement_table.push_statement(
+            &mut result_state.statement_nodes,
+            StatementNode::Expression(request),
+        );
+
+        let target = program.statement_table.insert_transition_target(
+            psi_typed_trees::statement::TransitionTargetNode::Named {
+                path: psi_typed_trees::statement::TableNamePath {
+                    members: HandleSpan::empty(),
+                    head_symbol: symbol(52),
+                    symbol: symbol(52),
+                },
+                arguments: HandleSpan::empty(),
+                evidence_arguments: Box::default(),
+            },
+        );
+        let mut forwarding_state = State {
+            symbol: symbol(51),
+            return_type,
+            ..Default::default()
+        };
+        program.statement_table.push_statement(
+            &mut forwarding_state.statement_nodes,
+            StatementNode::Transition(TableTransition {
+                target,
+                ..Default::default()
+            }),
+        );
+        let mut machine = Machine {
+            symbol: symbol(50),
+            ..Default::default()
+        };
+        program.push_machine_state(&mut machine, forwarding_state);
+        program.push_machine_state(&mut machine, result_state);
+        program.push_machine(machine);
+
+        let machine = &program.machines()[0];
+        let result_state = &program.machine_states(machine)[1];
+        let root = fallthrough_result_root(&program, result_state).expect("exact result root");
+        assert_eq!(
+            complete_one_hop_state_forwarding_result_flow(&program, machine, result_state, root,),
+            Some(super::CompleteOneHopStateForwardingResultFlow {
+                machine_symbol: symbol(50),
+                forwarding_state_symbol: symbol(51),
+                result_state_symbol: symbol(52),
+                root,
+            })
+        );
+
+        let forwarding_span = program.machine_states(machine)[0].statement_nodes;
+        let [StatementNode::Transition(transition)] =
+            program.statement_table.statements_mut(forwarding_span)
+        else {
+            panic!("one forwarding transition")
+        };
+        transition.continuation = target;
+        let machine = &program.machines()[0];
+        let result_state = &program.machine_states(machine)[1];
+        assert_eq!(
+            complete_one_hop_state_forwarding_result_flow(&program, machine, result_state, root,),
+            None,
         );
     }
 

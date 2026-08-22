@@ -151,6 +151,14 @@ fn reject_quotient_operation_requests(program: &TypedTrees, diagnostics: &mut Ve
                         state,
                         result_root,
                     );
+                    let complete_forwarded_result_flow = complete_result_flow.is_none().then(|| {
+                        relation_plan::complete_one_hop_state_forwarding_result_flow(
+                            program,
+                            machine,
+                            state,
+                            result_root,
+                        )
+                    }).flatten();
                     let correspondence = plan
                         .render_define_correspondence()
                         .map(|value| format!(" plus exact {value}"))
@@ -184,6 +192,10 @@ fn reject_quotient_operation_requests(program: &TypedTrees, diagnostics: &mut Ve
                         format!(
                             "complete transition-free single-state normal-result coverage through {result_path}"
                         )
+                    } else if complete_forwarded_result_flow.is_some() {
+                        format!(
+                            "complete one-hop state-forwarded normal-result coverage through {result_path}"
+                        )
                     } else {
                         format!("one unchanged state-fallthrough result edge through {result_path}")
                     };
@@ -192,7 +204,9 @@ fn reject_quotient_operation_requests(program: &TypedTrees, diagnostics: &mut Ve
                     } else {
                         "immutable-alias fallthrough"
                     };
-                    let remaining_result_fence = if complete_result_flow.is_some() {
+                    let remaining_result_fence = if complete_result_flow.is_some()
+                        || complete_forwarded_result_flow.is_some()
+                    {
                         ""
                     } else {
                         ", and all normalized result exits"
