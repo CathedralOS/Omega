@@ -3,7 +3,7 @@
 use psi_core::{Proposition, ScalarTerm};
 
 use super::super::super::integer_evidence::Citation;
-use super::super::{bounds, eligibility};
+use super::super::bounds;
 
 pub(super) fn find<'a, T>(
     assumptions: &'a [Proposition],
@@ -13,7 +13,7 @@ pub(super) fn find<'a, T>(
     for (citation, root_bound, root_left, root_right) in
         bounds::ordered(assumptions, semantic_axioms)
     {
-        for root in eligibility::ordered_value_endpoints(root_left, root_right) {
+        for root in bounds::value_endpoints(root_left, root_right) {
             if let Some(result) = complete(root, root_bound, citation) {
                 return Some(result);
             }

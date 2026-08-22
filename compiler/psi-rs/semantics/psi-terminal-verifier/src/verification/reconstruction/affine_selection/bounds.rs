@@ -14,3 +14,12 @@ pub(super) fn ordered<'a>(
             _ => None,
         })
 }
+
+pub(super) fn value_endpoints<'a>(
+    left: &'a ScalarTerm,
+    right: &'a ScalarTerm,
+) -> impl Iterator<Item = &'a ScalarTerm> {
+    [left, right]
+        .into_iter()
+        .filter(|endpoint| matches!(endpoint, ScalarTerm::Value { .. }))
+}
