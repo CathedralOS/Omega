@@ -16,7 +16,8 @@ use psi_extents::{
 };
 use psi_language_core::atomic::{AtomicOrderingPlan, MemoryOrdering};
 use psi_layout_plans::{
-    LayoutPlacementReport, LayoutPlanReport, normalized_layout_plan_fingerprint,
+    LayoutPlacementReport, LayoutPlanReport, layout_plan_reports_match_for_replay,
+    normalized_layout_plan_fingerprint,
 };
 
 mod resident_views;
@@ -210,10 +211,18 @@ impl AccessFieldEntry {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AccessPlan {
     layout_fingerprint: u64,
+    retained_layout: LayoutPlanReport,
     entries: Vec<AccessFieldEntry>,
+}
+
+impl std::hash::Hash for AccessPlan {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        std::hash::Hash::hash(&self.layout_fingerprint, state);
+        std::hash::Hash::hash(&self.entries, state);
+    }
 }
 
 impl AccessPlan {
@@ -272,6 +281,7 @@ impl AccessPlan {
             .collect::<Result<Vec<_>, AccessPlanDiagnostic>>()?;
         Ok(Self {
             layout_fingerprint,
+            retained_layout: layout.clone(),
             entries,
         })
     }
@@ -1106,7 +1116,9 @@ pub fn validate_access_plan(
         AccessPlanDiagnostic("placed access requires a fixed-size layout plan".into())
     })?;
     let expected = AccessPlan::inaccessible(layout)?;
-    if plan.layout_fingerprint != expected.layout_fingerprint {
+    if plan.layout_fingerprint != expected.layout_fingerprint
+        || !layout_plan_reports_match_for_replay(&plan.retained_layout, layout)
+    {
         return Err(AccessPlanDiagnostic(
             "access plan belongs to a different validated layout".into(),
         ));
@@ -4043,6 +4055,36 @@ mod tests {
             error.0.contains(
                 "layout field `word` identifies both stable member identity #7 and stable member identity #8"
             ),
+            "{}",
+            error.0
+        );
+    }
+
+    #[test]
+    fn access_validation_replays_retained_layout_structure_not_only_fingerprint() {
+        let layout = LayoutPlanReport {
+            schema_identity: 0x46,
+            entries: vec![LayoutFieldEntryReport {
+                field: "word".into(),
+                member_identity: Some(7),
+                placement: LayoutPlacementReport::At { offset: 0 },
+            }],
+            offsets: Some(vec![0]),
+            size: Some(8),
+            align: 8,
+        };
+        let mut plan = AccessPlan::inaccessible(&layout).expect("canonical access seed");
+        let compact_identity = plan.layout_fingerprint;
+        plan.retained_layout.entries[0].placement = LayoutPlacementReport::At { offset: 4 };
+        assert_eq!(
+            plan.layout_fingerprint, compact_identity,
+            "the simulated carrier drift deliberately leaves its compact identity unchanged"
+        );
+
+        let error = validate_access_plan(plan, &layout)
+            .expect_err("structural carrier drift must reject before access-plan sealing");
+        assert!(
+            error.0.contains("different validated layout"),
             "{}",
             error.0
         );
