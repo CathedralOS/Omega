@@ -1878,15 +1878,17 @@ Remaining:
   four-family registry: 249-line control/entry, 621-line storage/place,
   866-line outbound-call, and 512-line buffer/wire/text responsibilities. A
   separate instruction-selection boundary-footprint owner has begun the same
-  split: its 5,633-line `entry.rs` parent delegates all eleven compact-binary
+  split: its 5,445-line `entry.rs` parent delegates all eleven compact-binary
   append/read footprint derivations to a 433-line `entry/wire.rs` child, while
   a separate 373-line `entry/text.rs` child owns bounded-buffer, string-
   descriptor, and runtime-text assembly footprints. A focused 152-line
   `entry/runtime_values.rs` child owns atomic and conversion-write footprint
   derivation over the retained runtime-operand arena. A focused 222-line
   `entry/guards.rs` child owns static, runtime-text, place-shaped, and recursive
-  runtime-value dispatch-guard footprints. The public re-export surface,
-  validation order, and 135-function inventory are unchanged; the
+  runtime-value dispatch-guard footprints. A 199-line `entry/control.rs` child
+  owns ordinary call/return mechanics and compiler-generated dispatch-scaffold
+  footprints. The public re-export surface, validation order, and 135-function
+  inventory are unchanged; the
   children depend only on retained instructions/operands, the validated
   boundary plan, place-shape classification where applicable, and architecture
   encoder clobber/state facts. A
@@ -2200,7 +2202,11 @@ Owners:
   encoded byte interval. Missing, duplicate, redirected, non-text/function, or
   interval-drifted bindings therefore reject uniformly for source, wrapper,
   and callback roles; object-local private spelling is not confused with an
-  encoded source display name. Final replay now also retains an exact
+  encoded source display name. Final replay independently rederives the target
+  entry name and every non-entry source/wrapper private name; linkage renaming
+  rejects, and callback identities cannot replace the process entry. The
+  richer callback name remains bound by the placement-specific join. Final
+  replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
   instruction identities, redirected instruction relocation origins, and
   instruction-origin rows without a retained owner reject, while semantic and
