@@ -618,7 +618,16 @@ Owners:
   observation or destination mutation. Reusable post-handoff invocation
   evidence is sealed behind validated lowering; installation, external-root,
   and instruction-selection consumers may inspect but cannot reconstruct or
-  weaken the exact fragment, placement, source-slot, or fit evidence. Writer
+  weaken the exact fragment, placement, source-slot, or fit evidence. Sealed
+  invocation evidence now also supports independent borrowed structural replay
+  of its context ABI, placement alignment, exact fragment geometry, canonical
+  source-slot order, target uniqueness, stored-fit linkage, and recomputed
+  fingerprint before source values are accepted; rejection leaves the
+  invocation unchanged for corrected retry. Instruction-selection binding now
+  independently replays the sealed invocation, target architecture, exact
+  re-encoded bytes, state footprint, normalized fragment identity, and emitted
+  fingerprint; every rejection returns the unchanged lowered writer evidence
+  for corrected retry without regeneration. Writer
   derivation, lowering, validation, and execution uniformly require at least
   one retained fragment; an empty provider program cannot claim materialization.
   Validation also binds every supplied source word to any exact pre-resolved
@@ -1457,7 +1466,23 @@ Remaining:
   `integer_evidence` modules. Production alone owns citation indices and proof
   nodes; reconstruction independently resolves retained integer literals and
   replays closed order. Selectors depend on these leaf helpers without sharing
-  authority, changing precedence, or expanding the search frontier. A
+  authority, changing precedence, or expanding the search frontier. Canonical
+  integer coordination now lives in dedicated, side-local `integer_selection`
+  modules. Production independently builds the recursive
+  Truth/conjunction/disjunction/order proof shape before the public entry
+  applies the kernel check; reconstruction independently replays canonical
+  proposition shape and fixed bound dispatch. Each preserves its prior
+  precedence and finite evidence frontier. Certificate-entry custody now lives
+  in dedicated, side-local `certificate_entry` modules. Production exposes a
+  selected proof only after the kernel accepts its exact context, goal,
+  assumptions, and semantic axioms; reconstruction independently projects the
+  canonical scalar goal before retained selection. Invalid projection or
+  failed checking yields no authority, and neither side imports the other's
+  decision. The producer's 30 certificate regressions and reconstruction's 25
+  independent selection regressions now live in side-local `tests` modules.
+  Production facades are 35 and 608 lines respectively, while every test name
+  and assertion is retained; no proof logic, authority, precedence, or search
+  frontier moved between sides. A
   single exact prior value equality may also transport a completed affine bound
   from its checked target alias to the canonical goal endpoint. The producer
   replaces that one endpoint, constructs the bounded affine relation directly,
@@ -2066,8 +2091,13 @@ Remaining:
   and cannot fall through to generic arithmetic or structural tiers.
   Its structural-term algebra, explicit ring/semiring licensing, substitution,
   and structural judgment now form a separate 1,839-line responsibility; the
-  arithmetic, inductive, and citation coordinator is 5,005 lines, with the
-  existing parent-facing judgment and proved-index-algebra surface unchanged.
+  remaining coordinator then delegates exact polynomial normalization,
+  interval propagation, difference-bound closure, and arithmetic verdicts to
+  a separate 984-line child. Inductive transition-arm recognition, path-fact
+  preparation, strict-decrease discharge, and hypothesis instantiation form a
+  separate 456-line child. The citation and law coordinator is 3,571 lines,
+  with the existing parent-facing judgments and proved-index-algebra surface
+  unchanged.
   Compiler footprint derivation now has a 509-line composition/partition parent
   over a declarative four-family registry: 249-line control/entry, 621-line
   storage/place, 866-line outbound-call, and 512-line buffer/wire/text
@@ -2540,7 +2570,14 @@ Owners:
   construction independently replays. Native execution consumers no longer
   reconstruct an executable leaf from the build directory: the report returns
   its exact flat receipt path only after replaying complete publication and
-  program-storage custody, and `omega-run` consumes only that checked path.
+  program-storage custody, and `omega-run` consumes only that checked path. The
+  shared report-and-capability native runner now likewise consumes the checked
+  report for all ten of its executions rather than reconstructing a name from
+  the build directory; bundle-path tampering is pinned to expose no executable.
+  The exact-native source index accepts that form only for an exact report-local
+  binding plus literal exit status, adding seven unique rooted owners (795
+  total); the twice-owned linear-transfer fixture remains fail-closed and
+  unelided.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
