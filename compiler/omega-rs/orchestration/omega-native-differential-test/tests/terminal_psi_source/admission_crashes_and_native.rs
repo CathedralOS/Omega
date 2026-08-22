@@ -926,7 +926,7 @@ fn interpreted_terminal_source_matches_emitted_host_machine_code() {
             unpaid_site_identity_offset: 16,
             required_units_offset: 24,
             transfer_entry_offset: 32,
-            retry_address_offset: 40,
+            retry_code_offset_offset: 40,
             sponsor_stack_top_offset: 48,
             activation_state_offset: 64,
             activation_state_byte_count: 192,

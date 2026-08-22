@@ -195,7 +195,7 @@ fn validate_native_fuel_context_layout(
         layout.unpaid_site_identity_offset,
         layout.required_units_offset,
         layout.transfer_entry_offset,
-        layout.retry_address_offset,
+        layout.retry_code_offset_offset,
         layout.sponsor_stack_top_offset,
     ];
     let mut ranges = Vec::with_capacity(scalar_offsets.len() + 1);
@@ -508,7 +508,7 @@ fn hash_native_fuel_target_policy(hash: &mut Fnv1a, plan: &NativeFuelTargetPlanP
     hash.u64(u64::from(plan.context.unpaid_site_identity_offset));
     hash.u64(u64::from(plan.context.required_units_offset));
     hash.u64(u64::from(plan.context.transfer_entry_offset));
-    hash.u64(u64::from(plan.context.retry_address_offset));
+    hash.u64(u64::from(plan.context.retry_code_offset_offset));
     hash.u64(u64::from(plan.context.sponsor_stack_top_offset));
     hash.u64(u64::from(plan.context.activation_state_offset));
     hash.u64(u64::from(plan.context.activation_state_byte_count));
@@ -966,7 +966,7 @@ mod tests {
                 unpaid_site_identity_offset: 16,
                 required_units_offset: 24,
                 transfer_entry_offset: 32,
-                retry_address_offset: 40,
+                retry_code_offset_offset: 40,
                 sponsor_stack_top_offset: 48,
                 activation_state_offset: 64,
                 activation_state_byte_count: 192,
