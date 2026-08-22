@@ -152,20 +152,13 @@ fn runtime_nonplace_record_pattern_single_evaluation_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("computed record-pattern subject canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
-        .output()
-        .expect("computed record-pattern subject canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected one computed-subject call and two field reads from its captured Point \
-         (exit 2/3 means the call was repeated), got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        70,
+        "computed record-pattern subject canary",
+        "one computed-subject call should feed both captured Point field reads",
     );
 
     let _ = fs::remove_dir_all(&build_dir);
@@ -180,22 +173,13 @@ fn runtime_effectful_subject_single_evaluation_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("effectful-subject single-evaluation canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
-        .output()
-        .expect("effectful-subject single-evaluation canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected the diverging-arm transition's effectful subject (nested call \
-         chain) to run exactly ONCE (one increment -> exit 70; exit 2/3/77 means \
-         the subject re-ran per arm or per nesting level -- the dungeon's \
-         32-RNG-draws eager-guard divergence), got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        70,
+        "effectful transition-subject canary",
+        "a diverging-arm transition's nested effectful subject should execute exactly once",
     );
 
     let _ = fs::remove_dir_all(&build_dir);
@@ -210,23 +194,13 @@ fn runtime_statement_call_single_execution_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("statement-call single-execution canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
-        .output()
-        .expect("statement-call single-execution canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected the STATEMENT-position call chain's leaf side effect to run \
-         exactly ONCE (one increment -> exit 70; exit 2/3 reports the executor \
-         count -- the dungeon's non-guard RNG over-draw where the splice, the \
-         prelude's StateCall arm, and the nested-walk straight-line expansion \
-         all emitted the leaf), got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        70,
+        "statement-call single-execution canary",
+        "a statement-position call chain's leaf side effect should execute exactly once",
     );
 
     let _ = fs::remove_dir_all(&build_dir);
@@ -241,22 +215,13 @@ fn runtime_assignment_call_post_mutation_value_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("assignment-call post-mutation value canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
-        .output()
-        .expect("assignment-call post-mutation value canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected `let v = self.next(&mut state)` to deliver the POST-mutation \
-         value (exit 70 = interpreter semantics; exit 2 = the call-result value \
-         selection emitted before the splice's mutation writes and read the \
-         stale pre-mutation state), got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        70,
+        "assignment-call post-mutation value canary",
+        "the assignment call should deliver its post-mutation value",
     );
 
     let _ = fs::remove_dir_all(&build_dir);
@@ -275,19 +240,13 @@ fn runtime_value_call_return_types_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("value-call return-types canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
-        .output()
-        .expect("value-call return-types canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected value-calls returning i32/struct/enum/bool to self-check (exit 70), got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        70,
+        "value-call return-types canary",
+        "value calls returning i32, struct, enum, and bool should self-check",
     );
 
     let _ = fs::remove_dir_all(&build_dir);

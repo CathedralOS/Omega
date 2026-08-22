@@ -1099,3 +1099,8 @@ only from the checked report's flat publication receipt. Their exact literal
 status and unique source-owner identities remain unchanged; compiler-function
 fingerprint drift between the flat and bundle copies is pinned to suppress the
 executable path before any probe can run.
+
+The next five authored-root dispatch executions, through the mixed return-type
+value-call probe, also consume only the checked flat receipt. Literal exit
+status and exact source ownership stay unchanged, while boundary-contract drift
+between flat and bundle receipts is pinned to suppress native execution.
