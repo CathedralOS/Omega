@@ -8,10 +8,11 @@
 
 use std::collections::BTreeSet;
 
+use omega_calling_conventions::MachineRegister;
 use omega_executable_installation::{
     ArtifactId, InstalledCode, InstalledCodeContext, InstalledCodeId,
 };
-use omega_target::NativeTarget;
+use omega_target::{NativeTarget, TargetProfile};
 use omega_terminal_installation_evidence::{
     TerminalFuelAttributionEvidence, TerminalFuelAttributionSite, TerminalObjectEvidence,
 };
@@ -19,7 +20,8 @@ use omega_terminal_installation_evidence::{
 use super::{
     ComposedFuelDemand, DynamicFuelMeterValidationReceiptId, ExternalRootDiagnostic, Fnv1a,
     FuelExhaustionTransferPlanId, FuelProvisionId, FuelSuspensionFreeEvidence,
-    NativeFuelMeterPlanId, SponsorContextTransportId,
+    NativeFuelContextLayout, NativeFuelMeterPlanId, NativeFuelTargetPlanProjection,
+    SponsorContextTransport,
 };
 
 /// Sealed fixed native provision for one exact sponsor region.
@@ -110,35 +112,155 @@ pub fn bind_suspension_free_fixed_fuel(
     })
 }
 
+/// Sealed structural target policy for charge and cold-transfer lowering.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AdmittedNativeFuelTargetPolicy(NativeFuelTargetPlanProjection);
+
+impl AdmittedNativeFuelTargetPolicy {
+    pub const fn projection(&self) -> &NativeFuelTargetPlanProjection {
+        &self.0
+    }
+
+    pub const fn profile(&self) -> TargetProfile {
+        self.0.profile
+    }
+
+    pub const fn target(&self) -> NativeTarget {
+        self.0.target
+    }
+}
+
+/// Validate the first concrete native-fuel transport slice. RBX and X28 are
+/// nonvolatile in the supported x86-64 and AArch64 ABIs and are not ordinary
+/// terminal-emitter scratches; later allocation and artifact replay must still
+/// prove the selected register remains reserved throughout the instrumented
+/// closure.
+pub fn admit_native_fuel_target_policy(
+    projection: NativeFuelTargetPlanProjection,
+) -> Result<AdmittedNativeFuelTargetPolicy, ExternalRootDiagnostic> {
+    if projection.profile.native_target() != projection.target {
+        return Err(ExternalRootDiagnostic(
+            "native fuel target policy profile does not match its native target".into(),
+        ));
+    }
+    if projection.target.pointer_size != 8 || projection.target.pointer_alignment != 8 {
+        return Err(ExternalRootDiagnostic(
+            "native fuel target policy is not in the admitted 64-bit transport slice".into(),
+        ));
+    }
+    match (projection.target.architecture, projection.transport) {
+        (
+            omega_target::Architecture::X86_64,
+            SponsorContextTransport::ReservedNonvolatileRegister {
+                register: MachineRegister::X86Rbx,
+            },
+        )
+        | (
+            omega_target::Architecture::Aarch64,
+            SponsorContextTransport::ReservedNonvolatileRegister {
+                register: MachineRegister::Aarch64X(28),
+            },
+        ) => {}
+        (_, SponsorContextTransport::ReservedNonvolatileRegister { .. }) => {
+            return Err(ExternalRootDiagnostic(
+                "native fuel context transport requires reserved nonvolatile RBX or X28 for its target architecture"
+                    .into(),
+            ));
+        }
+    }
+    validate_native_fuel_context_layout(&projection.context)?;
+    if projection.transfer_plan_identity == 0 {
+        return Err(ExternalRootDiagnostic(
+            "native fuel target policy requires a nonzero transfer-plan identity".into(),
+        ));
+    }
+    Ok(AdmittedNativeFuelTargetPolicy(projection))
+}
+
+fn validate_native_fuel_context_layout(
+    layout: &NativeFuelContextLayout,
+) -> Result<(), ExternalRootDiagnostic> {
+    if layout.byte_size == 0
+        || layout.alignment < 8
+        || !layout.alignment.is_power_of_two()
+        || !layout.byte_size.is_multiple_of(layout.alignment)
+    {
+        return Err(ExternalRootDiagnostic(
+            "native fuel context size and alignment are not canonical".into(),
+        ));
+    }
+    let scalar_offsets = [
+        layout.remaining_units_offset,
+        layout.unpaid_site_kind_offset,
+        layout.unpaid_site_identity_offset,
+        layout.required_units_offset,
+        layout.transfer_entry_offset,
+        layout.retry_address_offset,
+        layout.sponsor_stack_top_offset,
+    ];
+    let mut ranges = Vec::with_capacity(scalar_offsets.len() + 1);
+    for offset in scalar_offsets {
+        if !offset.is_multiple_of(8)
+            || offset
+                .checked_add(8)
+                .is_none_or(|end| end > layout.byte_size)
+        {
+            return Err(ExternalRootDiagnostic(
+                "native fuel context contains an unaligned or out-of-range scalar slot".into(),
+            ));
+        }
+        ranges.push((offset, offset + 8));
+    }
+    if layout.activation_state_byte_count == 0
+        || !layout.activation_state_offset.is_multiple_of(8)
+        || layout
+            .activation_state_offset
+            .checked_add(layout.activation_state_byte_count)
+            .is_none_or(|end| end > layout.byte_size)
+    {
+        return Err(ExternalRootDiagnostic(
+            "native fuel activation-state interval is empty, unaligned, or out of range".into(),
+        ));
+    }
+    ranges.push((
+        layout.activation_state_offset,
+        layout.activation_state_offset + layout.activation_state_byte_count,
+    ));
+    ranges.sort_unstable();
+    if ranges.windows(2).any(|pair| pair[0].1 > pair[1].0) {
+        return Err(ExternalRootDiagnostic(
+            "native fuel context slots overlap".into(),
+        ));
+    }
+    Ok(())
+}
+
 /// Target-admitted dynamic meter contract. The validation receipt covers the
 /// compare-before-subtract implementation, exact unpaid-site transfer, opaque
 /// activation-state preservation, and resume at the failed pre-charge check.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DynamicNativeFuelMeterPlan {
-    target: NativeTarget,
+    target_policy: AdmittedNativeFuelTargetPolicy,
     schedule: psi_core::FuelScheduleIdentity,
     meter: NativeFuelMeterPlanId,
-    context_transport: SponsorContextTransportId,
     exhaustion_transfer: FuelExhaustionTransferPlanId,
     sponsor_path: SuspensionFreeFixedFuelProvision,
     validation_receipt: DynamicFuelMeterValidationReceiptId,
 }
 
 impl DynamicNativeFuelMeterPlan {
-    pub const fn from_admitted_target(
-        target: NativeTarget,
+    pub const fn from_admitted_target_policy(
+        target_policy: AdmittedNativeFuelTargetPolicy,
         schedule: psi_core::FuelScheduleIdentity,
         meter: NativeFuelMeterPlanId,
-        context_transport: SponsorContextTransportId,
         exhaustion_transfer: FuelExhaustionTransferPlanId,
         sponsor_path: SuspensionFreeFixedFuelProvision,
         validation_receipt: DynamicFuelMeterValidationReceiptId,
     ) -> Self {
         Self {
-            target,
+            target_policy,
             schedule,
             meter,
-            context_transport,
             exhaustion_transfer,
             sponsor_path,
             validation_receipt,
@@ -146,7 +268,11 @@ impl DynamicNativeFuelMeterPlan {
     }
 
     pub const fn target(&self) -> NativeTarget {
-        self.target
+        self.target_policy.target()
+    }
+
+    pub const fn target_policy(&self) -> &AdmittedNativeFuelTargetPolicy {
+        &self.target_policy
     }
 
     pub const fn sponsor_path(&self) -> &SuspensionFreeFixedFuelProvision {
@@ -154,8 +280,44 @@ impl DynamicNativeFuelMeterPlan {
     }
 }
 
-/// A dynamic meter plan bound to the exact relocation-free terminal artifact
-/// and installed code whose charge sites it must instrument.
+/// Validated pre-install input to target instrumentation. This owns the exact
+/// semantic rows and source bytes; it is deliberately not installed execution
+/// evidence because charge insertion changes both bytes and offsets.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ValidatedDynamicFuelAttributionBasis {
+    plan: DynamicNativeFuelMeterPlan,
+    terminal_psi: psi_terminal::TerminalPsiIdentity,
+    source_text_fingerprint: u64,
+    attributions: Vec<TerminalFuelAttributionEvidence>,
+    fingerprint: u64,
+}
+
+impl ValidatedDynamicFuelAttributionBasis {
+    pub const fn plan(&self) -> &DynamicNativeFuelMeterPlan {
+        &self.plan
+    }
+
+    pub fn attributions(&self) -> &[TerminalFuelAttributionEvidence] {
+        &self.attributions
+    }
+
+    pub const fn terminal_psi(&self) -> psi_terminal::TerminalPsiIdentity {
+        self.terminal_psi
+    }
+
+    pub const fn source_text_fingerprint(&self) -> u64 {
+        self.source_text_fingerprint
+    }
+
+    pub const fn fingerprint(&self) -> u64 {
+        self.fingerprint
+    }
+}
+
+/// Final dynamic-meter evidence. No constructor is exposed until target
+/// instrumentation and independent final-byte replay can populate this from a
+/// [`ValidatedDynamicFuelAttributionBasis`]. In particular, an unmetered
+/// installed artifact can no longer manufacture this value.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InstalledDynamicFuelAttributionPlan {
     plan: DynamicNativeFuelMeterPlan,
@@ -191,26 +353,17 @@ impl InstalledDynamicFuelAttributionPlan {
     }
 }
 
-/// Bind dynamic metering to the exact already-validated attribution catalog.
-/// This emits no instructions; it closes the evidence input that later target
-/// lowering must consume without rediscovering semantic sites from bytes.
-pub fn bind_installed_dynamic_fuel_attributions<Artifact: TerminalObjectEvidence>(
+/// Validate and retain the exact source attribution catalog before any bytes
+/// are installed. Later target lowering consumes this basis, emits charge
+/// records, and must independently validate the final metered artifact before
+/// constructing installed dynamic evidence.
+pub fn validate_dynamic_fuel_attribution_basis<Artifact: TerminalObjectEvidence>(
     plan: DynamicNativeFuelMeterPlan,
     terminal_artifact: &Artifact,
-    installed_code: &InstalledCode,
-) -> Result<InstalledDynamicFuelAttributionPlan, ExternalRootDiagnostic> {
-    if plan.target != terminal_artifact.target()
-        || plan.target.architecture != installed_code.architecture()
-    {
+) -> Result<ValidatedDynamicFuelAttributionBasis, ExternalRootDiagnostic> {
+    if plan.target() != terminal_artifact.target() {
         return Err(ExternalRootDiagnostic(
-            "dynamic fuel meter target does not match the terminal artifact and installed code"
-                .into(),
-        ));
-    }
-    if !installed_code.binds_exact_unrelocated_artifact_bytes(terminal_artifact.text_bytes()) {
-        return Err(ExternalRootDiagnostic(
-            "dynamic fuel attribution requires the exact relocation-free installed terminal bytes"
-                .into(),
+            "dynamic fuel meter target does not match the source terminal artifact".into(),
         ));
     }
 
@@ -218,21 +371,20 @@ pub fn bind_installed_dynamic_fuel_attributions<Artifact: TerminalObjectEvidence
     validate_dynamic_fuel_attributions(&plan, terminal_artifact, &attributions)?;
 
     let terminal_psi = terminal_artifact.terminal_psi();
-    let installed_code_context = installed_code.receipt_context();
-    let artifact = installed_code.artifact();
-    let fingerprint = fingerprint_installed_dynamic_fuel_attributions(
+    let mut source_text_hash = Fnv1a::new();
+    source_text_hash.bytes(b"omega.dynamic-fuel-source-text.v1");
+    source_text_hash.bytes(terminal_artifact.text_bytes());
+    let source_text_fingerprint = source_text_hash.finish();
+    let fingerprint = fingerprint_dynamic_fuel_attribution_basis(
         &plan,
         terminal_psi,
-        installed_code.identity(),
-        artifact,
+        source_text_fingerprint,
         &attributions,
     );
-    Ok(InstalledDynamicFuelAttributionPlan {
+    Ok(ValidatedDynamicFuelAttributionBasis {
         plan,
         terminal_psi,
-        installed_code: installed_code.identity(),
-        installed_code_context,
-        artifact,
+        source_text_fingerprint,
         attributions,
         fingerprint,
     })
@@ -292,22 +444,20 @@ fn attribution_order_key(
     )
 }
 
-fn fingerprint_installed_dynamic_fuel_attributions(
+fn fingerprint_dynamic_fuel_attribution_basis(
     plan: &DynamicNativeFuelMeterPlan,
     terminal_psi: psi_terminal::TerminalPsiIdentity,
-    installed_code: InstalledCodeId,
-    artifact: ArtifactId,
+    source_text_fingerprint: u64,
     rows: &[TerminalFuelAttributionEvidence],
 ) -> u64 {
     let mut hash = Fnv1a::new();
-    hash.bytes(b"omega.installed-dynamic-fuel-attribution.v1");
+    hash.bytes(b"omega.dynamic-fuel-attribution-basis.v1");
     hash.u64(u64::from(terminal_psi.vocabulary_marker.get()));
     hash.bytes(terminal_psi.program_fingerprint.as_bytes());
-    hash.u64(installed_code.normalized_identity());
-    hash.u64(artifact.normalized_identity());
+    hash.u64(source_text_fingerprint);
     hash.u64(u64::from(plan.schedule.marker()));
     hash.u64(plan.meter.normalized_identity());
-    hash.u64(plan.context_transport.normalized_identity());
+    hash_native_fuel_target_policy(&mut hash, plan.target_policy.projection());
     hash.u64(plan.exhaustion_transfer.normalized_identity());
     hash.u64(plan.validation_receipt.normalized_identity());
     hash.u64(rows.len() as u64);
@@ -331,22 +481,60 @@ fn fingerprint_installed_dynamic_fuel_attributions(
     hash.finish()
 }
 
+fn hash_native_fuel_target_policy(hash: &mut Fnv1a, plan: &NativeFuelTargetPlanProjection) {
+    hash.u64(match plan.profile {
+        TargetProfile::LinuxArm64 => 0,
+        TargetProfile::LinuxX64 => 1,
+        TargetProfile::MacosArm64 => 2,
+        TargetProfile::WindowsX64 => 3,
+        TargetProfile::UefiX64 => 4,
+        TargetProfile::CrossPlatformCli => 5,
+        TargetProfile::LocalUnchecked => 6,
+    });
+    match plan.transport {
+        SponsorContextTransport::ReservedNonvolatileRegister { register } => {
+            hash.u64(0);
+            hash.u64(match register {
+                MachineRegister::X86Rbx => 3,
+                MachineRegister::Aarch64X(28) => 0x21c,
+                _ => u64::MAX,
+            });
+        }
+    }
+    hash.u64(u64::from(plan.context.byte_size));
+    hash.u64(u64::from(plan.context.alignment));
+    hash.u64(u64::from(plan.context.remaining_units_offset));
+    hash.u64(u64::from(plan.context.unpaid_site_kind_offset));
+    hash.u64(u64::from(plan.context.unpaid_site_identity_offset));
+    hash.u64(u64::from(plan.context.required_units_offset));
+    hash.u64(u64::from(plan.context.transfer_entry_offset));
+    hash.u64(u64::from(plan.context.retry_address_offset));
+    hash.u64(u64::from(plan.context.sponsor_stack_top_offset));
+    hash.u64(u64::from(plan.context.activation_state_offset));
+    hash.u64(u64::from(plan.context.activation_state_byte_count));
+    hash.u64(plan.transfer_plan_identity);
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NativeFuelExecutionEnvironment {
     Hosted {
-        target: NativeTarget,
+        profile: TargetProfile,
         interpreter_available: bool,
     },
     Freestanding {
-        target: NativeTarget,
+        profile: TargetProfile,
     },
 }
 
 impl NativeFuelExecutionEnvironment {
-    const fn target(self) -> NativeTarget {
+    fn profile(self) -> TargetProfile {
         match self {
-            Self::Hosted { target, .. } | Self::Freestanding { target } => target,
+            Self::Hosted { profile, .. } | Self::Freestanding { profile } => profile,
         }
+    }
+
+    fn target(self) -> NativeTarget {
+        self.profile().native_target()
     }
 }
 
@@ -443,9 +631,9 @@ pub fn admit_native_fuel_realization(
             (NativeFuelRealizationKind::FixedProvision, None, None)
         }
         NativeFuelRealizationRequest::Dynamic(plan) => {
-            if plan.target != environment.target() {
+            if plan.target_policy.profile() != environment.profile() {
                 return Err(ExternalRootDiagnostic(
-                    "dynamic native fuel plan does not match the selected target".into(),
+                    "dynamic native fuel plan does not match the selected target profile".into(),
                 ));
             }
             if plan.schedule != demand.schedule() {
@@ -477,7 +665,7 @@ pub fn admit_native_fuel_realization(
             (
                 NativeFuelRealizationKind::DynamicMetering,
                 Some(plan.clone()),
-                Some(plan.target),
+                Some(plan.target()),
             )
         }
         NativeFuelRealizationRequest::Unavailable => match environment {
@@ -763,6 +951,58 @@ mod tests {
         (demand, suspension)
     }
 
+    fn x86_target_projection(profile: TargetProfile) -> NativeFuelTargetPlanProjection {
+        NativeFuelTargetPlanProjection {
+            profile,
+            target: profile.native_target(),
+            transport: SponsorContextTransport::ReservedNonvolatileRegister {
+                register: MachineRegister::X86Rbx,
+            },
+            context: NativeFuelContextLayout {
+                byte_size: 256,
+                alignment: 16,
+                remaining_units_offset: 0,
+                unpaid_site_kind_offset: 8,
+                unpaid_site_identity_offset: 16,
+                required_units_offset: 24,
+                transfer_entry_offset: 32,
+                retry_address_offset: 40,
+                sponsor_stack_top_offset: 48,
+                activation_state_offset: 64,
+                activation_state_byte_count: 192,
+            },
+            transfer_plan_identity: 26,
+        }
+    }
+
+    fn x86_target_policy(profile: TargetProfile) -> AdmittedNativeFuelTargetPolicy {
+        admit_native_fuel_target_policy(x86_target_projection(profile))
+            .expect("canonical x86-64 native fuel target policy")
+    }
+
+    #[test]
+    fn native_fuel_target_policy_rejects_unsafe_transport_and_layout() {
+        let mut volatile = x86_target_projection(TargetProfile::LinuxX64);
+        volatile.transport = SponsorContextTransport::ReservedNonvolatileRegister {
+            register: MachineRegister::X86Rax,
+        };
+        assert!(
+            admit_native_fuel_target_policy(volatile)
+                .expect_err("a volatile context register cannot be admitted")
+                .0
+                .contains("RBX")
+        );
+
+        let mut overlapping = x86_target_projection(TargetProfile::LinuxX64);
+        overlapping.context.required_units_offset = overlapping.context.remaining_units_offset;
+        assert!(
+            admit_native_fuel_target_policy(overlapping)
+                .expect_err("context fields must be disjoint")
+                .0
+                .contains("overlap")
+        );
+    }
+
     #[test]
     fn fixed_native_provision_uses_exact_maximum_logical_work() {
         let (demand, _) = opaque_demand(1, 2, 3, 8);
@@ -796,12 +1036,12 @@ mod tests {
             .expect("sponsor path cannot suspend for fuel");
         let sponsor_path = bind_suspension_free_fixed_fuel(sponsor_fixed, sponsor_free)
             .expect("exact fixed/suspension join");
-        let target = NativeTarget::linux_x64();
-        let plan = DynamicNativeFuelMeterPlan::from_admitted_target(
-            target,
+        let profile = TargetProfile::WindowsX64;
+        let target = profile.native_target();
+        let plan = DynamicNativeFuelMeterPlan::from_admitted_target_policy(
+            x86_target_policy(profile),
             schedule(),
             id(24, NativeFuelMeterPlanId::from_normalized_identity),
-            id(25, SponsorContextTransportId::from_normalized_identity),
             id(26, FuelExhaustionTransferPlanId::from_normalized_identity),
             sponsor_path,
             id(
@@ -837,8 +1077,17 @@ mod tests {
             rows: rows.clone(),
             bytes: vec![0; 4],
         };
-        validate_dynamic_fuel_attributions(&plan, &artifact, &rows)
+        let basis = validate_dynamic_fuel_attribution_basis(plan.clone(), &artifact)
             .expect("zero-code and byte-bearing attribution sites are valid meter inputs");
+        assert_eq!(basis.attributions(), rows);
+        let changed_source = TestTerminalArtifact {
+            target,
+            rows: rows.clone(),
+            bytes: vec![1; 4],
+        };
+        let changed_basis = validate_dynamic_fuel_attribution_basis(plan.clone(), &changed_source)
+            .expect("different valid source bytes remain a distinct instrumentation input");
+        assert_ne!(basis.fingerprint(), changed_basis.fingerprint());
         let mut duplicate = rows.clone();
         duplicate[1].site = duplicate[0].site;
         let error = validate_dynamic_fuel_attributions(&plan, &artifact, &duplicate)
@@ -850,7 +1099,7 @@ mod tests {
             runtime_provision,
             3,
             NativeFuelExecutionEnvironment::Hosted {
-                target,
+                profile,
                 interpreter_available: true,
             },
             NativeFuelRealizationRequest::Dynamic(&plan),
@@ -861,16 +1110,21 @@ mod tests {
         assert_eq!(realized.granted_units(), 3);
         assert_eq!(realized.dynamic_plan(), Some(&plan));
 
+        assert_eq!(
+            TargetProfile::WindowsX64.native_target(),
+            TargetProfile::UefiX64.native_target(),
+            "profile custody matters even when the native tuples are identical"
+        );
         let wrong_target = admit_native_fuel_realization(
             &runtime_demand,
             runtime_provision,
             3,
             NativeFuelExecutionEnvironment::Freestanding {
-                target: NativeTarget::linux_arm64(),
+                profile: TargetProfile::UefiX64,
             },
             NativeFuelRealizationRequest::Dynamic(&plan),
         )
-        .expect_err("a target meter plan cannot be transplanted");
+        .expect_err("a target meter plan cannot cross an identical native tuple's profile");
         assert!(wrong_target.0.contains("selected target"));
     }
 
@@ -878,13 +1132,13 @@ mod tests {
     fn unavailable_native_fuel_interprets_only_on_an_enabled_host() {
         let (demand, _) = opaque_demand(30, 31, 32, 5);
         let provision = id(33, FuelProvisionId::from_normalized_identity);
-        let target = NativeTarget::linux_x64();
+        let profile = TargetProfile::LinuxX64;
         let interpreted = admit_native_fuel_realization(
             &demand,
             provision,
             2,
             NativeFuelExecutionEnvironment::Hosted {
-                target,
+                profile,
                 interpreter_available: true,
             },
             NativeFuelRealizationRequest::Unavailable,
@@ -897,7 +1151,7 @@ mod tests {
             provision,
             2,
             NativeFuelExecutionEnvironment::Hosted {
-                target,
+                profile,
                 interpreter_available: false,
             },
             NativeFuelRealizationRequest::Unavailable,
@@ -909,7 +1163,7 @@ mod tests {
             &demand,
             provision,
             2,
-            NativeFuelExecutionEnvironment::Freestanding { target },
+            NativeFuelExecutionEnvironment::Freestanding { profile },
             NativeFuelRealizationRequest::Unavailable,
         )
         .expect_err("freestanding targets reject unavailable metering");

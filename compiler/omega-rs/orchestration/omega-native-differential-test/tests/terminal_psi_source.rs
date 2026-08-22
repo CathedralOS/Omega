@@ -4,8 +4,8 @@
 
 use omega_artifacts::external_root_manifest_json;
 use omega_calling_conventions::{
-    CallSignature, CallingPolicy, MachineStateSet, RegisterSet, StateFootprintEvidence,
-    evaluate_ordinary_boundary_entry_plan,
+    CallSignature, CallingPolicy, MachineRegister, MachineStateSet, RegisterSet,
+    StateFootprintEvidence, evaluate_ordinary_boundary_entry_plan,
 };
 use omega_compiler::compile_to_checked;
 use omega_executable_installation::{
@@ -22,16 +22,17 @@ use omega_external_roots::{
     DynamicNativeFuelMeterPlan, ExternalRootCandidate, ExternalRootId, FixedFuelProviderSummary,
     FuelExhaustionTransferPlanId, FuelProvisionId, FuelSuspensionValidationReceiptId,
     FuelValidationReceiptId, InstalledRootLedger, LogicalFuelResourceColumn,
-    MachineStateResourceColumn, NativeFuelMeterPlanId, NestingRelationId,
-    OpaqueProviderExitAssurance, ProviderExecution, ProviderExecutionId, ProviderFuelSummaryId,
-    ProviderFuelValidationReceiptId, ProviderPlanId, ProviderStackSummary, RootAdmission,
-    RootAdmissionId, RootProviderId, RootSlotAuthority, RootSlotId, RootSlotOwnerId,
-    SponsorContextTransportId, StackNestingRelation, StackResourceColumn, StackValidationReceiptId,
-    StateValidationReceiptId, TrustReceiptId, admit_fixed_native_fuel,
-    bind_installed_dynamic_fuel_attributions, bind_installed_terminal_entry_fuel,
+    MachineStateResourceColumn, NativeFuelContextLayout, NativeFuelMeterPlanId,
+    NativeFuelTargetPlanProjection, NestingRelationId, OpaqueProviderExitAssurance,
+    ProviderExecution, ProviderExecutionId, ProviderFuelSummaryId, ProviderFuelValidationReceiptId,
+    ProviderPlanId, ProviderStackSummary, RootAdmission, RootAdmissionId, RootProviderId,
+    RootSlotAuthority, RootSlotId, RootSlotOwnerId, SponsorContextTransport, StackNestingRelation,
+    StackResourceColumn, StackValidationReceiptId, StateValidationReceiptId, TrustReceiptId,
+    admit_fixed_native_fuel, admit_native_fuel_target_policy, bind_installed_terminal_entry_fuel,
     bind_installed_terminal_entry_stack, bind_suspension_free_fixed_fuel, compose_artifact_stacks,
-    compose_fixed_fuel, derive_fuel_suspension_free, validate_external_root,
-    validate_installed_terminal_entry_fuel, validate_installed_terminal_entry_stack,
+    compose_fixed_fuel, derive_fuel_suspension_free, validate_dynamic_fuel_attribution_basis,
+    validate_external_root, validate_installed_terminal_entry_fuel,
+    validate_installed_terminal_entry_stack,
 };
 use omega_target::NativeTarget;
 use omega_terminal_abstract_operations::{

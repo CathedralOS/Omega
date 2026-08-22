@@ -45,7 +45,7 @@ use omega_state_graph::{
 use omega_state_guards::build_state_guard_plan;
 use omega_state_storage::{StateStoragePlanningContext, build_state_storage_plan_with_workers};
 use omega_state_values::{StateValuePlanningContext, build_state_value_plan_with_workers};
-use omega_target::NativeTarget;
+use omega_target::{NativeTarget, TargetProfile};
 use omega_target_operations_to_assigned_target_operations::build_assigned_target_operations;
 use psi_arena::Arena;
 use psi_checked_trees::CheckedTrees;
@@ -58,12 +58,13 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
     entry_machine_name: Option<&str>,
     entry_boundary_plan: Option<omega_calling_conventions::BoundaryEntryPlan>,
     callback_placements: Arc<[BoundNominalCallbackPlacement]>,
-    target: NativeTarget,
+    target_profile: TargetProfile,
     freestanding: bool,
     external_binding_rows: &[omega_calling_conventions::ExternalBindingRow],
     control_flow: Arc<ControlFlowPlan>,
     workers: WorkerPoolHandle,
 ) -> Result<BackendPlan, Diagnostic> {
+    let target = target_profile.native_target();
     let entry_point = resolve_backend_entry_point(&program, entry_machine_name)?;
     let callback_thunks = plan_callback_thunks(&control_flow, &callback_placements)?;
     let mut phase_timings = Arena::new();
@@ -82,8 +83,8 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
             let target_rows: Vec<_> = external_binding_rows
                 .iter()
                 .filter(|row| {
-                    NativeTarget::from_omega_target_name(Some(&row.target_name))
-                        .is_ok_and(|row_target| row_target == target)
+                    TargetProfile::from_omega_target_name(Some(&row.target_name))
+                        .is_ok_and(|row_profile| row_profile == target_profile)
                 })
                 .cloned()
                 .collect();
@@ -204,6 +205,7 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
         )
     });
     let mut backend_plan = build_backend_plan_skeleton(BackendPlanSkeletonInput {
+        target_profile,
         target,
         host_abi: Arc::clone(&host_abi),
         host_calls: Arc::try_unwrap(host_calls).unwrap_or_else(|host_calls| (*host_calls).clone()),

@@ -294,6 +294,7 @@ mod tests {
                 instructions: HandleSpan::empty(),
             });
         BackendPlan {
+            target_profile: omega_target::TargetProfile::UefiX64,
             target,
             artifacts: BackendArtifactRoots::empty_for_target(target),
             host_abi: Arc::new(omega_calling_conventions::build_host_abi_plan(target)),

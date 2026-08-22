@@ -18,6 +18,7 @@ use omega_calling_conventions::{
 pub use omega_executable_installation::{ArtifactId, InstalledCodeId};
 use omega_executable_installation::{InstalledCode, InstalledCodeContext};
 pub use omega_terminal_installation_evidence::{
+    NativeFuelContextLayout, NativeFuelTargetPlanProjection, SponsorContextTransport,
     TerminalObjectEvidence, TerminalStackDemandEvidence,
 };
 pub use psi_core::FuelScheduleIdentity;
@@ -78,7 +79,6 @@ normalized_id!(
     "fuel-suspension validation receipt"
 );
 normalized_id!(NativeFuelMeterPlanId, "native fuel-meter plan");
-normalized_id!(SponsorContextTransportId, "sponsor-context transport");
 normalized_id!(
     FuelExhaustionTransferPlanId,
     "fuel-exhaustion transfer plan"

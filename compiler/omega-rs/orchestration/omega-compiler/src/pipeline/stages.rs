@@ -471,8 +471,8 @@ pub(super) fn control_flow_to_backend_plan(
     workers: omega_core::parallel::WorkerPoolHandle,
     timings: &mut CompileTimings,
 ) -> Result<BackendPlanningSurface, Vec<Diagnostic>> {
-    let target =
-        NativeTarget::from_omega_target_name(target_name).map_err(|diagnostic| vec![diagnostic])?;
+    let target_profile = omega_target::TargetProfile::from_omega_target_name(target_name)
+        .map_err(|diagnostic| vec![diagnostic])?;
 
     let plan = omega_backend_pipeline::build_backend_plan_from_control_flow_with_workers(
         checked.program,
@@ -480,7 +480,7 @@ pub(super) fn control_flow_to_backend_plan(
         entry_machine_name,
         entry_boundary_plan,
         checked.callback_placements,
-        target,
+        target_profile,
         freestanding,
         external_binding_rows,
         Arc::new(control_flow),
