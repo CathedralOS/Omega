@@ -435,6 +435,13 @@ pub struct InstalledRootRecord {
     pub entry_claims: Vec<ExternalRootEntryClaim>,
     pub acknowledgement_parameter_index: Option<usize>,
     pub interrupt_mask_guard_claim: Option<ExternalRootResultClaim>,
+    /// Final service row after substituting every installation-bound provider
+    /// requirement in this exact root closure.
+    pub service_reach: Vec<String>,
+    /// Fingerprint of the selected provider closure that supplied the rows.
+    pub selected_provider_closure_fingerprint: u64,
+    /// Exact bounded requirement resolutions retained for audit and replay.
+    pub installation_reach_resolutions: Vec<omega_effects::InstallationReachResolution>,
     pub boundary_contract_fingerprint: u64,
     pub boundary: BoundaryEntryPlan,
     pub provider: RootProviderId,
@@ -1297,6 +1304,12 @@ impl InstalledRootLedger {
             entry_claims: root.candidate.entry_claims,
             acknowledgement_parameter_index: root.candidate.acknowledgement_parameter_index,
             interrupt_mask_guard_claim: root.candidate.interrupt_mask_guard_claim,
+            service_reach: root.candidate.service_reach.effective().to_vec(),
+            selected_provider_closure_fingerprint: root
+                .candidate
+                .service_reach
+                .selected_provider_closure_fingerprint(),
+            installation_reach_resolutions: root.candidate.service_reach.resolutions().to_vec(),
             boundary_contract_fingerprint: root.boundary_contract_fingerprint,
             boundary: root.boundary.plan().clone(),
             provider: root.candidate.provider,

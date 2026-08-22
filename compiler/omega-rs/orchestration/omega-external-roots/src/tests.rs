@@ -4,6 +4,9 @@ use omega_calling_conventions::{
     RegisterSet, StatePlan, ValueShape, evaluate_ordinary_boundary_entry_plan,
     validate_boundary_entry_plan,
 };
+use omega_effects::provider_plan::{
+    ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceMethod, ServiceSchema,
+};
 use omega_executable_installation::{
     AdmissionReceiptId, Artifact, ArtifactAdmissionEvidence, ArtifactContentId, ArtifactEntry,
     CodePlacementAuthority, CodePlacementId, EntrySetId, FinalValidationCertificate,
@@ -258,6 +261,12 @@ fn candidate(entry: EntryStubId) -> ExternalRootCandidate {
         entry_claims: Vec::new(),
         acknowledgement_parameter_index: None,
         interrupt_mask_guard_claim: None,
+        service_reach: ResolvedRootServiceReach::from_selected_provider_closure(
+            Vec::new(),
+            Vec::new(),
+            &omega_effects::SelectedProviderPlanFacts::default(),
+        )
+        .expect("empty root service reach"),
         effects: [root_id(3, RootEffectId::from_normalized_identity)]
             .into_iter()
             .collect(),
@@ -303,6 +312,89 @@ fn candidate(entry: EntryStubId) -> ExternalRootCandidate {
         .into_iter()
         .collect(),
     }
+}
+
+fn selected_interrupt_completion() -> omega_effects::SelectedProviderPlanFacts {
+    let requirement_identity = "InterruptCompletion::complete".to_owned();
+    let plan = ProviderPlan {
+        name: "LegacyPic".into(),
+        provider_type: "LegacyPicController".into(),
+        target: "x86_64-unknown-none".into(),
+        schema: ServiceSchema {
+            trait_name: "InterruptCompletion".into(),
+            methods: vec![ServiceMethod {
+                name: "complete".into(),
+                requirement_owner: "InterruptCompletion".into(),
+                requirement_identity: requirement_identity.clone(),
+                parameter_count: 0,
+                parameter_type_identities: Vec::new(),
+                entry_claims: Vec::new(),
+                has_result: false,
+                result_type_identity: None,
+                result_claims: Vec::new(),
+                service_reach: vec!["InterruptCompletion".into()],
+                synchronous_invocations: Vec::new(),
+                may_suspend: false,
+                may_block: false,
+                terminates_guarantee: false,
+                termination_premises: Vec::new(),
+                calling_plan_fingerprint: None,
+            }],
+        },
+        rows: vec![ProviderPlanRow {
+            method: "complete".into(),
+            requirement_identity: requirement_identity.clone(),
+            binding: ProviderBinding::CheckedAdapter {
+                machine: "LegacyPicController::complete".into(),
+            },
+        }],
+        origin_package: "test".into(),
+    };
+    let identity = plan.identity_fingerprint();
+    omega_effects::SelectedProviderPlanFacts::from_selection(
+        std::slice::from_ref(&plan),
+        std::slice::from_ref(&plan.name),
+    )
+    .expect("selected interrupt completion provider")
+    .with_installation_reach_resolutions(vec![omega_effects::InstallationReachResolution {
+        requirement_identity,
+        provider_plan_identity: identity,
+        upper_bound: vec!["PortIo".into(), "MachineControl".into()],
+        resolved_row: vec!["PortIo".into()],
+    }])
+    .expect("PIC reach refines the interrupt completion bound")
+}
+
+#[test]
+fn root_service_reach_substitutes_selected_rows_and_rejects_absence() {
+    let selected = selected_interrupt_completion();
+    let requirement = "InterruptCompletion::complete".to_owned();
+    let reach = ResolvedRootServiceReach::from_selected_provider_closure(
+        vec!["Timer".into()],
+        vec![requirement.clone()],
+        &selected,
+    )
+    .expect("selected provider closes the root reach");
+
+    assert_eq!(reach.concrete(), ["Timer"]);
+    assert_eq!(
+        reach.installation_requirements(),
+        ["InterruptCompletion::complete"]
+    );
+    assert_eq!(reach.effective(), ["PortIo", "Timer"]);
+    assert_eq!(reach.resolutions().len(), 1);
+    assert_eq!(
+        reach.selected_provider_closure_fingerprint(),
+        selected.normalized_identity()
+    );
+
+    let error = ResolvedRootServiceReach::from_selected_provider_closure(
+        Vec::new(),
+        vec!["Missing::requirement".into()],
+        &selected,
+    )
+    .expect_err("an installed root cannot retain an unresolved reach row");
+    assert!(error.0.contains("remains unresolved at final admission"));
 }
 
 fn slot() -> RootSlotAuthority {
@@ -1274,7 +1366,15 @@ fn prepared_writer_execution_replays_structure_before_destination_consumption() 
 fn installation_records_the_complete_external_root_and_pins_code_liveness() {
     let entry = entry_id(1001);
     let code = installed_code(1, entry);
-    let validated = validate_external_root(candidate(entry), &boundary()).expect("root plan");
+    let selected = selected_interrupt_completion();
+    let mut candidate = candidate(entry);
+    candidate.service_reach = ResolvedRootServiceReach::from_selected_provider_closure(
+        vec!["Timer".into()],
+        vec!["InterruptCompletion::complete".into()],
+        &selected,
+    )
+    .expect("selected provider closes root reach");
+    let validated = validate_external_root(candidate, &boundary()).expect("root plan");
     let validated_identity = validated.normalized_identity();
     let authority = slot();
     let execution = provider_execution(&validated);
@@ -1307,6 +1407,12 @@ fn installation_records_the_complete_external_root_and_pins_code_liveness() {
     assert!(record.entry_claims.is_empty());
     assert_eq!(record.acknowledgement_parameter_index, None);
     assert!(record.interrupt_mask_guard_claim.is_none());
+    assert_eq!(record.service_reach, ["PortIo", "Timer"]);
+    assert_eq!(
+        record.selected_provider_closure_fingerprint,
+        selected.normalized_identity()
+    );
+    assert_eq!(record.installation_reach_resolutions.len(), 1);
     assert_eq!(
         record.provider_execution_fingerprint,
         execution.normalized_identity()

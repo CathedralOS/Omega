@@ -6515,31 +6515,22 @@ state through a raw address.
   acknowledges, records time, publishes a coalesced wake, and returns; fan-out
   runs in an ordinary task.
 - **BOUNDED-INSTALLATION-REACH-ROWS.** Implement bounded installation reach
-  rows spelled `reaches <= Bound` on installation-bound boundary requirements.
-  The source form and its normalized marker are live through syntax,
-  symbol-resolved, typed, and typed-snapshot representations. The parser
-  accepts it only on bodyless boundary-trait requirements and rejects empty,
-  mixed, default-body, ordinary-trait, and structural-binder uses.
-  Checked reach inference now retains each unresolved row by exact requirement
-  symbol plus upper-bound row, propagates it transitively through callers, and
-  exposes it in realized machine envelopes while keeping the bound as the
-  conservative preselection reach. Trait-conformance validation already
-  rejects realization rows outside the bound. Remaining work is the
-  cross-artifact half: encode a source-handle-free requirement identity in
-  terminal/manifests and consume it at installed-root admission. Selected
-  provider binding now derives the realization's actual checked reach as
-  `InstallationReachResolution`, verifies it refines the authored bound, and
-  includes the resolution in selected-closure identity. Checked reach facts
-  retain a separate concrete row excluding abstract-bound contributions, so
-  final substitution is `concrete + selected rows`, never unsound set
-  subtraction. The source-free resolver rejects any missing selection.
-  Retain its `+`-union upper bound and internal
-  dependency closure, reject escape through ordinary callable package or
-  component contracts, expose unresolved rows and bounds in preselection
-  manifests, substitute the selected provider row throughout the root closure,
-  and reject final admission with any unresolved row. Do not add effect
-  negation, subtraction, lower bounds, exclusive-or, named row variables, or
-  cross-requirement correlation.
+  rows on installation-bound boundary requirements.
+  - **Live:** `reaches <= Bound` parses only on bodyless boundary-trait
+    requirements; syntax through typed snapshots retain the marker. Checked
+    inference propagates exact requirement dependencies separately from the
+    conservative bound and from concrete reach. Conformance rejects a provider
+    outside the bound. Provider selection derives and fingerprints each exact
+    `InstallationReachResolution`. External-root admission now accepts only a
+    `ResolvedRootServiceReach`, substitutes `concrete + selected rows`, rejects
+    absent selections, and retains the resolutions in the installed record.
+  - **Remaining:** encode the exact dependencies in source-handle-free terminal
+    root closures; expose unresolved bounds in preselection manifests and exact
+    rows after selection; reject their escape through ordinary callable package
+    or component contracts; feed the terminal closure into root admission.
+  - **Constraints:** `+` is union. Do not infer one shared row from equal sets or
+    add negation, subtraction, lower bounds, exclusive-or, named row variables,
+    or cross-requirement correlation.
 - Migrate both `InterruptEntry::enter` and
   `InterruptAcknowledgement::complete` from the temporary hardcoded `PortIo`
   ceiling to distinct bounded installation rows beneath
