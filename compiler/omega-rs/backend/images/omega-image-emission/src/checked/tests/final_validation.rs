@@ -312,11 +312,10 @@ fn final_executable_regions_retain_exact_compiler_function_identity_and_bytes() 
     let mut object = omega_object_file::ObjectPlan::with_capacities(target, 0, 1, 1);
     let function = plan.code.functions.iter().next().unwrap().1;
     bind_encoded_function_object_symbol(&mut object, function);
-    let symbol = omega_object_file::object_function_symbol(&object, identity)
-        .expect("exact object function")
-        .1
-        .name
-        .clone();
+    let (entry_symbol, symbol) = omega_object_file::object_function_symbol(&object, identity)
+        .expect("exact object function");
+    let symbol = symbol.name.clone();
+    object.layout.entry_symbol = entry_symbol;
     let region = PlacedExecutableRegion {
         origin: FinalExecutableRegionOrigin::CompilerFunction,
         section_offset: 0,
@@ -335,14 +334,33 @@ fn final_executable_regions_retain_exact_compiler_function_identity_and_bytes() 
         unclassified_gaps: Vec::new(),
     };
 
-    let exact_binding =
+    let (exact_binding, entry_binding) =
         validate_executable_region_enumeration(&inventory, &plan.code, &object, &final_bytes)
             .expect("exact compiler-function region should rejoin");
     assert_ne!(exact_binding, 0);
+    assert_eq!(entry_binding.function_identity, identity);
+    assert_eq!(
+        entry_binding.object_symbol_handle,
+        object.layout.entry_symbol
+    );
+    assert_eq!(entry_binding.region_index, 0);
+    assert_eq!(
+        entry_binding.inventory_fingerprint,
+        inventory.inventory_fingerprint
+    );
+    assert_eq!(
+        entry_binding.final_region_binding_fingerprint,
+        exact_binding
+    );
+    assert_ne!(entry_binding.evidence_fingerprint, 0);
+    assert_eq!(
+        entry_binding.evidence_fingerprint,
+        entry_binding.recomputed_evidence_fingerprint()
+    );
 
     let mut changed_inventory_identity = inventory.clone();
     changed_inventory_identity.inventory_fingerprint ^= 1;
-    let changed_binding = validate_executable_region_enumeration(
+    let (changed_binding, _) = validate_executable_region_enumeration(
         &changed_inventory_identity,
         &plan.code,
         &object,

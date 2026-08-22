@@ -667,7 +667,13 @@ including the inventory identity and the region's symbol, index, address,
 interval, and byte fingerprint. That binding fingerprint is part of both the
 function evidence and final text derivation, so later certificates cannot mix
 a validated function partition with a different, individually valid placed
-inventory.
+inventory. Entry boundary-footprint attachment consumes a separately sealed
+projection of that join: the exact compiler-private entry identity, object
+symbol handle, final-region index/symbol/address/interval/bytes, inventory
+identity, and complete function-region binding identity. The projection has
+its own replayed fingerprint, so identity, handle, row, or custody drift
+rejects before mutating the inventory; entry evidence is no longer attached by
+linkage spelling alone.
 Final relocation replay also builds one exact owner map from every retained
 selected-instruction identity to that function symbol. A selected instruction
 retained twice, an instruction relocation naming another function, or an

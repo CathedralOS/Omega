@@ -134,13 +134,15 @@ pub fn emit_checked_executable_image(
             &emitted_output.executable_regions,
             &emitted_output.final_text_bytes,
         )?;
-        compiler_function_validation.final_region_binding_fingerprint =
+        let (final_region_binding_fingerprint, compiler_entry_region_binding) =
             validate_executable_region_enumeration(
                 &emitted_output.executable_regions,
                 encoded_machine_code,
                 object,
                 final_compiler_text_bytes,
             )?;
+        compiler_function_validation.final_region_binding_fingerprint =
+            final_region_binding_fingerprint;
         let (checked_instruction_validation_count, checked_instruction_validation_fingerprint) =
             validate_checked_instruction_bytes(
                 architecture,
@@ -264,6 +266,7 @@ pub fn emit_checked_executable_image(
         compiler_text_validation.derivation_fingerprint = derivation_fingerprint;
         emitted_output.compiler_text_validation = Some(compiler_text_validation);
         emitted_output.compiler_function_validation = Some(compiler_function_validation);
+        emitted_output.compiler_entry_region_binding = Some(compiler_entry_region_binding);
         return Ok(emitted_output);
     }
 
@@ -850,7 +853,7 @@ fn validate_executable_region_enumeration(
     code: &omega_machine_bytes::EncodedMachineCode,
     object: &omega_object_file::ObjectPlan,
     final_compiler_text_bytes: &[u8],
-) -> Result<u64, Diagnostic> {
+) -> Result<(u64, omega_image::CompilerEntryRegionBindingEvidence), Diagnostic> {
     if let Some(gap) = inventory.unclassified_gaps.first() {
         return Err(Diagnostic::error(format!(
             "final executable region enumeration left {} unclassified byte(s) at .text offset {}",
@@ -881,6 +884,7 @@ fn validate_executable_region_enumeration(
         &mut binding_fingerprint,
         &(compiler_regions.len() as u64).to_le_bytes(),
     );
+    let mut entry_binding = None;
     for (function_index, (_, function)) in code.functions.iter().enumerate() {
         let (symbol_handle, symbol) = omega_object_file::object_function_symbol(
             object,
@@ -965,8 +969,35 @@ fn validate_executable_region_enumeration(
             &mut binding_fingerprint,
             &region.byte_fingerprint.to_le_bytes(),
         );
+        if symbol_handle == object.layout.entry_symbol {
+            if entry_binding.is_some() {
+                return Err(Diagnostic::error(
+                    "final executable inventory retains multiple compiler functions for the object entry",
+                ));
+            }
+            entry_binding = Some(omega_image::CompilerEntryRegionBindingEvidence {
+                function_identity: function.identity,
+                object_symbol_handle: symbol_handle,
+                region_index,
+                symbol: region.symbol.clone(),
+                section_offset: region.section_offset,
+                address: region.address,
+                byte_count: region.byte_count,
+                byte_fingerprint: region.byte_fingerprint,
+                inventory_fingerprint: inventory.inventory_fingerprint,
+                final_region_binding_fingerprint: 0,
+                evidence_fingerprint: 0,
+            });
+        }
     }
-    Ok(binding_fingerprint)
+    let mut entry_binding = entry_binding.ok_or_else(|| {
+        Diagnostic::error(
+            "final executable inventory does not retain the object entry's exact compiler function",
+        )
+    })?;
+    entry_binding.final_region_binding_fingerprint = binding_fingerprint;
+    entry_binding.evidence_fingerprint = entry_binding.recomputed_evidence_fingerprint();
+    Ok((binding_fingerprint, entry_binding))
 }
 
 fn final_region_byte_fingerprint(bytes: &[u8]) -> u64 {

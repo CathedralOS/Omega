@@ -32,6 +32,92 @@ pub struct EmittedImageOutput {
     pub executable_regions: crate::PlacedExecutableRegionInventory,
     pub compiler_text_validation: Option<CompilerTextValidationEvidence>,
     pub compiler_function_validation: Option<CompilerFunctionValidationEvidence>,
+    pub compiler_entry_region_binding: Option<CompilerEntryRegionBindingEvidence>,
+}
+
+/// Exact final-region custody for the object entry's compiler-private
+/// function identity. This row is derived only after the complete function to
+/// region join succeeds and is consumed when boundary footprint evidence is
+/// attached.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CompilerEntryRegionBindingEvidence {
+    pub function_identity: omega_control_flow::MachineFunctionIdentity,
+    pub object_symbol_handle: omega_object_file::ObjectSymbolHandle,
+    pub region_index: usize,
+    pub symbol: String,
+    pub section_offset: usize,
+    pub address: u64,
+    pub byte_count: usize,
+    pub byte_fingerprint: u64,
+    pub inventory_fingerprint: u64,
+    pub final_region_binding_fingerprint: u64,
+    pub evidence_fingerprint: u64,
+}
+
+impl CompilerEntryRegionBindingEvidence {
+    pub fn recomputed_evidence_fingerprint(&self) -> u64 {
+        let mut hash = 0xcbf2_9ce4_8422_2325u64;
+        let identity = self.function_identity;
+        let role_tag = if identity.source_key().is_some() {
+            1u8
+        } else if identity.program_storage_entry_continuation().is_some() {
+            2u8
+        } else if identity.callback_thunk_placement_index().is_some() {
+            3u8
+        } else {
+            0u8
+        };
+        fingerprint_bytes(&mut hash, &[role_tag]);
+        let continuation = identity.associated_source_continuation();
+        fingerprint_bytes(
+            &mut hash,
+            &u64::from(continuation.machine.arena_index()).to_le_bytes(),
+        );
+        fingerprint_bytes(
+            &mut hash,
+            &u64::from(continuation.machine.generation()).to_le_bytes(),
+        );
+        fingerprint_bytes(
+            &mut hash,
+            &u64::from(continuation.state.arena_index()).to_le_bytes(),
+        );
+        fingerprint_bytes(
+            &mut hash,
+            &u64::from(continuation.state.generation()).to_le_bytes(),
+        );
+        fingerprint_bytes(
+            &mut hash,
+            &(continuation.segment_index as u64).to_le_bytes(),
+        );
+        fingerprint_bytes(
+            &mut hash,
+            &(identity
+                .callback_thunk_placement_index()
+                .unwrap_or(usize::MAX) as u64)
+                .to_le_bytes(),
+        );
+        fingerprint_bytes(
+            &mut hash,
+            &u64::from(self.object_symbol_handle.arena_index()).to_le_bytes(),
+        );
+        fingerprint_bytes(
+            &mut hash,
+            &u64::from(self.object_symbol_handle.generation()).to_le_bytes(),
+        );
+        for value in [self.region_index, self.section_offset, self.byte_count] {
+            fingerprint_bytes(&mut hash, &(value as u64).to_le_bytes());
+        }
+        fingerprint_bytes(&mut hash, &(self.symbol.len() as u64).to_le_bytes());
+        fingerprint_bytes(&mut hash, self.symbol.as_bytes());
+        fingerprint_bytes(&mut hash, &self.address.to_le_bytes());
+        fingerprint_bytes(&mut hash, &self.byte_fingerprint.to_le_bytes());
+        fingerprint_bytes(&mut hash, &self.inventory_fingerprint.to_le_bytes());
+        fingerprint_bytes(
+            &mut hash,
+            &self.final_region_binding_fingerprint.to_le_bytes(),
+        );
+        hash
+    }
 }
 
 /// Exact final-byte binding for the compiler function/instruction partition.
@@ -89,6 +175,13 @@ impl CompilerFunctionValidationEvidence {
     }
 }
 
+fn fingerprint_bytes(hash: &mut u64, bytes: &[u8]) {
+    for byte in bytes {
+        *hash ^= u64::from(*byte);
+        *hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CompilerTextValidationEvidence {
     pub encoded_text_fingerprint: u64,
@@ -126,5 +219,6 @@ pub fn emitted_direct_executable_output(output: ExecutableImageOutput) -> Emitte
         executable_regions: output.executable_regions,
         compiler_text_validation: None,
         compiler_function_validation: None,
+        compiler_entry_region_binding: None,
     }
 }

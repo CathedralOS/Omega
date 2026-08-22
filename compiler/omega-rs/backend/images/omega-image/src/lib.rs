@@ -27,8 +27,9 @@ pub use model::{
     validate_placed_executable_region_inventory,
 };
 pub use output::{
-    CompilerFunctionValidationEvidence, CompilerTextValidationEvidence, EmittedImageOutput,
-    ExecutableImageOutput, ImageOutputKind, emitted_direct_executable_output,
+    CompilerEntryRegionBindingEvidence, CompilerFunctionValidationEvidence,
+    CompilerTextValidationEvidence, EmittedImageOutput, ExecutableImageOutput, ImageOutputKind,
+    emitted_direct_executable_output,
 };
 pub use relocation_envelope::validate_final_text_relocation_envelope;
 pub use symbols::{
