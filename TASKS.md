@@ -2360,6 +2360,12 @@ Remaining:
   aliases still require the exact same carrier, transitive aliases still must
   match one reconstructed endpoint, and source/orientation order, same-fact
   rejection, proof shapes, precedence, and fixed frontiers remain unchanged.
+  Left-before-right `Value` endpoint enumeration now belongs to the paired
+  side-local affine bound authorities and is reused by direct retained-bound
+  selection and fixed two-citation completion. Producer and reconstruction
+  still enumerate independently; source/citation order, endpoint precedence,
+  root custody, proof shapes, rejection behavior, and every fixed affine
+  frontier remain unchanged.
   One-equality transitive affine completion now lives in independent side-local
   `affine_selection/transitive/alias/completion` modules. Each parent retains
   its own ledger-ordered equality discovery, distinct root/alias custody, and
@@ -3057,6 +3063,11 @@ Remaining:
   valuation must-meet while the 1,669-line parent retains fixpoint scheduling,
   statement walking, and diagnostic order; the 41-function inventory remains
   unchanged.
+  Read-only place/schema queries now live in a 174-line `place_queries` child,
+  owning exact place rendering, attached/declared data resolution, self-root
+  classification, and standing-fact field participation without flow or
+  diagnostic callbacks. The 1,509-line parent retains the same API, behavior,
+  diagnostic order, and 41-function inventory.
   The measured nominal affine integer-comparison reconstruction hotspot now
   uses independent producer- and verifier-local affine-definition indexes.
   Each immutable invocation maps an exact current Value term to source-ordered
