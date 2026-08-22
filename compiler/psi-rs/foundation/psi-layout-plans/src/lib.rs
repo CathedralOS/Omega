@@ -1076,15 +1076,7 @@ impl PostHandoffWriterPlan {
         let mut fit_constraints = Vec::new();
         let mut steps = Vec::with_capacity(self.steps.len());
         for step in &self.steps {
-            if let PostHandoffWriterSource::Resolve(target) = step.source
-                && target != step.write.target
-            {
-                return Err(MaterializationDiagnostic(format!(
-                    "post-handoff writer source {target:?} does not match write target {:?}",
-                    step.write.target
-                )));
-            }
-            validate_write(self.byte_len, &step.write)?;
+            validate_post_handoff_writer_step(self.byte_len, step)?;
 
             let source_slot = if let Some(index) = sources
                 .iter()
@@ -1161,15 +1153,7 @@ impl PostHandoffWriterPlan {
         }
         let mut sources = Vec::<PostHandoffWriterSourceSlot>::new();
         for step in &self.steps {
-            if let PostHandoffWriterSource::Resolve(target) = step.source
-                && target != step.write.target
-            {
-                return Err(MaterializationDiagnostic(format!(
-                    "post-handoff writer source {target:?} does not match write target {:?}",
-                    step.write.target
-                )));
-            }
-            validate_write(self.byte_len, &step.write)?;
+            validate_post_handoff_writer_step(self.byte_len, step)?;
             if let Some(source) = sources
                 .iter()
                 .find(|source| source.target == step.write.target)
@@ -1244,6 +1228,25 @@ impl PostHandoffWriterPlan {
         }
         Ok(())
     }
+}
+
+fn validate_post_handoff_writer_step(
+    byte_len: usize,
+    step: &PostHandoffWriterStep,
+) -> Result<(), MaterializationDiagnostic> {
+    if let PostHandoffWriterSource::Resolve(target) = step.source
+        && target != step.write.target
+    {
+        return Err(MaterializationDiagnostic(format!(
+            "post-handoff writer source {target:?} does not match write target {:?}",
+            step.write.target
+        )));
+    }
+    validate_write(byte_len, &step.write)?;
+    if let PostHandoffWriterSource::Resolved(source_value) = step.source {
+        validate_write_source_value(&step.write, source_value, "pre-resolved symbolic")?;
+    }
+    Ok(())
 }
 
 fn generated_post_handoff_writer_fingerprint(
@@ -3818,6 +3821,77 @@ mod tests {
             .expect_err("the first target does not fit its retained stored width");
         assert!(error.0.contains("does not fit"), "{}", error.0);
         assert_eq!(resolutions, vec![first]);
+        assert_eq!(bytes, [0xa5; 16]);
+    }
+
+    #[test]
+    fn writer_rejects_invalid_preresolved_value_before_any_resolution() {
+        let dynamic = entry();
+        let pre_resolved = RelocationTarget::Entry(
+            EntryStubId::from_normalized_identity(0x66bb).expect("pre-resolved entry identity"),
+        );
+        let writer = PostHandoffWriterPlan {
+            byte_len: 16,
+            byte_order: ByteOrder::LittleEndian,
+            placement: PlacementConstraints::unconstrained(PlacementPhase::PostHandoff),
+            steps: vec![
+                PostHandoffWriterStep {
+                    write: MaterializationWrite {
+                        field: "dynamic".into(),
+                        target: dynamic,
+                        container_byte_offset: 0,
+                        container_width_bits: 64,
+                        destination_lsb: 0,
+                        source_lsb: 0,
+                        width: 64,
+                        stored_integer_fit: None,
+                    },
+                    source: PostHandoffWriterSource::Resolve(dynamic),
+                },
+                PostHandoffWriterStep {
+                    write: MaterializationWrite {
+                        field: "narrow".into(),
+                        target: pre_resolved,
+                        container_byte_offset: 8,
+                        container_width_bits: 8,
+                        destination_lsb: 0,
+                        source_lsb: 0,
+                        width: 8,
+                        stored_integer_fit: Some(StoredIntegerFit {
+                            source_width_bits: 64,
+                            stored_width_bits: 8,
+                            interpretation: IntegerInterpretation::Unsigned,
+                        }),
+                    },
+                    source: PostHandoffWriterSource::Resolved(0x100),
+                },
+            ],
+        };
+
+        let error = writer
+            .lower_reusable_fragment()
+            .expect_err("lowering must reject known-invalid invocation evidence");
+        assert!(error.0.contains("does not fit"), "{}", error.0);
+
+        let mut bytes = [0xa5; 16];
+        let mut resolutions = 0;
+        let error = writer
+            .execute(
+                &mut bytes,
+                PlacementSite {
+                    base_address: 0,
+                    phase: PlacementPhase::PostHandoff,
+                    machine_regime: None,
+                    installation_scope: None,
+                },
+                |_| {
+                    resolutions += 1;
+                    Some(0)
+                },
+            )
+            .expect_err("known-invalid invocation evidence must reject during static preflight");
+        assert!(error.0.contains("does not fit"), "{}", error.0);
+        assert_eq!(resolutions, 0);
         assert_eq!(bytes, [0xa5; 16]);
     }
 
