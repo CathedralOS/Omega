@@ -29,8 +29,10 @@ pub struct SelectedExternalRootPostHandoffWriterPreparation<'installed, 'mapping
     lowered: omega_instruction_selection::LoweredPostHandoffWriter,
     installed_code: &'installed omega_executable_installation::InstalledCode,
     prepared: omega_external_roots::PreparedExternalRootPostHandoffWriterInvocation,
-    destination:
-        omega_executable_installation::PreparedPostHandoffWriterDestination<'mapping, 'bytes>,
+    destination: omega_executable_installation::ValidatedPreparedPostHandoffWriterDestination<
+        'mapping,
+        'bytes,
+    >,
 }
 
 impl<'installed, 'mapping, 'bytes>
@@ -56,8 +58,10 @@ impl<'installed, 'mapping, 'bytes>
 
     pub const fn destination(
         &self,
-    ) -> &omega_executable_installation::PreparedPostHandoffWriterDestination<'mapping, 'bytes>
-    {
+    ) -> &omega_executable_installation::ValidatedPreparedPostHandoffWriterDestination<
+        'mapping,
+        'bytes,
+    > {
         &self.destination
     }
 }
@@ -100,8 +104,10 @@ pub struct BoundExternalRootPostHandoffWriterInvocation<'installed, 'mapping, 'b
     lowered: omega_instruction_selection::LoweredPostHandoffWriter,
     installed_code: &'installed omega_executable_installation::InstalledCode,
     prepared: omega_external_roots::PreparedExternalRootPostHandoffWriterInvocation,
-    destination:
-        omega_executable_installation::PreparedPostHandoffWriterDestination<'mapping, 'bytes>,
+    destination: omega_executable_installation::ValidatedPreparedPostHandoffWriterDestination<
+        'mapping,
+        'bytes,
+    >,
 }
 
 /// Still-unpublished destination after one exact bound external-root writer
@@ -503,8 +509,10 @@ impl<'installed, 'mapping, 'bytes>
 
     pub const fn destination(
         &self,
-    ) -> &omega_executable_installation::PreparedPostHandoffWriterDestination<'mapping, 'bytes>
-    {
+    ) -> &omega_executable_installation::ValidatedPreparedPostHandoffWriterDestination<
+        'mapping,
+        'bytes,
+    > {
         &self.destination
     }
 
@@ -992,14 +1000,19 @@ impl SelectedExternalRootProviderPlan {
                 diagnostic: omega_external_roots::ExternalRootDiagnostic(diagnostic.0),
             });
         }
-        if let Err(diagnostic) = destination.validate_for_writer_preparation() {
-            return Err(SelectedExternalRootWriterPreparationError {
-                selected_provider: self,
-                lowered,
-                destination,
-                diagnostic: omega_external_roots::ExternalRootDiagnostic(diagnostic.0),
-            });
-        }
+        let destination = match destination.into_validated_for_writer_preparation() {
+            Ok(destination) => destination,
+            Err(error) => {
+                let diagnostic =
+                    omega_external_roots::ExternalRootDiagnostic(error.diagnostic().0.clone());
+                return Err(SelectedExternalRootWriterPreparationError {
+                    selected_provider: self,
+                    lowered,
+                    destination: (*error).into_destination(),
+                    diagnostic,
+                });
+            }
+        };
         let destination_len = destination.len();
         let destination_site = destination.site();
         match execution.prepare_post_handoff_entry_writer(
@@ -1019,7 +1032,7 @@ impl SelectedExternalRootProviderPlan {
             Err(diagnostic) => Err(SelectedExternalRootWriterPreparationError {
                 selected_provider: self,
                 lowered,
-                destination,
+                destination: destination.into_destination(),
                 diagnostic,
             }),
         }

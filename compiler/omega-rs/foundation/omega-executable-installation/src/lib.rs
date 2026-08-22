@@ -889,6 +889,31 @@ pub struct PreparedPostHandoffWriterDestination<'mapping, 'bytes> {
     bytes: &'bytes mut [u8],
 }
 
+/// A prepared destination whose activated mapping, provider receipt, write
+/// rights, pinning, unpublished state, placement, and byte geometry have been
+/// replayed before symbolic-source resolution.
+#[derive(Debug)]
+#[must_use = "validated prepared destination retains mapping and byte custody"]
+pub struct ValidatedPreparedPostHandoffWriterDestination<'mapping, 'bytes> {
+    destination: PreparedPostHandoffWriterDestination<'mapping, 'bytes>,
+}
+
+#[derive(Debug)]
+pub struct PreparedPostHandoffWriterDestinationValidationError<'mapping, 'bytes> {
+    destination: PreparedPostHandoffWriterDestination<'mapping, 'bytes>,
+    diagnostic: InstallationDiagnostic,
+}
+
+impl<'mapping, 'bytes> PreparedPostHandoffWriterDestinationValidationError<'mapping, 'bytes> {
+    pub const fn diagnostic(&self) -> &InstallationDiagnostic {
+        &self.diagnostic
+    }
+
+    pub fn into_destination(self) -> PreparedPostHandoffWriterDestination<'mapping, 'bytes> {
+        self.destination
+    }
+}
+
 impl<'mapping, 'bytes> PreparedPostHandoffWriterDestination<'mapping, 'bytes> {
     pub fn claim(
         mapping: MappedExtent<'mapping>,
@@ -938,6 +963,43 @@ impl<'mapping, 'bytes> PreparedPostHandoffWriterDestination<'mapping, 'bytes> {
             self.site,
             self.bytes.len(),
         )
+    }
+
+    /// Consume this destination into replayed custody before a resolver may
+    /// observe symbolic sources. Rejection returns the exact raw destination.
+    pub fn into_validated_for_writer_preparation(
+        self,
+    ) -> Result<
+        ValidatedPreparedPostHandoffWriterDestination<'mapping, 'bytes>,
+        Box<PreparedPostHandoffWriterDestinationValidationError<'mapping, 'bytes>>,
+    > {
+        if let Err(diagnostic) = self.validate_for_writer_preparation() {
+            return Err(Box::new(
+                PreparedPostHandoffWriterDestinationValidationError {
+                    destination: self,
+                    diagnostic,
+                },
+            ));
+        }
+        Ok(ValidatedPreparedPostHandoffWriterDestination { destination: self })
+    }
+}
+
+impl<'mapping, 'bytes> ValidatedPreparedPostHandoffWriterDestination<'mapping, 'bytes> {
+    pub const fn site(&self) -> PlacementSite {
+        self.destination.site
+    }
+
+    pub fn len(&self) -> usize {
+        self.destination.bytes.len()
+    }
+
+    pub const fn is_empty(&self) -> bool {
+        self.destination.bytes.is_empty()
+    }
+
+    pub fn into_destination(self) -> PreparedPostHandoffWriterDestination<'mapping, 'bytes> {
+        self.destination
     }
 }
 
@@ -1039,9 +1101,13 @@ impl<'mapping, 'bytes> WrittenPostHandoffWriterConsumerValidationError<'mapping,
         self,
     ) -> (
         ResolvedPostHandoffEntryWriterContext,
-        PreparedPostHandoffWriterDestination<'mapping, 'bytes>,
+        ValidatedPreparedPostHandoffWriterDestination<'mapping, 'bytes>,
     ) {
-        self.written.into_prepared_parts()
+        let (context, destination) = self.written.into_prepared_parts();
+        (
+            context,
+            ValidatedPreparedPostHandoffWriterDestination { destination },
+        )
     }
 }
 
@@ -1166,9 +1232,13 @@ impl<'mapping, 'bytes> ValidatedWrittenPostHandoffWriterDestination<'mapping, 'b
         self,
     ) -> (
         ResolvedPostHandoffEntryWriterContext,
-        PreparedPostHandoffWriterDestination<'mapping, 'bytes>,
+        ValidatedPreparedPostHandoffWriterDestination<'mapping, 'bytes>,
     ) {
-        self.written.into_prepared_parts()
+        let (context, destination) = self.written.into_prepared_parts();
+        (
+            context,
+            ValidatedPreparedPostHandoffWriterDestination { destination },
+        )
     }
 
     pub fn into_parts(
@@ -1186,7 +1256,7 @@ impl<'mapping, 'bytes> ValidatedWrittenPostHandoffWriterDestination<'mapping, 'b
 #[derive(Debug)]
 pub struct DestinationWriteError<'mapping, 'bytes> {
     context: ResolvedPostHandoffEntryWriterContext,
-    destination: PreparedPostHandoffWriterDestination<'mapping, 'bytes>,
+    destination: ValidatedPreparedPostHandoffWriterDestination<'mapping, 'bytes>,
     diagnostic: MaterializationDiagnostic,
 }
 
@@ -1199,7 +1269,7 @@ impl<'mapping, 'bytes> DestinationWriteError<'mapping, 'bytes> {
         self,
     ) -> (
         ResolvedPostHandoffEntryWriterContext,
-        PreparedPostHandoffWriterDestination<'mapping, 'bytes>,
+        ValidatedPreparedPostHandoffWriterDestination<'mapping, 'bytes>,
     ) {
         (self.context, self.destination)
     }
@@ -1558,7 +1628,7 @@ impl InstalledCode {
         &self,
         context: ResolvedPostHandoffEntryWriterContext,
         plan: &PostHandoffWriterPlan,
-        destination: PreparedPostHandoffWriterDestination<'mapping, 'bytes>,
+        destination: ValidatedPreparedPostHandoffWriterDestination<'mapping, 'bytes>,
     ) -> Result<
         WrittenPostHandoffWriterDestination<'mapping, 'bytes>,
         Box<DestinationWriteError<'mapping, 'bytes>>,
@@ -1566,8 +1636,8 @@ impl InstalledCode {
         if let Err(diagnostic) = self.execute_populated_post_handoff_entry_writer(
             &context,
             plan,
-            destination.bytes,
-            destination.site,
+            destination.destination.bytes,
+            destination.destination.site,
         ) {
             return Err(Box::new(DestinationWriteError {
                 context,
@@ -1580,7 +1650,7 @@ impl InstalledCode {
             receipt,
             site,
             bytes,
-        } = destination;
+        } = destination.destination;
         Ok(WrittenPostHandoffWriterDestination {
             mapping,
             receipt,
@@ -2654,6 +2724,9 @@ mod tests {
         let destination =
             PreparedPostHandoffWriterDestination::claim(mapping, receipt, site, &mut bytes)
                 .expect("activated pinned writable unpublished destination");
+        let destination = destination
+            .into_validated_for_writer_preparation()
+            .expect("destination replay precedes symbolic-source writing");
         let mut written = installed
             .write_prepared_post_handoff_destination(context, &writer, destination)
             .expect("prepared writer consumes destination");
@@ -2720,14 +2793,15 @@ mod tests {
             .validate_for_writer_preparation()
             .expect("prepared destination replays exact mapping custody");
         destination.receipt.unpublished = false;
-        let diagnostic = destination
-            .validate_for_writer_preparation()
+        let error = destination
+            .into_validated_for_writer_preparation()
             .expect_err("preparation replay must reject publication-state drift");
-        assert!(diagnostic.0.contains("unpublished destination"));
+        assert!(error.diagnostic().0.contains("unpublished destination"));
+        let mut destination = (*error).into_destination();
         assert_eq!(destination.bytes, &[0xa5; 8]);
         destination.receipt.unpublished = true;
-        destination
-            .validate_for_writer_preparation()
+        let destination = destination
+            .into_validated_for_writer_preparation()
             .expect("repaired destination remains available for exact retry");
         let installed = installed_code(&admit(&artifact(1)), 107, 0x8000);
         let target = RelocationTarget::Entry(entry_id(1001));
@@ -2767,7 +2841,7 @@ mod tests {
         assert_eq!(context.installed_code(), installed.identity());
         assert_eq!(destination.site(), site);
         assert_eq!(destination.len(), 8);
-        assert_eq!(destination.bytes, &[0xa5; 8]);
+        assert_eq!(destination.destination.bytes, &[0xa5; 8]);
         let written = installed
             .write_prepared_post_handoff_destination(context, &writer, destination)
             .expect("returned context and destination support corrected retry");

@@ -1792,8 +1792,10 @@ impl<'mapping, 'bytes> WrittenExternalRootWriterRecoveryError<'mapping, 'bytes> 
 #[derive(Debug)]
 pub struct PreparedExternalRootWriterExecutionError<'mapping, 'bytes> {
     prepared: PreparedExternalRootPostHandoffWriterInvocation,
-    destination:
-        omega_executable_installation::PreparedPostHandoffWriterDestination<'mapping, 'bytes>,
+    destination: omega_executable_installation::ValidatedPreparedPostHandoffWriterDestination<
+        'mapping,
+        'bytes,
+    >,
     diagnostic: psi_layout_plans::MaterializationDiagnostic,
 }
 
@@ -1806,7 +1808,10 @@ impl<'mapping, 'bytes> PreparedExternalRootWriterExecutionError<'mapping, 'bytes
         self,
     ) -> (
         PreparedExternalRootPostHandoffWriterInvocation,
-        omega_executable_installation::PreparedPostHandoffWriterDestination<'mapping, 'bytes>,
+        omega_executable_installation::ValidatedPreparedPostHandoffWriterDestination<
+            'mapping,
+            'bytes,
+        >,
     ) {
         (self.prepared, self.destination)
     }
@@ -1901,7 +1906,7 @@ impl PreparedExternalRootPostHandoffWriterInvocation {
     pub fn execute<'mapping, 'bytes>(
         self,
         installed_code: &InstalledCode,
-        destination: omega_executable_installation::PreparedPostHandoffWriterDestination<
+        destination: omega_executable_installation::ValidatedPreparedPostHandoffWriterDestination<
             'mapping,
             'bytes,
         >,
@@ -2147,7 +2152,10 @@ impl<'mapping, 'bytes> WrittenExternalRootPostHandoffWriterDestination<'mapping,
     ) -> Result<
         (
             PreparedExternalRootPostHandoffWriterInvocation,
-            omega_executable_installation::PreparedPostHandoffWriterDestination<'mapping, 'bytes>,
+            omega_executable_installation::ValidatedPreparedPostHandoffWriterDestination<
+                'mapping,
+                'bytes,
+            >,
         ),
         Box<WrittenExternalRootWriterRecoveryError<'mapping, 'bytes>>,
     > {
@@ -2192,7 +2200,10 @@ impl<'mapping, 'bytes> ValidatedWrittenExternalRootPostHandoffWriterDestination<
     ) -> Result<
         (
             PreparedExternalRootPostHandoffWriterInvocation,
-            omega_executable_installation::PreparedPostHandoffWriterDestination<'mapping, 'bytes>,
+            omega_executable_installation::ValidatedPreparedPostHandoffWriterDestination<
+                'mapping,
+                'bytes,
+            >,
         ),
         Box<WrittenExternalRootWriterRecoveryError<'mapping, 'bytes>>,
     > {
