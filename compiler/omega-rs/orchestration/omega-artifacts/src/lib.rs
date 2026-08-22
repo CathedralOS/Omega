@@ -1053,57 +1053,6 @@ fn temp_path_for(path: &Path) -> PathBuf {
     ))
 }
 
-fn write_source_file_artifact(output: &mut String, file: &SourceFileArtifact) {
-    let item_range = if file.item_count == 0 {
-        String::from("-")
-    } else {
-        format!("{}..{}", file.first_item, file.first_item + file.item_count)
-    };
-
-    output.push_str(&format!(
-        "{:<4} {:>8} {:>7} {:>7} {:>7} {:>11} {}\n",
-        file.id,
-        format_bytes(file.byte_count as u64),
-        file.line_count,
-        file.non_empty_line_count,
-        file.item_count,
-        item_range,
-        file.path.display()
-    ));
-}
-
-fn write_ast_file_artifact(output: &mut String, file: &AstFileArtifact) {
-    output.push_str(&format!("## {}\n", file.path.display()));
-    output.push_str(&format!(
-        "tables: statements {} transition_targets {} expressions {} type_references {} type_constraints {}\n",
-        file.statement_count,
-        file.transition_target_count,
-        file.expression_count,
-        file.type_reference_count,
-        file.type_constraint_count
-    ));
-
-    if !file.item_range_valid {
-        output.push_str("invalid item range\n\n");
-        return;
-    }
-
-    if file.item_summaries.is_empty() {
-        output.push_str("items: none\n\n");
-        return;
-    }
-
-    for (index, summary) in file.item_summaries.iter().enumerate() {
-        output.push_str(&format!(
-            "- item {}: {}\n",
-            file.first_item + index,
-            summary
-        ));
-    }
-
-    output.push('\n');
-}
-
 fn format_bytes(bytes: u64) -> String {
     const KIB: f64 = 1024.0;
     const MIB: f64 = KIB * 1024.0;
