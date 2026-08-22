@@ -2217,9 +2217,12 @@ fn runtime_nested_struct_state_machine_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-nested-struct-sm-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("nested struct state machine canary should compile from its authored root");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("nested struct state machine canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("nested struct state machine canary should run");
     assert_eq!(
@@ -2240,9 +2243,12 @@ fn runtime_array_element_struct_copy_exit_canary_runs() {
     let canary = pass_canary("structs/runtime_array_element_struct_copy_exit");
     let scratch = std::env::temp_dir().join(format!("omega-arr-elem-copy-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("array-element struct copy canary should compile from its authored root");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("array-element struct copy canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("array-element struct copy canary should run");
     assert_eq!(
@@ -2264,10 +2270,13 @@ fn runtime_nested_struct_value_semantics_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-nested-struct-value-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("nested struct value-semantics canary should compile from its authored root");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("nested struct value-semantics canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("nested struct value-semantics canary should run");
 
@@ -2291,10 +2300,13 @@ fn runtime_struct_array_literal_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-struct-array-literal-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("struct-array literal canary should compile from its authored root");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("struct-array literal canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("struct-array literal canary should run");
 
@@ -2319,10 +2331,13 @@ fn runtime_enum_struct_payload_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-enum-struct-payload-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("enum struct-payload canary should compile from its authored root");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("enum struct-payload canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("enum struct-payload canary should run");
 
