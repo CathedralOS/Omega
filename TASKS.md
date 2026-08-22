@@ -686,8 +686,12 @@ Owners:
   in a focused 550-line private owner. Exact const-binder/range diagnostics,
   recursive expression validation order, selected public operator/provider/
   algebra identities, normalizer bytes, crate APIs, and the exact 33-function
-  inventory remain unchanged; the 1,563-line parent retains core type-reference
-  dispatch and constraint orchestration.
+  inventory remain unchanged. Type-reference constraint-chain admission now
+  lives in a focused 522-line private owner. Declared-domain matching, indexed-
+  argument handoff, semantic-role conflict ordering, carry/value/arithmetic
+  diagnostics, OmegaLayout carrier checks, dependent-range admission, crate
+  APIs, and that same inventory remain unchanged; the 1,050-line parent retains
+  recursive type-shape and generic-argument dispatch.
   Erased terms remain semantically mandatory but add no bytes, including nested
   records and fixed arrays whose entire runtime shape is erased. Scalar
   placement/access semantics remain fenced for aggregates. Continue beyond
@@ -3004,6 +3008,15 @@ Remaining:
   arithmetic-step orientation, sibling position, and target completion.
   Witness bytes, missing/late/redirected/ambiguous rejection, and the fixed
   four-definition frontier remain unchanged.
+  Landed affine-sibling definition-step decoding now lives in paired, side-local
+  `affine_custody/frontier/prefix/literals/step` modules. Producer and
+  reconstruction independently require an exact same-carrier `Value` target,
+  accept only exact integer add/subtract/multiply, preserve left-operand
+  precedence, and permit the right operand only for commutative add/multiply.
+  Their `literals` parents retain definition-word traversal, unique landing
+  alignment, equality orientation, and final-target completion. Witness bytes,
+  arithmetic orientation, rejection, and the fixed four-definition frontier
+  remain unchanged.
   Source-ordered `Value`-keyed affine candidate storage now lives in paired,
   side-local `affine_selection/value_index` modules and is reused by literal-
   landing and two-citation right-leg catalogs. Producer and reconstruction
