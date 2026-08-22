@@ -5,8 +5,9 @@
 //! that complete one already-constructed affine root bound.
 
 use psi_core::{Proposition, PropositionContext, ScalarTerm};
-use psi_proof_kernel::{IntegerAffineWitness, ProofNode};
+use psi_proof_kernel::ProofNode;
 
+mod candidates;
 mod completion;
 mod definition_index;
 mod frontier;
@@ -23,32 +24,21 @@ pub(super) fn prove_from_root(
     root: &ScalarTerm,
     root_bound: ProofNode,
 ) -> Option<ProofNode> {
-    let Proposition::LessOrEqual(goal_left, goal_right) = goal else {
-        return None;
-    };
-    for target in [goal_left, goal_right]
-        .into_iter()
-        .filter(|target| matches!(target, ScalarTerm::Value { .. }))
-    {
-        for definition_axioms in
-            frontier::definition_words(context, semantic_axioms, definitions, root)
-        {
-            let witness = IntegerAffineWitness {
-                root: root.clone(),
-                target: target.clone(),
-                definition_axioms,
-            };
-            if let Some(proof) = completion::prove(
+    candidates::find(
+        context,
+        goal,
+        semantic_axioms,
+        definitions,
+        root,
+        |witness| {
+            completion::prove(
                 context,
                 goal,
                 assumptions,
                 semantic_axioms,
                 &root_bound,
                 witness,
-            ) {
-                return Some(proof);
-            }
-        }
-    }
-    None
+            )
+        },
+    )
 }
