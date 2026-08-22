@@ -9,6 +9,7 @@
 mod artifact_manifest;
 mod debug_map;
 mod proof_bundle;
+mod provider_candidate_wire;
 mod scalar_wire;
 mod structural_field_wire;
 mod structural_type_wire;
@@ -36,6 +37,7 @@ pub use trust_graph::{
     render_terminal_trust_graph, validate_terminal_trust_graph,
 };
 
+use provider_candidate_wire::{decode_provider_candidate, encode_provider_candidate};
 use psi_core::{
     CanonicalStructuralPathSegment, ClaimId, ContentAlgebra, ContentAlgebraKind,
     ContentConservation, ContentDomainId, ContentPlaceSegment, ContentPlaceVersion,
@@ -56,14 +58,13 @@ use psi_terminal::{
     NominalAffineCleanup, Operation, OperationKind, OperationResult, ProofOnlyValueType,
     ProofPropositionId, ProofValueDeclaration, ProofValueId, PropositionApplicationIdentity,
     PropositionBinderArgumentIdentity, PropositionBinderArgumentKind, PropositionBinderDeclaration,
-    PropositionBinderKind, PropositionDeclaration, PropositionEvidence,
-    ProviderCandidateConformance, ProviderParameterRefinement, ProviderSignatureParameter,
-    ProviderUnitRefinement, ProviderUnitSignature, ServiceDeclaration, StructuralAffineDiscard,
-    StructuralArgument, StructuralDomainDeclaration, StructuralDomainRequirement,
-    StructuralFieldType, StructuralMultiplicity, StructuralParameterDeclaration,
-    StructuralPathSegment, StructuralPlaceDeclaration, StructuralResultDeclaration,
-    StructuralTypeShape, SuccessorEdge, TerminalAffineCleanupAction, TerminalMachine,
-    TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
+    PropositionBinderKind, PropositionDeclaration, PropositionEvidence, ServiceDeclaration,
+    StructuralAffineDiscard, StructuralArgument, StructuralDomainDeclaration,
+    StructuralDomainRequirement, StructuralFieldType, StructuralMultiplicity,
+    StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
+    StructuralResultDeclaration, StructuralTypeShape, SuccessorEdge, TerminalAffineCleanupAction,
+    TerminalMachine, TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration,
+    VocabularyMarker,
 };
 use psi_terminal_verifier::{ModuleError, validate_module_representation};
 use scalar_wire::{
@@ -1779,58 +1780,6 @@ fn encode_boundary_machine(
     encode_service_ceiling(writer, &declaration.published_service_ceiling)
 }
 
-fn encode_provider_candidate(
-    writer: &mut Writer,
-    candidate: &ProviderCandidateConformance,
-) -> Result<(), CodecError> {
-    writer.id(candidate.boundary);
-    writer.string(
-        "provider requirement identity",
-        &candidate.requirement_identity,
-    )?;
-    writer.string("provider identity", &candidate.provider_identity)?;
-    writer.string("provider candidate identity", &candidate.candidate_identity)?;
-    writer.id(candidate.candidate);
-    writer.len(
-        "provider signature parameters",
-        candidate.signature.parameters.len(),
-    )?;
-    for parameter in &candidate.signature.parameters {
-        writer.u32(parameter.position);
-        writer.u8(u8::from(parameter.is_self));
-        writer.id(parameter.structural_type);
-        writer.u8(match parameter.multiplicity {
-            StructuralMultiplicity::Unrestricted => 1,
-            StructuralMultiplicity::Affine => 2,
-            StructuralMultiplicity::Linear => 3,
-        });
-        writer.len(
-            "provider signature qualifications",
-            parameter.qualifications.len(),
-        )?;
-        for qualification in &parameter.qualifications {
-            writer.id(*qualification);
-        }
-    }
-    writer.len(
-        "provider positional refinements",
-        candidate.refinement.positional_parameters.len(),
-    )?;
-    for parameter in &candidate.refinement.positional_parameters {
-        writer.u32(parameter.boundary_index);
-        writer.u32(parameter.candidate_index);
-    }
-    writer.len(
-        "provider required domains",
-        candidate.refinement.required_domains.len(),
-    )?;
-    for requirement in &candidate.refinement.required_domains {
-        writer.u32(requirement.argument_index);
-        writer.id(requirement.domain);
-    }
-    encode_service_ceiling(writer, &candidate.refinement.realized_service_ceiling)
-}
-
 fn encode_structural_parameters(
     writer: &mut Writer,
     parameters: &[StructuralParameterDeclaration],
@@ -3486,59 +3435,6 @@ fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModule, CodecEr
         evidence_package_invocations,
         closed_conformance_applications,
         machines,
-    })
-}
-
-fn decode_provider_candidate(
-    reader: &mut Reader<'_>,
-) -> Result<ProviderCandidateConformance, CodecError> {
-    let boundary = reader.id("BoundaryMachineId")?;
-    let requirement_identity = reader.string("provider requirement identity")?;
-    let provider_identity = reader.string("provider identity")?;
-    let candidate_identity = reader.string("provider candidate identity")?;
-    let candidate = reader.id("MachineId")?;
-    let parameters = decode_counted(reader, |reader| {
-        let position = reader.u32()?;
-        let is_self = reader.boolean()?;
-        let structural_type = reader.id("StructuralTypeId")?;
-        let multiplicity = match reader.u8()? {
-            1 => StructuralMultiplicity::Unrestricted,
-            2 => StructuralMultiplicity::Affine,
-            3 => StructuralMultiplicity::Linear,
-            tag => return Err(CodecError::InvalidTag("StructuralMultiplicity", tag)),
-        };
-        Ok(ProviderSignatureParameter {
-            position,
-            is_self,
-            structural_type,
-            multiplicity,
-            qualifications: decode_ids(reader, "StructuralDomainId")?,
-        })
-    })?;
-    let positional_parameters = decode_counted(reader, |reader| {
-        Ok(ProviderParameterRefinement {
-            boundary_index: reader.u32()?,
-            candidate_index: reader.u32()?,
-        })
-    })?;
-    let required_domains = decode_counted(reader, |reader| {
-        Ok(StructuralDomainRequirement {
-            argument_index: reader.u32()?,
-            domain: reader.id("StructuralDomainId")?,
-        })
-    })?;
-    Ok(ProviderCandidateConformance {
-        boundary,
-        requirement_identity,
-        provider_identity,
-        candidate_identity,
-        candidate,
-        signature: ProviderUnitSignature { parameters },
-        refinement: ProviderUnitRefinement {
-            positional_parameters,
-            required_domains,
-            realized_service_ceiling: decode_ids(reader, "ServiceId")?,
-        },
     })
 }
 
