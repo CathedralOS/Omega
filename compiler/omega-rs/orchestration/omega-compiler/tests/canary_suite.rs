@@ -799,6 +799,7 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "proofs/ring_full_polynomial_false_rejected",
     "proofs/ring_identity_slots_distinct_rejected",
     "proofs/signed_rat_zero_denominator_rejected",
+    "proofs/quotient_affine_carrier_content_rejected",
     "proofs/quotient_missing_symmetry",
     "proofs/quotient_noncarrier_construction",
     "proofs/quotient_cross_family_construction",
