@@ -1703,9 +1703,12 @@ fn arithmetic_domain_cast_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-arith-domain-cast-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("arithmetic_domain_cast canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("arithmetic-domain cast canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("arithmetic_domain_cast canary should run");
 
@@ -1729,9 +1732,12 @@ fn arithmetic_domain_trapping_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("arithmetic_domain_trapping canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("in-range trapping canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("arithmetic_domain_trapping canary should run");
 
@@ -1759,9 +1765,12 @@ fn arithmetic_domain_trapping_overflow_aborts() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("arithmetic_domain_trapping_overflow canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("trapping overflow canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("arithmetic_domain_trapping_overflow canary should run");
 
@@ -1799,9 +1808,12 @@ fn arithmetic_domain_trapping_let_overflow_aborts() {
     let scratch =
         std::env::temp_dir().join(format!("omega-trapping-let-of-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("arithmetic_domain_trapping_let_overflow canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("trapping let overflow canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("arithmetic_domain_trapping_let_overflow canary should run");
 
