@@ -30,6 +30,31 @@ pub struct BoundExternalRootPostHandoffWriterInvocation {
     prepared: omega_external_roots::PreparedExternalRootPostHandoffWriterInvocation,
 }
 
+/// A failed AOT/provider-preparation join returns both exact inputs so callers
+/// can inspect or retry them without regenerating lowered bytes or provider
+/// authority.
+#[derive(Debug)]
+pub struct ExternalRootPostHandoffWriterBindingError {
+    lowered: omega_instruction_selection::LoweredPostHandoffWriter,
+    prepared: omega_external_roots::PreparedExternalRootPostHandoffWriterInvocation,
+    diagnostic: psi_diagnostics::Diagnostic,
+}
+
+impl ExternalRootPostHandoffWriterBindingError {
+    pub const fn diagnostic(&self) -> &psi_diagnostics::Diagnostic {
+        &self.diagnostic
+    }
+
+    pub fn into_parts(
+        self,
+    ) -> (
+        omega_instruction_selection::LoweredPostHandoffWriter,
+        omega_external_roots::PreparedExternalRootPostHandoffWriterInvocation,
+    ) {
+        (self.lowered, self.prepared)
+    }
+}
+
 #[derive(Debug)]
 pub struct BoundExternalRootWriterExecutionError<'mapping, 'bytes> {
     lowered: omega_instruction_selection::LoweredPostHandoffWriter,
@@ -100,22 +125,41 @@ impl BoundExternalRootPostHandoffWriterInvocation {
 pub fn bind_external_root_post_handoff_writer_invocation(
     lowered: omega_instruction_selection::LoweredPostHandoffWriter,
     prepared: omega_external_roots::PreparedExternalRootPostHandoffWriterInvocation,
-) -> Result<BoundExternalRootPostHandoffWriterInvocation, psi_diagnostics::Diagnostic> {
+) -> Result<BoundExternalRootPostHandoffWriterInvocation, ExternalRootPostHandoffWriterBindingError>
+{
+    if let Err(diagnostic) =
+        omega_instruction_selection::validate_lowered_post_handoff_writer(&lowered)
+    {
+        return Err(ExternalRootPostHandoffWriterBindingError {
+            lowered,
+            prepared,
+            diagnostic,
+        });
+    }
     if prepared.architecture() != lowered.fragment().target().architecture {
-        return Err(psi_diagnostics::Diagnostic::error(format!(
+        let diagnostic = psi_diagnostics::Diagnostic::error(format!(
             "external-root post-handoff writer architecture {:?} does not match lowered fragment architecture {:?}",
             prepared.architecture(),
             lowered.fragment().target().architecture
-        )));
+        ));
+        return Err(ExternalRootPostHandoffWriterBindingError {
+            lowered,
+            prepared,
+            diagnostic,
+        });
     }
     if prepared.invocation() != lowered.invocation()
         || prepared.context().normalized_fragment_fingerprint()
             != lowered.fragment().normalized_plan_fingerprint()
         || !prepared.context().binds_invocation(lowered.invocation())
     {
-        return Err(psi_diagnostics::Diagnostic::error(
-            "external-root provider preparation does not bind the exact lowered post-handoff writer invocation",
-        ));
+        return Err(ExternalRootPostHandoffWriterBindingError {
+            lowered,
+            prepared,
+            diagnostic: psi_diagnostics::Diagnostic::error(
+                "external-root provider preparation does not bind the exact lowered post-handoff writer invocation",
+            ),
+        });
     }
     Ok(BoundExternalRootPostHandoffWriterInvocation { lowered, prepared })
 }
