@@ -988,9 +988,12 @@ fn runtime_const_data_forwarded_length_exit_canary_runs() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-const-data-forwarded-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("forwarded const data argument should specialize the nested array extent");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("forwarded const-data canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("forwarded const data array canary should run");
     assert_eq!(
@@ -1009,9 +1012,12 @@ fn runtime_const_data_multiple_instances_exit_canary_runs() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-const-data-multi-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("distinct const data instances should compile to distinct layouts");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("multiple const-data instances should retain their executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("multiple const data instance canary should run");
     assert_eq!(
@@ -1030,9 +1036,12 @@ fn runtime_const_data_named_value_exit_canary_runs() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-const-data-named-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("named integer const arguments should specialize generic data");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("named const-data canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("named const data argument canary should run");
     assert_eq!(
@@ -1480,9 +1489,12 @@ fn runtime_const_data_expression_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("closed integer const expressions should specialize generic data");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("const-data expression canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("const data expression canary should run");
     assert_eq!(
@@ -1503,9 +1515,12 @@ fn runtime_const_data_symbolic_expression_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("symbolic integer const expressions should specialize generic data");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("symbolic const-data expression should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("symbolic const data expression canary should run");
     assert_eq!(
