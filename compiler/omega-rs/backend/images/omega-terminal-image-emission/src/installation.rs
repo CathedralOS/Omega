@@ -7,7 +7,7 @@ use omega_image::CompilerTextValidationEvidence;
 use omega_target::{Architecture, NativeTarget, ObjectFormat};
 use omega_terminal_machine_code::{
     TerminalBoundaryResultRecord, TerminalBoundarySettlementRecord,
-    TerminalCompletionProviderCustodyBinding, TerminalNativeFuelSite, TerminalPortEffectRecord,
+    TerminalCompletionProviderCustodyBinding, TerminalNativeFuelSite,
     TerminalStructuralReturnRecord,
 };
 use omega_terminal_target_operations::{
@@ -42,6 +42,7 @@ mod function_affine_cleanup_codec;
 mod function_parameter_codec;
 mod function_stack_codec;
 mod internal_unit_call_codec;
+mod port_effect_codec;
 mod provider_execution_codec;
 mod structural_argument_codec;
 mod structural_return_codec;
@@ -61,6 +62,7 @@ use function_parameter_codec::{
 };
 use function_stack_codec::{decode_function_stack_facts, encode_function_stack_facts};
 use internal_unit_call_codec::{decode_internal_unit_call, encode_internal_unit_call};
+use port_effect_codec::{decode_port_effects, encode_port_effects};
 use provider_execution_codec::{decode_provider_execution, encode_provider_execution};
 use structural_argument_codec::{decode_structural_argument, encode_structural_argument};
 use structural_return_codec::{decode_structural_return, encode_structural_return};
@@ -675,36 +677,7 @@ pub fn encode_terminal_installation_record(
         encode_internal_unit_call(&mut bytes, installed)?;
     }
     encode_fuel_attributions(&mut bytes, fuel_attribution_count, &record.fuel_attribution)?;
-    push_u32(&mut bytes, port_effect_count);
-    for installed in &record.port_effects {
-        let effect = &installed.effect;
-        push_u64(&mut bytes, installed.machine.get());
-        push_u64(&mut bytes, effect.psi_operation.get());
-        push_u64(&mut bytes, effect.service.get());
-        push_u16(&mut bytes, effect.port);
-        bytes.push(effect.value);
-        bytes.push(0);
-        push_u64(
-            &mut bytes,
-            u64::try_from(effect.operation_ordinal)
-                .map_err(|_| TerminalInstallationError::PortEffectOffsetNotRepresentable)?,
-        );
-        push_u64(
-            &mut bytes,
-            u64::try_from(installed.text_offset)
-                .map_err(|_| TerminalInstallationError::PortEffectOffsetNotRepresentable)?,
-        );
-        push_u64(
-            &mut bytes,
-            u64::try_from(effect.code_offset)
-                .map_err(|_| TerminalInstallationError::PortEffectOffsetNotRepresentable)?,
-        );
-        push_u64(
-            &mut bytes,
-            u64::try_from(effect.byte_count)
-                .map_err(|_| TerminalInstallationError::PortEffectOffsetNotRepresentable)?,
-        );
-    }
+    encode_port_effects(&mut bytes, port_effect_count, &record.port_effects)?;
     push_u32(&mut bytes, settlement_count);
     for installed in &record.boundary_settlements {
         let settlement = &installed.settlement;
@@ -970,49 +943,7 @@ pub fn decode_terminal_installation_record(
         internal_unit_calls.push(decode_internal_unit_call(&mut reader)?);
     }
     let fuel_attribution = decode_fuel_attributions(&mut reader)?;
-    let port_effect_count = usize::try_from(reader.u32()?)
-        .map_err(|_| TerminalInstallationError::TooManyPortEffects)?;
-    if port_effect_count > reader.remaining() / 60 {
-        return Err(TerminalInstallationError::UnexpectedEnd);
-    }
-    let mut port_effects = Vec::with_capacity(port_effect_count);
-    for _ in 0..port_effect_count {
-        let machine = MachineId::new(reader.u64()?).ok_or(
-            TerminalInstallationError::ZeroPortEffectIdentity("MachineId"),
-        )?;
-        let psi_operation = OperationId::new(reader.u64()?).ok_or(
-            TerminalInstallationError::ZeroPortEffectIdentity("OperationId"),
-        )?;
-        let service = ServiceId::new(reader.u64()?).ok_or(
-            TerminalInstallationError::ZeroPortEffectIdentity("ServiceId"),
-        )?;
-        let port = reader.u16()?;
-        let value = reader.u8()?;
-        if reader.u8()? != 0 {
-            return Err(TerminalInstallationError::NonzeroReservedField);
-        }
-        let operation_ordinal = usize::try_from(reader.u64()?)
-            .map_err(|_| TerminalInstallationError::PortEffectOffsetNotRepresentable)?;
-        let text_offset = usize::try_from(reader.u64()?)
-            .map_err(|_| TerminalInstallationError::PortEffectOffsetNotRepresentable)?;
-        let code_offset = usize::try_from(reader.u64()?)
-            .map_err(|_| TerminalInstallationError::PortEffectOffsetNotRepresentable)?;
-        let byte_count = usize::try_from(reader.u64()?)
-            .map_err(|_| TerminalInstallationError::PortEffectOffsetNotRepresentable)?;
-        port_effects.push(TerminalObjectPortEffect {
-            machine,
-            effect: TerminalPortEffectRecord {
-                psi_operation,
-                service,
-                port,
-                value,
-                operation_ordinal,
-                code_offset,
-                byte_count,
-            },
-            text_offset,
-        });
-    }
+    let port_effects = decode_port_effects(&mut reader)?;
     let settlement_count = usize::try_from(reader.u32()?)
         .map_err(|_| TerminalInstallationError::TooManyBoundarySettlements)?;
     let mut boundary_settlements = Vec::with_capacity(settlement_count);
