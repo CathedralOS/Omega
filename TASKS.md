@@ -4008,6 +4008,13 @@ Owners:
   Its remaining conventional launches are deliberately retained numeric-
   conversion, rendering, or coercion exceptions; exact-owner pins remain
   stable.
+  Five further authored-root layout/value executions—plan-laid by-value
+  parameters, fixed-array record and mutable views, nested fixed-array mutable
+  views, and sequential value-call result slots—now launch solely through
+  checked-report receipts while preserving status 70, interpreter parity, and
+  Windows x64/Linux ARM64 cross-target assertions. The 2.88-second plain
+  record-view owner joins the retained slow exceptions; all other fenced
+  exception classes remain unchanged and exact-owner pins remain stable.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
