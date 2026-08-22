@@ -424,6 +424,14 @@ orientation, source citation order, endpoint identity, inner-relation
 precedence, outer `IntegerLessOrEqualSubstitution` shape, rejection, and both
 fixed frontiers remain unchanged; the verifier reconstructs its own evidence.
 
+The fixed two-equality endpoint sibling keeps its established
+`integer_selection/substitution/two` API as a facade over independent
+side-local `two/selection` owners. Each retains outer equality, orientation,
+inner equality, then affine-relation order and exact fact non-reuse. Production
+constructs the same inner-then-outer substitution bytes; verification
+independently checks the final-alias affine relation. Endpoint identity,
+rejection order, and the exact two-equality frontier remain unchanged.
+
 The existing
 proof rules and proof-bundle v19 codec need no further vocabulary change.
 All other exact divide/remainder reconstruction remains on its trusted reducer
