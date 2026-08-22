@@ -552,7 +552,12 @@ Remaining:
   their paired empty-record type declarations across structural returns and
   affine cleanup. Exact bytes, reserved fields, shape/identity diagnostics and
   precedence, public APIs, validation, and admission replay remain unchanged.
-  The installation parent is now 2,958
+  The structural-field codec now owns every field-row encoder and the sum-case
+  field decoder across Boolean, integer, float, byte-sequence, nested, and
+  erased shapes. Exact tags, reserved bytes, identity/shape diagnostics and
+  precedence, public APIs, validation, and admission replay remain unchanged;
+  record decoding remains separate for a dedicated consolidation. The
+  installation parent is now 2,806
   lines. This is
   custody, not
   authorization. The remaining
