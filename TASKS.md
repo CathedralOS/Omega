@@ -492,8 +492,13 @@ Remaining:
   source/destination placements, fixed-array facts, emitted bytes, claim
   transfers, reserved fields, count guards, literal diagnostics, and offset
   errors preserve exact bytes and precedence; the parent retains call order,
-  stack composition, validation, and admission replay. The installation parent
-  is now 3,963
+  stack composition, validation, and admission replay. The ordered native fuel-
+  attribution collection now lives in a private 110-line codec. Schedule and
+  operation/edge site identities, units, ordinals, text/code spans, reserved
+  fields, count/capacity guards, literal diagnostics, and offset errors preserve
+  exact bytes and precedence; the parent retains upfront count conversion,
+  canonicality, function association, schedule validation, and admission
+  replay. The installation parent is now 3,879
   lines. This is
   custody, not
   authorization. The remaining
