@@ -941,10 +941,13 @@ fn runtime_double_indexed_write_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-double-indexed-write-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("double-indexed write canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("double-indexed write canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("double-indexed write canary should run");
 
@@ -969,10 +972,13 @@ fn runtime_container_setter_matrix_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-container-setter-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("container setter matrix canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("container setter matrix canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("container setter matrix canary should run");
 
@@ -997,10 +1003,13 @@ fn runtime_container_method_instances_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-container-methods-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("container method instances canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("container method instances canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("container method instances canary should run");
 
@@ -1025,10 +1034,13 @@ fn runtime_frame_double_indexed_read_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-frame-double-read-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("frame double-indexed read canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("frame double-indexed read canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("frame double-indexed read canary should run");
 
@@ -1054,10 +1066,13 @@ fn runtime_double_indexed_rmw_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-double-indexed-rmw-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("double-indexed RMW canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("double-indexed RMW canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("double-indexed RMW canary should run");
 
