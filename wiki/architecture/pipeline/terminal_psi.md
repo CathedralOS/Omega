@@ -1950,6 +1950,12 @@ structural-effect, then call dispatch order; only the proof-bearing branch may
 choose canonical certificate custody or trusted sufficient reduction before
 recording the pre-result axiom snapshot. CFG traversal and return intersection
 remain in the parent, and an unclaimed validated operation still fails closed.
+Terminator custody now lives in a side-local `terminator_facts` module. It owns
+the exact Jump/Conditional/return/crash dispatch, successor fact propagation,
+scalar-result equality, nominal-cleanup obligations, structural-return facts,
+and the rule that Crash contributes no normal exit. CFG scheduling and final
+all-return intersection remain in the parent; cleanup order, axiom snapshots,
+and noncanonical cleanup status are unchanged.
 One exact prior value equality may also transport a completed affine bound from
 its checked target alias to the canonical goal endpoint. The producer replaces
 that one endpoint, constructs the bounded affine relation directly, and wraps
