@@ -1678,6 +1678,7 @@ version = "0.1.0"
 dependencies = [
  "psi-core",
  "psi-language-semantics",
+ "psi-numerics",
  "psi-proof-kernel",
  "psi-terminal",
  "psi-terminal-semantics",
