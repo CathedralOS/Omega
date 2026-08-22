@@ -251,20 +251,13 @@ fn runtime_expression_range_bound_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-expr-range-bound-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("expression range bound canary should compile");
-
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("expression range bound canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(40),
-        "expected the store of 40 into `x: i32 [0 - 1..=40]` (folded to -1..=40) to \
-         compile and run -> exit 40, got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        40,
+        "expression range-bound canary",
+        "the constant-expression range bound should admit its endpoint store",
     );
 
     let _ = fs::remove_dir_all(&scratch);
@@ -280,21 +273,13 @@ fn runtime_indexed_struct_field_rmw_exit_canary_runs() {
     let scratch = std::env::temp_dir().join(format!("omega-idx-sf-rmw-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("indexed struct field rmw canary should compile");
-
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("indexed struct field rmw canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(1),
-        "expected `cells[k].v = cells[k].v + 1` (4 -> 5) to store through the          element field and exit 1, got {:?}
-stderr:
-{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        1,
+        "indexed struct-field read-modify-write canary",
+        "the guarded read-modify-write should store through the indexed element field",
     );
 
     let _ = fs::remove_dir_all(&scratch);
@@ -309,21 +294,13 @@ fn runtime_indexed_struct_field_operand_exit_canary_runs() {
     let scratch = std::env::temp_dir().join(format!("omega-idx-sf-operand-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("indexed struct field operand canary should compile");
-
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("indexed struct field operand canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(1),
-        "expected `self.cells[self.k].v + 5` (cells[2].v=9) to compute 14 and          exit 1, got {:?}
-stderr:
-{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        1,
+        "indexed struct-field operand canary",
+        "the indexed element field should materialize as a binary operand",
     );
 
     let _ = fs::remove_dir_all(&scratch);
@@ -340,21 +317,13 @@ fn runtime_machine_indexed_arg_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-machine-indexed-arg-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("machine indexed arg canary should compile");
-
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("machine indexed arg canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(1),
-        "expected `self.report(self.arr[self.k])` (arr[2]=9, k=2) to pass 9 and          exit 1, got {:?}
-stderr:
-{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        1,
+        "machine-indexed argument canary",
+        "the runtime-indexed machine array value should reach the transition argument",
     );
 
     let _ = fs::remove_dir_all(&scratch);
@@ -369,21 +338,13 @@ fn runtime_machine_indexed_struct_field_arg_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-machine-indexed-sfa-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("machine indexed struct field arg canary should compile");
-
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("machine indexed struct field arg canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(1),
-        "expected `self.report(self.cells[self.k].v)` (cells[2].v=9, k=2) to pass          9 and exit 1, got {:?}
-stderr:
-{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        1,
+        "machine-indexed struct-field argument canary",
+        "the runtime-indexed element field should reach the transition argument",
     );
 
     let _ = fs::remove_dir_all(&scratch);
