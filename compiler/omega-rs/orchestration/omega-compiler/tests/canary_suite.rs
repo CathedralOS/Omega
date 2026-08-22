@@ -2397,7 +2397,7 @@ fn canary_backend_worker_count() -> usize {
 
 /// Run independent corpus members with bounded outer parallelism. Backend
 /// corpus helpers use one inner worker by default, preventing nested
-/// oversubscription while eight independent compiles use the host. Results
+/// oversubscription while bounded independent compiles use the host. Results
 /// return in source order so diagnostics remain deterministic.
 fn run_bounded_canary_jobs<T, R>(items: &[T], worker: impl Fn(&T) -> R + Sync) -> Vec<R>
 where
