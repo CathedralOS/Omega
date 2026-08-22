@@ -21,9 +21,11 @@ pub(crate) fn build_value_facts(
     program: &TypedTrees,
     proof_plan: &ProofPlan<'_>,
 ) -> CheckedValueFacts {
+    let assignment_ranges = psi_proof::checker::AssignmentRangeContext::new(proof_plan);
     let mut builder = ValueFactBuilder {
         program,
         proof_plan,
+        assignment_ranges,
         facts: CheckedValueFacts::default(),
     };
 
@@ -71,6 +73,7 @@ pub(crate) fn build_value_facts(
 pub(super) struct ValueFactBuilder<'program, 'plan> {
     pub(super) program: &'program TypedTrees,
     pub(super) proof_plan: &'plan ProofPlan<'program>,
+    pub(super) assignment_ranges: psi_proof::checker::AssignmentRangeContext<'program>,
     pub(super) facts: CheckedValueFacts,
 }
 
@@ -147,11 +150,12 @@ impl ValueFactBuilder<'_, '_> {
                 },
                 _,
                 _,
-            ) => psi_proof::checker::proved_assignment_integer_range(
+            ) => psi_proof::checker::proved_assignment_integer_range_with_context(
                 self.proof_plan,
                 machine_symbol,
                 state_symbol,
                 statement_index,
+                &self.assignment_ranges,
             )
             .map(|range| CheckedIntegerRange {
                 minimum: range.minimum,
