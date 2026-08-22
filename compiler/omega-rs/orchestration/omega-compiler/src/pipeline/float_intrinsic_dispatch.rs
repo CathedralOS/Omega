@@ -241,9 +241,19 @@ fn resolve_float_intrinsic_call(
         )));
     }
 
-    let ProviderBinding::CompilerIntrinsic { name } = &row.binding else {
+    let ProviderBinding::CompilerIntrinsic { machine, .. } = &row.binding else {
         return Ok(None);
     };
+    if !crate::pipeline::provider_plans::intrinsic_realization_matches_operator(
+        &checked.typed,
+        machine,
+        operator,
+    ) {
+        return Err(Diagnostic::error(format!(
+            "selected named-float ProviderPlan `{}` binds realization `{machine}`, but it does not satisfy exact overload `{overload_identity}` as an external leaf",
+            plan.name,
+        )));
+    }
     let expected = crate::pipeline::provider_plans::expected_float_intrinsic(
         &checked.typed,
         operator,
@@ -253,15 +263,9 @@ fn resolve_float_intrinsic_call(
             "selected named-float overload `{overload_identity}` has no compiler-known intrinsic realization",
         ))
     })?;
-    if name != &expected {
-        return Err(Diagnostic::error(format!(
-            "selected named-float ProviderPlan `{}` binds `{name}`, but exact overload `{overload_identity}` requires `{expected}`",
-            plan.name,
-        )));
-    }
-    let realization = named_float_realization(name).ok_or_else(|| {
+    let realization = named_float_realization(&expected).ok_or_else(|| {
         Diagnostic::error(format!(
-            "selected named-float intrinsic `{name}` has no execution realization",
+            "selected named-float overload `{overload_identity}` has no execution realization for compiler catalog entry `{expected}`",
         ))
     })?;
     let ExpressionNode::Call(call) = checked
@@ -281,7 +285,7 @@ fn resolve_float_intrinsic_call(
         .expression_handles(call.arguments);
     if arguments.len() != expected_arity {
         return Err(Diagnostic::error(format!(
-            "selected named float intrinsic `{name}` requires {expected_arity} runtime argument(s), but its checked call retains {}",
+            "selected named float overload `{overload_identity}` requires {expected_arity} runtime argument(s), but its checked call retains {}",
             arguments.len(),
         )));
     }
@@ -990,7 +994,10 @@ mod tests {
             (Drift::MissingRow, Some("exactly one realization row")),
             (Drift::DuplicateRow, Some("exactly one realization row")),
             (Drift::ReadableRow, Some("does not bind exact overload")),
-            (Drift::WrongIntrinsic, Some("requires `F32::minimum.f32`")),
+            (
+                Drift::WrongIntrinsic,
+                Some("does not satisfy exact overload"),
+            ),
             (Drift::NonCallExpression, Some("is not a call")),
             (Drift::Arity, Some("requires 2 runtime argument")),
             (
@@ -1034,7 +1041,8 @@ mod tests {
                 }
                 Drift::WrongIntrinsic => {
                     plan.rows[0].binding = ProviderBinding::CompilerIntrinsic {
-                        name: "F32::maximum.f32".into(),
+                        machine: "F32::maximum.f32".into(),
+                        catalog: "F32::maximum.f32".into(),
                     };
                     plans = vec![plan.clone()];
                 }

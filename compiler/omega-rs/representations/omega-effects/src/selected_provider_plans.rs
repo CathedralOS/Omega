@@ -619,7 +619,8 @@ mod tests {
         let mut intrinsic = candidate("Intrinsic", "halt");
         intrinsic.schema.trait_name = "MachineControl".into();
         intrinsic.rows[0].binding = ProviderBinding::CompilerIntrinsic {
-            name: "MachineControl::halt".into(),
+            machine: "MachineControl::halt".into(),
+            catalog: "MachineControl::halt".into(),
         };
         let unselected = candidate("Unselected", "skip");
         let selected = SelectedProviderPlanFacts::from_selection(

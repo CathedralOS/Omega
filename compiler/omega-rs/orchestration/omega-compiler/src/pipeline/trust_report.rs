@@ -699,8 +699,10 @@ fn trust_provider_realization(
         ProviderBinding::Syscall { number } => {
             TrustProviderRealization::Syscall { number: *number }
         }
-        ProviderBinding::CompilerIntrinsic { name } => {
-            TrustProviderRealization::CompilerIntrinsic { name: name.clone() }
+        ProviderBinding::CompilerIntrinsic { machine, .. } => {
+            TrustProviderRealization::CompilerIntrinsic {
+                machine: machine.clone(),
+            }
         }
         ProviderBinding::VtableSlot { index } => {
             TrustProviderRealization::VtableSlot { index: *index }

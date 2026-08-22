@@ -319,7 +319,7 @@ fn migrated_float_provider_plans_are_selected_for_every_native_target() {
             assert!(
                 matches!(
                     &row.binding,
-                    omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic { name }
+                    omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic { catalog: name, .. }
                         if name == &expected_intrinsic
                 ),
                 "{target} selected the wrong {expected_intrinsic} realization: {row:?}"
@@ -381,7 +381,7 @@ fn migrated_float_provider_plans_are_selected_for_every_native_target() {
                         if row.method == "realize"
                             && matches!(
                                 &row.binding,
-                                omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic { name }
+                                omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic { catalog: name, .. }
                                     if name == &expected_intrinsic
                             )
                 ),
@@ -405,7 +405,7 @@ fn migrated_float_provider_plans_are_selected_for_every_native_target() {
                 plan.target == target && plan.rows.iter().any(|row| {
                     matches!(
                         &row.binding,
-                        omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic { name }
+                        omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic { catalog: name, .. }
                             if name.contains("::fused_multiply_add")
                     )
                 })
@@ -484,8 +484,9 @@ fn primitive_float_arithmetic_and_comparisons_execute_in_both_engines() {
         let [row] = plan.rows.as_slice() else {
             panic!("primitive float plan must retain one exact realization row");
         };
-        let omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic { name } =
-            &row.binding
+        let omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic {
+            catalog: name, ..
+        } = &row.binding
         else {
             panic!("primitive float plan must select a compiler intrinsic");
         };
@@ -621,8 +622,10 @@ fn named_float_format_conversion_requirements_execute_in_both_engines() {
             let [row] = plan.rows.as_slice() else {
                 return None;
             };
-            let omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic { name } =
-                &row.binding
+            let omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic {
+                catalog: name,
+                ..
+            } = &row.binding
             else {
                 return None;
             };
@@ -688,8 +691,10 @@ fn named_float_format_conversion_requirements_execute_in_both_engines() {
             let [row] = plan.rows.as_slice() else {
                 return None;
             };
-            let omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic { name } =
-                &row.binding
+            let omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic {
+                catalog: name,
+                ..
+            } = &row.binding
             else {
                 return None;
             };
@@ -796,8 +801,10 @@ fn named_integer_to_float_requirements_execute_in_both_engines() {
             let [row] = plan.rows.as_slice() else {
                 return None;
             };
-            let omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic { name } =
-                &row.binding
+            let omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic {
+                catalog: name,
+                ..
+            } = &row.binding
             else {
                 return None;
             };
@@ -927,8 +934,10 @@ fn named_float_to_integer_requirements_execute_in_both_engines() {
             let [row] = plan.rows.as_slice() else {
                 return None;
             };
-            let omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic { name } =
-                &row.binding
+            let omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic {
+                catalog: name,
+                ..
+            } = &row.binding
             else {
                 return None;
             };
@@ -1186,8 +1195,9 @@ fn named_float_provider_calls_rewrite_to_selected_builtins() {
         assert_eq!(method.name, "realize");
         assert_eq!(row.method, method.name);
         assert_eq!(row.requirement_identity, method.requirement_identity);
-        let omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic { name } =
-            &row.binding
+        let omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic {
+            catalog: name, ..
+        } = &row.binding
         else {
             panic!("named float plan must select a compiler intrinsic");
         };
@@ -1420,8 +1430,9 @@ fn named_float_negate_and_is_nan_preserve_selected_roots_and_execute() {
         let [row] = plan.rows.as_slice() else {
             panic!("named float plan must contain exactly one row");
         };
-        let omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic { name } =
-            &row.binding
+        let omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic {
+            catalog: name, ..
+        } = &row.binding
         else {
             panic!("named float plan must select a compiler intrinsic");
         };
@@ -1588,8 +1599,9 @@ fn named_float_classification_predicates_select_and_execute() {
         let [row] = plan.rows.as_slice() else {
             panic!("named classification plan must contain one row");
         };
-        let omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic { name } =
-            &row.binding
+        let omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic {
+            catalog: name, ..
+        } = &row.binding
         else {
             panic!("named classification plan must select a compiler intrinsic");
         };
@@ -1773,8 +1785,9 @@ fn named_float_classify_preserves_enum_layout_and_executes() {
         let [row] = plan.rows.as_slice() else {
             panic!("named classify plan must contain one row");
         };
-        let omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic { name } =
-            &row.binding
+        let omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic {
+            catalog: name, ..
+        } = &row.binding
         else {
             panic!("named classify plan must select a compiler intrinsic");
         };
@@ -1944,8 +1957,9 @@ fn named_float_multiply_then_add_preserves_two_roundings_and_executes() {
         let [row] = plan.rows.as_slice() else {
             panic!("named float plan must contain exactly one row");
         };
-        let omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic { name } =
-            &row.binding
+        let omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic {
+            catalog: name, ..
+        } = &row.binding
         else {
             panic!("named float plan must select a compiler intrinsic");
         };
@@ -2076,8 +2090,9 @@ fn named_float_fused_multiply_add_selects_aarch64_fmadd_and_executes() {
         let [row] = plan.rows.as_slice() else {
             panic!("named FMA plan must contain exactly one row");
         };
-        let omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic { name } =
-            &row.binding
+        let omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic {
+            catalog: name, ..
+        } = &row.binding
         else {
             panic!("named FMA plan must select a compiler intrinsic");
         };
@@ -2207,8 +2222,9 @@ fn named_float_directed_fused_multiply_add_selects_aarch64_fmadd_and_executes() 
         let [row] = plan.rows.as_slice() else {
             continue;
         };
-        let omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic { name } =
-            &row.binding
+        let omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic {
+            catalog: name, ..
+        } = &row.binding
         else {
             continue;
         };
@@ -2450,8 +2466,9 @@ fn named_float_directed_add_selects_exact_plans_and_restores_control_state() {
         let [row] = plan.rows.as_slice() else {
             continue;
         };
-        let omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic { name } =
-            &row.binding
+        let omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic {
+            catalog: name, ..
+        } = &row.binding
         else {
             continue;
         };
@@ -2592,8 +2609,9 @@ fn named_float_directed_subtract_selects_exact_plans_and_restores_control_state(
         let [row] = plan.rows.as_slice() else {
             continue;
         };
-        let omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic { name } =
-            &row.binding
+        let omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic {
+            catalog: name, ..
+        } = &row.binding
         else {
             continue;
         };
@@ -2735,8 +2753,9 @@ fn named_float_directed_multiply_selects_exact_plans_and_restores_control_state(
         let [row] = plan.rows.as_slice() else {
             continue;
         };
-        let omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic { name } =
-            &row.binding
+        let omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic {
+            catalog: name, ..
+        } = &row.binding
         else {
             continue;
         };
@@ -2878,8 +2897,9 @@ fn named_float_directed_divide_selects_exact_plans_and_restores_control_state() 
         let [row] = plan.rows.as_slice() else {
             continue;
         };
-        let omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic { name } =
-            &row.binding
+        let omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic {
+            catalog: name, ..
+        } = &row.binding
         else {
             continue;
         };
@@ -3021,8 +3041,9 @@ fn named_float_directed_square_root_selects_exact_plans_and_restores_control_sta
         let [row] = plan.rows.as_slice() else {
             continue;
         };
-        let omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic { name } =
-            &row.binding
+        let omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic {
+            catalog: name, ..
+        } = &row.binding
         else {
             continue;
         };
@@ -3409,8 +3430,10 @@ fn float_policy_adapters_retain_differential_results() {
             let [row] = plan.rows.as_slice() else {
                 panic!("policy-adapted float plan must retain one realization row");
             };
-            let omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic { name } =
-                &row.binding
+            let omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic {
+                catalog: name,
+                ..
+            } = &row.binding
             else {
                 panic!("policy-adapted float plan must select a compiler intrinsic");
             };

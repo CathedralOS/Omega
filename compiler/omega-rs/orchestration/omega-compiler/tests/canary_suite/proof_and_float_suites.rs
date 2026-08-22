@@ -1345,8 +1345,9 @@ fn build_runtime_float_semantics_twins_agree() {
         let [row] = plan.rows.as_slice() else {
             continue;
         };
-        let omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic { name } =
-            &row.binding
+        let omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic {
+            catalog: name, ..
+        } = &row.binding
         else {
             continue;
         };

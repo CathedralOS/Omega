@@ -941,7 +941,8 @@ mod tests {
                 }
                 Drift::NonAdapterBinding => {
                     selected.rows[row_index].binding = ProviderBinding::CompilerIntrinsic {
-                        name: "Echo::echo.i32".into(),
+                        machine: "Echo::echo.i32".into(),
+                        catalog: "Echo::echo.i32".into(),
                     };
                 }
             }
