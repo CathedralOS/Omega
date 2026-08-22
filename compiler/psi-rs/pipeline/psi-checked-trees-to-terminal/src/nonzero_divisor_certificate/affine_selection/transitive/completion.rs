@@ -3,7 +3,7 @@
 use psi_core::{Proposition, PropositionContext, ScalarTerm};
 use psi_proof_kernel::{ProofNode, ProofRule};
 
-use super::super::super::affine_custody;
+use super::super::super::affine_custody::{self, DefinitionIndex};
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn prove(
@@ -11,6 +11,7 @@ pub(super) fn prove(
     goal: &Proposition,
     assumptions: &[Proposition],
     semantic_axioms: &[Proposition],
+    definitions: &DefinitionIndex,
     left: &ScalarTerm,
     right: &ScalarTerm,
     left_proof: ProofNode,
@@ -32,6 +33,7 @@ pub(super) fn prove(
             goal,
             assumptions,
             semantic_axioms,
+            definitions,
             root,
             root_bound.clone(),
         ) {

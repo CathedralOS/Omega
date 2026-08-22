@@ -2,6 +2,8 @@
 
 use psi_core::{Proposition, PropositionContext, ScalarTerm};
 
+use super::super::super::affine_custody::DefinitionIndex;
+
 mod completion;
 
 pub(super) fn retained(
@@ -9,6 +11,7 @@ pub(super) fn retained(
     goal: &Proposition,
     requirements: &[Proposition],
     semantic_axioms: &[Proposition],
+    definitions: &DefinitionIndex,
 ) -> bool {
     requirements
         .iter()
@@ -27,7 +30,7 @@ pub(super) fn retained(
                         })
                 })
                 .any(|(root, literal)| {
-                    completion::retained(context, goal, semantic_axioms, root, literal)
+                    completion::retained(context, goal, semantic_axioms, definitions, root, literal)
                 })
         })
 }

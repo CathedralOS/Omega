@@ -3,7 +3,7 @@
 use psi_core::{Proposition, PropositionContext};
 use psi_proof_kernel::ProofNode;
 
-use super::super::affine_custody;
+use super::super::affine_custody::{self, DefinitionIndex};
 use super::super::integer_evidence::cited_facts;
 
 pub(super) fn prove(
@@ -11,6 +11,7 @@ pub(super) fn prove(
     goal: &Proposition,
     assumptions: &[Proposition],
     semantic_axioms: &[Proposition],
+    definitions: &DefinitionIndex,
 ) -> Option<ProofNode> {
     for (citation, root_bound) in cited_facts(assumptions, semantic_axioms) {
         let Proposition::LessOrEqual(root_left, root_right) = root_bound else {
@@ -25,6 +26,7 @@ pub(super) fn prove(
                 goal,
                 assumptions,
                 semantic_axioms,
+                definitions,
                 root,
                 citation.proof(root_bound),
             ) {

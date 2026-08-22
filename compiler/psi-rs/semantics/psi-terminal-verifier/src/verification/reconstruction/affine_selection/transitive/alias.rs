@@ -2,6 +2,8 @@
 
 use psi_core::{Proposition, PropositionContext, ScalarTerm};
 
+use super::super::super::affine_custody::DefinitionIndex;
+
 use super::TwoCitationChains;
 
 mod completion;
@@ -11,6 +13,7 @@ pub(super) fn retained(
     goal: &Proposition,
     requirements: &[Proposition],
     semantic_axioms: &[Proposition],
+    definitions: &DefinitionIndex,
 ) -> bool {
     let facts = || requirements.iter().chain(semantic_axioms);
     let chains = TwoCitationChains::new(requirements, semantic_axioms);
@@ -39,7 +42,16 @@ pub(super) fn retained(
                     let Proposition::LessOrEqual(_, right) = right_fact else {
                         unreachable!("only integer chains are enumerated")
                     };
-                    completion::retained(context, goal, semantic_axioms, root, alias, left, right)
+                    completion::retained(
+                        context,
+                        goal,
+                        semantic_axioms,
+                        definitions,
+                        root,
+                        alias,
+                        left,
+                        right,
+                    )
                 })
             })
         })

@@ -2,13 +2,14 @@
 
 use psi_core::{Proposition, PropositionContext, ScalarTerm};
 
-use super::super::affine_custody;
+use super::super::affine_custody::{self, DefinitionIndex};
 
 pub(super) fn retained(
     context: &PropositionContext,
     goal: &Proposition,
     requirements: &[Proposition],
     semantic_axioms: &[Proposition],
+    definitions: &DefinitionIndex,
 ) -> bool {
     requirements
         .iter()
@@ -26,6 +27,7 @@ pub(super) fn retained(
                         context,
                         goal,
                         semantic_axioms,
+                        definitions,
                         root,
                         root_bound,
                     )

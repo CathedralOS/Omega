@@ -12,11 +12,14 @@ use psi_proof_kernel::{
 mod frontier;
 mod relaxation;
 
+pub(super) use frontier::DefinitionIndex;
+
 pub(super) fn prove_from_root(
     context: &PropositionContext,
     goal: &Proposition,
     assumptions: &[Proposition],
     semantic_axioms: &[Proposition],
+    definitions: &DefinitionIndex,
     root: &ScalarTerm,
     root_bound: ProofNode,
 ) -> Option<ProofNode> {
@@ -27,7 +30,9 @@ pub(super) fn prove_from_root(
         .into_iter()
         .filter(|target| matches!(target, ScalarTerm::Value { .. }))
     {
-        for definition_axioms in frontier::definition_words(context, semantic_axioms, root) {
+        for definition_axioms in
+            frontier::definition_words(context, semantic_axioms, definitions, root)
+        {
             let witness = IntegerAffineWitness {
                 root: root.clone(),
                 target: target.clone(),

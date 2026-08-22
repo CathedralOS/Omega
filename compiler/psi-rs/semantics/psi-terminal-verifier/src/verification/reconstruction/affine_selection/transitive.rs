@@ -2,6 +2,8 @@
 
 use psi_core::{Proposition, PropositionContext};
 
+use super::super::affine_custody::DefinitionIndex;
+
 mod alias;
 mod chains;
 mod completion;
@@ -13,8 +15,9 @@ pub(super) fn retained_transitively_alias_substituted_affine_bound(
     goal: &Proposition,
     requirements: &[Proposition],
     semantic_axioms: &[Proposition],
+    definitions: &DefinitionIndex,
 ) -> bool {
-    alias::retained(context, goal, requirements, semantic_axioms)
+    alias::retained(context, goal, requirements, semantic_axioms, definitions)
 }
 
 pub(super) fn retained_transitively_reconstructed_affine_bound(
@@ -22,6 +25,7 @@ pub(super) fn retained_transitively_reconstructed_affine_bound(
     goal: &Proposition,
     requirements: &[Proposition],
     semantic_axioms: &[Proposition],
+    definitions: &DefinitionIndex,
 ) -> bool {
     TwoCitationChains::new(requirements, semantic_axioms).any(|left_fact, right_fact| {
         let Proposition::LessOrEqual(left, _) = left_fact else {
@@ -30,6 +34,6 @@ pub(super) fn retained_transitively_reconstructed_affine_bound(
         let Proposition::LessOrEqual(_, right) = right_fact else {
             unreachable!("only integer chains are enumerated")
         };
-        completion::retained(context, goal, semantic_axioms, left, right)
+        completion::retained(context, goal, semantic_axioms, definitions, left, right)
     })
 }
