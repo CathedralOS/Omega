@@ -862,6 +862,15 @@ fn guarded_integer_range_for_assignment(
     proof_plan: &ProofPlan,
     obligation: &BoundedAssignmentObligation,
 ) -> Option<IntegerRange> {
+    let context = AssignmentRangeContext::new(proof_plan);
+    guarded_integer_range_for_assignment_with_context(proof_plan, obligation, &context)
+}
+
+fn guarded_integer_range_for_assignment_with_context(
+    proof_plan: &ProofPlan,
+    obligation: &BoundedAssignmentObligation,
+    context: &AssignmentRangeContext<'_>,
+) -> Option<IntegerRange> {
     // An UNRANGED integer value starts NEUTRAL (the full i64 line) instead of
     // bailing, so a stable edge guard ALONE can establish its range -- the
     // guarded-COPY shape `transition self.yv >= 0 && self.yv <= 9 { true ->
@@ -936,7 +945,7 @@ fn guarded_integer_range_for_assignment(
     // call). Without this gate, `transition c < 100 { true -> bump() }` with
     // `bump { c = 100; c = c + 1 }` would "prove" the second write.
     if let Some(guard) = &obligation.state_guard
-        && assignment_guard_is_stable(proof_plan, obligation, guard)
+        && assignment_guard_is_stable(proof_plan, obligation, guard, context)
     {
         range = apply_assignment_guard(proof_plan, range, obligation.value, guard);
         range = guard_refined_binary_range(proof_plan, range, obligation.value, guard);
@@ -1000,6 +1009,29 @@ fn guarded_integer_range_for_assignment(
     Some(range)
 }
 
+/// Invocation-local custody for assignment-range queries over one immutable
+/// proof plan. Reusing it changes no frame result: the resolver's cache keys
+/// bind exact call nodes and owning machines from the same typed program.
+pub struct AssignmentRangeContext<'program> {
+    program: &'program psi_typed_trees::TypedTrees,
+    call_frames: std::sync::OnceLock<Option<psi_validation::CallFrameResolver<'program>>>,
+}
+
+impl<'program> AssignmentRangeContext<'program> {
+    pub fn new(proof_plan: &ProofPlan<'program>) -> Self {
+        Self {
+            program: proof_plan.program,
+            call_frames: std::sync::OnceLock::new(),
+        }
+    }
+
+    fn call_frames(&self) -> Option<&psi_validation::CallFrameResolver<'program>> {
+        self.call_frames
+            .get_or_init(|| psi_validation::CallFrameResolver::new(self.program))
+            .as_ref()
+    }
+}
+
 /// The integer range Psi proves for one assignment value after applying its
 /// declared constraints, stable incoming guard, and retained boundary witness
 /// facts. The proof plan carries every assignment site, not only sites whose
@@ -1011,7 +1043,33 @@ pub fn proved_assignment_integer_range(
     state_symbol: psi_symbols::SymbolHandle,
     statement_index: usize,
 ) -> Option<crate::obligations::IntegerRange> {
-    let obligation = proof_plan
+    let obligation =
+        assignment_range_obligation(proof_plan, machine_symbol, state_symbol, statement_index)?;
+    guarded_integer_range_for_assignment(proof_plan, obligation)
+}
+
+pub fn proved_assignment_integer_range_with_context(
+    proof_plan: &ProofPlan<'_>,
+    machine_symbol: psi_symbols::SymbolHandle,
+    state_symbol: psi_symbols::SymbolHandle,
+    statement_index: usize,
+    context: &AssignmentRangeContext<'_>,
+) -> Option<crate::obligations::IntegerRange> {
+    if !std::ptr::eq(context.program, proof_plan.program) {
+        return None;
+    }
+    let obligation =
+        assignment_range_obligation(proof_plan, machine_symbol, state_symbol, statement_index)?;
+    guarded_integer_range_for_assignment_with_context(proof_plan, obligation, context)
+}
+
+fn assignment_range_obligation<'plan>(
+    proof_plan: &'plan ProofPlan<'_>,
+    machine_symbol: psi_symbols::SymbolHandle,
+    state_symbol: psi_symbols::SymbolHandle,
+    statement_index: usize,
+) -> Option<&'plan BoundedAssignmentObligation> {
+    proof_plan
         .assignment_value_ranges
         .iter()
         .map(|(_, obligation)| obligation)
@@ -1019,8 +1077,7 @@ pub fn proved_assignment_integer_range(
             obligation.machine_symbol == machine_symbol
                 && obligation.state_symbol == state_symbol
                 && obligation.statement_index == statement_index
-        })?;
-    guarded_integer_range_for_assignment(proof_plan, obligation)
+        })
 }
 
 /// Whether an operand place's DECLARED primitive is unsigned (its type
@@ -1095,6 +1152,7 @@ fn assignment_guard_is_stable(
     proof_plan: &ProofPlan,
     obligation: &BoundedAssignmentObligation,
     guard: &TransitionGuardNode,
+    context: &AssignmentRangeContext<'_>,
 ) -> bool {
     use psi_typed_trees::statement::StatementNode;
 
@@ -1137,7 +1195,7 @@ fn assignment_guard_is_stable(
         collect_read_place_paths(proof_plan, operands.left, &mut read_paths);
         collect_read_place_paths(proof_plan, operands.right, &mut read_paths);
     }
-    let Some(call_frames) = psi_validation::CallFrameResolver::new(program) else {
+    let Some(call_frames) = context.call_frames() else {
         return false;
     };
 
