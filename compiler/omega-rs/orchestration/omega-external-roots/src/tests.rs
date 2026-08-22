@@ -82,7 +82,11 @@ fn installed_code(artifact_identity: u64, entry: EntryStubId) -> InstalledCode {
     installed_code_with_fill(artifact_identity, entry, 0)
 }
 
-fn installed_code_with_fill(artifact_identity: u64, entry: EntryStubId, fill: u8) -> InstalledCode {
+pub(crate) fn installed_code_with_fill(
+    artifact_identity: u64,
+    entry: EntryStubId,
+    fill: u8,
+) -> InstalledCode {
     let artifact = Artifact::from_canonical_decode(
         install_id(artifact_identity, ArtifactId::from_normalized_identity),
         install_id(

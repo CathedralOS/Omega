@@ -4570,9 +4570,16 @@ Remaining:
   final relocation envelope. The carrier deliberately does not masquerade as
   the existing semantic `TerminalObjectArtifact`: effect, settlement, stack,
   cleanup, return, and installation offsets still name the immutable source
-  evidence. Their final binding, the opaque-state/sponsor-policy transfer stub,
-  and installed codecs remain necessary before any installed dynamic evidence
-  can exist.
+  evidence. A dependency-light final-image projection now rejoins the exact
+  source attribution, target recipe, replayed hot/semantic/cold intervals,
+  unrelocated metered text, and relocation-materialized final text with one
+  exact installed-code receipt. This is the sole constructor for installed
+  dynamic attribution; missing/reordered rows, source drift, overlapping or
+  out-of-range charge intervals, target/profile drift, and either side of an
+  installed byte mismatch reject. The admitted context transfer entry remains
+  responsible for the separately validated opaque-state save, sponsor-stack
+  switch, and fixed/`FuelSuspensionFree` policy path; those target/runtime bytes
+  and installed-record codecs remain necessary for a complete deployed path.
   Root admission now retains the selected native realization against the exact
   logical-fuel demand, provision, grant, installed-code context, and artifact.
   Existing fixed roots automatically produce the exact fixed realization;
@@ -4580,8 +4587,10 @@ Remaining:
   fixed/interpreted paths reject stray dynamic evidence. Runtime root custody
   retains the exact sealed value, while the address-free installed root manifest
   publishes its kind and replay-bound fingerprint. The remaining native slice
-  is to emit and independently replay the target charge/transfer bytes, centrally
-  rebase semantic offsets, and bind only the final metered installed artifact.
+  is to retain/validate the target-runtime transfer entry's physical state/stack
+  implementation and encode the metered charge catalog in canonical installed
+  records; semantic metadata either needs centralized final-offset translation
+  or an explicit dual source/metered installation carrier.
 - **PROOF-RELEVANCE-MIGRATION.** Finish binding-level `[erased]`, checked
   noninterference, erased-stripped layout, and obligation preservation across
   the remaining consumers. Explicit relevance remains in semantic/proof

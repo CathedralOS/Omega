@@ -14,7 +14,8 @@ use omega_executable_installation::{
 };
 use omega_target::{NativeTarget, TargetProfile};
 use omega_terminal_installation_evidence::{
-    TerminalFuelAttributionEvidence, TerminalFuelAttributionSite, TerminalObjectEvidence,
+    TerminalFuelAttributionEvidence, TerminalFuelAttributionSite, TerminalNativeFuelChargeEvidence,
+    TerminalNativeFuelImageEvidence, TerminalObjectEvidence,
 };
 
 use super::{
@@ -314,10 +315,10 @@ impl ValidatedDynamicFuelAttributionBasis {
     }
 }
 
-/// Final dynamic-meter evidence. No constructor is exposed until target
-/// instrumentation and independent final-byte replay can populate this from a
-/// [`ValidatedDynamicFuelAttributionBasis`]. In particular, an unmetered
-/// installed artifact can no longer manufacture this value.
+/// Final dynamic-meter evidence constructed only by joining the validated
+/// source basis, independently replayed metered/final image, and exact
+/// installed-code realization. An unmetered artifact cannot manufacture this
+/// value.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InstalledDynamicFuelAttributionPlan {
     plan: DynamicNativeFuelMeterPlan,
@@ -326,6 +327,8 @@ pub struct InstalledDynamicFuelAttributionPlan {
     installed_code_context: InstalledCodeContext,
     artifact: ArtifactId,
     attributions: Vec<TerminalFuelAttributionEvidence>,
+    charges: Vec<TerminalNativeFuelChargeEvidence>,
+    final_text_fingerprint: u64,
     fingerprint: u64,
 }
 
@@ -342,6 +345,14 @@ impl InstalledDynamicFuelAttributionPlan {
         &self.attributions
     }
 
+    pub fn charges(&self) -> &[TerminalNativeFuelChargeEvidence] {
+        &self.charges
+    }
+
+    pub const fn final_text_fingerprint(&self) -> u64 {
+        self.final_text_fingerprint
+    }
+
     pub const fn fingerprint(&self) -> u64 {
         self.fingerprint
     }
@@ -351,6 +362,149 @@ impl InstalledDynamicFuelAttributionPlan {
             && self.installed_code_context == installed_code.receipt_context()
             && self.artifact == installed_code.artifact()
     }
+}
+
+/// Bind independently replayed metered and final text to one exact installed
+/// realization. Source attribution, target recipe, every charge/cold interval,
+/// and both sides of relocation must agree before installed dynamic evidence
+/// can exist.
+pub fn bind_installed_dynamic_fuel_attribution<Image: TerminalNativeFuelImageEvidence>(
+    basis: ValidatedDynamicFuelAttributionBasis,
+    image: &Image,
+    installed_code: &InstalledCode,
+) -> Result<InstalledDynamicFuelAttributionPlan, ExternalRootDiagnostic> {
+    if image.terminal_psi() != basis.terminal_psi
+        || image.target() != basis.plan.target()
+        || image.target_policy() != *basis.plan.target_policy.projection()
+        || installed_code.architecture() != image.target().architecture
+    {
+        return Err(ExternalRootDiagnostic(
+            "installed dynamic fuel image does not match its semantic identity or admitted target recipe"
+                .into(),
+        ));
+    }
+    let mut source_hash = Fnv1a::new();
+    source_hash.bytes(b"omega.dynamic-fuel-source-text.v1");
+    source_hash.bytes(image.source_text_bytes());
+    if source_hash.finish() != basis.source_text_fingerprint {
+        return Err(ExternalRootDiagnostic(
+            "installed dynamic fuel image does not retain the validated source text".into(),
+        ));
+    }
+    if !installed_code.binds_exact_materialized_artifact_bytes(
+        image.metered_text_bytes(),
+        image.final_text_bytes(),
+    ) {
+        return Err(ExternalRootDiagnostic(
+            "installed dynamic fuel evidence does not bind the exact unrelocated and materialized metered text"
+                .into(),
+        ));
+    }
+
+    let charges = image.charges();
+    if charges.len() != basis.attributions.len()
+        || charges
+            .iter()
+            .zip(&basis.attributions)
+            .any(|(charge, attribution)| charge.attribution != *attribution)
+    {
+        return Err(ExternalRootDiagnostic(
+            "installed dynamic fuel charges do not correspond one-for-one with the validated source attribution"
+                .into(),
+        ));
+    }
+    let mut spans = Vec::with_capacity(charges.len() * 2);
+    for charge in &charges {
+        let charge_end = charge
+            .charge_text_offset
+            .checked_add(charge.charge_byte_count)
+            .ok_or_else(|| {
+                ExternalRootDiagnostic("installed native fuel charge interval overflowed".into())
+            })?;
+        let cold_end = charge
+            .cold_dispatch_text_offset
+            .checked_add(charge.cold_dispatch_byte_count)
+            .ok_or_else(|| {
+                ExternalRootDiagnostic(
+                    "installed native fuel cold-dispatch interval overflowed".into(),
+                )
+            })?;
+        let function_offset = image
+            .function_text_offset(charge.attribution.machine)
+            .ok_or_else(|| {
+                ExternalRootDiagnostic(
+                    "installed native fuel charge names an unknown metered function".into(),
+                )
+            })?;
+        if charge.charge_byte_count == 0
+            || charge.cold_dispatch_byte_count == 0
+            || charge.charge_text_offset < function_offset
+            || charge.semantic_text_offset < charge_end
+            || charge.semantic_text_offset > image.metered_text_bytes().len()
+            || charge_end > image.metered_text_bytes().len()
+            || cold_end > image.metered_text_bytes().len()
+        {
+            return Err(ExternalRootDiagnostic(
+                "installed native fuel charge has an invalid hot, semantic, or cold interval"
+                    .into(),
+            ));
+        }
+        spans.push((charge.charge_text_offset, charge_end));
+        spans.push((charge.cold_dispatch_text_offset, cold_end));
+    }
+    spans.sort_unstable();
+    if spans.windows(2).any(|pair| pair[0].1 > pair[1].0) {
+        return Err(ExternalRootDiagnostic(
+            "installed native fuel hot/cold intervals overlap".into(),
+        ));
+    }
+
+    let mut final_text_hash = Fnv1a::new();
+    final_text_hash.bytes(b"omega.dynamic-fuel-final-text.v1");
+    final_text_hash.bytes(image.final_text_bytes());
+    let final_text_fingerprint = final_text_hash.finish();
+    let fingerprint = fingerprint_installed_dynamic_fuel(
+        &basis,
+        installed_code,
+        final_text_fingerprint,
+        &charges,
+    );
+    Ok(InstalledDynamicFuelAttributionPlan {
+        plan: basis.plan,
+        terminal_psi: basis.terminal_psi,
+        installed_code: installed_code.identity(),
+        installed_code_context: installed_code.receipt_context(),
+        artifact: installed_code.artifact(),
+        attributions: basis.attributions,
+        charges,
+        final_text_fingerprint,
+        fingerprint,
+    })
+}
+
+fn fingerprint_installed_dynamic_fuel(
+    basis: &ValidatedDynamicFuelAttributionBasis,
+    installed_code: &InstalledCode,
+    final_text_fingerprint: u64,
+    charges: &[TerminalNativeFuelChargeEvidence],
+) -> u64 {
+    let mut hash = Fnv1a::new();
+    hash.bytes(b"omega.installed-dynamic-fuel.v1");
+    hash.u64(basis.fingerprint);
+    hash.u64(installed_code.identity().normalized_identity());
+    hash.u64(installed_code.artifact().normalized_identity());
+    hash.u64(final_text_fingerprint);
+    hash.u64(charges.len() as u64);
+    for charge in charges {
+        hash.u64(charge.attribution.machine.get());
+        hash.u64(charge.attribution.operation_ordinal as u64);
+        hash.u64(charge.charge_text_offset as u64);
+        hash.u64(charge.charge_byte_count as u64);
+        hash.u64(charge.semantic_text_offset as u64);
+        hash.u64(charge.cold_dispatch_text_offset as u64);
+        hash.u64(charge.cold_dispatch_byte_count as u64);
+    }
+    hash.finish()
 }
 
 /// Validate and retain the exact source attribution catalog before any bytes
@@ -884,6 +1038,52 @@ mod tests {
         bytes: Vec<u8>,
     }
 
+    struct TestNativeFuelImage {
+        target: NativeTarget,
+        policy: NativeFuelTargetPlanProjection,
+        source: Vec<u8>,
+        metered: Vec<u8>,
+        final_text: Vec<u8>,
+        charges: Vec<TerminalNativeFuelChargeEvidence>,
+    }
+
+    impl TerminalNativeFuelImageEvidence for TestNativeFuelImage {
+        fn terminal_psi(&self) -> psi_terminal::TerminalPsiIdentity {
+            psi_terminal::TerminalPsiIdentity {
+                vocabulary_marker: psi_terminal::VocabularyMarker::CURRENT,
+                program_fingerprint: psi_terminal::SemanticFingerprint::from_bytes([7; 32]),
+            }
+        }
+
+        fn target(&self) -> NativeTarget {
+            self.target
+        }
+
+        fn target_policy(&self) -> NativeFuelTargetPlanProjection {
+            self.policy
+        }
+
+        fn source_text_bytes(&self) -> &[u8] {
+            &self.source
+        }
+
+        fn metered_text_bytes(&self) -> &[u8] {
+            &self.metered
+        }
+
+        fn final_text_bytes(&self) -> &[u8] {
+            &self.final_text
+        }
+
+        fn function_text_offset(&self, machine: psi_core::MachineId) -> Option<usize> {
+            (machine == psi_core::MachineId::new(1).unwrap()).then_some(0)
+        }
+
+        fn charges(&self) -> Vec<TerminalNativeFuelChargeEvidence> {
+            self.charges.clone()
+        }
+    }
+
     impl TerminalObjectEvidence for TestTerminalArtifact {
         fn terminal_psi(&self) -> psi_terminal::TerminalPsiIdentity {
             psi_terminal::TerminalPsiIdentity {
@@ -1088,6 +1288,54 @@ mod tests {
         let changed_basis = validate_dynamic_fuel_attribution_basis(plan.clone(), &changed_source)
             .expect("different valid source bytes remain a distinct instrumentation input");
         assert_ne!(basis.fingerprint(), changed_basis.fingerprint());
+
+        let image = TestNativeFuelImage {
+            target,
+            policy: x86_target_projection(profile),
+            source: vec![0; 4],
+            metered: vec![9; 64],
+            final_text: vec![9; 64],
+            charges: vec![
+                TerminalNativeFuelChargeEvidence {
+                    attribution: rows[0],
+                    charge_text_offset: 0,
+                    charge_byte_count: 4,
+                    semantic_text_offset: 4,
+                    cold_dispatch_text_offset: 40,
+                    cold_dispatch_byte_count: 4,
+                },
+                TerminalNativeFuelChargeEvidence {
+                    attribution: rows[1],
+                    charge_text_offset: 4,
+                    charge_byte_count: 4,
+                    semantic_text_offset: 8,
+                    cold_dispatch_text_offset: 44,
+                    cold_dispatch_byte_count: 4,
+                },
+            ],
+        };
+        let installed = crate::tests::installed_code_with_fill(
+            91,
+            psi_layout_plans::EntryStubId::from_normalized_identity(1091).expect("entry"),
+            9,
+        );
+        let installed_attribution =
+            bind_installed_dynamic_fuel_attribution(basis, &image, &installed)
+                .expect("replayed final bytes bind dynamic attribution to installation");
+        assert_eq!(installed_attribution.charges(), image.charges());
+        assert_eq!(installed_attribution.installed_code(), installed.identity());
+
+        let mismatched_installation = crate::tests::installed_code_with_fill(
+            92,
+            psi_layout_plans::EntryStubId::from_normalized_identity(1092).expect("entry"),
+            8,
+        );
+        assert!(
+            !mismatched_installation.binds_exact_materialized_artifact_bytes(
+                image.metered_text_bytes(),
+                image.final_text_bytes()
+            )
+        );
         let mut duplicate = rows.clone();
         duplicate[1].site = duplicate[0].site;
         let error = validate_dynamic_fuel_attributions(&plan, &artifact, &duplicate)

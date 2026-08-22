@@ -554,6 +554,20 @@ mod tests {
             let image = crate::emit_terminal_native_fuel_executable_image(&validated, 3)
                 .expect("metered direct image");
             assert_eq!(image.output().final_text_bytes, validated.text_bytes());
+            let projected =
+                omega_terminal_installation_evidence::TerminalNativeFuelImageEvidence::charges(
+                    &image,
+                );
+            assert_eq!(projected.len(), 1);
+            assert_eq!(projected[0].attribution.text_offset, 0);
+            assert_eq!(
+                projected[0].charge_text_offset,
+                validated.functions()[0].charges[0].charge_code_offset
+            );
+            assert_eq!(
+                projected[0].cold_dispatch_text_offset,
+                validated.functions()[0].charges[0].cold_dispatch_code_offset
+            );
             assert_eq!(
                 image
                     .output()

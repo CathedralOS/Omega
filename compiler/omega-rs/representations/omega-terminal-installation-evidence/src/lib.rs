@@ -32,6 +32,34 @@ pub struct TerminalFuelAttributionEvidence {
     pub byte_count: usize,
 }
 
+/// Exact source, hot-charge, semantic, and cold-dispatch locations retained by
+/// an independently replayed metered image.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TerminalNativeFuelChargeEvidence {
+    pub attribution: TerminalFuelAttributionEvidence,
+    pub charge_text_offset: usize,
+    pub charge_byte_count: usize,
+    pub semantic_text_offset: usize,
+    pub cold_dispatch_text_offset: usize,
+    pub cold_dispatch_byte_count: usize,
+}
+
+/// Dependency-light projection of a final, independently replayed dynamic-
+/// fuel image. This is input evidence, not installation authority; external-
+/// root admission still binds both unrelocated and materialized bytes to one
+/// exact installed-code value on its side of the
+/// dependency boundary.
+pub trait TerminalNativeFuelImageEvidence {
+    fn terminal_psi(&self) -> psi_terminal::TerminalPsiIdentity;
+    fn target(&self) -> omega_target::NativeTarget;
+    fn target_policy(&self) -> NativeFuelTargetPlanProjection;
+    fn source_text_bytes(&self) -> &[u8];
+    fn metered_text_bytes(&self) -> &[u8];
+    fn final_text_bytes(&self) -> &[u8];
+    fn function_text_offset(&self, machine: psi_core::MachineId) -> Option<usize>;
+    fn charges(&self) -> Vec<TerminalNativeFuelChargeEvidence>;
+}
+
 /// Exact admitted provider-execution identity projected into terminal
 /// lowering and installation records.
 pub trait TerminalProviderExecutionEvidence: std::fmt::Debug {
