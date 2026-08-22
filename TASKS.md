@@ -2599,11 +2599,14 @@ Remaining N6/N8 work:
   mutability, result type, and machine/state contract spans. Missing or
   duplicate state identities, open generic/static applications, and unresolved
   results reject. Closed type, literal-`const`, and static-machine applications
-  retain exact parameter/argument bindings on the telescope. An immutable
-  structural matcher substitutes those bindings through representative runtime
-  parameter and result types, including const-parametric array lengths, without
-  mutating the checked type arena; unsupported constrained/dynamic shapes fail
-  closed unless already canonically identical. A direct `define` request now also requires exact
+  retain exact parameter/argument bindings on the telescope. The 2,422-line
+  relation/result-flow parent delegates closed static-application validation
+  and immutable declaration-type substitution to a focused 355-line child. Its
+  structural matcher substitutes retained bindings through representative
+  runtime parameter and result types, including const-parametric array lengths,
+  without mutating the checked type arena; unsupported constrained/dynamic
+  shapes fail closed unless already canonically identical. A direct `define`
+  request now also requires exact
   positional runtime correspondence: public parameter symbols in order,
   one-to-one unique runtime identities, quotient-carrier/representative-type or
   ordinary exact-type agreement, mutable/borrow mode and multiplicity
