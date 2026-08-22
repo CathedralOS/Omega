@@ -3,8 +3,9 @@
 use super::*;
 use crate::checked::{
     retain_compiler_function_identity, validate_compiler_function_object_binding,
+    validate_compiler_instruction_relocation_origins,
 };
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 fn bind_encoded_function_object_symbol(
     object: &mut omega_object_file::ObjectPlan,
@@ -157,6 +158,62 @@ fn final_function_identity_owns_one_exact_object_text_interval() {
         diagnostic
             .message
             .contains("does not match encoded interval")
+    );
+}
+
+#[test]
+fn final_instruction_relocations_retain_the_exact_function_owner() {
+    let target = NativeTarget::linux_x64();
+    let mut object = omega_object_file::ObjectPlan::with_capacities(target, 0, 1, 0);
+    let symbol = object.layout.symbols.insert(omega_object_file::SymbolPlan {
+        name: "function".into(),
+        section: omega_object_file::SymbolSection::Section(omega_object_file::SectionKind::Text),
+        offset: 0,
+        size: 8,
+        kind: omega_object_file::SymbolKind::Function,
+        import_library: String::new(),
+    });
+    let instruction_owners = HashMap::from([(41, symbol)]);
+    let mut relocations = RelocationPlan::with_target(target);
+    let relocation = relocations.push_record(RelocationRecord {
+        origin: RelocationOrigin::Instruction {
+            function_symbol_handle: symbol,
+            selected_instruction_index: 41,
+        },
+        section: SectionKind::Text,
+        offset: 1,
+        byte_width: 4,
+        symbol_handle: symbol,
+        addend: 0,
+        kind: RelocationKind::X86_64Relative32,
+    });
+
+    validate_compiler_instruction_relocation_origins(&instruction_owners, &relocations)
+        .expect("exact instruction owner should remain joined");
+
+    let mut redirected = relocations.clone();
+    if let RelocationOrigin::Instruction {
+        function_symbol_handle,
+        ..
+    } = &mut redirected.record_set.records.get_mut(relocation).origin
+    {
+        *function_symbol_handle = psi_arena::Handle::invalid();
+    }
+    let diagnostic =
+        validate_compiler_instruction_relocation_origins(&instruction_owners, &redirected)
+            .expect_err("redirected function origin must reject");
+    assert!(diagnostic.message.contains("exact final function symbol"));
+
+    let mut unknown = relocations;
+    if let RelocationOrigin::Instruction {
+        selected_instruction_index,
+        ..
+    } = &mut unknown.record_set.records.get_mut(relocation).origin
+    {
+        *selected_instruction_index = 42;
+    }
+    assert!(
+        validate_compiler_instruction_relocation_origins(&instruction_owners, &unknown).is_err()
     );
 }
 
@@ -387,6 +444,30 @@ fn balanced_outgoing_stack_frame_final_bytes_and_footprint_replay_fail_closed() 
     )
     .expect("exact balanced outgoing frame should replay with no relocation");
     assert_eq!(evidence.instruction_count, 10);
+
+    let mut duplicate_instruction_owner = plan.code.clone();
+    let duplicate_index = duplicate_instruction_owner
+        .instructions
+        .get(reserve_row)
+        .selected_instruction_index;
+    duplicate_instruction_owner
+        .instructions
+        .get_mut(release_row)
+        .selected_instruction_index = duplicate_index;
+    let diagnostic = validate_compiler_function_instruction_boundaries(
+        omega_target::Architecture::X86_64,
+        &duplicate_instruction_owner,
+        &final_bytes,
+        &object,
+        &relocations,
+        &semantics,
+    )
+    .expect_err("one selected instruction cannot be retained twice");
+    assert!(
+        diagnostic
+            .message
+            .contains("more than one final function row")
+    );
 
     let reserve_offset = enter.len();
     let writes_offset = reserve_offset + reserve.len();
@@ -946,7 +1027,7 @@ fn compiler_functions_retain_a_complete_final_instruction_partition() {
         .chain(leave)
         .collect::<Vec<_>>();
     let mut relocations = RelocationPlan::with_target(target);
-    relocations.push_record(RelocationRecord {
+    let guard_relocation = relocations.push_record(RelocationRecord {
         origin: RelocationOrigin::Instruction {
             function_symbol_handle: Handle::invalid(),
             selected_instruction_index: 6,
@@ -1015,7 +1096,16 @@ fn compiler_functions_retain_a_complete_final_instruction_partition() {
         byte_count: final_bytes.len(),
         instructions: HandleSpan::from_parts(first, 5),
     });
-    bind_encoded_function_object_symbol(&mut object, plan.code.functions.get(function));
+    let function_symbol =
+        bind_encoded_function_object_symbol(&mut object, plan.code.functions.get(function));
+    relocations
+        .record_set
+        .records
+        .get_mut(guard_relocation)
+        .origin = RelocationOrigin::Instruction {
+        function_symbol_handle: function_symbol,
+        selected_instruction_index: 6,
+    };
     plan.code.byte_count = final_bytes.len();
     let mut semantics = omega_machine_bytes::EncodedMachineSemanticSummary::default();
     semantics

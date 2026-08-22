@@ -630,6 +630,12 @@ drifted bindings therefore reject at the final image boundary for source,
 wrapper, and callback roles alike. Object-local symbol spelling is deliberately
 not compared to the encoded source display name; callback private-symbol
 recomputation remains the stronger callback-specific check described above.
+Final relocation replay also builds one exact owner map from every retained
+selected-instruction identity to that function symbol. A selected instruction
+retained twice, an instruction relocation naming another function, or an
+instruction-origin row with no retained owner rejects before the image can be
+accepted. Semantic-operation, semantic-edge, and materialization origins keep
+their separate non-instruction identity namespaces.
 Emission also rejoins every validated
 placement row to exactly one thunk plan and rejects a missing, duplicate, or
 out-of-range placement index, selected-entry drift, and repeated private thunk
