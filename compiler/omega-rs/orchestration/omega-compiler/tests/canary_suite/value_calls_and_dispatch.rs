@@ -524,19 +524,13 @@ fn runtime_write_no_newline_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-write-no-newline-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("write-no-newline canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
-        .output()
-        .expect("write-no-newline canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected `write`+`write_line` to print 'ABC\\n' and exit 70; got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        70,
+        "write-without-newline canary",
+        "write followed by write_line should reach the expected exit",
     );
 
     let _ = fs::remove_dir_all(&build_dir);
@@ -553,21 +547,13 @@ fn runtime_exit_code_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-runtime-exit-code-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("runtime exit code canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
-        .output()
-        .expect("runtime exit code canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected `exit_process(self.v)` with a runtime i32 (5 + 65) to exit with the \
-         computed value 70; a 0 exit is the pre-fix bug where the runtime exit-code \
-         operand was ignored. got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        70,
+        "runtime exit-code canary",
+        "exit_process should consume the computed runtime i32 value",
     );
 
     let _ = fs::remove_dir_all(&build_dir);
@@ -630,19 +616,13 @@ fn borrow_carrying_data_field_exit_canary_runs() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-borrow-carrying-data-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("borrow-carrying data canary should compile to a PE");
-
-    let output = Command::new(build_dir.join(executable_name()))
-        .output()
-        .expect("borrow-carrying data canary should run");
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "native backend should read the borrowed field as 70 (matching the interpreter); \
-         got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        70,
+        "borrow-carrying data-field canary",
+        "the native backend should read the borrowed field like the interpreter",
     );
 
     let _ = fs::remove_dir_all(&build_dir);
@@ -657,19 +637,13 @@ fn runtime_u8_field_arith_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("u8 field arithmetic canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
-        .output()
-        .expect("u8 field arithmetic canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected u8 fields to store/add/compare as 1-byte values (100+50==150, exit 70), got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        70,
+        "u8 field-arithmetic canary",
+        "u8 fields should store, add, and compare as one-byte values",
     );
 
     let _ = fs::remove_dir_all(&build_dir);
@@ -684,19 +658,13 @@ fn runtime_i8_signed_arith_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("i8 signed arithmetic canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
-        .output()
-        .expect("i8 signed arithmetic canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected i8 fields to be SIGNED 1-byte values (-10+4==-6, exit 70), got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        70,
+        "i8 signed-arithmetic canary",
+        "i8 fields should preserve signed one-byte arithmetic",
     );
 
     let _ = fs::remove_dir_all(&build_dir);
