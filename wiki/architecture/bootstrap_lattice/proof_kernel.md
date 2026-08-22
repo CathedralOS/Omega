@@ -683,6 +683,14 @@ source-carrier literal remapping remains with cast custody. No proof shape or
 search frontier changes. This completes contiguous cast-chain custody for exact
 divide/remainder goals.
 
+Direct landed-literal cast selection separates equality candidate enumeration
+from its existing completion. Independent producer and reconstruction
+`cast_selection/literal/candidates` modules retain assumptions before semantic
+axioms, equality orientation, and exact typed value/literal filtering before
+delegating to their own completion. Citation identity, closed-order and
+substitution proof bytes, unsafe or mistyped rejection, cast-family precedence,
+and the fixed direct-literal frontier remain unchanged.
+
 Closed-strengthened alias transport separates fact discovery from cast
 completion. Independent producer and verifier
 `alias_transport/cast/stronger/candidates` modules retain equality-first,
