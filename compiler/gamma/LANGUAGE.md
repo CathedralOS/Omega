@@ -1,57 +1,61 @@
-# The gamma language
+# Gamma language
 
-A small structured language that compiles to alpha assembly. Integers only (signed
-64-bit; `print` and `read` are decimal, non-negative). Compiled by `gamma_x64_windows.exe`
-to assembly, which `beta` lowers to a tape stamped into the alpha seed → a standalone exe.
+Gamma is the safe definitional language in the audited bootstrap spine. Its
+canonical meaning is the pure, fuel-bounded reference interpreter in
+`interp.beta`; its static checker is `typeck.beta`. Both are Beta programs built
+by the self-hosting Beta compiler.
 
-## Grammar
+The old imperative language compiled by `gamma.alpha` is a parked compatibility
+artifact. It is not the canonical Gamma surface. Its historical programs remain
+under `examples/` and are built only by the legacy `build.sh` path.
 
-```
-program   := statement*
-statement := var '=' expr
-           | 'if' expr '{' statement* '}' [ 'else' '{' statement* '}' ]
-           | 'while' expr '{' statement* '}'
-           | 'print' expr            ; writes the decimal value + newline to stdout
-           | 'read' var              ; reads a decimal from stdin into var
-expr       := sum (cmpop sum)?       ; a comparison yields 0 or 1
-cmpop      := '<' | '>' | '==' | '<=' | '>=' | '!='
-sum        := term (('+' | '-') term)*
-term       := factor (('*' | '/' | '%') factor)*
-factor     := number | var | '(' expr ')'
-var        := a single letter a..j           ; held in registers r6..r15
-```
+## Evaluated surface
 
-- `# …` to end of line is a comment.
-- `if`/`while` run/loop while the condition is **nonzero**; comparisons produce 0/1.
-- `* / %` bind tighter than `+ -`; comparisons are looser than both; `( )` override.
-- The program **exits with the value of the last variable assigned** (low byte as the
-  process exit code). Use `print` for full values.
+The reference interpreter accepts prefix expressions:
 
-## Examples (in `examples/`)
-
-```
-# primes up to n
-read a
-b = 2
-while b <= a {
-  c = 2
-  d = 1
-  while c < b {
-    e = b % c
-    if e == 0 { d = 0 }
-    c = c + 1
-  }
-  if d == 1 { print b }
-  b = b + 1
-}
+```text
+program := (def NAME (PARAM...) EXPR)* EXPR
+EXPR    := INT | VAR
+         | (if EXPR EXPR EXPR)
+         | (let NAME EXPR EXPR)
+         | (+ EXPR EXPR) | (- EXPR EXPR) | (* EXPR EXPR)
+         | (/ EXPR EXPR) | (% EXPR EXPR)
+         | (eq EXPR EXPR) | (lt EXPR EXPR)
+         | (NAME EXPR...)
+         | CONSTRUCTOR | (CONSTRUCTOR EXPR...)
+         | (match EXPR (PATTERN EXPR)...)
+PATTERN := NAME | CONSTRUCTOR | (CONSTRUCTOR NAME...)
 ```
 
-`gcd.gamma` (Euclid), `fib.gamma` (iterative Fibonacci), `primes.gamma`, `squares.gamma`,
-`countdown.gamma`, … — build any with `./build.sh examples/NAME.gamma` then run
-`./build/NAME.exe` (pipe input for the ones that `read`).
+Uppercase heads are algebraic-data constructors. A lowercase pattern name is a
+catch-all binding. Evaluation is pure; recursion is bounded by explicit
+interpreter fuel, so exhaustion is a reference-evaluation outcome rather than an
+invisible unbounded computation.
 
-## Limits (current)
+## Statically checked surface
 
-- 10 variables (`a`–`j`). Lifting this needs named identifiers + a symbol table.
-- No functions, arrays, or string output yet.
-- These are the features needed before gamma can be rewritten **in gamma** (self-hosting).
+Typed Gamma adds explicit algebraic-data and function declarations:
+
+```text
+program := (data TYPE (CONSTRUCTOR TYPE...)...)*
+           (def NAME ((PARAM TYPE)...) RETURN_TYPE EXPR)*
+```
+
+`Int` is built in. The type system is monomorphic and fully annotated. It checks
+function and constructor arity, operator operands, calls, return types, match
+scrutinees, pattern constructors, and agreement between match arms. It is
+deliberately small: enough to make interpreters, validators, canonical-byte
+decoders, and the independent Gamma proof-kernel implementation safe to write.
+
+## Gates and examples
+
+```sh
+sh compiler/gamma/test-interp.sh
+sh compiler/gamma/test-typeck.sh
+sh compiler/gamma/test-checker.sh
+```
+
+Canonical typed examples live in `canonical-bytes/`,
+`terminal-codec-primitives/`, `terminal-ledger-spike/`, and
+`checker_typed.gamma`. The root `examples/*.gamma` corpus belongs to the parked
+imperative compiler and must not be used as the canonical language definition.

@@ -151,6 +151,6 @@ scope until the hardening lands.
 `conformance.sh` runs hand-built bytecode tapes — one per rule and per edge
 (signed division/remainder, signed `jlt`, EOF, the three traps) — against the
 host's seed and checks exit code and stdout. A faithful seed on any ISA passes
-all of them; a divergence between two seeds on the same tape is, by construction,
-a bug in one of them (or a Thompson attack on one). Run it after touching a seed,
-and as the acceptance gate for a new platform's seed.
+all of them; a divergence between two realizations on the same tape exposes a
+conformance or implementation problem. Run it after touching a seed and as the
+acceptance gate for a new platform realization.

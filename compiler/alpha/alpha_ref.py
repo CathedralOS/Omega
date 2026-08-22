@@ -4,13 +4,11 @@
 # stdin; writes the program's stdout; exits with the program's exit code (or 132 on a trap, matching the
 # seeds' SIGILL -> shell 128+4).
 #
-# WHY THIS EXISTS — deepening the Thompson root. The two hand-authored seed VMs (x64, arm64) are the
-# lattice's diversity root, but hand-written assembly is hard to audit. This is a THIRD, independent
-# implementation in a different language, short enough to read against SEMANTICS.md line by line. It is
-# UNTRUSTED and CHECKED, exactly like bc2.py / tv-encode.py: the diamond gate runs real + edge-case tapes
-# through this AND the host seed and asserts they agree — so a bug here (or in a seed) surfaces as a
-# disagreement, never a silent pass. Value: the semantics gains an auditable executable reference that both
-# opaque seeds are pinned against, and the seed diamond becomes a triple.
+# WHY THIS EXISTS — an executable reference for seed conformance. Hand-written
+# assembly is hard to audit, so this implementation is short enough to read
+# against SEMANTICS.md line by line. It is UNTRUSTED: the cross-check runs real
+# and edge-case tapes through this and the host seed. Disagreement is a useful
+# diagnostic; agreement does not replace the written semantics or audit.
 #
 # Encoding (opcode 1 byte; register operand 1 byte; immediate/address 8 bytes LE; address = absolute M
 # offset). Loader: M[0..L-1] = tape, pc = 0, R[i] = 0, sp = 0x04000000 (grows down).

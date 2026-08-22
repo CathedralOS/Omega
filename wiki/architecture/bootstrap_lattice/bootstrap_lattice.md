@@ -1,7 +1,8 @@
 # The Bootstrap Lattice
 
-> **Status: DIRECTION + a working vertical slice.** The language spine is
-> `Alpha → Beta → Gamma → Delta`. Alpha through Gamma exist on the audited
+> **Status: DIRECTION + a working vertical slice.** The audited bootstrap spine is
+> `Alpha → Beta → Gamma → Delta`; the complete build lattice continues
+> `→ Omega (Delta-built) → Omega (Omega-built)`. Alpha through Gamma exist on the audited
 > lineage; the Delta on-ramp, native corpus, self-hosting compiler, and meaning
 > diamond exist while the full Rust-free hosting path remains under construction.
 > The proof kernel is a cross-cutting assurance service, independently
@@ -9,11 +10,13 @@
 > the current construction: `sh compiler/verify-lattice.sh`.
 >
 > **Live build status + onboarding for a fresh agent:**
-> [TASKS_BOOTSTRAP.md](../../../TASKS_BOOTSTRAP.md).
+> [TASKS_BOOTSTRAP.md](../../../TASKS_BOOTSTRAP.md). Target ownership and paths:
+> [Bootstrap repository structure](repository_structure.md).
 
 This is the architecture for how the Psi/Omega toolchain rebuilds *itself*: a
-tower of small languages rising from a tiny hand-audited seed and ending in
-Delta, the language capable of hosting the production compiler. It is separate
+tower of increasingly capable languages rising from a tiny hand-audited seed.
+Delta builds a simple, spec-compliant Omega compiler; that compiler builds the
+full optimizing Omega compiler from Omega source. It is separate
 from two things it is easy to confuse it with:
 
 - **What Omega means** — the language semantics. Owned by the
@@ -152,7 +155,8 @@ absurdly slow, and that is fine; it is the semantic spine, not the production
 path:
 
 ```text
-Psi/Omega toolchain hosted in Delta
+bootstrap Omega compiler hosted in Delta
+  full Omega compiler built by bootstrap Omega
   Delta meaning elaborated to Gamma
   Gamma interpreted by a Beta program
   Beta compiled to Alpha
@@ -164,31 +168,32 @@ the lower spine already understands, not as more native kernel machinery. To
 Alpha, a proof object is just a byte sequence processed by another Alpha program;
 Alpha has no idea what “proof” means.
 
-## Ladder vs lattice: diversity is the security
+## Why this is a lattice rather than a pedigree chain
 
-A pure chain (`alpha → beta → … → omega`) gives staged *comprehensibility*, but a
-bug in one compiler still poisons everything above it. The **lattice** comes from
-adding independent paths and comparing them:
+The build spine (`alpha → beta → … → omega`) gives staged comprehensibility. It
+does not become trustworthy merely by extending that pedigree. The **lattice**
+comes from joining each build edge to canonical meaning and artifact checking:
 
 ```text
-                 Gamma program
-                 /            \
-        interpreter         compiler
-         in Beta             in Beta
-            |                   |
-            └──— compare behavior ——┘   (diamond: exposes disagreement)
+source ──────────────── canonical meaning
+  │                            │
+  │ untrusted compiler         │ reconstructed refinement obligation
+  ▼                            ▼
+artifact ─────────────── proof/semantic checker
 ```
 
-- **Vertical edges add expressiveness.** **Diagonal edges add assurance.**
-  **Diamonds expose disagreement.**
+- **Vertical build edges add expressiveness and self-sufficiency.**
+- **Meaning and checking edges add authority.**
+- **Reference comparisons and independent implementations expose bugs, but do
+  not replace a checked refinement claim.**
 
-One caveat that matters for *our* threat model (see
-[Honest edges](#honest-edges)): a diamond between two paths that share a low
-ancestor only catches *implementation* bugs. Genuine Thompson / supply-chain
-resistance requires paths that diverge **as low as possible** — different native
-alpha implementations, on different ISAs, ideally authored independently. That
-diversity is the actual defense, and it is the expensive part. Design it in
-early; do not treat it as a later garnish.
+This is why DDC is unnecessary here. DDC tries to establish source/binary
+correspondence by comparing two producers. This architecture establishes the
+stronger property directly: the exact artifact must refine the canonical
+meaning of the exact source, and the producer has no authority over the claim.
+Two correct producers may emit different bytes; two incorrect producers may
+agree. Cross-implementation comparisons remain useful engineering tests where
+cheap, but they are not trust edges and do not define the repository structure.
 
 ## The irreducible trust ledger
 
@@ -196,33 +201,50 @@ You cannot reach zero trust. The honest, finite list:
 
 1. **Logic itself.**
 2. **The hardware assumption** — "these alpha bytes, on this physical ISA, execute
-   per the alpha specification." Shrink the risk with multiple independent alpha
-   implementations, different host ISAs, direct inspection, a formal ISA model,
-   reproducible builds, and hardware testing. Alpha does **not** authenticate
-   itself merely by being small.
+   per the alpha specification." Shrink the risk with direct inspection,
+   conformance testing, a formal ISA model, reproducible builds, and additional
+   platform realizations where useful. Alpha does **not** authenticate itself
+   merely by being small or multiply implemented.
 3. **A short, frozen sequence of audited programs** — the Alpha VM, the Beta and
-   Gamma meaning path, and the proof-kernel implementations. The proof kernel is
-   a second trust anchor, implemented independently in Beta and Gamma and checked
-   against shared corpora and semantic seams. The audit burden shrinks going up,
-   as lower tooling helps check each next artifact.
+   Gamma meaning path, and the proof kernel. Its Beta and Gamma implementations
+   are cross-checked against shared corpora and semantic seams while the formal
+   soundness bridges mature. The audit burden shrinks going up, as lower tooling
+   helps check each next artifact.
 
 The craft is making this set as small, as explicit, and as independently
 re-verified as possible — then deriving or checking *everything else*.
 
-## The rungs (working decomposition)
+## The fixed language spine and two-stage Omega build
 
-Names are working labels; the count is emergent. Each rung adds **one coherent
-idea** and is implemented in the rung below.
+The language names and order are fixed by [D6](decisions.md). Each small
+bootstrap rung adds **one coherent idea** and is implemented in the rung below.
 
 | Rung | Adds (one idea) | Implemented in | Meaning defined by | Status |
 | --- | --- | --- | --- | --- |
-| [alpha](rungs/alpha.md) | raw computation: bytes, fixed-width arithmetic, bounded memory, load/store, branch, byte I/O, trap | native (hand-written per ISA) | the VM's own small-step semantics ([`SEMANTICS.md`](../../../compiler/alpha/SEMANTICS.md)) | **EXISTS** — 21-opcode tape VM, **two independent seeds** (x64, arm64) forming a diamond; written semantics + conformance suite; beta self-hosts on it |
-| [beta](rungs/beta.md) | names + structure: a small structured systems language (procedures, locals, control flow, memory) — *and* the assembler beneath it | alpha | the assembler in alpha-asm; the Beta-language compiler, **written in Beta** (`bc.beta`) | **EXISTS + SELF-HOSTS** — assembler self-hosts byte-identically; `bc` (the Beta compiler in Beta) self-hosts, so Rust is out of the lineage |
-| [gamma](rungs/gamma.md) | safe definitional computation: algebraic data, pattern matching, pure/total functions, a simple type system | beta | a Gamma reference interpreter written in Beta ([`interp.beta`](../../../compiler/gamma/interp.beta)) | **EXISTS** — fuel-bounded functional core, ADTs, pattern matching, and a static type checker; also hosts an independent proof-kernel implementation ([`checker.gamma`](../../../compiler/gamma/checker.gamma)) |
+| [alpha](rungs/alpha.md) | raw computation: bytes, fixed-width arithmetic, bounded memory, load/store, branch, byte I/O, trap | native (hand-written per ISA) | the VM's own small-step semantics ([`SEMANTICS.md`](../../../compiler/alpha/SEMANTICS.md)) | **EXISTS** — 21-opcode tape VM, audited x64/arm64 realizations, written semantics, and conformance suite |
+| [beta](rungs/beta.md) | names + structure: a small structured systems language (procedures, locals, control flow, memory) — *and* the assembler beneath it | alpha | the assembler in alpha-asm; the Beta-language compiler, **written in Beta** (`bc.beta`) | **EXISTS + SELF-HOSTS** — fixed point exists; complete lower-rooted source-to-artifact validation of the cold-started `bc` remains open |
+| [gamma](rungs/gamma.md) | safe definitional computation: algebraic data, pattern matching, pure functions, fuel-bounded evaluation, a simple type system | beta | a Gamma reference interpreter written in Beta ([`interp.beta`](../../../compiler/gamma/interp.beta)) | **EXISTS** — fuel-bounded functional core, ADTs, pattern matching, and a static type checker; also hosts an independent proof-kernel implementation ([`checker.gamma`](../../../compiler/gamma/checker.gamma)) |
 | [delta](rungs/delta.md) | compiler-host systems programming: mutation, ownership, regions, effects, boundaries | gamma | Delta-to-Gamma elaboration plus the Gamma reference interpreter | **WORKING ON-RAMP** — native corpus, self-hosting compiler, and meaning diamond exist; full Rust-free toolchain hosting remains open |
 
 The [proof kernel](proof_kernel.md) and the [Psi/Omega toolchain](omega_toolchain.md)
 are connected nodes in the architecture, not additional rungs in this table.
+
+The build continues through two artifacts implementing the same Omega language:
+
+```text
+Alpha → Beta → Gamma → Delta
+                           ↓
+              Omega (Delta-built bootstrap compiler)
+                           ↓
+              Omega (Omega-built production compiler)
+```
+
+The first Omega deliberately favors simple, auditable lowering over optimization.
+It is required to be spec-compliant and is a viable final compiler when build
+speed and generated-code quality are not priorities. The second compiler is the
+full Omega-source implementation with advanced lowering and optimization. This
+single self-host edge replaces a historical chain of implementation-language
+dependencies; it does not create another language or proof-checking rung.
 
 ## How today's work fits
 
@@ -235,11 +257,9 @@ This architecture does not demote the existing docs; it assigns roles.
   architecture it sits on the *machine* side; it is progressively replaced by
   lattice-built rungs and, in the end-state, its output is *checked* rather than
   trusted. Its pipeline docs stay valid — they describe a real working artifact.
-- [`alpha_language.md`](../../design_briefs/alpha_language.md) predates the
-  tape-VM re-rooting and is **partly stale**; its trust-architecture framing is
-  superseded here, while its concrete constraint list (resource budgets, banned
-  features, trap-everything) is salvaged into [alpha](rungs/alpha.md) and
-  [gamma](rungs/gamma.md).
+- [`alpha_language.md`](../../design_briefs/alpha_language.md) records the
+  tape-VM execution substrate and explicitly retires the former “Alpha as an
+  Omega subset/compiler” design.
 - [`proof_engine_north_star.md`](../../design_briefs/proof_engine_north_star.md)
   and [`cathedral_alignment.md`](../../cathedral_alignment.md) already name the
   endpoint (a tiny kernel + automation + a verified translation; trust bottoms
@@ -300,8 +320,9 @@ The places this architecture glides over real cost. Build with eyes open.
    (`kernel-accepted ⟹ true-about-execution`) at the proof/meaning seam. That
    bridge is the hard core of the proof ambition; the reference interpreter is
    only half of "meaning."
-2. **Diamonds catch compiler bugs; they do not resist Thompson without genuine
-   diversity.** See [Ladder vs lattice](#ladder-vs-lattice-diversity-is-the-security).
+2. **Cross-implementation agreement is evidence, not authority.** It can catch
+   bugs but cannot establish source-to-artifact correctness. Every compiler edge
+   still needs the checked refinement shape described above.
 3. **The trusted base is a sequence of audited programs, not just alpha.** See
    the [trust ledger](#the-irreducible-trust-ledger). Say it out loud rather than
    implying only alpha is inspected.
@@ -320,22 +341,17 @@ The places this architecture glides over real cost. Build with eyes open.
    targets (Cathedral already needs atomics-as-real-LOCK). Freeze the
    computational core; deliberately manage a separate hardware-interface surface.
 
-## Open questions
+## Implementation and research frontiers
 
-> Several of these are now resolved into standing calls in
-> [decisions.md](decisions.md) — Rust-exit order, meaning-by-elaboration, the
-> proof-carrying chain, the soundness-seam policy, and the diversity gaps. This
-> section keeps the questions; that document keeps the answers.
+These are execution work under the standing decisions, not unresolved owner
+architecture questions:
 
-- **Where does meaning start?** The smallest end-to-end slice is (a) a reference
-  interpreter for one tiny language that *defines* its meaning, and (b) one
-  checkable property about a program in it, with the checker run down the
-  reference route. Pin the language fragment and the property.
 - **Operational vs written semantics** — when (if ever) do we add a separately-
   written mathematical semantics alongside the reference interpreters, and prove
   the interpreters refine it? (Honest edge #1.)
-- **The diversity plan** — how many independent alpha implementations, on which
-  ISAs, authored how, to make the diamonds real Thompson resistance?
+- **Alpha conformance depth** — strengthen written semantics, boundary tests,
+  and formal ISA correspondence; add platform realizations when portability or
+  concrete fault isolation justifies their audit and maintenance cost.
 - **Terminal-Psi semantic-ledger realization** — the placement is settled: one
   total low-rung definition consumes canonical bytes and produces the complete
   ordered semantic ledger; deployment establishes its result by direct
@@ -344,13 +360,13 @@ The places this architecture glides over real cost. Build with eyes open.
   acceptable reference-route cost. The spike must measure schema/audit size,
   decoding, denotation, control-flow availability, and execution cost rather
   than merely demonstrate that a toy traversal compiles.
-- **Certificate format** — the shared, versioned proposition and derivation shape
-  that all proof-kernel implementations decide identically, including its exact
-  binding to terminal-Psi identity and reconstructed obligation identity.
-- **Reconciling current gamma** — today's compiler-first imperative gamma vs the
-  interpreter-first functional/total gamma this architecture wants.
-- **Delta sufficiency** — the exact subset required to host the complete Psi/Omega
-  implementation from the audited spine.
+- **Certificate coverage** — continue extending the shared, versioned
+  proposition and derivation shape without changing the kernel/artifact-verifier
+  responsibility split.
+- **Delta sufficiency** — implement the exact subset required to build the
+  spec-compliant bootstrap Omega compiler from the audited spine.
+- **Omega self-build** — use that bootstrap compiler to build and validate the
+  full optimizing Omega compiler from Omega source.
 
 ## Rung Questions
 
@@ -364,4 +380,4 @@ Every rung document answers:
 - **Must not contain** — what belongs higher, kept out to keep the rung small and
   the trust argument clean.
 - **Current repo reality** — where the actual repository is versus this target.
-- **Open questions.**
+- **Implementation frontiers.**

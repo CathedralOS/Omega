@@ -1,15 +1,15 @@
 #!/usr/bin/env sh
-# CHECKER DIAMOND — diverse double-checking of the trust anchor.
+# CHECKER CROSS-CHECK — replay the corpus across checker implementations.
 #
-# The lattice's security thesis is "diversity = security": independent
-# implementations that must agree. The most important place to apply it is the
-# CHECKER itself. We have two: check.beta (Beta; term/type trees hand-encoded as
+# Separate implementations are useful bug-finding evidence while the formal
+# soundness bridge matures. We have two: check.beta (Beta; term/type trees hand-encoded as
 # tagged memory nodes, decided by integer-tag if-cascades) and checker.gamma
 # (Gamma; the same logic as algebraic data + pattern matching, run on the gamma
 # reference interpreter). They were written differently, in different languages,
 # at different rungs. For each proof below — expressed in BOTH input syntaxes — the
 # two checkers must return the SAME verdict, and it must be the expected one. A
-# disagreement would expose a bug (or a backdoor) in one of them.
+# disagreement exposes a bug or unsupported semantic mismatch. Agreement is not
+# DDC and does not itself prove either checker sound.
 #
 # A THIRD oracle joins below: checker_typed.gamma — the fully type-annotated checker
 # that typeck.beta accepts — mechanically type-erased (erase_types.py) to the untyped

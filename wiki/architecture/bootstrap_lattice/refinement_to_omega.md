@@ -1,29 +1,29 @@
-# Refinement → Omega: the ω-climb roadmap
+# Refinement → bootstrap Omega → production Omega
 
 [Lattice overview](bootstrap_lattice.md) · [Decisions](decisions.md) · [Refinement pillar](../../../compiler/alpha/REFINEMENT.md)
 
 The instruction-level refinement pillar is structurally complete: for a substantial Beta fragment, the
 compiled alpha machine code is **kernel-proven** to compute its source meaning, for all inputs, without
-running it — two independent symbolic derivations, each differentially pinned to its own reference,
-equivalence certificates decided identically by three independent checkers. This document takes the long
-view the pillar earned: **which of its techniques carry to the ω rung, and what the climb toward
-`omega-rs`'s proof pipeline actually consists of.**
+running it—two separately constructed symbolic derivations, each differentially pinned to its own reference,
+with equivalence certificates cross-checked by the available checker implementations. This document takes the long
+view the pillar earned: **which of its techniques carry first to the simple
+Delta-built Omega compiler and then across the Omega self-build edge.**
 
 `omega-rs` (untouched reference producer, per D1) already sketches the destination in
 `semantics/psi-proof`: `obligations.rs` (proof obligations attached to compilation), `boundary.rs`
 (boundary obligations at capability seams), `lemmas.rs`, `checker.rs`. The lattice's job is to reach that
-shape with *its own trust story* — obligations discharged by certificates the δ anchor checks, not by a
+shape with *its own trust story* — obligations discharged by certificates the independent low-rung proof kernel checks, not by a
 244k-line Rust codebase we take on faith.
 
 ## What the refinement pillar proved transferable
 
 | Technique (proved at α/bc) | ω-rung analogue |
 | --- | --- |
-| **Two untrusted derivations, kernel-checked equal** — `alpha_symbolic` (what the code does) vs `beta_symbolic` (what the source means), refl at δ | `omega_symbolic` (what elaborated gamma does) vs an Omega-source meaning derivation; the same refl-at-δ shape |
+| **Two untrusted derivations, kernel-checked equal** — `alpha_symbolic` (what the code does) vs `beta_symbolic` (what the source means), checked by the low kernel | `omega_symbolic` (what elaborated Gamma does) vs an Omega-source meaning derivation; the same kernel-checked equality shape |
 | **Meaning-language constructors instead of kernel surgery** — ℤ pairs `(k 5 ..)`, monus `(k 6 ..)`, stream `(k 7/8 ..)`: plain constructors to the kernel, semantics carried by pinned evaluators | Omega values (structs, cases, strings, capabilities) enter the meaning language the same way — constructor families + pinned evaluators, δ untouched |
 | **Obstacles as loop variables** — the read position as a hidden loop var made streams compose with existing machinery | Omega's effect sequencing (I/O order, capability use) can ride the same trick: model the effect *cursor* as summarizable state |
 | **Mod-observable congruence** — untruncated symbolic values sound because the observable is mod 256 and ops are ring homs | Omega's observable equivalences (e.g. encoding round-trips) justified by the same congruence pattern |
-| **Diversity at every cert class** — 3-checker diamonds incl. perturbed-teeth rejects | non-negotiable at ω: every new obligation class lands with its diamond on day one, not as a follow-up |
+| **Artifact-bound claims with negative teeth** — reconstructed obligations, accepted derivations, and perturbed controls that must reject | non-negotiable at ω: every obligation class lands with canonical reconstruction and failure controls, not merely producer-selected certificates |
 | **Refuse-loudly discipline** — every unsupported shape refuses; wrong summaries are impossible to certify (dual pins + refl) | the ω pipeline inherits this: an obligation the elaborator can't discharge is a loud FAIL, never a silent skip |
 
 ## What does NOT transfer (the genuinely new work)
@@ -51,10 +51,12 @@ shape with *its own trust story* — obligations discharged by certificates the 
    *gamma elaboration* is the thing symbolically executed — refinement at the γ level, reusing interp.beta
    as the pin. *First summit camp reached: BINARY NUMERALS — a second value representation (bit-spine
    constructors + carry-passing badd / shift-and-add bmul user funs), engaged per sample when unary
-   magnitudes overflow, O(bits) kernel reductions. With it, `meaning-tv.sh` proves ALL 19 omega-meaning
-   samples.*
+   magnitudes overflow, O(bits) kernel reductions. `meaning-tv.sh` gates the
+   current Omega meaning corpus.*
 3. **Obligation-emitting elaboration**: port delta's certify-* pattern up to omega2gamma, one obligation
-   class at a time, each with its three-checker diamond. *Status: four classes live in `meaning-tv.sh` —
+   class at a time, each with canonical reconstruction, operational seams, and
+   negative controls. Cross-checking available checker implementations remains a
+   useful regression test. *Status: four classes live in `meaning-tv.sh` —
    division safety, array bounds, arithmetic witnesses (pins + chunked literal certificates), and DOMAIN
    ERASURE (the translator drops `in Saturating`/`Wrapping` annotations; every subtraction site carries a
    kernel-checked no-underflow witness proving the erasure changed nothing). Earlier status detail: —
@@ -68,9 +70,12 @@ shape with *its own trust story* — obligations discharged by certificates the 
    the op) — certifying computation, replacing the old quotient wall with the measured reduction envelope
    of the 64 MiB alpha image.*
 
-Everything above obeys the standing decisions: D1 (Rust exits by role), D2 (meaning by elaboration to
-gamma), D3 (trust via proofs + TV), D5 (diversity at every seam). The refinement pillar is the proof that
-the method scales; the ω climb is the same method against a bigger language.
+Everything above obeys the standing decisions: D1 (Rust exits by role), D2
+(meaning by elaboration to Gamma), D3 (trust via proofs + translation
+validation), D5 (checked refinement rather than DDC), and D6 (Delta-built bootstrap Omega,
+then Omega-built production Omega). The first Omega may lower conservatively;
+the same method then validates the optimized self-host result against canonical
+meaning rather than trusting the bootstrap compiler's pedigree.
 
 ## The ∀-input climb (plan of record, 2026-07-05)
 

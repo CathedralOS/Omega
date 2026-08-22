@@ -1,11 +1,11 @@
 #!/usr/bin/env sh
 # SEED DIAMOND, third point — the independent Python reference VM (alpha_ref.py) agrees with the host seed.
 #
-# The two hand-authored seed VMs (x64, arm64) are the lattice's Thompson root, but hand-written assembly is
+# The hand-authored seed VMs are checked against written semantics, but assembly is
 # hard to audit. alpha_ref.py is a third, independent implementation, short enough to read against
 # SEMANTICS.md. This gate runs a corpus through BOTH the host seed AND alpha_ref.py and asserts they agree
-# on exit code and stdout — so the semantics is pinned by two opaque seeds AND one auditable reference; a
-# bug in any one surfaces as a disagreement. alpha_ref.py is UNTRUSTED and checked (like bc2.py); the
+# on exit code and stdout. A bug in either path surfaces as a disagreement.
+# alpha_ref.py is UNTRUSTED and checked; the
 # runtime lineage never runs it.
 #
 # Corpus = the opcode EDGES that real code rarely hits (signedness, traps, EOF) + REAL bc-compiled programs

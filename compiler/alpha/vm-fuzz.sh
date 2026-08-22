@@ -2,7 +2,7 @@
 # VM FUZZER — broad random differential testing of the trust root. Generates many random arithmetic tapes
 # (vm-fuzz-gen.py, deterministic) and checks that the host SEED VM and the independent reference alpha_ref.py
 # agree on exit code for every one. Three independent realizations of the 21-op semantics; a single
-# disagreement on 64-bit wraparound / signed div-mod / trap edges would expose a VM bug or a Thompson
+# disagreement on 64-bit wraparound / signed div-mod / trap edges exposes a VM or reference bug
 # backdoor. This is the systematic version of diamond-py.sh's hand-picked edge cases. Deterministic (fixed
 # base seed). Needs python3; skips cleanly without.
 cd "$(dirname "$0")"

@@ -1,4 +1,4 @@
-# Integers in the proof kernel (the ℤ rung)
+# Integers in the proof kernel (the ℤ layer)
 
 The checker decides first-order logic over the built-in **naturals** — there is no
 subtraction, so `∀a∀b. ∃c. a = b + c` is false and Bézout's `gcd = ax − by` is not even

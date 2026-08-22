@@ -8,8 +8,9 @@
 # and the exit codes must agree:
 #   (1) NATIVE     — compiled by the delta-rs aarch64 backend and executed (the reference)
 #   (2) OMEGA2GAMMA  — omega2gamma.beta (Rust-free) translates it to gamma; interp.beta (Rust-free) runs it
-# Both artifacts on route (2) are in the Rust-free trust lineage, so delta's meaning is now defined
-# without Rust for the supported subset. As a bonus cross-check we also confirm the Rust-free route
+# Both artifacts on route (2) execute without Rust, so Delta's supported meaning
+# subset has a Rust-free steady route. The bc cold-start refinement edge remains
+# separately explicit. As a bonus cross-check we also confirm the Rust-free route
 # agrees with the existing Rust gamma_emit.rs route (DELTA_EMIT=gamma) — the two translators converge.
 #
 # SLICE 0: straight-line integer `main` (lets + exit_process terminal; + - * / %, parens, locals).
@@ -23,7 +24,7 @@ for t in cargo clang codesign; do command -v "$t" >/dev/null 2>&1 || { echo "ome
 
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 
-# Rust-free lineage: alpha seed -> beta assembler -> bc -> {interp.exe, omega2gamma.exe}
+# Rust-free steady execution: alpha seed -> beta assembler -> bc -> {interp.exe, omega2gamma.exe}
 . ../alpha/seed_env.sh
 SEED=../alpha/$ALPHA_SEED
 ASM=../beta/$BETA_SEED

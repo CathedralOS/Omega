@@ -8,10 +8,10 @@ This page is a map and a placement guide. It should help answer two questions:
 The pipeline-specific semantic rules live in
 [Pipeline Architecture](pipeline/pipeline.md).
 
-How Omega builds *itself* — the trust architecture and the
-`alpha`/`beta`/`gamma`/… rung chain under `compiler/` (distinct from the
-`omega-rs` crate map below) — lives in
-[The Bootstrap Lattice](bootstrap_lattice/bootstrap_lattice.md).
+How Omega builds *itself*—the trust architecture and the
+`alpha`/`beta`/`gamma`/… rung chain—is a separate ownership domain described by
+[The Bootstrap Lattice](bootstrap_lattice/bootstrap_lattice.md) and its
+[target repository structure](bootstrap_lattice/repository_structure.md).
 
 ## Design Bias
 
@@ -35,11 +35,14 @@ object-file writers, the linker crates, and Wasm/RISC-V ISA crates) are still
 folded into other crates or do not exist yet. They are placement intent, not
 current packages.
 
-> **Ownership boundary.** `compiler/psi-rs/` owns parsing and target-neutral
-> semantics through terminal Psi. `compiler/omega-rs/` owns the remaining
-> bootstrap lowering path plus long-term provider, ABI, target, artifact, and
-> execution machinery. The tree below marks that distinction explicitly;
-> bootstrap-lattice rungs are documented separately in
+> **Ownership boundary.** The target physical split is `bootstrap/` for the
+> audited seed-to-Omega construction and `compiler/` for the product Psi/Omega
+> implementation. Today both still live under `compiler/`; that is migration
+> state, not placement intent. Within the product, `compiler/psi-rs/` owns
+> parsing and target-neutral semantics through terminal Psi, while
+> `compiler/omega-rs/` owns provider, ABI, target, artifact, and execution
+> machinery. The tree below documents the current Cargo/product structure;
+> bootstrap migration is tracked in
 > [TASKS_BOOTSTRAP.md](../../TASKS_BOOTSTRAP.md).
 
 ```text

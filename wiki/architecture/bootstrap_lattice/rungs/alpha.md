@@ -30,10 +30,9 @@ is per-platform.
 Alpha is role #1 (executor); its meaning is pinned by a **small-step operational
 semantics** — a written, per-opcode description of how `(pc, memory, registers,
 stack)` transitions, what `getbyte`/`putbyte` observe, and what `halt`/`trap`/
-out-of-memory produce. The `.hex` listing you audit the binary against is an
-*encoding*, not a semantics; the semantics doc is a separate, required artifact
-(**action item — does not exist yet**). You cannot audit the binary against a
-spec that does not exist.
+out-of-memory produce. [`compiler/alpha/SEMANTICS.md`](../../../../compiler/alpha/SEMANTICS.md)
+is that specification. The `.hex` listing audited against the native binary is
+an encoding, not a substitute for the semantics.
 
 ## Must not contain
 
@@ -58,13 +57,15 @@ program-byte fixed point; on macOS the OS-imposed code signature is excluded fro
 the comparison — see below). `seed_env.sh` selects the seed and stamps tapes
 per-platform, so one set of build scripts serves every host.
 
-**The two seeds form the first real diamond.** They are independent realizations
-(different ISA, OS, format, author), not transcriptions, so the *same source*
-through both must yield *byte-identical tapes* — verified: the arm64 macOS VM
+**The two seeds provide a cross-platform conformance check.** They are separate
+realizations (different ISA, OS, and format), so the *same source* through both
+must yield *byte-identical tapes*—verified: the arm64 macOS VM
 reproduces the x64 VM's assembler bytecode from `assembler.alpha` byte-for-byte
 (sha256 `945c8061…`), the assembler self-hosts on macOS, and the example corpus
 (`.alpha` and `.beta`) runs to identical answers on both. This is the
-"diversity is the security" property established at the seed, not bolted on.
+executable companion to the written Alpha semantics. Agreement is useful
+evidence, but the semantics and audited implementation correspondence—not
+multiplicity—supply authority.
 
 Gaps versus this target, all small and self-contained:
 
@@ -81,7 +82,7 @@ Gaps versus this target, all small and self-contained:
   seed's hole was grown 32 KB → 256 KB (`.space 0x40000`) to fit the self-hosting
   Beta compiler; the x64 seed is still 32 KB pending a forge rebuild to match
   (`HOLE_SIZE` in `seed_env.sh` is now per-platform). Hole size is a capacity, not
-  a semantic — the diamond holds for any tape that fits both.
+  a semantic—the realizations agree for any tape that fits both.
 - **Memory accesses are unchecked** — out-of-bounds is silent, not a defined
   trap. A trust-root executor should trap, not corrupt. (Spelled out as the only
   *undefined* corner in SEMANTICS.md §8; the hardening is the next step here.)
@@ -94,16 +95,10 @@ salvageable constraint list (resource budgets, banned features, trap-everything)
 noting its trust-architecture framing is superseded by the
 [lattice overview](../bootstrap_lattice.md).
 
-## Open questions
+## Implementation frontiers
 
 - Fixed-width vs variable-width instruction encoding (canonical-parsing
   simplicity vs density).
-- The exact I/O and trap event alphabet the semantics names
-  (`Read/Write/Exit/Trap/OutOfMemory`).
-- The diversity plan: how many independent alpha implementations, on which ISAs,
-  authored how — this is what turns lattice diamonds into real Thompson
-  resistance. **First step taken:** two now exist (x86-64 Windows PE, arm64 macOS
-  Mach-O), independently hand-authored, producing byte-identical tapes. Open:
-  more ISAs (RISC-V, aarch64 Linux), and ideally an implementation authored by a
-  *different party / toolchain* so the diamond resists a shared-author bug, not
-  just a shared-machine one.
+- Complete the memory-fault/`OutOfMemory` event surface when bounds checks land.
+- Add more seed platforms when portability, hardware coverage, or concrete fault
+  isolation justifies their audit and maintenance cost.

@@ -1,11 +1,11 @@
 #!/usr/bin/env sh
-# PROVER DIAMOND -- the diversity-security thesis applied to the proof-AUTOMATION front line.
+# PROVER CERTIFICATE CROSS-CHECK -- replay automation output across checkers.
 #
 # prover-test.sh already checks every prover certificate against check.beta (the Beta trust anchor). This
 # goes further: it runs the prover's ACTUAL emitted certificates through a SECOND, independently-written
 # checker -- checker.gamma (the same logic as algebraic data + pattern matching, run on the gamma reference
 # interpreter, at a different rung). For each goal the prover discharges, BOTH checkers must ACCEPT. A
-# disagreement would expose a bug (or a backdoor) in one checker -- now exercised on the prover's real cert
+# disagreement exposes a checker or encoding bug—now exercised on the prover's real cert
 # SHAPES (deep eqelim, gen/inst/wit/unpack, disj/sinj), not just randomly-generated proofs.
 #
 # Scope: the prover emits the cert in BOTH syntaxes from the same deterministic proof (`prover.py` -> Beta

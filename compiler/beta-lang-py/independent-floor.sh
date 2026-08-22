@@ -4,10 +4,11 @@
 # and require the same exit code and stdout:
 #   python  : bc2.py (Beta -> asm) | asm_ref.py (asm -> tape) | alpha_ref.py (tape -> run)   [zero lineage binaries]
 #   lineage : bc (Beta -> asm)     | assembler.alpha (asm -> tape) | the seed VM (tape -> run)
-# Each stage is separately diamonded (diverse-double-compilation.sh, ../beta/asm-diamond.sh,
+# Historical whole-floor comparison. Each stage is also covered by narrower
+# reference checks (the legacy compiler comparison, ../beta/asm-diamond.sh,
 # ../alpha/diamond-py.sh); this composes all three on a FRESH random corpus, so a divergence anywhere in the
 # independent floor — compiler, assembler, or VM — shows up as a disagreement. It is the end-to-end
-# expression of "diversity is the security", spanning the entire floor rather than one rung.
+# This remains optional diagnostic tooling; it is not a trust or release gate.
 cd "$(dirname "$0")"
 command -v python3 >/dev/null 2>&1 || { echo "independent floor: skipped (python3 absent)"; exit 0; }
 command -v cargo   >/dev/null 2>&1 || { echo "independent floor: skipped (no cargo for the on-ramp)"; exit 0; }

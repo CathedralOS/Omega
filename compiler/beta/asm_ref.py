@@ -2,13 +2,11 @@
 # asm_ref.py — an INDEPENDENT reference assembler: Alpha assembly text (stdin) -> raw bytecode tape (stdout),
 # written from beta/README.md + the 21-opcode encoding, NOT ported from assembler.alpha.
 #
-# WHY THIS EXISTS — the assembler is a single-implementation gap. bc now has an independent second front end
-# (../beta-lang-py/bc2.py) and the VM has an independent reference (../alpha/alpha_ref.py), but the assembler
-# `assembler.alpha` has only itself: it self-hosts, and both seeds run the SAME assembler, so a backdoor in
-# it would not be caught by the seed diamond. This is a third, independent realization; asm-diamond.sh
-# assembles real programs with BOTH the real assembler and this one and asserts byte-identical tapes. It is
-# UNTRUSTED and checked (like bc2.py / alpha_ref.py); the runtime lineage never runs it. Together bc2.py +
-# asm_ref.py + alpha_ref.py form a complete independent Python realization of the whole alpha->beta->bc floor.
+# WHY THIS EXISTS — executable reference and regression coverage for the Alpha
+# assembly encoding. asm-diamond.sh assembles real programs with the lattice
+# assembler and this implementation and compares their tapes. This tool is
+# UNTRUSTED; agreement is diagnostic and does not replace source-to-artifact
+# refinement. The runtime lineage never runs it.
 #
 # Encoding: opcode 1 byte; register operand 1 byte (`rN`); immediate/address operand 8 bytes LE (a decimal,
 # or a label resolved to its absolute byte offset in the tape). `db "..."` emits the decoded string bytes.

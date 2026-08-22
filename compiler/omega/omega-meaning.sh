@@ -5,7 +5,8 @@
 # program is translated to gamma by `omega2gamma.beta` (which understands the shared
 # delta/omega machine surface — dotted field paths `self.state.n`, subjectless transitions,
 # `state name(&mut self)` headers, state-body lets) and EXECUTED by `gamma/interp.beta`. Both are
-# Rust-free (alpha->beta->bc lineage). Each sample's exit code must equal the "Expected exit: N"
+# Rust-free in steady execution (alpha->beta->bc); the bc cold-start refinement
+# remains a separate open edge. Each sample's exit code must equal the "Expected exit: N"
 # its header documents — the language's stated intent for that program.
 #
 # omega-rs (the Rust reference producer) is NOT in this loop; it remains the untrusted fast

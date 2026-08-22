@@ -1,16 +1,15 @@
 #!/usr/bin/env python3
-# bc2.py — a SECOND, independent Beta compiler (Beta source -> Alpha assembly), written from scratch
+# bc2.py — a separately written Beta reference compiler (Beta source -> Alpha assembly)
 # in Python against alpha/SEMANTICS.md and the Beta language, NOT ported from beta-lang-rs.
 #
-# WHY THIS EXISTS — the Thompson diversity gap (decision D5). bc.beta's only source->assembly path is the
-# Rust on-ramp (beta-lang-rs); self-host reproduces bc but does not DIVERSIFY it, so a Trojan injected by
-# the Rust on-ramp would perpetuate through the fixed point undetected. Diverse double compilation needs a
-# SECOND, independent compiler for the same language. bc2.py is that second path.
+# HISTORICAL ROLE — this formerly implemented a DDC ruling that has since been
+# superseded by checked source-to-artifact refinement. It remains because its
+# parser and compiler are useful to optional reference/regression tools.
 #
 # TRUST STATUS: UNTRUSTED, exactly like elab.py / prover.py / tv-encode.py. Its output is CHECKED, never
-# trusted — the diverse-double-compilation gate assembles + runs what it emits and compares against the
-# independent path. A bug or Trojan in bc2.py makes the comparison FAIL loudly; it can never make a wrong
-# result silently pass. So Python is fine here: it is a verification tool, not part of the runtime TCB.
+# trusted. A disagreement with canonical meaning or another implementation is a
+# useful diagnostic, but agreement grants no authority. Python is an implementation
+# detail of this reference tool, not part of the runtime TCB.
 #
 # Reads Beta on stdin, writes Alpha assembly on stdout — same interface as beta-lang-rs and bc.beta.
 #

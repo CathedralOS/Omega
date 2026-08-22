@@ -1,11 +1,12 @@
 # compiler/delta-rs — the Delta on-ramp (interim Rust)
 
 The `-rs` suffix marks this as the **throwaway Rust** on-ramp for the Delta rung:
-it compiles `.alp` source — Omega's executable surface (state **machines**, **data**
+it compiles `.alp` source — Omega's bootstrap executable surface (state **machines**, **data**
 structs, **transition** dispatch, **enums** with payloads) — to a native binary,
-to *discover what the language needs by compiling it*. Its trust lineage does not
-matter (it is discarded); it is deliberately dumb, arena/index-based, monomorphic
-Rust so the port down to the lattice is mechanical, and its front end is the spec.
+to discover what the language needs by compiling it. It is an interim producer
+and differential oracle, not Delta's semantic authority; canonical meaning is
+the Delta-to-Gamma route. The implementation is deliberately direct,
+arena/index-based, and monomorphic so the port down to the lattice is mechanical.
 
 > **Naming note.** Header, extension (`.alp`), and a few "Alpha" mentions in older
 > samples are inherited from the `alpha-rs` README this was forked from — they do
@@ -13,9 +14,10 @@ Rust so the port down to the lattice is mechanical, and its front end is the spe
 > This builds the richer machines/data/transition language and is gated as
 > **Delta** in `verify-lattice.sh`.
 
-The trusted, self-hosting version is **`samples/lowermachine.alp`** — the compiler
-written *in this language*, which compiles itself to a byte-identical binary (the
-self-compile fixed point, gated by `test_aarch64.sh` / `convergence.sh`).
+The Rust-free self-hosting compiler artifact is **`samples/lowermachine.alp`**.
+It compiles itself to a byte-identical binary (the dependency-closure fixed point,
+gated by `test_aarch64.sh` / `convergence.sh`). The fixed point establishes
+reproducibility, not semantic correctness.
 
 Two backends: Windows x64 PE (`src/x64.rs`, the default) and macOS arm64 Mach-O
 (`src/aarch64.rs`, `DELTA_ARCH=aarch64`, the runnable+gated one on this platform).
@@ -155,6 +157,10 @@ Each is on both backends and keeps the self-compile fixed point byte-identical
 
 - **Mixed field+case data** (`data X { common: i32; case A; case B(..); }`) — common
   fields shared across all variants alongside the case part. The last `case` slice.
-- **Subset enforcement** the front end should add as it firms up (the front end is the
-  spec): arena-capacity bounds; `>4`-arg free calls already error.
+- **Subset enforcement** the front end should add as it firms up: arena-capacity
+  bounds; `>4`-arg free calls already error. The Gamma meaning route remains the
+  semantic authority.
 - Retire the remaining inherited `alpha-rs` framing as the Delta surface firms up.
+- Make Delta sufficient to build the simple, spec-compliant bootstrap Omega
+  compiler. Advanced optimization belongs in the subsequent Omega-built Omega
+  compiler, not on this edge.
