@@ -473,7 +473,12 @@ Remaining:
   placements now live in a private 310-line codec. Function-home, internal-
   call, structural-return, and boundary-result rows retain their exact order;
   canonical bytes, reserved fields, representability guards, error precedence,
-  and admission replay are unchanged. The installation parent is now 4,766
+  and admission replay are unchanged. Installed function parameter and
+  parameter-home rows now share a private 149-line codec. Unit and scalar rows
+  retain their original positions around affine cleanup evidence, exact bytes,
+  reserved fields, direct placements, count guards, and distinct literal zero-
+  identity diagnostics; admission replay is unchanged. The installation parent
+  is now 4,581
   lines. This is
   custody, not
   authorization. The remaining
@@ -3129,7 +3134,13 @@ Remaining:
   Direct retained bounds and direct landed literals remain earlier in each
   parent. Citation orientation, endpoint order, proof shapes, rejection
   behavior, and the finite two-alias frontier are unchanged. Alias-landed-
-  literal cast completion now lives in independent side-local
+  literal cast transport now separates ledger-ordered fact discovery from
+  completion in independent side-local
+  `alias_transport/cast/literal/candidates` modules. Root equality,
+  orientation, distinct landing equality order, exact fact non-reuse, citation
+  identity, carrier eligibility, nested substitution proof bytes, target-
+  endpoint order, rejection, family precedence, and the single-alias/single-
+  landing frontier are unchanged. Its completion lives in independent side-local
   `alias_transport/cast/literal/completion` modules. Each parent retains its
   own ledger-ordered discovery of distinct root-alias and alias-literal
   equalities; production alone remaps the typed source endpoint, constructs the
@@ -7053,7 +7064,13 @@ checked-result arithmetic decision listed below.
   exact call paths, and diagnostic order remain unchanged. The 282-line parent
   retains operational-axis projection, common-floor aggregation, and
   evaluation; public APIs and the 107-function production inventory are
-  unchanged.
+  unchanged. Closed constant-domain proof-expression evaluation now lives in a
+  focused 127-line private owner. Checked integer arithmetic, shifts, bitwise
+  and logical operations, comparisons, unary operations, `self` substitution,
+  unsupported-expression fallback, diagnostics, and evaluation order remain
+  unchanged. Its 341-line coordinator retains membership discovery, domain
+  recursion, machine-backed fact admission, and transactional replacement;
+  public APIs and the 107-function production inventory are unchanged.
 - Finish member reflection (`Self::fields` and field/case splices), constant
   positions, and proof checking of generator-expanded bodies.
 - Complete the ordinary `Build` API/executor with exact dependency aliases,
