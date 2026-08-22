@@ -1231,10 +1231,13 @@ fn runtime_slice_index_read_dispatch_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("runtime dispatch slice index read canary should compile");
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("runtime dispatch slice index read canary should retain its executable receipt");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(executable)
         .output()
         .expect("runtime dispatch slice index read canary should run");
 
@@ -1348,10 +1351,13 @@ fn runtime_slice_len_transition_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("runtime slice len transition canary should compile");
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("runtime slice len transition canary should retain its executable receipt");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(executable)
         .output()
         .expect("runtime slice len transition canary should run");
 
