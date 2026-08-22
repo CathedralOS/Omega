@@ -173,10 +173,13 @@ fn runtime_machine_string_append_in_place_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("bounded-carrier append-in-place canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("bounded-carrier append-in-place canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("string append-in-place canary should run");
 
@@ -200,10 +203,13 @@ fn runtime_local_string_field_copy_through_mut_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("local string field copy canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("local string field copy canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("local string field copy canary should run");
 
@@ -237,9 +243,12 @@ fn runtime_call_value_canary_runs() {
 
     let scratch = std::env::temp_dir().join(format!("omega-carrier-return-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("bounded-carrier return-value canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("bounded-carrier return-value canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("bounded-carrier return-value canary should run");
     assert_eq!(
@@ -288,9 +297,12 @@ fn runtime_min_call_result_arithmetic_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("min-call-result arithmetic canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("min-call-result arithmetic canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("min-call-result arithmetic canary should run");
     assert_eq!(
@@ -312,10 +324,13 @@ fn runtime_direct_boolean_conjunction_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("runtime direct boolean conjunction canary should compile from its authored root");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("runtime direct boolean conjunction canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("runtime direct boolean conjunction canary should run");
 
