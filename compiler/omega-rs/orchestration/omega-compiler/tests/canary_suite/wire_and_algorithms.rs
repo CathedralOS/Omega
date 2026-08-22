@@ -14,10 +14,13 @@ fn runtime_method_view_write_after_last_use_exit_canary_runs() {
     ));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("method-view write-after-last-use canary should compile");
 
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("method-view write-after-last-use canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("method-view write-after-last-use canary should run");
 
@@ -42,10 +45,13 @@ fn runtime_view_of_view_chain_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-view-of-view-chain-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("view-of-view chain canary should compile");
 
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("view-of-view chain canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("view-of-view chain canary should run");
 
@@ -93,10 +99,13 @@ fn runtime_shrinking_slice_recursion_exit_canary_runs() {
     ));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("shrinking slice recursion canary should compile");
 
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("shrinking slice recursion canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("shrinking slice recursion canary should run");
 
@@ -123,10 +132,13 @@ fn runtime_wire_encode_primitive_exit_canary_runs() {
     let scratch = std::env::temp_dir().join(format!("omega-wire-encode-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("wire encode canary should compile");
 
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("wire encode canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("wire encode canary should run");
 
@@ -152,10 +164,13 @@ fn runtime_wire_encode_era_discriminator_exit_canary_runs() {
     let scratch = std::env::temp_dir().join(format!("omega-wire-era-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("wire era discriminator canary should compile");
 
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("wire era discriminator canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("wire era discriminator canary should run");
 
