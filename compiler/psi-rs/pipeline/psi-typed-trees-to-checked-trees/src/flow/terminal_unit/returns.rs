@@ -388,6 +388,14 @@ pub(crate) fn build_checked_structural_scalar_return_plans(
     diagnostics: &mut Vec<Diagnostic>,
 ) -> CheckedStructuralScalarReturnPlans {
     let mut shapes = ShapeCollector::new(program);
+    let trait_operator_machines = program
+        .machines()
+        .iter()
+        .filter(|machine| machine.supply_mode == MachineSupplyMode::CheckedBody)
+        .filter_map(|machine| {
+            build_trait_operator_scalar_return_machine(program, facts, &mut shapes, machine)
+        })
+        .collect::<Vec<_>>();
     let machines = program
         .machines()
         .iter()
@@ -413,12 +421,170 @@ pub(crate) fn build_checked_structural_scalar_return_plans(
                     .map(|parameter| parameter.type_identity.as_str()),
             )
         })
+        .chain(trait_operator_machines.iter().flat_map(|machine| {
+            machine
+                .attachment_type_identity
+                .iter()
+                .map(String::as_str)
+                .chain(
+                    machine
+                        .structural_parameters
+                        .iter()
+                        .map(|parameter| parameter.type_identity.as_str()),
+                )
+        }))
         .collect::<BTreeSet<_>>();
     shapes.retain_transitive(&retained);
     CheckedStructuralScalarReturnPlans {
         structural_types: shapes.types.into_values().collect(),
         machines,
+        trait_operator_machines,
     }
+}
+
+fn build_trait_operator_scalar_return_machine(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    shapes: &mut ShapeCollector<'_>,
+    machine: &psi_typed_trees::machine::Machine,
+) -> Option<CheckedTraitOperatorScalarReturnMachinePlan> {
+    let [state] = program.machine_states(machine) else {
+        return None;
+    };
+    if !program.machine_contracts(machine).is_empty()
+        || !program.state_contracts(state).is_empty()
+        || machine_has_content_evidence(facts, machine.symbol, state.symbol)
+    {
+        return None;
+    }
+    let [StatementNode::Expression(expression)] =
+        program.statement_table.statements(state.statement_nodes)
+    else {
+        return None;
+    };
+    let expression = *expression;
+    let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    let candidate = facts
+        .operators
+        .selected_trait_candidate_in_machine(expression, machine.symbol)?;
+    let specialization = program
+        .machine_specializations
+        .iter()
+        .find(|specialization| specialization.instance == machine.symbol)?;
+    let application = specialization
+        .conformance_applications
+        .iter()
+        .find(|application| {
+            application.declaration == candidate.conformance_symbol
+                && application.fingerprint == candidate.conformance_application_fingerprint
+        })?;
+    if application.fingerprint == 0
+        || !application.rows.iter().any(|row| {
+            row.requirement == candidate.trait_requirement_symbol
+                && row.realization_machine == candidate.realization_machine_symbol
+                && row.realization_state == candidate.realization_state_symbol
+        })
+    {
+        return None;
+    }
+
+    let binders = machine_binders(program, machine);
+    let attachment_type_identity = machine
+        .attached_data
+        .as_ref()
+        .and_then(|attached_name| {
+            program
+                .data_definitions()
+                .iter()
+                .find(|data| data.name == *attached_name)
+        })
+        .and_then(|attached| shapes.add_attached_data(attached, &binders));
+    if machine.attached_data.is_some() != attachment_type_identity.is_some() {
+        return None;
+    }
+    let source_parameters = program.state_parameters(state);
+    let structural_parameters = source_parameters
+        .iter()
+        .enumerate()
+        .map(|(position, parameter)| {
+            if parameter.is_const
+                || parameter.is_mutable
+                || is_reference(program, parameter.type_reference)
+                || program
+                    .primitive_type_reference(parameter.type_reference)
+                    .is_some()
+            {
+                return None;
+            }
+            let type_identity = if parameter.is_self {
+                attachment_type_identity.clone()?
+            } else {
+                shapes.add_type(parameter.type_reference, &binders, &[])?
+            };
+            let multiplicity = crate::checks::type_multiplicity(program, parameter.type_reference);
+            let qualifications =
+                parameter_qualifications(program, shapes, parameter.type_reference, &binders)?;
+            if multiplicity != Multiplicity::Affine || !qualifications.is_empty() {
+                return None;
+            }
+            Some(CheckedUnitStructuralParameterPlan {
+                position: u32::try_from(position).ok()?,
+                is_self: parameter.is_self,
+                type_identity,
+                multiplicity,
+                qualifications,
+            })
+        })
+        .collect::<Option<Vec<_>>>()?;
+    if structural_parameters.is_empty() {
+        return None;
+    }
+    let argument_source_positions = [binary.left, binary.right]
+        .iter()
+        .map(|operand| {
+            let ExpressionNode::Name(path) = program.expression_table.expression(*operand) else {
+                return None;
+            };
+            if program
+                .expression_table
+                .name_path_members(path.members)
+                .len()
+                != 1
+            {
+                return None;
+            }
+            source_parameters
+                .iter()
+                .position(|parameter| parameter.symbol == path.symbol)
+                .and_then(|position| u32::try_from(position).ok())
+        })
+        .collect::<Option<Vec<_>>>()?;
+    if argument_source_positions.len() != structural_parameters.len()
+        || argument_source_positions
+            .iter()
+            .copied()
+            .collect::<BTreeSet<_>>()
+            .len()
+            != structural_parameters.len()
+    {
+        return None;
+    }
+    Some(CheckedTraitOperatorScalarReturnMachinePlan {
+        machine: machine.symbol,
+        state: state.symbol,
+        attachment_type_identity,
+        structural_parameters,
+        result_type: program.primitive_type_reference(state.return_type)?,
+        return_statement_ordinal: 0,
+        conformance: candidate.conformance_symbol,
+        conformance_application_fingerprint: candidate.conformance_application_fingerprint,
+        requirement: candidate.trait_requirement_symbol,
+        realization_machine: candidate.realization_machine_symbol,
+        realization_state: candidate.realization_state_symbol,
+        argument_source_positions,
+    })
 }
 
 pub(crate) fn build_checked_boundary_scalar_return_plans(

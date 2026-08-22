@@ -603,6 +603,73 @@ fn trait_operator_use_consumes_only_the_selected_conformance_application() {
 }
 
 #[test]
+fn trait_operator_return_retains_exact_structural_scalar_call_plan() {
+    let checked = checked_program_from_source(
+        r#"
+        trait Ranked {
+            operator < before(left: Self, right: Self) -> bool;
+        }
+
+        data Card { rank: i32; }
+
+        Ascending: Card satisfies Ranked {
+            machine before(left: Card, right: Card) -> bool {
+                left.rank < right.rank
+            }
+        }
+
+        machine choose<Element, Order: Element satisfies Ranked>(
+            left: Element,
+            right: Element
+        ) -> bool {
+            left < right
+        }
+
+        machine caller(left: Card, right: Card) -> bool {
+            choose<Card, Ascending>(left, right)
+        }
+        "#,
+    );
+    let [plan] = checked
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .trait_operator_machines
+        .as_slice()
+    else {
+        panic!("one specialized trait-token return should be retained")
+    };
+    let specialization = checked
+        .machine_specializations
+        .iter()
+        .find(|specialization| specialization.instance == plan.machine)
+        .expect("plan owner specialization");
+    let [application] = specialization.conformance_applications.as_slice() else {
+        panic!("one exact conformance application")
+    };
+    let row = application
+        .rows
+        .iter()
+        .find(|row| row.requirement == plan.requirement)
+        .expect("selected requirement row");
+
+    assert_eq!(plan.attachment_type_identity, None);
+    assert_eq!(plan.structural_parameters.len(), 2);
+    assert_eq!(plan.argument_source_positions, [0, 1]);
+    assert_eq!(
+        plan.result_type,
+        psi_typed_trees::types::PrimitiveType::Bool
+    );
+    assert_eq!(plan.conformance, application.declaration);
+    assert_eq!(
+        plan.conformance_application_fingerprint,
+        application.fingerprint
+    );
+    assert_eq!(plan.realization_machine, row.realization_machine);
+    assert_eq!(plan.realization_state, row.realization_state);
+}
+
+#[test]
 fn trait_operator_use_rejects_multiple_selected_conformance_binders() {
     let source = r#"
         trait Ranked {
