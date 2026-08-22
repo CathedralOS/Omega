@@ -5129,6 +5129,13 @@ Owners:
   failure-status diagnostic. Exact-owner ambiguity, the 795 rooted/3 legacy
   inventory, and receipt-drift fences remain green; crash semantics and legacy
   owners are unchanged.
+  Three authored-root expression-selection regressions—value-position match,
+  flat Boolean logic, and runtime-indexed enum matching with payload extraction—
+  now launch `OutputOnly` native execution solely through exact checked-report
+  executable receipts, including the exact nested `out/` publication. Literal
+  exit 70 and existing mismatch diagnostics remain unchanged; exact-owner
+  ambiguity, the 795 rooted/3 legacy inventory, and receipt-drift fences remain
+  green.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
