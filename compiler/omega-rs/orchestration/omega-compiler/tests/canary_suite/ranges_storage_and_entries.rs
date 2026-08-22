@@ -886,21 +886,13 @@ fn runtime_duration_constructors_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-duration-ctors-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("duration constructors canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
-        .output()
-        .expect("duration constructors canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected from_seconds(2) + from_milliseconds(3500) to deliver exact fields and exit 70, got {:?}
-stderr:
-{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        70,
+        "duration constructors canary",
+        "the seconds and milliseconds constructors should deliver their exact fields",
     );
 
     let _ = fs::remove_dir_all(&build_dir);
@@ -914,21 +906,13 @@ fn runtime_slice_element_machine_roundtrip_exit_canary_runs() {
     let scratch = std::env::temp_dir().join(format!("omega-slice-elem-rt-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("slice element machine roundtrip canary should compile");
-
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("slice element machine roundtrip canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(1),
-        "expected s[1] read == 11, s[2] write == 77, s[0] RMW == 5 to exit 1, got {:?}
-stderr:
-{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        1,
+        "slice-element machine-roundtrip canary",
+        "machine-storage slice element reads, writes, and updates should roundtrip",
     );
 
     let _ = fs::remove_dir_all(&scratch);
@@ -941,21 +925,13 @@ fn runtime_slice_element_runtime_index_read_exit_canary_runs() {
     let scratch = std::env::temp_dir().join(format!("omega-slice-elem-ri-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("slice element runtime index read canary should compile");
-
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("slice element runtime index read canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(1),
-        "expected `self.got = s[i]` (i=1, s[1]=11) to read 11 and exit 1, got {:?}
-stderr:
-{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        1,
+        "slice-element runtime-index read canary",
+        "the runtime-indexed slice element should reach machine storage",
     );
 
     let _ = fs::remove_dir_all(&scratch);
@@ -972,21 +948,13 @@ fn runtime_member_arg_nested_read_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-member-arg-nested-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("member arg nested read canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
-        .output()
-        .expect("member arg nested read canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(1),
-        "expected b.value == 42 (not pad's 99 at offset 0) to exit 1, got {:?}
-stderr:
-{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        1,
+        "member-argument nested-read canary",
+        "the member-rooted alias should preserve its nested field suffix",
     );
 
     let _ = fs::remove_dir_all(&build_dir);
@@ -1001,21 +969,13 @@ fn runtime_constructor_computed_field_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-ctor-computed-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("constructor computed field canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
-        .output()
-        .expect("constructor computed field canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(1),
-        "expected Pair8::make(3500) == {{35, 7}} (per-field delivery, no root clobber) to exit 1, got {:?}
-stderr:
-{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        1,
+        "constructor computed-field canary",
+        "the type-scoped constructor should deliver each computed field without root clobber",
     );
 
     let _ = fs::remove_dir_all(&build_dir);

@@ -722,9 +722,12 @@ mod tests {
             )
             .is_err()
         );
+        let missing_native_receipt = report(true, CompileOutputKind::NativeExecutable, None, None);
+        assert!(!missing_native_receipt.has_consistent_executable_publication_custody());
         assert!(
-            !report(true, CompileOutputKind::NativeExecutable, None, None)
-                .has_consistent_executable_publication_custody()
+            missing_native_receipt
+                .checked_native_executable_path()
+                .is_none()
         );
         let dropped_output = report(
             false,
