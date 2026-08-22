@@ -2129,7 +2129,12 @@ Owners:
   exactly one private thunk plan. Missing, duplicate, or out-of-range placement
   indices, selected-entry drift, and repeated private thunk identities reject
   before encoded-function/object evidence is accepted. This does not
-  materialize the registration relocation. The remaining slices are
+  materialize the registration relocation. Private-symbol derivation is now
+  one shared backend-plan primitive, and final emission recomputes it from the
+  exact site kind/index/generation, static ordinal, selected machine/entry
+  handles, and evaluated calling-plan fingerprint. Symbol drift rejects even
+  when forged encoded-function and object rows agree with each other. The
+  remaining slices are
   resource-ceiling aggregation, multi-entry/re-entrant target instruction
   lowering, and the
   private registration relocation (whose binding placement is design-blocked

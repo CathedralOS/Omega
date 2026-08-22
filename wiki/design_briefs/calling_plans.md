@@ -610,9 +610,13 @@ and one matching private text symbol. Emission also rejoins every validated
 placement row to exactly one thunk plan and rejects a missing, duplicate, or
 out-of-range placement index, selected-entry drift, and repeated private thunk
 identity. Retaining a thunk plan is not itself emission evidence, and these
-checks do not materialize a registration relocation. A retained `Registration`
-keeps the exact selected identity in occurrence provenance and owns the
-code/component lease,
+checks do not materialize a registration relocation. Planning and final
+emission share one canonical private-symbol derivation over the exact site
+kind/index/generation, static ordinal, selected machine/entry handles, and
+evaluated calling-plan fingerprint. Emission recomputes that identity, so a
+stored-symbol substitution rejects even when forged encoded-function and
+object rows agree with it. A retained `Registration` keeps the exact selected
+identity in occurrence provenance and owns the code/component lease,
 but ownership does not automatically import that narrower envelope into a
 caller's proof context. A public API that exposes those facts forwards them in
 its own contract.

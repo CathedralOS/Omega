@@ -623,6 +623,18 @@ fn retain_callback_thunk_emission_blockers(
             ));
             continue;
         }
+        let canonical_private_symbol =
+            omega_backend_plan::canonical_callback_private_symbol(placement);
+        if thunk.private_symbol != canonical_private_symbol {
+            emission.blockers.insert(omega_artifacts::emission_blocker(
+                "callback thunk emission",
+                &format!(
+                    "planned private callback `{}` does not match placement row {} canonical identity `{canonical_private_symbol}`",
+                    thunk.private_symbol, thunk.placement_index
+                ),
+            ));
+            continue;
+        }
         if !thunk.entry_key.is_valid() {
             emission.blockers.insert(omega_artifacts::emission_blocker(
                 "callback thunk emission",
@@ -782,8 +794,6 @@ mod tests {
     use psi_symbols::SymbolHandle;
     use std::sync::Arc;
 
-    const CALLBACK_SYMBOL: &str = "__omega_callback_test";
-
     fn empty_emission(target: NativeTarget) -> omega_artifacts::EmissionPlan {
         omega_artifacts::EmissionPlan {
             image_format: target.object_format,
@@ -810,11 +820,14 @@ mod tests {
         }
     }
 
-    fn thunk(entry_key: StateKey) -> omega_backend_plan::CallbackThunkPlan {
+    fn thunk(
+        entry_key: StateKey,
+        placement: &omega_backend_plan::BoundNominalCallbackPlacement,
+    ) -> omega_backend_plan::CallbackThunkPlan {
         omega_backend_plan::CallbackThunkPlan {
             placement_index: 0,
             entry_key,
-            private_symbol: Arc::from(CALLBACK_SYMBOL),
+            private_symbol: omega_backend_plan::canonical_callback_private_symbol(placement),
         }
     }
 
@@ -843,6 +856,7 @@ mod tests {
     fn encoded_machine(
         target: NativeTarget,
         keys: &[StateKey],
+        symbol: &str,
     ) -> omega_machine_bytes::EncodedMachinePlan {
         let mut encoded =
             omega_machine_bytes::EncodedMachinePlan::with_capacity(target, keys.len(), 0, 0);
@@ -851,7 +865,7 @@ mod tests {
                 .code
                 .functions
                 .insert(omega_machine_bytes::EncodedMachineFunction {
-                    symbol: Arc::from(CALLBACK_SYMBOL),
+                    symbol: Arc::from(symbol),
                     identity: omega_control_flow::MachineFunctionIdentity::source(*key),
                     byte_offset: 7,
                     byte_count: 11,
@@ -863,12 +877,13 @@ mod tests {
 
     fn object_with_symbols(
         target: NativeTarget,
+        private_symbol: &str,
         symbols: &[(usize, usize)],
     ) -> omega_object_file::ObjectPlan {
         let mut object = omega_object_file::ObjectPlan::with_capacity(target, 0, symbols.len());
         for (offset, size) in symbols {
             object.layout.symbols.insert(omega_object_file::SymbolPlan {
-                name: CALLBACK_SYMBOL.into(),
+                name: private_symbol.into(),
                 section: omega_object_file::SymbolSection::Section(
                     omega_object_file::SectionKind::Text,
                 ),
@@ -900,11 +915,13 @@ mod tests {
     fn callback_thunk_emission_accepts_one_exact_function_and_private_symbol() {
         let target = NativeTarget::host();
         let key = state_key(2);
+        let placement = placement(key);
+        let thunk = thunk(key, &placement);
         let blockers = callback_blockers(
-            &[placement(key)],
-            &[thunk(key)],
-            &encoded_machine(target, &[key]),
-            &object_with_symbols(target, &[(7, 11)]),
+            &[placement],
+            std::slice::from_ref(&thunk),
+            &encoded_machine(target, &[key], &thunk.private_symbol),
+            &object_with_symbols(target, &thunk.private_symbol, &[(7, 11)]),
         );
         assert!(blockers.is_empty(), "{blockers:?}");
     }
@@ -912,20 +929,24 @@ mod tests {
     #[test]
     fn callback_thunk_emission_rejects_invalid_or_redirected_entry_keys() {
         let target = NativeTarget::host();
+        let invalid_placement = placement(StateKey::default());
+        let invalid_thunk = thunk(StateKey::default(), &invalid_placement);
         let invalid = callback_blockers(
-            &[placement(StateKey::default())],
-            &[thunk(StateKey::default())],
-            &encoded_machine(target, &[state_key(2)]),
-            &object_with_symbols(target, &[(7, 11)]),
+            &[invalid_placement],
+            std::slice::from_ref(&invalid_thunk),
+            &encoded_machine(target, &[state_key(2)], &invalid_thunk.private_symbol),
+            &object_with_symbols(target, &invalid_thunk.private_symbol, &[(7, 11)]),
         );
         assert_eq!(invalid.len(), 1);
         assert!(invalid[0].contains("invalid selected-entry key"));
 
+        let redirected_placement = placement(state_key(2));
+        let redirected_thunk = thunk(state_key(2), &redirected_placement);
         let redirected = callback_blockers(
-            &[placement(state_key(2))],
-            &[thunk(state_key(2))],
-            &encoded_machine(target, &[state_key(3)]),
-            &object_with_symbols(target, &[(7, 11)]),
+            &[redirected_placement],
+            std::slice::from_ref(&redirected_thunk),
+            &encoded_machine(target, &[state_key(3)], &redirected_thunk.private_symbol),
+            &object_with_symbols(target, &redirected_thunk.private_symbol, &[(7, 11)]),
         );
         assert_eq!(redirected.len(), 1);
         assert!(redirected[0].contains("not its selected entry"));
@@ -935,12 +956,14 @@ mod tests {
     fn callback_thunk_emission_rejects_missing_or_duplicate_encoded_symbols() {
         let target = NativeTarget::host();
         let key = state_key(2);
-        let object = object_with_symbols(target, &[(7, 11)]);
+        let placement = placement(key);
+        let thunk = thunk(key, &placement);
+        let object = object_with_symbols(target, &thunk.private_symbol, &[(7, 11)]);
 
         let missing = callback_blockers(
-            &[placement(key)],
-            &[thunk(key)],
-            &encoded_machine(target, &[]),
+            std::slice::from_ref(&placement),
+            std::slice::from_ref(&thunk),
+            &encoded_machine(target, &[], &thunk.private_symbol),
             &object,
         );
         assert_eq!(missing.len(), 1);
@@ -948,9 +971,9 @@ mod tests {
 
         for duplicate_keys in [[key, key], [key, state_key(3)]] {
             let duplicate = callback_blockers(
-                &[placement(key)],
-                &[thunk(key)],
-                &encoded_machine(target, &duplicate_keys),
+                std::slice::from_ref(&placement),
+                std::slice::from_ref(&thunk),
+                &encoded_machine(target, &duplicate_keys, &thunk.private_symbol),
                 &object,
             );
             assert_eq!(duplicate.len(), 1);
@@ -962,24 +985,26 @@ mod tests {
     fn callback_thunk_emission_rejects_object_cardinality_or_interval_drift() {
         let target = NativeTarget::host();
         let key = state_key(2);
-        let encoded = encoded_machine(target, &[key]);
+        let placement = placement(key);
+        let thunk = thunk(key, &placement);
+        let encoded = encoded_machine(target, &[key], &thunk.private_symbol);
 
         for symbols in [Vec::new(), vec![(7, 11), (7, 11)]] {
             let blockers = callback_blockers(
-                &[placement(key)],
-                &[thunk(key)],
+                std::slice::from_ref(&placement),
+                std::slice::from_ref(&thunk),
                 &encoded,
-                &object_with_symbols(target, &symbols),
+                &object_with_symbols(target, &thunk.private_symbol, &symbols),
             );
             assert_eq!(blockers.len(), 1);
             assert!(blockers[0].contains("object symbols; exactly one is required"));
         }
 
         let drifted = callback_blockers(
-            &[placement(key)],
-            &[thunk(key)],
+            &[placement],
+            std::slice::from_ref(&thunk),
             &encoded,
-            &object_with_symbols(target, &[(7, 10)]),
+            &object_with_symbols(target, &thunk.private_symbol, &[(7, 10)]),
         );
         assert_eq!(drifted.len(), 1);
         assert!(drifted[0].contains("does not match its encoded function interval"));
@@ -989,16 +1014,18 @@ mod tests {
     fn callback_thunk_emission_rejects_missing_duplicate_or_unknown_placement_joins() {
         let target = NativeTarget::host();
         let key = state_key(2);
-        let encoded = encoded_machine(target, &[key]);
-        let object = object_with_symbols(target, &[(7, 11)]);
+        let placement = placement(key);
+        let thunk = thunk(key, &placement);
+        let encoded = encoded_machine(target, &[key], &thunk.private_symbol);
+        let object = object_with_symbols(target, &thunk.private_symbol, &[(7, 11)]);
 
-        let missing = callback_blockers(&[placement(key)], &[], &encoded, &object);
+        let missing = callback_blockers(std::slice::from_ref(&placement), &[], &encoded, &object);
         assert_eq!(missing.len(), 1);
         assert!(missing[0].contains("resolves to 0 private thunk plans"));
 
         let duplicate = callback_blockers(
-            &[placement(key)],
-            &[thunk(key), thunk(key)],
+            std::slice::from_ref(&placement),
+            &[thunk.clone(), thunk.clone()],
             &encoded,
             &object,
         );
@@ -1013,9 +1040,9 @@ mod tests {
                 .any(|blocker| blocker.contains("occurs 2 times"))
         );
 
-        let mut unknown = thunk(key);
+        let mut unknown = thunk;
         unknown.placement_index = 1;
-        let unknown = callback_blockers(&[placement(key)], &[unknown], &encoded, &object);
+        let unknown = callback_blockers(&[placement], &[unknown], &encoded, &object);
         assert!(
             unknown
                 .iter()
@@ -1028,15 +1055,36 @@ mod tests {
         let target = NativeTarget::host();
         let selected = state_key(2);
         let drifted = state_key(3);
+        let placement = placement(selected);
+        let thunk = thunk(drifted, &placement);
 
         let blockers = callback_blockers(
-            &[placement(selected)],
-            &[thunk(drifted)],
-            &encoded_machine(target, &[drifted]),
-            &object_with_symbols(target, &[(7, 11)]),
+            &[placement],
+            std::slice::from_ref(&thunk),
+            &encoded_machine(target, &[drifted], &thunk.private_symbol),
+            &object_with_symbols(target, &thunk.private_symbol, &[(7, 11)]),
         );
 
         assert_eq!(blockers.len(), 1);
         assert!(blockers[0].contains("not placement row 0 selected machine/entry"));
+    }
+
+    #[test]
+    fn callback_thunk_emission_rejects_private_symbol_drift_from_placement() {
+        let target = NativeTarget::host();
+        let key = state_key(2);
+        let placement = placement(key);
+        let mut thunk = thunk(key, &placement);
+        thunk.private_symbol = Arc::from("__omega_callback_tampered");
+
+        let blockers = callback_blockers(
+            &[placement],
+            std::slice::from_ref(&thunk),
+            &encoded_machine(target, &[key], &thunk.private_symbol),
+            &object_with_symbols(target, &thunk.private_symbol, &[(7, 11)]),
+        );
+
+        assert_eq!(blockers.len(), 1);
+        assert!(blockers[0].contains("does not match placement row 0 canonical identity"));
     }
 }
