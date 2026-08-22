@@ -3,7 +3,7 @@
 use psi_core::{Proposition, ScalarTerm};
 use psi_proof_kernel::ProofNode;
 
-use super::super::super::{eligibility, equalities};
+use super::super::super::equalities;
 use super::super::TwoCitationChains;
 
 pub(super) fn find<'a, T>(
@@ -21,11 +21,8 @@ pub(super) fn find<'a, T>(
 ) -> Option<T> {
     let chains = TwoCitationChains::new(assumptions, semantic_axioms);
     for (equality_citation, equality, root, alias) in
-        equalities::ordered(assumptions, semantic_axioms)
+        equalities::value_aliases(assumptions, semantic_axioms)
     {
-        if !eligibility::distinct_value_alias(root, alias) {
-            continue;
-        }
         let result = chains.find(|left, right, left_proof, right_proof| {
             complete(
                 root,

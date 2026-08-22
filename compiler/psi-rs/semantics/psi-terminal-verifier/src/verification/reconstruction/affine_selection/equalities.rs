@@ -30,3 +30,14 @@ pub(super) fn exact_value_bindings<'a>(
     ordered(requirements, semantic_axioms)
         .filter(|(_, root, literal)| exact_value_binding(root, literal))
 }
+
+pub(super) fn value_aliases<'a>(
+    requirements: &'a [Proposition],
+    semantic_axioms: &'a [Proposition],
+) -> impl Iterator<Item = (&'a Proposition, &'a ScalarTerm, &'a ScalarTerm)> + 'a {
+    ordered(requirements, semantic_axioms).filter(|(_, root, alias)| {
+        root != alias
+            && matches!(root, ScalarTerm::Value { .. })
+            && matches!(alias, ScalarTerm::Value { .. })
+    })
+}

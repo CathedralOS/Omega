@@ -13,10 +13,8 @@ pub(super) fn any<'a>(
     mut complete: impl FnMut(&'a ScalarTerm, &'a ScalarTerm) -> bool,
 ) -> bool {
     let landings = LandingIndex::new(requirements, semantic_axioms);
-    equalities::ordered(requirements, semantic_axioms).any(|(outer_equality, root, alias)| {
-        if !eligibility::distinct_value_alias(root, alias)
-            || root.scalar_type() != alias.scalar_type()
-        {
+    equalities::value_aliases(requirements, semantic_axioms).any(|(outer_equality, root, alias)| {
+        if root.scalar_type() != alias.scalar_type() {
             return false;
         }
         for &(inner_equality, literal) in landings.candidates(alias) {

@@ -18,7 +18,3 @@ pub(super) fn ordered_value_endpoints<'a>(
         .into_iter()
         .filter(|endpoint| is_value(endpoint))
 }
-
-pub(super) fn distinct_value_alias(root: &ScalarTerm, alias: &ScalarTerm) -> bool {
-    root != alias && is_value(root) && is_value(alias)
-}

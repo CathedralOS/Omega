@@ -2,7 +2,7 @@
 
 use psi_core::{Proposition, ScalarTerm};
 
-use super::super::super::{eligibility, equalities};
+use super::super::super::equalities;
 use super::super::TwoCitationChains;
 
 pub(super) fn any<'a>(
@@ -11,7 +11,6 @@ pub(super) fn any<'a>(
     mut complete: impl FnMut(&'a ScalarTerm, &'a ScalarTerm, &'a ScalarTerm, &'a ScalarTerm) -> bool,
 ) -> bool {
     let chains = TwoCitationChains::new(requirements, semantic_axioms);
-    equalities::ordered(requirements, semantic_axioms)
-        .filter(|(_, root, alias)| eligibility::distinct_value_alias(root, alias))
+    equalities::value_aliases(requirements, semantic_axioms)
         .any(|(_, root, alias)| chains.any(|left, right| complete(root, alias, left, right)))
 }

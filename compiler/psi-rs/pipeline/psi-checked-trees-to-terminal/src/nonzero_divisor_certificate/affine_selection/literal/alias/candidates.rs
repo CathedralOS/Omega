@@ -20,11 +20,9 @@ pub(super) fn find<'a, T>(
     ) -> Option<T>,
 ) -> Option<T> {
     let landings = LandingIndex::new(assumptions, semantic_axioms);
-    equalities::ordered(assumptions, semantic_axioms).find_map(
+    equalities::value_aliases(assumptions, semantic_axioms).find_map(
         |(outer_citation, outer_equality, root, alias)| {
-            if !eligibility::distinct_value_alias(root, alias)
-                || root.scalar_type() != alias.scalar_type()
-            {
+            if root.scalar_type() != alias.scalar_type() {
                 return None;
             }
             for &(inner_citation, inner_equality, literal) in landings.candidates(alias) {
