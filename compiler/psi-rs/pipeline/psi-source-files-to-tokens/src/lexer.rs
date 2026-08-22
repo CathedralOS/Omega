@@ -78,7 +78,7 @@ impl<'source> Lexer<'source> {
             TokenKind::StringLiteral => {
                 let raw = &self.source[token.span.start..token.span.end];
                 let value = decode_string_literal(raw, token.span.start)?;
-                TokenText::owned(value)
+                TokenText::owned_bytes(value)
             }
             _ => TokenText::source(&self.source[token.span.start..token.span.end]),
         };
