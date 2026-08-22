@@ -23,6 +23,7 @@ use psi_layout_plans::{
 mod corresponded_atomic;
 mod corresponded_external;
 mod corresponded_stable;
+mod corresponded_stable_compound;
 mod resident_views;
 mod schema_correspondence;
 
@@ -34,6 +35,10 @@ pub use corresponded_external::{
 };
 pub use corresponded_stable::{
     CorrespondedStablePrimitiveAccessRejection, CorrespondedStablePrimitiveAccessRequest,
+};
+pub use corresponded_stable_compound::{
+    CorrespondedStableCompoundMutationAccessRejection,
+    CorrespondedStableCompoundMutationAccessRequest,
 };
 pub use resident_views::{BorrowedResidentRetirementError, EstablishedBorrowedResidentPlacement};
 pub use schema_correspondence::{
@@ -7507,6 +7512,138 @@ mod tests {
             .validate_for_lowering()
             .expect("corrected carrier must remain valid for retry");
         assert_eq!(primitive_request_snapshot(&compound.request), expected);
+    }
+
+    #[test]
+    fn provider_stable_compound_preflight_requires_exact_correspondence() {
+        let plan = stable_word_placement();
+        let mut extent = uart_extent_with_lineage(0xad18, 4, 282);
+        let profile = stable_word_profile(&extent);
+        let loan = extent.loan_mut(0, 4).expect("exclusive Stable loan");
+        let admission = admit_placement(
+            PlacementAdmissionId::from_normalized_identity(283).expect("admission"),
+            loan,
+            &plan,
+            &profile,
+        )
+        .expect("Stable placement admission");
+        let provider = SchemaCorrespondenceProviderId::from_normalized_identity(284)
+            .expect("correspondence provider");
+        let device = StableDeviceInstanceId::from_normalized_identity(285).expect("stable device");
+        let correspondence = SchemaDeviceCorrespondenceGrant::from_admitted_provider(
+            provider,
+            device,
+            SchemaCorrespondenceSourceId::from_normalized_identity(286)
+                .expect("provider provenance"),
+            &plan,
+            profile.receipt(),
+            None,
+        )
+        .expect("provider correspondence grant")
+        .admit(&plan, &profile)
+        .expect("schema correspondence admission");
+        let mut view = bind_schema_correspondence_to_placement(admission, correspondence)
+            .expect("correspondence placement binding")
+            .establish_view()
+            .expect("corresponded view establishment");
+        let mut word = view
+            .project_mut(field_key(plan.access(), "word"))
+            .expect("exclusive Stable word projection");
+        let request = word
+            .compound_mutation()
+            .expect("Stable compound mutation")
+            .into_primitive_request();
+        let expected = primitive_request_snapshot(&request);
+        let compound = request
+            .into_stable_compound_mutation_access()
+            .expect("Stable compound specialization");
+
+        let alternate_correspondence = SchemaDeviceCorrespondenceGrant::from_admitted_provider(
+            SchemaCorrespondenceProviderId::from_normalized_identity(287)
+                .expect("alternate correspondence provider"),
+            StableDeviceInstanceId::from_normalized_identity(288).expect("alternate stable device"),
+            SchemaCorrespondenceSourceId::from_normalized_identity(289)
+                .expect("alternate provider provenance"),
+            &plan,
+            profile.receipt(),
+            None,
+        )
+        .expect("alternate provider correspondence grant")
+        .admit(&plan, &profile)
+        .expect("alternate schema correspondence admission");
+        let mut corresponded = compound
+            .into_corresponded_stable_compound_access()
+            .expect("provider/device compound preflight requires retained correspondence");
+        assert_eq!(corresponded.correspondence().provider(), provider);
+        assert_eq!(
+            primitive_request_snapshot(corresponded.compound_access().primitive_request()),
+            expected
+        );
+
+        let retained_correspondence =
+            corresponded.replace_correspondence_for_test(&alternate_correspondence);
+        let diagnostic = corresponded
+            .validate_for_provider_lowering()
+            .expect_err("a distinct correspondence carrier cannot replace retained authority");
+        assert!(
+            diagnostic
+                .0
+                .contains("different schema/device correspondence")
+        );
+        corresponded.replace_correspondence_for_test(retained_correspondence);
+
+        corresponded.replace_request_plan_for_test(PlacementPlanId(plan.identity().0 ^ 1));
+        let diagnostic = corresponded
+            .validate_for_provider_lowering()
+            .expect_err("provider/device compound preflight must replay placement authority");
+        assert!(diagnostic.0.contains("copied plan"));
+        corresponded.replace_request_plan_for_test(plan.identity());
+        corresponded
+            .validate_for_provider_lowering()
+            .expect("restored exact carrier remains available for retry");
+        assert_eq!(
+            primitive_request_snapshot(corresponded.into_compound_access().primitive_request()),
+            expected
+        );
+
+        let mut ordinary_extent = uart_extent_with_lineage(0xad28, 4, 290);
+        let ordinary_profile = stable_word_profile(&ordinary_extent);
+        let ordinary_loan = ordinary_extent
+            .loan_mut(0, 4)
+            .expect("ordinary exclusive Stable loan");
+        let mut ordinary = place(
+            admit_placement(
+                PlacementAdmissionId::from_normalized_identity(291).expect("ordinary admission"),
+                ordinary_loan,
+                &plan,
+                &ordinary_profile,
+            )
+            .expect("ordinary Stable placement admission"),
+        )
+        .expect("ordinary Stable view establishment");
+        let mut ordinary_projection = ordinary
+            .project_mut(field_key(plan.access(), "word"))
+            .expect("ordinary exclusive Stable projection");
+        let ordinary_request = ordinary_projection
+            .compound_mutation()
+            .expect("ordinary Stable compound mutation")
+            .into_primitive_request();
+        let ordinary_snapshot = primitive_request_snapshot(&ordinary_request);
+        let rejection = ordinary_request
+            .into_stable_compound_mutation_access()
+            .expect("ordinary compound specialization remains valid")
+            .into_corresponded_stable_compound_access()
+            .expect_err("provider/device preflight rejects correspondence-free Stable storage");
+        assert!(rejection.diagnostic().0.contains("requires admitted"));
+        let (ordinary_compound, _) = rejection.into_parts();
+        assert_eq!(
+            primitive_request_snapshot(ordinary_compound.primitive_request()),
+            ordinary_snapshot,
+            "rejection returns the exact already-specialized compound request"
+        );
+        ordinary_compound
+            .validate_for_lowering()
+            .expect("returned correspondence-free compound request remains usable elsewhere");
     }
 
     #[test]
