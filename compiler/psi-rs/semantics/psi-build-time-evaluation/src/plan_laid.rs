@@ -282,6 +282,33 @@ pub fn compute_plan_laid_layouts(
             ))]);
         };
 
+        let policy_name = record
+            .policy_machine
+            .strip_suffix("::plan")
+            .unwrap_or(&record.policy_machine);
+        let policy_symbol = typed
+            .data_definitions()
+            .iter()
+            .find(|data| data.name.as_str() == policy_name)
+            .map(|data| data.symbol)
+            .ok_or_else(|| {
+                vec![Diagnostic::error(format!(
+                    "plan-laid value type `{}` lost its exact nominal policy identity",
+                    record.synthetic_name
+                ))]
+            })?;
+        let policy_plan_machine_symbol = typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == record.policy_machine)
+            .map(|machine| machine.symbol)
+            .ok_or_else(|| {
+                vec![Diagnostic::error(format!(
+                    "plan-laid value type `{}` lost its exact policy plan machine",
+                    record.synthetic_name
+                ))]
+            })?;
+
         let synthesized_data = typed
             .data_definitions()
             .iter()
@@ -305,24 +332,37 @@ pub fn compute_plan_laid_layouts(
             })
             .collect::<Vec<_>>();
 
-        let schema_fields = typed
+        let schema = typed
             .data_definitions()
             .iter()
             .find(|data| data.name.as_str() == record.schema_data)
-            .map(|data| {
-                typed
-                    .data_members(data)
-                    .iter()
-                    .filter_map(|member| match member {
-                        psi_typed_trees::data::DataMember::Field(field) => {
-                            (!field.relevance.is_erased())
-                                .then_some((field.name.as_str().to_owned(), field.type_reference))
-                        }
-                        psi_typed_trees::data::DataMember::Variant(_) => None,
-                    })
-                    .collect::<Vec<_>>()
+            .ok_or_else(|| {
+                vec![Diagnostic::error(format!(
+                    "plan-laid value type `{}` lost its exact source schema identity",
+                    record.synthetic_name
+                ))]
+            })?;
+        let schema_symbol = schema.symbol;
+        let schema_fields = typed
+            .data_members(schema)
+            .iter()
+            .filter_map(|member| match member {
+                psi_typed_trees::data::DataMember::Field(field) => (!field.relevance.is_erased())
+                    .then_some((field.name.as_str().to_owned(), field.type_reference)),
+                psi_typed_trees::data::DataMember::Variant(_) => None,
             })
-            .unwrap_or_default();
+            .collect::<Vec<_>>();
+        let schema_field_symbols = typed
+            .data_members(schema)
+            .iter()
+            .filter_map(|member| match member {
+                psi_typed_trees::data::DataMember::Field(field) if !field.relevance.is_erased() => {
+                    Some(field.symbol)
+                }
+                psi_typed_trees::data::DataMember::Field(_)
+                | psi_typed_trees::data::DataMember::Variant(_) => None,
+            })
+            .collect::<Vec<_>>();
         let field_count = schema_fields.len();
 
         let mut offsets = vec![None; field_count];
@@ -530,6 +570,10 @@ pub fn compute_plan_laid_layouts(
             data_name: record.synthetic_name.clone(),
             data_symbol,
             field_symbols,
+            schema_symbol,
+            schema_field_symbols,
+            policy_symbol,
+            policy_plan_machine_symbol,
             offsets,
             bit_fields,
             integer_fields,

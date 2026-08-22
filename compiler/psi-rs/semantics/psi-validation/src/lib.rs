@@ -24,6 +24,7 @@ mod machine_parameters;
 mod operators;
 mod placed_views;
 mod places;
+mod plan_laid;
 mod proof_facts;
 mod proof_only_faces;
 mod properties;
@@ -204,6 +205,7 @@ fn validate_program_internal(
         diagnostics.append(&mut dynamic_diagnostics);
     }
     validate_data_field_types(program, &symbols, &mut diagnostics);
+    plan_laid::validate_plans(program, &mut diagnostics);
     placed_views::validate_plans(program, &mut diagnostics);
     relevance::validate_relevance(program, &mut diagnostics);
     // Math roster N1: recursive data is legal and PROOF-ONLY (computed, never

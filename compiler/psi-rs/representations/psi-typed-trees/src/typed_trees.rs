@@ -272,6 +272,14 @@ pub struct PlanLaidLayout {
     pub data_symbol: psi_symbols::SymbolHandle,
     /// Exact runtime field identities in the same order as `offsets`.
     pub field_symbols: Vec<psi_symbols::SymbolHandle>,
+    /// Exact source schema and runtime field identities reflected into the
+    /// synthesized value type.
+    pub schema_symbol: psi_symbols::SymbolHandle,
+    pub schema_field_symbols: Vec<psi_symbols::SymbolHandle>,
+    /// Exact nominal layout policy and build-time plan machine that produced
+    /// this geometry. These identities do not grant runtime authority.
+    pub policy_symbol: psi_symbols::SymbolHandle,
+    pub policy_plan_machine_symbol: psi_symbols::SymbolHandle,
     /// Byte offset of each field, in declaration order.
     pub offsets: Vec<usize>,
     /// Fragmented scalar fields keyed by declaration-order field index.

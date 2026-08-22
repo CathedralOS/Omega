@@ -179,6 +179,9 @@ fn plan_laid_value_types_are_placed_by_their_plan() {
     let recorded = &checked.typed.plan_laid_layouts[0];
     assert_eq!(recorded.data_name, "Spread16<Gdtish>");
     let plan_laid_data_symbol = recorded.data_symbol;
+    let schema_symbol = recorded.schema_symbol;
+    let policy_symbol = recorded.policy_symbol;
+    let policy_plan_machine_symbol = recorded.policy_plan_machine_symbol;
     let plan_laid_data = checked
         .typed
         .data_definitions()
@@ -214,6 +217,8 @@ fn plan_laid_value_types_are_placed_by_their_plan() {
     assert_eq!(offsets, vec![0, 16, 32, 48]);
 
     checked.typed.plan_laid_layouts[0].data_name = "diagnostic-only-layout-name".to_owned();
+    psi_validation::validate_program(&checked.typed)
+        .expect("presentation-name drift must not change retained plan identity");
     let layouts = build_layout_plan(&checked, target)
         .expect("presentation-name drift must not redirect a plan-laid layout");
     let data_layout = layouts
@@ -231,7 +236,45 @@ fn plan_laid_value_types_are_placed_by_their_plan() {
         .find(|definition| definition.name.as_str() == "Main")
         .expect("fixture Main data")
         .symbol;
+
+    checked.typed.plan_laid_layouts[0].schema_symbol = main_symbol;
+    let diagnostics = psi_validation::validate_program(&checked.typed)
+        .expect_err("substituted source schema identity must fail closed");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("changed its exact source schema field identity inventory")
+    }));
+    checked.typed.plan_laid_layouts[0].schema_symbol = schema_symbol;
+
+    checked.typed.plan_laid_layouts[0].policy_symbol = main_symbol;
+    let diagnostics = psi_validation::validate_program(&checked.typed)
+        .expect_err("substituted nominal policy identity must fail closed");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("changed its exact nominal policy binding")
+    }));
+    checked.typed.plan_laid_layouts[0].policy_symbol = policy_symbol;
+
+    checked.typed.plan_laid_layouts[0].policy_plan_machine_symbol = main_symbol;
+    let diagnostics = psi_validation::validate_program(&checked.typed)
+        .expect_err("substituted policy plan machine must fail closed");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("no longer names its exact policy plan machine")
+    }));
+    checked.typed.plan_laid_layouts[0].policy_plan_machine_symbol = policy_plan_machine_symbol;
+
     checked.typed.plan_laid_layouts[0].data_symbol = main_symbol;
+    let diagnostics = psi_validation::validate_program(&checked.typed)
+        .expect_err("substituted plan-laid data identity must fail validation");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("changed its exact synthesized field identity inventory")
+    }));
     let diagnostic = build_layout_plan(&checked, target)
         .expect_err("substituted plan-laid data identity must fail closed");
     assert!(
