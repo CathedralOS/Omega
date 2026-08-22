@@ -1995,19 +1995,13 @@ fn runtime_free_machine_struct_arg_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-free-machine-struct-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("free-machine struct arg canary should compile");
-
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("free-machine struct arg canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected by-value struct args to free machines to deliver the caller's field values (exit 70), got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        70,
+        "free-machine struct-argument canary",
+        "by-value struct arguments should deliver every caller field to the free machine",
     );
 
     let _ = fs::remove_dir_all(&scratch);
@@ -2027,19 +2021,13 @@ fn by_value_case_param_self_write_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-by-value-case-param-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("by-value case param self-write canary should compile");
-
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("by-value case param self-write canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected a by-value case-bearing arg to persist the self write-back (exit 70), got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        70,
+        "by-value case-parameter self-write canary",
+        "the case-bearing argument should select the substate that persists the self write",
     );
 
     let _ = fs::remove_dir_all(&scratch);
@@ -2060,19 +2048,13 @@ fn runtime_attached_machine_struct_arg_exit_canary_runs() {
     ));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("attached-machine struct arg canary should compile");
-
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("attached-machine struct arg canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected a by-value struct arg to an attached machine to deliver the caller's field values (exit 70), got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        70,
+        "attached-machine struct-argument canary",
+        "by-value struct arguments should deliver every caller field to the attached machine",
     );
 
     let _ = fs::remove_dir_all(&scratch);
@@ -2095,19 +2077,13 @@ fn runtime_record_forwarding_statement_call_exit_canary_runs() {
     ));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("record-forwarding statement-call canary should compile");
-
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("record-forwarding statement-call canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected nested statement effects to precede outer value delivery (exit 70), got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        70,
+        "record-forwarding statement-call canary",
+        "nested statement effects should precede outer value delivery",
     );
 
     let _ = fs::remove_dir_all(&scratch);
@@ -2132,19 +2108,13 @@ fn runtime_free_machine_struct_return_exit_canary_runs() {
     ));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("free-machine struct return canary should compile");
-
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("free-machine struct return canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected by-value struct returns from free machines to deliver both field values (exit 70), got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        70,
+        "free-machine struct-return canary",
+        "by-value struct returns should deliver every field to the caller local",
     );
 
     let _ = fs::remove_dir_all(&scratch);
