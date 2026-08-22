@@ -16,6 +16,7 @@ psi-effects = { path = "../../representations/psi-effects" }
 psi-facts = { path = "../../representations/psi-facts" }
 psi-language-core = { path = "../../foundation/psi-language-core" }
 psi-language-semantics = { path = "../../foundation/psi-language-semantics" }
+psi-layout-plans = { path = "../../foundation/psi-layout-plans" }
 psi-numerics = { path = "../../foundation/psi-numerics" }
 psi-source = { path = "../../foundation/psi-source" }
 psi-symbols = { path = "../../foundation/psi-symbols" }

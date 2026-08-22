@@ -574,6 +574,7 @@ pub fn compute_plan_laid_layouts(
             schema_field_symbols,
             policy_symbol,
             policy_plan_machine_symbol,
+            validated_layout: report.clone(),
             offsets,
             bit_fields,
             integer_fields,
