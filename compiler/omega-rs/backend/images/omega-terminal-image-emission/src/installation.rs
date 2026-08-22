@@ -1,5 +1,12 @@
 use std::num::NonZeroU64;
 
+use crate::{
+    TerminalExecutableImage, TerminalObjectBoundarySettlement, TerminalObjectFuelAttribution,
+    TerminalObjectPortEffect,
+    boundary_results::boundary_result_is_exact,
+    can_emit_terminal_executable_image,
+    completion_receipts::{CompletionCustodyError, validate_completion_custody},
+};
 use omega_calling_conventions::{
     CallSignature, CallingPolicy, MachineRegister, ValueClass, ValueShape, evaluate_call_plan,
 };
@@ -17,20 +24,12 @@ use psi_terminal::{
     TerminalPsiIdentity,
 };
 use psi_terminal_fuel::TerminalFuelSchedule;
-use sha2::{Digest, Sha256};
-
-use crate::{
-    TerminalExecutableImage, TerminalObjectBoundarySettlement, TerminalObjectFuelAttribution,
-    TerminalObjectPortEffect,
-    boundary_results::boundary_result_is_exact,
-    can_emit_terminal_executable_image,
-    completion_receipts::{CompletionCustodyError, validate_completion_custody},
-};
 
 mod boundary_result_scalar_codec;
 mod boundary_settlement_codec;
 mod call_site_owner_codec;
 mod completion_custody_codec;
+mod fingerprint_codec;
 mod fuel_attribution_codec;
 mod function_affine_cleanup_codec;
 mod function_codec;
@@ -46,6 +45,7 @@ mod structural_return_codec;
 mod value_placement_codec;
 mod wire_codec;
 use boundary_settlement_codec::{decode_boundary_settlements, encode_boundary_settlements};
+use fingerprint_codec::{fingerprint_image, fingerprint_record, write_hex};
 use fuel_attribution_codec::{decode_fuel_attributions, encode_fuel_attributions};
 use function_codec::{decode_functions, encode_functions};
 use installation_header_codec::{
@@ -59,8 +59,6 @@ use wire_codec::{Reader, decode_boolean, push_u16, push_u32, push_u64};
 
 pub const TERMINAL_INSTALLATION_FORMAT_MARKER: u16 = 31;
 const MAGIC: &[u8; 8] = b"PSIINST\0";
-const IMAGE_DOMAIN: &[u8] = b"omega-terminal-installed-image\0";
-const RECORD_DOMAIN: &[u8] = b"omega-terminal-installation-record\0";
 
 /// Exact normalized identity of one provider plan selected for this
 /// installation. The current scalar canaries have an empty provider closure;
@@ -700,7 +698,7 @@ pub fn terminal_installation_fingerprint(
     record: &TerminalInstallationRecord,
 ) -> Result<TerminalInstallationFingerprint, TerminalInstallationError> {
     let bytes = encode_terminal_installation_record(record)?;
-    Ok(TerminalInstallationFingerprint(hash(RECORD_DOMAIN, &bytes)))
+    Ok(fingerprint_record(&bytes))
 }
 
 fn validate_record_shape(
@@ -2037,10 +2035,6 @@ fn bounded_nominal_receiver_shape(shape: ValueShape) -> bool {
             && shape.byte_size % shape.alignment == 0
 }
 
-fn fingerprint_image(bytes: &[u8]) -> TerminalImageFingerprint {
-    TerminalImageFingerprint(hash(IMAGE_DOMAIN, bytes))
-}
-
 fn encode_trivial_affine_local(
     bytes: &mut Vec<u8>,
     local: &StructuralPlaceDeclaration,
@@ -2663,25 +2657,6 @@ fn decode_multiplicity(value: u8) -> Result<StructuralMultiplicity, TerminalInst
             value,
         )),
     }
-}
-
-fn hash(domain: &[u8], bytes: &[u8]) -> [u8; 32] {
-    let mut digest = Sha256::new();
-    digest.update(domain);
-    digest.update(
-        u64::try_from(bytes.len())
-            .expect("terminal artifact bytes fit the digest domain")
-            .to_le_bytes(),
-    );
-    digest.update(bytes);
-    digest.finalize().into()
-}
-
-fn write_hex(formatter: &mut std::fmt::Formatter<'_>, bytes: &[u8; 32]) -> std::fmt::Result {
-    for byte in bytes {
-        write!(formatter, "{byte:02x}")?;
-    }
-    Ok(())
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
