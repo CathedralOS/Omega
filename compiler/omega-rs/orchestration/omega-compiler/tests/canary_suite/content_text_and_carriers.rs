@@ -429,10 +429,13 @@ fn utf8_param_len_field_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-utf8-param-len-field-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("utf8 param len field canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("utf8 param len field canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("utf8 param len field canary should run");
 
@@ -463,10 +466,13 @@ fn utf8_regular_call_len_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("utf8 regular call len canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("utf8 regular call len canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("utf8 regular call len canary should run");
 
@@ -494,10 +500,13 @@ fn utf8_equals_literal_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-utf8-equals-literal-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("utf8 equals literal canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("utf8 equals literal canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("utf8 equals literal canary should run");
 
@@ -524,10 +533,13 @@ fn utf8_equals_view_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-utf8-equals-view-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("utf8 equals view canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("utf8 equals view canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("utf8 equals view canary should run");
 
@@ -558,10 +570,13 @@ fn utf8_field_read_carries_domain_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("utf8 field-read domain canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("utf8 field-read domain canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("utf8 field-read domain canary should run");
 
