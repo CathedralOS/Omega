@@ -776,15 +776,14 @@ mod tests {
         assert_eq!(retained.output_kind(), CompileOutputKind::NativeExecutable);
         assert_eq!(retained.executable_publication(), Some(&flat));
         assert_eq!(retained.app_bundle_publication(), Some(&bundle));
-        assert!(
-            !report(
-                true,
-                CompileOutputKind::NativeExecutable,
-                None,
-                Some(bundle.clone()),
-            )
-            .has_consistent_executable_publication_custody()
+        let missing_flat = report(
+            true,
+            CompileOutputKind::NativeExecutable,
+            None,
+            Some(bundle.clone()),
         );
+        assert!(!missing_flat.has_consistent_executable_publication_custody());
+        assert!(missing_flat.checked_native_executable_path().is_none());
         let self_aliased = report(
             true,
             CompileOutputKind::NativeExecutable,

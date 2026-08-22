@@ -571,21 +571,13 @@ fn runtime_machine_frame_index_arg_operand_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-mfi-arg-operand-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("machine frame-index arg/operand canary should compile");
-
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("machine frame-index arg/operand canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(1),
-        "expected `self.arr[k] + self.cells[j].v` == 39 then `self.report(self.arr[k])` to exit 1, got {:?}
-stderr:
-{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        1,
+        "machine frame-index operand/argument canary",
+        "frame-indexed machine-array reads should materialize as operands and arguments",
     );
 
     let _ = fs::remove_dir_all(&scratch);
@@ -601,21 +593,13 @@ fn runtime_nested_const_row_indexed_read_exit_canary_runs() {
     ));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("nested const-row indexed read canary should compile");
-
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("nested const-row indexed read canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(1),
-        "expected `self.grid[1][j]` (j=2 runtime, grid[1][2]=42) to read 42 through both the machine-field and let consumers and exit 1, got {:?}
-stderr:
-{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        1,
+        "nested const-row indexed-read canary",
+        "the constant row and runtime column should select the same element for both consumers",
     );
 
     let _ = fs::remove_dir_all(&scratch);
@@ -631,21 +615,13 @@ fn runtime_nested_const_row_struct_field_write_exit_canary_runs() {
     ));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("nested const-row struct-field write canary should compile");
-
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("nested const-row struct-field write canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(1),
-        "expected `self.rows[2].data[j] = 77` (j=1 runtime) to write the right element (neighbors untouched) and exit 1, got {:?}
-stderr:
-{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        1,
+        "nested const-row struct-field write canary",
+        "the runtime leaf index should update only the selected nested field element",
     );
 
     let _ = fs::remove_dir_all(&scratch);
@@ -660,21 +636,13 @@ fn runtime_nested_middle_index_3d_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-nested-middle-3d-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("nested runtime-middle 3D canary should compile");
-
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("nested runtime-middle 3D canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(1),
-        "expected `cube[1][b][0]` read+write (b=0 runtime) to hit the right element and exit 1, got {:?}
-stderr:
-{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        1,
+        "nested runtime-middle 3D canary",
+        "the runtime middle index should preserve its constant prefix and suffix",
     );
 
     let _ = fs::remove_dir_all(&scratch);
@@ -689,21 +657,13 @@ fn runtime_let_bound_computed_index_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-let-computed-index-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("let-bound computed index canary should compile");
-
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("let-bound computed index canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(1),
-        "expected `let m = k + 1; arr[m]` faces (read/write/guard/backward/copy) to hit the right elements and exit 1, got {:?}
-stderr:
-{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        1,
+        "let-bound computed-index canary",
+        "the computed local index should select the right element on every access face",
     );
 
     let _ = fs::remove_dir_all(&scratch);
