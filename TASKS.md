@@ -2411,6 +2411,13 @@ Remaining:
   pass-through completion modules are removed. Source/citation order, left-
   before-right endpoints, proof shape, direct precedence, rejection behavior,
   and the fixed definition frontier remain unchanged.
+  Producer-side one-alias transitive affine candidate traversal now short-
+  circuits directly through its source-ordered `Value`-alias and fixed two-
+  citation catalogs. Equality citation custody and the ordered left/right proof
+  pair remain inside the selected callback, while reconstruction independently
+  retains its proposition-only short-circuit traversal. Equality/chain order,
+  proof shape, alias completion, rejection, precedence, and the fixed one-
+  alias/two-leg frontier remain unchanged.
   One-equality transitive affine completion now lives in independent side-local
   `affine_selection/transitive/alias/completion` modules. Each parent retains
   its own ledger-ordered equality discovery, distinct root/alias custody, and
@@ -4799,6 +4806,13 @@ Owners:
   owner ambiguity, the 795 rooted/3 legacy inventory, and receipt-drift fences
   remain green; dynamic coercion and single-/multi-implementation dynamic
   dispatch owners remain separate.
+  Two authored-root devirtualized dynamic-receiver regressions—the closed
+  single-implementation trait case and a local named dynamic coercion through
+  its exact selected row—now launch `OutputOnly` native execution solely
+  through exact checked-report executable receipts while preserving literal
+  status 70 and their detailed unresolved-call/exact-row diagnostics. Exact-
+  owner ambiguity, the 795 rooted/3 legacy inventory, and receipt-drift fences
+  remain green; the two-implementation runtime-dispatch pair remains separate.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
@@ -5432,6 +5446,12 @@ Remaining N6/N8 work:
   place bytes and errors while authority and interpretation remain outside the
   codec. The parent is 4,429 lines and the exact 199-function codec inventory
   remains unchanged.
+  Canonical boundary and shared structural-signature encoding/decoding now
+  lives in a focused private `structural_signature_wire` child, preserving
+  exact parameter, multiplicity, qualification, requirement, optional
+  attachment/result, and service-ceiling order and tags while operation bodies
+  and provider semantics remain separate. The parent is 4,329 lines and the
+  exact 199-function codec inventory remains unchanged.
   Proof-bundle coding likewise keeps its `PSIPRF`-specific little-endian
   cursor, bounded string/count/index handling, and nonzero semantic-ID
   primitives in a focused private child; its public API, exact bytes and
