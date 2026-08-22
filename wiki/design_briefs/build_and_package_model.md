@@ -108,9 +108,12 @@ SlotDeclaration {
 }
 
 EntryShape {
-    arrival_requirement,
+    physical_arrival_requirement,
+    semantic_arrival_requirement,
+    bootstrap_adapter,
+    physical_result_map,
     visible_parameters,
-    result,
+    semantic_result,
     receiver: None | ProvisionedZii,
 }
 ```
@@ -185,32 +188,39 @@ inferred from the trait's current requirement count. Exact slot consumers can
 cite only the selected requirement's normalized contract; they possess no
 conformance identity from which trait laws could be cited.
 
-The physical arrival requirement and selected source entry are different
-layers, not competing entry identities. For example, a hosted profile records:
+The physical arrival requirement, semantic arrival requirement, and selected
+source entry are different layers, not competing entry identities. For example,
+a hosted profile records:
 
 ```text
-slot:                 windows_x86_64::ProgramEntry
-schema:               HostedApplication
-arrival requirement:  ProgramStorageEntry::enter
-calling policy:       WindowsX86_64
-visible parameters:   ()
-receiver:             None | ProvisionedZii
-binding shape:        EntryMachine
+slot:                          windows_x86_64::ProgramEntry
+schema:                        HostedApplication
+physical arrival requirement: WindowsProcessEntry::enter
+physical calling policy:       WindowsX86_64
+semantic arrival requirement:  ProgramStorageEntry::enter
+bootstrap adapter:             WindowsProgramBootstrap
+physical result map:           WindowsProcessExitMap
+visible parameters:            ()
+receiver:                      None | ProvisionedZii
+binding shape:                 EntryMachine
 ```
 
-The compiler generates the installed physical bridge for the arrival
-requirement, derives the bridge's complete crash, reach, write, work,
-stack/state, introduction, provisioning, and provenance contract, and composes
-that contract with the bound application closure. At launch, the environment
-supplies physical arrival values to the bridge; the bridge validates them and
-supplies only the source arguments declared by the schema. A free source entry
-receives no implicit state. For an attached entry with one `&mut self`, the
-bridge derives storage beneath an admitted entry root, constructs exactly one
-ZII-valid receiver, and lends it for the activation. The receiver is never
-globally nameable. A root used for receiver storage cannot also be forwarded
-whole to the source entry; the schema must use separate hidden supply or an
-exact conserved residual. Generated entry code is never outside portable demand
-checking.
+The compiler generates the physical ABI shell and joins it to the exact
+target-authored bootstrap adapter; it does not synthesize a meaning for
+platform handles. The combined bridge derives a complete crash, reach, write,
+work, stack/state, introduction, provisioning, and provenance contract and
+composes it with the bound application closure. At launch, the environment
+supplies physical values under the physical requirement. The adapter validates
+them, installs scoped providers, establishes the semantic arrival, and supplies
+only the source arguments declared by the schema. Its authored result map turns
+pre-handoff rejection and normal semantic return into exact physical results.
+A free source entry receives no implicit state. For an attached entry with one
+`&mut self`, the bridge derives storage beneath an admitted entry root,
+constructs exactly one ZII-valid receiver, and lends it for the activation. The
+receiver is never globally nameable. A root used for receiver or active-stack
+storage cannot also be forwarded whole to the source entry; the bridge retains
+that partition in its execution frontier and forwards only an exact disjoint
+residual. Generated entry code is never outside portable demand checking.
 
 Receiver provisioning is occurrence-local. The receiver's nominal `data`
 declaration remains pure; the generated bridge records storage, qualification,

@@ -878,27 +878,47 @@ audited inline-assembly subset
 vehicle for many of these providers -- the asm instruction contracts ARE
 hardware-fact declarations in small form.
 
-A freestanding target also needs an arrival contract: who transfers control, in
-what machine state, what storage roots arrive, and what is mapped or zeroed.
-The target profile declares an environment-to-program root slot whose schema
-selects a stable semantic arrival requirement, pins a normalized calling policy
-through ordinary `Calling<C>` trait composition, and declares which typed
-parameters the source entry sees. `build.omg` binds that slot to one exact source
-machine; no source name is an entry by convention.
+A freestanding target needs two joined arrival contracts. The physical
+requirement states who transfers control, the exact native parameters and
+result, and the calling and machine-state policy. The stable semantic
+requirement states which program facts and custody the installation introduces.
+A target-owned entry schema fixes the physical requirement and bootstrap
+adapter, selects the semantic requirement, and declares which typed parameters
+the source continuation sees. `build.omg` binds that continuation only; no
+source name is an entry by convention.
 
-For program storage, the physical arrival requirement is
-`ProgramStorageEntry::enter`. A schema such as `UefiApplication` selects it and
-contributes `Calling<UefiX86_64>` plus a source-visible continuation shape. The
-generated inbound bridge implements the arrival requirement, maps platform
-bytes and provider-private firmware handles to semantic roots, provisions an
-optional ZII-valid entry receiver, and calls the selected source machine. Its
-derived crash, reach, write, work, stack/state, provisioning, introduction, and
-provenance contract composes with the bound program just like authored code.
+For program storage, the semantic requirement is
+`ProgramStorageEntry::enter`. A UEFI schema composes it with a separate
+target-owned physical requirement receiving `ImageHandle` and `SystemTable`
+under `Calling<UefiX86_64>` and returning `EfiStatus`. The target-authored
+bootstrap interprets those inputs through admitted, lifecycle-scoped providers;
+neither physical input is an `Extent`. A generated ABI shell invokes the
+bootstrap, which obtains exact geometry and correspondence evidence, crosses
+the semantic installation edge once, and calls the source machine with only the
+declared semantic values. The installation receipt joins both requirements,
+provider and input provenance, generated captures, and selected continuation.
+The composed crash, reach, write, work, stack/state, provisioning,
+introduction, result-map, and provenance contract enters the bound program
+closure just like authored code.
 
 Hosted schemas normally expose neither image nor initial-storage extents. A
 freestanding schema may forward them because the selected program must perform
 its own provisioning. A receiver-bound entry receives exactly one exclusively
-lent instance; no ambient `static` name is introduced.
+lent instance; no ambient `static` name is introduced. Active stack and receiver
+storage remain explicit conserved partitions in the target execution frontier;
+source receives only disjoint residual storage, never a qualified extent with a
+hidden inaccessible hole.
+
+The physical result is target-authored. For UEFI, bootstrap rejection maps to a
+declared `EfiStatus`, normal return from the current Unit semantic continuation
+maps to success, and a declared crash remains a crash rather than becoming an
+implicit status. The UEFI memory-map/exit adapter is a bounded state graph, not
+an unmeasured retry loop: its decreasing attempt term and every non-copy
+boot-services capability, allocation, snapshot, and key are threaded through
+state arrival contracts. A stale-key outcome returns live custody for retry;
+success ends boot-scoped providers while transferring already allocated storage
+under the same occurrence lineage. Runtime services and newly claimable final-
+map regions follow their own post-exit contracts.
 
 `C` satisfies the ordinary core `CallingPolicy` relationship; its compile-time
 machine evaluates the normalized signature to an accepted or structured-
@@ -923,6 +943,17 @@ reach, trust receipts, state footprints, stack domains, nesting relations,
 and version pins must enter whole-artifact analysis at installation; otherwise
 an interrupt or callback could launder behavior by sitting outside the ordinary
 call graph.
+
+`EntryStack` says where the entered machine executes; it does not pretend that
+all arrival and adapter storage occupies that domain. Installation validates a
+separate target/provider realization containing every admissible arrival
+context and a finite sequence of stack epochs for each. Each epoch fixes its
+active domain, per-domain occupancy, and nesting allowance. Architectural
+arrival follows a sealed target rule applied to the installed entry facts,
+generated adapter use follows the emitted stub, and opaque adapter use requires
+an admitted receipt. The body WCSU is charged only in the body epoch's execution
+domain. Nested `Interrupted` entry is relative to the active parent epoch, and
+unresolved contexts, stack domains, or evidence reject before publication.
 
 The reusable extent, placed-view, checked-assembly, materialization, and root
 ledger model is specified in
@@ -1165,8 +1196,9 @@ toolchain catalog entry containing the lowering and its checked operational
 contract. An absent entry, wrong signature, inapplicable target, unauthorized
 origin package, or non-refining implementation rejects.
 
-Other irreducible bindings likewise use nominal values. `DllImport` carries
-resolved `LibraryId`, `SymbolId`, and `CallingPlanId` values; syscall, firmware,
+Other irreducible bindings likewise use nominal values. `DllImport` carries one
+resolved `DllImportId` plus a `CallingPlanId`; the import ID inseparably owns its
+library and export identity. Syscall, firmware,
 and vtable bindings carry their own typed identifiers. A raw foreign linker
 name may exist in sealed target/link metadata because a foreign object format
 ultimately uses bytes, but that spelling is never an Omega symbol, dispatch
@@ -1286,13 +1318,30 @@ A registration operation names that exact nominal requirement on its static
 machine binder:
 
 ```omega
-boundary machine register_window_procedure<machine Procedure>(
-    class_name: &[u8] in CString
-) -> Registration
-where machine Procedure satisfies WindowProcedure::call;
+boundary trait WindowRegistrar {
+    machine register<machine Procedure>(
+        specification: &WindowClassSpecification
+    ) -> Registration
+    where machine Procedure satisfies WindowProcedure::call;
+}
 
 let registration =
-    register_window_procedure<ApplicationWindow::dispatch>(class_name);
+    WindowRegistrar::register<ApplicationWindow::dispatch>(&specification);
+```
+
+The target package supplies the ordinary external realization and names one
+evaluated plan; callback placement adds no declaration keyword:
+
+```omega
+machine User32::register_window_procedure<machine Procedure>(
+    specification: &WindowClassSpecification
+) -> Registration
+where machine Procedure satisfies WindowProcedure::call
+satisfies WindowRegistrar::register
+via Binding::DllImport {
+    import: Windows::User32::RegisterClassExW,
+    plan: User32Plans::register_class,
+};
 ```
 
 The requirement supplies the binder's complete signature and contract; they
@@ -1309,6 +1358,26 @@ binding lowering. The returned linear registration owns unregistration and any
 code/component lease. Its occurrence provenance retains the selected machine,
 but a public caller may reason from the narrower actual envelope only when the
 API explicitly forwards that guarantee.
+
+The registrar's evaluated outbound `CallPlan` separately maps the nominal
+`Procedure` binder slot to one declared private native place. A direct callback
+argument names a native parameter; a nested callback names a field through its
+validated layout identity. The plan never uses binder order as an ABI ordinal,
+never appends an undeclared argument, and never stores a byte offset. A nested
+field is a private layout demand absent from the source specification; complete
+plan validation requires one compatible supply and rejects missing, duplicate,
+overlapping, or unresolved rows. The normalized registrar-plan fingerprint is
+independent of the selected callback machine. Per-use identity retains that
+machine and its entry plan, and lowering joins the two only to emit a private
+relocation.
+
+Native argument backing is not a callback-row property. Direct placement uses
+the declared register/stack destination; a copying registrar may use ordinary
+call-scoped staging; and any post-return pointer retention follows the general
+foreign-storage custody, provenance, snapshot, and capacity rules. Build
+selection admits the realization and resources, but ordinary Omega control flow
+calls the registrar and selects the callback machine. A successful call creates
+the external root represented by `Registration`; rejection creates none.
 
 A durable registration operation returns a linear package value. Its terminal
 operation unregisters the callback and releases any code or component lease

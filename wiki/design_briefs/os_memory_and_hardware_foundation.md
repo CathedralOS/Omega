@@ -82,26 +82,30 @@ pub boundary trait ExtentRootProvider {
 Program image and initial stack/storage roots use a second core-owned route on
 the same `Extent::Granted` domain. The live
 `ProgramStorageEntry::enter(image: Extent in Granted, initial_storage: Extent in
-Granted)` arrival requirement names the exact qualified positions inside the
-generated target bridge. Installation binds those positions to the selected
-calling-plan fingerprint and generated ABI captures, then introduces both roots
-only after validating both `Granted::no_wrap` obligations. Rejection returns
-both admitted grants without importing either complete fact. Image-section
-ranges remain borrowed views beneath the installed image root; owned
-initial-storage allocations produce a conserved partition with every nonempty
-remainder and can recompose the exact parent lineage. Target-owned root domains
-or name-based role recognition are not alternatives.
+Granted)` semantic arrival requirement names the exact qualified positions
+inside the target entry bridge. A separate target-fixed physical requirement
+names the platform ABI and result. Installation joins that physical invocation,
+its calling-plan fingerprint, exact bootstrap providers and provenance, the
+semantic requirement, generated captures, and selected continuation, then
+introduces both roots only after validating both `Granted::no_wrap`
+obligations. Rejection returns every moved bootstrap input without importing
+either complete fact. Image-section ranges remain borrowed views beneath the
+installed image root; owned initial-storage allocations produce a conserved
+partition with every nonempty remainder and can recompose the exact parent
+lineage. Target-owned root domains or name-based role recognition are not
+alternatives.
 
 The selected target profile owns a required environment-to-program slot whose
-schema selects this arrival requirement, contributes its calling policy, and
-declares the smaller source entry shape exposed to the program. `build.omg`
-binds the target-qualified slot to one exact source machine; it does not discover
-`main`. A hosted source entry normally sees neither raw root, while a
-freestanding schema may forward both already-qualified values. The
-compiler-generated bridge retains the exact semantic positions and contributes
-its derived crash, reach, write, work, stack/state, provisioning, introduction,
-and provenance contract to the artifact before installation compares portable
-demands with target supply.
+schema fixes the physical requirement and target-authored bootstrap adapter,
+selects this semantic requirement, and declares the smaller source entry shape
+exposed to the program. `build.omg` binds the target-qualified slot to one exact
+source machine; it does not discover `main` or bind the physical entry. A hosted
+source normally sees neither raw root, while a freestanding schema may forward
+both already-qualified values. The compiler-generated physical ABI shell and
+authored adapter retain both identities and contribute their composed crash,
+reach, write, work, stack/state, provisioning, introduction, result-map, and
+provenance contract before installation compares portable demands with target
+supply.
 
 The fields carry runtime geometry. `Extent::Granted` states that the geometry
 descends from a live admitted or checked authority claim. Constructing the same
@@ -127,13 +131,25 @@ is new.
 
 The live source declaration is in `omega::language::core::extent` together
 with the debt-free `ExtentSlot { Empty | Live(Extent) }` bridge. Core's stage-1
-`Arena` returns and reclaims qualified Extents. Cathedral's UEFI boot package
-now supplies the selected checked `ExtentRootProvider` adapter, admits that
-provider plan in `build.omg`, obtains one qualified root after
-`ExitBootServices`, and threads it through every post-grant graph state into
-owned idle. Physical-space, rights, and algebra-denominated backing remain
-later qualification/frontier work rather than facts inferred from the firmware
+`Arena` returns and reclaims qualified Extents. Cathedral's UEFI target package
+supplies the selected checked bootstrap providers and physical entry adapter.
+Its bounded map/exit state machine threads boot-services capability, allocation
+custody, final-map snapshot, and a decreasing attempt measure explicitly.
+Successful `ExitBootServices` consumes boot-scoped services while preserving
+allocation occurrence identity through transfer to program custody; stale-key
+rejection returns the live capability and allocations for another measured
+attempt. The final snapshot and exit receipt may separately introduce only the
+physical-memory regions admitted by target memory policy. Physical-space,
+rights, and algebra-denominated backing are never inferred from bare firmware
 geometry.
+
+The active handoff stack is accounted independently from the source-visible
+residual. Before the final exit attempt the adapter switches to a target-owned
+stack whose cross-exit lifetime is proved, or proves the incoming stack has the
+same property. If stack and initial storage share a parent allocation, a
+conserved partition remains in the execution frontier while only a disjoint
+contiguous residual is installed as source-visible `initial_storage`; a
+`Granted` extent never contains an inaccessible live-stack hole.
 
 Address space, permissions, provenance, and mapping era are domain facts on the
 carrier. Physical, virtual, I/O-port, and provider-defined spaces share the
@@ -1299,13 +1315,52 @@ already active dedicated class fail closed. Every installed root in a ledger
 must bind the same exact canonical nesting relation and provider-summary set.
 The sealed stack and fuel realizations retain those complete inputs; compact
 composition fingerprints are report keys, not admission evidence.
+
+The settled external-entry unit is not that scalar provider-local demand. Each
+installed root supplies a normalized `EntryStackRealization`: a complete finite
+set of admissible arrival contexts, each containing a finite sequence of
+`Enter`, exactly one `Body`, and `Exit` epochs. An epoch records the active
+stack domain, per-domain occupancy and alignment, and its nesting allowance.
+Stack transitions delimit epochs. Hardware-atomic switching creates no
+observable intermediate epoch; software switching does. Conditional arrival,
+including privilege-dependent switching through one installed gate, produces
+different sequences under different validated contexts.
+
+For each physical or provisioned domain, composition takes the maximum over
+contexts and epochs of base occupancy plus body WCSU on the body execution
+domain plus phase-permitted nested demand. A nested `Interrupted` entry resolves
+to the active domain of its parent epoch. It therefore follows a handler onto a
+dedicated stack rather than referring forever to the stack interrupted by the
+outermost root. Simultaneously live occupancy sums with alignment; sequential
+roots and mutually exclusive contexts take their maximum. A finite declared
+nesting depth bounds repeated occurrences. `Nestable(maximum_depth)` counts
+concurrently live occurrences on one root lineage, including the current
+occurrence, and zero rejects. Provider-defined depth or stack
+selection must resolve to finite admitted evidence before a bounded root may be
+installed, and a phase without narrower evidence conservatively inherits the
+root's full nesting policy.
+
+Architectural arrival is derived by applying one sealed target rule to the
+exact validated installation facts, including entry mechanism, interrupted
+regime or privilege, and switch mode. The provider cannot choose a numeric row.
+Compiler-generated adapter epochs derive from the installed stub bytes. Only
+opaque adapter behavior uses provider-authored byte/alignment evidence, and
+that evidence remains an admitted receipt bound to the complete target, entry,
+context, epoch, and domain identity. Unknown contexts, unresolved
+`ProviderSelected` domains, incomplete evidence, and bare numeric assertions
+reject. No architecture-specific interrupt-frame vocabulary enters Omega
+source.
+
 Emitter-derived terminal stack closures now follow the fixed-fuel trust shape:
 a decoded canonical installation record is revalidated against its exact image,
 then the demand binds exact installed bytes and entry before artifact-wide
 nesting composition. Provider execution rechecks that binding, and the root
 report distinguishes recomputable terminal evidence from an opaque provider's
-admitted numeric summary. Zero-byte internal closures remain insufficient for
-root admission until the external entry-adapter demand is composed.
+admitted numeric summary. The live scalar `ProviderStackSummary` and composer
+remain an implementation precursor; they do not yet represent context-indexed
+epochs or the per-domain arrival/adapter join. Zero-byte internal closures
+remain insufficient for root admission until that settled realization is
+implemented and composed.
 
 Machine-state admission checks the final footprint against the `StatePlan`.
 Schedule-keyed fixed-fuel provider summaries compose transitively while
@@ -1340,7 +1395,7 @@ policy-or-provision/realization/evidence triples:
 
 | column | policy or installed provision | realized artifact fact | private evidence |
 | --- | --- | --- | --- |
-| stack | selected stack domain and provision; optional fixed policy ceiling | WCSU bytes/alignment plus composed nesting demand | frame/place liveness and WCSU derivation |
+| stack | selected stack domain and provision; optional fixed policy ceiling | context-indexed per-domain entry epochs, WCSU, and composed nesting demand | target arrival rule and installation facts; emitted-stub/frame/place liveness; admitted opaque-adapter evidence |
 | logical fuel | installed schedule-keyed fuel provision; optional fixed policy ceiling | composed same-schedule fuel demand | current provider summaries; eventually IR control flow, ranking bounds, callee summaries, and fixed-work proof |
 | machine state | `StatePlan` permitted state and save/restore commitment | emitted transitive footprint and clobbers | instruction selection, allocation, and footprint derivation |
 

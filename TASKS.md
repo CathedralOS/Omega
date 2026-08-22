@@ -54,9 +54,10 @@ Remaining:
 
 - **ENTRY-CONTENT-ROOTS.** Complete the generated native entry bridge and
   explicit-entry corpus migration. The production-facing installation carrier
-  now joins the exact selected provider plan, arrival requirement, calling-plan
-  fingerprint, physical provider/invocation, and both roots before consuming
-  either grant. Its physical path maps and zeroes the exact receiver reservation
+  now joins the exact selected provider plan, semantic arrival requirement,
+  physical requirement/calling-plan fingerprint, physical provider/invocation,
+  and both roots before committing either semantic occurrence. Its physical
+  path maps and zeroes the exact receiver reservation
   and returns one exclusive activation loan; the separate local seam rejects
   provider-issued roots. Connect an emitted target entry stub to that carrier,
   consume the activation loan while invoking the selected source continuation,
@@ -80,10 +81,10 @@ Remaining:
   bounds intervals, and tampered table bindings fail closed. A future wrapper
   call relocation can therefore target the exact retained source continuation
   without rediscovering it by name. For the currently admitted
-  `ProgramStorageApplication`/`ImageAndInitialStorage` schema, the bridge also
-  retains an address-free wrapper transfer plan that maps both physical root
-  ordinals to their exact source-visible parameter, frame byte range, and
-  disjoint capture-instruction rows, plus free-versus-borrowed activation-loan
+  `ProgramStorageApplication`/`ImageAndInitialStorage` semantic schema, the
+  bridge also retains an address-free wrapper transfer plan that maps both
+  semantic root ordinals to their exact source-visible parameter, frame byte
+  range, and disjoint capture-instruction rows, plus free-versus-borrowed activation-loan
   receiver behavior. It deliberately does not call the physical arrival plan a
   source-call ABI. The retained bridge plan also owns a sealed platform
   executor gate: only the exact selected physical-provider
@@ -107,7 +108,8 @@ Remaining:
   ordered receiver-excluded visible parameter type/mode/shape rows. Those facts
   are rechecked against the exact lowered continuation, selected slot, arrival
   parameter identities, and checked receiver layout. For the currently
-  admitted UEFI x86-64 schema only, the compiler-private Microsoft x64 policy now derives
+  admitted UEFI target's semantic continuation shape only, the compiler-private
+  Microsoft x64 policy now derives
   one complete `CallPlan` over the optional receiver followed by Image and
   InitialStorage, with Unit result, and validates every placement against the
   sealed declaration shape. A future SysV/AAPCS schema remains fenced until the
@@ -156,7 +158,8 @@ Remaining:
   These are logical values only: no bytes, registers, stack locations, wrapper
   body, call, or execution evidence is produced.
   Those receiver-free logical values can now move into a sealed indirect-
-  operand image carrier for the exact admitted UEFI/Microsoft x64 ABI. It
+  operand image carrier for the exact semantic continuation ABI currently
+  selected by the UEFI target. It
   retains little-endian `{base,length}` bytes beside each immutable
   `ValuePlacement`, requires Image through RCX with caller copy `32..48` and
   InitialStorage through RDX with caller copy `48..64`, and rejects role,
@@ -218,16 +221,17 @@ Remaining:
   claimed.
   The main backend now also retains a compiler-private launch-value copy
   operation across abstract, target, assigned, machine, encoded-byte, and
-  final-image replay. For the receiver-free UEFI/Microsoft x64 shape, exact
-  indirect `{base,length}` fields arriving through RCX/RDX can be copied into
+  final-image replay. For the receiver-free semantic continuation leg currently
+  selected by the UEFI target, exact indirect `{base,length}` fields arriving
+  through RCX/RDX can be copied into
   the live 72-byte outgoing frame at `rsp+32/+40/+48/+56` before the retained
   address loads. Canonical x86 bytes, RAX/StackPointer footprint, zero
   relocation, exact tuple ordering, and immediate-versus-dynamic write-mode
   separation fail closed. No production builder emits this sequence yet; no
   generated wrapper body, source-continuation call, object-entry selection, or
   native execution is claimed.
-  The receiver-free UEFI/Microsoft bridge now also retains sealed source-
-  continuation inbound-realization evidence. It joins the independently
+  The receiver-free semantic continuation wrapper now also retains sealed
+  source-continuation inbound-realization evidence. It joins the independently
   derived free Unit `CallPlan` to the exact encoded `Source(StateKey)` function,
   symbol/text interval, and two immediately-post-`FunctionEnter`
   Image/InitialStorage captures: 16-byte indirect values through RCX/RDX into
@@ -239,8 +243,8 @@ Remaining:
   realization. This emits no wrapper body or call, consumes no installation-
   derived values, does not switch the object entry, and does not claim native
   execution.
-  The emitted receiver-free UEFI/Microsoft bridge now also retains a sealed
-  post-encoding phase-alignment template for the generated wrapper body.
+  The emitted receiver-free semantic continuation wrapper now also retains a
+  sealed post-encoding phase-alignment template for the generated wrapper body.
   It binds the canonical generated-wrapper identity and symbol to the exact
   retained Source identity, symbol, and text interval, then pins eleven ordered
   compiler-private steps: function entry, a balanced 72-byte outgoing
@@ -268,9 +272,9 @@ Remaining:
   bytes against the Source interval. The compile report and optional manifest
   retain that carrier; non-writing builds retain none. This proves final image
   content only, not firmware invocation, installed roots, or native execution.
-  That carrier now also retains independently replayed physical-arrival
-  evidence for the exact UEFI x64 receiver-free path: the checked
-  Image/InitialStorage `BoundaryEntryPlan` placements must be the same indirect
+  That carrier now also retains independently replayed semantic-continuation
+  evidence for the exact UEFI-target receiver-free semantic leg: the checked
+  Image/InitialStorage continuation-plan placements must be the same indirect
   RCX/RDX placements consumed by the generated wrapper, and the four ordered
   launch-value copy rows must occupy exact in-wrapper byte ranges, match their
   canonical 15-byte encodings in both encoded and final text, and own no
@@ -293,12 +297,16 @@ Remaining:
   value/authority carrier (or separate hidden supply), final firmware
   composition, and native-execution evidence; those remain before this slice
   is complete. The next receiver-free production boundary is now exact: the
-  UEFI physical-to-semantic entry composition decision must define the target-
-  owned adapter that turns UEFI `ImageHandle` and `SystemTable` arrival into
-  the two provider-issued semantic root values and one invocation receipt.
-  Until that producer exists, no compiler carrier may
+  target profile must fix a physical UEFI requirement receiving `ImageHandle`
+  and `SystemTable` and returning `EfiStatus`, then join its generated ABI shell
+  to an exact target-authored bootstrap adapter. That adapter installs scoped
+  firmware providers, obtains root geometry/correspondence evidence, performs
+  the bounded linear map/exit protocol, and crosses the separate
+  `ProgramStorageEntry::enter` semantic installation edge before invoking the
+  build-bound continuation. Until that producer exists, no compiler carrier may
   claim that installed Image/InitialStorage authority occupied RCX/RDX at this
-  wrapper invocation. Native-invocation evidence belongs after that adapter;
+  semantic-wrapper invocation. Native-invocation evidence belongs after that
+  adapter;
   another compiler-side authority row would duplicate facts without closing
   the boundary.
 
@@ -318,8 +326,8 @@ Remaining:
   window contract.
   Proof-only and
   deliberately trapping fixtures remain targetless. Final firmware composition
-  of `ImageHandle`/`SystemTable` inputs with semantic roots is design-blocked on
-  owner Q1; the remaining physical bridge and corpus work is not. The native
+  of `ImageHandle`/`SystemTable` inputs with semantic roots is specified below;
+  the remaining physical bridge and corpus work is engineering. The native
   differential RUN corpus now routes every host-authored fixture through
   production entry selection (including bounded outer-job/single-worker native
   compiles) instead of silently retaining the legacy test-entry seam. Eight
@@ -421,6 +429,27 @@ Remaining:
   rootless until real platform providers exist; when they migrate, use ordinary
   Unit entries and explicit exit providers rather than restoring the legacy
   entry seam or inventing fake GUI authority.
+- **UEFI-PHYSICAL-SEMANTIC-ENTRY — implement the settled two-surface bridge.**
+  Extend normalized entry schemas and artifact identity with a target-fixed
+  physical requirement/calling plan/result map and a distinct semantic arrival
+  requirement/build-bound continuation. Keep `EfiSystemTable` as a private
+  validated native layout beneath lifecycle-scoped providers and
+  `EfiImageHandle` as an opaque provenance-bearing input; neither is an
+  `Extent`. Emit the physical ABI shell, call the exact target-authored
+  bootstrap adapter, and join physical invocation, provider evidence, semantic
+  root positions, continuation, and one installation receipt. Implement a
+  target-bounded `GetMemoryMap`/`ExitBootServices` state cycle whose decreasing
+  attempt count and every non-copy capability, allocation, snapshot, and key
+  are explicit arrival terms. Stale-key rejection returns live custody for
+  retry; exhaustion returns the authored EFI error; success consumes
+  boot-scoped services, transfers existing allocation lineage, and permits
+  separately policy-qualified final-map introductions. Establish or prove a
+  cross-exit handoff stack, conserve it as a target-owned partition, and pass
+  only a disjoint contiguous initial-storage residual to source. Add canaries
+  for physical/semantic ABI conflation, hidden firmware parameters, handle-to-
+  extent fabrication, unmeasured retry, lost linear capability, incorrect
+  success/failure status mapping, provider use after exit, duplicated storage
+  lineage, and a `Granted` residual containing the active stack.
 - **CONSERVATION-CONTRACT / TERMINAL-CONTENT-CLAIMS.** Take one real
   content-bearing source program through terminal Psi. Add sealed introduction
   and custody-exit frontiers, derive residual geometry at partial bodyless
@@ -4463,7 +4492,7 @@ Remaining:
   outcomes only when terminal wait/foreign edges can derive them. Inserted native
   metering must consume the installed exact-site
   attribution rows, but is design-blocked on the sponsor counter, exhaustion
-  transfer, and resumable continuation ABI in owner Q2. Keep WCET and wall-clock
+  transfer, and resumable continuation ABI in owner Q1. Keep WCET and wall-clock
   conversion separate.
 - **PROOF-RELEVANCE-MIGRATION.** Finish binding-level `[erased]`, checked
   noninterference, erased-stripped layout, and obligation preservation across
@@ -4586,8 +4615,11 @@ Owners:
   structural coincidence, and visible-unique selection. Retain a checked
   per-use row with call site, static-machine ordinal, selected
   machine/satisfaction row, exact requirement overload, separate published and
-  actual envelopes plus their refinement proof, and the target thunk-placement
-  recipe. Emit the private
+  actual envelopes plus their refinement proof, and the target entry recipe.
+  Separately evaluate and validate the registrar's fixed callback-
+  materialization row from exact binder-slot identity to one nominal native
+  parameter or validated layout-field place. Its fingerprint must not include
+  the selected callback machine. Emit the private
   relocation only from validated binding lowering. Registration is linear,
   explicitly unregisters, retains required code/component leases, and keeps
   selected identity in provenance without importing narrower facts unless an
@@ -4632,9 +4664,11 @@ Owners:
   runtime code address. Both check-only and native orchestration immediately
   consume that key, revalidate the retained target plan, and reject missing,
   duplicate, invalid, or fingerprint-drifted realizations before backend
-  lowering. That join now materializes one target-owned callback-placement row
+  lowering. That join now materializes one target-owned callback-use/thunk row
   containing the exact nominal-use site and ordinal, selected machine/entry,
   satisfaction identity, fingerprint, and validated `BoundaryEntryPlan`.
+  It does not yet supply the separately settled fixed registrar binder-slot-to-
+  native-place row.
   Checked-only compilation exposes those rows and native compilation retains
   them on `BackendPlan`, so no later thunk pass may replace the recipe with a
   convention oracle or silently discard it. Native backend planning now also
@@ -6270,10 +6304,40 @@ Owners:
   remaining slices are
   resource-ceiling aggregation, multi-entry/re-entrant target instruction
   lowering, and the
-  private registration relocation (whose binding placement is design-blocked
-  on `OWNER_QUESTIONS.md` Q5),
+  private registration relocation from the now-settled binder-slot/native-place
+  row,
   registration leases/unregister,
   and cross-target registered-callback canaries.
+- **CALLBACK-PRIVATE-MATERIALIZATION — close the outbound registrar plan.**
+  Extend normalized `CallPlan` with callback-materialization rows and
+  `NativePlace` with exact native-parameter and validated layout-field paths.
+  Extend normalized layout plans with typed private-materialization demands
+  that are absent from the source schema and cannot be read, written,
+  serialized, or addressed by source. Require one compatible nonoverlapping
+  supply per binder and demand; reject missing, duplicate, inferred-order,
+  hidden-argument, raw-offset, and unresolved forms. Retain the fixed registrar
+  fingerprint separately from per-use selected-machine/thunk identity, join
+  them only during private relocation emission, and add direct-argument,
+  nested-field, multi-binder, and tamper canaries.
+- **REGISTERED-CALLBACK-LIFETIME — implement the runtime protocol.** A
+  successful registrar call establishes one future external root represented
+  by a linear `Registration`; rejection establishes none. Successful
+  unregister ends the root before releasing code/component leases and returns
+  the exact live-registration capacity occurrence. Rejection returns capacity
+  unchanged, and an unsuccessful unregister retains it. Capacity bounds live
+  runtime registrations, not statically emitted thunk count. `build.omg`
+  selects and admits the realization/resources; ordinary Omega control flow
+  performs registration.
+- **FOREIGN-RETAINED-ARGUMENT-BACKING — generalize outside callbacks.** Keep
+  argument backing and retention off callback-materialization rows. Specify the
+  ordinary outbound-plan dispositions for call-scoped storage, public
+  lifetime-bound borrows, moved stable custody, and private snapshots. Require
+  exact stable-root/range/access/lifetime/revision provenance for every retained
+  pointer edge; unknown provenance rejects, recursive graphs require aggregate
+  arena/extent custody, and copying requires an explicit semantic snapshot
+  contract. Provider backing may not change a pinned public result type;
+  concurrent foreign writes use External placement, while exclusive mutation
+  returns the requirement's declared preserved/invalidated content outcome.
 - Implement the narrow Windows `user32` canary without exposing a raw code
   address. Derive `Atomic::interruption_fence` same-context evidence from the
   installed external-root route and reject it elsewhere.
@@ -6400,7 +6464,7 @@ compiler concept is introduced.
   and out-of-isolated-root shapes remain conservative fences. Do not restore
   authored `stores` clauses or treat lifetime elision as evidence; Git carries
   individual evidence cohorts.
-- **TPR4/TPR6 — design blocked on owner Q4.** Choose how an ordinary domain or
+- **TPR4/TPR6 — design blocked on owner Q2.** Choose how an ordinary domain or
   routed requirement is classified and attached as a progress premise before
   connecting progress-profile grants and receipts. Generic routed/domain
   requirements must not be treated as progress merely because they are
@@ -6427,6 +6491,20 @@ reach or trust, and private proof improvements do not change public identity.
   wider structural partial values, repeated-cycle resource composition, and
   conservation/backend-ledger reporting. This is not yet a general conditional
   CFG, complete cleanup plan, or conservation witness.
+- **EXTERNAL-ENTRY-STACK-EPOCHS — implement the settled root realization.**
+  Replace the scalar provider-local stack summary with the complete finite set
+  of installation-admissible arrival contexts and a finite epoch sequence per
+  context. Each epoch retains stage, active domain, per-domain occupancy and
+  alignment, and phase-specific nesting allowance; exactly one body epoch joins
+  the emitted Terminal-Psi WCSU. Derive architectural arrival by applying a
+  sealed target rule to exact installed-entry facts, derive generated adapter
+  epochs from emitted stub bytes, and admit opaque adapters only through an
+  identity-bound receipt. Resolve relative `Interrupted` along each nesting
+  path and close `ProviderSelected` before composition. Compose concurrent live
+  demand with alignment and alternatives by maximum across epochs and contexts;
+  reject omitted or unknown contexts, bare numeric claims, unresolved domains,
+  unbounded depth, evidence drift, and overflow. Add no architecture-specific
+  frame vocabulary to source.
 - **TR3-TR8:** finish whole-call-graph WCSU derivation, bind exact `StackPlan`
   evidence, reserve fixed nonmoving `StackLease`s, validate preservation and
   cancellation conformances, transfer arguments transactionally, lower
@@ -6561,11 +6639,9 @@ reach or trust, and private proof improvements do not change public identity.
   part of the domain-separated semantic bytes, so the refreshed fingerprint
   pins the intentional identity change; conditional, nested-conditional,
   division-stack, and image suites are green.
-  Provider-sized external adapter/arrival state is design-blocked on
-  `OWNER_QUESTIONS.md` Q3: stack-domain ownership across interrupted and
-  switched entry must be settled before this can become a complete root
-  `StackPlan`. Zero-byte internal closures remain inadmissible until that
-  adapter demand exists.
+  Complete external-root `StackPlan` production now depends on implementing
+  `EXTERNAL-ENTRY-STACK-EPOCHS`, not on an owner decision. Zero-byte internal
+  closures remain inadmissible until the entry realization is joined.
 - **BLOCKEXEC:** implement an ordinary package-level blocking executor with
   bounded queues, moved custody, linear completion claims, suspension, and
   provider selection. A hung in-process worker cannot be killed safely;
@@ -7074,9 +7150,11 @@ boundary without its corresponding checked law.
 
 ### Boundary realization and nominal binding identity
 
-- Replace string-backed foreign binding identity with nominal `LibraryId`,
-  `SymbolId`, `CallingPlanId`, firmware/table, vtable, and mechanism-specific
-  values. Raw object-format library/symbol bytes may exist only in sealed
+- Replace string-backed foreign binding identity with one namespace-owned
+  nominal `DllImportId` that inseparably owns its library and export identity,
+  plus nominal `CallingPlanId`, firmware/table, vtable, and mechanism-specific
+  values. Source cannot freely pair libraries and symbols. Raw object-format
+  library/symbol bytes may exist only in sealed
   target/link metadata and must never serve as an Omega symbol, requirement key,
   provider selection, or checked-artifact identity.
 
@@ -7315,8 +7393,6 @@ can produce installed code; validation binds exact final bytes and placement.
 These are pointers to the owning question or open design item, not duplicate
 specifications:
 
-- **EXTERNAL-ENTRY-STACK-DOMAIN:** owner Q3.
-- **UEFI-PHYSICAL-SEMANTIC-ENTRY-COMPOSITION:** owner Q1.
 - **SUM-MATERIALIZATION:** tagged-case placement vocabulary in
   `wiki/language_guide/appendix_open_questions.md`.
 - **ATOMIC-EVENT-MODEL:** portable atomic axioms and target refinement choices
@@ -7325,11 +7401,8 @@ specifications:
   checked arithmetic.
 - **IMPORTED-CRASH-CAPSULES:** realization/import/certificate identity in
   `wiki/language_guide/appendix_open_questions.md`.
-- **NATIVE-LOGICAL-FUEL-METERING:** owner Q2.
-- **PROGRESS-PROFILE-CLASSIFICATION:** owner Q4.
-- **QUOTIENT-RESPECTS-CARRIER:** owner propositions/quotients; define the sealed
-  compiler-derived positional-telescope interface and its checked/terminal
-  evidence identity without an arity ladder or authored adapter.
+- **NATIVE-LOGICAL-FUEL-METERING:** owner Q1.
+- **PROGRESS-PROFILE-CLASSIFICATION:** owner Q2.
 
 ## Platform-gated verification
 

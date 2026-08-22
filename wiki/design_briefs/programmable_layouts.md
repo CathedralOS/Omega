@@ -1,6 +1,6 @@
 # Design Brief: Programmable Layouts
 
-Current as of 2026-08-19. Layouts and codecs are library policies with
+Current as of 2026-08-21. Layouts and codecs are library policies with
 machine-checked contracts. The compiler owns a small placement vocabulary,
 plan validator, and realization checker. Codec realizations may be authored or
 generated from the same normalized plan.
@@ -70,6 +70,24 @@ index, because fragments and overlays may contribute more than one placement
 for a field. A new format is normally a library policy; a new placement
 primitive requires a compiler release.
 
+A native-only plan may also declare a typed private-materialization demand.
+Its slot source is neither a semantic schema field nor an author-writable hole:
+
+```text
+SlotSource =
+    SourceField(FieldId)
+  | Constant(ConstantId)
+  | PrivateMaterialization(MaterializationSlotId, MaterializationKind)
+  | Padding
+```
+
+The first customer is a foreign callback field whose kind names one exact
+callback requirement. The source-visible specification has no corresponding
+field. A layout containing a private demand is incomplete for ordinary value
+materialization; only a consuming plan that supplies every demand exactly once
+may use it. The compiler never exposes the materialized entry identity as
+source-visible `addr` data.
+
 ## Plan validation
 
 The validator proves deterministic structural rules such as:
@@ -83,6 +101,8 @@ The validator proves deterministic structural rules such as:
   destination gaps/overlap except where an explicit overlay permits it;
 - overlay/tag rules are internally consistent;
 - dynamic extents are bounded by the enclosing carrier; and
+- every private-materialization demand is consumed exactly once by a compatible
+  enclosing plan, with no duplicate, overlapping, or unresolved supply; and
 - the plan normalizes to one stable identity.
 
 Published layout/type identity is normalizer-owned. Prover strength may accept

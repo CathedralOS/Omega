@@ -459,24 +459,28 @@ validation, not to author convention.
 
 Entry-provisioned image and initial-storage extents use the same inbound route
 rule as other admitted parameters. Core owns the stable
-`ProgramStorageEntry::enter` arrival requirement, whose two exact
+`ProgramStorageEntry::enter` semantic arrival requirement, whose two exact
 `Extent in Granted` positions name the image and initial storage roots, and
 `Extent::Granted` lists it as an alternative route. A target entry schema
-selects that requirement and calling policy, then declares which already-typed
-values its source continuation sees. Hosted continuations normally see neither
-root; freestanding continuations may receive both. Those exact arrival positions
-remain the portable keys by which the compiler derives image sections,
-receiver storage, and initial stack/storage subextents after installation. The
-installation bridge joins the selected schema's requirement and calling-plan
-fingerprint to the generated captures for positions 0 and 1. Both runtime
+composes it with a separate target-fixed physical requirement and bootstrap
+adapter, then declares which already-typed values its build-bound source
+continuation sees. Hosted continuations normally see neither root; freestanding
+continuations may receive both. No target-native handle extends the semantic
+parameter list. Those exact arrival positions remain the portable keys by
+which the compiler derives image sections, receiver storage, and initial
+stack/storage subextents after installation. The installation bridge joins the
+physical invocation and calling-plan fingerprint, target schema, bootstrap
+provider realizations and input provenance, semantic requirement, generated
+captures for positions 0 and 1, and selected continuation. Both runtime
 geometries must satisfy
-`Granted`'s `no_wrap` predicate before either admitted grant is consumed; a
-rejected handoff returns both grants without importing a complete qualified
-fact. A receiver-bound entry additionally validates its checked layout's
-alignment and capacity before either grant is consumed, then reserves a
-conserved owned partition beneath initial storage. The reservation record does
-not establish a value: the physical bridge must still zero those bytes into the
-checked ZII receiver and lend that occurrence once. A completed installation
+`Granted`'s `no_wrap` predicate before semantic installation commits; a
+rejected handoff returns every moved bootstrap input without importing either
+complete qualified fact. A receiver-bound entry additionally validates its
+checked layout's alignment and capacity before root custody moves, then
+reserves a conserved owned partition beneath initial storage. The reservation
+record does not establish a value: the bootstrap adapter must still zero those
+bytes into the checked ZII receiver and lend that occurrence once. A completed
+installation
 produces a non-authoritative audit record with
 the exact binding, geometry, authority metadata, lineage, and whole root-origin
 evidence, plus the exact receiver placement when present. The installing
@@ -490,15 +494,22 @@ allocation from initial storage
 instead produces an explicit conserved partition containing the selected range
 and every nonempty prefix/suffix remainder; invalid extraction returns the
 original pool and an unmodified partition recomposes the exact parent lineage.
+An active entry stack or provisioned receiver retained by the bridge is one
+such owned partition. Source receives only a disjoint residual, never one
+qualified extent containing inaccessible live infrastructure.
 
-The target profile declares the external-root slot and its schema; `build.omg`
-binds the target-qualified slot to one exact source entry. The generated bridge
-implements the physical arrival requirement and calls that entry through the
-schema's visible shape. Slot selection does not authorize a claim by itself.
-The domain owner's route authorizes what the installed bridge invocation may
-introduce, while the selected slot, bridge, and installation receipt identify
-the concrete occurrence. The bridge's derived contract and provenance compose
-into the artifact before target supply is admitted.
+The target profile declares the external-root slot and schema, fixes the
+physical requirement, and owns the bootstrap adapter; `build.omg` binds the
+target-qualified slot to one exact semantic source entry. A generated ABI shell
+implements physical arrival and invokes that adapter. The adapter may interpret
+a validated native service-table layout only through its selected providers; a
+physical handle or pointer is never itself an `Extent`. Slot selection and raw
+geometry authorize no claim. The domain owner's route authorizes what the
+semantic installation edge may introduce, while the physical invocation,
+provider evidence, selected slot, bridge, and installation receipt identify the
+concrete occurrence. Pre-installation rejection calls no source entry and
+introduces no complete semantic root. The bridge's derived contract and
+provenance compose into the artifact before target supply is admitted.
 
 The admitted root is a scoped hypothesis import, not a proof that external
 reality equals the compiler model. A selected provider states the exact

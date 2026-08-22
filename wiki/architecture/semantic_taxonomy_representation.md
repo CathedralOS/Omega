@@ -364,8 +364,9 @@ from explicit conformance closure rather than authored rows.
 arguments, never a rendered string. The enclosing realization-machine symbol
 and normalized signature remain explicit identity inputs. A payload-free
 `CompilerIntrinsic` uses that realization symbol plus target to select a sealed
-catalog lowering. Foreign `LibraryId`, `SymbolId`, and calling-plan IDs resolve
-nominally; raw linker bytes live only in fingerprinted target/link metadata.
+catalog lowering. One nominal `DllImportId` inseparably owns its library and
+export identity; it and calling-plan IDs resolve nominally. Raw linker bytes
+live only in fingerprinted target/link metadata.
 
 Target profiles expose the same selection through typed slots:
 
@@ -391,9 +392,12 @@ TargetSlotBinding {
 }
 
 EntryShape {
-    arrival_requirement,
+    physical_arrival_requirement,
+    semantic_arrival_requirement,
+    bootstrap_adapter,
+    physical_result_map,
     visible_parameters,
-    result,
+    semantic_result,
     receiver_provisioning: None | ProvisionedZii,
 }
 ```
@@ -407,14 +411,17 @@ orthogonal. The selected target owns required-slot completeness, so a
 cross-profile binding, duplicate binding, or missing required build-bound slot
 rejects.
 
-An entry schema selects one physical arrival requirement, contributes
-calling/state policy, and declares the source-visible continuation shape.
-Generated bridges retain the arrival identity, provision an optional exclusive
-receiver beneath an admitted entry root, and receive a compiler-derived
-`MachineSemanticContract` whose crash, reach, write, work, stack/state,
-provisioning, introduction, and provenance rows compose with the bound source
-entry closure. The selected source machine is not a second physical entry
-requirement.
+An entry schema fixes one physical arrival requirement and separately selects
+one semantic arrival requirement for its build-bound continuation. It
+contributes physical calling/state policy, an exact target bootstrap adapter,
+native-result mapping, and the source-visible continuation shape. The generated
+ABI shell and authored bootstrap retain both arrival identities. Together they
+install lifecycle-scoped platform providers, establish the semantic occurrence,
+provision any exclusive receiver beneath admitted storage, and receive a
+compiler-derived `MachineSemanticContract` whose crash, reach, write, work,
+stack/state, provisioning, introduction, and provenance rows compose with the
+bound source-entry closure. The selected source machine is neither the physical
+entry nor a source of hidden platform parameters.
 
 Selected-provider closure also derives executable TCB metadata independently of
 the machine contract:

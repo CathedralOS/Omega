@@ -120,8 +120,7 @@ an expression-body operator. It selects the external-provider supply variant:
 machine Kernel32::write_file(handle: WinHandle, bytes: &[u8]) -> WriteResult
     satisfies Kernel32Requirements::write_file
     via Binding::DllImport {
-        library: kernel32_lib,
-        symbol: write_file_symbol,
+        import: Windows::Kernel32::WriteFile,
         plan: MsX64,
     };
 ```
@@ -140,8 +139,9 @@ the binding kind and evidence. Merely writing `via` asserts no trust class.
 The realization machine already supplies the canonical Omega symbol.
 `Binding::CompilerIntrinsic` therefore has no textual name payload: the
 resolved realization symbol, normalized signature, and selected target key the
-sealed intrinsic catalog. Other binding operands are nominal `LibraryId`,
-`SymbolId`, `CallingPlanId`, or mechanism-specific typed values. Native linker
+sealed intrinsic catalog. Other binding operands are nominal `DllImportId`,
+`CallingPlanId`, or mechanism-specific typed values. A `DllImportId`
+inseparably names its library and export. Native linker
 bytes may occur only in sealed target metadata and are never semantic identity.
 That metadata is fingerprinted; changing its foreign bytes changes the selected
 target/artifact identity and forces fresh admission.

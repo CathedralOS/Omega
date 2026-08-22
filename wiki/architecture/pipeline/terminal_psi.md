@@ -119,7 +119,11 @@ selection to interpret its meaning. It contains:
 Nominal static-machine callback bindings survive as explicit call-use rows.
 Each row names the registration call and operation, static-machine argument
 ordinal, selected machine and satisfaction row, exact canonical callback
-requirement overload, and target thunk-placement recipe. It retains the
+requirement overload, and target entry recipe. The registrar's evaluated
+outbound plan separately retains a fixed callback-materialization row from the
+exact binder slot to one nominal native parameter or layout-field place. That
+row's fingerprint is independent of the later selected callback; lowering
+joins it to the per-use row and private thunk identity. It retains the
 requirement's published envelope separately from the selected machine's actual
 envelope and carries the checked actual-refines-published judgment. A native
 address is never semantic input; only validated lowering materializes the
@@ -131,7 +135,9 @@ Legacy native planning already binds each such row to the selected control-flow
 entry and one deterministic private thunk symbol, failing closed if the entry
 was lost. This is still address-free planning: multi-entry code emission and
 placement of the private symbol into the registrar's declared native slot are
-separate lowering steps.
+separate lowering steps. The placement step consumes only a complete validated
+outbound plan: missing, duplicate, overlapping, shape-incompatible, or
+unresolved private materialization demands reject.
 
 Reference identities retain loan compatibility and permitted operations
 separately. `&write T` carries an exclusive loan over an existing valid `T`
@@ -2829,10 +2835,12 @@ proof shapes are stated once there; this native accounting section adds no
 second vocabulary.
 Field-only trees,
 nested or multiple member identities, wider or partial integer computation,
-member/comparison mixtures, external
-adapter/interrupt-arrival state, and other terminal function forms remain
-outside the shared-join theorem, so the inspection surface makes no
-installed-root WCSU claim.
+member/comparison mixtures, external adapter/architectural-arrival state, and
+other terminal function forms remain outside the shared-join theorem, so the
+inspection surface makes no installed-root WCSU claim. External-root admission
+must join the emitted body demand with the separate context-indexed entry-epoch
+realization; it must never relabel target or opaque-provider arrival evidence as
+Terminal-Psi derivation.
 
 ## Implementation queue
 

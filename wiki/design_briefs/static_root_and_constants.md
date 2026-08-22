@@ -136,12 +136,14 @@ roots its schema publishes. The receiver's storage must not overlap an owned
 root handed to the source entry: the schema either provisions it from separate
 hidden supply or forwards only the conserved residual partition.
 
-The physical arrival contract remains target-owned. The generated bridge is the
-installed external root, derives its complete contract, and calls the selected
+The physical arrival contract and target bootstrap remain target-owned and are
+distinct from the stable semantic arrival requirement. A generated ABI shell
+plus that authored adapter form the installed external root, derive their
+complete contract, establish the semantic occurrence, and call the selected
 source entry. The source machine does not become magical because it is bound.
 `build.omg` names that source machine only; the launch environment supplies the
-physical arrival values to the bridge, and the bridge supplies the schema's
-visible arguments to the machine.
+physical arrival values under the target-fixed contract, and the bridge
+supplies only the schema's visible semantic arguments.
 
 ## Capability consequence
 

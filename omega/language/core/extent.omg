@@ -36,10 +36,11 @@ requires
 }
 
 // One stable semantic entry requirement owns the loader-provisioned image and
-// initial stack/storage roots. Target entry traits inherit this exact
-// requirement and may refine only its Calling<C>/target plan. Installation
-// introduces these parameter occurrences; an ordinary call merely has to
-// supply their Granted preconditions and cannot mint either fact.
+// initial stack/storage roots. A target profile composes its separate physical
+// arrival contract with this exact semantic requirement; target ABI inputs do
+// not extend or refine this parameter list. Installation introduces these
+// parameter occurrences. An ordinary call merely supplies their Granted
+// preconditions and cannot mint either fact.
 pub boundary trait ProgramStorageEntry {
     machine enter(
         image: Extent in Granted,

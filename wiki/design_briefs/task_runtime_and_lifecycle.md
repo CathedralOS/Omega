@@ -449,6 +449,14 @@ Preflight proves the predicted segment fits; a hard-limited owned stack also
 detects underestimation at its own boundary. Opaque foreign frames remain in
 the provider stack domain.
 
+For an installed external root, that execution-stack choice is refined by a
+context-indexed epoch realization. Each admissible arrival context has a finite
+enter/body/exit sequence whose epochs state the active domain, per-domain
+occupancy, and nesting allowance. The body epoch alone receives the checked
+Omega WCSU. Relative `Interrupted` follows the active parent epoch through
+nested entry, while target rules, emitted-stub derivation, or admitted opaque
+evidence establish the non-body portions.
+
 A platform adapter removes ordinary application code from the native recursive
 dispatch graph. It classifies which of its own operations may synchronously
 re-enter, defines restricted synchronous handlers, checks their ordinary Omega
