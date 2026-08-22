@@ -3131,6 +3131,13 @@ Remaining:
   consumer. Cast and affine consumers, citation and endpoint order, nested proof
   shape, rejection behavior, and the exact two-alias frontier are unchanged;
   no third alias, recursion, or graph search is introduced.
+  Fixed one-alias order-transport candidate enumeration now lives in paired,
+  side-local `alias_transport/one/candidates` modules. Producer and
+  reconstruction independently retain assumptions-before-semantic-axioms
+  traversal, equality orientation, and indexed relation order before endpoint-
+  substitution completion; only production materializes citation proofs. The
+  existing `alias_transport/one` facades, proof bytes, rejection order, and the
+  exact one-alias frontier remain unchanged.
   Fixed one-alias bound completion now lives in independent side-local
   `alias_transport/one/completion` modules. The producer parent retains origin-
   indexed equality and bound citations, same-carrier distinctness, equality
