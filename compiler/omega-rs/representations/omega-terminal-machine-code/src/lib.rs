@@ -188,6 +188,10 @@ pub struct TerminalBoundarySettlementRecord {
     /// reconstruct the exact successful-completion receipt set.
     pub completion_claim_sources: Vec<TerminalCompletionClaimSource>,
     pub completion_receipts: Vec<CompletionReceipt>,
+    /// Exact native result placement consumed by a result-bearing realization.
+    /// Metadata-only settlements retain `None` and cannot manufacture result
+    /// storage after lowering.
+    pub native_result_placement: Option<ValuePlacement>,
     /// Position in the verified Unit operation sequence. This remains the
     /// canonical tie-break when multiple metadata rows share a code offset.
     pub operation_ordinal: usize,
