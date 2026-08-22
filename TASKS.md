@@ -2159,7 +2159,13 @@ Remaining:
   modules. Production and reconstruction independently preserve the exact
   preference order across direct, literal-landed, fixed one-/two-alias, and
   exactly-two-leg transitive custody before invoking affine completion; no
-  generic path search or additional evidence shape is introduced. Direct
+  generic path search or additional evidence shape is introduced. Cast-
+  adjacent selection now uses matching small producer/verifier dispatch
+  facades over independent side-local direct, sandwich, and endpoint modules.
+  Direct-root evidence remains before the fixed affine/cast/affine family;
+  citation order, strict cast boundaries, endpoint conversion, proof shapes,
+  rejection, and fixed frontiers remain unchanged, with no authority shared
+  across the trust boundary. Direct
   affine-root custody now lives in independent side-local
   `affine_selection/direct` modules. Production alone retains the exact root-
   bound citation and tries its left then right value endpoints before
