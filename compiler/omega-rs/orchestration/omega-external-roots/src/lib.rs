@@ -77,6 +77,16 @@ normalized_id!(
     FuelSuspensionValidationReceiptId,
     "fuel-suspension validation receipt"
 );
+normalized_id!(NativeFuelMeterPlanId, "native fuel-meter plan");
+normalized_id!(SponsorContextTransportId, "sponsor-context transport");
+normalized_id!(
+    FuelExhaustionTransferPlanId,
+    "fuel-exhaustion transfer plan"
+);
+normalized_id!(
+    DynamicFuelMeterValidationReceiptId,
+    "dynamic fuel-meter validation receipt"
+);
 normalized_id!(StateValidationReceiptId, "machine-state validation receipt");
 normalized_id!(InterruptInvocationId, "interrupt invocation");
 normalized_id!(InterruptEntryReceiptId, "interrupt entry receipt");
@@ -121,6 +131,8 @@ normalized_id!(
 
 mod fixed_fuel;
 pub use fixed_fuel::*;
+mod native_fuel;
+pub use native_fuel::*;
 mod opaque_callback_replacement;
 pub use opaque_callback_replacement::*;
 mod provider_execution;
