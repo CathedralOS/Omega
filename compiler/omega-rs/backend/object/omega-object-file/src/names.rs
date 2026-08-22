@@ -67,9 +67,11 @@ pub fn private_function_symbol_name(identity: MachineFunctionIdentity) -> Option
         return None;
     };
     Some(format!(
-        "__omega_function_{role}_m{}_s{}_g{}",
+        "__omega_function_{role}_m{}_mg{}_s{}_sg{}_segment{}",
         continuation.machine.arena_index(),
+        continuation.machine.generation(),
         continuation.state.arena_index(),
+        continuation.state.generation(),
         continuation.segment_index,
     ))
 }
@@ -89,6 +91,63 @@ pub fn section_name(target: NativeTarget, kind: SectionKind) -> String {
         (_, SectionKind::Text) => ".text".to_owned(),
         (_, SectionKind::Data) => ".data".to_owned(),
         (_, SectionKind::Bss) => ".bss".to_owned(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::private_function_symbol_name;
+    use omega_control_flow::{MachineFunctionIdentity, StateKey};
+
+    #[test]
+    fn private_function_names_bind_role_handles_generations_and_segment() {
+        let continuation = StateKey {
+            machine: psi_arena::Handle::from_parts(1, 2),
+            state: psi_arena::Handle::from_parts(3, 4),
+            segment_index: 5,
+        };
+        let source = MachineFunctionIdentity::source(continuation);
+        let source_name = private_function_symbol_name(source).expect("source private name");
+        assert_eq!(
+            source_name,
+            "__omega_function_source_m1_mg2_s3_sg4_segment5"
+        );
+
+        for drifted in [
+            StateKey {
+                machine: psi_arena::Handle::from_parts(1, 3),
+                ..continuation
+            },
+            StateKey {
+                state: psi_arena::Handle::from_parts(3, 5),
+                ..continuation
+            },
+            StateKey {
+                segment_index: 6,
+                ..continuation
+            },
+        ] {
+            assert_ne!(
+                source_name,
+                private_function_symbol_name(MachineFunctionIdentity::source(drifted))
+                    .expect("drifted source private name")
+            );
+        }
+        assert_ne!(
+            source_name,
+            private_function_symbol_name(
+                MachineFunctionIdentity::program_storage_entry_wrapper(continuation)
+                    .expect("wrapper identity")
+            )
+            .expect("wrapper private name")
+        );
+        assert!(
+            private_function_symbol_name(
+                MachineFunctionIdentity::callback_thunk(continuation, 0)
+                    .expect("callback identity")
+            )
+            .is_none()
+        );
     }
 }
 

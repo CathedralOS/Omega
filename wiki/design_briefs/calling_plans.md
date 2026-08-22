@@ -635,6 +635,12 @@ one object entry and the canonical private name for every non-entry source or
 wrapper identity. Renaming either rejects, and a callback identity cannot own
 the process entry. This keeps authored display spelling separate from linkage
 identity without treating arbitrary object spelling as trusted.
+The shared non-entry private-name primitive encodes the role, machine arena
+index and generation, state arena index and generation, and segment index.
+Generation drift can therefore neither preserve linkage spelling nor collide
+with a live canonical source/wrapper name. Callback spelling remains excluded
+from this primitive because its placement and plan fingerprint are additional
+identity inputs.
 Final relocation replay also builds one exact owner map from every retained
 selected-instruction identity to that function symbol. A selected instruction
 retained twice, an instruction relocation naming another function, or an

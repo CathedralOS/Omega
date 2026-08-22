@@ -109,7 +109,8 @@ mod tests {
         let wrong_identity = MachineFunctionIdentity::source(source_key(3));
         let mut object = ObjectPlan::with_capacities(NativeTarget::host(), 0, 1, 1);
         let symbol = object.layout.symbols.insert(SymbolPlan {
-            name: "__omega_function_source_m1_s2_g0".into(),
+            name: omega_object_file::private_function_symbol_name(source_identity)
+                .expect("canonical private source name"),
             section: SymbolSection::Section(SectionKind::Text),
             offset: 8,
             size: 4,

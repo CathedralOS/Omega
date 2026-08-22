@@ -1378,6 +1378,14 @@ Remaining:
   affine conclusion and the enclosing transitivity certificate. A nonclosed,
   mistyped, redirected, or weaker bridge rejects, and no variable-endpoint or
   cited-fact search is added. A
+  single exact prior value equality may also transport a completed affine bound
+  from its checked target alias to the canonical goal endpoint. The producer
+  replaces that one endpoint, constructs the bounded affine relation directly,
+  and wraps it in `IntegerLessOrEqualSubstitution`; reconstruction repeats the
+  same exact identity selection. A missing, redirected, crossed, or mistyped
+  target equality rejects. The affine relation builder cannot recurse into
+  another target alias, so this adds one wrapper only and no alias-chain search.
+  A
   second non-serialized common checker now normalizes the contiguous pure
   fixed-integer cast spine used by the accepted one-cast and multi-cast
   sandwiches. It binds strictly ordered canonical semantic equalities to exact
@@ -2214,7 +2222,10 @@ Owners:
   encoded source display name. Final replay independently rederives the target
   entry name and every non-entry source/wrapper private name; linkage renaming
   rejects, and callback identities cannot replace the process entry. The
-  richer callback name remains bound by the placement-specific join. Final
+  shared private-name primitive now binds role, machine/state arena indices
+  and generations, and segment, so handle-generation drift changes linkage
+  spelling instead of aliasing the earlier generation. The richer callback
+  name remains bound by the placement-specific join. Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
   instruction identities, redirected instruction relocation origins, and
