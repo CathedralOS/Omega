@@ -16,6 +16,7 @@ use psi_typed_trees::state::State;
 use psi_typed_trees::statement::{StatementNode, TableCall, TransitionTargetNode};
 use psi_typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
+mod alias_bindings;
 mod assignment_targets;
 mod boundary_calls;
 mod call_targets;
@@ -31,6 +32,9 @@ mod transition_topology;
 mod transparent_effects;
 mod type_capabilities;
 
+use alias_bindings::{
+    rebind_stable_local_mutable_alias_origin, stable_local_mutable_alias_rebinding_is_representable,
+};
 use assignment_targets::{
     assignment_target_type, expression_is_effectful_indexed_place,
     transparent_assignment_target_effect_is_structural,
@@ -322,15 +326,24 @@ fn summarize_state_written_paths(
                     stable_local_mutable_alias_rebinding_is_representable(
                         program,
                         machine,
-                        &machine_symbols,
-                        active_states,
                         state,
                         &target,
                         assignment.value,
-                        parameters,
-                        &isolated_local_roots,
                         &local_alias_origins,
-                        symbols,
+                        |aliases| {
+                            stable_alias_initializer_origin(
+                                program,
+                                machine,
+                                &machine_symbols,
+                                active_states,
+                                assignment.value,
+                                parameters,
+                                &isolated_local_roots,
+                                aliases,
+                                symbols,
+                                true,
+                            )
+                        },
                     )
                 }),
             _ => false,
@@ -369,15 +382,24 @@ fn summarize_state_written_paths(
                     && rebind_stable_local_mutable_alias_origin(
                         program,
                         machine,
-                        &machine_symbols,
-                        active_states,
                         state,
                         relative,
                         assignment.value,
-                        parameters,
-                        &isolated_local_roots,
                         &mut local_alias_origins,
-                        symbols,
+                        |aliases| {
+                            stable_alias_initializer_origin(
+                                program,
+                                machine,
+                                &machine_symbols,
+                                active_states,
+                                assignment.value,
+                                parameters,
+                                &isolated_local_roots,
+                                aliases,
+                                symbols,
+                                true,
+                            )
+                        },
                     )?
                 {
                     continue;
@@ -2417,79 +2439,6 @@ fn parameter_relative_call_result_origin(
     })
 }
 
-/// Update one local mutable-reference binding when its replacement is another
-/// directly representable place. Existing aliases retain their already-
-/// canonicalized origins, so rebinding an upstream local never redirects a
-/// previously established reborrow. Structurally transparent call results
-/// compose through the same origin algebra; other computed replacements remain
-/// opaque.
-#[allow(clippy::too_many_arguments)]
-fn rebind_stable_local_mutable_alias_origin(
-    program: &TypedTrees,
-    machine: &Machine,
-    machine_symbols: &MachineSymbols<'_>,
-    active_states: &mut Vec<SymbolHandle>,
-    state: &State,
-    target: &str,
-    value: ExpressionHandle,
-    parameters: &[StateParameter],
-    isolated_local_roots: &[String],
-    aliases: &mut [(String, FramePlaceOrigin)],
-    symbols: &TopLevelSymbols<'_>,
-) -> Option<bool> {
-    let Some(position) = aliases.iter().position(|(alias, _)| alias == target) else {
-        return Some(false);
-    };
-    if !expression_may_rebind_mutable_alias(program, machine, state, value) {
-        return Some(false);
-    }
-    let origin = stable_alias_initializer_origin(
-        program,
-        machine,
-        machine_symbols,
-        active_states,
-        value,
-        parameters,
-        isolated_local_roots,
-        aliases,
-        symbols,
-        true,
-    )?;
-    aliases[position].1 = origin;
-    Some(true)
-}
-
-#[allow(clippy::too_many_arguments)]
-fn stable_local_mutable_alias_rebinding_is_representable(
-    program: &TypedTrees,
-    machine: &Machine,
-    machine_symbols: &MachineSymbols<'_>,
-    active_states: &mut Vec<SymbolHandle>,
-    state: &State,
-    target: &str,
-    value: ExpressionHandle,
-    parameters: &[StateParameter],
-    isolated_local_roots: &[String],
-    aliases: &[(String, FramePlaceOrigin)],
-    symbols: &TopLevelSymbols<'_>,
-) -> bool {
-    aliases.iter().any(|(alias, _)| alias == target)
-        && expression_may_rebind_mutable_alias(program, machine, state, value)
-        && stable_alias_initializer_origin(
-            program,
-            machine,
-            machine_symbols,
-            active_states,
-            value,
-            parameters,
-            isolated_local_roots,
-            aliases,
-            symbols,
-            true,
-        )
-        .is_some()
-}
-
 /// Recover an exact finite frame for transition SCCs whose write-capable state
 /// parameters are only permuted around each cycle.
 ///
@@ -2673,15 +2622,24 @@ fn build_permuted_cycle_frame_equation<'program>(
                     stable_local_mutable_alias_rebinding_is_representable(
                         program,
                         machine,
-                        machine_symbols,
-                        &mut active_states,
                         state,
                         &target,
                         assignment.value,
-                        parameters,
-                        &isolated_local_roots,
                         &local_alias_origins,
-                        symbols,
+                        |aliases| {
+                            stable_alias_initializer_origin(
+                                program,
+                                machine,
+                                machine_symbols,
+                                &mut active_states,
+                                assignment.value,
+                                parameters,
+                                &isolated_local_roots,
+                                aliases,
+                                symbols,
+                                true,
+                            )
+                        },
                     )
                 }),
             _ => false,
@@ -2716,15 +2674,24 @@ fn build_permuted_cycle_frame_equation<'program>(
                     && rebind_stable_local_mutable_alias_origin(
                         program,
                         machine,
-                        machine_symbols,
-                        &mut active_states,
                         state,
                         relative,
                         assignment.value,
-                        parameters,
-                        &isolated_local_roots,
                         &mut local_alias_origins,
-                        symbols,
+                        |aliases| {
+                            stable_alias_initializer_origin(
+                                program,
+                                machine,
+                                machine_symbols,
+                                &mut active_states,
+                                assignment.value,
+                                parameters,
+                                &isolated_local_roots,
+                                aliases,
+                                symbols,
+                                true,
+                            )
+                        },
                     )?
                 {
                     continue;
