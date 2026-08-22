@@ -1885,7 +1885,7 @@ Remaining:
   declarative four-family registry: 249-line control/entry, 621-line storage/place,
   866-line outbound-call, and 512-line buffer/wire/text responsibilities. A
   separate instruction-selection boundary-footprint owner has begun the same
-  split: its 5,445-line `entry.rs` parent delegates all eleven compact-binary
+  split: its 5,315-line `entry.rs` parent delegates all eleven compact-binary
   append/read footprint derivations to a 433-line `entry/wire.rs` child, while
   a separate 373-line `entry/text.rs` child owns bounded-buffer, string-
   descriptor, and runtime-text assembly footprints. A focused 152-line
@@ -1894,7 +1894,9 @@ Remaining:
   `entry/guards.rs` child owns static, runtime-text, place-shaped, and recursive
   runtime-value dispatch-guard footprints. A 199-line `entry/control.rs` child
   owns ordinary call/return mechanics and compiler-generated dispatch-scaffold
-  footprints. The public re-export surface, validation order, and 135-function
+  footprints. A 139-line `entry/assembly.rs` child owns the x86 checked-
+  assembly catalog footprint over retained selected instructions and runtime
+  operands. The public re-export surface, validation order, and 135-function
   inventory are unchanged; the
   children depend only on retained instructions/operands, the validated
   boundary plan, place-shape classification where applicable, and architecture
