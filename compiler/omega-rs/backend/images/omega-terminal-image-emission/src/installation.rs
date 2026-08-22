@@ -12,9 +12,9 @@ use psi_core::{
     StructuralFieldId, StructuralTypeId,
 };
 use psi_terminal::{
-    SemanticFingerprint, StructuralMultiplicity, StructuralParameterDeclaration,
-    StructuralPathSegment, StructuralPlaceDeclaration, StructuralResultDeclaration,
-    StructuralTypeShape, TerminalPsiIdentity, VocabularyMarker,
+    StructuralMultiplicity, StructuralParameterDeclaration, StructuralPathSegment,
+    StructuralPlaceDeclaration, StructuralResultDeclaration, StructuralTypeShape,
+    TerminalPsiIdentity,
 };
 use psi_terminal_fuel::TerminalFuelSchedule;
 use sha2::{Digest, Sha256};
@@ -36,6 +36,7 @@ mod function_affine_cleanup_codec;
 mod function_codec;
 mod function_parameter_codec;
 mod function_stack_codec;
+mod installation_header_codec;
 mod internal_unit_call_codec;
 mod port_effect_codec;
 mod provider_execution_codec;
@@ -46,6 +47,9 @@ mod value_placement_codec;
 use boundary_settlement_codec::{decode_boundary_settlements, encode_boundary_settlements};
 use fuel_attribution_codec::{decode_fuel_attributions, encode_fuel_attributions};
 use function_codec::{decode_functions, encode_functions};
+use installation_header_codec::{
+    DecodedInstallationHeader, decode_installation_header, encode_installation_header,
+};
 use internal_unit_call_codec::{decode_internal_unit_calls, encode_internal_unit_calls};
 use port_effect_codec::{decode_port_effects, encode_port_effects};
 use provider_plan_codec::{decode_provider_plans, encode_provider_plans};
@@ -536,62 +540,12 @@ pub fn encode_terminal_installation_record(
     .map_err(|_| TerminalInstallationError::CountNotRepresentable("checked instructions"))?;
 
     let mut bytes = Vec::with_capacity(166 + record.selected_provider_plans.len() * 8);
-    bytes.extend_from_slice(MAGIC);
-    push_u16(&mut bytes, TERMINAL_INSTALLATION_FORMAT_MARKER);
-    push_u16(&mut bytes, record.terminal_psi.vocabulary_marker.get());
-    bytes.extend_from_slice(record.terminal_psi.program_fingerprint.as_bytes());
-    bytes.push(architecture_tag(record.target.architecture));
-    bytes.push(object_format_tag(record.target.object_format));
-    bytes.push(u8::from(record.subsystem.is_some()));
-    bytes.push(0);
-    push_u64(
+    encode_installation_header(
         &mut bytes,
-        u64::try_from(record.target.pointer_size)
-            .map_err(|_| TerminalInstallationError::TargetPointerFactNotRepresentable)?,
-    );
-    push_u64(
-        &mut bytes,
-        u64::try_from(record.target.pointer_alignment)
-            .map_err(|_| TerminalInstallationError::TargetPointerFactNotRepresentable)?,
-    );
-    push_u16(&mut bytes, record.subsystem.unwrap_or(0));
-    push_u16(&mut bytes, 0);
-    push_u64(&mut bytes, record.profile_decision.get());
-    bytes.extend_from_slice(record.image.as_bytes());
-    push_u64(
-        &mut bytes,
-        record.compiler_text_validation.encoded_text_fingerprint,
-    );
-    push_u64(
-        &mut bytes,
-        record
-            .compiler_text_validation
-            .final_compiler_text_fingerprint,
-    );
-    push_u64(
-        &mut bytes,
-        record
-            .compiler_text_validation
-            .relocation_envelope_fingerprint,
-    );
-    push_u64(
-        &mut bytes,
-        record
-            .compiler_text_validation
-            .checked_instruction_validation_fingerprint,
-    );
-    push_u64(
-        &mut bytes,
-        record
-            .compiler_text_validation
-            .checked_instruction_footprint_fingerprint,
-    );
-    push_u64(
-        &mut bytes,
-        record.compiler_text_validation.derivation_fingerprint,
-    );
-    push_u64(&mut bytes, text_relocation_count);
-    push_u64(&mut bytes, checked_instruction_validation_count);
+        record,
+        text_relocation_count,
+        checked_instruction_validation_count,
+    )?;
     encode_provider_plans(&mut bytes, provider_count, &record.selected_provider_plans);
     encode_functions(&mut bytes, function_count, &record.functions)?;
     encode_structural_returns(
@@ -614,55 +568,14 @@ pub fn decode_terminal_installation_record(
     bytes: &[u8],
 ) -> Result<TerminalInstallationRecord, TerminalInstallationError> {
     let mut reader = Reader::new(bytes);
-    if reader.array::<8>()? != *MAGIC {
-        return Err(TerminalInstallationError::InvalidMagic);
-    }
-    let format_marker = reader.u16()?;
-    if format_marker != TERMINAL_INSTALLATION_FORMAT_MARKER {
-        return Err(TerminalInstallationError::UnsupportedFormatMarker(
-            format_marker,
-        ));
-    }
-    let vocabulary_marker_raw = reader.u16()?;
-    let vocabulary_marker = VocabularyMarker::new(vocabulary_marker_raw).ok_or(
-        TerminalInstallationError::UnsupportedVocabularyMarker(vocabulary_marker_raw),
-    )?;
-    let program_fingerprint = SemanticFingerprint::from_bytes(reader.array()?);
-    let architecture = decode_architecture(reader.u8()?)?;
-    let object_format = decode_object_format(reader.u8()?)?;
-    let subsystem_present = decode_boolean(reader.u8()?)?;
-    if reader.u8()? != 0 {
-        return Err(TerminalInstallationError::NonzeroReservedField);
-    }
-    let pointer_size = usize::try_from(reader.u64()?)
-        .map_err(|_| TerminalInstallationError::TargetPointerFactNotRepresentable)?;
-    let pointer_alignment = usize::try_from(reader.u64()?)
-        .map_err(|_| TerminalInstallationError::TargetPointerFactNotRepresentable)?;
-    let subsystem_raw = reader.u16()?;
-    if reader.u16()? != 0 {
-        return Err(TerminalInstallationError::NonzeroReservedField);
-    }
-    let subsystem = if subsystem_present {
-        Some(subsystem_raw)
-    } else {
-        if subsystem_raw != 0 {
-            return Err(TerminalInstallationError::NonCanonicalSubsystem);
-        }
-        None
-    };
-    let profile_decision = ProfileDecisionId::new(reader.u64()?)
-        .ok_or(TerminalInstallationError::ZeroProfileDecision)?;
-    let image = TerminalImageFingerprint(reader.array()?);
-    let encoded_text_fingerprint = reader.u64()?;
-    let final_compiler_text_fingerprint = reader.u64()?;
-    let relocation_envelope_fingerprint = reader.u64()?;
-    let checked_instruction_validation_fingerprint = reader.u64()?;
-    let checked_instruction_footprint_fingerprint = reader.u64()?;
-    let derivation_fingerprint = reader.u64()?;
-    let text_relocation_count = usize::try_from(reader.u64()?)
-        .map_err(|_| TerminalInstallationError::CountNotRepresentable("text relocations"))?;
-    let checked_instruction_validation_count = usize::try_from(reader.u64()?)
-        .map_err(|_| TerminalInstallationError::CountNotRepresentable("checked instructions"))?;
+    let DecodedInstallationHeader {
+        terminal_psi,
+        target,
+        subsystem,
+        profile_decision,
+        image,
+        compiler_text_validation,
+    } = decode_installation_header(&mut reader)?;
     let selected_provider_plans = decode_provider_plans(&mut reader)?;
     let functions = decode_functions(&mut reader)?;
     let structural_returns = decode_structural_returns(&mut reader)?;
@@ -675,16 +588,8 @@ pub fn decode_terminal_installation_record(
     }
 
     let record = TerminalInstallationRecord {
-        terminal_psi: TerminalPsiIdentity {
-            vocabulary_marker,
-            program_fingerprint,
-        },
-        target: NativeTarget {
-            architecture,
-            object_format,
-            pointer_size,
-            pointer_alignment,
-        },
+        terminal_psi,
+        target,
         subsystem,
         profile_decision,
         selected_provider_plans,
@@ -695,16 +600,7 @@ pub fn decode_terminal_installation_record(
         port_effects,
         boundary_settlements,
         image,
-        compiler_text_validation: CompilerTextValidationEvidence {
-            encoded_text_fingerprint,
-            final_compiler_text_fingerprint,
-            relocation_envelope_fingerprint,
-            checked_instruction_validation_fingerprint,
-            checked_instruction_footprint_fingerprint,
-            derivation_fingerprint,
-            text_relocation_count,
-            checked_instruction_validation_count,
-        },
+        compiler_text_validation,
     };
     validate_record_shape(&record)?;
     if encode_terminal_installation_record(&record)? != bytes {
@@ -2777,38 +2673,6 @@ fn hash(domain: &[u8], bytes: &[u8]) -> [u8; 32] {
     );
     digest.update(bytes);
     digest.finalize().into()
-}
-
-fn architecture_tag(architecture: Architecture) -> u8 {
-    match architecture {
-        Architecture::Aarch64 => 1,
-        Architecture::X86_64 => 2,
-    }
-}
-
-fn decode_architecture(tag: u8) -> Result<Architecture, TerminalInstallationError> {
-    match tag {
-        1 => Ok(Architecture::Aarch64),
-        2 => Ok(Architecture::X86_64),
-        _ => Err(TerminalInstallationError::InvalidArchitectureTag(tag)),
-    }
-}
-
-fn object_format_tag(object_format: ObjectFormat) -> u8 {
-    match object_format {
-        ObjectFormat::Elf => 1,
-        ObjectFormat::MachO => 2,
-        ObjectFormat::Coff => 3,
-    }
-}
-
-fn decode_object_format(tag: u8) -> Result<ObjectFormat, TerminalInstallationError> {
-    match tag {
-        1 => Ok(ObjectFormat::Elf),
-        2 => Ok(ObjectFormat::MachO),
-        3 => Ok(ObjectFormat::Coff),
-        _ => Err(TerminalInstallationError::InvalidObjectFormatTag(tag)),
-    }
 }
 
 fn decode_boolean(value: u8) -> Result<bool, TerminalInstallationError> {
