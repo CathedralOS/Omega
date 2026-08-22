@@ -1514,8 +1514,10 @@ Remaining:
   `IntegerLessOrEqualSubstitution` nodes under `IntegerCastBound`; production
   and reconstruction independently enumerate that exact three-citation shape
   through their own local indexed constructor shared by cast and affine
-  completion. They prefer every one-alias family and perform no recursive or
-  parameterized alias walk. Missing,
+  completion. Those fixed one-/two-alias constructors now live in dedicated,
+  side-local `alias_transport` modules rather than the broader certificate and
+  reconstruction engines. They prefer every one-alias family and perform no
+  recursive or parameterized alias walk. Missing,
   reused, redirected, crossed, cyclic, mistyped, or weaker facts reject. A
   third alias, literal landing through two aliases, affine/cast, shift/cast,
   joins, and correlated results remain outside this sibling; neither complete
@@ -2904,8 +2906,10 @@ Remaining N6/N8 work:
   field. It also rejects proof-contract `zero_value<Quotient>()`; a retained
   representative is not a compiler-verified canonical default. Record and arm
   destructuring reject quotient subjects before field/case analysis, so an
-  empty or rest pattern cannot become a representation observer. Logical proof-
-  position equality remains raw for the exact
+  empty or rest pattern cannot become a representation observer. Struct and
+  case literals likewise cannot forge a quotient value; casting an exact
+  carrier instance with `as Quotient` is the sole construction path. Logical
+  proof-position equality remains raw for the exact
   quotient-congruence judge; it never lowers to representative bytes. Add
   quotient-owned executable equality through an ordinary lifted operation with
   `DecidesEquivalence`; derive its `Respects` proof, and bind its optional `==`

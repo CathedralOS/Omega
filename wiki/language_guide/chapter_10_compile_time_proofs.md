@@ -780,9 +780,11 @@ A quotient may retain an arbitrary representative unchanged at runtime and may
 therefore share its ABI without performing normalization. The representative
 is nevertheless opaque. Quotient formation suppresses synthesized structural
 equality, ordering, hashing, serialization, reflection, pattern matching, and
-every other representation-derived observer. Logical quotient equality is the
-declared relation. Executable equality is an ordinary lifted quotient operation
-and must prove `equals(x, y) == true <-> R(x, y)` through
+every other representation-derived observer. Struct and case literals cannot
+forge a quotient value; casting an exact carrier instance with `as Quotient` is
+the sole construction path. Logical quotient equality is the declared
+relation. Executable equality is an ordinary lifted quotient operation and must
+prove `equals(x, y) == true <-> R(x, y)` through
 `DecidesEquivalence`; that conformance also derives the required `Respects`
 bridge. The named operation may bind fixed `==` through the ordinary
 [`operator` declaration head](chapter_5_expressions_evaluation.md#operators).
