@@ -837,9 +837,12 @@ fn runtime_generic_param_position_inference_exit_canary_runs() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-gen-param-infer-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("borrowed-place parameter inference canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("borrowed-place parameter inference canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("borrowed-place parameter inference canary should run");
     assert_eq!(
@@ -877,9 +880,12 @@ fn runtime_generic_multiple_specializations_exit_canary_runs() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-gen-multi-spec-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("multiple generic-machine specialization tuples should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("multiple generic-machine specializations should retain their executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("multiple generic-machine specialization canary should run");
     assert_eq!(
@@ -906,9 +912,12 @@ fn runtime_generic_enum_payload_exit_canary_runs() {
 
     let build_dir = std::env::temp_dir().join(format!("omega-gen-enum-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("generic enum payload canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("generic enum payload canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("generic enum payload canary should run");
     assert_eq!(
@@ -930,9 +939,12 @@ fn runtime_generic_record_instance_exit_canary_runs() {
     let canary = pass_canary("generics/runtime_generic_record_instance_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-gen-inst-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("generic record instance canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("generic record instance canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("generic record instance canary should run");
     assert_eq!(
@@ -952,9 +964,12 @@ fn runtime_const_data_array_length_exit_canary_runs() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-const-data-array-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("literal const data argument should specialize the array extent");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("const-data array canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("const data array canary should run");
     assert_eq!(
