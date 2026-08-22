@@ -205,15 +205,24 @@ pub fn materialize_typed_owned_layout_into(
                 reflected.name, reflected.size
             )));
         }
-        schemas.push(if let Some(repeated) = reflected.repeated {
-            AggregateFieldSchema::new_repeated(
+        schemas.push(match (reflected.repeated, reflected.identity) {
+            (Some(repeated), Some(identity)) => AggregateFieldSchema::new_repeated_numbered(
+                &reflected.name,
+                identity,
+                repeated.element_size,
+                repeated.element_align,
+                repeated.element_count,
+            )?,
+            (Some(repeated), None) => AggregateFieldSchema::new_repeated(
                 &reflected.name,
                 repeated.element_size,
                 repeated.element_align,
                 repeated.element_count,
-            )?
-        } else {
-            AggregateFieldSchema::new(&reflected.name, reflected.size)?
+            )?,
+            (None, Some(identity)) => {
+                AggregateFieldSchema::new_numbered(&reflected.name, identity, reflected.size)?
+            }
+            (None, None) => AggregateFieldSchema::new(&reflected.name, reflected.size)?,
         });
         values.push(AggregateFieldValue::new(&reflected.name, bytes)?);
     }

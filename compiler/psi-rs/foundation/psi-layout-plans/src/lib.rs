@@ -247,6 +247,10 @@ pub struct AggregateFieldValue {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AggregateFieldSchema {
     pub field: String,
+    /// Stable schema identity when this field belongs to a numbered record.
+    /// The validated layout and compiler-derived schema rejoin through this
+    /// identity, so a source rename cannot change placement authority.
+    member_identity: Option<u64>,
     pub byte_size: u64,
     shape: AggregateFieldShape,
 }
@@ -273,9 +277,22 @@ impl AggregateFieldSchema {
         }
         Ok(Self {
             field: field.into(),
+            member_identity: None,
             byte_size,
             shape: AggregateFieldShape::Whole,
         })
+    }
+
+    /// Constructs one whole aggregate field with its compiler-retained stable
+    /// member identity. The field spelling remains diagnostic presentation.
+    pub fn new_numbered(
+        field: impl Into<String>,
+        member_identity: u64,
+        byte_size: u64,
+    ) -> Result<Self, MaterializationDiagnostic> {
+        let mut schema = Self::new(field, byte_size)?;
+        schema.member_identity = Some(member_identity);
+        Ok(schema)
     }
 
     /// Constructs the compiler-derived shape of one outer fixed array. A
@@ -307,6 +324,7 @@ impl AggregateFieldSchema {
             })?;
         Ok(Self {
             field: field.into(),
+            member_identity: None,
             byte_size,
             shape: AggregateFieldShape::Repeated {
                 element_byte_size,
@@ -314,6 +332,21 @@ impl AggregateFieldSchema {
                 element_count,
             },
         })
+    }
+
+    /// Constructs one numbered outer fixed array. Element geometry remains
+    /// compiler-derived while the stable identity rejoins renamed layout rows.
+    pub fn new_repeated_numbered(
+        field: impl Into<String>,
+        member_identity: u64,
+        element_byte_size: u64,
+        element_align: u64,
+        element_count: u64,
+    ) -> Result<Self, MaterializationDiagnostic> {
+        let mut schema =
+            Self::new_repeated(field, element_byte_size, element_align, element_count)?;
+        schema.member_identity = Some(member_identity);
+        Ok(schema)
     }
 }
 
@@ -1268,6 +1301,21 @@ pub fn materialize_aggregate_layout_into(
     values: &[AggregateFieldValue],
     destination: &mut [u8],
 ) -> Result<(), MaterializationDiagnostic> {
+    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+    enum AggregateFieldKey {
+        Numbered(u64),
+        Positional(String),
+    }
+
+    let schema_key = |field: &AggregateFieldSchema| match field.member_identity {
+        Some(identity) => AggregateFieldKey::Numbered(identity),
+        None => AggregateFieldKey::Positional(field.field.clone()),
+    };
+    let entry_key = |entry: &LayoutFieldEntryReport| match entry.member_identity {
+        Some(identity) => AggregateFieldKey::Numbered(identity),
+        None => AggregateFieldKey::Positional(entry.field.clone()),
+    };
+
     let byte_len = layout
         .size
         .ok_or_else(|| {
@@ -1290,11 +1338,21 @@ pub fn materialize_aggregate_layout_into(
     }
 
     let mut schemas = std::collections::BTreeMap::new();
+    let mut schema_names = std::collections::BTreeSet::new();
     for field in fields {
-        if schemas.insert(field.field.as_str(), field).is_some() {
+        if !schema_names.insert(field.field.as_str()) {
             return Err(MaterializationDiagnostic(format!(
                 "aggregate field `{}` is declared more than once",
                 field.field
+            )));
+        }
+        if schemas.insert(schema_key(field), field).is_some() {
+            return Err(MaterializationDiagnostic(format!(
+                "aggregate field `{}` repeats stable member identity #{}",
+                field.field,
+                field
+                    .member_identity
+                    .expect("only numbered fields can collide after name validation")
             )));
         }
     }
@@ -1307,36 +1365,66 @@ pub fn materialize_aggregate_layout_into(
             )));
         }
     }
-    let mut planned = std::collections::BTreeMap::<&str, Vec<&LayoutFieldEntryReport>>::new();
+    let mut planned =
+        std::collections::BTreeMap::<AggregateFieldKey, Vec<&LayoutFieldEntryReport>>::new();
     for entry in &layout.entries {
-        planned.entry(entry.field.as_str()).or_default().push(entry);
+        planned.entry(entry_key(entry)).or_default().push(entry);
     }
-    if let Some(field) = planned.keys().find(|field| !schemas.contains_key(**field)) {
+    if let Some(entries) = planned
+        .iter()
+        .find_map(|(key, entries)| (!schemas.contains_key(key)).then_some(entries))
+    {
+        let entry = entries
+            .first()
+            .expect("planned aggregate key always retains an entry");
+        let suffix = if entry.member_identity.is_some() {
+            " with the same stable identity"
+        } else {
+            ""
+        };
         return Err(MaterializationDiagnostic(format!(
-            "layout field `{field}` has no aggregate schema extent"
+            "layout field `{}` has no aggregate schema extent{suffix}",
+            entry.field
         )));
     }
-    if let Some(field) = schemas.keys().find(|field| !planned.contains_key(**field)) {
+    if let Some(field) = schemas
+        .iter()
+        .find_map(|(key, field)| (!planned.contains_key(key)).then_some(field))
+    {
+        let suffix = if field.member_identity.is_some() {
+            " with the same stable identity"
+        } else {
+            ""
+        };
         return Err(MaterializationDiagnostic(format!(
-            "aggregate schema field `{field}` has no entry in the validated layout plan"
+            "aggregate schema field `{}` has no entry in the validated layout plan{suffix}",
+            field.field
         )));
     }
-    if let Some(field) = planned.keys().find(|field| !supplied.contains_key(**field)) {
+    if let Some(field) = fields
+        .iter()
+        .find(|field| !supplied.contains_key(field.field.as_str()))
+    {
         return Err(MaterializationDiagnostic(format!(
-            "layout field `{field}` has no supplied aggregate value"
+            "layout field `{}` has no supplied aggregate value",
+            field.field
         )));
     }
-    if let Some(field) = supplied.keys().find(|field| !planned.contains_key(**field)) {
+    if let Some(field) = supplied
+        .keys()
+        .find(|field| !schema_names.contains(**field))
+    {
         return Err(MaterializationDiagnostic(format!(
-            "supplied aggregate field `{field}` has no entry in the validated layout plan"
+            "supplied aggregate field `{field}` has no compiler-derived aggregate schema"
         )));
     }
 
     let mut staged = vec![0_u8; byte_len];
     let mut occupied = vec![false; byte_len];
-    for (field_name, schema) in schemas {
+    for (field_key, schema) in schemas {
+        let field_name = schema.field.as_str();
         let entries = planned
-            .get_mut(field_name)
+            .get_mut(&field_key)
             .expect("complete aggregate plan set validated above");
         if entries
             .iter()
@@ -2429,6 +2517,69 @@ mod tests {
                 .expect_err("aggregate fields cannot enter scalar fragment placement");
         assert!(error.0.contains("requires one whole `At` placement"));
         assert_eq!(unchanged, [0xa5; 20]);
+    }
+
+    #[test]
+    fn numbered_aggregate_materialization_rejoins_renamed_fields_by_identity() {
+        let layout = LayoutPlanReport {
+            schema_identity: 1,
+            entries: vec![LayoutFieldEntryReport {
+                field: "legacy_payload".into(),
+                member_identity: Some(7),
+                placement: LayoutPlacementReport::At { offset: 4 },
+            }],
+            offsets: Some(vec![4]),
+            size: Some(12),
+            align: 4,
+        };
+        let schema = [AggregateFieldSchema::new_numbered("payload", 7, 4)
+            .expect("compiler-derived numbered schema")];
+        let values = [AggregateFieldValue::new("payload", [1, 2, 3, 4]).expect("complete payload")];
+        let mut bytes = [0xa5; 12];
+        materialize_aggregate_layout_into(&layout, &schema, &values, &mut bytes)
+            .expect("stable identity should rejoin a renamed aggregate field");
+        assert_eq!(bytes, [0, 0, 0, 0, 1, 2, 3, 4, 0, 0, 0, 0]);
+
+        let mut drifted = layout;
+        drifted.entries[0].member_identity = Some(8);
+        let mut unchanged = [0x5a; 12];
+        let error = materialize_aggregate_layout_into(&drifted, &schema, &values, &mut unchanged)
+            .expect_err("stable member identity drift must reject before mutation");
+        assert!(error.0.contains("same stable identity"));
+        assert_eq!(unchanged, [0x5a; 12]);
+
+        let repeated_layout = LayoutPlanReport {
+            schema_identity: 2,
+            entries: [0, 8]
+                .into_iter()
+                .map(|offset| LayoutFieldEntryReport {
+                    field: "legacy_items".into(),
+                    member_identity: Some(9),
+                    placement: LayoutPlacementReport::At { offset },
+                })
+                .collect(),
+            offsets: None,
+            size: Some(16),
+            align: 4,
+        };
+        let repeated_schema = [
+            AggregateFieldSchema::new_repeated_numbered("items", 9, 4, 4, 2)
+                .expect("compiler-derived numbered repeated schema"),
+        ];
+        let repeated_values = [AggregateFieldValue::new("items", [1, 2, 3, 4, 5, 6, 7, 8])
+            .expect("complete repeated payload")];
+        let mut repeated_bytes = [0xa5; 16];
+        materialize_aggregate_layout_into(
+            &repeated_layout,
+            &repeated_schema,
+            &repeated_values,
+            &mut repeated_bytes,
+        )
+        .expect("stable identity should also rejoin renamed fixed-array tiling");
+        assert_eq!(
+            repeated_bytes,
+            [1, 2, 3, 4, 0, 0, 0, 0, 5, 6, 7, 8, 0, 0, 0, 0]
+        );
     }
 
     #[test]
