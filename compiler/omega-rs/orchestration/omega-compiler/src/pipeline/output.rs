@@ -211,6 +211,14 @@ impl InstalledExecutablePublicationEvidence {
             self.output_path.clone(),
             publication.certificate.certificate_fingerprint,
             publication.certificate.inventory.inventory_fingerprint,
+            publication
+                .certificate
+                .compiler_text_validation
+                .derivation_fingerprint,
+            publication
+                .certificate
+                .compiler_function_validation
+                .evidence_fingerprint(),
             publication.evidence.evidence_fingerprint,
             self.container_byte_count,
             self.container_fingerprint,
@@ -1074,6 +1082,16 @@ mod tests {
         assert_eq!(
             retained.inventory_fingerprint(),
             image.executable_regions.inventory_fingerprint
+        );
+        assert_eq!(
+            retained.compiler_text_validation_fingerprint(),
+            certificate.compiler_text_validation.derivation_fingerprint
+        );
+        assert_eq!(
+            retained.compiler_function_validation_fingerprint(),
+            certificate
+                .compiler_function_validation
+                .evidence_fingerprint()
         );
         assert_eq!(retained.container_byte_count(), image.bytes.len());
         assert_eq!(

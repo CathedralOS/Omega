@@ -1561,6 +1561,28 @@ machine build(builder: &mut Build) {
             .expect("written bridge publication receipt")
             .inventory_fingerprint(),
     );
+    assert_eq!(
+        bridge
+            .emitted_wrapper_evidence()
+            .expect("written bridge final evidence")
+            .compiler_text_validation()
+            .derivation_fingerprint,
+        report
+            .executable_publication()
+            .expect("written bridge publication receipt")
+            .compiler_text_validation_fingerprint(),
+    );
+    assert_eq!(
+        bridge
+            .emitted_wrapper_evidence()
+            .expect("written bridge final evidence")
+            .compiler_function_validation()
+            .evidence_fingerprint(),
+        report
+            .executable_publication()
+            .expect("written bridge publication receipt")
+            .compiler_function_validation_fingerprint(),
+    );
     let unwritten_report = compile(CompileOptions {
         root_path: directory.join("main.omg"),
         build_dir: Some(directory.join("unwritten-build")),

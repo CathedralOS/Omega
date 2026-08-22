@@ -761,6 +761,10 @@ For a native bridge, its final wrapper evidence must additionally name the same
 executable-region inventory fingerprint as the flat publication receipt.
 Evidence from another otherwise valid final image cannot accompany the
 published container.
+The receipt now also retains the compiler-text derivation and compiler-function
+evidence fingerprints already present in the sealed certificate. Flat and
+bundle receipts must agree on both, and native wrapper evidence must rejoin the
+same pair rather than relying on inventory identity alone.
 Final relocation replay also builds one exact owner map from every retained
 selected-instruction identity to that function symbol. A selected instruction
 retained twice, an instruction relocation naming another function, or an
