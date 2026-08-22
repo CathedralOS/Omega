@@ -1400,7 +1400,13 @@ Remaining:
   middle alias, and bound alias must be distinct same-carrier values. A missing,
   reused, redirected, crossed, cyclic, or mistyped equality rejects. The
   constructor has no recursive alias walk, and a third alias remains outside
-  the producer. A second non-serialized common checker now
+  the producer. One literal-ending sibling may land the affine root through
+  exactly one intermediate value alias and one exact same-carrier literal
+  equality. It proves a closed reflexive integer order, substitutes the alias,
+  substitutes the root, and only then applies `IntegerAffineBound`. Missing,
+  redirected, reused, or mistyped equalities reject, and a second value alias
+  is not followed. This is another fixed two-substitution path, not a recursive
+  alias search. A second non-serialized common checker now
   normalizes the contiguous pure
   fixed-integer cast spine used by the accepted one-cast and multi-cast
   sandwiches. It binds strictly ordered canonical semantic equalities to exact
