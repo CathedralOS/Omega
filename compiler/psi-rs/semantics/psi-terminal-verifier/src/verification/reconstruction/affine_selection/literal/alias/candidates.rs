@@ -4,7 +4,8 @@ use psi_core::{Proposition, ScalarTerm};
 
 mod landing_index;
 
-use super::super::{eligibility, equalities};
+use super::super::super::equalities;
+use super::super::eligibility;
 use landing_index::LandingIndex;
 
 pub(super) fn any<'a>(

@@ -9,7 +9,6 @@ mod alias;
 mod completion;
 mod direct;
 mod eligibility;
-mod equalities;
 mod root_bounds;
 
 pub(super) fn prove_landed_literal_affine_bound(

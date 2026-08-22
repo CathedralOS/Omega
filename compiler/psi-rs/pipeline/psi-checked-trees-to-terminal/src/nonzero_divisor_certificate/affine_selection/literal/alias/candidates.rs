@@ -5,7 +5,8 @@ use psi_proof_kernel::ProofNode;
 
 mod landing_index;
 
-use super::super::{eligibility, equalities};
+use super::super::super::equalities;
+use super::super::eligibility;
 use landing_index::LandingIndex;
 
 pub(super) fn find<'a, T>(

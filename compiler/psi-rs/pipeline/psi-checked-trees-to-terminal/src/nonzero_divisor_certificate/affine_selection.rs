@@ -7,6 +7,7 @@ use super::affine_custody::DefinitionIndex;
 
 mod alias;
 mod direct;
+mod equalities;
 mod literal;
 mod transitive;
 
