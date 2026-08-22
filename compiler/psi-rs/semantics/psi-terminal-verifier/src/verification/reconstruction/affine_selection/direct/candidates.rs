@@ -2,7 +2,7 @@
 
 use psi_core::{Proposition, ScalarTerm};
 
-use super::super::{bounds, eligibility};
+use super::super::bounds;
 
 pub(super) fn any<'a>(
     requirements: &'a [Proposition],
@@ -10,7 +10,6 @@ pub(super) fn any<'a>(
     mut complete: impl FnMut(&'a ScalarTerm, &'a Proposition) -> bool,
 ) -> bool {
     bounds::ordered(requirements, semantic_axioms).any(|(root_bound, root_left, root_right)| {
-        eligibility::ordered_value_endpoints(root_left, root_right)
-            .any(|root| complete(root, root_bound))
+        bounds::value_endpoints(root_left, root_right).any(|root| complete(root, root_bound))
     })
 }
