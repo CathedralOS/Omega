@@ -6,7 +6,7 @@ use omega_calling_conventions::{
     ValueLocation, ValuePlacement, ValueShape,
 };
 
-use super::push_hex_u16;
+use super::external_root_report::push_hex_u16;
 
 pub(super) fn push_boundary_plan_json(output: &mut String, plan: &BoundaryEntryPlan) {
     output.push_str("{\"call\": {\"policy\": \"");
