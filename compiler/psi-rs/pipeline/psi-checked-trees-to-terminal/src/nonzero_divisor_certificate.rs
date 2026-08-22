@@ -457,6 +457,108 @@ fn prove_alias_substituted_cast_bound(
         .or_else(|| {
             prove_landed_literal_via_alias_cast_bound(context, goal, assumptions, semantic_axioms)
         })
+        .or_else(|| {
+            prove_two_alias_substituted_cast_bound(context, goal, assumptions, semantic_axioms)
+        })
+}
+
+fn prove_two_alias_substituted_cast_bound(
+    context: &PropositionContext,
+    goal: &Proposition,
+    assumptions: &[Proposition],
+    semantic_axioms: &[Proposition],
+) -> Option<ProofNode> {
+    for (outer_citation, outer_equality) in cited_facts(assumptions, semantic_axioms) {
+        let Proposition::Equal(outer_left, outer_right) = outer_equality else {
+            continue;
+        };
+        for (root, middle_alias) in [(outer_left, outer_right), (outer_right, outer_left)] {
+            if root == middle_alias
+                || !matches!(root, psi_core::ScalarTerm::Value { .. })
+                || !matches!(middle_alias, psi_core::ScalarTerm::Value { .. })
+                || root.scalar_type() != middle_alias.scalar_type()
+            {
+                continue;
+            }
+            for (inner_citation, inner_equality) in cited_facts(assumptions, semantic_axioms) {
+                if std::ptr::eq(outer_equality, inner_equality) {
+                    continue;
+                }
+                let Proposition::Equal(inner_left, inner_right) = inner_equality else {
+                    continue;
+                };
+                for (inner_middle, bound_alias) in
+                    [(inner_left, inner_right), (inner_right, inner_left)]
+                {
+                    if inner_middle != middle_alias
+                        || bound_alias == root
+                        || bound_alias == middle_alias
+                        || !matches!(bound_alias, psi_core::ScalarTerm::Value { .. })
+                        || bound_alias.scalar_type() != root.scalar_type()
+                    {
+                        continue;
+                    }
+                    for (bound_citation, bound) in cited_facts(assumptions, semantic_axioms) {
+                        let Proposition::LessOrEqual(bound_left, bound_right) = bound else {
+                            continue;
+                        };
+                        let (middle_bound, root_bound, endpoint, literal) = if bound_left
+                            == bound_alias
+                        {
+                            (
+                                Proposition::LessOrEqual(middle_alias.clone(), bound_right.clone()),
+                                Proposition::LessOrEqual(root.clone(), bound_right.clone()),
+                                0,
+                                bound_right,
+                            )
+                        } else if bound_right == bound_alias {
+                            (
+                                Proposition::LessOrEqual(bound_left.clone(), middle_alias.clone()),
+                                Proposition::LessOrEqual(bound_left.clone(), root.clone()),
+                                1,
+                                bound_left,
+                            )
+                        } else {
+                            continue;
+                        };
+                        let Some((integer_type, _)) = literal.integer_value() else {
+                            continue;
+                        };
+                        if root.scalar_type() != psi_core::ScalarType::Integer(integer_type) {
+                            continue;
+                        }
+                        let middle_bound = ProofNode {
+                            conclusion: middle_bound,
+                            rule: ProofRule::IntegerLessOrEqualSubstitution {
+                                relation: Box::new(bound_citation.proof(bound)),
+                                equality: Box::new(inner_citation.proof(inner_equality)),
+                                endpoint,
+                            },
+                        };
+                        let root_bound = ProofNode {
+                            conclusion: root_bound,
+                            rule: ProofRule::IntegerLessOrEqualSubstitution {
+                                relation: Box::new(middle_bound),
+                                equality: Box::new(outer_citation.proof(outer_equality)),
+                                endpoint,
+                            },
+                        };
+                        if let Some(proof) = prove_cast_bound_from_root(
+                            context,
+                            goal,
+                            assumptions,
+                            semantic_axioms,
+                            root,
+                            root_bound,
+                        ) {
+                            return Some(proof);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    None
 }
 
 fn prove_stronger_alias_substituted_cast_bound(
@@ -3454,6 +3556,10 @@ mod tests {
                 ValueId::new(7).expect("redirected bound"),
                 ScalarType::Integer(i32_type),
             ),
+            (
+                ValueId::new(8).expect("third alias"),
+                ScalarType::Integer(i32_type),
+            ),
         ])
         .expect("cast values");
         let divisor = value(2, i8_type);
@@ -3902,6 +4008,101 @@ mod tests {
                 )
                 .is_none(),
                 "a weaker landed alias literal cannot justify either arm",
+            );
+        }
+
+        let middle_alias = Proposition::Equal(value(6, i32_type), value(7, i32_type));
+        let two_alias_bound = Proposition::LessOrEqual(integer(i32_type, 1), value(7, i32_type));
+        let proof = prove_canonical_integer_proposition(
+            &context,
+            &goal,
+            &[
+                two_alias_bound.clone(),
+                middle_alias.clone(),
+                root_alias.clone(),
+            ],
+            &[first_cast.clone(), second_cast.clone()],
+        )
+        .expect("exactly two root aliases transport one directly cited bound");
+        let ProofRule::DisjunctionIntroduction { disjunct, index } = proof.rule else {
+            panic!("two-alias cast bound selects one canonical arm")
+        };
+        assert_eq!(index, 1);
+        let ProofRule::IntegerCastBound { root_bound, .. } = disjunct.rule else {
+            panic!("two-alias bound uses the cast-bound rule")
+        };
+        let ProofRule::IntegerLessOrEqualSubstitution {
+            relation: middle_bound,
+            equality: outer_equality,
+            endpoint,
+        } = root_bound.rule
+        else {
+            panic!("two-alias bound substitutes the cast root")
+        };
+        assert_eq!(endpoint, 1);
+        assert!(matches!(
+            outer_equality.rule,
+            ProofRule::Assumption { index: 2 }
+        ));
+        let ProofRule::IntegerLessOrEqualSubstitution {
+            relation,
+            equality: inner_equality,
+            endpoint,
+        } = middle_bound.rule
+        else {
+            panic!("two-alias bound substitutes the middle alias")
+        };
+        assert_eq!(endpoint, 1);
+        assert!(matches!(relation.rule, ProofRule::Assumption { index: 0 }));
+        assert!(matches!(
+            inner_equality.rule,
+            ProofRule::Assumption { index: 1 }
+        ));
+
+        let negative = prove_canonical_integer_proposition(
+            &context,
+            &goal,
+            &[
+                Proposition::LessOrEqual(value(7, i32_type), integer(i32_type, -2)),
+                middle_alias.clone(),
+                root_alias.clone(),
+            ],
+            &[first_cast.clone(), second_cast.clone()],
+        )
+        .expect("two aliases transport one directly cited negative bound");
+        let ProofRule::DisjunctionIntroduction { index, .. } = negative.rule else {
+            panic!("negative two-alias bound selects one canonical arm")
+        };
+        assert_eq!(index, 0);
+
+        for rejected in [
+            vec![two_alias_bound.clone(), root_alias.clone()],
+            vec![
+                two_alias_bound.clone(),
+                Proposition::Equal(value(6, i32_type), value(8, i32_type)),
+                root_alias.clone(),
+            ],
+            vec![
+                Proposition::LessOrEqual(integer(i32_type, 0), value(7, i32_type)),
+                middle_alias.clone(),
+                root_alias.clone(),
+            ],
+            vec![
+                Proposition::LessOrEqual(integer(i32_type, 1), value(8, i32_type)),
+                Proposition::Equal(value(7, i32_type), value(8, i32_type)),
+                middle_alias.clone(),
+                root_alias.clone(),
+            ],
+        ] {
+            assert!(
+                prove_canonical_integer_proposition(
+                    &context,
+                    &goal,
+                    &rejected,
+                    &[first_cast.clone(), second_cast.clone()],
+                )
+                .is_none(),
+                "missing, redirected, weaker, or third-link facts remain outside the fixed sibling",
             );
         }
 

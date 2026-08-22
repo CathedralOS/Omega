@@ -579,9 +579,15 @@ one same-carrier `alias == literal` citation. It proves the
 closed canonical bridge, substitutes the alias, substitutes the root, then
 applies `IntegerCastBound`; production and reconstruction select the same two
 exact equalities. Missing, reused, redirected, mistyped, or weaker literals
-reject. A second alias, affine/cast, shift/cast, joins, and correlated results
-remain outside this sibling; neither complete exact row changes trust and
-`fully-derived false` remains.
+reject. One fixed two-alias sibling may instead transport one directly cited
+canonical bound through exactly two distinct same-carrier value equalities. It
+nests two `IntegerLessOrEqualSubstitution` nodes under `IntegerCastBound`;
+producer and reconstruction independently enumerate that exact three-citation
+shape, prefer every one-alias family, and perform no recursive alias walk.
+Missing, reused, redirected, crossed, cyclic, mistyped, or weaker facts reject.
+A third alias, literal landing through two aliases, affine/cast, shift/cast,
+joins, and correlated results remain outside this sibling; neither complete
+exact row changes trust and `fully-derived false` remains.
 
 The shared exact-shift core has a matching non-serialized checked witness.
 `IntegerShiftChainWitness` selects a nonempty, strictly ordered sequence of

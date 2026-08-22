@@ -690,6 +690,93 @@ fn retained_alias_substituted_cast_bound(
             requirements,
             semantic_axioms,
         )
+        || retained_two_alias_substituted_cast_bound(context, goal, requirements, semantic_axioms)
+}
+
+fn retained_two_alias_substituted_cast_bound(
+    context: &PropositionContext,
+    goal: &Proposition,
+    requirements: &[Proposition],
+    semantic_axioms: &[Proposition],
+) -> bool {
+    let facts = || requirements.iter().chain(semantic_axioms);
+    facts()
+        .filter_map(|outer_equality| match outer_equality {
+            Proposition::Equal(left, right) => Some((outer_equality, left, right)),
+            _ => None,
+        })
+        .any(|(outer_equality, outer_left, outer_right)| {
+            [(outer_left, outer_right), (outer_right, outer_left)]
+                .into_iter()
+                .filter(|(root, middle_alias)| {
+                    root != middle_alias
+                        && matches!(root, ScalarTerm::Value { .. })
+                        && matches!(middle_alias, ScalarTerm::Value { .. })
+                        && root.scalar_type() == middle_alias.scalar_type()
+                })
+                .any(|(root, middle_alias)| {
+                    facts()
+                        .filter(|inner_equality| !std::ptr::eq(outer_equality, *inner_equality))
+                        .filter_map(|inner_equality| match inner_equality {
+                            Proposition::Equal(left, right) => Some((left, right)),
+                            _ => None,
+                        })
+                        .any(|(inner_left, inner_right)| {
+                            let bound_alias = if inner_left == middle_alias {
+                                inner_right
+                            } else if inner_right == middle_alias {
+                                inner_left
+                            } else {
+                                return false;
+                            };
+                            if bound_alias == root
+                                || bound_alias == middle_alias
+                                || !matches!(bound_alias, ScalarTerm::Value { .. })
+                                || bound_alias.scalar_type() != root.scalar_type()
+                            {
+                                return false;
+                            }
+                            facts()
+                                .filter_map(|bound| match bound {
+                                    Proposition::LessOrEqual(left, right) => Some((left, right)),
+                                    _ => None,
+                                })
+                                .any(|(bound_left, bound_right)| {
+                                    let (root_bound, literal) = if bound_left == bound_alias {
+                                        (
+                                            Proposition::LessOrEqual(
+                                                root.clone(),
+                                                bound_right.clone(),
+                                            ),
+                                            bound_right,
+                                        )
+                                    } else if bound_right == bound_alias {
+                                        (
+                                            Proposition::LessOrEqual(
+                                                bound_left.clone(),
+                                                root.clone(),
+                                            ),
+                                            bound_left,
+                                        )
+                                    } else {
+                                        return false;
+                                    };
+                                    let Some((integer_type, _)) = literal.integer_value() else {
+                                        return false;
+                                    };
+                                    root.scalar_type()
+                                        == psi_core::ScalarType::Integer(integer_type)
+                                        && retained_cast_bound_from_root(
+                                            context,
+                                            goal,
+                                            semantic_axioms,
+                                            root,
+                                            &root_bound,
+                                        )
+                                })
+                        })
+                })
+        })
 }
 
 fn retained_stronger_alias_substituted_cast_bound(
@@ -3133,6 +3220,10 @@ mod tests {
                 ValueId::new(7).expect("redirected bound"),
                 ScalarType::Integer(i32_type),
             ),
+            (
+                ValueId::new(8).expect("third alias"),
+                ScalarType::Integer(i32_type),
+            ),
         ])
         .expect("cast values");
         let goal = CanonicalScalarGoal::ExactDivisionDefined {
@@ -3400,6 +3491,66 @@ mod tests {
                             .expect("weak i32 literal"),
                     ),
                 ],
+            ));
+        }
+        let middle_alias = Proposition::Equal(value(6, i32_type), value(7, i32_type));
+        let two_alias_bound = Proposition::LessOrEqual(
+            ScalarTerm::integer(i32_type, IntegerValue::Signed(1)).expect("i32 one"),
+            value(7, i32_type),
+        );
+        assert!(exact_division_has_prior_certificate(
+            &context,
+            &goal,
+            &[first_cast.clone(), second_cast.clone()],
+            &[
+                two_alias_bound.clone(),
+                middle_alias.clone(),
+                root_alias.clone(),
+            ],
+        ));
+        assert!(exact_division_has_prior_certificate(
+            &context,
+            &goal,
+            &[first_cast.clone(), second_cast.clone()],
+            &[
+                Proposition::LessOrEqual(
+                    value(7, i32_type),
+                    ScalarTerm::integer(i32_type, IntegerValue::Signed(-2)).expect("i32 -2"),
+                ),
+                middle_alias.clone(),
+                root_alias.clone(),
+            ],
+        ));
+        for rejected in [
+            vec![two_alias_bound.clone(), root_alias.clone()],
+            vec![
+                two_alias_bound.clone(),
+                Proposition::Equal(value(6, i32_type), value(8, i32_type)),
+                root_alias.clone(),
+            ],
+            vec![
+                Proposition::LessOrEqual(
+                    ScalarTerm::integer(i32_type, IntegerValue::Signed(0)).expect("i32 zero"),
+                    value(7, i32_type),
+                ),
+                middle_alias.clone(),
+                root_alias.clone(),
+            ],
+            vec![
+                Proposition::LessOrEqual(
+                    ScalarTerm::integer(i32_type, IntegerValue::Signed(1)).expect("i32 one"),
+                    value(8, i32_type),
+                ),
+                Proposition::Equal(value(7, i32_type), value(8, i32_type)),
+                middle_alias,
+                root_alias.clone(),
+            ],
+        ] {
+            assert!(!exact_division_has_prior_certificate(
+                &context,
+                &goal,
+                &[first_cast.clone(), second_cast.clone()],
+                &rejected,
             ));
         }
         assert!(!exact_division_has_prior_certificate(
