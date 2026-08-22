@@ -24,6 +24,11 @@ pub(super) fn plan_callback_thunks(
             Ok(CallbackThunkPlan {
                 placement_index,
                 entry_key,
+                function_identity: omega_control_flow::MachineFunctionIdentity::callback_thunk(
+                    entry_key,
+                    placement_index,
+                )
+                .expect("resolved callback entry must have a valid function identity"),
                 private_symbol: canonical_callback_private_symbol(placement),
             })
         })
@@ -104,6 +109,14 @@ mod tests {
         assert_eq!(plans[0].placement_index, 0);
         assert_eq!(plans[0].entry_key.machine, symbol(4));
         assert_eq!(plans[0].entry_key.state, symbol(5));
+        assert_eq!(
+            plans[0].function_identity.callback_thunk_placement_index(),
+            Some(0)
+        );
+        assert_eq!(
+            plans[0].function_identity.associated_source_continuation(),
+            plans[0].entry_key
+        );
         assert!(plans[0].private_symbol.starts_with("__omega_callback_e"));
     }
 

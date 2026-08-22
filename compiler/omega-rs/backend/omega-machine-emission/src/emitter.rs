@@ -436,7 +436,7 @@ mod tests {
     }
 
     #[test]
-    fn copies_machine_semantic_summaries_to_encoded_plan() {
+    fn copies_machine_semantic_summaries_and_private_identities_to_encoded_plan() {
         let target = NativeTarget::host();
         let continuation = StateKey {
             machine: SymbolHandle::from_arena_index(1),
@@ -445,6 +445,8 @@ mod tests {
         };
         let wrapper_identity = MachineFunctionIdentity::program_storage_entry_wrapper(continuation)
             .expect("valid continuation should admit wrapper identity");
+        let callback_identity = MachineFunctionIdentity::callback_thunk(continuation, 7)
+            .expect("valid continuation should admit callback identity");
         let mut assigned_target_operations = AssignedTargetOperationPlan::default();
         assigned_target_operations
             .code
@@ -484,6 +486,14 @@ mod tests {
             .insert(MachineInstructionFunction {
                 symbol: std::sync::Arc::from("__omega_program_storage_entry"),
                 identity: wrapper_identity,
+                instructions: HandleSpan::empty(),
+            });
+        machine_instructions
+            .code
+            .functions
+            .insert(MachineInstructionFunction {
+                symbol: std::sync::Arc::from("__omega_callback_test"),
+                identity: callback_identity,
                 instructions: HandleSpan::empty(),
             });
         machine_instructions
@@ -574,6 +584,19 @@ mod tests {
                 .program_storage_entry_continuation(),
             Some(continuation)
         );
+        let encoded_callback = encoded
+            .code
+            .functions
+            .iter()
+            .find(|(_, function)| function.symbol.as_ref() == "__omega_callback_test")
+            .map(|(_, function)| function)
+            .expect("callback thunk identity carrier");
+        assert_eq!(encoded_callback.identity, callback_identity);
+        assert_eq!(
+            encoded_callback.identity.callback_thunk_placement_index(),
+            Some(7)
+        );
+        assert_eq!(encoded_callback.byte_count, 0);
         assert_eq!(encoded_function.instructions.len(), 2);
         assert_eq!(
             encoded

@@ -2125,14 +2125,16 @@ Owners:
   deterministic compiler-private thunk symbol joined by placement-row index.
   That identity includes every source/selected handle generation and duplicate
   private identities reject before instruction selection.
-  The symbol is planned object identity only and never an Omega value. Function
-  identity now survives assigned operations, machine instructions, encoded
-  bytes, and exact object-entry selection. Image emission requires a valid
-  selected-entry `StateKey`; the private symbol must globally name exactly one
-  encoded function with that key and exactly one matching private text symbol
-  with the same interval. Missing, duplicate, redirected, or interval-drifted
-  identities reject, so a plan row cannot be mistaken for emitted thunk
-  evidence. Final emission now also rejoins every validated placement row to
+  The symbol is planned object identity only and never an Omega value. A
+  callback thunk now also has a distinct machine-function identity bound to
+  its placement-row index and selected source entry, so an ordinary source
+  function wearing the callback symbol cannot satisfy emission. That role
+  survives the existing assigned-operation, machine-instruction, byte, and
+  object carriers; object planning preserves its richer placement-derived
+  symbol, and final emission requires the encoded identity to equal the exact
+  planned callback role. Missing, duplicate, redirected, role-drifted, or
+  interval-drifted identities reject, so a plan row cannot be mistaken for
+  emitted thunk evidence. Final emission now also rejoins every validated placement row to
   exactly one private thunk plan. Missing, duplicate, or out-of-range placement
   indices, selected-entry drift, and repeated private thunk identities reject
   before encoded-function/object evidence is accepted. This does not
