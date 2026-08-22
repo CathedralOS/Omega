@@ -2554,16 +2554,13 @@ fn runtime_wire_decode_let_compare_exit_canary_runs() {
     let canary = pass_canary("wire/runtime_wire_decode_let_compare_exit");
     let scratch = std::env::temp_dir().join(format!("omega-declc-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("decode-let-compare canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("decode-let-compare canary should run");
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "decode-let-compare canary should read decoded values (exit 70), got {:?}",
-        output.status.code(),
+    assert_native_exit_code(
+        &compilation,
+        70,
+        "wire decode-let comparison canary",
+        "the let-bound comparison should read the decoded field value",
     );
     let _ = fs::remove_dir_all(&scratch);
 }
@@ -2579,19 +2576,13 @@ fn runtime_wire_encode_repeated_then_string_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-wire-repeated-string-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("repeated-then-string wire canary should compile");
-
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("repeated-then-string wire canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected the packed repeated payload then the String field to encode the asserted 10 bytes (exit 70), got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        70,
+        "wire repeated-then-string canary",
+        "the String cursor should begin after the packed repeated payload",
     );
 
     let _ = fs::remove_dir_all(&scratch);
@@ -2607,19 +2598,13 @@ fn runtime_wire_roundtrip_nested_and_repeated_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-wire-nested-repeated-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("nested-and-repeated wire canary should compile");
-
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("nested-and-repeated wire canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected the nested sub-message and the packed repeated field to round-trip together (exit 70), got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        70,
+        "wire nested-and-repeated roundtrip canary",
+        "the nested message and packed repeated field should share exact cursor handoff",
     );
 
     let _ = fs::remove_dir_all(&scratch);
@@ -2637,19 +2622,13 @@ fn runtime_const_array_length_transitive_exit_canary_runs() {
     ));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("transitive const length canary should compile");
-
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("transitive const length canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected the transitively-evaluated 16-slot array to hold both end values (exit 70), got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        70,
+        "transitive const-array length canary",
+        "the transitively evaluated length should size the exact 16-slot array",
     );
 
     let _ = fs::remove_dir_all(&scratch);
@@ -2669,19 +2648,13 @@ fn runtime_const_array_length_bare_call_arm_exit_canary_runs() {
     ));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("bare-call-arm const length canary should compile");
-
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("bare-call-arm const length canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected the bare-call-arm const length (burn(4, 12) = 16) to size the array (exit 70), got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        70,
+        "bare-call-arm const-array length canary",
+        "the parenthesized bare call should size the exact 16-slot array",
     );
 
     let _ = fs::remove_dir_all(&scratch);
