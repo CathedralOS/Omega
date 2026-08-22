@@ -1869,9 +1869,12 @@ fn runtime_param_receiver_second_instance_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("second-instance param receiver canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("second-instance param receiver canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("second-instance param receiver canary should run");
     assert_eq!(
@@ -1894,9 +1897,12 @@ fn runtime_param_forward_chain_second_receiver_exit_canary_runs() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-param-forward-chain-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("param forward-chain canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("param forward-chain canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("param forward-chain canary should run");
     assert_eq!(
@@ -2046,9 +2052,12 @@ fn runtime_param_receiver_single_instance_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("single-instance param receiver canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("single-instance param receiver canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("single-instance param receiver canary should run");
     assert_eq!(
