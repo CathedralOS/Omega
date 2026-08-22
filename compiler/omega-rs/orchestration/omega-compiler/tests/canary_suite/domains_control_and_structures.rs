@@ -3211,9 +3211,12 @@ fn runtime_sat_nested_operand_domain_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_sat_nested_operand_domain_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-satnest-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("nested-operand domain canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("nested-operand domain canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("nested-operand domain canary should run");
     assert_eq!(
@@ -3233,9 +3236,12 @@ fn runtime_sat_unsigned_onedirection_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_sat_unsigned_onedirection_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-satdir-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("one-direction saturating canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("one-direction saturating canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("one-direction saturating canary should run");
     assert_eq!(
@@ -3254,9 +3260,12 @@ fn runtime_sat_min_idiom_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_sat_min_idiom_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-minidm-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("MIN idiom canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("MIN idiom canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("MIN idiom canary should run");
     assert_eq!(
@@ -3274,9 +3283,12 @@ fn runtime_shl_saturating_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_shl_saturating_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-shlsat-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("saturating shl canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("saturating shl canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("saturating shl canary should run");
     assert_eq!(
@@ -3297,9 +3309,12 @@ fn runtime_shl_saturating_value_overflow_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_shl_saturating_value_overflow_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-shlsatvo-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("value-overflow saturating shl canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("value-overflow saturating shl canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("value-overflow saturating shl canary should run");
     assert_eq!(
