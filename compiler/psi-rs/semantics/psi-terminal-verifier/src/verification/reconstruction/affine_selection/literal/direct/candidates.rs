@@ -1,7 +1,8 @@
 //! Source-ordered direct landed-literal candidates for independent reconstruction.
 
-use psi_core::{Proposition, ScalarTerm, ScalarType};
+use psi_core::{Proposition, ScalarTerm};
 
+mod eligibility;
 mod equalities;
 
 use equalities::OrientedEqualities;
@@ -21,12 +22,7 @@ impl<'a> DirectLiteralCandidates<'a> {
         &self,
         mut complete: impl FnMut(&'a ScalarTerm, &'a ScalarTerm) -> bool,
     ) -> bool {
-        self.equalities.any(|root, literal| {
-            matches!(root, ScalarTerm::Value { .. })
-                && literal.integer_value().is_some_and(|(integer_type, _)| {
-                    root.scalar_type() == ScalarType::Integer(integer_type)
-                })
-                && complete(root, literal)
-        })
+        self.equalities
+            .any(|root, literal| eligibility::eligible(root, literal) && complete(root, literal))
     }
 }
