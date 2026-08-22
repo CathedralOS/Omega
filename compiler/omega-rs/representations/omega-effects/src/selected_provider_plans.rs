@@ -13,6 +13,7 @@ pub struct SelectedProviderPlanFacts {
     normalized_identity: u64,
     execution_scope: crate::ExecutionScope,
     opaque_executable_admissions: Vec<crate::ValidatedOpaqueExecutableAdmission>,
+    installation_reach_resolutions: Vec<InstallationReachResolution>,
 }
 
 impl Default for SelectedProviderPlanFacts {
@@ -22,6 +23,7 @@ impl Default for SelectedProviderPlanFacts {
             normalized_identity: fingerprint_selected_plans(&[]),
             execution_scope: crate::ExecutionScope::CallerAddressSpace,
             opaque_executable_admissions: Vec::new(),
+            installation_reach_resolutions: Vec::new(),
         }
     }
 }
@@ -91,6 +93,7 @@ impl SelectedProviderPlanFacts {
             normalized_identity,
             execution_scope: crate::ExecutionScope::CallerAddressSpace,
             opaque_executable_admissions: Vec::new(),
+            installation_reach_resolutions: Vec::new(),
         })
     }
 
@@ -201,6 +204,109 @@ impl SelectedProviderPlanFacts {
         &self.opaque_executable_admissions
     }
 
+    /// Attach checked realization reach to provider-selected bounded
+    /// requirements. The requirement ceiling stays in the provider schema;
+    /// this row is derived implementation evidence used by root composition.
+    pub fn with_installation_reach_resolutions(
+        mut self,
+        mut resolutions: Vec<InstallationReachResolution>,
+    ) -> Result<Self, String> {
+        resolutions.sort_by(|left, right| {
+            left.requirement_identity
+                .cmp(&right.requirement_identity)
+                .then_with(|| {
+                    left.provider_plan_identity
+                        .cmp(&right.provider_plan_identity)
+                })
+        });
+        for pair in resolutions.windows(2) {
+            if pair[0].requirement_identity == pair[1].requirement_identity {
+                return Err(format!(
+                    "installation reach requirement `{}` has more than one selected resolution",
+                    pair[0].requirement_identity
+                ));
+            }
+        }
+        for resolution in &mut resolutions {
+            if resolution.requirement_identity.is_empty() {
+                return Err(
+                    "installation reach resolution has an empty requirement identity".into(),
+                );
+            }
+            resolution.upper_bound.sort();
+            resolution.upper_bound.dedup();
+            resolution.resolved_row.sort();
+            resolution.resolved_row.dedup();
+            if resolution
+                .resolved_row
+                .iter()
+                .any(|service| !resolution.upper_bound.contains(service))
+            {
+                return Err(format!(
+                    "installation reach resolution for `{}` exceeds its published upper bound",
+                    resolution.requirement_identity
+                ));
+            }
+            let Some(plan) = self.plan_by_identity(resolution.provider_plan_identity) else {
+                return Err(format!(
+                    "installation reach resolution for `{}` names unselected provider plan {:#018x}",
+                    resolution.requirement_identity, resolution.provider_plan_identity
+                ));
+            };
+            if !plan
+                .rows
+                .iter()
+                .any(|row| row.requirement_identity == resolution.requirement_identity)
+            {
+                return Err(format!(
+                    "installation reach resolution for `{}` is absent from selected provider plan `{}`",
+                    resolution.requirement_identity, plan.name
+                ));
+            }
+        }
+        self.installation_reach_resolutions = resolutions;
+        self.normalized_identity = fingerprint_selected_plans_and_reaches(
+            &self.plans,
+            &self.installation_reach_resolutions,
+        );
+        Ok(self)
+    }
+
+    pub fn installation_reach_resolutions(&self) -> &[InstallationReachResolution] {
+        &self.installation_reach_resolutions
+    }
+
+    pub fn installation_reach_resolution(
+        &self,
+        requirement_identity: &str,
+    ) -> Option<&InstallationReachResolution> {
+        self.installation_reach_resolutions
+            .iter()
+            .find(|resolution| resolution.requirement_identity == requirement_identity)
+    }
+
+    /// Resolve one root closure from its concrete reach plus exact bounded
+    /// requirement dependencies. Absence rejects; an upper bound is never
+    /// silently used as the selected row.
+    pub fn resolve_installation_reach(
+        &self,
+        concrete_reach: &[String],
+        requirement_identities: &[String],
+    ) -> Result<Vec<String>, String> {
+        let mut resolved = concrete_reach.to_vec();
+        for requirement_identity in requirement_identities {
+            let Some(row) = self.installation_reach_resolution(requirement_identity) else {
+                return Err(format!(
+                    "installation reach requirement `{requirement_identity}` remains unresolved at final admission"
+                ));
+            };
+            resolved.extend(row.resolved_row.iter().cloned());
+        }
+        resolved.sort();
+        resolved.dedup();
+        Ok(resolved)
+    }
+
     /// Derive caller-address-space TCB facts from the selected closure, never
     /// from source service reach or the unselected candidate set.
     pub fn executable_tcb_manifest(&self) -> crate::ExecutableTcbManifest {
@@ -213,6 +319,14 @@ impl SelectedProviderPlanFacts {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InstallationReachResolution {
+    pub requirement_identity: String,
+    pub provider_plan_identity: u64,
+    pub upper_bound: Vec<String>,
+    pub resolved_row: Vec<String>,
+}
+
 fn fingerprint_selected_plans(plans: &[ProviderPlan]) -> u64 {
     let mut hash = 0xcbf29ce484222325u64;
     for byte in (plans.len() as u64).to_le_bytes().into_iter().chain(
@@ -222,6 +336,40 @@ fn fingerprint_selected_plans(plans: &[ProviderPlan]) -> u64 {
     ) {
         hash ^= u64::from(byte);
         hash = hash.wrapping_mul(0x100000001b3);
+    }
+    hash
+}
+
+fn fingerprint_selected_plans_and_reaches(
+    plans: &[ProviderPlan],
+    resolutions: &[InstallationReachResolution],
+) -> u64 {
+    let mut hash = fingerprint_selected_plans(plans);
+    for resolution in resolutions {
+        for byte in resolution
+            .requirement_identity
+            .as_bytes()
+            .iter()
+            .copied()
+            .chain(resolution.provider_plan_identity.to_le_bytes())
+            .chain((resolution.upper_bound.len() as u64).to_le_bytes())
+            .chain(
+                resolution
+                    .upper_bound
+                    .iter()
+                    .flat_map(|service| service.as_bytes().iter().copied().chain([0])),
+            )
+            .chain((resolution.resolved_row.len() as u64).to_le_bytes())
+            .chain(
+                resolution
+                    .resolved_row
+                    .iter()
+                    .flat_map(|service| service.as_bytes().iter().copied().chain([0])),
+            )
+        {
+            hash ^= u64::from(byte);
+            hash = hash.wrapping_mul(0x100000001b3);
+        }
     }
     hash
 }
@@ -300,6 +448,63 @@ mod tests {
                 .map(|plan| plan.name.as_str()),
             Some("Alpha")
         );
+    }
+
+    #[test]
+    fn installation_reach_resolution_is_exact_bounded_selected_evidence() {
+        let plan = candidate("Interrupt", "complete");
+        let plan_identity = plan.identity_fingerprint();
+        let selected = SelectedProviderPlanFacts::from_selection(
+            std::slice::from_ref(&plan),
+            std::slice::from_ref(&plan.name),
+        )
+        .expect("selected provider");
+        let base_identity = selected.normalized_identity();
+        let requirement_identity = plan.schema.methods[0].requirement_identity.clone();
+        let resolved = selected
+            .with_installation_reach_resolutions(vec![InstallationReachResolution {
+                requirement_identity: requirement_identity.clone(),
+                provider_plan_identity: plan_identity,
+                upper_bound: vec!["PortIo".into(), "MachineControl".into()],
+                resolved_row: vec!["PortIo".into()],
+            }])
+            .expect("selected row refines its bound");
+
+        assert_ne!(resolved.normalized_identity(), base_identity);
+        let row = resolved
+            .installation_reach_resolution(&requirement_identity)
+            .expect("exact requirement resolution");
+        assert_eq!(row.upper_bound, ["MachineControl", "PortIo"]);
+        assert_eq!(row.resolved_row, ["PortIo"]);
+        assert_eq!(
+            resolved
+                .resolve_installation_reach(
+                    &["InterruptCompletion".into(), "MachineControl".into()],
+                    std::slice::from_ref(&requirement_identity),
+                )
+                .expect("selected row closes the root"),
+            ["InterruptCompletion", "MachineControl", "PortIo"]
+        );
+        assert!(
+            resolved
+                .resolve_installation_reach(&[], &["Missing::requirement".into()])
+                .expect_err("final admission rejects unresolved rows")
+                .contains("remains unresolved at final admission")
+        );
+
+        let outside = SelectedProviderPlanFacts::from_selection(
+            std::slice::from_ref(&plan),
+            std::slice::from_ref(&plan.name),
+        )
+        .expect("selected provider")
+        .with_installation_reach_resolutions(vec![InstallationReachResolution {
+            requirement_identity,
+            provider_plan_identity: plan_identity,
+            upper_bound: vec!["MachineControl".into()],
+            resolved_row: vec!["FilesystemHost".into()],
+        }])
+        .expect_err("resolved row outside the bound must reject");
+        assert!(outside.contains("exceeds its published upper bound"));
     }
 
     #[test]

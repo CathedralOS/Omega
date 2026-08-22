@@ -273,6 +273,15 @@ fn bounded_installation_reach_retains_exact_unresolved_requirement_through_check
         .map(|definition| definition.name.as_str())
         .collect::<Vec<_>>();
     assert_eq!(names, ["MachineControl", "PortIo"]);
+    assert!(
+        checked
+            .facts
+            .service_reaches
+            .rows
+            .services(reach.concrete_effective)
+            .is_empty(),
+        "the abstract upper bound must not enter concrete reach"
+    );
     let outer_reach = checked
         .facts
         .service_reaches
@@ -290,6 +299,15 @@ fn bounded_installation_reach_retains_exact_unresolved_requirement_through_check
             .expect("outer realized envelope")
             .unresolved_installation_reaches,
         reach.unresolved_installation_reaches
+    );
+    assert!(
+        checked
+            .facts
+            .contract_plans
+            .realized_envelope(outer_symbol)
+            .expect("outer realized envelope")
+            .concrete_service_reach
+            .is_empty()
     );
 }
 

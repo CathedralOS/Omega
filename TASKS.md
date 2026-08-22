@@ -6526,8 +6526,13 @@ state through a raw address.
   conservative preselection reach. Trait-conformance validation already
   rejects realization rows outside the bound. Remaining work is the
   cross-artifact half: encode a source-handle-free requirement identity in
-  terminal/manifests, substitute the selected provider row through each root
-  closure, and reject final admission if any row remains unresolved.
+  terminal/manifests and consume it at installed-root admission. Selected
+  provider binding now derives the realization's actual checked reach as
+  `InstallationReachResolution`, verifies it refines the authored bound, and
+  includes the resolution in selected-closure identity. Checked reach facts
+  retain a separate concrete row excluding abstract-bound contributions, so
+  final substitution is `concrete + selected rows`, never unsound set
+  subtraction. The source-free resolver rejects any missing selection.
   Retain its `+`-union upper bound and internal
   dependency closure, reject escape through ordinary callable package or
   component contracts, expose unresolved rows and bounds in preselection

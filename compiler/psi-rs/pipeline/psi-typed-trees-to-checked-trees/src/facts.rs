@@ -663,6 +663,13 @@ fn build_contract_plans(
                 .filter_map(|service| service_reaches.services.definition(*service))
                 .map(|definition| definition.name.clone())
                 .collect::<Vec<_>>();
+            let concrete_service_reach = service_reaches
+                .rows
+                .services(service_fact.concrete_effective)
+                .iter()
+                .filter_map(|service| service_reaches.services.definition(*service))
+                .map(|definition| definition.name.clone())
+                .collect::<Vec<_>>();
             let invocation = synchronous_invocations
                 .for_machine(contract.machine)
                 .expect("every checked machine must retain invocation facts");
@@ -688,6 +695,7 @@ fn build_contract_plans(
                 machine: contract.machine,
                 contract_fingerprint: contract.fingerprint,
                 effective_service_reach,
+                concrete_service_reach,
                 unresolved_installation_reaches: service_fact
                     .unresolved_installation_reaches
                     .clone(),
@@ -1793,6 +1801,7 @@ fn build_service_reach_facts(
                 inferred_direct: machine.inferred_direct,
                 inferred_transitive: machine.inferred_transitive,
                 effective: machine.effective,
+                concrete_effective: machine.concrete_effective,
                 unresolved_installation_reaches: machine.unresolved_installation_reaches,
                 states: remap_service_reach_span(machine.states),
             }),
@@ -1802,6 +1811,8 @@ fn build_service_reach_facts(
                 state: state.state,
                 inferred_direct: state.inferred_direct,
                 inferred_transitive: state.inferred_transitive,
+                concrete_direct: state.concrete_direct,
+                concrete_transitive: state.concrete_transitive,
                 unresolved_installation_reaches: state.unresolved_installation_reaches,
                 calls: remap_service_reach_span(state.calls),
             }),
@@ -1814,6 +1825,8 @@ fn build_service_reach_facts(
                 target_machine: call.target_machine,
                 inferred_direct: call.inferred_direct,
                 inferred_transitive: call.inferred_transitive,
+                concrete_direct: call.concrete_direct,
+                concrete_transitive: call.concrete_transitive,
                 unresolved_installation_reaches: call.unresolved_installation_reaches,
             }),
     }

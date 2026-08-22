@@ -1274,7 +1274,123 @@ pub(crate) fn bind_selected_provider_plan_facts(
             .evidence
             .receipt_identity = identity;
     }
-    Ok(facts)
+    let installation_reach_resolutions =
+        derive_selected_installation_reach_resolutions(checked, &facts)?;
+    facts
+        .with_installation_reach_resolutions(installation_reach_resolutions)
+        .map_err(|reason| vec![psi_diagnostics::Diagnostic::error(reason)])
+}
+
+fn derive_selected_installation_reach_resolutions(
+    checked: &psi_checked_trees::CheckedTrees,
+    selected: &omega_effects::SelectedProviderPlanFacts,
+) -> Result<Vec<omega_effects::InstallationReachResolution>, Vec<psi_diagnostics::Diagnostic>> {
+    let mut resolutions = Vec::new();
+    let mut diagnostics = Vec::new();
+    for plan in selected.plans() {
+        for row in &plan.rows {
+            let requirements = checked
+                .typed
+                .traits()
+                .iter()
+                .flat_map(|owner| {
+                    checked
+                        .typed
+                        .trait_machine_signatures(owner)
+                        .iter()
+                        .filter(move |requirement| {
+                            checked
+                                .typed
+                                .normalized_trait_requirement_overload_identity(owner, requirement)
+                                .identity()
+                                == row.requirement_identity
+                        })
+                        .map(move |requirement| (owner, requirement))
+                })
+                .collect::<Vec<_>>();
+            let [(_, requirement)] = requirements.as_slice() else {
+                diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
+                    "selected provider row `{}` resolves to {} exact typed requirements",
+                    row.requirement_identity,
+                    requirements.len()
+                )));
+                continue;
+            };
+            if !requirement.service_reach_is_installation_bound {
+                continue;
+            }
+
+            let realization_machines = checked
+                .typed
+                .machines()
+                .iter()
+                .filter(|machine| {
+                    machine
+                        .attached_data
+                        .as_ref()
+                        .map(|name| name.as_str())
+                        .unwrap_or_default()
+                        == plan.provider_type
+                })
+                .filter(|machine| {
+                    checked
+                        .typed
+                        .machine_trait_conformances(machine)
+                        .iter()
+                        .any(|conformance| {
+                            conformance.requirement.as_ref().is_some_and(|name| {
+                                satisfied_requirement_identity(
+                                    &checked.typed,
+                                    machine.name.as_str(),
+                                    conformance.name.as_str(),
+                                    name.as_str(),
+                                ) == row.requirement_identity
+                            })
+                        })
+                })
+                .collect::<Vec<_>>();
+            let [realization] = realization_machines.as_slice() else {
+                diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
+                    "selected provider row `{}` resolves to {} exact realization machines for provider `{}`",
+                    row.requirement_identity,
+                    realization_machines.len(),
+                    plan.provider_type
+                )));
+                continue;
+            };
+            let Some(envelope) = checked
+                .facts
+                .contract_plans
+                .realized_envelope(realization.symbol)
+            else {
+                diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
+                    "selected provider realization `{}` has no checked contract envelope",
+                    realization.name
+                )));
+                continue;
+            };
+            let upper_bound = checked
+                .facts
+                .service_reaches
+                .rows
+                .services(requirement.service_reach_row)
+                .iter()
+                .filter_map(|service| checked.facts.service_reaches.services.definition(*service))
+                .map(|definition| definition.name.clone())
+                .collect();
+            resolutions.push(omega_effects::InstallationReachResolution {
+                requirement_identity: row.requirement_identity.clone(),
+                provider_plan_identity: plan.identity_fingerprint(),
+                upper_bound,
+                resolved_row: envelope.effective_service_reach.clone(),
+            });
+        }
+    }
+    if diagnostics.is_empty() {
+        Ok(resolutions)
+    } else {
+        Err(diagnostics)
+    }
 }
 
 fn retain_selected_operator_provider_evidence(

@@ -62,6 +62,50 @@ fn provider_derivation_consumes_typed_external_binding_identity() {
     );
 }
 
+#[test]
+fn selected_provider_binds_actual_reach_for_bounded_requirement() {
+    let source = r#"
+        boundary trait MachineControl {}
+        boundary trait PortIo {}
+
+        boundary trait InterruptCompletion {
+            machine complete() -> u64
+            reaches <= MachineControl + PortIo;
+        }
+
+        data Pic {}
+
+        machine Pic::complete() -> u64
+        satisfies InterruptCompletion::complete
+        reaches PortIo
+        {
+            0
+        }
+    "#;
+    let (typed, plan) = derive_provider_fixture(source);
+    let mut checked = psi_typed_trees_to_checked_trees::lower_typed_trees(typed)
+        .expect("bounded provider should check");
+    let selected = omega_effects::SelectedProviderPlanFacts::from_selection(
+        std::slice::from_ref(&plan),
+        std::slice::from_ref(&plan.name),
+    )
+    .expect("one selected PIC plan");
+    let selected =
+        bind_selected_provider_plan_facts(&mut checked, std::slice::from_ref(&plan), selected, &[])
+            .expect("selected PIC reach should resolve");
+    let requirement_identity = plan.rows[0].requirement_identity.as_str();
+    let resolution = selected
+        .installation_reach_resolution(requirement_identity)
+        .expect("bounded requirement resolution");
+
+    assert_eq!(resolution.upper_bound, ["MachineControl", "PortIo"]);
+    assert_eq!(resolution.resolved_row, ["PortIo"]);
+    assert_eq!(
+        resolution.provider_plan_identity,
+        plan.identity_fingerprint()
+    );
+}
+
 fn selection_plan(name: &str, methods: &[&str], rows: &[&str]) -> ProviderPlan {
     ProviderPlan {
         name: name.to_owned(),
