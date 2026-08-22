@@ -643,9 +643,13 @@ Owners:
   whole-range loan. Coordinated copied claim/occurrence rewrites cannot
   substitute unrelated custody; rejection borrows the carrier or returns the
   unchanged sealed request for corrected retry.
-  The access-plan foundation's 5,346-line unit corpus now lives in a private
-  test child rather than sharing its 4,563-line production root; all 81 unit
-  tests and the public production surface remain unchanged.
+  The access-plan foundation's 5,318-line unit corpus now lives in a private
+  test child rather than sharing its production root. Its four Stable,
+  Stable-compound, External, and Atomic primitive specialization contracts and
+  independent replay validators now live in a focused 578-line child, leaving
+  a 3,992-line coordinator. All 81 unit tests, 312-function production
+  inventory, diagnostics, custody and retry behavior, and the public surface
+  remain unchanged.
 - Implement `Extent::Resident<P, T>` as the owned exact-range dormant-content
   qualification, including invariant type indices, mutual exclusion with
   `Vacant`, split/merge rejection, borrow versus owned-view continuity,
@@ -4526,6 +4530,13 @@ Owners:
   receipts while preserving literal status 70, interpreter parity, and all
   detailed diagnostics. Exact-owner ambiguity, the 795 rooted/3 legacy
   inventory, and receipt-drift fences remain green.
+  Five authored-root receiver-dispatch executions—nested same-type receivers,
+  second-receiver dispatch, sibling dispatched value calls, repeated inline
+  receiver calls, and non-entry second-receiver dispatch—now launch solely
+  through exact checked-report executable receipts while preserving literal
+  status 70 and all detailed diagnostics. Exact-owner ambiguity, the 795
+  rooted/3 legacy inventory, and receipt-drift fences remain green; the
+  adjacent timer owner stays explicitly fenced.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
@@ -5122,6 +5133,11 @@ Remaining N6/N8 work:
   cursor, bounded string/count/index handling, and nonzero semantic-ID
   primitives in a focused private child; its public API, exact bytes and
   identities, error domain, and 71-function inventory remain unchanged.
+  Canonical proof-bundle evidence/producer ordering and bounded proof,
+  proposition, scalar, and content-tree validation now live in a focused 222-
+  line child with one parent-facing entry and no encoding callback. Its 1,748-
+  line parent retains the same public API, `PSIPRF` bytes and identities, error
+  order, and 48-function production inventory.
 - Then migrate suffix law discovery to propositions plus explicit conformances,
   and expand the checked `Nat`/`Int`/`Rat`/Cauchy/approximation corpus. `Real`
   remains proof-only and core-level.
