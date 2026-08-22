@@ -2889,6 +2889,13 @@ Remaining:
   reconstruction independently rechecks kernel conversion and closed-order
   relaxation. Candidate order, proof shape, rejection, and the fixed affine
   frontier are unchanged.
+  Exact affine-root endpoint custody now lives in paired, side-local
+  `affine_custody/relaxation/mapping/endpoint` modules. Producer and
+  reconstruction independently require a retained `LessOrEqual` row and
+  preserve left-root-before-right-root selection while returning the same bound
+  endpoint and lower-versus-upper orientation. Signed carrier validation,
+  checked affine mapping, sign-directed target orientation, proof shape,
+  rejection, and the fixed frontier remain unchanged.
   Direct retained affine-bound custody handoff now lives in paired, side-local
   `affine_selection/direct/completion` modules. The producer independently
   converts the selected origin-indexed citation into its exact proof before
