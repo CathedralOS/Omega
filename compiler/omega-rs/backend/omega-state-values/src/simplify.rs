@@ -137,7 +137,13 @@ const REENTRANT_SIMPLIFY_DEPTH_LIMIT: usize = 32;
 /// thread_local keeps the many interior call sites signature-stable (plan
 /// workers are per-thread, and every entry refills, so no cross-expression
 /// bleed).
-const HELPER_EXPANSION_FUEL_BUDGET: u64 = 20_000;
+// Ten model builds retain the nested guarded-helper fold pinned below while
+// bounding each top-level expression tightly enough that broad helper-heavy
+// programs fall back to unsimplified calls instead of spending tens of seconds
+// rebuilding equivalent models. Raising this to 20,000 made the total-order
+// and GUI canaries take 61–74 seconds apiece; the fallback is semantic no-match,
+// not a validation or lowering obligation.
+const HELPER_EXPANSION_FUEL_BUDGET: u64 = 10;
 
 thread_local! {
     static HELPER_EXPANSION_FUEL: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
