@@ -939,6 +939,32 @@ pub fn build_terminal_object_artifact(
                 TerminalBoundaryRealization::DirectPortReadU8(realization) => {
                     let expected =
                         omega_x86_encoding::encode_immediate_port_read_u8(realization.port);
+                    let exact_return_edge =
+                        settlement.native_result.as_ref().is_some_and(|result| {
+                            let Some(return_ordinal) = settlement.operation_ordinal.checked_add(1)
+                            else {
+                                return false;
+                            };
+                            let Some(return_offset) =
+                                settlement.code_offset.checked_add(settlement.byte_count)
+                            else {
+                                return false;
+                            };
+                            function
+                                .fuel_attribution
+                                .iter()
+                                .filter(|attribution| {
+                                    attribution.site
+                                        == TerminalNativeFuelSite::Edge(result.return_edge)
+                                        && attribution.units == 1
+                                        && attribution.operation_ordinal == return_ordinal
+                                        && attribution.code_offset == return_offset
+                                        && attribution.byte_count == 1
+                                })
+                                .count()
+                                == 1
+                                && function.bytes.get(return_offset) == Some(&0xc3)
+                        });
                     settlement.byte_count == expected.len()
                         && plan.target.architecture == Architecture::X86_64
                         && settlement
@@ -948,6 +974,7 @@ pub fn build_terminal_object_artifact(
                             == Some(expected.as_slice())
                         && function.unit_stack.is_none()
                         && function.scalar_stack.is_some()
+                        && exact_return_edge
                         && settlement.arguments.iter().all(|argument| {
                             argument.path.is_empty()
                                 && function

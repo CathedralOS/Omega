@@ -39,7 +39,7 @@ mod tests {
     use omega_terminal_target_operations::{
         TerminalDirectPortReadU8Realization, TerminalMetadataOnlyPortRealization,
     };
-    use psi_core::{OperationId, ServiceId};
+    use psi_core::{EdgeId, OperationId, ServiceId};
 
     #[test]
     fn admitted_result_placement_is_exact_and_metadata_cannot_gain_one() {
@@ -62,6 +62,7 @@ mod tests {
                 IntegerType::new(IntegerSign::Unsigned, 8).expect("u8"),
             ),
             placement: placement.clone(),
+            return_edge: EdgeId::new(1).expect("return edge"),
         };
         assert!(boundary_result_is_exact(
             NativeTarget::linux_x64(),

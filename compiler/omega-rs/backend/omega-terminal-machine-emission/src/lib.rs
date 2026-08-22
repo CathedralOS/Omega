@@ -233,6 +233,7 @@ fn emit_function(
                             .expect("u8 is valid"),
                     ),
                     placement: call_plan.result.clone().expect("checked above"),
+                    return_edge: *psi_edge,
                 }),
                 operation_ordinal: 0,
                 code_offset: 0,

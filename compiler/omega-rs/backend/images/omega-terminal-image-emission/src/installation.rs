@@ -36,7 +36,7 @@ use crate::{
     completion_receipts::completion_receipts_have_exact_custody,
 };
 
-pub const TERMINAL_INSTALLATION_FORMAT_MARKER: u16 = 28;
+pub const TERMINAL_INSTALLATION_FORMAT_MARKER: u16 = 29;
 const MAGIC: &[u8; 8] = b"PSIINST\0";
 const IMAGE_DOMAIN: &[u8] = b"omega-terminal-installed-image\0";
 const RECORD_DOMAIN: &[u8] = b"omega-terminal-installation-record\0";
@@ -827,6 +827,7 @@ pub fn encode_terminal_installation_record(
                 bytes.push(1);
                 bytes.extend_from_slice(&[0; 3]);
                 push_u64(&mut bytes, result.value.get());
+                push_u64(&mut bytes, result.return_edge.get());
                 encode_boundary_result_scalar_type(&mut bytes, result.scalar_type);
                 encode_placement(&mut bytes, &result.placement)?;
             }
@@ -1418,6 +1419,8 @@ pub fn decode_terminal_installation_record(
         let native_result = if native_result_present {
             Some(TerminalBoundaryResultRecord {
                 value: psi_core::ValueId::new(reader.u64()?)
+                    .ok_or(TerminalInstallationError::InvalidBoundaryResult)?,
+                return_edge: EdgeId::new(reader.u64()?)
                     .ok_or(TerminalInstallationError::InvalidBoundaryResult)?,
                 scalar_type: decode_boundary_result_scalar_type(&mut reader)?,
                 placement: decode_placement(&mut reader)?,
@@ -2811,11 +2814,46 @@ fn validate_record_shape(
                         == 1
             }
             TerminalBoundaryRealization::DirectPortReadU8(_) => {
+                let exact_return_edge =
+                    installed
+                        .settlement
+                        .native_result
+                        .as_ref()
+                        .is_some_and(|result| {
+                            let Some(return_ordinal) =
+                                installed.settlement.operation_ordinal.checked_add(1)
+                            else {
+                                return false;
+                            };
+                            let Some(return_offset) = installed
+                                .settlement
+                                .code_offset
+                                .checked_add(installed.settlement.byte_count)
+                            else {
+                                return false;
+                            };
+                            record
+                                .fuel_attribution
+                                .iter()
+                                .filter(|attribution| {
+                                    attribution.machine == installed.machine
+                                        && attribution.attribution.site
+                                            == TerminalNativeFuelSite::Edge(result.return_edge)
+                                        && attribution.attribution.units == 1
+                                        && attribution.attribution.operation_ordinal
+                                            == return_ordinal
+                                        && attribution.attribution.code_offset == return_offset
+                                        && attribution.attribution.byte_count == 1
+                                })
+                                .count()
+                                == 1
+                        });
                 record.target.architecture == Architecture::X86_64
                     && installed.settlement.byte_count
                         == omega_x86_encoding::IMMEDIATE_PORT_READ_U8_WIDTH
                     && function.unit_stack.is_none()
                     && function.scalar_stack.is_some()
+                    && exact_return_edge
                     && installed.settlement.arguments.iter().all(|argument| {
                         argument.path.is_empty()
                             && function

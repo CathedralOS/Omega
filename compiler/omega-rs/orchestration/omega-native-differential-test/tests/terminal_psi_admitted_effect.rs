@@ -777,6 +777,10 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
     assert_eq!(native_result.value, result.value);
     assert_eq!(native_result.scalar_type, result.scalar_type);
     assert_eq!(
+        native_result.return_edge,
+        EdgeId::new(1).expect("return edge")
+    );
+    assert_eq!(
         &native_result.placement,
         direct_call_plan.result.as_ref().unwrap()
     );
@@ -784,6 +788,16 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
     missing_native_result.functions[0].boundary_settlements[0].native_result = None;
     assert!(matches!(
         build_terminal_object_artifact(&missing_native_result),
+        Err(omega_terminal_image_emission::TerminalObjectError::BoundaryRealizationMismatch { .. })
+    ));
+    let mut wrong_return_edge = direct_machine.clone();
+    wrong_return_edge.functions[0].boundary_settlements[0]
+        .native_result
+        .as_mut()
+        .expect("native result")
+        .return_edge = EdgeId::new(2).expect("wrong return edge");
+    assert!(matches!(
+        build_terminal_object_artifact(&wrong_return_edge),
         Err(omega_terminal_image_emission::TerminalObjectError::BoundaryRealizationMismatch { .. })
     ));
     let direct_object =
