@@ -2091,7 +2091,7 @@ mod tests {
             None,
         );
 
-        let mut mutable_telescope = telescope;
+        let mut mutable_telescope = telescope.clone();
         mutable_telescope
             .parameters
             .push(RepresentativeRuntimeParameter {
@@ -2102,6 +2102,28 @@ mod tests {
             });
         assert_eq!(
             pure_representative_effect(&mutable_telescope, &operational, &service_reaches,),
+            None,
+        );
+
+        let mut unresolved_program = program.clone();
+        let arguments = unresolved_program
+            .expression_table
+            .insert_expression_handles(std::iter::empty());
+        let unresolved_call = unresolved_program
+            .expression_table
+            .insert(ExpressionNode::Call(call_with_arguments(arguments)));
+        let machine = unresolved_program.machines()[0].clone();
+        let mut state = unresolved_program.machine_states(&machine)[0].clone();
+        unresolved_program.statement_table.push_statement(
+            &mut state.statement_nodes,
+            StatementNode::Expression(unresolved_call),
+        );
+        unresolved_program.machine_states_mut(&machine)[0] = state;
+        let unresolved_operational = psi_effects::infer_operational_may(&unresolved_program);
+        let unresolved_reaches =
+            psi_effects::infer_service_reaches(&unresolved_program, &unresolved_operational);
+        assert_eq!(
+            pure_representative_effect(&telescope, &unresolved_operational, &unresolved_reaches,),
             None,
         );
     }
