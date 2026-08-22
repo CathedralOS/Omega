@@ -1865,7 +1865,16 @@ Remaining:
   into paired `alias_transport/cast/stronger` and `cast/literal` modules. Each
   producer constructs only its exact closed bridge/substitution proof, while
   reconstruction independently enumerates and rechecks the same typed facts;
-  the cast-alias parent is now a small facade over those authorities.
+  the cast-alias parent is now a small facade over those authorities. Stronger
+  cast-alias completion now lives in independent side-local
+  `alias_transport/cast/stronger/completion` modules. Each parent retains its
+  own ledger-ordered exact equality and bound candidate discovery; production
+  alone remaps the typed source endpoint, constructs the one closed
+  transitivity bridge and root substitution, then completes the cast proof,
+  while reconstruction independently replays the same carrier, endpoint,
+  bridge, root-bound, and cast checks. Equality/bound citation order,
+  orientation precedence, proof shapes, redirected, mistyped, or nonclosed
+  rejection, and the single-alias/single-bridge frontier are unchanged.
   Direct retained bounds and direct landed literals remain earlier in each
   parent. Citation orientation, endpoint order, proof shapes, rejection
   behavior, and the finite two-alias frontier are unchanged. These slices do
@@ -3053,6 +3062,11 @@ Owners:
   consumes its exact checked-report receipt while retaining literal status 7,
   Full backend-report emission, and the complete permission-realization/event
   assertions. The 795 exact-owner pin remains stable.
+  Five authored-root atomic executions—load/store ordering, fetch-add, fetch-
+  sub, fetch-xor, and fetch-or—now launch only from exact checked-report
+  receipts while retaining literal statuses 70, 70, 70, 70, and 75. Existing
+  `linux_arm64` cross-target checks remain unchanged, and the 795 exact-owner
+  pin remains stable.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
