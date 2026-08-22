@@ -2282,6 +2282,14 @@ definition-word replay, arithmetic-step orientation, sibling position, and
 target completion. Witness bytes, missing/late/redirected/ambiguous rejection,
 and the fixed four-definition frontier are unchanged.
 
+One landed affine-sibling definition step is now decoded by independent
+producer and verifier `affine_custody/frontier/prefix/literals/step` modules.
+Each requires an exact same-carrier Value target, accepts only exact integer
+add/subtract/multiply, preserves left-operand precedence, and permits the right
+operand only for commutative add/multiply. The `literals` parents retain word
+traversal, unique landing alignment, and final-target completion. Witness
+bytes, arithmetic orientation, rejection, and the fixed frontier are unchanged.
+
 The cast root-bound child may also be reconstructed from exactly one retained
 same-carrier `root == literal` fact when that literal equals or strengthens the
 canonical bound endpoint. Production remaps the endpoint into the source
