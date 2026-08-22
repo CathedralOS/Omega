@@ -194,20 +194,16 @@ impl std::fmt::Display for IntegerCastChainWitnessError {
 
 impl std::error::Error for IntegerCastChainWitnessError {}
 
-/// Check one exact partial-cast image of an independently proved root bound.
+/// Check an exact partial-cast-chain image of an independently proved root bound.
 ///
-/// This first certificate family is intentionally one edge only. The checked
-/// cast definition preserves the mathematical integer; the conclusion must
-/// retain the root bound's orientation and express the same endpoint in the
-/// target carrier.
-pub fn check_single_integer_cast_bound_conversion(
+/// Every checked cast definition preserves the mathematical integer. The
+/// conclusion must retain the root bound's orientation and express the same
+/// endpoint in the chain's final carrier.
+pub fn check_integer_cast_bound_conversion(
     chain: &CheckedIntegerCastChain,
     root_bound: &Proposition,
     conclusion: &Proposition,
 ) -> Result<(), IntegerCastBoundConversionError> {
-    if chain.definition_axioms().len() != 1 || chain.carriers().len() != 2 {
-        return Err(IntegerCastBoundConversionError::CastChainNotSingleEdge);
-    }
     let Proposition::LessOrEqual(root_left, root_right) = root_bound else {
         return Err(IntegerCastBoundConversionError::RootBoundNotLessOrEqual);
     };
@@ -237,7 +233,10 @@ pub fn check_single_integer_cast_bound_conversion(
         }
         target_left
     };
-    let target_type = chain.carriers()[1];
+    let target_type = *chain
+        .carriers()
+        .last()
+        .expect("a checked cast chain retains its target carrier");
     let Some(target_value) = typed_integer_as_i128(target_literal, target_type) else {
         return Err(IntegerCastBoundConversionError::ConclusionNotTypedLiteral);
     };
@@ -256,7 +255,6 @@ fn typed_integer_as_i128(term: &ScalarTerm, expected: IntegerType) -> Option<i12
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum IntegerCastBoundConversionError {
-    CastChainNotSingleEdge,
     RootBoundNotLessOrEqual,
     RootBoundMismatch,
     RootBoundNotTypedLiteral,
@@ -356,7 +354,7 @@ mod tests {
     }
 
     #[test]
-    fn maps_one_cast_bound_and_rejects_shape_or_endpoint_drift() {
+    fn maps_contiguous_cast_bounds_and_rejects_shape_or_endpoint_drift() {
         let i16_type = integer_type(IntegerSign::Signed, 16);
         let i8_type = integer_type(IntegerSign::Signed, 8);
         let root = value(1, i16_type);
@@ -386,11 +384,11 @@ mod tests {
         let root_bound = Proposition::LessOrEqual(i16_one, root);
         let conclusion = Proposition::LessOrEqual(i8_one.clone(), target.clone());
         assert_eq!(
-            check_single_integer_cast_bound_conversion(&chain, &root_bound, &conclusion),
+            check_integer_cast_bound_conversion(&chain, &root_bound, &conclusion),
             Ok(()),
         );
         assert_eq!(
-            check_single_integer_cast_bound_conversion(
+            check_integer_cast_bound_conversion(
                 &chain,
                 &root_bound,
                 &Proposition::LessOrEqual(target, i8_one),
@@ -426,8 +424,19 @@ mod tests {
             wide_root,
         );
         assert_eq!(
-            check_single_integer_cast_bound_conversion(&chain, &wide_bound, &conclusion),
-            Err(IntegerCastBoundConversionError::CastChainNotSingleEdge),
+            check_integer_cast_bound_conversion(&chain, &wide_bound, &conclusion),
+            Ok(()),
+        );
+        assert_eq!(
+            check_integer_cast_bound_conversion(
+                &chain,
+                &wide_bound,
+                &Proposition::LessOrEqual(
+                    ScalarTerm::integer(i8_type, IntegerValue::Signed(2)).unwrap(),
+                    value(2, i8_type),
+                ),
+            ),
+            Err(IntegerCastBoundConversionError::ConclusionLiteralMismatch),
         );
     }
 

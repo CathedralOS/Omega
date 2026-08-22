@@ -4,8 +4,8 @@ use crate::{
     IntegerAffineBoundConversionError, IntegerAffineWitness, IntegerAffineWitnessError,
     IntegerCastBoundConversionError, IntegerCastChainWitness, IntegerCastChainWitnessError,
     KernelError, PrimitiveJudgment, check_integer_affine_bound_conversion,
-    check_integer_affine_witness, check_integer_cast_chain_witness,
-    check_single_integer_cast_bound_conversion, decide_primitive,
+    check_integer_affine_witness, check_integer_cast_bound_conversion,
+    check_integer_cast_chain_witness, decide_primitive,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -547,12 +547,8 @@ fn check_node(
             )?;
             let chain = check_integer_cast_chain_witness(context, semantic_axioms, witness)
                 .map_err(ProofError::IntegerCastChainWitness)?;
-            check_single_integer_cast_bound_conversion(
-                &chain,
-                &root_bound.conclusion,
-                &proof.conclusion,
-            )
-            .map_err(ProofError::IntegerCastBoundConversion)?;
+            check_integer_cast_bound_conversion(&chain, &root_bound.conclusion, &proof.conclusion)
+                .map_err(ProofError::IntegerCastBoundConversion)?;
             for &index in &witness.definition_axioms {
                 let proposition = semantic_axioms
                     .get(index)
@@ -1197,10 +1193,11 @@ mod tests {
     }
 
     #[test]
-    fn integer_cast_bound_checks_one_definition_and_exact_custody() {
+    fn integer_cast_bound_checks_complete_definition_word_and_exact_custody() {
         use psi_core::{IntegerSign, IntegerType, IntegerValue, ScalarTerm, ScalarType, ValueId};
 
         let i16_type = IntegerType::new(IntegerSign::Signed, 16).expect("i16");
+        let u16_type = IntegerType::new(IntegerSign::Unsigned, 16).expect("u16");
         let i8_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
         let root = ScalarTerm::value(
             ValueId::new(1).expect("root"),
@@ -1210,6 +1207,10 @@ mod tests {
             ValueId::new(2).expect("target"),
             ScalarType::Integer(i8_type),
         );
+        let middle = ScalarTerm::value(
+            ValueId::new(3).expect("middle"),
+            ScalarType::Integer(u16_type),
+        );
         let context = PropositionContext::from_value_types([
             (
                 ValueId::new(1).expect("root"),
@@ -1218,6 +1219,10 @@ mod tests {
             (
                 ValueId::new(2).expect("target"),
                 ScalarType::Integer(i8_type),
+            ),
+            (
+                ValueId::new(3).expect("middle"),
+                ScalarType::Integer(u16_type),
             ),
         ])
         .expect("context");
@@ -1269,6 +1274,37 @@ mod tests {
                 index: 0,
                 proposition: definition.clone(),
             }]
+        );
+        let first_definition = Proposition::Equal(
+            middle.clone(),
+            ScalarTerm::integer_exact_cast(i16_type, u16_type, root.clone())
+                .expect("first partial cast"),
+        );
+        let second_definition = Proposition::Equal(
+            target.clone(),
+            ScalarTerm::integer_exact_cast(u16_type, i8_type, middle).expect("second partial cast"),
+        );
+        let multi_axioms = [first_definition.clone(), second_definition.clone()];
+        let accepted = accept_certificate(
+            &context,
+            &conclusion,
+            std::slice::from_ref(&root_bound),
+            &multi_axioms,
+            &proof(vec![0, 1], conclusion.clone()),
+        )
+        .expect("the complete contiguous cast word maps the root bound");
+        assert_eq!(
+            accepted.semantic_axioms,
+            vec![
+                AcceptedPremise {
+                    index: 0,
+                    proposition: first_definition,
+                },
+                AcceptedPremise {
+                    index: 1,
+                    proposition: second_definition,
+                },
+            ],
         );
         assert_eq!(
             check_certificate(

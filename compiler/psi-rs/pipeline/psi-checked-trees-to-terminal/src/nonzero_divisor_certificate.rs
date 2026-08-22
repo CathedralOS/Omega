@@ -246,11 +246,11 @@ fn prove_integer_bound(
             }
         }
     }
-    prove_single_cast_bound(context, goal, assumptions, semantic_axioms)
+    prove_cast_chain_bound(context, goal, assumptions, semantic_axioms)
         .or_else(|| prove_bounded_affine_bound(context, goal, assumptions, semantic_axioms))
 }
 
-fn prove_single_cast_bound(
+fn prove_cast_chain_bound(
     context: &PropositionContext,
     goal: &Proposition,
     assumptions: &[Proposition],
@@ -271,28 +271,75 @@ fn prove_single_cast_bound(
                 .into_iter()
                 .filter(|target| matches!(target, psi_core::ScalarTerm::Value { .. }))
             {
-                for definition_axiom in 0..semantic_axioms.len() {
-                    let proof = ProofNode {
-                        conclusion: goal.clone(),
-                        rule: ProofRule::IntegerCastBound {
-                            root_bound: Box::new(citation.proof(root_bound)),
-                            witness: IntegerCastChainWitness {
-                                root: root.clone(),
-                                target: target.clone(),
-                                definition_axioms: vec![definition_axiom],
-                            },
+                let Some(definition_axioms) =
+                    exact_cast_chain_definition_axioms(root, target, semantic_axioms)
+                else {
+                    continue;
+                };
+                let proof = ProofNode {
+                    conclusion: goal.clone(),
+                    rule: ProofRule::IntegerCastBound {
+                        root_bound: Box::new(citation.proof(root_bound)),
+                        witness: IntegerCastChainWitness {
+                            root: root.clone(),
+                            target: target.clone(),
+                            definition_axioms,
                         },
-                    };
-                    if check_certificate(context, goal, assumptions, semantic_axioms, &proof)
-                        .is_ok()
-                    {
-                        return Some(proof);
-                    }
+                    },
+                };
+                if check_certificate(context, goal, assumptions, semantic_axioms, &proof).is_ok() {
+                    return Some(proof);
                 }
             }
         }
     }
     None
+}
+
+/// Follow the exact SSA definition spine backward from `target` to `root`.
+///
+/// This is intentionally not graph search: every reached target must have one
+/// exact-cast definition, and the resulting source-ordered word must already be
+/// canonical in the semantic ledger.
+fn exact_cast_chain_definition_axioms(
+    root: &psi_core::ScalarTerm,
+    target: &psi_core::ScalarTerm,
+    semantic_axioms: &[Proposition],
+) -> Option<Vec<usize>> {
+    if root == target {
+        return None;
+    }
+    let mut current = target.clone();
+    let mut reversed = Vec::new();
+    while &current != root {
+        if reversed.len() >= semantic_axioms.len() {
+            return None;
+        }
+        let mut definitions = semantic_axioms
+            .iter()
+            .enumerate()
+            .filter_map(|(index, axiom)| {
+                let Proposition::Equal(
+                    output,
+                    psi_core::ScalarTerm::IntegerExactCast { operand, .. },
+                ) = axiom
+                else {
+                    return None;
+                };
+                (output == &current).then(|| (index, operand.as_ref().clone()))
+            });
+        let (index, operand) = definitions.next()?;
+        if definitions.next().is_some() || reversed.contains(&index) {
+            return None;
+        }
+        reversed.push(index);
+        current = operand;
+    }
+    reversed.reverse();
+    reversed
+        .windows(2)
+        .all(|pair| pair[0] < pair[1])
+        .then_some(reversed)
 }
 
 fn prove_bounded_affine_bound(
@@ -2906,7 +2953,7 @@ mod tests {
     }
 
     #[test]
-    fn exact_division_goal_maps_one_checked_cast_root_bound() {
+    fn exact_division_goal_maps_checked_contiguous_cast_root_bound() {
         let i8_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
         let i16_type = IntegerType::new(IntegerSign::Signed, 16).expect("i16");
         let i32_type = IntegerType::new(IntegerSign::Signed, 32).expect("i32");
@@ -2993,29 +3040,52 @@ mod tests {
                 .is_none(),
             "the cast definition does not supply root-bound authority",
         );
+        let wide_bound = Proposition::LessOrEqual(integer(i32_type, 1), value(5, i32_type));
+        let first_cast = Proposition::Equal(
+            value(4, i16_type),
+            ScalarTerm::integer_exact_cast(i32_type, i16_type, value(5, i32_type))
+                .expect("first partial cast"),
+        );
+        let second_cast = Proposition::Equal(
+            value(2, i8_type),
+            ScalarTerm::integer_exact_cast(i16_type, i8_type, value(4, i16_type))
+                .expect("second partial cast"),
+        );
+        let proof = prove_canonical_integer_proposition(
+            &context,
+            &goal,
+            std::slice::from_ref(&wide_bound),
+            &[first_cast.clone(), second_cast.clone()],
+        )
+        .expect("the complete checked cast spine maps the root bound");
+        let ProofRule::DisjunctionIntroduction { disjunct, index } = proof.rule else {
+            panic!("cast-chain divisor selects one canonical arm")
+        };
+        assert_eq!(index, 1);
+        let ProofRule::IntegerCastBound { witness, .. } = disjunct.rule else {
+            panic!("cast-chain divisor uses the cast-bound rule")
+        };
+        assert_eq!(witness.definition_axioms, vec![0, 1]);
+
         assert!(
             prove_canonical_integer_proposition(
                 &context,
                 &goal,
-                &[Proposition::LessOrEqual(
-                    integer(i32_type, 1),
-                    value(5, i32_type),
-                )],
-                &[
-                    Proposition::Equal(
-                        value(4, i16_type),
-                        ScalarTerm::integer_exact_cast(i32_type, i16_type, value(5, i32_type))
-                            .expect("first partial cast"),
-                    ),
-                    Proposition::Equal(
-                        value(2, i8_type),
-                        ScalarTerm::integer_exact_cast(i16_type, i8_type, value(4, i16_type))
-                            .expect("second partial cast"),
-                    )
-                ],
+                std::slice::from_ref(&wide_bound),
+                &[second_cast.clone(), first_cast.clone()],
             )
             .is_none(),
-            "the fixed single-cast family does not follow a two-cast chain",
+            "a source-reversed cast ledger cannot be reordered by the producer",
+        );
+        assert!(
+            prove_canonical_integer_proposition(
+                &context,
+                &goal,
+                std::slice::from_ref(&wide_bound),
+                &[first_cast, second_cast.clone(), second_cast],
+            )
+            .is_none(),
+            "duplicate target definitions reject instead of selecting authority",
         );
     }
 

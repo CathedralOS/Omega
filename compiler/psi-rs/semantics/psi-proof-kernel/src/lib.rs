@@ -28,8 +28,8 @@ pub use integer_affine::{
 };
 pub use integer_cast::{
     CheckedIntegerCastChain, IntegerCastBoundConversionError, IntegerCastChainWitness,
-    IntegerCastChainWitnessError, check_integer_cast_chain_witness,
-    check_single_integer_cast_bound_conversion,
+    IntegerCastChainWitnessError, check_integer_cast_bound_conversion,
+    check_integer_cast_chain_witness,
 };
 pub use integer_forbidden_root::{
     CheckedIntegerCorrelatedForbiddenRoots, CorrelatedAffineBranch, CorrelatedAffineBranchWitness,
