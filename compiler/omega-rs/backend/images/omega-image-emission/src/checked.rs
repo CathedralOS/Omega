@@ -7,7 +7,7 @@ use omega_image::{
 use omega_object_file::{RelocationKind, RelocationPlan, SectionKind};
 use omega_target::Architecture;
 use psi_diagnostics::Diagnostic;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 mod assembly;
 mod atomic_replay;
@@ -285,6 +285,7 @@ fn validate_compiler_function_instruction_boundaries(
     let mut body_specification_validation_fingerprint = 0xcbf2_9ce4_8422_2325u64;
     let mut compiler_instruction_footprints = Vec::new();
     let mut function_identities = HashSet::with_capacity(code.functions.len());
+    let mut instruction_owners = HashMap::with_capacity(code.instructions.len());
 
     for (function_index, (_, function)) in code.functions.iter().enumerate() {
         retain_compiler_function_identity(
@@ -293,7 +294,8 @@ fn validate_compiler_function_instruction_boundaries(
             &mut function_identities,
             &mut fingerprint,
         )?;
-        validate_compiler_function_object_binding(function_index, function, object)?;
+        let function_symbol =
+            validate_compiler_function_object_binding(function_index, function, object)?;
         if function.byte_offset != expected_byte_offset {
             return Err(Diagnostic::error(format!(
                 "compiler function #{function_index} begins at byte {}, expected complete partition offset {expected_byte_offset}",
@@ -341,6 +343,15 @@ fn validate_compiler_function_instruction_boundaries(
 
         let mut instruction_byte_offset = function.byte_offset;
         for (instruction_index, instruction) in instructions.iter().enumerate() {
+            if instruction_owners
+                .insert(instruction.selected_instruction_index, function_symbol)
+                .is_some()
+            {
+                return Err(Diagnostic::error(format!(
+                    "compiler instruction #{} is retained by more than one final function row",
+                    instruction.selected_instruction_index
+                )));
+            }
             let byte_count = instruction.bytes.len();
             let has_compiler_validation = instruction.compiler_validation_kind.is_some();
             let has_checked_validation = instruction.checked_validation_kind.is_some();
@@ -504,6 +515,7 @@ fn validate_compiler_function_instruction_boundaries(
             "compiler function rows do not enumerate every final byte and encoded instruction",
         ));
     }
+    validate_compiler_instruction_relocation_origins(&instruction_owners, relocations)?;
 
     let (fixed_mechanics_boundary_contract_fingerprint, fixed_mechanics_footprint_fingerprint) =
         validate_compiler_fixed_mechanics_footprint(semantics, &compiler_instruction_footprints)?;
@@ -539,9 +551,9 @@ fn validate_compiler_function_object_binding(
     function_index: usize,
     function: &omega_machine_bytes::EncodedMachineFunction,
     object: &omega_object_file::ObjectPlan,
-) -> Result<(), Diagnostic> {
-    let (_, symbol) = omega_object_file::object_function_symbol(object, function.identity)
-        .ok_or_else(|| {
+) -> Result<omega_object_file::ObjectSymbolHandle, Diagnostic> {
+    let (symbol_handle, symbol) =
+        omega_object_file::object_function_symbol(object, function.identity).ok_or_else(|| {
             Diagnostic::error(format!(
                 "compiler function #{function_index} does not own one exact object text symbol"
             ))
@@ -554,6 +566,27 @@ fn validate_compiler_function_object_binding(
             function.byte_offset,
             function.byte_offset.saturating_add(function.byte_count),
         )));
+    }
+    Ok(symbol_handle)
+}
+
+fn validate_compiler_instruction_relocation_origins(
+    instruction_owners: &HashMap<u32, omega_object_file::ObjectSymbolHandle>,
+    relocations: &RelocationPlan,
+) -> Result<(), Diagnostic> {
+    for (_, relocation) in relocations.records() {
+        let omega_object_file::RelocationOrigin::Instruction {
+            function_symbol_handle,
+            selected_instruction_index,
+        } = relocation.origin
+        else {
+            continue;
+        };
+        if instruction_owners.get(&selected_instruction_index) != Some(&function_symbol_handle) {
+            return Err(Diagnostic::error(format!(
+                "compiler instruction #{selected_instruction_index} relocation origin does not retain its exact final function symbol"
+            )));
+        }
     }
     Ok(())
 }

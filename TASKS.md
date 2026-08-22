@@ -2198,7 +2198,11 @@ Owners:
   encoded byte interval. Missing, duplicate, redirected, non-text/function, or
   interval-drifted bindings therefore reject uniformly for source, wrapper,
   and callback roles; object-local private spelling is not confused with an
-  encoded source display name. Final
+  encoded source display name. Final replay now also retains an exact
+  selected-instruction-to-function-symbol owner map. Duplicate selected
+  instruction identities, redirected instruction relocation origins, and
+  instruction-origin rows without a retained owner reject, while semantic and
+  materialization origins remain in their separate namespaces. Final
   emission also rejoins every validated placement row to exactly one private
   thunk plan. Missing,
   duplicate, or out-of-range placement indices, selected-entry drift, and
