@@ -26,29 +26,21 @@ pub(crate) fn find_call_site<'program>(
 ) -> Option<CallSite<'program>> {
     let state = find_state_in_machine(program, machine_symbol, state_symbol)?;
     let machine = machine_by_symbol(program, machine_symbol)?;
-
-    for (current_statement_index, statement) in program
+    let statement = program
         .statement_table
         .statements(state.statement_nodes)
-        .iter()
-        .enumerate()
-    {
-        let mut current_ordinal = 0usize;
-        let mut traversal = CallSiteTraversal::new(
-            program,
-            machine,
-            state,
-            current_statement_index,
-            statement_index,
-            call_ordinal,
-            &mut current_ordinal,
-        );
-        if let Some(call_site) = find_call_site_in_statement(&mut traversal, statement) {
-            return Some(call_site);
-        }
-    }
-
-    None
+        .get(statement_index)?;
+    let mut current_ordinal = 0usize;
+    let mut traversal = CallSiteTraversal::new(
+        program,
+        machine,
+        state,
+        statement_index,
+        statement_index,
+        call_ordinal,
+        &mut current_ordinal,
+    );
+    find_call_site_in_statement(&mut traversal, statement)
 }
 
 pub(crate) fn call_site_argument_expressions<'program>(
