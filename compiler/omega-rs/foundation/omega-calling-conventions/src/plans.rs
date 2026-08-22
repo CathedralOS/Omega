@@ -398,7 +398,7 @@ impl CallingPolicyRejection {
 pub struct ValidatedBoundaryEntryPlan(BoundaryEntryPlan);
 
 impl ValidatedBoundaryEntryPlan {
-    pub fn plan(&self) -> &BoundaryEntryPlan {
+    pub const fn plan(&self) -> &BoundaryEntryPlan {
         &self.0
     }
 
