@@ -6,8 +6,8 @@
 
 use super::{
     coarse_place_path, known_boundary_call_written_paths,
-    known_boundary_call_written_paths_for_parts, known_call_written_paths,
-    known_call_written_paths_for_parts, normalize_state_relative_path, receiver_member_chain,
+    known_boundary_call_written_paths_for_parts, known_call_written_paths_for_parts,
+    known_call_written_paths_with_summaries, normalize_state_relative_path, receiver_member_chain,
     summarize_state_written_paths, summarize_state_written_paths_with_permuted_cycles,
 };
 use crate::symbols::{MachineSymbols, TopLevelSymbols};
@@ -38,6 +38,10 @@ pub struct CallFrameResolver<'program> {
     /// fixpoints. The program is immutable for this resolver's lifetime, so a
     /// call-node address plus its owning machine is a stable cache key.
     statement_calls: Mutex<HashMap<(u32, u32, usize), NormalizedWriteFrame>>,
+    /// Successful acyclic state summaries are context-independent relative
+    /// frames. Retain them across resolver queries; opaque and cycle fallback
+    /// results remain one-shot so the conservative frontier is unchanged.
+    complete_state_summaries: Mutex<Vec<(SymbolHandle, Vec<String>)>>,
 }
 
 impl<'program> CallFrameResolver<'program> {
@@ -48,6 +52,7 @@ impl<'program> CallFrameResolver<'program> {
             program,
             symbols,
             statement_calls: Mutex::new(HashMap::new()),
+            complete_state_summaries: Mutex::new(Vec::new()),
         })
     }
 
@@ -80,23 +85,27 @@ impl<'program> CallFrameResolver<'program> {
         let machine_symbols =
             MachineSymbols::build(self.program, current_machine, &mut diagnostics);
         let frame = if diagnostics.is_empty() {
-            known_call_written_paths(
-                self.program,
-                call,
-                current_machine,
-                &machine_symbols,
-                &self.symbols,
-            )
-            .or_else(|| {
-                known_boundary_call_written_paths(
+            let known = self.with_complete_state_summaries(|complete_state_summaries| {
+                known_call_written_paths_with_summaries(
                     self.program,
+                    call,
+                    current_machine,
                     &machine_symbols,
                     &self.symbols,
-                    call,
+                    complete_state_summaries,
                 )
-            })
-            .or_else(|| conservative_call_written_paths(self.program, call))
-            .map_or_else(NormalizedWriteFrame::opaque, NormalizedWriteFrame::complete)
+            });
+            known
+                .or_else(|| {
+                    known_boundary_call_written_paths(
+                        self.program,
+                        &machine_symbols,
+                        &self.symbols,
+                        call,
+                    )
+                })
+                .or_else(|| conservative_call_written_paths(self.program, call))
+                .map_or_else(NormalizedWriteFrame::opaque, NormalizedWriteFrame::complete)
         } else {
             NormalizedWriteFrame::opaque()
         };
@@ -226,12 +235,9 @@ impl<'program> CallFrameResolver<'program> {
         {
             return NormalizedWriteFrame::opaque();
         }
-        let mut complete_state_summaries = Vec::new();
-        self.inferred_state_write_frame_with_summaries(
-            machine,
-            state,
-            &mut complete_state_summaries,
-        )
+        self.with_complete_state_summaries(|complete_state_summaries| {
+            self.inferred_state_write_frame_with_summaries(machine, state, complete_state_summaries)
+        })
     }
 
     /// Body-derived frames for every state in one machine, in source order.
@@ -243,18 +249,19 @@ impl<'program> CallFrameResolver<'program> {
         &self,
         machine: &'program Machine,
     ) -> Vec<NormalizedWriteFrame> {
-        let mut complete_state_summaries = Vec::new();
-        self.program
-            .machine_states(machine)
-            .iter()
-            .map(|state| {
-                self.inferred_state_write_frame_with_summaries(
-                    machine,
-                    state,
-                    &mut complete_state_summaries,
-                )
-            })
-            .collect()
+        self.with_complete_state_summaries(|complete_state_summaries| {
+            self.program
+                .machine_states(machine)
+                .iter()
+                .map(|state| {
+                    self.inferred_state_write_frame_with_summaries(
+                        machine,
+                        state,
+                        complete_state_summaries,
+                    )
+                })
+                .collect()
+        })
     }
 
     fn inferred_state_write_frame_with_summaries(
@@ -293,6 +300,16 @@ impl<'program> CallFrameResolver<'program> {
             }
         }
         NormalizedWriteFrame::complete(normalized)
+    }
+
+    fn with_complete_state_summaries<T>(
+        &self,
+        resolve: impl FnOnce(&mut Vec<(SymbolHandle, Vec<String>)>) -> T,
+    ) -> T {
+        match self.complete_state_summaries.lock() {
+            Ok(mut summaries) => resolve(&mut summaries),
+            Err(_) => resolve(&mut Vec::new()),
+        }
     }
 }
 
