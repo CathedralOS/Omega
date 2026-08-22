@@ -241,6 +241,20 @@ story.
       them through the shared codec/verifier with the canonical empty proof
       bundle for proof-free O0. Do not route this milestone through the Rust
       checked-plan producer trees.
+      - [ ] After the attachment representation is honest, freeze one canonical
+        O0 terminal-module fixture: stable declaration/value/operation IDs,
+        ordered `write_line` then `exit_process` calls, the exact byte literal,
+        and the exact scalar exit operand. Generate the fixture through the
+        shared codec only as conformance evidence, not as a bootstrap producer.
+      - [ ] Add the Delta emitter using ordinary checked `write_byte` output and
+        explicit length/integer encoding. Its emitted bytes must decode and
+        verify through the shared vocabulary-24 path and must be byte-identical
+        to the frozen canonical fixture for the same retained operands.
+      - [ ] Gate custody perturbations independently: changing any literal byte,
+        its length, the newline-producing call order, or the exit scalar must
+        change the decoded semantic artifact or reject. Truncation and emitter
+        storage exhaustion must reject without a partial artifact being
+        accepted.
     - [ ] If a standalone semantic-plus-proof file becomes necessary, add one
       generic length-delimited terminal envelope; do not invent an O0-only
       container. The proof-free semantic-slice gate does not depend on this
