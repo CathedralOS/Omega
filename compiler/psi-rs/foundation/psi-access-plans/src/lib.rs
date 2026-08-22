@@ -3335,6 +3335,14 @@ impl<'view, 'extent> StablePrimitiveAccessRequest<'view, 'extent> {
         self.request.effect_footprint
     }
 
+    /// Retained physical correspondence, when the originating placed view
+    /// was provider-corresponded. This borrows the exact admitted fact; it
+    /// does not copy provider/device identities or require correspondence for
+    /// ordinary Stable storage.
+    pub const fn correspondence(&self) -> Option<&AdmittedSchemaDeviceCorrespondence> {
+        self.request.correspondence()
+    }
+
     /// Independently replay the complete placed authority and Stable
     /// operation specialization before an outward lowering consumer accepts
     /// this request. Rejection only borrows the carrier, so its exact loan,
@@ -3454,6 +3462,13 @@ impl<'view, 'extent> StableCompoundMutationAccessRequest<'view, 'extent> {
 
     pub const fn effect_footprint(&self) -> EffectFootprint {
         self.request.effect_footprint
+    }
+
+    /// Retained physical correspondence, when present on the originating
+    /// placed view. The bounded mutation specialization does not manufacture
+    /// or require such evidence.
+    pub const fn correspondence(&self) -> Option<&AdmittedSchemaDeviceCorrespondence> {
+        self.request.correspondence()
     }
 
     /// Independently replay the complete placed authority and bounded
@@ -3581,6 +3596,13 @@ impl<'view, 'extent> ExternalPrimitiveAccessRequest<'view, 'extent> {
 
     pub const fn effect_footprint(&self) -> EffectFootprint {
         self.request.effect_footprint
+    }
+
+    /// Retained physical correspondence, when the originating placed view
+    /// was provider-corresponded. This remains distinct from External supply
+    /// compatibility and establishes no device operation.
+    pub const fn correspondence(&self) -> Option<&AdmittedSchemaDeviceCorrespondence> {
+        self.request.correspondence()
     }
 
     /// Independently replay the complete placed authority, admitted supply
@@ -3722,6 +3744,13 @@ impl<'view, 'extent> AtomicPrimitiveAccessRequest<'view, 'extent> {
 
     pub const fn effect_footprint(&self) -> EffectFootprint {
         self.request.effect_footprint
+    }
+
+    /// Retained physical correspondence, when present on the originating
+    /// placed view. Atomic specialization neither manufactures nor requires
+    /// this separate provider-issued fact.
+    pub const fn correspondence(&self) -> Option<&AdmittedSchemaDeviceCorrespondence> {
+        self.request.correspondence()
     }
 
     /// Independently replay the complete placed authority, admitted Atomic
@@ -6250,12 +6279,32 @@ mod tests {
                 .placement(),
             plan.identity()
         );
-        let external = request
+        let mut external = request
             .into_external_primitive_access()
             .expect("External specialization replays correspondence");
+        assert_eq!(
+            external
+                .correspondence()
+                .expect("correspondence reaches outward specialization")
+                .device(),
+            device
+        );
+        external.request.plan = PlacementPlanId(plan.identity().0 ^ 1);
+        let rejection = external
+            .validate_for_lowering()
+            .expect_err("outward preflight must replay the retained placement");
+        assert!(rejection.0.contains("copied plan"));
+        assert_eq!(
+            external
+                .correspondence()
+                .expect("rejection preserves correspondence")
+                .provider(),
+            provider
+        );
+        external.request.plan = plan.identity();
         external
             .validate_for_lowering()
-            .expect("outward preflight independently replays correspondence");
+            .expect("repaired outward carrier remains available for retry");
         let request = external.into_primitive_request();
         assert_eq!(
             request
