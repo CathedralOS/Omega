@@ -1,5 +1,8 @@
 use super::*;
-use psi_extents::{AddressSpaceId, ExtentProvenanceId, ExtentRights};
+use psi_extents::{
+    AddressSpaceId, ExtentContentCustodyReceiptId, ExtentContentValidityReceiptId,
+    ExtentProvenanceId, ExtentRights,
+};
 use psi_layout_plans::{
     IntegerInterpretation, LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport,
 };

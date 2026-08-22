@@ -10,8 +10,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use psi_extents::{
-    Extent, ExtentContentCustodyReceiptId, ExtentContentValidityReceiptId, ExtentLoan,
-    LoanPolarity, ProviderExistingContentGrant, ResidentClaimId,
+    Extent, ExtentLoan, LoanPolarity, ProviderExistingContentGrant, ResidentClaimId,
 };
 use psi_language_core::atomic::{AtomicOrderingPlan, MemoryOrdering};
 use psi_layout_plans::{LayoutPlanReport, normalized_layout_plan_fingerprint};
@@ -24,6 +23,7 @@ mod corresponded_external;
 mod corresponded_stable;
 mod corresponded_stable_compound;
 mod normalized_identities;
+mod owned_placement_lifecycle;
 mod owned_resident_custody;
 mod placement_admission;
 mod primitive_specialization;
@@ -1171,50 +1171,12 @@ pub struct OwnedPlacementAdmission {
     extent: Extent,
 }
 
-impl OwnedPlacementAdmission {
-    pub const fn identity(&self) -> PlacementAdmissionId {
-        self.identity
-    }
-
-    pub const fn profile_receipt(&self) -> ResourceProfileReceiptId {
-        self.profile_receipt
-    }
-
-    pub const fn resources(&self) -> &PlacementResourceCompatibility {
-        &self.resources
-    }
-
-    pub const fn extent(&self) -> &Extent {
-        &self.extent
-    }
-
-    pub const fn placement_plan(&self) -> &ValidatedPlacementPlan {
-        &self.placement_plan
-    }
-
-    /// Cancel permission-only admission without claiming content
-    /// establishment, destruction, vacancy, or allocator release.
-    pub fn withdraw(self) -> Extent {
-        self.extent
-    }
-}
-
 /// Failed owned admission returns the exact moved Extent rather than losing
 /// or reconstructing its authority account.
 #[derive(Debug)]
 pub struct OwnedPlacementRejection {
     extent: Extent,
     diagnostic: AccessPlanDiagnostic,
-}
-
-impl OwnedPlacementRejection {
-    pub const fn diagnostic(&self) -> &AccessPlanDiagnostic {
-        &self.diagnostic
-    }
-
-    pub fn into_parts(self) -> (Extent, AccessPlanDiagnostic) {
-        (self.extent, self.diagnostic)
-    }
 }
 
 /// Dormant provider-validated Stable content whose exact Extent authority and
@@ -1241,80 +1203,6 @@ pub struct OwnedResidentViewEstablishmentError {
     diagnostic: AccessPlanDiagnostic,
 }
 
-impl OwnedResidentViewEstablishmentError {
-    pub const fn diagnostic(&self) -> &AccessPlanDiagnostic {
-        &self.diagnostic
-    }
-
-    pub fn into_parts(
-        self,
-    ) -> (
-        DormantOwnedResident,
-        PlacedOccurrenceId,
-        AccessPlanDiagnostic,
-    ) {
-        (self.resident, self.occurrence, self.diagnostic)
-    }
-}
-
-impl DormantOwnedResident {
-    pub const fn admission(&self) -> PlacementAdmissionId {
-        self.admission.identity
-    }
-
-    pub const fn placement_plan(&self) -> &ValidatedPlacementPlan {
-        &self.admission.placement_plan
-    }
-
-    pub const fn profile_receipt(&self) -> ResourceProfileReceiptId {
-        self.admission.profile_receipt
-    }
-
-    pub const fn resources(&self) -> &PlacementResourceCompatibility {
-        &self.admission.resources
-    }
-
-    pub const fn extent(&self) -> &Extent {
-        &self.admission.extent
-    }
-
-    pub const fn validity_receipt(&self) -> ExtentContentValidityReceiptId {
-        self.content.validity_receipt()
-    }
-
-    pub const fn custody_receipt(&self) -> ExtentContentCustodyReceiptId {
-        self.content.custody_receipt()
-    }
-
-    pub const fn resident_claim(&self) -> ResidentClaimId {
-        self.content.resident_claim()
-    }
-
-    /// Transfer dormant resident custody into one requested active placed
-    /// occurrence after replaying the retained owned placement authority.
-    /// The resident claim and provider receipts are forwarded unchanged; the
-    /// occurrence issuer remains responsible for global freshness.
-    pub fn view(
-        self,
-        occurrence: PlacedOccurrenceId,
-    ) -> Result<EstablishedOwnedPlacement, OwnedResidentViewEstablishmentError> {
-        if let Err(diagnostic) =
-            validate_owned_resident_authority(&self.admission, &self.content, "owned resident view")
-        {
-            return Err(OwnedResidentViewEstablishmentError {
-                resident: self,
-                occurrence,
-                diagnostic,
-            });
-        }
-        Ok(EstablishedOwnedPlacement {
-            admission: self.admission,
-            content: self.content,
-            occurrence,
-        })
-    }
-}
-
 /// One active owned view of provider-established Stable resident content.
 /// The occurrence is fresh for this view while `resident_claim` remains the
 /// identity of the same dormant content across view/retirement cycles.
@@ -1334,115 +1222,6 @@ pub struct OwnedResidentRetirementError {
     diagnostic: AccessPlanDiagnostic,
 }
 
-impl OwnedResidentRetirementError {
-    pub const fn diagnostic(&self) -> &AccessPlanDiagnostic {
-        &self.diagnostic
-    }
-
-    pub fn into_parts(self) -> (EstablishedOwnedPlacement, AccessPlanDiagnostic) {
-        (self.established, self.diagnostic)
-    }
-}
-
-impl EstablishedOwnedPlacement {
-    pub const fn admission(&self) -> PlacementAdmissionId {
-        self.admission.identity
-    }
-
-    pub const fn placement_plan(&self) -> &ValidatedPlacementPlan {
-        &self.admission.placement_plan
-    }
-
-    pub const fn profile_receipt(&self) -> ResourceProfileReceiptId {
-        self.admission.profile_receipt
-    }
-
-    pub const fn resources(&self) -> &PlacementResourceCompatibility {
-        &self.admission.resources
-    }
-
-    pub const fn extent(&self) -> &Extent {
-        &self.admission.extent
-    }
-
-    pub const fn validity_receipt(&self) -> ExtentContentValidityReceiptId {
-        self.content.validity_receipt()
-    }
-
-    pub const fn custody_receipt(&self) -> ExtentContentCustodyReceiptId {
-        self.content.custody_receipt()
-    }
-
-    pub const fn resident_claim(&self) -> ResidentClaimId {
-        self.content.resident_claim()
-    }
-
-    pub const fn occurrence(&self) -> PlacedOccurrenceId {
-        self.occurrence
-    }
-
-    /// End this active owned view without destroying or moving out its
-    /// content. The exact resident claim and provider receipts return to the
-    /// dormant carrier; the active occurrence ends here.
-    pub fn retire_resident(self) -> Result<DormantOwnedResident, OwnedResidentRetirementError> {
-        if let Err(diagnostic) = validate_owned_resident_authority(
-            &self.admission,
-            &self.content,
-            "resident-preserving retirement",
-        ) {
-            return Err(OwnedResidentRetirementError {
-                established: self,
-                diagnostic,
-            });
-        }
-        Ok(DormantOwnedResident {
-            admission: self.admission,
-            content: self.content,
-        })
-    }
-
-    /// Purely project one accepted Stable field through a shared borrow of
-    /// this provider-established owned placement.
-    ///
-    /// The returned accessor retains this entire carrier, including its
-    /// content-validity and custody evidence, through any sealed primitive
-    /// request derived from it.
-    pub fn project<'view>(
-        &'view self,
-        key: AccessFieldKey,
-    ) -> Result<PlacedFieldProjection<'view, 'view>, AccessPlanDiagnostic> {
-        self.project_with(key, BorrowPolarity::Shared)
-    }
-
-    /// Purely project one accepted Stable field through an exclusive borrow
-    /// of this provider-established owned placement.
-    pub fn project_mut<'view>(
-        &'view mut self,
-        key: AccessFieldKey,
-    ) -> Result<PlacedFieldProjection<'view, 'view>, AccessPlanDiagnostic> {
-        self.project_with(key, BorrowPolarity::Exclusive)
-    }
-
-    fn project_with<'view>(
-        &'view self,
-        key: AccessFieldKey,
-        current_borrow: BorrowPolarity,
-    ) -> Result<PlacedFieldProjection<'view, 'view>, AccessPlanDiagnostic> {
-        project_placed_field(
-            &self.admission.placement_plan,
-            self.admission.profile_receipt,
-            &self.admission.resources,
-            self.admission.identity,
-            self.admission.extent.base(),
-            key,
-            current_borrow,
-            BorrowPolarity::Exclusive,
-            Some(ObservationModel::Stable),
-            PlacementAuthorityRef::EstablishedOwned(self),
-        )
-    }
-}
-
 /// Failed Stable adoption preserves both linear inputs for a corrected retry
 /// or explicit cancellation.
 #[derive(Debug)]
@@ -1450,22 +1229,6 @@ pub struct OwnedStableAdoptionError {
     admission: OwnedPlacementAdmission,
     content: ProviderExistingContentGrant,
     diagnostic: AccessPlanDiagnostic,
-}
-
-impl OwnedStableAdoptionError {
-    pub const fn diagnostic(&self) -> &AccessPlanDiagnostic {
-        &self.diagnostic
-    }
-
-    pub fn into_parts(
-        self,
-    ) -> (
-        OwnedPlacementAdmission,
-        ProviderExistingContentGrant,
-        AccessPlanDiagnostic,
-    ) {
-        (self.admission, self.content, self.diagnostic)
-    }
 }
 
 /// A plan-qualified interpretation of one borrowed concrete range.
