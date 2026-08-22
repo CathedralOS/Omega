@@ -40,13 +40,19 @@ pub(in crate::calls) fn machine_state_by_symbol(
     program: &TypedTrees,
     symbol: SymbolHandle,
 ) -> Option<(&Machine, &State)> {
-    program.machines().iter().find_map(|machine| {
-        program
-            .machine_states(machine)
-            .iter()
-            .find(|state| state.symbol == symbol)
-            .map(|state| (machine, state))
-    })
+    if !symbol.is_valid() {
+        return None;
+    }
+    let machine_symbol = program.symbols.get(symbol).parent;
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == machine_symbol)?;
+    program
+        .machine_states(machine)
+        .iter()
+        .find(|state| state.symbol == symbol)
+        .map(|state| (machine, state))
 }
 
 /// An explicitly discarded result cannot redirect a returned-place relation
