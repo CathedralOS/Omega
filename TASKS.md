@@ -2966,6 +2966,12 @@ Remaining:
   validates the complete certificate. Direct-before-relaxation precedence,
   fallback witness replay, proof shape, rejection behavior, and the fixed
   frontier remain unchanged.
+  Relaxed affine-witness completion now lives in paired, side-local
+  `affine_custody/completion/relaxed` modules. Reconstruction independently
+  replays the mapped-bound relaxation, while the producer independently
+  constructs the relaxed proof and validates the complete certificate before
+  release. Direct-before-relaxed precedence, fallback witness validation, proof
+  shape, rejection behavior, and the fixed frontier remain unchanged.
   The two ordered landed-literal alias root bounds now live in paired, side-
   local `affine_selection/literal/alias/completion/bound` modules. The producer
   independently constructs the exact closed reflexive relation and nested
@@ -4069,6 +4075,14 @@ Owners:
   Windows x64/Linux ARM64 cross-target assertions. The 2.88-second plain record-
   view owner remains retained for a dedicated profiled migration; all other
   fenced exception classes remain unchanged and exact-owner pins remain stable.
+  Four further cross-target plan-laid executions—compact-bit layout plus
+  `IntegerAt` projection, total writes, and proved-fit writes—now launch
+  natively solely through checked-report receipts while preserving statuses
+  70/72, interpreter parity, and Windows x64/Linux ARM64 compilation assertions.
+  The plain record-view owner remains retained: profiling attributes its 2.87-
+  second body to four independent compilations (687ms checked, 727ms native,
+  724ms Windows, 727ms Linux), while `CompileReport` currently retains no
+  reusable `CheckedTrees` receipt; interpretation itself costs only 0.23ms.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
