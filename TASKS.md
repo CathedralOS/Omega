@@ -614,7 +614,12 @@ Owners:
   receipt identities. Borrowed retirement replays its interpretation, origin,
   lineage, geometry, address space, provenance, and era against the whole-range
   loan and placement before release; rejection returns the complete carrier for
-  retry and neither clones nor remints lender custody.
+  retry and neither clones nor remints lender custody. Placed projection, field
+  authorization, and Stable/External/Atomic primitive specialization now also
+  replay any retained resident grant against the exact owned extent or borrowed
+  whole-range loan. Coordinated copied claim/occurrence rewrites cannot
+  substitute unrelated custody; rejection borrows the carrier or returns the
+  unchanged sealed request for corrected retry.
 - Implement `Extent::Resident<P, T>` as the owned exact-range dormant-content
   qualification, including invariant type indices, mutual exclusion with
   `Vacant`, split/merge rejection, borrow versus owned-view continuity,
@@ -3265,8 +3270,11 @@ Remaining N6/N8 work:
   merge/invalidation rules now live in a 424-line `value_environment` child;
   concrete and abstract total-proposition formation lives in a 976-line
   `total_specification` child; and the recursive operand-domain/interval walk
-  lives in a 789-line `expression_analysis` child. The production parent is now
-  3,009 lines, down from 5,166 before these responsibility splits. No
+  lives in a 789-line `expression_analysis` child. Entry-precondition,
+  branch/fall-through, out-parameter, and incoming-edge fact construction now
+  lives in a 1,207-line `guard_narrowing` child with two sibling-only query
+  seams. The production parent is now 1,814 lines, down from 5,166 before these
+  responsibility splits. No
   accepted relation, call-write fence, interval, judgment, or diagnostic
   ordering changed. Fixed-width
   integer and address
