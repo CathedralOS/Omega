@@ -440,7 +440,12 @@ Remaining:
   and owner-unique projection/algebra identity. Omega preserves and replays the
   catalog beside exact provider execution through native evidence and canonical
   installation format 30; missing, duplicate, malformed, or whole/content-
-  mismatched custody rejects. This is custody, not authorization. The remaining
+  mismatched custody rejects. Each successful receipt now additionally retains
+  an exact structural binding to its complete caller source and enclosing
+  admitted provider execution. Machine emission derives the ordered catalog,
+  object and installation validation independently rederive it, and canonical
+  installation format 31 preserves it; source, receipt, or provider substitution
+  rejects. This is custody, not authorization. The remaining
   work is real
   authorized introduction, custody exit, residual geometry, and provider binding—not
   another passthrough representation.
@@ -543,8 +548,12 @@ Owners:
   focused 525-line owner, preserving u64 carriers, placement-family legality,
   repeated/fragmented tiling, alignment/overflow, overlap/bounds, stored-
   integer total decode, and diagnostic order. The 107-function production
-  inventory and all 33 layout tests remain intact, with the coordinator now 715
-  lines.
+  inventory and all 33 layout tests remain intact. Exact typed-schema identity
+  and fixed runtime-geometry reflection now live in a focused 411-line owner,
+  including quotient/unsupported-shape rejection, primitive/range geometry,
+  fixed-array/nested-record recursion, erased-runtime handling, alignment,
+  capacity, and key-collision checks. The 316-line root has reached its natural
+  orchestration/public-materialization-entry boundary.
   Erased terms remain semantically mandatory but add no bytes, including nested
   records and fixed arrays whose entire runtime shape is erased. Scalar
   placement/access semantics remain fenced for aggregates. Continue beyond
@@ -2169,7 +2178,12 @@ Remaining:
   Direct-root evidence remains before the fixed affine/cast/affine family;
   citation order, strict cast boundaries, endpoint conversion, proof shapes,
   rejection, and fixed frontiers remain unchanged, with no authority shared
-  across the trust boundary. Direct
+  across the trust boundary. Boundary-aware affine custody now likewise uses
+  independent producer/verifier `boundary` modules for strict post-boundary
+  completion and `mapped` modules for exact pre-boundary mapping, while the
+  parent retains ordinary root completion. Citation order, strict inequalities,
+  proof shapes, rejection, and the fixed four-definition frontier are
+  unchanged. Direct
   affine-root custody now lives in independent side-local
   `affine_selection/direct` modules. Production alone retains the exact root-
   bound citation and tries its left then right value endpoints before
