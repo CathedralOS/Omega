@@ -2339,6 +2339,14 @@ Remaining:
   longer rematch propositions downstream. Citation/source order, same-fact
   rejection, direct-before-alias precedence, proof shapes, and the fixed two-
   citation frontier remain unchanged.
+  Exact typed value-to-integer-literal bindings now live in paired side-local
+  affine equality authorities. Direct landed-literal selection and one-alias
+  landing indexes reuse the same source- and orientation-ordered eligible
+  stream; certificate production independently retains citation custody while
+  reconstruction retains propositions, and the alias join continues to reject
+  reuse of one equality as both legs. Direct-before-alias precedence,
+  root/literal carrier equality, proof shapes, rejection behavior, and the
+  fixed one-intermediate-alias frontier remain unchanged.
   One-equality transitive affine completion now lives in independent side-local
   `affine_selection/transitive/alias/completion` modules. Each parent retains
   its own ledger-ordered equality discovery, distinct root/alias custody, and
@@ -4613,6 +4621,19 @@ Owners:
   executable receipts while preserving literal status 70 and all detailed
   result-shape diagnostics. Exact-owner ambiguity, the 795 rooted/3 legacy
   inventory, and receipt-drift fences remain green.
+  Four authored-root call-result-through-reference-field executions—scalar,
+  string, paired-string, and offset-string delivery—now launch solely through
+  exact checked-report executable receipts while preserving literal exits 183,
+  186, 194, and 196 and all detailed pointer/descriptor diagnostics. Exact-
+  owner ambiguity, the 795 rooted/3 legacy inventory, and receipt-drift fences
+  remain green; loop and reference-returned-slice owners stay separate.
+  Five authored-root reference-returned/indexed-write executions—direct and
+  parameter-forwarded slice-element references, nested guarded returned
+  references, mutable local indexed parameters, and machine-owned indexed
+  parameters—now launch solely through exact checked-report executable
+  receipts while preserving literal exits 181, 70, 184, 171, and 173 and all
+  detailed diagnostics. Exact-owner ambiguity, the 795 rooted/3 legacy
+  inventory, and receipt-drift fences remain green.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
@@ -5322,6 +5343,11 @@ boundary without its corresponding checked law.
   The target-lowering package's 1,899-line unit corpus now lives in a private
   test child rather than sharing its 5,527-line production coordinator; all 19
   unit tests and the public lowering surface remain unchanged.
+  Conditional scalar lowering—including known/runtime Boolean and integer
+  expressions, fixed arithmetic policies, exact/wrapping shifts, and
+  provenance—now lives in a focused 998-line child, leaving a 4,537-line
+  coordinator. The 55-function production inventory, target operations,
+  diagnostics, and evaluation order remain unchanged.
   A concrete direct wrapper may crown only one token meaning per normalized
   operand signature; alternative conformances remain named explicit calls.
 
