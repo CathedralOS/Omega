@@ -4,8 +4,8 @@ use psi_core::{Proposition, PropositionContext};
 use psi_proof_kernel::ProofNode;
 
 use super::super::super::affine_custody::DefinitionIndex;
-use super::super::super::integer_evidence::cited_facts;
 
+mod candidates;
 mod completion;
 
 pub(super) fn prove(
@@ -15,21 +15,9 @@ pub(super) fn prove(
     semantic_axioms: &[Proposition],
     definitions: &DefinitionIndex,
 ) -> Option<ProofNode> {
-    for (citation, equality) in cited_facts(assumptions, semantic_axioms) {
-        let Proposition::Equal(left, right) = equality else {
-            continue;
-        };
-        for (root, literal) in [(left, right), (right, left)] {
-            if !matches!(root, psi_core::ScalarTerm::Value { .. }) {
-                continue;
-            }
-            let Some((integer_type, _)) = literal.integer_value() else {
-                continue;
-            };
-            if root.scalar_type() != psi_core::ScalarType::Integer(integer_type) {
-                continue;
-            }
-            if let Some(proof) = completion::prove(
+    candidates::DirectLiteralCandidates::new(assumptions, semantic_axioms).find(
+        |root, literal, equality_proof| {
+            completion::prove(
                 context,
                 goal,
                 assumptions,
@@ -37,11 +25,8 @@ pub(super) fn prove(
                 definitions,
                 root,
                 literal,
-                citation.proof(equality),
-            ) {
-                return Some(proof);
-            }
-        }
-    }
-    None
+                equality_proof,
+            )
+        },
+    )
 }
