@@ -2,10 +2,9 @@
 
 use psi_core::{Proposition, PropositionContext};
 
-use super::super::affine_custody::DefinitionIndex;
+use super::super::affine_custody::{self, DefinitionIndex};
 
 mod candidates;
-mod completion;
 
 pub(super) fn retained(
     context: &PropositionContext,
@@ -15,7 +14,7 @@ pub(super) fn retained(
     definitions: &DefinitionIndex,
 ) -> bool {
     candidates::any(requirements, semantic_axioms, |root, root_bound| {
-        completion::retained(
+        affine_custody::retained_from_root(
             context,
             goal,
             semantic_axioms,

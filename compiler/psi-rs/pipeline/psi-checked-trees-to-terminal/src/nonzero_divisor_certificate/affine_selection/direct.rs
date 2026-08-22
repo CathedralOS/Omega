@@ -3,10 +3,9 @@
 use psi_core::{Proposition, PropositionContext};
 use psi_proof_kernel::ProofNode;
 
-use super::super::affine_custody::DefinitionIndex;
+use super::super::affine_custody::{self, DefinitionIndex};
 
 mod candidates;
-mod completion;
 
 pub(super) fn prove(
     context: &PropositionContext,
@@ -16,7 +15,7 @@ pub(super) fn prove(
     definitions: &DefinitionIndex,
 ) -> Option<ProofNode> {
     candidates::find(assumptions, semantic_axioms, |root, root_bound| {
-        completion::prove(
+        affine_custody::prove_from_root(
             context,
             goal,
             assumptions,
