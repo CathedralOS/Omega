@@ -609,6 +609,9 @@ bound to its placement-row index and selected source entry; it cannot satisfy
 emission by relabeling the ordinary source-entry function. Object planning
 preserves the richer site/fingerprint-bound private symbol carried by that
 role, while final emission independently recomputes it from the placement.
+Target-instruction lowering validates the complete assigned function set
+before selecting any body: an invalid role or two functions claiming one role
+reject rather than surviving until object planning.
 Native image emission rejects a planned callback unless that exact callback
 identity names one encoded function and one matching private text symbol.
 Emission also rejoins every validated

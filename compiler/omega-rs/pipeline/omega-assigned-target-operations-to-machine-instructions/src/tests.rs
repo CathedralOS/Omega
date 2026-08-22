@@ -18,8 +18,8 @@ fn preserves_private_function_identity_through_machine_lowering() {
         state: SymbolHandle::from_arena_index(2),
         segment_index: 0,
     };
-    let identity = MachineFunctionIdentity::program_storage_entry_wrapper(continuation)
-        .expect("valid continuation should admit wrapper identity");
+    let identity = MachineFunctionIdentity::callback_thunk(continuation, 7)
+        .expect("valid continuation should admit callback identity");
     assigned
         .code
         .functions
@@ -36,10 +36,69 @@ fn preserves_private_function_identity_through_machine_lowering() {
     assert_eq!(function.symbol.as_ref(), "__omega_callback_test");
     assert_eq!(function.identity, identity);
     assert_eq!(function.identity.source_key(), None);
+    assert_eq!(function.identity.callback_thunk_placement_index(), Some(7));
     assert_eq!(
-        function.identity.program_storage_entry_continuation(),
-        Some(continuation)
+        function.identity.associated_source_continuation(),
+        continuation
     );
+}
+
+#[test]
+fn rejects_invalid_or_aliased_function_identity_before_machine_lowering() {
+    let mut invalid = AssignedTargetOperationPlan::default();
+    invalid
+        .code
+        .functions
+        .insert(AssignedTargetOperationFunction {
+            symbol: Arc::from("invalid"),
+            identity: MachineFunctionIdentity::default(),
+            instructions: Default::default(),
+        });
+    let diagnostic = build_machine_instructions(&invalid)
+        .expect_err("an invalid function role must not reach machine instructions");
+    assert!(
+        diagnostic
+            .message
+            .contains("invalid compiler-private identity")
+    );
+
+    let continuation = StateKey {
+        machine: SymbolHandle::from_arena_index(1),
+        state: SymbolHandle::from_arena_index(2),
+        segment_index: 0,
+    };
+    let identity = MachineFunctionIdentity::callback_thunk(continuation, 7).unwrap();
+    let mut duplicate = AssignedTargetOperationPlan::default();
+    let mut second = None;
+    for symbol in ["callback_a", "callback_b"] {
+        let handle = duplicate
+            .code
+            .functions
+            .insert(AssignedTargetOperationFunction {
+                symbol: Arc::from(symbol),
+                identity,
+                instructions: Default::default(),
+            });
+        second = Some(handle);
+    }
+    let diagnostic = build_machine_instructions(&duplicate)
+        .expect_err("one callback role must not lower to two machine functions");
+    assert!(
+        diagnostic
+            .message
+            .contains("share compiler-private identity")
+    );
+    assert!(diagnostic.message.contains("callback_a"));
+    assert!(diagnostic.message.contains("callback_b"));
+
+    duplicate
+        .code
+        .functions
+        .get_mut(second.expect("second callback function"))
+        .identity = MachineFunctionIdentity::callback_thunk(continuation, 8).unwrap();
+    let machine = build_machine_instructions(&duplicate)
+        .expect("distinct placement roles for one continuation must remain distinct");
+    assert_eq!(machine.code.functions.len(), 2);
 }
 
 #[test]
@@ -111,7 +170,11 @@ fn lowers_outgoing_stack_address_to_exact_machine_kind() {
         .functions
         .insert(AssignedTargetOperationFunction {
             symbol: Arc::from("synthetic_wrapper"),
-            identity: MachineFunctionIdentity::default(),
+            identity: MachineFunctionIdentity::source(StateKey {
+                machine: SymbolHandle::from_arena_index(1),
+                state: SymbolHandle::from_arena_index(3),
+                segment_index: 0,
+            }),
             instructions,
         });
     let machine = build_machine_instructions(&assigned).expect("machine lowering");
@@ -213,7 +276,11 @@ fn lowers_exact_entry_indirect_copies_to_machine_kinds() {
         .functions
         .insert(AssignedTargetOperationFunction {
             symbol: Arc::from("synthetic_launch_copy"),
-            identity: MachineFunctionIdentity::default(),
+            identity: MachineFunctionIdentity::source(StateKey {
+                machine: SymbolHandle::from_arena_index(1),
+                state: SymbolHandle::from_arena_index(4),
+                segment_index: 0,
+            }),
             instructions,
         });
 
