@@ -7171,6 +7171,12 @@ checked-result arithmetic decision listed below.
   strict cycle/opaque fallback, and per-axis intersection remain shared by
   declaration validation and checked carry facts; the property coordinator is
   now 374 lines with the exact 18-function/method inventory unchanged.
+  Static-machine contract-fact refinement now lives in a focused 270-line
+  private owner. Requires/ensures/boundary variance, crash-route bucketing,
+  tautology elision, proposition/membership rendering, positional alpha-
+  normalization, diagnostic order, crate APIs, and the exact 26-function
+  machine-parameter inventory remain unchanged; the 1,317-line parent retains
+  selection and callable-shape orchestration.
 - Materialize dynamic descriptors for pass-through, rebound, and escaping
   borrows from the retained exact conformance rows and declaring-trait symbol.
   Bodyless/bare requirements do not license `dyn`; ambiguous same-carrier
