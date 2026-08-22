@@ -4061,10 +4061,10 @@ Owners:
   rather than dropping it. An admitted x86-64 `u8` port-read provider now has
   an exact result-returning native realization whose arguments, receipts,
   instruction interval, and provider identity survive installation. Its exact
-  checked `u8` result placement now also survives machine settlement evidence
-  and canonical installation records; final replay rejects missing or drifted
-  result shape/register fragments. Metadata-only settlements and other targets
-  retain no result placement and remain fail-closed. Other
+  checked terminal result value identity, unsigned `u8` scalar type, and native
+  result placement now survive as one tuple through machine settlement and
+  canonical installation records. Final replay rejects missing, mistyped,
+  misplaced, metadata-only, or unsupported-target tuples. Other
   result shapes and targets remain fail-closed. Explicit provider views now
   borrow one linear validity claim: consuming invalidation is accepted after
   the view's last use and rejected while the view remains live. Projected/
