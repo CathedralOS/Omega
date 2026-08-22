@@ -986,10 +986,13 @@ fn runtime_dyn_two_impl_dispatch_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("dyn two-impl dispatch canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("dyn two-impl dispatch canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("dyn two-impl dispatch canary should run");
 
@@ -1018,10 +1021,13 @@ fn runtime_dyn_two_impl_dispatch_swapped_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("dyn two-impl swapped dispatch canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("dyn two-impl swapped dispatch canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("dyn two-impl swapped dispatch canary should run");
 
