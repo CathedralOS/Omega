@@ -446,9 +446,18 @@ per-candidate proof completion. Independent producer and reconstruction
 `integer_selection/substitution/two/selection/completion` modules rebuild the
 final-alias affine relation and construct or replay the inner-then-outer
 endpoint substitutions. Their `two/selection` parents retain outer equality,
-orientation, inner equality, alias eligibility, and exact fact non-reuse.
+orientation, inner equality, exact fact non-reuse, and completion order.
 Affine precedence, proof bytes, rejection order, and the fixed two-equality
 frontier remain unchanged.
+
+Fixed two-equality endpoint-alias eligibility now belongs to paired, side-local
+`integer_selection/substitution/two/selection/aliases` modules. Producer and
+reconstruction independently resolve the exact goal endpoint, require distinct
+same-carrier Value roots, middle aliases, and target aliases, and accept either
+inner equality orientation. Their `selection` parents retain source fact
+enumeration, outer orientation order, exact fact non-reuse, and completion.
+Proof bytes, rejection order, and the fixed two-equality frontier remain
+unchanged.
 
 The fixed one-alias order transport keeps its established
 `alias_transport/one` API as a facade over independent side-local

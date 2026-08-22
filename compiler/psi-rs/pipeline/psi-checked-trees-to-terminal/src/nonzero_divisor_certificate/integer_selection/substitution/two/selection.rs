@@ -5,6 +5,7 @@ use psi_proof_kernel::ProofNode;
 
 use super::super::super::super::integer_evidence::cited_facts;
 
+mod aliases;
 mod completion;
 
 pub(super) fn prove(
@@ -21,20 +22,9 @@ pub(super) fn prove(
             continue;
         };
         for (old, middle_alias) in [(outer_left, outer_right), (outer_right, outer_left)] {
-            let endpoint = if old == goal_left {
-                0
-            } else if old == goal_right {
-                1
-            } else {
+            let Some(endpoint) = aliases::outer(goal_left, goal_right, old, middle_alias) else {
                 continue;
             };
-            if !matches!(old, psi_core::ScalarTerm::Value { .. })
-                || !matches!(middle_alias, psi_core::ScalarTerm::Value { .. })
-                || old == middle_alias
-                || old.scalar_type() != middle_alias.scalar_type()
-            {
-                continue;
-            }
             for (inner_citation, inner_equality) in cited_facts(assumptions, semantic_axioms) {
                 if std::ptr::eq(outer_equality, inner_equality) {
                     continue;
@@ -42,20 +32,10 @@ pub(super) fn prove(
                 let Proposition::Equal(inner_left, inner_right) = inner_equality else {
                     continue;
                 };
-                let target_alias = if inner_left == middle_alias {
-                    inner_right
-                } else if inner_right == middle_alias {
-                    inner_left
-                } else {
+                let Some(target_alias) = aliases::inner(old, middle_alias, inner_left, inner_right)
+                else {
                     continue;
                 };
-                if !matches!(target_alias, psi_core::ScalarTerm::Value { .. })
-                    || target_alias == old
-                    || target_alias == middle_alias
-                    || target_alias.scalar_type() != old.scalar_type()
-                {
-                    continue;
-                }
                 if let Some(proof) = completion::prove(
                     context,
                     goal,
