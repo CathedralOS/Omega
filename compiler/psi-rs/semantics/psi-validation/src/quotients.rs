@@ -110,24 +110,43 @@ pub(crate) fn validate_quotients(
 /// deriving `RA`/`RR` here does not admit execution or create a checked-tree
 /// operation.
 fn reject_quotient_operation_requests(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>) {
-    let mut direct_terminal_requests = Vec::new();
+    let mut planned_requests = Vec::new();
     for machine in program.machines() {
         for state in program.machine_states(machine) {
-            let Some(psi_typed_trees::statement::StatementNode::Expression(expression)) = program
+            let direct_root = program
                 .statement_table
                 .statements(state.statement_nodes)
                 .last()
+                .and_then(|statement| {
+                    let psi_typed_trees::statement::StatementNode::Expression(expression) =
+                        statement
+                    else {
+                        return None;
+                    };
+                    matches!(
+                        program.expression_table.expression(*expression),
+                        ExpressionNode::Call(call) if call.quotient_operation.is_some()
+                    )
+                    .then_some(relation_plan::ImmutableAliasFallthroughRoot {
+                        request_expression: *expression,
+                        alias_count: 0,
+                    })
+                });
+            let Some(result_root) = direct_root
+                .or_else(|| relation_plan::immutable_alias_fallthrough_root(program, state))
             else {
                 continue;
             };
-            let ExpressionNode::Call(call) = program.expression_table.expression(*expression)
+            let ExpressionNode::Call(call) = program
+                .expression_table
+                .expression(result_root.request_expression)
             else {
                 continue;
             };
             let Some(request) = &call.quotient_operation else {
                 continue;
             };
-            direct_terminal_requests.push(*expression);
+            planned_requests.push(result_root.request_expression);
             let operation = operation_name(request.kind);
             match relation_plan::derive_direct_terminal_plan(
                 program, machine, state, call, request,
@@ -145,8 +164,22 @@ fn reject_quotient_operation_requests(program: &TypedTrees, diagnostics: &mut Ve
                         .render_public_precondition()
                         .map(|value| format!(" plus exact {value}"))
                         .unwrap_or_default();
+                    let result_flow = if result_root.alias_count == 0 {
+                        "one unchanged state-fallthrough result root".to_owned()
+                    } else {
+                        format!(
+                            "one unchanged state-fallthrough result through {} exact immutable alias{}",
+                            result_root.alias_count,
+                            if result_root.alias_count == 1 { "" } else { "es" },
+                        )
+                    };
+                    let plan_kind = if result_root.alias_count == 0 {
+                        "direct-terminal"
+                    } else {
+                        "immutable-alias fallthrough"
+                    };
                     diagnostics.push(Diagnostic::error(format!(
-                        "`Quotient::{operation}` has compiler-derived direct-terminal relations {} and {} plus exact representative telescope {}{correspondence}{public_precondition}{precondition} and one unchanged state-fallthrough result root, but executable quotient operations are not admitted until complete operation/static correspondence, the selected `Respects` contract, and all normalized result exits are independently checked",
+                        "`Quotient::{operation}` has compiler-derived {plan_kind} relations {} and {} plus exact representative telescope {}{correspondence}{public_precondition}{precondition} and {result_flow}, but executable quotient operations are not admitted until complete operation/static correspondence, the selected `Respects` contract, and all normalized result exits are independently checked",
                         plan.render_ra(program),
                         plan.render_rr(program),
                         plan.render_representative_telescope(program),
@@ -169,7 +202,7 @@ fn reject_quotient_operation_requests(program: &TypedTrees, diagnostics: &mut Ve
         let Some(request) = &call.quotient_operation else {
             continue;
         };
-        if !direct_terminal_requests.contains(&handle) {
+        if !planned_requests.contains(&handle) {
             let operation = operation_name(request.kind);
             diagnostics.push(Diagnostic::error(format!(
                 "`Quotient::{operation}` retains its exact representative operation and named conformance, but executable quotient operations are not admitted until quotient formation, correspondence, and result-flow obligations are independently checked",

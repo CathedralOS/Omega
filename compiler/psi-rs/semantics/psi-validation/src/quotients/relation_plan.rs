@@ -50,6 +50,12 @@ pub(super) struct DirectTerminalRelationPlan {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) struct ImmutableAliasFallthroughRoot {
+    pub(super) request_expression: ExpressionHandle,
+    pub(super) alias_count: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) struct RepresentativeRuntimeParameter {
     pub(super) symbol: SymbolHandle,
     pub(super) type_reference: TypeReferenceHandle,
@@ -287,6 +293,73 @@ pub(super) fn derive_direct_terminal_plan(
         public_precondition,
         representative_precondition,
     })
+}
+
+/// Recognize only the straight-line immutable alias form of one unchanged
+/// state-fallthrough result. This deliberately excludes transitions,
+/// assignments, side statements, mutable locals, and type drift.
+pub(super) fn immutable_alias_fallthrough_root(
+    program: &TypedTrees,
+    state: &State,
+) -> Option<ImmutableAliasFallthroughRoot> {
+    if !state.return_type.is_valid() {
+        return None;
+    }
+    let statements = program.statement_table.statements(state.statement_nodes);
+    let (psi_typed_trees::statement::StatementNode::Expression(result), prefix) =
+        statements.split_last()?
+    else {
+        return None;
+    };
+    let mut expected_symbol = exact_local_name_symbol(program, *result)?;
+    let mut seen = Vec::new();
+    for (position, statement) in prefix.iter().enumerate().rev() {
+        let psi_typed_trees::statement::StatementNode::LocalData(local) = statement else {
+            return None;
+        };
+        if local.is_mutable
+            || local.symbol != expected_symbol
+            || seen.contains(&local.symbol)
+            || !local.type_reference.is_valid()
+            || program.normalized_type_identity(local.type_reference)
+                != program.normalized_type_identity(state.return_type)
+        {
+            return None;
+        }
+        seen.push(local.symbol);
+        match program.expression_table.expression(local.initial_value) {
+            ExpressionNode::Call(call) if call.quotient_operation.is_some() && position == 0 => {
+                return Some(ImmutableAliasFallthroughRoot {
+                    request_expression: local.initial_value,
+                    alias_count: seen.len(),
+                });
+            }
+            ExpressionNode::Name(_) => {
+                expected_symbol = exact_local_name_symbol(program, local.initial_value)?;
+                if seen.contains(&expected_symbol) {
+                    return None;
+                }
+            }
+            _ => return None,
+        }
+    }
+    None
+}
+
+fn exact_local_name_symbol(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+) -> Option<SymbolHandle> {
+    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    (path.symbol.is_valid()
+        && program
+            .expression_table
+            .name_path_members(path.members)
+            .len()
+            == 1)
+        .then_some(path.symbol)
 }
 
 fn derive_public_precondition_partition(
@@ -1211,7 +1284,7 @@ mod tests {
         RepresentativeStaticBindingKind, RepresentativeTelescope, derive_direct_terminal_plan,
         derive_exact_representative_static_application, derive_public_precondition_partition,
         derive_representative_precondition_partition, derive_representative_telescope,
-        substituted_type_matches,
+        immutable_alias_fallthrough_root, substituted_type_matches,
     };
     use psi_arena::HandleSpan;
     use psi_symbols::SymbolHandle;
@@ -1233,7 +1306,7 @@ mod tests {
     };
     use psi_typed_trees::signature::{SignatureContract, SignatureContractKind, StateParameter};
     use psi_typed_trees::state::State;
-    use psi_typed_trees::statement::StatementNode;
+    use psi_typed_trees::statement::{StatementNode, TableLocalData};
     use psi_typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
 
     fn symbol(index: u32) -> SymbolHandle {
@@ -2295,6 +2368,144 @@ mod tests {
             diagnostics[0]
                 .message
                 .contains("one unchanged state-fallthrough result root")
+        );
+        assert!(
+            diagnostics[0]
+                .message
+                .contains("executable quotient operations are not admitted")
+        );
+    }
+
+    #[test]
+    fn immutable_alias_fallthrough_requires_an_exact_immutable_chain() {
+        let mut program = TypedTrees::default();
+        let quotient_type = quotient_type(&mut program, symbol(1), "ExactQ", symbol(2), "ExactR");
+        let arguments = program
+            .expression_table
+            .insert_expression_handles(std::iter::empty());
+        let mut call = call_with_arguments(arguments);
+        call.quotient_operation = Some(request_with_representative(SymbolHandle::invalid()));
+        let request = program.expression_table.insert(ExpressionNode::Call(call));
+        let first_symbol = symbol(10);
+        let second_symbol = symbol(11);
+        let first_name = named_argument(&mut program, "first", first_symbol);
+        let second_name = named_argument(&mut program, "second", second_symbol);
+        let mut state = State {
+            return_type: quotient_type,
+            ..Default::default()
+        };
+        for local in [
+            TableLocalData {
+                symbol: first_symbol,
+                name: Identifier::generated_static("first"),
+                type_reference: quotient_type,
+                initial_value: request,
+                is_mutable: false,
+            },
+            TableLocalData {
+                symbol: second_symbol,
+                name: Identifier::generated_static("second"),
+                type_reference: quotient_type,
+                initial_value: first_name,
+                is_mutable: false,
+            },
+        ] {
+            program
+                .statement_table
+                .push_statement(&mut state.statement_nodes, StatementNode::LocalData(local));
+        }
+        program.statement_table.push_statement(
+            &mut state.statement_nodes,
+            StatementNode::Expression(second_name),
+        );
+
+        assert_eq!(
+            immutable_alias_fallthrough_root(&program, &state),
+            Some(super::ImmutableAliasFallthroughRoot {
+                request_expression: request,
+                alias_count: 2,
+            })
+        );
+
+        let drifted_type = program.type_reference_table.insert(TypeReferenceNode::Unit);
+        if let StatementNode::LocalData(first) = &mut program
+            .statement_table
+            .statements_mut(state.statement_nodes)[0]
+        {
+            first.type_reference = drifted_type;
+        }
+        assert_eq!(immutable_alias_fallthrough_root(&program, &state), None);
+
+        if let StatementNode::LocalData(first) = &mut program
+            .statement_table
+            .statements_mut(state.statement_nodes)[0]
+        {
+            first.type_reference = quotient_type;
+            first.is_mutable = true;
+        }
+        assert_eq!(immutable_alias_fallthrough_root(&program, &state), None);
+    }
+
+    #[test]
+    fn derived_immutable_alias_fallthrough_remains_non_executable() {
+        let mut program = TypedTrees::default();
+        let quotient_type = quotient_type(&mut program, symbol(1), "ExactQ", symbol(2), "ExactR");
+        let value_symbol = symbol(3);
+        let value = named_argument(&mut program, "value", value_symbol);
+        let arguments = program.expression_table.insert_expression_handles([value]);
+        let mut call = call_with_arguments(arguments);
+        let carrier_type = carrier_type(&mut program);
+        let mut request =
+            push_representative(&mut program, &[(carrier_type, true, false)], carrier_type);
+        request.kind = QuotientOperationKind::Define;
+        call.quotient_operation = Some(request);
+        let request = program.expression_table.insert(ExpressionNode::Call(call));
+        let result_symbol = symbol(4);
+        let result = named_argument(&mut program, "result", result_symbol);
+        let mut state = State {
+            return_type: quotient_type,
+            ..Default::default()
+        };
+        program.push_state_parameter(
+            &mut state,
+            StateParameter {
+                symbol: value_symbol,
+                name: Identifier::generated_static("value"),
+                type_reference: quotient_type,
+                ..Default::default()
+            },
+        );
+        program.statement_table.push_statement(
+            &mut state.statement_nodes,
+            StatementNode::LocalData(TableLocalData {
+                symbol: result_symbol,
+                name: Identifier::generated_static("result"),
+                type_reference: quotient_type,
+                initial_value: request,
+                is_mutable: false,
+            }),
+        );
+        program.statement_table.push_statement(
+            &mut state.statement_nodes,
+            StatementNode::Expression(result),
+        );
+        let mut machine = Machine::default();
+        program.push_machine_state(&mut machine, state);
+        program.push_machine(machine);
+        let mut diagnostics = Vec::new();
+
+        super::super::reject_quotient_operation_requests(&program, &mut diagnostics);
+
+        assert_eq!(diagnostics.len(), 1);
+        assert!(
+            diagnostics[0]
+                .message
+                .contains("compiler-derived immutable-alias fallthrough relations")
+        );
+        assert!(
+            diagnostics[0]
+                .message
+                .contains("through 1 exact immutable alias")
         );
         assert!(
             diagnostics[0]
