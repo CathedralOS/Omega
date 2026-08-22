@@ -1886,7 +1886,7 @@ data Main { value: ForeignIntegers<PortableStat>; }
 machine Main::main(&mut self) { }
 "#,
     );
-    let checked =
+    let mut checked =
         compile_to_checked(&main_path, None).expect("stored integer policy should compile");
     let report = compute_layout_plan(&checked.typed, "ForeignIntegers::plan", "PortableStat")
         .expect("both stored integer ranges fit their semantic carriers");
@@ -1929,6 +1929,22 @@ machine Main::main(&mut self) { }
         recorded.integer_fields[1].interpretation,
         IntegerInterpretation::Unsigned
     );
+    let recorded_index = checked
+        .typed
+        .plan_laid_layouts
+        .iter()
+        .position(|layout| layout.data_name == "ForeignIntegers<PortableStat>")
+        .expect("stored-width geometry index");
+    assert!(!checked.typed.plan_laid_layouts[recorded_index].integer_fields[0].write_is_total);
+    checked.typed.plan_laid_layouts[recorded_index].integer_fields[0].write_is_total = true;
+    let diagnostics = psi_validation::validate_program(&checked.typed)
+        .expect_err("invented total-write capability must fail closed");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("changed its exact stored-integer type capability")
+    }));
+    checked.typed.plan_laid_layouts[recorded_index].integer_fields[0].write_is_total = false;
 
     let target = NativeTarget::from_omega_target_name(None).expect("host target");
     let layouts = build_layout_plan(&checked, target).expect("stored integer layout should build");
@@ -2004,7 +2020,24 @@ fn integer_at_retains_total_write_evidence_for_a_bounded_carrier() {
     let canary = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(
         "../../../../canaries/pass/layouts/runtime_plan_laid_integer_at_total_write_exit/main.omg",
     );
-    let checked = compile_to_checked(&canary, None).expect("total-write canary should typecheck");
+    let mut checked =
+        compile_to_checked(&canary, None).expect("total-write canary should typecheck");
+    let recorded_index = checked
+        .typed
+        .plan_laid_layouts
+        .iter()
+        .position(|layout| layout.data_name == "SignedByte<PortableByte>")
+        .expect("bounded stored integer plan");
+    assert!(checked.typed.plan_laid_layouts[recorded_index].integer_fields[0].write_is_total);
+    checked.typed.plan_laid_layouts[recorded_index].integer_fields[0].write_is_total = false;
+    let diagnostics = psi_validation::validate_program(&checked.typed)
+        .expect_err("removed total-write capability must fail closed");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("changed its exact stored-integer type capability")
+    }));
+    checked.typed.plan_laid_layouts[recorded_index].integer_fields[0].write_is_total = true;
     let target = NativeTarget::from_omega_target_name(None).expect("host target");
     let layouts = build_layout_plan(&checked, target).expect("stored integer layout should build");
     let layout = layouts

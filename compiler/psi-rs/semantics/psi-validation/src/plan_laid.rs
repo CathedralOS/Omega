@@ -90,6 +90,13 @@ pub(crate) fn validate_plans(program: &TypedTrees, diagnostics: &mut Vec<Diagnos
             )));
             continue;
         }
+        if !stored_integer_capabilities_match(program, plan, &schema_fields) {
+            diagnostics.push(Diagnostic::error(format!(
+                "plan-laid value type `{}` changed its exact stored-integer type capability",
+                plan.data_name
+            )));
+            continue;
+        }
 
         let Some(policy) = program
             .data_definitions()
@@ -125,6 +132,56 @@ pub(crate) fn validate_plans(program: &TypedTrees, diagnostics: &mut Vec<Diagnos
             )));
         }
     }
+}
+
+fn stored_integer_capabilities_match(
+    program: &TypedTrees,
+    plan: &psi_typed_trees::PlanLaidLayout,
+    schema_fields: &[&psi_typed_trees::data::DataField],
+) -> bool {
+    plan.integer_fields.iter().all(|integer| {
+        let Some(field) = schema_fields.get(integer.field_index) else {
+            return false;
+        };
+        stored_integer_write_is_total(
+            program,
+            field.type_reference,
+            u64::from(integer.stored_width_bits),
+            integer.interpretation,
+        ) == Some(integer.write_is_total)
+    })
+}
+
+fn stored_integer_write_is_total(
+    program: &TypedTrees,
+    field_type: psi_typed_trees::types::TypeReferenceHandle,
+    stored_width: u64,
+    interpretation: psi_layout_plans::IntegerInterpretation,
+) -> Option<bool> {
+    if !(1..=64).contains(&stored_width) {
+        return None;
+    }
+    let primitive = program.primitive_type_reference(field_type)?;
+    let (admitted_minimum, admitted_maximum) = if let Some(range) =
+        psi_typed_trees::wire::scalar_representation_range(program, field_type)
+    {
+        (i128::from(range.minimum), i128::from(range.maximum))
+    } else {
+        let width = primitive.scalar_byte_size()? * 8;
+        if primitive.is_signed_integer() {
+            (-(1i128 << (width - 1)), (1i128 << (width - 1)) - 1)
+        } else {
+            (0, (1i128 << width) - 1)
+        }
+    };
+    let (stored_minimum, stored_maximum) = match interpretation {
+        psi_layout_plans::IntegerInterpretation::Signed => (
+            -(1i128 << (stored_width - 1)),
+            (1i128 << (stored_width - 1)) - 1,
+        ),
+        psi_layout_plans::IntegerInterpretation::Unsigned => (0, (1i128 << stored_width) - 1),
+    };
+    Some(admitted_minimum >= stored_minimum && admitted_maximum <= stored_maximum)
 }
 
 fn geometry_matches(
