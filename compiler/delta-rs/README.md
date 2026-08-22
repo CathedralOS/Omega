@@ -10,7 +10,8 @@ arena/index-based, and monomorphic so the port down to the lattice is mechanical
 
 > **Naming note.** Header, extension (`.alp`), and a few "Alpha" mentions in older
 > samples are inherited from the `alpha-rs` README this was forked from — they do
-> **not** mean this is the 21-opcode tape-VM *alpha* (that lives in `compiler/alpha/`).
+> **not** mean this is the 21-opcode tape-VM *alpha* (owned by
+> `bootstrap/rungs/alpha/`; `compiler/alpha` is a compatibility path).
 > This builds the richer machines/data/transition language and is gated as
 > **Delta** in `verify-lattice.sh`.
 

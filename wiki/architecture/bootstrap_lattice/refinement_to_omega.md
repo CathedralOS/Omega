@@ -1,6 +1,6 @@
 # Refinement → bootstrap Omega → production Omega
 
-[Lattice overview](bootstrap_lattice.md) · [Decisions](decisions.md) · [Refinement pillar](../../../compiler/alpha/REFINEMENT.md)
+[Lattice overview](bootstrap_lattice.md) · [Decisions](decisions.md) · [Refinement pillar](../../../bootstrap/rungs/alpha/REFINEMENT.md)
 
 The instruction-level refinement pillar is structurally complete: for a substantial Beta fragment, the
 compiled alpha machine code is **kernel-proven** to compute its source meaning, for all inputs, without

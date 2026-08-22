@@ -32,9 +32,10 @@ translation validation supply the assurance.
 | **Gamma** | pure ADTs, matching, types, and fuel-bounded definitional meaning | interpreter/type-checker gates and meaning corpora |
 | **Delta** | systems/compiler-host language that can build bootstrap Omega | self-host, native corpus, Delta-to-Gamma meaning diamond |
 
-The Greek names and order are fixed language roles. The Alpha assembler lives
-historically under `compiler/beta/`, but it is an Alpha tool; Beta proper is the
-language compiled by `compiler/beta-lang/bc.beta`.
+The Greek names and order are fixed language roles. The Alpha assembler now
+lives at `bootstrap/rungs/alpha/assembler/`; historical `compiler/beta` is only
+a compatibility path. Beta proper is the language compiled by
+`compiler/beta-lang/bc.beta`.
 
 ## Proof kernel
 

@@ -30,7 +30,7 @@ is per-platform.
 Alpha is role #1 (executor); its meaning is pinned by a **small-step operational
 semantics** — a written, per-opcode description of how `(pc, memory, registers,
 stack)` transitions, what `getbyte`/`putbyte` observe, and what `halt`/`trap`/
-out-of-memory produce. [`compiler/alpha/SEMANTICS.md`](../../../../compiler/alpha/SEMANTICS.md)
+out-of-memory produce. [`bootstrap/rungs/alpha/SEMANTICS.md`](../../../../bootstrap/rungs/alpha/SEMANTICS.md)
 is that specification. The `.hex` listing audited against the native binary is
 an encoding, not a substitute for the semantics.
 
@@ -42,7 +42,7 @@ meaningful, or correct — only that it computes deterministically.
 
 ## Current repo reality
 
-`compiler/alpha/` is a 21-opcode register tape VM (`halt, imm, mov, add, sub,
+`bootstrap/rungs/alpha/` is a 21-opcode register tape VM (`halt, imm, mov, add, sub,
 mul, div, mod, loadb, storeb, load, store, jmp, jz, jnz, jlt, jeq, read, write,
 call, ret`; unknown opcode → trap). Shipped as **two independent per-platform
 seeds**, each hand-authored against the same semantics:
@@ -52,15 +52,15 @@ seeds**, each hand-authored against the same semantics:
   hand-authored source) + `alpha_arm64_macos.lst` (a committed disassembly).
 
 A program is a "tape" stamped into a fixed `.tape`/`__tape` hole; the **same tape
-runs on every platform's seed**. [Beta](beta.md) self-hosts on both (byte-identical
-program-byte fixed point; on macOS the OS-imposed code signature is excluded from
-the comparison — see below). `seed_env.sh` selects the seed and stamps tapes
-per-platform, so one set of build scripts serves every host.
+runs on every platform's seed**. The Alpha assembler self-hosts on both
+(byte-identical program-byte fixed point; on macOS the OS-imposed code signature
+is excluded from the comparison — see below). `seed_env.sh` selects the seed and
+stamps tapes per-platform, so one set of build scripts serves every host.
 
 **The two seeds provide a cross-platform conformance check.** They are separate
 realizations (different ISA, OS, and format), so the *same source* through both
-must yield *byte-identical tapes*—verified: the arm64 macOS VM
-reproduces the x64 VM's assembler bytecode from `assembler.alpha` byte-for-byte
+must yield *byte-identical tapes*—verified: the arm64 macOS VM reproduces the
+x64 VM's assembler bytecode from `assembler/assembler.alpha` byte-for-byte
 (sha256 `945c8061…`), the assembler self-hosts on macOS, and the example corpus
 (`.alpha` and `.beta`) runs to identical answers on both. This is the
 executable companion to the written Alpha semantics. Agreement is useful
@@ -70,9 +70,9 @@ multiplicity—supply authority.
 Gaps versus this target, all small and self-contained:
 
 - **Written small-step semantics — DONE.**
-  [`compiler/alpha/SEMANTICS.md`](../../../../compiler/alpha/SEMANTICS.md) is the
+  [`bootstrap/rungs/alpha/SEMANTICS.md`](../../../../bootstrap/rungs/alpha/SEMANTICS.md) is the
   per-opcode operational spec the seeds are audited against, and
-  [`conformance.sh`](../../../../compiler/alpha/conformance.sh) is its executable
+  [`conformance.sh`](../../../../bootstrap/rungs/alpha/conformance.sh) is its executable
   companion — hand-built tapes pinning every rule and edge (signed div/mod,
   signed `jlt`, EOF, the three traps) that any seed must pass. (The two committed
   seeds both implement it; div/mod now trap on `INT_MIN/-1` to match the x64

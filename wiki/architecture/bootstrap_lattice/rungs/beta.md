@@ -28,10 +28,11 @@ artifact still needs complete lower-rooted validation against `bc.beta`. A fixed
 point proves deterministic dependency closure, not compiler correctness or
 source correspondence. DDC is not an architectural closure mechanism.
 
-The Alpha assembler lives historically in `compiler/beta/`, but it is an Alpha
-tool: it is written in Alpha assembly and translates Alpha assembly to Alpha
-tapes. “Beta” without qualification means the structured language compiled by
-`bc`.
+The Alpha assembler formerly lived in `compiler/beta/`, but it is an Alpha tool:
+it is written in Alpha assembly and translates Alpha assembly to Alpha tapes.
+Its canonical owner is now `bootstrap/rungs/alpha/assembler/`; `compiler/beta`
+is only a compatibility symlink. “Beta” without qualification means the
+structured language compiled by `bc`.
 
 ## Must not contain
 
@@ -42,12 +43,13 @@ memory.
 
 ## Current repository reality
 
-- `compiler/beta/assembler.alpha` — self-hosting Alpha assembler;
+- `bootstrap/rungs/alpha/assembler/assembler.alpha` — self-hosting Alpha assembler;
 - `compiler/beta-lang/bc.beta` — self-hosting Beta compiler;
 - `compiler/beta-lang-rs/` — retained Rust cold-start/reference producer;
 - `compiler/beta-lang-py/` — historical mixed Python reference/refinement tools;
-- `compiler/beta/CALLING_CONVENTION.md` — frame and register discipline;
-- `compiler/beta/LANGUAGE.md` — current Beta surface.
+- `compiler/beta-lang/CALLING_CONVENTION.md` — Beta's frame and register
+  discipline over Alpha;
+- `compiler/beta-lang/LANGUAGE.md` — current Beta surface.
 
 `compiler/beta-lang/selfhost.sh` and `test.sh` gate the fixed point and language
 behavior. The legacy Python compiler-comparison script is optional diagnostic
