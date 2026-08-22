@@ -111,7 +111,7 @@ fn progress_profile_rejects_predicates_missing_routes_and_checked_routes() {
 }
 
 #[test]
-fn progress_profile_termination_premise_fails_closed_until_subject_normalization() {
+fn progress_profile_termination_premise_normalizes_subject_and_profile() {
     let typed = typed_program_from_source(
         r#"
         data SchedulerHandle {}
@@ -129,13 +129,115 @@ fn progress_profile_termination_premise_fails_closed_until_subject_normalization
         "#,
     );
 
-    let diagnostics = validate_program(&typed)
-        .expect_err("an unnormalized public progress premise must fail closed");
+    validate_program(&typed).expect("a bodyless requirement may publish the normalized schema");
+    let profile = typed
+        .domain_definitions()
+        .iter()
+        .find(|domain| domain.name.as_str() == "SchedulerHandle::WeakFair")
+        .expect("profile domain");
+    let runtime = typed
+        .traits()
+        .iter()
+        .find(|definition| definition.name.as_str() == "SchedulerRuntime")
+        .expect("runtime trait");
+    let wait = typed
+        .trait_machine_signatures(runtime)
+        .iter()
+        .find(|signature| signature.name.as_str() == "wait")
+        .expect("wait requirement");
+    let [scheduler] = typed.state_signature_parameters(wait) else {
+        panic!("wait should have one parameter")
+    };
+    let psi_language_semantics::TerminationGuarantee::Terminates { premises } =
+        &wait.termination_guarantee
+    else {
+        panic!("wait should publish termination")
+    };
+    let [premise] = premises.as_slice() else {
+        panic!("wait should publish one premise")
+    };
+    assert_eq!(premise.profile, profile.semantic_id);
+    assert_eq!(premise.subject.root, scheduler.symbol);
+    assert!(premise.subject.projections.is_empty());
+}
+
+#[test]
+fn checked_progress_dependencies_fail_closed_until_call_edge_coverage() {
+    let typed = typed_program_from_source(
+        r#"
+        data SchedulerHandle {}
+        domain SchedulerHandle::WeakFair
+        satisfies ProgressProfile
+        established by SchedulerAdmission::grant;
+        boundary trait SchedulerAdmission {
+            machine grant(scheduler: SchedulerHandle) -> SchedulerHandle in WeakFair;
+        }
+        data Worker {}
+        machine Worker::wait(&self, scheduler: SchedulerHandle) -> u64
+        requires scheduler in WeakFair
+        terminates
+        {
+            0
+        }
+        "#,
+    );
+
+    let diagnostics =
+        validate_program(&typed).expect_err("checked progress coverage must remain fail closed");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
-            .contains("subject-bearing progress-premise normalization is not implemented yet")
+            .contains("checked call-edge premise coverage is not implemented yet")
     }));
+}
+
+#[test]
+fn inherited_progress_schema_substitutes_implementation_parameter_identity() {
+    let typed = typed_program_from_source(
+        r#"
+        data SchedulerHandle {}
+        domain SchedulerHandle::WeakFair
+        satisfies ProgressProfile
+        established by SchedulerAdmission::grant;
+        boundary trait SchedulerAdmission {
+            machine grant(scheduler: SchedulerHandle) -> SchedulerHandle in WeakFair;
+        }
+        boundary trait SchedulerRuntime {
+            machine wait(scheduler: SchedulerHandle) -> u64
+            requires scheduler in WeakFair
+            terminates;
+        }
+        machine wait_impl(scheduler: SchedulerHandle) -> u64
+        satisfies SchedulerRuntime::wait
+        {
+            0
+        }
+        "#,
+    );
+
+    let machine = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "wait_impl")
+        .expect("implementation machine");
+    let [parameter] = typed
+        .machine_states(machine)
+        .first()
+        .map(|state| typed.state_parameters(state))
+        .expect("implementation state")
+    else {
+        panic!("implementation should have one parameter")
+    };
+    let psi_language_semantics::TerminationInterface::Published(
+        psi_language_semantics::TerminationGuarantee::Terminates { premises },
+    ) = &machine.termination_plan.interface
+    else {
+        panic!("implementation should inherit termination")
+    };
+    let [premise] = premises.as_slice() else {
+        panic!("implementation should inherit one premise")
+    };
+    assert_eq!(premise.subject.root, parameter.symbol);
 }
 
 #[test]

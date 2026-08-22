@@ -6595,20 +6595,21 @@ compiler concept is introduced.
 - **TPR6 — finish subject-bearing progress-premise normalization and coverage.**
   Explicit `satisfies ProgressProfile` classification is parsed, normalized,
   retained on domain constraints, and checked as atomic, predicate-free, and
-  established through exact boundary requirements. Until the remainder lands,
-  any published termination contract that depends on such membership rejects
-  rather than degrading to an unconditional guarantee.
+  established through exact boundary requirements. Authored terminating
+  requirements now retain each public premise as an exact semantic profile plus
+  receiver-first parameter/field subject path, and that schema enters contract
+  and provider-plan identity.
 
-  Normalize authored public premise schemas separately from exact call-edge
-  instances. Exported checked bodies must cover every derived instance without
+  Remaining: instantiate exact call-edge premises from the selected operation's
+  schema. Exported checked bodies must cover every derived instance without
   letting implementation refactors rewrite their published set; private bodies
   derive only from selected operation termination contracts. Resolve each
   instance by exact substitution or identity-preserving lineage to a public
   schema, local admitted receipt, or manifest-bound provider receipt; reject
   unknown correspondence. Keep nominal static-machine binder premises pinned
   to the named requirement contract and ranking witnesses outside public
-  identity. Remove the temporary fail-closed rejection only when this coverage
-  is complete.
+  identity. Checked bodies with progress dependencies currently fail closed;
+  remove that rejection only when this coverage is complete.
 Acceptance: contract axes normalize independently, wrappers cannot launder
 reach or trust, and private proof improvements do not change public identity.
 

@@ -69,7 +69,9 @@ pub(super) fn validate_selected_callable_shape(
             &psi_effects::declared_signature_invocations(program, actual_signature),
             actual_signature.suspends,
             actual_signature.blocks,
-            actual_signature.terminates_guarantee,
+            actual_signature
+                .termination_guarantee
+                .promises_termination(),
             program.state_signature_contracts(actual_signature),
             generic_types,
             bindings,
@@ -302,7 +304,7 @@ fn validate_callable_parts(
         )));
     }
 
-    if requirement.terminates_guarantee && !actual_terminates {
+    if requirement.termination_guarantee.promises_termination() && !actual_terminates {
         diagnostics.push(Diagnostic::error(format!(
             "{label} does not refine `{}`: the requirement guarantees termination",
             parameter.name
@@ -373,7 +375,7 @@ pub(crate) fn validate_trait_callable_parameter_refinement(
             &psi_effects::declared_signature_invocations(program, actual_contract),
             actual_contract.suspends,
             actual_contract.blocks,
-            actual_contract.terminates_guarantee,
+            actual_contract.termination_guarantee.promises_termination(),
             program.state_signature_contracts(actual_contract),
             generic_types,
             &mut bindings,
@@ -410,7 +412,7 @@ pub(crate) fn validate_trait_callable_parameter_refinement(
                 )));
             }
         }
-        if required_contract.terminates_guarantee != actual_contract.terminates_guarantee {
+        if required_contract.termination_guarantee != actual_contract.termination_guarantee {
             diagnostics.push(Diagnostic::error(format!(
                 "{nested_label} changes `{}` termination requirements",
                 required.name
@@ -518,7 +520,7 @@ fn validate_callable_type_parameters(
                     &psi_effects::declared_signature_invocations(program, actual_contract),
                     actual_contract.suspends,
                     actual_contract.blocks,
-                    actual_contract.terminates_guarantee,
+                    actual_contract.termination_guarantee.promises_termination(),
                     program.state_signature_contracts(actual_contract),
                     generic_types,
                     bindings,

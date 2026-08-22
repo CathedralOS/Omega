@@ -216,10 +216,34 @@ pub enum TerminationGuarantee {
     #[default]
     NoGuarantee,
     Terminates {
-        /// Progress-profile premises the guarantee is conditional on
-        /// (sealed semantic commitments with grant/receipt identity).
-        premises: Vec<ProgressProfileId>,
+        /// Exact subject-bearing progress-profile premises the guarantee is
+        /// conditional on. Public contracts retain parameter-rooted schemas;
+        /// checked call edges substitute those roots with caller occurrences.
+        premises: Vec<ProgressPremise>,
     },
+}
+
+impl TerminationGuarantee {
+    pub const fn promises_termination(&self) -> bool {
+        matches!(self, Self::Terminates { .. })
+    }
+}
+
+/// One exact progress premise. The profile identifies the closed semantic
+/// domain; the subject prevents a grant for one capability occurrence from
+/// discharging a premise about another.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProgressPremise {
+    pub profile: SemanticDomainId,
+    pub subject: ProgressSubject,
+}
+
+/// Identity-preserving subject path rooted at a declared parameter or local.
+/// Projections are semantic field symbols, never rendered names or offsets.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProgressSubject {
+    pub root: psi_symbols::SymbolHandle,
+    pub projections: Vec<psi_symbols::SymbolHandle>,
 }
 
 /// Decision 23's PRIVATE half: the ranking witness proving one body. It
@@ -331,12 +355,6 @@ semantic_id!(
     /// Normalized service-reach row identity (service set + parent closure).
     /// Suspension and blocking are deliberately absent from this identity.
     ServiceReachRowId
-);
-semantic_id!(
-    /// A sealed boundary progress profile (grant/receipt identity);
-    /// participates in provider admission, outside the ordinary proof-fact
-    /// catalog in v1.
-    ProgressProfileId
 );
 semantic_id!(
     /// A normalized EXTERNAL-BINDING identity (PRV4 step 1): the structural

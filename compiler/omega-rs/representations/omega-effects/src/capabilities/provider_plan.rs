@@ -69,11 +69,32 @@ pub struct ServiceMethod {
     pub may_suspend: bool,
     pub may_block: bool,
     /// Existing public bodyless requirement guarantee. Progress-profile
-    /// premises and private ranking evidence remain outside this carrier.
+    /// premises are retained separately below; private ranking evidence stays
+    /// outside provider identity.
     pub terminates_guarantee: bool,
+    /// Exact normalized premise schemas. The root distinguishes the installed
+    /// provider receiver from caller parameters; projections and profile use
+    /// semantic paths.
+    pub termination_premises: Vec<ServiceProgressPremise>,
     /// Canonical validated `BoundaryEntryPlan` identity selected by a concrete
     /// `Calling<C>` relationship. Policy type/source identity is excluded.
     pub calling_plan_fingerprint: Option<u64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ServiceProgressPremise {
+    pub profile: String,
+    pub subject: ServiceProgressSubject,
+    pub subject_projections: Vec<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum ServiceProgressSubject {
+    /// The service/provider capability itself; composition supplies the exact
+    /// installed provider occurrence.
+    ProviderReceiver,
+    /// One ordinary caller-visible parameter, excluding the receiver.
+    Parameter(usize),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -263,6 +284,7 @@ impl ServiceSchema {
                 may_suspend: false,
                 may_block: false,
                 terminates_guarantee: false,
+                termination_premises: Vec::new(),
                 calling_plan_fingerprint: None,
             }],
         })
@@ -341,7 +363,8 @@ fn collect_service_methods(
             synchronous_invocations: synchronous_invocation_names(program, signature),
             may_suspend: signature.suspends,
             may_block: signature.blocks,
-            terminates_guarantee: signature.terminates_guarantee,
+            terminates_guarantee: signature.termination_guarantee.promises_termination(),
+            termination_premises: service_progress_premises(program, signature),
             calling_plan_fingerprint: program.boundary_calling_plan_fingerprint_for_arguments(
                 policy_owner,
                 boundary_arguments,
@@ -349,6 +372,53 @@ fn collect_service_methods(
             ),
         });
     }
+}
+
+fn service_progress_premises(
+    program: &psi_typed_trees::TypedTrees,
+    signature: &psi_typed_trees::signature::StateSignature,
+) -> Vec<ServiceProgressPremise> {
+    let psi_language_semantics::TerminationGuarantee::Terminates { premises } =
+        &signature.termination_guarantee
+    else {
+        return Vec::new();
+    };
+    let parameters = program.state_signature_parameters(signature);
+    premises
+        .iter()
+        .map(|premise| {
+            let parameter = parameters
+                .iter()
+                .find(|parameter| parameter.symbol == premise.subject.root)
+                .expect("normalized public progress premise must be parameter-rooted");
+            let subject = if parameter.is_self {
+                ServiceProgressSubject::ProviderReceiver
+            } else {
+                ServiceProgressSubject::Parameter(
+                    parameters
+                        .iter()
+                        .filter(|candidate| !candidate.is_self)
+                        .position(|candidate| candidate.symbol == parameter.symbol)
+                        .expect("non-receiver premise root must be an ordinary parameter"),
+                )
+            };
+            let profile = program
+                .semantic_domains
+                .name(premise.profile)
+                .expect("normalized progress premise must name a registered profile")
+                .to_owned();
+            ServiceProgressPremise {
+                profile,
+                subject,
+                subject_projections: premise
+                    .subject
+                    .projections
+                    .iter()
+                    .map(|symbol| program.symbols.display_path(*symbol, "::"))
+                    .collect(),
+            }
+        })
+        .collect()
 }
 
 fn service_entry_claims(
@@ -634,6 +704,24 @@ impl ProviderPlan {
                 method.may_block,
                 method.terminates_guarantee,
             ));
+            let mut premises = method.termination_premises.iter().collect::<Vec<_>>();
+            premises.sort_by(|left, right| {
+                left.profile
+                    .cmp(&right.profile)
+                    .then_with(|| left.subject.cmp(&right.subject))
+                    .then_with(|| left.subject_projections.cmp(&right.subject_projections))
+            });
+            for premise in premises {
+                rendered.push_str(&format!(
+                    "\nmt:{}/{}/{}",
+                    premise.profile,
+                    match premise.subject {
+                        ServiceProgressSubject::ProviderReceiver => "self".to_owned(),
+                        ServiceProgressSubject::Parameter(index) => format!("parameter:{index}"),
+                    },
+                    premise.subject_projections.join("::")
+                ));
+            }
             for parameter in &method.parameter_type_identities {
                 rendered.push_str("\nmp:");
                 rendered.push_str(parameter);
@@ -775,6 +863,41 @@ impl ProviderPlan {
                         self.schema.trait_name,
                         method.name,
                         parameter_index,
+                    ));
+                }
+            }
+            for premise in &method.termination_premises {
+                if !method.terminates_guarantee {
+                    errors.push(format!(
+                        "plan `{}` schema method `{}::{}` retains a progress premise without a termination guarantee",
+                        self.name, self.schema.trait_name, method.name,
+                    ));
+                }
+                if premise.profile.is_empty() {
+                    errors.push(format!(
+                        "plan `{}` schema method `{}::{}` has a progress premise with no exact profile identity",
+                        self.name, self.schema.trait_name, method.name,
+                    ));
+                }
+                if let ServiceProgressSubject::Parameter(index) = premise.subject
+                    && index >= method.parameter_count
+                {
+                    errors.push(format!(
+                        "plan `{}` schema method `{}::{}` progress premise names out-of-range parameter {index} of {}",
+                        self.name,
+                        self.schema.trait_name,
+                        method.name,
+                        method.parameter_count,
+                    ));
+                }
+                if premise
+                    .subject_projections
+                    .iter()
+                    .any(|projection| projection.is_empty())
+                {
+                    errors.push(format!(
+                        "plan `{}` schema method `{}::{}` progress premise has an empty subject projection identity",
+                        self.name, self.schema.trait_name, method.name,
                     ));
                 }
             }
@@ -1083,6 +1206,7 @@ mod tests {
                     may_suspend: false,
                     may_block: false,
                     terminates_guarantee: false,
+                    termination_premises: Vec::new(),
                     calling_plan_fingerprint: None,
                 },
                 ServiceMethod {
@@ -1100,6 +1224,7 @@ mod tests {
                     may_suspend: true,
                     may_block: false,
                     terminates_guarantee: false,
+                    termination_premises: Vec::new(),
                     calling_plan_fingerprint: None,
                 },
                 ServiceMethod {
@@ -1117,6 +1242,7 @@ mod tests {
                     may_suspend: false,
                     may_block: true,
                     terminates_guarantee: false,
+                    termination_premises: Vec::new(),
                     calling_plan_fingerprint: None,
                 },
             ],
@@ -1187,6 +1313,17 @@ mod tests {
         let mut terminating = windows_console_plan();
         terminating.schema.methods[0].terminates_guarantee = true;
         assert_ne!(terminating.identity_fingerprint(), baseline_identity);
+
+        let mut premised = terminating.clone();
+        premised.schema.methods[0].termination_premises = vec![ServiceProgressPremise {
+            profile: "SchedulerHandle::WeakFair".to_owned(),
+            subject: ServiceProgressSubject::Parameter(0),
+            subject_projections: Vec::new(),
+        }];
+        assert_ne!(
+            premised.identity_fingerprint(),
+            terminating.identity_fingerprint()
+        );
         assert_ne!(
             suspending.identity_fingerprint(),
             blocking.identity_fingerprint()

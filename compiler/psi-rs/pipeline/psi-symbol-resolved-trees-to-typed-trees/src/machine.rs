@@ -18,11 +18,10 @@ pub(crate) fn lower_machine(
         attached_data: machine.attached_data.as_ref().map(crate::name::lower_name),
         // Copied, never re-derived.
         supply_mode: machine.supply_mode,
-        // TPR2: copied, never re-derived (populated at syntax->resolved).
-        // TPR4 slice 3: an implementation satisfying a requirement that
-        // authored `terminates;` INHERITS the published guarantee (see
-        // inherit_requirement_guarantee below).
-        termination_plan: inherit_requirement_guarantee(lowerer, machine),
+        // The authored bit and private witness copy here; the final typed
+        // normalization attaches subject-bearing schemas and inherited
+        // requirement guarantees after every trait has been lowered.
+        termination_plan: machine.termination_plan.clone(),
         service_reach_row: machine.service_reach_row,
         lifetime_parameters: machine
             .lifetime_parameters
@@ -189,68 +188,6 @@ pub(crate) fn lower_machine(
     // at CALL sites, which is robust.
 
     Ok(typed_machine)
-}
-
-/// TPR4 slice 3 (decision 23): "an implementation satisfying a requirement
-/// inherits the requirement's guarantee and premises. It does not repeat
-/// `terminates;`; a textual `terminates by ...` on the implementation
-/// supplies only the witness needed to discharge the inherited claim."
-/// The inheritance happens HERE (the resolved->typed machine lowering),
-/// where the conformance edge and the requirement's signature flag are both
-/// in reach -- so the TPR3-migrated checker's plan gate then enforces the
-/// inherited claim for free (a cyclic inheritor without a witness fails
-/// with the missing-witness diagnostic). Requirement matching mirrors the
-/// conformance validator's exact requirement identity. An authored guarantee
-/// is never overwritten.
-fn inherit_requirement_guarantee(
-    lowerer: &Lowerer,
-    machine: &resolved::machine::Machine,
-) -> psi_language_semantics::MachineTerminationPlan {
-    use psi_language_semantics::{TerminationGuarantee, TerminationInterface};
-
-    let mut plan = machine.termination_plan.clone();
-    if matches!(
-        &plan.interface,
-        TerminationInterface::Published(TerminationGuarantee::Terminates { .. })
-    ) {
-        return plan;
-    }
-    for conformance in lowerer
-        .source_trees
-        .machine_trait_conformances(machine.satisfies)
-    {
-        let Some(trait_definition) = lowerer
-            .source_trees
-            .traits
-            .iter()
-            .find(|definition| definition.symbol == conformance.symbol)
-        else {
-            continue;
-        };
-        let Some(required_name) = conformance
-            .requirement
-            .as_ref()
-            .map(|requirement| requirement.as_str())
-        else {
-            continue;
-        };
-        let inherited = lowerer
-            .source_trees
-            .trait_machine_signatures(trait_definition.machines)
-            .iter()
-            .find(|requirement| requirement.name.as_str() == required_name);
-        if let Some(requirement) = inherited {
-            plan.interface = TerminationInterface::Published(if requirement.terminates_guarantee {
-                TerminationGuarantee::Terminates {
-                    premises: Vec::new(),
-                }
-            } else {
-                TerminationGuarantee::NoGuarantee
-            });
-            break;
-        }
-    }
-    plan
 }
 
 fn lower_contract_kind(

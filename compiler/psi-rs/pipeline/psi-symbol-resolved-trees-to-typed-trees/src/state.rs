@@ -180,8 +180,15 @@ pub(crate) fn lower_state_signature(
         suspends: signature.suspends,
         blocks: signature.blocks,
         contracts: Default::default(),
-        // TPR4: copied, never re-derived.
-        terminates_guarantee: signature.terminates_guarantee,
+        // The final subject-bearing guarantee is normalized after all typed
+        // domains, contracts, and requirements are available.
+        termination_guarantee: if signature.terminates_guarantee {
+            psi_language_semantics::TerminationGuarantee::Terminates {
+                premises: Vec::new(),
+            }
+        } else {
+            psi_language_semantics::TerminationGuarantee::NoGuarantee
+        },
     };
 
     for parameter in lowerer

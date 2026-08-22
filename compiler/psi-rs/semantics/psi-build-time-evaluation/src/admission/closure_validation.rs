@@ -287,7 +287,7 @@ fn callable_contract_violation(
         ));
     }
 
-    if signature.terminates_guarantee {
+    if signature.termination_guarantee.promises_termination() {
         return None;
     }
 

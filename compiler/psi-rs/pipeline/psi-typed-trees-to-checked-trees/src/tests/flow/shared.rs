@@ -253,7 +253,7 @@ fn records_checked_boundary_edges_for_boundary_trait_calls() {
             suspends: false,
             blocks: false,
             contracts: Default::default(),
-            terminates_guarantee: false,
+            termination_guarantee: psi_language_semantics::TerminationGuarantee::NoGuarantee,
         },
     );
     program.push_trait_definition(boundary_trait);

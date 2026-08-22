@@ -733,10 +733,11 @@ mod tests {
         MachineTerminationFact, ServiceReachFacts,
     };
     use psi_language_semantics::{
-        BlockingInterface, BlockingPlan, MachineTerminationPlan, ProgressProfileId, RankingWitness,
-        ServiceReachInterface, ServiceReachRowId, ServiceReachRowTable, ServiceReachTable,
-        SuspensionInterface, SuspensionPlan, SynchronousInvocationInterface,
-        SynchronousInvocationPlan, TerminationGuarantee, TerminationInterface,
+        BlockingInterface, BlockingPlan, MachineTerminationPlan, ProgressPremise, ProgressSubject,
+        RankingWitness, SemanticDomainId, ServiceReachInterface, ServiceReachRowId,
+        ServiceReachRowTable, ServiceReachTable, SuspensionInterface, SuspensionPlan,
+        SynchronousInvocationInterface, SynchronousInvocationPlan, TerminationGuarantee,
+        TerminationInterface,
     };
     use psi_symbols::SymbolHandle;
 
@@ -1459,7 +1460,13 @@ mod tests {
                 machine,
                 plan: MachineTerminationPlan {
                     interface: TerminationInterface::Published(TerminationGuarantee::Terminates {
-                        premises: vec![ProgressProfileId(1)],
+                        premises: vec![ProgressPremise {
+                            profile: SemanticDomainId(1),
+                            subject: ProgressSubject {
+                                root: machine,
+                                projections: Vec::new(),
+                            },
+                        }],
                     }),
                     checked_summary: TerminationGuarantee::NoGuarantee,
                     implementation_witness: None,

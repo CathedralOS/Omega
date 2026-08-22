@@ -459,7 +459,16 @@ pub enum TerminationInterfaceSnapshot {
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum TerminationGuaranteeSnapshot {
     NoGuarantee,
-    Terminates { premises: Vec<u32> },
+    Terminates {
+        premises: Vec<ProgressPremiseSnapshot>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct ProgressPremiseSnapshot {
+    pub profile: u32,
+    pub subject_root: u32,
+    pub subject_projections: Vec<u32>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -1120,7 +1129,19 @@ fn termination_interface_snapshot(
         TerminationInterface::Published(TerminationGuarantee::Terminates { premises }) => {
             TerminationInterfaceSnapshot::Published {
                 guarantee: TerminationGuaranteeSnapshot::Terminates {
-                    premises: premises.iter().map(|premise| premise.0).collect(),
+                    premises: premises
+                        .iter()
+                        .map(|premise| ProgressPremiseSnapshot {
+                            profile: premise.profile.0,
+                            subject_root: premise.subject.root.arena_index(),
+                            subject_projections: premise
+                                .subject
+                                .projections
+                                .iter()
+                                .map(|symbol| symbol.arena_index())
+                                .collect(),
+                        })
+                        .collect(),
                 },
             }
         }
@@ -1818,16 +1839,20 @@ fn binary_operator_name(operator: BinaryOperator) -> &'static str {
 
 #[cfg(test)]
 mod termination_vocabulary_tests {
-    use super::TerminationGuaranteeSnapshot;
+    use super::{ProgressPremiseSnapshot, TerminationGuaranteeSnapshot};
 
     #[test]
     fn termination_guarantee_uses_settled_snapshot_vocabulary() {
         let snapshot = TerminationGuaranteeSnapshot::Terminates {
-            premises: vec![3, 5],
+            premises: vec![ProgressPremiseSnapshot {
+                profile: 3,
+                subject_root: 5,
+                subject_projections: vec![7],
+            }],
         };
         assert_eq!(
             serde_json::to_string(&snapshot).expect("serialize termination guarantee"),
-            r#"{"kind":"terminates","premises":[3,5]}"#
+            r#"{"kind":"terminates","premises":[{"profile":3,"subject_root":5,"subject_projections":[7]}]}"#
         );
     }
 }
