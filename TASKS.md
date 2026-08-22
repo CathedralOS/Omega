@@ -773,8 +773,12 @@ Owners:
   owned placement admission plus borrowed placed-view establishment now live in
   a focused 119-line owner, preserving exact profile restriction, resource
   compatibility, runtime base-congruence discharge, and retry-complete loan/
-  extent/admission rejection order. These extractions leave a 2,667-line
-  coordinator. All 81
+  extent/admission rejection order. Stable owned resident-content adoption and
+  retained authority replay now live in a focused 157-line custody owner. It
+  rebinds the non-Clone provider grant to exact interpretation, origin,
+  lineage, geometry, address space, provenance, era, admitted resources, and
+  Stable-only observation before each consuming lifecycle step, preserving both
+  inputs on rejection. These extractions leave a 2,523-line coordinator. All 81
   unit tests, the current 440-function production inventory, diagnostics,
   custody, retry behavior, and the public surface remain unchanged.
 - Implement `Extent::Resident<P, T>` as the owned exact-range dormant-content
