@@ -1274,7 +1274,12 @@ Remaining:
   conjuncts from two exact citations each: `Kd <= Md`, `Md <= -1`,
   `Kd == divisor`, and `0 <= Mn`, `Mn <= Kn`, `Kn == dividend`. The producer
   emits the ordered conjunction of two transitivity-under-substitution proofs;
-  either missing middle relation rejects the whole goal. A signed `i1`
+  either missing middle relation rejects the whole goal. The signed
+  width-at-least-two joint arm is also complete when both conjuncts use direct
+  two-citation chains: `divisor <= K`, `K <= -1`, and
+  `MIN + 1 <= M`, `M <= dividend`. The producer introduces only arm 2 and
+  constructs its ordered conjunction from the two transitivity proofs; a
+  missing or disconnected citation rejects the entire arm. A signed `i1`
   divisor fact alone remains
   insufficient because its canonical conjunction also requires the dividend
   premise. The complete retained-bound `i1` family now selects that conjunction
@@ -1583,7 +1588,7 @@ Remaining:
   unchanged; only type-shell normalization and unresolved-call reporting are
   shared privately back to per-call validation.
   Complete-or-opaque caller write-frame inference, alias-origin propagation,
-  and transition-cycle frame equations now form a 2,955-line
+  and transition-cycle frame equations now form a 2,921-line
   `calls/write_frames.rs` child. Its 459-line `write_frames/demand.rs` child
   owns the public resolver facade plus expression/statement demand collection
   and conservative fallback; a separate 123-line
@@ -1592,7 +1597,10 @@ Remaining:
   `write_frames/isolation.rs` child owns caller-isolated local/aggregate
   classification, exact struct-literal field/type lookup, and bounded direct-call
   initializer-shape admission through six parent-private predicates; it has no
-  callback into frame inference. A
+  callback into frame inference. A separate 52-line
+  `write_frames/isolated_initializers.rs` leaf owns complete caller-isolated
+  initializer admission, including the symbol-table and isolated-write fences;
+  recursive frame collection remains in the parent behind one callback. A
   separate 99-line `write_frames/transparent_effects.rs` leaf owns recursive
   syntactic effect classification, compiler-owned slice-view transparency, and
   place-root symbol recovery through three parent-private queries, likewise
@@ -2484,11 +2492,15 @@ Remaining N6/N8 work:
   result-typed local aliases when the sealed request is the first initializer
   and the state's final expression is the last local. Mutable/type-drifted,
   nested, interrupted, reassigned, cyclic, transition, and state-forwarded
-  shapes cannot claim that edge. This does not prove all-normal-exit result flow
-  through transitions or state forwarding. Every request still rejects as
-  non-executable until exact correspondence, the selected `Respects` contract,
-  and normalized result flow are checked and retained in checked/terminal
-  identity.
+  shapes cannot claim that edge. When the owner machine and state identities
+  are each exact-unique, the machine has exactly that one state, and its body
+  contains no transition, the plan now records that this fallthrough path
+  exhausts the owner's normal result exits. Duplicate identities, another
+  state, or any transition retain no complete-coverage claim; transition and
+  state-forwarded result flow remains unresolved. The single-state certificate
+  proves no effect, termination, contract, or `Respects` obligation. Every
+  request still rejects as non-executable until all remaining obligations are
+  checked and retained in checked/terminal identity.
 - Suppress every synthesized representation observer on quotient formation.
   Add quotient-owned executable equality through an ordinary lifted operation
   with `DecidesEquivalence`; derive its `Respects` proof, and bind its optional
@@ -2604,8 +2616,12 @@ conformance cannot change token meaning; and no accepted source contains a
   now retain the compiler-derived normalized realization-machine overload
   identity through ABI planning, trust reports, and executable-TCB identity.
   Their separate catalog label derives from the selected satisfied requirement
-  rather than accepting author text. Replace that transitional label with a
-  structured target catalog key.
+  rather than accepting author text, is diagnostic-only, and is excluded from
+  provider identity. Float execution resolves directly from the checked
+  operator namespace, requirement, types, arithmetic policy, and selected
+  target; the old display-string catalog matcher and its permutation test are
+  deleted. Replace the remaining diagnostic label with a structured renderer
+  or remove it once reports consume the exact operator/catalog key directly.
 - Replace string-backed foreign binding identity with nominal `LibraryId`,
   `SymbolId`, `CallingPlanId`, firmware/table, vtable, and mechanism-specific
   values. Raw object-format library/symbol bytes may exist only in sealed
