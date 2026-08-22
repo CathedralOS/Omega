@@ -3,7 +3,9 @@
 use psi_core::{Proposition, PropositionContext, ScalarTerm};
 use psi_proof_kernel::ProofNode;
 
-use super::{DefinitionIndex, candidates, completion};
+use super::{DefinitionIndex, candidates};
+
+mod completion;
 
 #[allow(clippy::too_many_arguments)]
 pub(in super::super) fn prove_from_root_after(
@@ -23,26 +25,15 @@ pub(in super::super) fn prove_from_root_after(
         definitions,
         root,
         |witness| {
-            (witness
-                .definition_axioms
-                .iter()
-                .all(|&index| index > minimum_axiom)
-                && witness
-                    .literal_axioms
-                    .iter()
-                    .flatten()
-                    .all(|&index| index > minimum_axiom))
-            .then(|| {
-                completion::prove(
-                    context,
-                    goal,
-                    assumptions,
-                    semantic_axioms,
-                    &root_bound,
-                    witness,
-                )
-            })
-            .flatten()
+            completion::prove(
+                context,
+                goal,
+                assumptions,
+                semantic_axioms,
+                minimum_axiom,
+                &root_bound,
+                witness,
+            )
         },
     )
 }

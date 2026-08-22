@@ -787,6 +787,13 @@ or replay its exact mapped bound. Their `mapped` parents retain requested-
 target and definition-word order. Proof bytes, candidate rejection, and the
 fixed four-definition frontier remain unchanged.
 
+Post-boundary affine custody mirrors the same responsibility split. Side-local
+producer and verifier `affine_custody/boundary/completion` modules
+independently enforce strict definition and literal-axiom boundaries before
+delegating an eligible witness to ordinary affine-custody completion. Their
+`boundary` parents retain goal-target and definition-word order. Proof bytes,
+candidate rejection, and the fixed four-definition frontier remain unchanged.
+
 Affine-witness candidate coordination likewise separates goal-target
 enumeration from exact fixed-target completion. Side-local producer and
 verifier `affine_custody/candidates/fixed` modules independently align literal

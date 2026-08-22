@@ -2,7 +2,9 @@
 
 use psi_core::{Proposition, PropositionContext, ScalarTerm};
 
-use super::{DefinitionIndex, candidates, completion};
+use super::{DefinitionIndex, candidates};
+
+mod completion;
 
 #[allow(clippy::too_many_arguments)]
 pub(in super::super) fn retained_from_root_after(
@@ -21,16 +23,14 @@ pub(in super::super) fn retained_from_root_after(
         definitions,
         root,
         |witness| {
-            witness
-                .definition_axioms
-                .iter()
-                .all(|&index| index > minimum_axiom)
-                && witness
-                    .literal_axioms
-                    .iter()
-                    .flatten()
-                    .all(|&index| index > minimum_axiom)
-                && completion::retained(context, goal, semantic_axioms, root_bound, &witness)
+            completion::retained(
+                context,
+                goal,
+                semantic_axioms,
+                minimum_axiom,
+                root_bound,
+                witness,
+            )
         },
     )
 }
