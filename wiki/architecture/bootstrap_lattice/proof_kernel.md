@@ -848,6 +848,16 @@ definition-word frontier is still computed once per parent invocation, and
 target-first then word-order precedence, completion, rejection, and the fixed
 frontier remain unchanged.
 
+Unique earlier literal-landing discovery now belongs to paired, side-local
+`affine_custody/frontier/prefix/literals/landing` modules. Producer and
+reconstruction independently validate and scan only the semantic-axiom prefix
+before the current definition, preserve row order and both equality
+orientations, and require exactly one same-carrier Value-to-signed-literal
+match. Their `literals` parents retain definition-word replay, arithmetic-step
+orientation, sibling position, and target completion. Witness bytes,
+missing/late/redirected/ambiguous rejection, and the fixed four-definition
+frontier remain unchanged.
+
 The root-bound child may also come from exactly one retained same-carrier
 `root == literal` fact when that literal equals or strengthens the canonical
 bound endpoint. The producer remaps the endpoint into the source carrier,

@@ -2273,6 +2273,15 @@ definition-word-second order. Literal alignment, completion callbacks,
 rejection, and the fixed frontier are unchanged; neither side shares a witness
 or enumeration authority.
 
+Unique earlier literal-landing discovery now lives in independent producer and
+verifier `affine_custody/frontier/prefix/literals/landing` modules. Each scans
+only the semantic-axiom prefix before its affine definition, validates every
+row, preserves row order and both equality orientations, and accepts exactly
+one same-carrier Value-to-signed-literal match. The `literals` parents retain
+definition-word replay, arithmetic-step orientation, sibling position, and
+target completion. Witness bytes, missing/late/redirected/ambiguous rejection,
+and the fixed four-definition frontier are unchanged.
+
 The cast root-bound child may also be reconstructed from exactly one retained
 same-carrier `root == literal` fact when that literal equals or strengthens the
 canonical bound endpoint. Production remaps the endpoint into the source
