@@ -596,7 +596,25 @@ Owners:
   borrowed-resident view establishment likewise replays the lender's retained
   owned placement/profile/resource authority before creating a whole-range
   loan; rejection consumes nothing, leaving the exact dormant resident
-  authority available for repair and retry.
+  authority available for repair and retry. Borrowed-resident retirement now
+  independently replays the retained admitted profile/receipt, exact
+  whole-range loan, placement plan, and resource compatibility before ending
+  the placed occurrence; rejection returns the complete active borrowed
+  carrier, preserving its loan, occurrence, resident claim, and provider
+  receipts for corrected retry without reminting lender custody. Stable
+  resident custody now retains the complete non-Clone provider existing-content
+  grant rather than reducing it to copied receipt identities. Owned view,
+  resident-preserving retirement, and shared/exclusive borrowed-resident
+  establishment independently replay that grant's exact interpretation,
+  origin, lineage, geometry, address space, provenance, era, resident claim,
+  and provider receipts against the retained placement; drift returns the
+  complete dormant or active carrier for corrected retry without reconstructing
+  custody. Shared and exclusive borrowed-resident carriers now retain a
+  lifetime-bound reference to that exact grant rather than copying claim and
+  receipt identities. Borrowed retirement replays its interpretation, origin,
+  lineage, geometry, address space, provenance, and era against the whole-range
+  loan and placement before release; rejection returns the complete carrier for
+  retry and neither clones nor remints lender custody.
 - Implement `Extent::Resident<P, T>` as the owned exact-range dormant-content
   qualification, including invariant type indices, mutual exclusion with
   `Vacant`, split/merge rejection, borrow versus owned-view continuity,
@@ -1513,7 +1531,17 @@ Remaining:
   Truth/conjunction/disjunction/order proof shape before the public entry
   applies the kernel check; reconstruction independently replays canonical
   proposition shape and fixed bound dispatch. Each preserves its prior
-  precedence and finite evidence frontier. Certificate-entry custody now lives
+  precedence and finite evidence frontier. Primitive integer-order selection
+  now lives in independent side-local `integer_selection/order` modules:
+  production alone builds exact-citation, closed-strengthening, and exact
+  two-citation transitivity proofs, while reconstruction independently checks
+  its retained literal, closed-strengthening, and exact two-fact forms. Fixed
+  endpoint substitution likewise lives in independent side-local
+  `integer_selection/substitution` modules; each side owns its existing one-
+  and two-equality completion without sharing authority. Recursive proposition
+  coordination, precedence, ledger citation order, equality orientation,
+  endpoint selection, proof shapes, rejection behavior, and the finite search
+  frontier are unchanged. Certificate-entry custody now lives
   in dedicated, side-local `certificate_entry` modules. Production exposes a
   selected proof only after the kernel accepts its exact context, goal,
   assumptions, and semantic axioms; reconstruction independently projects the
@@ -1642,8 +1670,15 @@ Remaining:
   landed-literal, fixed one-alias, closed-strengthening,
   alias-landed-literal, then fixed two-alias precedence; source-carrier literal
   remapping remains with cast custody. No proof shape or search frontier
-  changes. This completes contiguous cast-chain custody for exact
-  divide/remainder goals but does not promote either whole row: affine/cast,
+  changes. Direct landed-literal cast custody now lives in independent
+  side-local `cast_selection/literal` modules. Production alone constructs the
+  closed source-carrier relation and exact equality substitution before
+  `IntegerCastBound`; reconstruction independently remaps the target endpoint
+  and rechecks the same typed literal landing. Existing direct-bound,
+  direct-literal, one-alias, stronger-alias, alias-literal, then two-alias
+  precedence, citation orientation, endpoint order, rejection behavior, and
+  the finite frontier are unchanged. This completes contiguous cast-chain
+  custody for exact divide/remainder goals but does not promote either whole row: affine/cast,
   shift/cast, joins, and correlated results remain trusted-reducer work, and
   `fully-derived false` is unchanged. The root-bound child may now also come
   from exactly one retained same-carrier `root == literal` fact when that
@@ -2707,6 +2742,15 @@ Owners:
   arguments—now launch only from exact checked-report receipts while retaining
   literal statuses 40, 1, 1, 1, and 1. The 795 owner pin remains stable, and
   reused flat/bundle installation evidence exposes no executable path.
+  Twenty further authored-root indexed executions now cross the same checked
+  report boundary in four exact cohorts: by-value parameter/local indexed
+  access; machine/frame read, write, RMW, dual-frame, operand, and argument use;
+  nested constant-row, runtime-middle 3D, and let-bound computed indexing; and
+  aggregate-field, double-runtime-index, deep-prefix, and dual-frame-copy use.
+  All retain literal status 1 and the 795-owner pin. Certificate-fingerprint
+  drift, flat substitution into the bundle role, a bundle without its required
+  flat receipt, swapped destination roles, and related receipt-cardinality drift
+  each expose no executable path.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
@@ -3206,7 +3250,12 @@ Remaining N6/N8 work:
   machine/state field-preservation bridge now live in a separate 313-line
   `dependent_relations` child. The closed bounded-product recognizer and its
   exact unsigned-widening/coupling gates form a separate 260-line
-  `dependent_products` child, leaving the production parent at 5,166 lines. No
+  `dependent_products` child. Flow-sensitive interval/fact state and its
+  merge/invalidation rules now live in a 424-line `value_environment` child;
+  concrete and abstract total-proposition formation lives in a 976-line
+  `total_specification` child; and the recursive operand-domain/interval walk
+  lives in a 789-line `expression_analysis` child. The production parent is now
+  3,009 lines, down from 5,166 before these responsibility splits. No
   accepted relation, call-write fence, interval, judgment, or diagnostic
   ordering changed. Fixed-width
   integer and address
