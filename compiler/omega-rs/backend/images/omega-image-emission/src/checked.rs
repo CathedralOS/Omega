@@ -113,8 +113,11 @@ pub fn emit_checked_executable_image(
     let encoded_machine_semantics = input.encoded_machine_semantics;
     let relocations = input.relocations;
     let object = input.object;
+    let callback_placement_identity_fingerprint = input.callback_placement_identity_fingerprint;
     if let Some(emitted_output) = emit_executable_image(input) {
         let mut emitted_output = emitted_output?;
+        emitted_output.callback_placement_identity_fingerprint =
+            callback_placement_identity_fingerprint;
         let mut compiler_text_validation = validate_final_text_relocation_envelope(
             encoded_text_bytes,
             &emitted_output.final_text_bytes,

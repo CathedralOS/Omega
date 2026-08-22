@@ -1107,6 +1107,7 @@ fn rejects_native_image_when_encoded_text_size_differs_from_plan() {
     let diagnostic = emit_checked_executable_image(
         ExecutableImageInput {
             target,
+            callback_placement_identity_fingerprint: 0,
             object: &object,
             relocations: &relocations,
             encoded_machine_code: &omega_machine_bytes::EncodedMachinePlan::with_capacity(

@@ -29,6 +29,8 @@ impl ExecutablePublicationEvidence {
         certificate.validate_identity()?;
         if image.compiler_text_validation != Some(certificate.compiler_text_validation)
             || image.compiler_function_validation != Some(certificate.compiler_function_validation)
+            || image.callback_placement_identity_fingerprint
+                != certificate.callback_placement_identity_fingerprint
             || image.compiler_entry_footprint_binding
                 != certificate.compiler_entry_footprint_binding
             || image.executable_regions != certificate.inventory
@@ -309,6 +311,8 @@ pub(super) fn write_output(
         let mut image = emit_checked_executable_image(
             ExecutableImageInput {
                 target: emitted.target,
+                callback_placement_identity_fingerprint: emitted
+                    .callback_placement_identity_fingerprint,
                 object: &emitted.object,
                 relocations: &emitted.relocations,
                 encoded_machine_code: &emitted.encoded_machine_code,
@@ -988,6 +992,7 @@ mod tests {
         omega_image::EmittedImageOutput {
             bytes: vec![0x7f, b'O', b'M', b'G'],
             final_text_bytes: Vec::new(),
+            callback_placement_identity_fingerprint: 0,
             file_name: "main".into(),
             format: "test".into(),
             kind: omega_image::ImageOutputKind::DirectExecutable,
@@ -1054,6 +1059,19 @@ mod tests {
         evidence
             .validate(&image, &certificate)
             .expect("unchanged candidate");
+
+        let substituted_callback_identity = build_final_footprint_certificate(
+            &omega_target_operations::BoundaryFootprintPlan::default(),
+            99,
+            compiler_text_validation(),
+            compiler_function_validation(),
+            None,
+            &image.executable_regions,
+        )
+        .expect("independently valid certificate with substituted callback identity");
+        assert!(
+            ExecutablePublicationEvidence::current(&image, &substituted_callback_identity).is_err()
+        );
 
         let mut changed_bytes = image.clone();
         changed_bytes.bytes[3] ^= 1;
