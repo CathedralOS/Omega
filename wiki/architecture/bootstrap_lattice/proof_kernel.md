@@ -476,6 +476,13 @@ Multi-alias, mixed alias/transitive, or three-or-more-leg root reconstruction,
 words of five or more definitions, joins, cast/shift compositions, and
 correlated results remain producer work, so neither complete exact row changes
 trust.
+An exact mapped affine bound may also close to the canonical arm through one
+typed closed-literal order bridge on the unchanged target endpoint. A stronger
+lower bound places the primitive bridge before `IntegerAffineBound`; a stronger
+upper bound places it after. Candidate mapping supplies no authority: the
+kernel rechecks the exact affine conclusion and the enclosing transitivity
+certificate. A nonclosed, mistyped, redirected, or weaker bridge rejects, and
+no variable-endpoint or cited-fact search is added.
 
 The contiguous pure-cast core also has a non-serialized checked witness.
 `IntegerCastChainWitness` selects a nonempty, strictly increasing sequence of

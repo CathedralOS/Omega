@@ -9,8 +9,8 @@ use std::collections::BTreeMap;
 
 use psi_core::{Proposition, PropositionContext};
 use psi_proof_kernel::{
-    IntegerAffineWitness, PrimitiveJudgment, ProofNode, ProofRule, check_certificate,
-    check_integer_affine_witness,
+    CheckedIntegerAffineForm, IntegerAffineWitness, PrimitiveJudgment, ProofNode, ProofRule,
+    check_certificate, check_integer_affine_witness,
 };
 
 #[derive(Clone, Copy)]
@@ -297,23 +297,117 @@ fn prove_affine_bound_from_root(
         .filter(|target| matches!(target, psi_core::ScalarTerm::Value { .. }))
     {
         for definition_axioms in affine_definition_words(context, semantic_axioms, root) {
-            let proof = ProofNode {
+            let witness = IntegerAffineWitness {
+                root: root.clone(),
+                target: target.clone(),
+                definition_axioms,
+            };
+            let direct = ProofNode {
                 conclusion: goal.clone(),
                 rule: ProofRule::IntegerAffineBound {
                     root_bound: Box::new(root_bound.clone()),
-                    witness: IntegerAffineWitness {
-                        root: root.clone(),
-                        target: target.clone(),
-                        definition_axioms,
-                    },
+                    witness: witness.clone(),
                 },
             };
-            if check_certificate(context, goal, assumptions, semantic_axioms, &proof).is_ok() {
-                return Some(proof);
+            if check_certificate(context, goal, assumptions, semantic_axioms, &direct).is_ok() {
+                return Some(direct);
+            }
+
+            let Ok(form) = check_integer_affine_witness(context, semantic_axioms, &witness) else {
+                continue;
+            };
+            let Some(mapped_bound) = mapped_affine_bound(&form, &root_bound.conclusion) else {
+                continue;
+            };
+            let affine = ProofNode {
+                conclusion: mapped_bound,
+                rule: ProofRule::IntegerAffineBound {
+                    root_bound: Box::new(root_bound.clone()),
+                    witness,
+                },
+            };
+            let Some(relaxed) = relax_affine_bound(goal, affine) else {
+                continue;
+            };
+            if check_certificate(context, goal, assumptions, semantic_axioms, &relaxed).is_ok() {
+                return Some(relaxed);
             }
         }
     }
     None
+}
+
+/// Reconstruct the sole bound shape that the kernel can accept for this form.
+/// This is candidate generation only; the resulting affine proof and its
+/// enclosing transitivity proof are both kernel-checked before publication.
+fn mapped_affine_bound(
+    form: &CheckedIntegerAffineForm,
+    root_bound: &Proposition,
+) -> Option<Proposition> {
+    let Proposition::LessOrEqual(left, right) = root_bound else {
+        return None;
+    };
+    let (bound, root_is_lower_endpoint) = if left == form.root() {
+        (right, false)
+    } else if right == form.root() {
+        (left, true)
+    } else {
+        return None;
+    };
+    let (bound_type, psi_core::IntegerValue::Signed(bound)) = bound.integer_value()? else {
+        return None;
+    };
+    if bound_type != form.integer_type() {
+        return None;
+    }
+    let mapped = form
+        .coefficient()
+        .checked_mul(bound)?
+        .checked_add(form.offset())?;
+    let mapped =
+        psi_core::ScalarTerm::integer(form.integer_type(), psi_core::IntegerValue::Signed(mapped))
+            .ok()?;
+    let target_is_left = if form.coefficient() < 0 {
+        root_is_lower_endpoint
+    } else {
+        !root_is_lower_endpoint
+    };
+    Some(if target_is_left {
+        Proposition::LessOrEqual(form.target().clone(), mapped)
+    } else {
+        Proposition::LessOrEqual(mapped, form.target().clone())
+    })
+}
+
+fn relax_affine_bound(goal: &Proposition, affine: ProofNode) -> Option<ProofNode> {
+    let Proposition::LessOrEqual(goal_left, goal_right) = goal else {
+        return None;
+    };
+    let Proposition::LessOrEqual(affine_left, affine_right) = &affine.conclusion else {
+        return None;
+    };
+    let (left_less_or_equal_middle, middle_less_or_equal_right) = if goal_right == affine_right {
+        let bridge = closed_integer_relation(Proposition::LessOrEqual(
+            goal_left.clone(),
+            affine_left.clone(),
+        ))?;
+        (bridge, affine)
+    } else if goal_left == affine_left {
+        let bridge = closed_integer_relation(Proposition::LessOrEqual(
+            affine_right.clone(),
+            goal_right.clone(),
+        ))?;
+        (affine, bridge)
+    } else {
+        return None;
+    };
+    Some(ProofNode {
+        conclusion: goal.clone(),
+        rule: ProofRule::IntegerLessOrEqualTransitivity {
+            left_less_or_equal_middle: Box::new(left_less_or_equal_middle),
+            middle_less_or_equal_right: Box::new(middle_less_or_equal_right),
+        },
+    })
 }
 
 fn prove_transitively_reconstructed_affine_bound(
@@ -2124,6 +2218,110 @@ mod tests {
             prove_canonical_integer_proposition(&context, &goal, &[root_bound], &[redirected],)
                 .is_none(),
             "a definition for another target cannot prove divisor safety",
+        );
+    }
+
+    #[test]
+    fn exact_division_goal_relaxes_stronger_affine_endpoint_bounds() {
+        let signed = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+        let context = PropositionContext::from_value_types((1..=3).map(|id| {
+            (
+                ValueId::new(id).expect("value id"),
+                ScalarType::Integer(signed),
+            )
+        }))
+        .expect("three i8 values");
+        let divisor = value(2, signed);
+        let goal = Proposition::Disjunction(vec![
+            Proposition::LessOrEqual(divisor.clone(), integer(signed, -2)),
+            Proposition::LessOrEqual(integer(signed, 1), divisor.clone()),
+            Proposition::Conjunction(vec![
+                Proposition::LessOrEqual(divisor, integer(signed, -1)),
+                Proposition::LessOrEqual(integer(signed, -127), value(1, signed)),
+            ]),
+        ]);
+
+        let positive_root_bound = Proposition::LessOrEqual(integer(signed, 0), value(3, signed));
+        let positive_definition = Proposition::Equal(
+            value(2, signed),
+            ScalarTerm::exact_integer_add(signed, value(3, signed), integer(signed, 2))
+                .expect("exact add"),
+        );
+        let positive = prove_canonical_integer_proposition(
+            &context,
+            &goal,
+            std::slice::from_ref(&positive_root_bound),
+            std::slice::from_ref(&positive_definition),
+        )
+        .expect("a stronger positive affine bound relaxes to the canonical arm");
+        let ProofRule::DisjunctionIntroduction { disjunct, index } = positive.rule else {
+            panic!("strong positive affine bound selects one canonical arm")
+        };
+        assert_eq!(index, 1);
+        let ProofRule::IntegerLessOrEqualTransitivity {
+            left_less_or_equal_middle,
+            middle_less_or_equal_right,
+        } = disjunct.rule
+        else {
+            panic!("strong positive affine bound uses one closed bridge")
+        };
+        assert!(matches!(
+            left_less_or_equal_middle.rule,
+            ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation)
+        ));
+        let ProofRule::IntegerAffineBound { witness, .. } = middle_less_or_equal_right.rule else {
+            panic!("the right transitivity child owns the positive affine bound")
+        };
+        assert_eq!(witness.root, value(3, signed));
+        assert_eq!(witness.definition_axioms, vec![0]);
+
+        let negative_root_bound = Proposition::LessOrEqual(value(3, signed), integer(signed, 0));
+        let negative_definition = Proposition::Equal(
+            value(2, signed),
+            ScalarTerm::exact_integer_subtract(signed, value(3, signed), integer(signed, 3))
+                .expect("exact subtract"),
+        );
+        let negative = prove_canonical_integer_proposition(
+            &context,
+            &goal,
+            std::slice::from_ref(&negative_root_bound),
+            std::slice::from_ref(&negative_definition),
+        )
+        .expect("a stronger negative affine bound relaxes to the canonical arm");
+        let ProofRule::DisjunctionIntroduction { disjunct, index } = negative.rule else {
+            panic!("strong negative affine bound selects one canonical arm")
+        };
+        assert_eq!(index, 0);
+        let ProofRule::IntegerLessOrEqualTransitivity {
+            left_less_or_equal_middle,
+            middle_less_or_equal_right,
+        } = disjunct.rule
+        else {
+            panic!("strong negative affine bound uses one closed bridge")
+        };
+        assert!(matches!(
+            left_less_or_equal_middle.rule,
+            ProofRule::IntegerAffineBound { .. }
+        ));
+        assert!(matches!(
+            middle_less_or_equal_right.rule,
+            ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation)
+        ));
+
+        let weak_definition = Proposition::Equal(
+            value(2, signed),
+            ScalarTerm::exact_integer_add(signed, value(3, signed), integer(signed, 0))
+                .expect("exact add zero"),
+        );
+        assert!(
+            prove_canonical_integer_proposition(
+                &context,
+                &goal,
+                &[positive_root_bound],
+                &[weak_definition],
+            )
+            .is_none(),
+            "a weaker mapped endpoint cannot reverse the closed bridge",
         );
     }
 
