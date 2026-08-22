@@ -6694,8 +6694,11 @@ reach or trust, and private proof improvements do not change public identity.
 
   Remaining: derive nontrivial generated-adapter enter/exit epochs from exact
   emitted instructions, and hardware arrival from sealed target rules plus
-  exact installation facts. Prove each admitted opaque arrival-context set is
-  complete. Add no architecture-specific frame vocabulary to source.
+  exact installation facts. Replace the current one-domain `resolved_stack`
+  precursor with exact per-context domain closure where conditional hardware
+  switching makes the same installed entry execute on different physical
+  domains. Prove each admitted opaque arrival-context set is complete. Add no
+  architecture-specific frame vocabulary to source.
 - **TR3-TR8:** finish whole-call-graph WCSU derivation, bind exact `StackPlan`
   evidence, reserve fixed nonmoving `StackLease`s, validate preservation and
   cancellation conformances, transfer arguments transactionally, lower
