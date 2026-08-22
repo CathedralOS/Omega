@@ -6,11 +6,12 @@
 
 use omega_calling_conventions::{
     BoundaryEntryPlan, BoundaryPlanResult, CallPlan, CallSignature, CallbackMaterialization,
-    CallingPolicy, CallingPolicyRejection, EntryControl, EntryStack, IndirectPointerLocation,
-    LayoutPlanId, LayoutSlotId, MachineRegime, MachineRegister, MachineState, MachineStateSet,
-    NativeParameterId, NativePlace, Preemption, RegisterSet, StatePlan, StaticMachineBinderId,
-    SystemVEightbyteClass, ValidatedBoundaryEntryPlan, ValueClass, ValueLocation, ValuePlacement,
-    ValueShape, evaluate_ordinary_boundary_entry_plan, validate_boundary_plan_result,
+    CallbackRequirementId, CallingPolicy, CallingPolicyRejection, EntryControl, EntryStack,
+    IndirectPointerLocation, LayoutPlanId, LayoutSlotId, MachineRegime, MachineRegister,
+    MachineState, MachineStateSet, NativeParameterId, NativePlace, Preemption, RegisterSet,
+    StatePlan, StaticMachineBinderId, SystemVEightbyteClass, ValidatedBoundaryEntryPlan,
+    ValueClass, ValueLocation, ValuePlacement, ValueShape, evaluate_ordinary_boundary_entry_plan,
+    validate_boundary_plan_result,
 };
 use psi_build_time_evaluation::BuildTimeValue;
 use psi_diagnostics::Diagnostic;
@@ -65,7 +66,18 @@ struct MaterializedBoundarySignature {
     shapes: Vec<BoundaryValueShape>,
     fields: Vec<BoundaryValueField>,
     parameters: Vec<u16>,
+    callback_binders: Vec<BoundaryCallbackBinder>,
     result: Option<u16>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct BoundaryCallbackBinder {
+    pub(crate) binder: StaticMachineBinderId,
+    pub(crate) requirement: CallbackRequirementId,
+    pub(crate) static_machine_ordinal: u32,
+    pub(crate) parameter_symbol: psi_symbols::SymbolHandle,
+    pub(crate) requirement_trait: psi_symbols::SymbolHandle,
+    pub(crate) requirement_machine: psi_symbols::SymbolHandle,
 }
 
 pub(crate) fn evaluate_compatibility_boundary_entry_plan(
@@ -106,7 +118,7 @@ pub(crate) fn evaluate_compatibility_boundary_entry_plan(
         return Ok(None);
     };
     let signature = candidates[candidate_index].0;
-    let materialized = call_signature_from_typed(typed, signature, &[])?;
+    let materialized = call_signature_from_typed(typed, signature, &[], requirement_identity)?;
     let classified =
         compatibility_call_signature(&materialized, policy, dispatch_only_parameter_count)?;
     evaluate_ordinary_boundary_entry_plan(policy, &classified)
@@ -219,6 +231,34 @@ pub(crate) struct BoundaryCallingPlanRealization {
     pub(crate) requirement_machine: psi_symbols::SymbolHandle,
     pub(crate) fingerprint: u64,
     pub(crate) boundary_entry_plan: BoundaryEntryPlan,
+    pub(crate) callback_binders: Vec<BoundaryCallbackBinder>,
+}
+
+fn validate_retained_callback_binders(
+    realization: &BoundaryCallingPlanRealization,
+) -> Result<(), String> {
+    for (index, binder) in realization.callback_binders.iter().enumerate() {
+        if !binder.parameter_symbol.is_valid()
+            || !binder.requirement_trait.is_valid()
+            || !binder.requirement_machine.is_valid()
+        {
+            return Err(
+                "evaluated registrar plan retained an invalid nominal callback binder symbol"
+                    .to_owned(),
+            );
+        }
+        if realization.callback_binders[..index].iter().any(|prior| {
+            prior.binder == binder.binder
+                || prior.static_machine_ordinal == binder.static_machine_ordinal
+                || prior.parameter_symbol == binder.parameter_symbol
+        }) {
+            return Err(
+                "evaluated registrar plan retained a duplicate nominal callback binder identity"
+                    .to_owned(),
+            );
+        }
+    }
+    Ok(())
 }
 
 /// Bind checked nominal callback authority back to the one target-owned plan
@@ -434,15 +474,21 @@ pub(crate) fn compute_boundary_calling_plans(
             );
             for signature_instance in signatures {
                 let signature = signature_instance.signature;
-                let boundary_signature =
-                    call_signature_from_typed(typed, signature, &signature_instance.bindings)
-                        .map_err(|reason| {
-                            vec![Diagnostic::error(format!(
-                        "cannot materialize boundary signature `{}::{}` for `{}`: {reason}",
-                        boundary.name, signature.name, policy_machine.name
-                    ))
-                    .with_source_span(relationship_span)]
-                        })?;
+                let boundary_signature = call_signature_from_typed(
+                    typed,
+                    signature,
+                    &signature_instance.bindings,
+                    &signature_instance.requirement_identity,
+                )
+                .map_err(|reason| {
+                    vec![
+                        Diagnostic::error(format!(
+                            "cannot materialize boundary signature `{}::{}` for `{}`: {reason}",
+                            boundary.name, signature.name, policy_machine.name
+                        ))
+                        .with_source_span(relationship_span),
+                    ]
+                })?;
                 pending.push((
                     boundary.symbol,
                     boundary_arguments.clone(),
@@ -482,9 +528,12 @@ pub(crate) fn compute_boundary_calling_plans(
             requirement_machine,
             fingerprint: validated.contract_fingerprint(),
             boundary_entry_plan: validated.plan().clone(),
+            callback_binders: signature.callback_binders,
         });
     }
     for realization in &evaluated {
+        validate_retained_callback_binders(realization)
+            .map_err(|reason| vec![Diagnostic::error(reason)])?;
         typed.record_boundary_calling_plan(
             psi_typed_trees::typed_trees::BoundaryCallingPlanIdentity {
                 boundary_trait: realization.boundary_trait,
@@ -684,6 +733,7 @@ fn call_signature_from_typed(
     typed: &TypedTrees,
     signature: &psi_typed_trees::signature::StateSignature,
     bindings: &[TraitTypeBinding],
+    owner_requirement_identity: &str,
 ) -> Result<MaterializedBoundarySignature, String> {
     let mut shapes = Vec::new();
     let mut fields = Vec::new();
@@ -716,12 +766,81 @@ fn call_signature_from_typed(
     } else {
         None
     };
+    let mut callback_binders = Vec::new();
+    let mut static_machine_ordinal = 0u32;
+    for parameter in typed.state_signature_type_parameters(signature) {
+        let psi_typed_trees::data::TypeParameterKind::Machine { contract } = &parameter.kind else {
+            continue;
+        };
+        let ordinal = static_machine_ordinal;
+        static_machine_ordinal = static_machine_ordinal
+            .checked_add(1)
+            .ok_or_else(|| "boundary signature has too many static machine binders".to_owned())?;
+        let psi_typed_trees::data::MachineParameterContract::Nominal {
+            trait_definition,
+            requirement,
+        } = contract
+        else {
+            continue;
+        };
+        let trait_definition_row = typed
+            .traits()
+            .iter()
+            .find(|candidate| candidate.symbol == *trait_definition)
+            .ok_or_else(|| "nominal callback binder lost its declaring trait".to_owned())?;
+        let requirement_row = typed
+            .trait_machine_signatures(trait_definition_row)
+            .iter()
+            .find(|candidate| candidate.symbol == *requirement)
+            .ok_or_else(|| "nominal callback binder lost its exact requirement".to_owned())?;
+        let requirement_identity = typed
+            .normalized_trait_requirement_overload_identity(trait_definition_row, requirement_row)
+            .identity();
+        let binder_identity = callback_plan_identity(
+            b"omega.callback-binder.v1",
+            &[
+                owner_requirement_identity.as_bytes(),
+                &ordinal.to_le_bytes(),
+                parameter.name.as_str().as_bytes(),
+            ],
+        );
+        let callback_requirement_identity = callback_plan_identity(
+            b"omega.callback-requirement.v1",
+            &[requirement_identity.as_bytes()],
+        );
+        callback_binders.push(BoundaryCallbackBinder {
+            binder: StaticMachineBinderId::new(binder_identity)
+                .expect("callback binder fingerprint is nonzero"),
+            requirement: CallbackRequirementId::new(callback_requirement_identity)
+                .expect("callback requirement fingerprint is nonzero"),
+            static_machine_ordinal: ordinal,
+            parameter_symbol: parameter.symbol,
+            requirement_trait: *trait_definition,
+            requirement_machine: *requirement,
+        });
+    }
     Ok(MaterializedBoundarySignature {
         shapes,
         fields,
         parameters,
+        callback_binders,
         result,
     })
+}
+
+fn callback_plan_identity(domain: &[u8], parts: &[&[u8]]) -> u64 {
+    let mut identity = 0xcbf2_9ce4_8422_2325u64;
+    for bytes in std::iter::once(domain).chain(parts.iter().copied()) {
+        for byte in (bytes.len() as u64)
+            .to_le_bytes()
+            .into_iter()
+            .chain(bytes.iter().copied())
+        {
+            identity ^= u64::from(byte);
+            identity = identity.wrapping_mul(0x0000_0100_0000_01b3);
+        }
+    }
+    if identity == 0 { 1 } else { identity }
 }
 
 fn value_shape_from_type(
@@ -1257,6 +1376,7 @@ fn materialized_boundary_signature_from_abi(
         shapes,
         fields: Vec::new(),
         parameters,
+        callback_binders: Vec::new(),
         result,
     })
 }
@@ -1295,6 +1415,23 @@ fn build_boundary_signature(signature: &MaterializedBoundarySignature) -> BuildT
             signature.parameters.get(index).copied().unwrap_or(0),
         )));
     }
+    let mut callback_binders = Vec::with_capacity(CALLBACK_MATERIALIZATION_CAPACITY);
+    for index in 0..CALLBACK_MATERIALIZATION_CAPACITY {
+        let binder = signature.callback_binders.get(index);
+        callback_binders.push(BuildTimeValue::Struct {
+            type_name: "CallbackBinderIdentity".to_owned(),
+            fields: vec![
+                (
+                    "binder".to_owned(),
+                    BuildTimeValue::Int(binder.map_or(0, |row| row.binder.get()) as i64),
+                ),
+                (
+                    "requirement".to_owned(),
+                    BuildTimeValue::Int(binder.map_or(0, |row| row.requirement.get()) as i64),
+                ),
+            ],
+        });
+    }
     BuildTimeValue::Struct {
         type_name: "BoundarySignature".to_owned(),
         fields: vec![
@@ -1312,6 +1449,14 @@ fn build_boundary_signature(signature: &MaterializedBoundarySignature) -> BuildT
             (
                 "parameter_count".to_owned(),
                 BuildTimeValue::Int(signature.parameters.len() as i64),
+            ),
+            (
+                "callback_binders".to_owned(),
+                BuildTimeValue::Array(callback_binders),
+            ),
+            (
+                "callback_binder_count".to_owned(),
+                BuildTimeValue::Int(signature.callback_binders.len() as i64),
             ),
             (
                 "has_result".to_owned(),
@@ -2221,6 +2366,54 @@ mod tests {
         );
     }
 
+    #[test]
+    fn boundary_signature_publishes_compiler_issued_callback_binders() {
+        let binder = BoundaryCallbackBinder {
+            binder: StaticMachineBinderId::new(41).unwrap(),
+            requirement: CallbackRequirementId::new(43).unwrap(),
+            static_machine_ordinal: 2,
+            parameter_symbol: psi_symbols::SymbolHandle::from_arena_index(5),
+            requirement_trait: psi_symbols::SymbolHandle::from_arena_index(7),
+            requirement_machine: psi_symbols::SymbolHandle::from_arena_index(11),
+        };
+        let signature = MaterializedBoundarySignature {
+            shapes: Vec::new(),
+            fields: Vec::new(),
+            parameters: Vec::new(),
+            callback_binders: vec![binder],
+            result: None,
+        };
+        let value = build_boundary_signature(&signature);
+        let fields = struct_parts(&value, "BoundarySignature").expect("signature struct");
+        assert_eq!(
+            uint(
+                field(fields, "callback_binder_count", "BoundarySignature")
+                    .expect("callback binder count"),
+                "callback binder count",
+            )
+            .unwrap(),
+            1
+        );
+        let BuildTimeValue::Array(rows) =
+            field(fields, "callback_binders", "BoundarySignature").expect("callback binder rows")
+        else {
+            panic!("callback binder catalog is not an array")
+        };
+        let row = struct_parts(&rows[0], "CallbackBinderIdentity").expect("binder row");
+        assert_eq!(
+            uint(field(row, "binder", "binder row").unwrap(), "binder").unwrap(),
+            41
+        );
+        assert_eq!(
+            uint(
+                field(row, "requirement", "binder row").unwrap(),
+                "requirement",
+            )
+            .unwrap(),
+            43
+        );
+    }
+
     fn nominal_callback_fixture() -> (
         psi_checked_trees::CheckedTrees,
         Vec<BoundaryCallingPlanRealization>,
@@ -2269,6 +2462,7 @@ mod tests {
             requirement_machine: requirement,
             fingerprint,
             boundary_entry_plan: validated.plan().clone(),
+            callback_binders: Vec::new(),
         };
         (checked, vec![realization])
     }
@@ -2362,6 +2556,7 @@ mod tests {
             ],
             fields: Vec::new(),
             parameters: vec![1],
+            callback_binders: Vec::new(),
             result: None,
         }
     }
@@ -2400,6 +2595,7 @@ mod tests {
             ],
             fields: Vec::new(),
             parameters: vec![0, 1, 0],
+            callback_binders: Vec::new(),
             result: Some(1),
         };
         let wire = compatibility_call_signature(&signature, CallingPolicy::MicrosoftX64, 1)
@@ -2528,6 +2724,7 @@ mod tests {
             shapes,
             fields,
             parameters: vec![root],
+            callback_binders: Vec::new(),
             result: None,
         };
         assert_eq!(

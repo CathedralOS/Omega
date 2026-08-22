@@ -1182,6 +1182,7 @@ mod tests {
             requirement_machine: requirement_symbol,
             fingerprint,
             boundary_entry_plan: expected.clone(),
+            callback_binders: Vec::new(),
         };
         Fixture {
             typed,
