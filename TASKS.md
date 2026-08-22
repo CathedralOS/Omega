@@ -2327,11 +2327,12 @@ Remaining:
   remains in independent side-local `affine_selection/cast/direct/completion`
   modules. Direct-before-sandwich order, assumption identity, endpoint remapping, exact cast and post-
   cast affine proof bytes, strict last-cast rejection, and the fixed frontier
-  remain unchanged. Fixed affine/cast/affine selection now further
-  separates source-ordered candidate enumeration from resolved proof
-  completion in independent side-local
-  `affine_selection/cast/sandwich/completion` modules. Parents retain cast-root,
-  unique-spine, requirement, and root-endpoint precedence; mapped-prefix,
+  remain unchanged. Affine/cast/affine candidate enumeration now lives in
+  paired, side-local `affine_selection/cast/sandwich/candidates` modules,
+  preserving semantic cast-root order, exact source-spine recovery, strict
+  first/last-cast identity, requirement order, and left-before-right root-
+  endpoint order. Resolved proof completion remains in independent side-local
+  `affine_selection/cast/sandwich/completion` modules; mapped-prefix,
   exact-cast, affine-suffix proof shape, strict boundaries, rejection, and the
   fixed frontier remain unchanged. Boundary-aware affine custody now likewise uses
   independent producer/verifier `boundary` modules for strict post-boundary
