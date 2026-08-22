@@ -13,6 +13,7 @@ mod domain_weakening;
 mod domains;
 mod effects;
 mod expression_types;
+mod float_projection_bindings;
 mod invariants;
 mod invocations;
 mod literals;
@@ -166,6 +167,10 @@ fn validate_program_internal(
     let mut diagnostics = Vec::new();
     let mut exact_integer_casts = Vec::new();
     callable_overloads::validate_named_callable_overload_declarations(program, &mut diagnostics);
+    float_projection_bindings::validate_float_projection_operator_bindings(
+        program,
+        &mut diagnostics,
+    );
     let symbols = TopLevelSymbols::build(program, &mut diagnostics);
     let fact_plan = psi_facts::build_definition_fact_plan(program);
 
