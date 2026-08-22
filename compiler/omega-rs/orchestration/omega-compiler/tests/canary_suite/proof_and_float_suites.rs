@@ -748,10 +748,13 @@ fn runtime_same_type_contained_direct_fields_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-sametype-direct-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("same-type contained direct-fields canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("same-type direct-fields canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("same-type contained direct-fields canary should run");
 
@@ -776,10 +779,13 @@ fn runtime_sum_field_store_payload_exit_canary_runs() {
     let build_dir = std::env::temp_dir().join(format!("omega-sumfield-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("sum-field-store payload canary should compile from its authored root");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("sum-field-store payload canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("sum-field-store payload canary should run");
 
@@ -803,10 +809,13 @@ fn runtime_argmax_index_exit_canary_runs() {
     let build_dir = std::env::temp_dir().join(format!("omega-argmax-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("argmax canary should compile from its authored root");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("argmax canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("argmax canary should run");
 
@@ -830,10 +839,13 @@ fn runtime_bracket_matcher_stack_exit_canary_runs() {
     let build_dir = std::env::temp_dir().join(format!("omega-bracket-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("bracket matcher canary should compile from its authored root");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("bracket matcher canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("bracket matcher canary should run");
 
@@ -857,10 +869,13 @@ fn runtime_palindrome_two_pointer_exit_canary_runs() {
     let build_dir = std::env::temp_dir().join(format!("omega-palindrome-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("palindrome two-pointer canary should compile from its authored root");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("palindrome two-pointer canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("palindrome two-pointer canary should run");
 
