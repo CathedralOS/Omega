@@ -1041,7 +1041,7 @@ Remaining:
   Unknown or redirected case/field identities reject independently. Mixed
   common-field/case shapes, nested or recursive payload expansion, address and
   erased payload equality, and runtime sum layout remain fenced. Semantic codec
-  v18, proof-bundle v17, and installation-record v24 retain the structural
+  v18, proof-bundle v18, and installation-record v24 retain the structural
   shapes, case-payload paths, and proposition. Continue with the fenced mixed,
   nested, recursive, and erased aggregate cases. Concrete machine/state
   contracts plus domain/data predicates, trait invariants and signatures,
@@ -1321,7 +1321,7 @@ Remaining:
   safe-divisor and exceptional branches; redirected goals, reordered joint
   conjunctions, or wrong operand identities reject. The operation result is not
   available as proof authority. The current
-  proof rules and proof-bundle v17 codec carry the certificates without a
+  proof rules and proof-bundle v18 codec carry the certificates without a
   vocabulary change. All remaining
   exact divide/remainder families stay on trusted sufficient reduction, so
   neither complete row changes trust status. Their exact-defined
@@ -1356,8 +1356,8 @@ Remaining:
   mapped conclusion, and records every selected definition in accepted premise
   closure. Non-order or wrong-root children, stale/reordered/malformed words,
   target/carrier drift, arithmetic overflow, or a mismatched mapped bound
-  reject. Proof-bundle v17 retains tag 12; the registered calculus is v14 and
-  the Rust kernel v6, with the affine and cast checkers included in both
+  reject. Proof-bundle v18 retains tag 12; the registered calculus is v15 and
+  the Rust kernel v7, with the affine and cast checkers included in both
   trust-graph source sets. The first bounded producer family now uses the rule
   for one to four prior signed fixed affine definitions whose exact retained
   root bound maps directly to a canonical safe-divisor arm. Reconstruction and
@@ -1436,18 +1436,22 @@ Remaining:
   representable intersection, never total or lossy conversion. The checker
   accepts no proof authority, does not establish machine-parameter custody or
   surrounding prefix/suffix algebra, and leaves heterogeneous widening/cast
-  words separate. `IntegerCastBound` is the versioned first integration for
-  that core. One recursively checked root-bound child and exactly one partial
-  fixed-native exact-cast definition map the same mathematical literal endpoint
-  into the target carrier. The kernel rechecks the cast witness and conversion
-  and records the selected definition in accepted premise closure. A non-order
-  or wrong-root child, zero or multiple cast definitions, stale or
-  total/widening-shaped casts, target/orientation drift, or a changed endpoint
-  rejects. Proof-bundle v17 assigns tag 13; the producer and reconstruction
-  enumerate one definition only. This adds a complete direct one-cast custody
-  family for exact divide/remainder goals but does not promote either whole row:
-  multi-cast, affine/cast, shift/cast, joins, and correlated results remain
-  trusted-reducer work, and `fully-derived false` is unchanged. A third
+  words separate. `IntegerCastBound` is the versioned integration for that
+  core. One recursively checked root-bound child and one nonempty contiguous
+  word of partial fixed-native exact-cast definitions map the same mathematical
+  literal endpoint into the final carrier. The kernel rechecks the complete
+  cast witness and conversion and records every selected definition in accepted
+  premise closure. A non-order or wrong-root child, empty, stale, reordered,
+  discontinuous, total/widening-shaped, or cyclic cast definitions,
+  target/orientation drift, or a changed endpoint reject. Proof-bundle v18
+  retains tag 13; the producer and reconstruction independently follow the
+  unique exact-cast SSA definition spine backward from the goal, reject
+  ambiguous target definitions, and require its source-ordered ledger word.
+  They perform no recursive path or permutation search. This completes
+  contiguous cast-chain custody for exact divide/remainder goals but does not
+  promote either whole row: affine/cast,
+  shift/cast, joins, and correlated results remain trusted-reducer work, and
+  `fully-derived false` is unchanged. A third
   non-serialized common checker now normalizes the
   complete exact-shift core shared by direct, cast-adjacent, affine-adjacent,
   and divide/remainder-adjacent families. It binds a nonempty, strictly ordered
@@ -1482,7 +1486,7 @@ Remaining:
   reducer proposition is imported as proof
   authority and no partial exact row migrated. No schema, reducer,
   semantic-operation, or other trust status is promoted; terminal `PSITERM\0`
-  codec v18, proof-bundle v17, installation record v24, and `fully-derived
+  codec v18, proof-bundle v18, installation record v24, and `fully-derived
   false` remain unchanged.
   The bounded Gamma spike is complete. It canonical-decodes four exact current
   `PSITERM\0` v18 fixtures and audits a 54-row scalar ledger covering constants,

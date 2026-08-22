@@ -6,7 +6,7 @@ use psi_core::{Proposition, PropositionContext, ScalarTerm, ValueId};
 use psi_proof_kernel::{
     IntegerAffineWitness, IntegerCastChainWitness, Obligation, ObligationClass,
     check_integer_affine_bound_conversion, check_integer_affine_witness,
-    check_integer_cast_chain_witness, check_single_integer_cast_bound_conversion,
+    check_integer_cast_bound_conversion, check_integer_cast_chain_witness,
 };
 use psi_terminal::{OperationKind, TerminalMachine, TerminalModule, Terminator};
 use psi_terminal_semantics::{
@@ -539,7 +539,7 @@ fn retained_canonical_integer_proposition(
                     semantic_axioms,
                 )
                 || context.is_some_and(|context| {
-                    retained_single_cast_bound(context, goal, requirements, semantic_axioms)
+                    retained_cast_chain_bound(context, goal, requirements, semantic_axioms)
                 })
                 || context.is_some_and(|context| {
                     retained_bounded_affine_bound(context, goal, requirements, semantic_axioms)
@@ -563,7 +563,7 @@ fn retained_canonical_integer_proposition(
     }
 }
 
-fn retained_single_cast_bound(
+fn retained_cast_chain_bound(
     context: &PropositionContext,
     goal: &Proposition,
     requirements: &[Proposition],
@@ -588,26 +588,71 @@ fn retained_single_cast_bound(
                         .into_iter()
                         .filter(|target| matches!(target, ScalarTerm::Value { .. }))
                         .any(|target| {
-                            (0..semantic_axioms.len()).any(|definition_axiom| {
-                                check_integer_cast_chain_witness(
-                                    context,
-                                    semantic_axioms,
-                                    &IntegerCastChainWitness {
-                                        root: root.clone(),
-                                        target: target.clone(),
-                                        definition_axioms: vec![definition_axiom],
-                                    },
-                                )
-                                .is_ok_and(|chain| {
-                                    check_single_integer_cast_bound_conversion(
-                                        &chain, root_bound, goal,
-                                    )
+                            let Some(definition_axioms) =
+                                retained_exact_cast_chain_axioms(root, target, semantic_axioms)
+                            else {
+                                return false;
+                            };
+                            check_integer_cast_chain_witness(
+                                context,
+                                semantic_axioms,
+                                &IntegerCastChainWitness {
+                                    root: root.clone(),
+                                    target: target.clone(),
+                                    definition_axioms,
+                                },
+                            )
+                            .is_ok_and(|chain| {
+                                check_integer_cast_bound_conversion(&chain, root_bound, goal)
                                     .is_ok()
-                                })
                             })
                         })
                 })
         })
+}
+
+/// Independently reconstruct the unique exact-cast SSA definition spine.
+///
+/// This follows one definition per reached target and never explores alternate
+/// paths or permutations. The proof-kernel witness checker still owns all cast
+/// legality, continuity, and carrier validation.
+fn retained_exact_cast_chain_axioms(
+    root: &ScalarTerm,
+    target: &ScalarTerm,
+    semantic_axioms: &[Proposition],
+) -> Option<Vec<usize>> {
+    if root == target {
+        return None;
+    }
+    let mut current = target.clone();
+    let mut reversed = Vec::new();
+    while &current != root {
+        if reversed.len() >= semantic_axioms.len() {
+            return None;
+        }
+        let mut definitions = semantic_axioms
+            .iter()
+            .enumerate()
+            .filter_map(|(index, axiom)| {
+                let Proposition::Equal(output, ScalarTerm::IntegerExactCast { operand, .. }) =
+                    axiom
+                else {
+                    return None;
+                };
+                (output == &current).then(|| (index, operand.as_ref().clone()))
+            });
+        let (index, operand) = definitions.next()?;
+        if definitions.next().is_some() || reversed.contains(&index) {
+            return None;
+        }
+        reversed.push(index);
+        current = operand;
+    }
+    reversed.reverse();
+    reversed
+        .windows(2)
+        .all(|pair| pair[0] < pair[1])
+        .then_some(reversed)
 }
 
 fn retained_bounded_affine_bound(
@@ -2707,7 +2752,7 @@ mod tests {
     }
 
     #[test]
-    fn exact_division_selects_one_checked_cast_root_bound() {
+    fn exact_division_selects_checked_contiguous_cast_root_bound() {
         let i8_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
         let i16_type = IntegerType::new(IntegerSign::Signed, 16).expect("i16");
         let i32_type = IntegerType::new(IntegerSign::Signed, 32).expect("i32");
@@ -2770,25 +2815,37 @@ mod tests {
             std::slice::from_ref(&cast),
             &[],
         ));
+        let wide_bound = Proposition::LessOrEqual(
+            ScalarTerm::integer(i32_type, IntegerValue::Signed(1)).expect("i32 one"),
+            value(5, i32_type),
+        );
+        let first_cast = Proposition::Equal(
+            value(4, i16_type),
+            ScalarTerm::integer_exact_cast(i32_type, i16_type, value(5, i32_type))
+                .expect("first partial cast"),
+        );
+        let second_cast = Proposition::Equal(
+            value(2, i8_type),
+            ScalarTerm::integer_exact_cast(i16_type, i8_type, value(4, i16_type))
+                .expect("second partial cast"),
+        );
+        assert!(exact_division_has_prior_certificate(
+            &context,
+            &goal,
+            &[first_cast.clone(), second_cast.clone()],
+            std::slice::from_ref(&wide_bound),
+        ));
         assert!(!exact_division_has_prior_certificate(
             &context,
             &goal,
-            &[
-                Proposition::Equal(
-                    value(4, i16_type),
-                    ScalarTerm::integer_exact_cast(i32_type, i16_type, value(5, i32_type))
-                        .expect("first partial cast"),
-                ),
-                Proposition::Equal(
-                    value(2, i8_type),
-                    ScalarTerm::integer_exact_cast(i16_type, i8_type, value(4, i16_type))
-                        .expect("second partial cast"),
-                ),
-            ],
-            &[Proposition::LessOrEqual(
-                ScalarTerm::integer(i32_type, IntegerValue::Signed(1)).expect("i32 one"),
-                value(5, i32_type),
-            )],
+            &[second_cast.clone(), first_cast.clone()],
+            std::slice::from_ref(&wide_bound),
+        ));
+        assert!(!exact_division_has_prior_certificate(
+            &context,
+            &goal,
+            &[first_cast, second_cast.clone(), second_cast],
+            std::slice::from_ref(&wide_bound),
         ));
     }
 

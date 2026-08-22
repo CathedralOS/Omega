@@ -417,7 +417,7 @@ recursive `LessOrEqual`/conjunction/disjunction shape rather than maintaining
 separate safe-divisor and exceptional selectors. Redirected goals, reordered
 joint conjunctions, and wrong operands reject. No result equation participates.
 The existing
-proof rules and proof-bundle v17 codec need no further vocabulary change.
+proof rules and proof-bundle v18 codec need no further vocabulary change.
 All other exact divide/remainder reconstruction remains on its trusted reducer
 until an untrusted producer can materialize kernel-checkable certificates for
 the accepted affine/correlated families without importing operation evidence.
@@ -453,7 +453,7 @@ rechecks the ordered definition word, maps the child conclusion, and records
 every selected semantic axiom in accepted premise closure. Non-order or
 wrong-root children, stale/reordered/malformed definitions, target/carrier
 drift, arithmetic failure, and changed mapped conclusions reject. Proof-bundle
-v17 retains tag 12, the registered calculus is v14, and the Rust kernel is v6.
+v18 retains tag 12, the registered calculus is v15, and the Rust kernel is v7.
 The calculus root and kernel implementation bind both the affine- and
 cast-checker sources.
 The first bounded producer family uses this rule for one to four prior signed
@@ -542,19 +542,21 @@ prefix/suffix sandwiches, but it neither proves cast definedness nor checks the
 surrounding arithmetic families. Mixed widening/cast words remain a distinct
 normalization problem.
 
-`IntegerCastBound` is the versioned first integration for that core. One
-recursively checked root-bound child and exactly one partial fixed-native
-exact-cast definition map the same mathematical literal endpoint into the
-target carrier. The kernel rechecks the cast witness and conversion and records
-the selected definition in accepted premise closure. A non-order or wrong-root
-child, zero or multiple cast definitions, stale or total/widening-shaped casts,
-target/orientation drift, or a changed endpoint rejects. Proof-bundle v17
-assigns tag 13; the registered calculus is v14 and the Rust kernel v6. The
-producer and reconstruction enumerate one definition only. This adds a complete
-direct one-cast custody family for exact divide/remainder goals but does not
-promote either whole row: multi-cast, affine/cast, shift/cast, joins, and
-correlated results remain trusted-reducer work, and `fully-derived false` is
-unchanged.
+`IntegerCastBound` is the versioned integration for that core. One recursively
+checked root-bound child and one nonempty contiguous word of partial
+fixed-native exact-cast definitions map the same mathematical literal endpoint
+into the final carrier. The kernel rechecks the complete cast witness and
+conversion and records every selected definition in accepted premise closure.
+A non-order or wrong-root child, empty, stale, reordered, discontinuous,
+total/widening-shaped, or cyclic cast definitions, target/orientation drift, or
+a changed endpoint rejects. Proof-bundle v18 retains tag 13; the registered
+calculus is v15 and the Rust kernel v7. Producer and reconstruction independently
+follow the unique exact-cast SSA definition spine backward from the goal,
+reject ambiguous target definitions, and require its source-ordered ledger
+word. They perform no recursive path or permutation search. This completes
+contiguous cast-chain custody for exact divide/remainder goals but does not
+promote either whole row: affine/cast, shift/cast, joins, and correlated results
+remain trusted-reducer work, and `fully-derived false` is unchanged.
 
 The shared exact-shift core has a matching non-serialized checked witness.
 `IntegerShiftChainWitness` selects a nonempty, strictly ordered sequence of
@@ -589,11 +591,11 @@ forbidden-root, and conclusion identities but accepts no proof authority.
 
 A certificate conversion for the checked correlated result remains producer
 work: `IntegerAffineBound` covers one affine target bound, not the correlated
-two-branch lattice conclusion. Producer selection of complete root-bound proofs
-and definition words also remains before either exact divide/remainder row can leave
-`TrustedJudgment`. Because no serialized proof rule or deployed reconstruction
-path changed, proof-bundle v17, terminal codec v18, installation record v24,
-and the current trust statuses remain unchanged.
+two-branch lattice conclusion. Producer selection of composed root-bound proofs
+also remains before either exact divide/remainder row can leave
+`TrustedJudgment`. Proof-bundle v18 retains rule tag 13 for the complete
+contiguous cast word; terminal codec v18 and installation record v24 remain
+unchanged, and no trust status is promoted.
 
 The consolidated divide/remainder cross-cast rule admits a nonempty landed-
 literal exact-divide/remainder chain on either side of one partial fixed-native
