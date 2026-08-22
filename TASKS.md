@@ -3068,6 +3068,11 @@ Remaining:
   classification, and standing-fact field participation without flow or
   diagnostic callbacks. The 1,509-line parent retains the same API, behavior,
   diagnostic order, and 41-function inventory.
+  Structural call-target and establishment-summary queries now live in a 68-
+  line `call_summaries` child, preserving exact state-to-machine identity
+  resolution and recursive expression traversal while leaving flow mutation,
+  fixpoint scheduling, and diagnostics in a 1,452-line parent; the 41-function
+  inventory remains unchanged.
   The measured nominal affine integer-comparison reconstruction hotspot now
   uses independent producer- and verifier-local affine-definition indexes.
   Each immutable invocation maps an exact current Value term to source-ordered
