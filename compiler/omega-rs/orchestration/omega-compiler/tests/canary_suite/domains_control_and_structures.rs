@@ -1130,10 +1130,13 @@ fn case_payload_native_construction_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("case payload construction canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("case payload construction canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("case payload construction canary should run");
 
@@ -1159,10 +1162,13 @@ fn runtime_record_field_value_pattern_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("record field-value pattern canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("record field-value pattern canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("record field-value pattern canary should run");
 
@@ -1189,10 +1195,13 @@ fn runtime_case_payload_guard_read_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("case payload guard read canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("case payload guard read canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("case payload guard read canary should run");
 
@@ -1218,10 +1227,13 @@ fn case_membership_value_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("case membership value canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("case membership value canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("case membership value canary should run");
 
@@ -1247,10 +1259,13 @@ fn match_exhaustive_by_cases_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("exhaustive-by-cases canary should compile without a `_` arm");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("exhaustive-by-cases canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("exhaustive-by-cases canary should run");
 
