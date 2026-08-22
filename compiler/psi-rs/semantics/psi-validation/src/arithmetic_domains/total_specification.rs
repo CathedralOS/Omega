@@ -4,6 +4,7 @@
 //! separate rule that every arithmetic term admitted into a proposition has a
 //! total denotation, for both concrete and abstract contract owners.
 
+use super::guard_narrowing::{comparison_bound, narrow_env_by_condition};
 use super::*;
 
 /// Reject runtime-control arithmetic from proof positions. A contract is a
