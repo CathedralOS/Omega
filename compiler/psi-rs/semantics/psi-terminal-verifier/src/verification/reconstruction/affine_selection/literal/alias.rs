@@ -2,7 +2,7 @@
 
 use psi_core::{Proposition, PropositionContext, ScalarTerm};
 
-use super::super::super::affine_custody;
+mod completion;
 
 pub(super) fn retained(
     context: &PropositionContext,
@@ -46,20 +46,7 @@ pub(super) fn retained(
                             if root.scalar_type() != psi_core::ScalarType::Integer(integer_type) {
                                 return false;
                             }
-                            [
-                                Proposition::LessOrEqual(literal.clone(), root.clone()),
-                                Proposition::LessOrEqual(root.clone(), literal.clone()),
-                            ]
-                            .iter()
-                            .any(|root_bound| {
-                                affine_custody::retained_from_root(
-                                    context,
-                                    goal,
-                                    semantic_axioms,
-                                    root,
-                                    root_bound,
-                                )
-                            })
+                            completion::retained(context, goal, semantic_axioms, root, literal)
                         })
                 })
         })
