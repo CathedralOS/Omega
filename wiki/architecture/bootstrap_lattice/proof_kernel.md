@@ -512,6 +512,11 @@ the kernel accepts its exact context, goal, assumptions, and semantic axioms;
 reconstruction independently projects the canonical scalar goal before retained
 selection. Invalid projection or failed checking yields no authority, and
 neither side imports the other's decision.
+The producer's 30 certificate regressions and reconstruction's 25 independent
+selection regressions now live in side-local `tests` modules. Production
+facades are 35 and 608 lines respectively, while every test name and assertion
+is retained; no proof logic, authority, precedence, or search frontier moved
+between sides.
 One exact prior value equality may also transport a completed affine bound from
 its checked target alias to the canonical goal endpoint. The producer replaces
 that one endpoint, constructs the bounded affine relation directly, and wraps
