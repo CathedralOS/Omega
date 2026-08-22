@@ -19,7 +19,7 @@ use psi_typed_trees::types::PrimitiveType;
 mod construction_bounds;
 mod field_obligations;
 
-use construction_bounds::{Bounds, Truth, bounds_fold, value_bounds};
+use construction_bounds::validate_literal_default_domain;
 use field_obligations::enforce_construction_field_obligations;
 pub(crate) use field_obligations::{construction_field_type, validate_array_literal_elements};
 
@@ -361,118 +361,4 @@ pub(crate) fn data_declares_field(
     program.data_members(data_definition).iter().any(
         |member| matches!(member, DataMember::Field(field) if field.name.as_str() == field_name),
     )
-}
-
-/// R2 rung 2b: fold every default-domain fact at the LITERAL's field
-/// valuation. Field names read the literal's integer value (omitted -> 0);
-/// literals, `+ - *`, comparisons, and `&&`/`||` fold. A fact that fails
-/// refuses naming it; a fact that cannot fold (a runtime-valued field)
-/// refuses as unverifiable.
-fn validate_literal_default_domain(
-    program: &TypedTrees,
-    machine: &Machine,
-    state: &State,
-    literal: &TableStructLiteral,
-    data_definition: &DataDefinition,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    if data_definition.where_facts.is_empty() {
-        return;
-    }
-    let type_name = literal.type_name.as_str();
-    // Slice 9: each field's value resolves to an INTERVAL -- an integer
-    // literal is a point; a place with a declared `[a..=b]` range (a ranged
-    // parameter, a range-refined field) contributes its DECLARED interval
-    // (declared ranges always hold); anything else is unknown.
-    let mut valuation: Vec<(&str, Bounds)> = Vec::new();
-    for field in program.expression_table.struct_fields(literal.fields) {
-        let value = value_bounds(program, machine, state, field.value);
-        valuation.push((field.name.as_str(), value));
-    }
-    for fact in program
-        .proof_facts
-        .span_or_empty(data_definition.where_facts)
-    {
-        match fact {
-            psi_typed_trees::domain::ProofFact::Expression(expression) => {
-                match bounds_fold(program, &valuation, *expression) {
-                    Truth::True => {}
-                    Truth::False => diagnostics.push(Diagnostic::error(format!(
-                        "data `{type_name}` literal violates the default domain: a `where` \
-                         fact evaluates FALSE at this construction (ch12: construction is \
-                         the gate)"
-                    ))),
-                    Truth::Unknown => diagnostics.push(Diagnostic::error(format!(
-                        "data `{type_name}` literal cannot PROVE the default domain: a \
-                         `where`-mentioned field's value is neither a literal nor a \
-                         declared-range place whose interval decides the fact -- spell a \
-                         literal, or constrain the value's declared range"
-                    ))),
-                }
-            }
-            psi_typed_trees::domain::ProofFact::Membership(membership) => {
-                let field_name = membership_field_name(program, membership.value);
-                let authored_value = field_name.and_then(|wanted| {
-                    program
-                        .expression_table
-                        .struct_fields(literal.fields)
-                        .iter()
-                        .find(|field| field.name.as_str() == wanted)
-                        .map(|field| field.value)
-                });
-                let proven = authored_value.map_or_else(
-                    || {
-                        crate::proof_facts::domain_admits_empty_bytes(
-                            program,
-                            membership.domain_symbol,
-                        )
-                    },
-                    |value| {
-                        crate::proof_facts::string_literal_grants_domain(
-                            program,
-                            value,
-                            membership.domain_symbol,
-                        )
-                    },
-                );
-                if !proven {
-                    diagnostics.push(Diagnostic::error(format!(
-                        "data `{type_name}` literal cannot prove default-domain fact: \
-                         field `{}` is not known to satisfy domain `{}` at construction",
-                        field_name.unwrap_or("<unknown>"),
-                        membership_domain_label(program, membership.domain),
-                    )));
-                }
-            }
-            psi_typed_trees::domain::ProofFact::Proposition(application) => {
-                diagnostics.push(Diagnostic::error(format!(
-                    "data `{type_name}` literal cannot prove default-domain proposition `{}` at construction",
-                    application.name.as_str(),
-                )));
-            }
-        }
-    }
-}
-
-fn membership_field_name(program: &TypedTrees, value: ExpressionHandle) -> Option<&str> {
-    let ExpressionNode::Name(path) = program.expression_table.expression(value) else {
-        return None;
-    };
-    program
-        .expression_table
-        .name_path_members(path.members)
-        .last()
-        .map(|member| member.as_str())
-}
-
-fn membership_domain_label(
-    program: &TypedTrees,
-    domain: psi_arena::HandleSpan<psi_typed_trees::name::Identifier>,
-) -> String {
-    program
-        .domain_path_members(domain)
-        .iter()
-        .map(|member| member.as_str())
-        .collect::<Vec<_>>()
-        .join("::")
 }
