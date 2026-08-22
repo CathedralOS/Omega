@@ -600,6 +600,12 @@ Owners:
   any layout consumer runs. Presentation-name drift remains nonsemantic;
   schema, policy, plan-machine, or synthesized-data substitution rejects fail
   closed without re-evaluating policy code or minting materialization authority.
+  Plan-laid validation now also replays the exact position-by-position
+  correspondence between retained source-schema fields and synthesized runtime
+  fields, including stable member identity (or positional identity where
+  unnumbered) and normalized constrained type identity. Coordinated schema-
+  symbol and field-inventory substitution rejects fail closed; cloned arena
+  type-reference handles remain non-authoritative implementation coordinates.
 - Keep alias-exclusion admission separate from access rights; `&mut` does not
   claim exclusivity against a device. Sealed primitive events now specialize
   linearly into Stable read/take/write/swap, External read/take/write, or one
@@ -5647,7 +5653,14 @@ Owners:
   canonical overload, and calling-plan fingerprint—beside the placement index.
   Final emission independently rederives that receipt and rejects placement-row
   drift before accepting otherwise-consistent role, encoded-function, or
-  object-symbol evidence. The
+  object-symbol evidence. The structurally replayed callback-placement receipts
+  now also produce one ordered, domain-separated identity fingerprint covering
+  the complete checked row and placement index. Native payload handoff retains
+  that evidence, and final footprint certification folds it into the placement
+  binding and certificate identity, so a valid image/certificate cannot
+  substitute a different callback registration or satisfaction realization.
+  The fingerprint is summary evidence only; exact structural receipt comparison
+  remains authoritative before final emission. The
   remaining slices are
   resource-ceiling aggregation, multi-entry/re-entrant target instruction
   lowering, and the
