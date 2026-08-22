@@ -3333,9 +3333,12 @@ fn runtime_shift_subword_masked_count_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_shift_subword_masked_count_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-shsubw-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("sub-word masked-count canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("sub-word masked-count canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("sub-word masked-count canary should run");
     assert_eq!(
@@ -3355,9 +3358,12 @@ fn float_to_int_saturating_exit_canary_runs() {
     let canary = pass_canary("arithmetic/float_to_int_saturating_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-f2isat-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("saturating float->int canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("saturating float->int canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("saturating float->int canary should run");
     assert_eq!(
@@ -3379,9 +3385,12 @@ fn float_to_int_unsigned_narrow_saturating_exit_canary_runs() {
     let canary = pass_canary("arithmetic/float_to_int_unsigned_narrow_saturating_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-f2i-shapes-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("unsigned/narrow Saturating float->int canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation.checked_native_executable_path().expect(
+        "unsigned/narrow Saturating float->int canary should retain its executable receipt",
+    );
+    let output = Command::new(executable)
         .output()
         .expect("unsigned/narrow Saturating float->int canary should run");
     assert_eq!(
@@ -3407,9 +3416,12 @@ fn float_saturating_overflow_exit_canary_runs() {
     let canary = pass_canary("arithmetic/float_saturating_overflow_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-f5sat-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("saturating float overflow canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("saturating float overflow canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("saturating float overflow canary should run");
     assert_eq!(
@@ -3435,9 +3447,12 @@ fn float_trapping_overflow_traps_aborts() {
     let canary = pass_canary("arithmetic/float_trapping_overflow_traps");
     let build_dir = std::env::temp_dir().join(format!("omega-f5trap-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("trapping float overflow canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("trapping float overflow canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("trapping float overflow canary should run");
     assert_ne!(
