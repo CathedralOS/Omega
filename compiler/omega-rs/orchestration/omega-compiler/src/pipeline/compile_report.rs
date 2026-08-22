@@ -45,6 +45,41 @@ pub(super) fn expected_macos_app_bundle_executable_path(
     )
 }
 
+pub(super) fn executable_installation_evidence_fingerprint(
+    destination: ExecutablePublicationDestination,
+    publication_evidence_fingerprint: u64,
+    output_path: &std::path::Path,
+    container_byte_count: usize,
+    container_fingerprint: u64,
+) -> u64 {
+    let mut hash = 0xcbf2_9ce4_8422_2325;
+    fingerprint_into(
+        &mut hash,
+        b"omega.installed-executable-publication-evidence.v1",
+    );
+    fingerprint_into(&mut hash, &publication_evidence_fingerprint.to_le_bytes());
+    fingerprint_into(
+        &mut hash,
+        &[match destination {
+            ExecutablePublicationDestination::FlatOutput => 0,
+            ExecutablePublicationDestination::MacOsAppBundle => 1,
+        }],
+    );
+    let path = output_path.as_os_str().as_encoded_bytes();
+    fingerprint_into(&mut hash, &(path.len() as u64).to_le_bytes());
+    fingerprint_into(&mut hash, path);
+    fingerprint_into(&mut hash, &(container_byte_count as u64).to_le_bytes());
+    fingerprint_into(&mut hash, &container_fingerprint.to_le_bytes());
+    hash
+}
+
+fn fingerprint_into(hash: &mut u64, bytes: &[u8]) {
+    for byte in bytes {
+        *hash ^= u64::from(*byte);
+        *hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
+    }
+}
+
 /// Immutable custody for one compiler-published executable container.
 ///
 /// This records the exact final-footprint certificate, publication seal, and
@@ -137,6 +172,17 @@ impl ExecutablePublicationReceipt {
 
     pub const fn installation_evidence_fingerprint(&self) -> u64 {
         self.installation_evidence_fingerprint
+    }
+
+    pub fn has_consistent_installation_identity(&self) -> bool {
+        self.installation_evidence_fingerprint
+            == executable_installation_evidence_fingerprint(
+                self.destination,
+                self.publication_evidence_fingerprint,
+                &self.output_path,
+                self.container_byte_count,
+                self.container_fingerprint,
+            )
     }
 }
 
@@ -303,6 +349,7 @@ impl CompileReport {
                 self.wrote_output
                     && self.executable_publication.as_ref().is_some_and(|receipt| {
                         receipt.destination == ExecutablePublicationDestination::FlatOutput
+                            && receipt.has_consistent_installation_identity()
                     })
             }
             CompileOutputKind::ObjectContainer => {
@@ -322,6 +369,7 @@ impl CompileReport {
             (None, Some(_)) => false,
             (Some(flat), Some(bundle)) => {
                 bundle.destination == ExecutablePublicationDestination::MacOsAppBundle
+                    && bundle.has_consistent_installation_identity()
                     && expected_macos_app_bundle_executable_path(&self.root_path, &flat.output_path)
                         .as_deref()
                         == Some(bundle.output_path.as_path())
@@ -425,11 +473,13 @@ mod tests {
     fn receipt(
         destination: ExecutablePublicationDestination,
         path: &str,
-        installation: u64,
     ) -> ExecutablePublicationReceipt {
+        let path: std::path::PathBuf = path.into();
+        let installation =
+            super::executable_installation_evidence_fingerprint(destination, 5, &path, 6, 7);
         ExecutablePublicationReceipt::new(
             destination,
-            path.into(),
+            path,
             1,
             Some(2),
             2,
@@ -600,16 +650,13 @@ mod tests {
             Some(2),
         ));
 
-        let flat = receipt(
-            ExecutablePublicationDestination::FlatOutput,
-            "build/main",
-            6,
-        );
+        let flat = receipt(ExecutablePublicationDestination::FlatOutput, "build/main");
         let bundle = receipt(
             ExecutablePublicationDestination::MacOsAppBundle,
             "build/Main.app/Contents/MacOS/main",
-            7,
         );
+        assert!(flat.has_consistent_installation_identity());
+        assert!(bundle.has_consistent_installation_identity());
         assert!(
             report(
                 true,
@@ -659,6 +706,28 @@ mod tests {
                 true,
                 CompileOutputKind::ObjectContainer,
                 Some(flat.clone()),
+                None,
+            )
+            .has_consistent_executable_publication_custody()
+        );
+        let mut changed = flat.clone();
+        changed.installation_evidence_fingerprint ^= 1;
+        assert!(
+            !report(
+                true,
+                CompileOutputKind::NativeExecutable,
+                Some(changed),
+                None,
+            )
+            .has_consistent_executable_publication_custody()
+        );
+        let mut changed = flat.clone();
+        changed.output_path = "build/redirected-main".into();
+        assert!(
+            !report(
+                true,
+                CompileOutputKind::NativeExecutable,
+                Some(changed),
                 None,
             )
             .has_consistent_executable_publication_custody()

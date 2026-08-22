@@ -1050,3 +1050,10 @@ receipt. Check-only compilation may retain the selected binding while no
 publication exists, and object-container output may not retain the binding at
 all. This is an independent custody check: matching wrapper-arrival evidence
 cannot conceal a redirected selected binding.
+
+Each retained executable receipt's installation seal is now replayable from
+its existing exact destination role, publication identity, output path, and
+container byte identity. Report validation checks that seal independently for
+the flat executable and optional bundle copy. A substituted path, role,
+container, or opaque installation fingerprint therefore rejects even when no
+second receipt exists for pairwise comparison.
