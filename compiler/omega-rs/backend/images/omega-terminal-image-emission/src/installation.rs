@@ -15,12 +15,11 @@ use omega_target::{Architecture, NativeTarget, ObjectFormat};
 use omega_terminal_machine_code::{TerminalNativeFuelSite, TerminalStructuralReturnRecord};
 use omega_terminal_target_operations::{TerminalBoundaryRealization, TerminalCallSiteOwner};
 use psi_core::{
-    MachineId, OperationId, PlaceId, ProfileDecisionId, StructuralCaseId, StructuralFieldId,
+    MachineId, OperationId, ProfileDecisionId, StructuralCaseId, StructuralFieldId,
     StructuralTypeId,
 };
 use psi_terminal::{
-    StructuralMultiplicity, StructuralPathSegment, StructuralPlaceDeclaration, StructuralTypeShape,
-    TerminalPsiIdentity,
+    StructuralMultiplicity, StructuralPathSegment, StructuralTypeShape, TerminalPsiIdentity,
 };
 use psi_terminal_fuel::TerminalFuelSchedule;
 
@@ -43,6 +42,7 @@ mod structural_argument_codec;
 mod structural_return_codec;
 mod structural_scalar_codec;
 mod structural_signature_codec;
+mod trivial_affine_local_codec;
 mod value_placement_codec;
 mod wire_codec;
 use boundary_settlement_codec::{decode_boundary_settlements, encode_boundary_settlements};
@@ -2039,45 +2039,6 @@ fn bounded_nominal_receiver_shape(shape: ValueShape) -> bool {
             && shape.byte_size % shape.alignment == 0
 }
 
-fn encode_trivial_affine_local(
-    bytes: &mut Vec<u8>,
-    local: &StructuralPlaceDeclaration,
-) -> Result<(), TerminalInstallationError> {
-    let psi_core::StructuralPlaceKind::TrivialAffineLocal {
-        declaration_ordinal,
-        structural_type,
-    } = local.kind
-    else {
-        return Err(TerminalInstallationError::InvalidStructuralReturnLocal);
-    };
-    push_u64(bytes, local.id.get());
-    push_u32(bytes, declaration_ordinal);
-    push_u32(bytes, 0);
-    push_u64(bytes, structural_type.get());
-    Ok(())
-}
-
-fn encode_trivial_affine_local_type(
-    bytes: &mut Vec<u8>,
-    declaration: &psi_terminal::StructuralTypeDeclaration,
-) -> Result<(), TerminalInstallationError> {
-    let psi_terminal::StructuralTypeShape::Record { fields } = &declaration.shape else {
-        return Err(TerminalInstallationError::InvalidStructuralReturnLocal);
-    };
-    if !fields.is_empty() {
-        return Err(TerminalInstallationError::InvalidStructuralReturnLocal);
-    }
-    push_u64(bytes, declaration.id.get());
-    push_u32(
-        bytes,
-        u32::try_from(declaration.identity.len())
-            .map_err(|_| TerminalInstallationError::StructuralTypeIdentityTooLong)?,
-    );
-    bytes.extend_from_slice(declaration.identity.as_bytes());
-    push_u32(bytes, 0);
-    Ok(())
-}
-
 fn encode_structural_types(
     bytes: &mut Vec<u8>,
     declarations: &[psi_terminal::StructuralTypeDeclaration],
@@ -2184,52 +2145,6 @@ fn encode_structural_field(
         }
     }
     Ok(())
-}
-
-fn decode_trivial_affine_local(
-    reader: &mut Reader<'_>,
-) -> Result<StructuralPlaceDeclaration, TerminalInstallationError> {
-    let id = PlaceId::new(reader.u64()?).ok_or(
-        TerminalInstallationError::ZeroStructuralReturnIdentity("local place"),
-    )?;
-    let declaration_ordinal = reader.u32()?;
-    if reader.u32()? != 0 {
-        return Err(TerminalInstallationError::NonzeroReservedField);
-    }
-    let structural_type = StructuralTypeId::new(reader.u64()?).ok_or(
-        TerminalInstallationError::ZeroStructuralReturnIdentity("local type"),
-    )?;
-    Ok(StructuralPlaceDeclaration {
-        id,
-        kind: psi_core::StructuralPlaceKind::TrivialAffineLocal {
-            declaration_ordinal,
-            structural_type,
-        },
-    })
-}
-
-fn decode_trivial_affine_local_type(
-    reader: &mut Reader<'_>,
-) -> Result<psi_terminal::StructuralTypeDeclaration, TerminalInstallationError> {
-    let id = StructuralTypeId::new(reader.u64()?).ok_or(
-        TerminalInstallationError::ZeroStructuralReturnIdentity("local type declaration"),
-    )?;
-    let identity_len = usize::try_from(reader.u32()?)
-        .map_err(|_| TerminalInstallationError::StructuralTypeIdentityTooLong)?;
-    let identity = std::str::from_utf8(reader.take(identity_len)?)
-        .map_err(|_| TerminalInstallationError::InvalidStructuralTypeIdentity)?
-        .to_owned();
-    if identity.is_empty() {
-        return Err(TerminalInstallationError::InvalidStructuralTypeIdentity);
-    }
-    if reader.u32()? != 0 {
-        return Err(TerminalInstallationError::InvalidStructuralReturnLocal);
-    }
-    Ok(psi_terminal::StructuralTypeDeclaration {
-        id,
-        identity,
-        shape: psi_terminal::StructuralTypeShape::Record { fields: Vec::new() },
-    })
 }
 
 fn decode_structural_types(
@@ -2679,7 +2594,7 @@ mod resource_tests {
         },
         function_stack_codec::{decode_function_stack_facts, encode_function_stack_facts},
     };
-    use psi_core::EdgeId;
+    use psi_core::{EdgeId, PlaceId};
 
     fn installed_function_with_unit_call() -> TerminalInstalledFunction {
         TerminalInstalledFunction {
