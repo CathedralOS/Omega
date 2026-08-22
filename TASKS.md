@@ -1913,6 +1913,13 @@ Remaining:
   retains citation custody. Outer-chain traversal, Value-middle eligibility,
   same-row rejection, proof shape, and the fixed two-citation frontier remain
   unchanged.
+  Ordered transitive affine left-leg discovery now lives in paired, side-local
+  `affine_selection/transitive/chains/left_legs` modules. Producer and
+  reconstruction independently traverse requirements before semantic axioms,
+  retain exact `LessOrEqual` rows with a Value middle endpoint, and preserve
+  producer-only citation custody. `TwoCitationChains` now owns only source-
+  ordered joining to the right-leg index and same-row rejection; proof shape
+  and the fixed two-citation frontier remain unchanged.
   One-equality
   transitive affine-root custody now lives in independent side-local
   `affine_selection/transitive/alias` modules. Production alone retains the
