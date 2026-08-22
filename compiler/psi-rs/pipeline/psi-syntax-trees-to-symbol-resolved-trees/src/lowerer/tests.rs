@@ -1731,12 +1731,10 @@ fn normalizes_authored_checked_and_boundary_requirement_routes() {
     let source = r#"
     data Token { value: u64; }
 
-    domain Token::Checked {
-        CheckedIssuer::issue;
-    }
-    domain Token::Admitted {
-        BoundaryIssuer::issue;
-    }
+    domain Token::Checked
+    established by CheckedIssuer::issue;
+    domain Token::Admitted
+    established by BoundaryIssuer::issue;
 
     trait CheckedIssuer {
         machine issue(value: u64) -> Token in Checked;

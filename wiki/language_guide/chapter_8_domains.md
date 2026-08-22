@@ -181,36 +181,33 @@ machine Game::start_game(&mut self)
 A domain declaration states two independent kinds of establishment evidence:
 
 - `requires` contains propositions about `self`; all of them must be proved.
-- The body contains exact trait-requirement identities authorized to originate
-  membership. Each body entry is an alternative establishment route.
+- `established by` contains exact trait-requirement identities authorized to
+  establish membership. Its comma-separated entries are alternative routes.
 
 ```omega
 domain [u8]::Path
     requires no_nul(self);
 
-pub domain Reservation::Issued {
-    Issues::issue;
-}
+pub domain Reservation::Issued
+established by Issues::issue;
 
 domain Reservation::Confirmed
     requires has_seat(self)
-{
-    Confirms::confirm;
-}
+    established by Confirms::confirm;
 ```
 
-The body does not execute those requirements. It authorizes their selected
-conformances to establish the domain at exact qualified subject positions.
+The `established by` clause does not execute those requirements. It authorizes
+their selected conformances to establish the domain at exact qualified subject positions.
 Normally that subject is the requirement's result. A matching non-`self`
 parameter may instead be introduced when the requirement is invoked as an
 installed external root. Every predicate obligation is checked at the
 established subject once; later uses consume the resulting guarantee rather
 than re-proving it.
 
-Because a route entry carries no call signature, its requirement path must
-resolve uniquely. An overloaded short name is ambiguous and rejects; route
+Because an `established by` entry carries no call signature, its requirement
+path must resolve uniquely. An overloaded short name is ambiguous and rejects; route
 resolution never inspects visible or selected conformances to choose one.
-Adding an overload can therefore break route lists in other packages. This is
+Adding an overload can therefore break establishment clauses in other packages. This is
 the language-wide signature-free requirement-addressing rule, not a special
 domain rule.
 
@@ -224,9 +221,8 @@ pub boundary trait InterruptEntry {
     reaches <= MachineControl + PortIo;
 }
 
-pub domain InterruptAcknowledgement::Pending {
-    InterruptEntry::enter;
-}
+pub domain InterruptAcknowledgement::Pending
+established by InterruptEntry::enter;
 ```
 
 For a content-bearing qualification, that directional distinction also closes
@@ -283,6 +279,31 @@ controls who may conform, machine visibility controls who may invoke a
 conformer, and a boundary requirement additionally requires provider selection
 and admission. Public ordinary conformances are allowed when the domain author
 deliberately publishes an open checked route.
+
+`established by` is a domain clause, not a realization clause. Omega reserves
+`satisfies Requirement via Binding` for supplying an irreducible external
+machine realization; using bare `via` after a domain conformance would attach
+to the wrong relation. The retired `{ Trait::requirement; }` domain body remains
+a temporary parser compatibility form and must not be emitted by canonical
+source, examples, or formatters; its removal is tracked as migration work.
+Domain predicates remain in `requires`, operators remain ordinary top-level
+declarations, and establishment routes remain in `established by`.
+
+Some compiler-owned domain classifications add closed semantic laws without
+changing representation. A progress profile is explicit:
+
+```omega
+domain SchedulerHandle::WeakFair
+satisfies ProgressProfile
+established by SchedulerAdmission::grant_weak_fair;
+```
+
+Only the domain owner may attach `ProgressProfile`, and one atomic domain has
+at most one such classification. The classified domain must be predicate-free
+and routed through admitted boundary grants. It contributes no ordinary proof
+facts or entailment rules; its exact receipts may instead discharge termination
+premises. Predicate absence, provider backing, or use by terminating code never
+infers this classification.
 
 Membership may also propagate from an existing qualified value or through a
 checked evidence-preserving transformation. A qualified result type or
@@ -819,7 +840,7 @@ guarantees the predicate afterward; `as` never performs that normalization.
 `normalize` and the pure relational predicate `degree_sum` are package-authored
 machines, not compiler-known names.
 
-The domain body does not synthesize `+`. The named operator publishes the
+The domain declaration does not synthesize `+`. The named operator publishes the
 semantic contract, including the relation between its operands and result.
 Its checked definition or selected satisfier must prove both that relation and
 the result qualification. Merely returning some value in `[0, 360)` would not
@@ -881,7 +902,8 @@ operator + Quantity::Additive::add(
 ```
 
 Operators associated with a domain remain ordinary named declarations; the
-domain body is reserved for establishment routes. An exact qualified name such
+domain's `established by` clause is reserved for establishment routes. An
+exact qualified name such
 as `Quantity::Additive::add` supplies an unambiguous semantic home. A unique
 declared-domain constraint across the operand tuple may supply the same home
 when the operator name itself is unqualified. The association never grants the
@@ -1232,8 +1254,8 @@ never from the transport:
 
 A package may declare a domain over a type it does not own. This is the
 analog of Rust's extension traits: downstream code names its own validity
-classes over upstream data (`domain Entity::Quarantined { ... }` in a policy
-package, over a core `Entity`).
+classes over upstream data (`domain Entity::Quarantined requires ...;` in a
+policy package, over a core `Entity`).
 
 Working rules:
 
@@ -1334,7 +1356,8 @@ Working interpretation:
   runtime work.
 
 > **Implementation gate:** Parameter-position establishment at installed
-> external roots remains implementation work. It reuses the same route spelling
+> external roots remains implementation work. It reuses the same
+> `established by` spelling
 > and retains compiler-derived semantic positions rather than adding syntax.
 >
 > General domain work must preserve every domain-theory axis independently in

@@ -60,7 +60,7 @@ pub(super) fn parse_domain_definition<'tokens, 'source>(
             let ((predicate_body, facts, requires_token_count), input) =
                 parse_domain_requires(syntax_trees, input)?;
             let ((authored_routes, body_token_count), input) =
-                parse_domain_body(input, predicate_body.is_present())?;
+                parse_domain_establishment(input, predicate_body.is_present())?;
             (
                 None,
                 authored_routes,
@@ -130,7 +130,8 @@ fn parse_domain_requires<'tokens, 'source>(
 }
 
 fn domain_requires_terminator(input: Input<'_, '_>) -> bool {
-    input.at_punctuation(PunctuationKind::LeftBrace)
+    input.at_contextual("established")
+        || input.at_punctuation(PunctuationKind::LeftBrace)
         || input.tokens.is_empty()
         || input.at_keyword(KeywordKind::Pub)
         || input.at_keyword(KeywordKind::Data)
@@ -194,7 +195,7 @@ fn type_reference_target_label(
     }
 }
 
-fn parse_domain_body<'tokens, 'source>(
+fn parse_domain_establishment<'tokens, 'source>(
     input: Input<'tokens, 'source>,
     requires_consumed: bool,
 ) -> ParseResult<'tokens, 'source, (Vec<Vec<Identifier>>, usize)> {
@@ -205,45 +206,76 @@ fn parse_domain_body<'tokens, 'source>(
 
     // A `requires` clause may own the declaration's final semicolon. When its
     // proof-fact parser has already consumed that token, the next root item is
-    // the caller's input and this domain has no route body.
+    // the caller's input and this domain has no establishment clause.
     if requires_consumed
+        && !input.at_contextual("established")
         && !input.at_punctuation(PunctuationKind::LeftBrace)
         && domain_requires_terminator(input)
     {
         return Ok(((Vec::new(), 0), input));
     }
 
-    let mut input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
+    if input.at_punctuation(PunctuationKind::LeftBrace) {
+        return parse_legacy_domain_body(input);
+    }
+
+    let mut input = input.take_contextual("established")?;
+    input = input.take_contextual("by")?;
+    let routes_start_tokens = input.tokens.len();
+    let mut authored_routes = Vec::new();
+
+    loop {
+        let (route, rest) = parse_authored_route(input)?;
+        authored_routes.push(route);
+        input = rest;
+        if !input.at_punctuation(PunctuationKind::Comma) {
+            break;
+        }
+        input = input.take_punctuation(PunctuationKind::Comma, ",")?;
+    }
+
+    input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
+    let token_count = routes_start_tokens.saturating_sub(input.tokens.len());
+    Ok(((authored_routes, token_count), input))
+}
+
+// Compatibility parser for the retired `{ Trait::requirement; }` spelling.
+// Canonical source uses `established by`; this branch remains only until the
+// migration task removes old producers and turns it into a directed rejection.
+fn parse_legacy_domain_body<'tokens, 'source>(
+    mut input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, (Vec<Vec<Identifier>>, usize)> {
+    input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
     let body_start_tokens = input.tokens.len();
     let mut authored_routes = Vec::new();
 
     while !input.at_punctuation(PunctuationKind::RightBrace) {
-        if at_authored_route(input) {
+        if at_legacy_authored_route(input) {
             let (route, rest) = parse_authored_route(input)?;
             authored_routes.push(route);
-            input = rest;
+            input = rest.take_punctuation(PunctuationKind::Semicolon, ";")?;
             continue;
         }
 
         if input.at_contextual("operator") || input.at_contextual("boundary") {
             return Err(input.error_here(
                 "domain operators must be ordinary top-level declarations; write \
-                 `operator Type::Domain::operation ...` outside the domain body",
+                 `operator Type::Domain::operation ...` outside the domain declaration",
             ));
         }
 
         return Err(input.error_here(
-            "domain predicates must be written in `requires`; domain bodies enumerate exact \
-             `Trait::requirement` establishment routes",
+            "domain predicates must be written in `requires`; establishment routes use \
+             `established by Trait::requirement, ...;`",
         ));
     }
 
-    let body_token_count = body_start_tokens.saturating_sub(input.tokens.len());
+    let token_count = body_start_tokens.saturating_sub(input.tokens.len());
     input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
-    Ok(((authored_routes, body_token_count), input))
+    Ok(((authored_routes, token_count), input))
 }
 
-fn at_authored_route(mut input: Input<'_, '_>) -> bool {
+fn at_legacy_authored_route(mut input: Input<'_, '_>) -> bool {
     let Ok((_, rest)) = input.take_identifier() else {
         return false;
     };
@@ -280,6 +312,5 @@ fn parse_authored_route<'tokens, 'source>(
             input.error_here("domain establishment routes must name an exact `Trait::requirement`")
         );
     }
-    input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
     Ok((route, input))
 }

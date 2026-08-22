@@ -1,6 +1,8 @@
 # Design Brief: Termination, Ranking, And Progress
 
-Settled 2026-07-18 (frozen decision 23). This brief replaces the old
+Settled 2026-07-18 (frozen decision 23), amended 2026-08-22 for explicit
+progress-profile classification and premise attachment. This brief replaces
+the old
 `terminates { decreases ...; }` split with one source family, separates a
 published completion guarantee from its implementation witness, and settles
 the initial boundary representation of positive progress assumptions.
@@ -177,16 +179,29 @@ which a suspended operation makes progress. Pinned operation and provider
 contracts supply those premises and guarantees.
 
 Progress profiles are named, opaque semantic domains over boundary-provider
-capability values. They use ordinary domain declaration syntax, for example:
+capability values. Their domain declaration explicitly selects the
+compiler-owned `ProgressProfile` classification and names its closed
+establishment routes:
 
 ```omega
-domain Scheduler::WeakFair;
+pub boundary trait SchedulerAdmission {
+    machine grant_weak_fair(scheduler: SchedulerHandle)
+        -> SchedulerHandle in WeakFair;
+}
+
+domain SchedulerHandle::WeakFair
+satisfies ProgressProfile
+established by SchedulerAdmission::grant_weak_fair;
 ```
 
-The qualification is routed and predicate-free: it supplies no predicate or operators, never
-flow-narrows into existence, and does not entail another profile.
-Profile establishment uses owner-authored provider requirements and admitted
-receipts:
+`ProgressProfile` is not inferred from an empty predicate body, a provider
+route, or use by a terminating machine. Only the domain owner may attach this
+classification, and one atomic domain has at most one such classification.
+Downstream packages cannot add another classification or append establishment
+routes. The qualification is routed and predicate-free: it supplies no
+predicate or operators, never flow-narrows into existence, and does not entail
+another profile. Profile establishment uses the owner-authored boundary
+requirements in `established by` and admitted receipts:
 
 - only the profile owner or explicit acceptance authority may authorize a
   claim;
@@ -201,6 +216,33 @@ A termination guarantee names an accepted progress profile through the normal
 requirement surface, for example `requires scheduler in WeakFair`. The profile
 is a sealed semantic qualification of the provider/capability, not a new
 machine clause or ambient promise.
+
+Premise attachment has three distinct levels:
+
+1. A bodyless requirement or exported checked machine authors its public
+   premise schemas in its contract. For a published `terminates` guarantee, a
+   `requires subject in Profile` clause whose domain explicitly satisfies
+   `ProgressProfile` is such a schema. An exported checked implementation must
+   prove that every dependency derived from its body is covered by one of
+   those authored schemas; refactoring the body cannot silently rewrite the
+   public premise set.
+2. A checked call instantiates premises only from the exact selected
+   operation's termination contract and its explicit argument substitution.
+   Merely receiving, mentioning, suspending with, or forwarding a
+   progress-qualified value creates no dependency. Private checked machines
+   therefore derive only the exact instances their invoked operations require.
+3. Coverage resolves every derived instance to an authored public schema, an
+   admitted receipt for an exact locally established subject, or a build-bound
+   provider premise exported to the component manifest and discharged at
+   composition. Anything else rejects.
+
+Subject correspondence is exact: identity-preserving lineage, explicit
+contract substitution, or an authored qualification-preserving transition.
+The compiler never invents entailment from a value merely "descending from"
+another subject. Static-machine binders are nominal, so a generic call obtains
+premise schemas from the named requirement contract rather than from whichever
+implementation is later substituted. This keeps generic and exported contract
+identity fixed across selection.
 
 The normalized guarantee records the actual pinned premises, not merely the
 presence of `suspends` or `blocks` operational clauses. General machine-side
@@ -235,8 +277,13 @@ contract, not in the hidden ranking witness.
 7. Every edge in a mutually cyclic component decreases one joint ranking.
 8. `terminates` plus `suspends` remains conditional on the pinned wake/progress
    premises; the reach row alone cannot invent them.
-9. An ungranted provider cannot self-assert a sealed progress profile.
-10. Swapping a provider's valid ranking witness revalidates that provider only;
+9. An ungranted provider cannot self-assert a sealed progress profile; only an
+   owner-classified domain's `established by` route plus its admitted receipt
+   establishes one.
+10. Checked dependencies instantiate from exact callee termination contracts;
+    mention alone creates no premise, and every instance must be covered by an
+    authored schema, exact receipt, or manifest-bound provider premise.
+11. Swapping a provider's valid ranking witness revalidates that provider only;
     caller and requirement contract identities remain unchanged.
 
 ## Deferred, explicitly

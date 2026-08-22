@@ -494,9 +494,12 @@ contracts. It does not prove no suspension, fairness, a deadline, eventual
 wakeup, or starvation freedom by itself. Omission of `suspends` or `blocks`
 proves only the corresponding negative operational guarantee.
 
-Decision 23 represents positive progress premises as opaque, sealed
-profiles on boundary traits/providers/slots. They use grant receipts,
-participate in admission, and never entail proof facts. General trace theorems
+Decision 23 represents positive progress premises as opaque, sealed domains
+explicitly classified by their owner with `satisfies ProgressProfile`. Exact
+`established by` boundary requirements use grant receipts and participate in
+admission. Operation termination contracts author premise schemas; checked
+calls instantiate them rather than inferring progress from reach, suspension,
+or parameter mention. Profiles never entail proof facts. General trace theorems
 and profile entailment remain deferred. See
 [Termination, Ranking, And Progress](termination_ranking_and_progress.md).
 

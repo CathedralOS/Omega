@@ -603,7 +603,8 @@ signature or uniquely visible conformance establishes nothing.
 
 `WindowProcedure::call` is a signature-free requirement reference and must
 resolve to one exact overload at the binder declaration. Ambiguity rejects.
-This is the same rule used by domain route lists and other signature-free
+This is the same rule used by domain `established by` clauses and other
+signature-free
 requirement paths. There is no callback-local expanded-signature workaround,
 and `as Name` remains the satisfying-conformance name rather than an overload
 selector. Adding an overload to an existing requirement name is therefore a

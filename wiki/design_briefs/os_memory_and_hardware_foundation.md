@@ -68,9 +68,7 @@ data Extent [linear] {
 
 pub domain Extent::Granted
     requires no_wrap(self.base, self.length)
-{
-    ExtentRootProvider::grant;
-}
+    established by ExtentRootProvider::grant;
 
 pub boundary trait ExtentRootProvider {
     machine grant(root: Extent) -> Extent

@@ -559,13 +559,11 @@ separate permission-flavored types:
 data Folder {
 }
 
-domain Folder::Readable {
-    Desktop::choose_readable_folder;
-}
+domain Folder::Readable
+established by Desktop::choose_readable_folder;
 
-domain Folder::Writable {
-    Desktop::choose_folder;
-}
+domain Folder::Writable
+established by Desktop::choose_folder;
 
 domain Folder::ReadWrite
     requires self in Folder::Readable

@@ -122,11 +122,13 @@ of each is the corresponding negative guarantee. A suspended activation retains
 its fixed nonmoving stack. The remaining suspension work concerns lowering and
 the conservative loan subset that may remain live while that stack is parked.
 
-Positive progress remains separate. Pinned operations/providers may
-carry sealed opaque progress profiles authorized through boundary grants. A
-termination guarantee records the actual required profiles; the presence of
-`suspends` or `blocks` says only that such an event is possible and cannot name
-what will wake it. General trace entailment remains deferred.
+Positive progress remains separate. Pinned operation contracts may carry
+owner-classified `ProgressProfile` domains established through exact admitted
+boundary grants. A termination guarantee records authored public schemas and
+exact call-instantiated premises; merely mentioning the qualified capability,
+or declaring `suspends` or `blocks`, creates none. Local receipts and
+composition-bound provider receipts may discharge exact instances. General
+trace entailment remains deferred.
 
 The constraints are:
 

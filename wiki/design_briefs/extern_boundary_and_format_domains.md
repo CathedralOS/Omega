@@ -384,7 +384,8 @@ the selected machine, satisfaction, entry plan, and private thunk identity, and
 lowering joins those identities only when emitting the private relocation.
 Signature coincidence and unique visibility are not
 selection rules. A signature-free requirement path must resolve uniquely or
-reject, consistently with domain route lists. The source surface does not need
+reject, consistently with domain `established by` clauses. The source surface
+does not need
 a general function-pointer value.
 
 A projected native callback field is a typed private-materialization demand in
