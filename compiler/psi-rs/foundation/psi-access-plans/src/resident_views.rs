@@ -5,10 +5,10 @@
 //! claim and provider receipts through placed field access.
 
 use super::{
-    AccessFieldKey, AccessPlanDiagnostic, BorrowPolarity, DormantOwnedResident, ObservationModel,
-    PlacedFieldProjection, PlacedOccurrenceId, PlacementAdmissionId, PlacementAuthorityRef,
-    PlacementResourceCompatibility, ResourceProfileReceiptId, ValidatedPlacementPlan,
-    project_placed_field,
+    AccessFieldKey, AccessPlanDiagnostic, AdmittedResourceProfile, BorrowPolarity,
+    DormantOwnedResident, ObservationModel, PlacedFieldProjection, PlacedOccurrenceId,
+    PlacementAdmissionId, PlacementAuthorityRef, PlacementResourceCompatibility,
+    ResourceProfileReceiptId, ValidatedPlacementPlan, project_placed_field,
 };
 use psi_extents::{
     ExtentContentCustodyReceiptId, ExtentContentValidityReceiptId, ExtentLoan, LoanPolarity,
@@ -38,6 +38,7 @@ impl DormantOwnedResident {
         Ok(EstablishedBorrowedResidentPlacement {
             plan: self.admission.placement_plan.clone(),
             profile_receipt: self.admission.profile_receipt,
+            profile: self.admission.profile.clone(),
             resources: self.admission.resources.clone(),
             admission: self.admission.identity,
             loan,
@@ -57,6 +58,7 @@ impl DormantOwnedResident {
     ) -> Result<EstablishedBorrowedResidentPlacement<'_>, AccessPlanDiagnostic> {
         let plan = self.admission.placement_plan.clone();
         let profile_receipt = self.admission.profile_receipt;
+        let profile = self.admission.profile.clone();
         let resources = self.admission.resources.clone();
         let admission = self.admission.identity;
         let resident_claim = self.resident_claim;
@@ -75,6 +77,7 @@ impl DormantOwnedResident {
         Ok(EstablishedBorrowedResidentPlacement {
             plan,
             profile_receipt,
+            profile,
             resources,
             admission,
             loan,
@@ -97,6 +100,7 @@ impl DormantOwnedResident {
 pub struct EstablishedBorrowedResidentPlacement<'resident> {
     plan: ValidatedPlacementPlan,
     profile_receipt: ResourceProfileReceiptId,
+    profile: AdmittedResourceProfile,
     resources: PlacementResourceCompatibility,
     admission: PlacementAdmissionId,
     loan: ExtentLoan<'resident>,
@@ -117,6 +121,14 @@ impl<'resident> EstablishedBorrowedResidentPlacement<'resident> {
 
     pub const fn profile_receipt(&self) -> ResourceProfileReceiptId {
         self.profile_receipt
+    }
+
+    pub(super) const fn profile(&self) -> &AdmittedResourceProfile {
+        &self.profile
+    }
+
+    pub(super) const fn loan(&self) -> &ExtentLoan<'resident> {
+        &self.loan
     }
 
     pub(super) const fn resources(&self) -> &PlacementResourceCompatibility {

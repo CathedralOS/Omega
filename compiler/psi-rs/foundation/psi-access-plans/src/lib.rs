@@ -2006,6 +2006,7 @@ pub struct PlacementAdmission<'extent> {
     identity: PlacementAdmissionId,
     placement_plan: ValidatedPlacementPlan,
     profile_receipt: ResourceProfileReceiptId,
+    profile: AdmittedResourceProfile,
     resources: PlacementResourceCompatibility,
     loan: ExtentLoan<'extent>,
 }
@@ -2061,6 +2062,7 @@ pub struct OwnedPlacementAdmission {
     identity: PlacementAdmissionId,
     placement_plan: ValidatedPlacementPlan,
     profile_receipt: ResourceProfileReceiptId,
+    profile: AdmittedResourceProfile,
     resources: PlacementResourceCompatibility,
     extent: Extent,
 }
@@ -2310,6 +2312,7 @@ pub struct PlacedView<'extent> {
     loan: ExtentLoan<'extent>,
     plan: ValidatedPlacementPlan,
     profile_receipt: ResourceProfileReceiptId,
+    profile: AdmittedResourceProfile,
     resources: PlacementResourceCompatibility,
     admission: PlacementAdmissionId,
 }
@@ -2404,6 +2407,40 @@ impl<'view, 'extent> PlacementAuthorityRef<'view, 'extent> {
             Self::Borrowed(view) => view.profile_receipt,
             Self::BorrowedResident(established) => established.profile_receipt(),
             Self::EstablishedOwned(established) => established.profile_receipt(),
+        }
+    }
+
+    const fn profile(self) -> &'view AdmittedResourceProfile {
+        match self {
+            Self::Borrowed(view) => &view.profile,
+            Self::BorrowedResident(established) => established.profile(),
+            Self::EstablishedOwned(established) => &established.admission.profile,
+        }
+    }
+
+    fn replay_resources(self) -> Result<PlacementResourceCompatibility, AccessPlanDiagnostic> {
+        match self {
+            Self::Borrowed(view) => {
+                validate_placement_admission(&view.loan, &view.plan, &view.profile)
+            }
+            Self::BorrowedResident(established) => validate_placement_admission(
+                established.loan(),
+                established.placement_plan(),
+                established.profile(),
+            ),
+            Self::EstablishedOwned(established) => {
+                let extent = established.extent();
+                let loan = extent.loan(0, extent.length()).map_err(|diagnostic| {
+                    AccessPlanDiagnostic(format!(
+                        "established placement could not replay its whole-range loan: {diagnostic}"
+                    ))
+                })?;
+                validate_placement_admission(
+                    &loan,
+                    established.placement_plan(),
+                    &established.admission.profile,
+                )
+            }
         }
     }
 
@@ -2954,6 +2991,7 @@ impl PrimitiveAccessRequest<'_, '_> {
         let placement = authority.placement_plan();
         if placement.identity() != self.plan
             || authority.profile_receipt() != self.profile_receipt
+            || authority.profile().receipt() != self.profile_receipt
             || authority.admission() != self.admission
             || placement.reach() != &self.reach
         {
@@ -2969,6 +3007,18 @@ impl PrimitiveAccessRequest<'_, '_> {
         {
             return Err(AccessPlanDiagnostic(
                 "primitive lowering requires the retained resource row and field descriptor to belong to the exact placement authority"
+                    .into(),
+            ));
+        }
+
+        let replayed_resources = authority.replay_resources().map_err(|diagnostic| {
+            AccessPlanDiagnostic(format!(
+                "primitive lowering could not replay the retained admitted resource profile: {diagnostic}"
+            ))
+        })?;
+        if &replayed_resources != authority.resources() {
+            return Err(AccessPlanDiagnostic(
+                "primitive lowering replayed resource compatibility differs from the retained placement authority"
                     .into(),
             ));
         }
@@ -3576,6 +3626,7 @@ pub fn admit_placement<'extent>(
             identity,
             placement_plan: plan.clone(),
             profile_receipt: profile.receipt,
+            profile: profile.clone(),
             resources,
             loan,
         }),
@@ -3606,6 +3657,7 @@ pub fn admit_owned_placement(
             identity,
             placement_plan: plan.clone(),
             profile_receipt: profile.receipt,
+            profile: profile.clone(),
             resources,
             extent,
         }),
@@ -3722,6 +3774,7 @@ pub fn place<'extent>(admission: PlacementAdmission<'extent>) -> PlacedView<'ext
         loan: admission.loan,
         plan: admission.placement_plan,
         profile_receipt: admission.profile_receipt,
+        profile: admission.profile,
         resources: admission.resources,
         admission: admission.identity,
     }
@@ -6278,6 +6331,51 @@ mod tests {
             BorrowPolarity::Shared
         );
         assert_eq!(request.authorization.operation(), AccessOperation::Read);
+    }
+
+    #[test]
+    fn stable_primitive_specialization_replays_admitted_profile_root_facts() {
+        let plan = stable_word_placement();
+        let extent = uart_extent_with_lineage(0xad7c, 4, 188);
+        let profile = stable_word_profile(&extent);
+        let loan = extent.loan(0, 4).expect("shared Stable loan");
+        let admission_id = PlacementAdmissionId::from_normalized_identity(189).expect("admission");
+        let admission = admit_placement(admission_id, loan, &plan, &profile)
+            .expect("borrowed Stable admission");
+
+        let coincident = uart_extent_with_lineage(0xad7c, 4, 190);
+        let wrong_profile = stable_word_profile(&coincident);
+        assert_eq!(wrong_profile.receipt(), profile.receipt());
+        let PlacementAdmission {
+            identity,
+            placement_plan,
+            profile_receipt,
+            profile: _,
+            resources,
+            loan,
+        } = admission;
+        let view = place(PlacementAdmission {
+            identity,
+            placement_plan,
+            profile_receipt,
+            profile: wrong_profile,
+            resources,
+            loan,
+        });
+        let projection = view
+            .project(field_key(plan.access(), "word"))
+            .expect("shared Stable projection");
+        let request = projection
+            .read()
+            .expect("authorized Stable read")
+            .into_primitive_request();
+
+        let request = expect_exact_stable_primitive_rejection(
+            request,
+            "replay the retained admitted resource profile",
+        );
+        assert_eq!(request.admission(), admission_id);
+        assert_eq!(request.profile_receipt(), profile.receipt());
     }
 
     #[test]
