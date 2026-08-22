@@ -590,7 +590,10 @@ Owners:
   reject without truncation or destination mutation. Static writer validation
   and reusable-fragment lowering consume the same known-value validator, so
   invalid pre-resolved fit evidence rejects before any dynamic resolver
-  observation or destination mutation.
+  observation or destination mutation. Reusable post-handoff invocation
+  evidence is sealed behind validated lowering; installation, external-root,
+  and instruction-selection consumers may inspect but cannot reconstruct or
+  weaken the exact fragment, placement, source-slot, or fit evidence.
 
 Acceptance: UART/MMIO, shared-page IPC, and ordinary RAM use one extent/layout
 foundation with different profiles. Misalignment, insufficient rights,
@@ -1485,7 +1488,11 @@ Remaining:
   citation may instead transport one directly cited canonical bound at that
   alias. Its fixed proof nests one `IntegerLessOrEqualSubstitution` under
   `IntegerCastBound`; reconstruction repeats the same exact equality/bound
-  selection. Missing, redirected, cross-carrier, or weaker bounds reject. One
+  selection. Missing, redirected, cross-carrier, or weaker bounds reject.
+  Production now routes this one-alias order transport for both cast and affine
+  completion through one indexed constructor; reconstruction independently
+  mirrors that constructor, so the family is no longer re-enumerated per
+  completion rule. One
   closed source-carrier endpoint bridge may also strengthen the cited alias
   bound. Its fixed proof nests `IntegerLessOrEqualTransitivity` under the one
   substitution; exact alias bounds remain preferred. Production and
@@ -1500,8 +1507,10 @@ Remaining:
   may instead transport one directly cited canonical bound through exactly two
   distinct same-carrier value equalities. It nests two
   `IntegerLessOrEqualSubstitution` nodes under `IntegerCastBound`; production
-  and reconstruction independently enumerate that exact three-citation shape,
-  prefer every one-alias family, and perform no recursive alias walk. Missing,
+  and reconstruction independently enumerate that exact three-citation shape
+  through their own local indexed constructor shared by cast and affine
+  completion. They prefer every one-alias family and perform no recursive or
+  parameterized alias walk. Missing,
   reused, redirected, crossed, cyclic, mistyped, or weaker facts reject. A
   third alias, literal landing through two aliases, affine/cast, shift/cast,
   joins, and correlated results remain outside this sibling; neither complete
@@ -2439,6 +2448,8 @@ Owners:
   rejoins the optional program-storage entry binding to its native bridge: both
   are absent together or the retained binding must equal the bridge's exact
   binding, while a dropped, unpaired, or redirected row rejects before return.
+  Both retained fields are now outwardly read-only, so a consumer cannot mutate
+  one side into a post-validation mismatch.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
@@ -2847,8 +2858,10 @@ Remaining N6/N8 work:
   alpha-renaming, and bijection matching to a focused 416-line precondition
   judgment child. Exact public-parameter order, mode, quotient-carrier matching,
   and representative static substitution now form a separate 212-line runtime-
-  correspondence child. Neither extraction duplicates or broadens the proof
-  language. The
+  correspondence child. Exact representative entry lookup, runtime telescope,
+  and the existing whole-call-graph purity and unconditional-termination
+  certificates form a separate 213-line representative child. None of these
+  extractions duplicate or broaden the proof language. The
   exact final-expression call
   additionally retains one unchanged state-fallthrough result edge. The same
   single edge may
