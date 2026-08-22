@@ -308,8 +308,14 @@ Remaining:
   that is engineering work, not a language-design blocker. It first needs an
   authored Linux GUI protocol/provider contract and executable binding path:
   no X11/Wayland provider exists, and the current ELF direct-image emitter
-  cannot bind shared-library imports. Provider substitution must not use a
-  headless or fake-handle shim in place of the samples' real-window contract.
+  cannot bind shared-library imports. ELF final-image emission now derives one
+  canonical referenced-import request catalog joining retained provider-
+  authored library/symbol identities to exact relocation sites and rejects
+  invalid, duplicate, unqualified, or unowned rows before the loader boundary.
+  Actual binding remains fenced on interpreter/dynamic-section, PLT/GOT,
+  symbol-version, and exact-library/interposition policy. Provider substitution
+  must not use a headless or fake-handle shim in place of the samples' real-
+  window contract.
   Proof-only and
   deliberately trapping fixtures remain targetless. Final firmware composition
   of `ImageHandle`/`SystemTable` inputs with semantic roots is design-blocked on
