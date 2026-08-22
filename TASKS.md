@@ -5234,6 +5234,14 @@ Owners:
   or deleting report viewers for speed. Further work should target repeated
   Stage 05 semantic compilation/search and reuse checked-report receipts where
   one owner currently recompiles the same frontend.
+  Sample refresh no longer multiplies its machine-wide outer fan-out by a full
+  backend worker pool per sample: each independent compile now owns one inner
+  worker and uses `OutputOnly`, because the command consumes only the runnable
+  program. On the measured 14-core host this removes a possible 196-worker
+  oversubscription and avoids the unused report/HTML bundle while preserving
+  parallel sample throughput. Focused external-root, terminal-image, and native
+  fuel canaries remain fast, so this evidence still does not justify an arena
+  rewrite or globally deleting diagnostic viewers.
   A follow-up harness audit measured the already-built exact canary at 0.02s,
   warm Cargo-filtered runs at 0.08–0.12s, and a schema-fanout `--no-run`
   rebuild/relink at 5.03s with 9.74s user CPU. Low-CPU multi-second outliers are
