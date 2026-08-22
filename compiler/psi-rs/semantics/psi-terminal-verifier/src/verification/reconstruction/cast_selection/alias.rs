@@ -4,6 +4,8 @@ use psi_core::{Proposition, PropositionContext};
 
 use super::super::{alias_transport, cast_custody};
 
+mod two;
+
 pub(super) fn retained(
     context: &PropositionContext,
     goal: &Proposition,
@@ -22,16 +24,5 @@ pub(super) fn retained(
             requirements,
             semantic_axioms,
         )
-        || retained_two(context, goal, requirements, semantic_axioms)
-}
-
-fn retained_two(
-    context: &PropositionContext,
-    goal: &Proposition,
-    requirements: &[Proposition],
-    semantic_axioms: &[Proposition],
-) -> bool {
-    alias_transport::retained_two(requirements, semantic_axioms, |root, root_bound| {
-        cast_custody::retained_from_root(context, goal, semantic_axioms, root, root_bound)
-    })
+        || two::retained(context, goal, requirements, semantic_axioms)
 }
