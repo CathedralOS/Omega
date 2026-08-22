@@ -5432,6 +5432,15 @@ Owners:
   checks and literal exit 70. Exact-owner ambiguity, the 795 rooted/3 legacy
   inventory, and cross-copy receipt-drift fences remain green; their warm
   compiler/interpreter bodies remain 0.02s.
+  The machine-owned single- and double-runtime-indexed bounded-carrier literal
+  regressions now launch solely through the exact executables retained by their
+  checked compilation reports while preserving inline-byte assignment/append
+  and literal exits 85/87. Exact-owner ambiguity, the 795 rooted/3 legacy
+  inventory, and cross-copy receipt-drift fences remain green. The remaining
+  filename-derived launches in this canary module are deliberately fenced
+  recursive/cyclic, structural, report-bearing, slow-float, nested-loop,
+  crash-specific, or explicit legacy owners; no ordinary finite owner remains
+  in the module.
   The finite forward-array and decreasing-index loop regressions now launch
   solely through the exact executables retained by their checked compilation
   reports while preserving sum-to-100/backward-sum-to-10 self-checks and
