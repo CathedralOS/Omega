@@ -5,21 +5,14 @@ use omega_calling_conventions::{
 };
 use omega_image::CompilerTextValidationEvidence;
 use omega_target::{Architecture, NativeTarget, ObjectFormat};
-use omega_terminal_machine_code::{
-    TerminalBoundaryResultRecord, TerminalBoundarySettlementRecord,
-    TerminalCompletionProviderCustodyBinding, TerminalNativeFuelSite,
-    TerminalStructuralReturnRecord,
-};
-use omega_terminal_target_operations::{
-    TerminalBoundaryRealization, TerminalCallSiteOwner, TerminalDirectPortReadU8Realization,
-    TerminalMetadataOnlyPortRealization,
-};
+use omega_terminal_machine_code::{TerminalNativeFuelSite, TerminalStructuralReturnRecord};
+use omega_terminal_target_operations::{TerminalBoundaryRealization, TerminalCallSiteOwner};
 use psi_core::{
-    BoundaryMachineId, ClaimId, EdgeId, MachineId, OperationId, PlaceId, ProfileDecisionId,
-    ServiceId, StructuralCaseId, StructuralDomainId, StructuralFieldId, StructuralTypeId,
+    MachineId, OperationId, PlaceId, ProfileDecisionId, StructuralCaseId, StructuralDomainId,
+    StructuralFieldId, StructuralTypeId,
 };
 use psi_terminal::{
-    CompletionReceipt, SemanticFingerprint, StructuralMultiplicity, StructuralParameterDeclaration,
+    SemanticFingerprint, StructuralMultiplicity, StructuralParameterDeclaration,
     StructuralPathSegment, StructuralPlaceDeclaration, StructuralResultDeclaration,
     StructuralTypeShape, TerminalPsiIdentity, VocabularyMarker,
 };
@@ -35,6 +28,7 @@ use crate::{
 };
 
 mod boundary_result_scalar_codec;
+mod boundary_settlement_codec;
 mod call_site_owner_codec;
 mod completion_custody_codec;
 mod fuel_attribution_codec;
@@ -47,10 +41,7 @@ mod provider_execution_codec;
 mod structural_argument_codec;
 mod structural_return_codec;
 mod value_placement_codec;
-use boundary_result_scalar_codec::{
-    decode_boundary_result_scalar_type, encode_boundary_result_scalar_type,
-};
-use completion_custody_codec::{decode_completion_claim_source, encode_completion_claim_source};
+use boundary_settlement_codec::{decode_boundary_settlements, encode_boundary_settlements};
 use fuel_attribution_codec::{decode_fuel_attributions, encode_fuel_attributions};
 use function_affine_cleanup_codec::{
     decode_scalar_control_affine_cleanups, decode_unit_affine_cleanup,
@@ -63,10 +54,7 @@ use function_parameter_codec::{
 use function_stack_codec::{decode_function_stack_facts, encode_function_stack_facts};
 use internal_unit_call_codec::{decode_internal_unit_call, encode_internal_unit_call};
 use port_effect_codec::{decode_port_effects, encode_port_effects};
-use provider_execution_codec::{decode_provider_execution, encode_provider_execution};
-use structural_argument_codec::{decode_structural_argument, encode_structural_argument};
 use structural_return_codec::{decode_structural_return, encode_structural_return};
-use value_placement_codec::{decode_placement, encode_placement};
 
 pub const TERMINAL_INSTALLATION_FORMAT_MARKER: u16 = 31;
 const MAGIC: &[u8; 8] = b"PSIINST\0";
@@ -678,98 +666,7 @@ pub fn encode_terminal_installation_record(
     }
     encode_fuel_attributions(&mut bytes, fuel_attribution_count, &record.fuel_attribution)?;
     encode_port_effects(&mut bytes, port_effect_count, &record.port_effects)?;
-    push_u32(&mut bytes, settlement_count);
-    for installed in &record.boundary_settlements {
-        let settlement = &installed.settlement;
-        push_u64(&mut bytes, installed.machine.get());
-        push_u64(&mut bytes, settlement.psi_operation.get());
-        push_u64(&mut bytes, settlement.boundary.get());
-        encode_provider_execution(&mut bytes, settlement.provider_execution);
-        match settlement.realization {
-            TerminalBoundaryRealization::MetadataOnlyPort(realization) => {
-                bytes.push(0);
-                push_u64(&mut bytes, realization.effect_operation.get());
-                push_u64(&mut bytes, realization.service.get());
-                push_u16(&mut bytes, realization.port);
-                bytes.push(realization.value);
-            }
-            TerminalBoundaryRealization::DirectPortReadU8(realization) => {
-                bytes.push(1);
-                push_u64(&mut bytes, 0);
-                push_u64(&mut bytes, realization.service.get());
-                push_u16(&mut bytes, realization.port);
-                bytes.push(0);
-            }
-        }
-        bytes.push(0);
-        push_u64(
-            &mut bytes,
-            u64::try_from(settlement.operation_ordinal)
-                .map_err(|_| TerminalInstallationError::SettlementOffsetNotRepresentable)?,
-        );
-        push_u64(
-            &mut bytes,
-            u64::try_from(installed.text_offset)
-                .map_err(|_| TerminalInstallationError::SettlementOffsetNotRepresentable)?,
-        );
-        push_u64(
-            &mut bytes,
-            u64::try_from(settlement.code_offset)
-                .map_err(|_| TerminalInstallationError::SettlementOffsetNotRepresentable)?,
-        );
-        push_u64(
-            &mut bytes,
-            u64::try_from(settlement.byte_count)
-                .map_err(|_| TerminalInstallationError::SettlementOffsetNotRepresentable)?,
-        );
-        push_u32(
-            &mut bytes,
-            u32::try_from(settlement.arguments.len())
-                .map_err(|_| TerminalInstallationError::TooManySettlementArguments)?,
-        );
-        for argument in &settlement.arguments {
-            encode_structural_argument(&mut bytes, argument)?;
-        }
-        push_u32(
-            &mut bytes,
-            u32::try_from(settlement.completion_claim_sources.len())
-                .map_err(|_| TerminalInstallationError::TooManyCompletionClaimSources)?,
-        );
-        for source in &settlement.completion_claim_sources {
-            encode_completion_claim_source(&mut bytes, source)?;
-        }
-        push_u32(
-            &mut bytes,
-            u32::try_from(settlement.completion_receipts.len())
-                .map_err(|_| TerminalInstallationError::TooManyCompletionReceipts)?,
-        );
-        for claim in &settlement.completion_receipts {
-            push_u64(&mut bytes, claim.claim.get());
-            push_u32(&mut bytes, claim.argument_index);
-        }
-        push_u32(
-            &mut bytes,
-            u32::try_from(settlement.completion_provider_custody.len())
-                .map_err(|_| TerminalInstallationError::TooManyCompletionProviderCustody)?,
-        );
-        for binding in &settlement.completion_provider_custody {
-            encode_completion_claim_source(&mut bytes, &binding.source)?;
-            push_u64(&mut bytes, binding.receipt.claim.get());
-            push_u32(&mut bytes, binding.receipt.argument_index);
-            encode_provider_execution(&mut bytes, binding.provider_execution);
-        }
-        match &settlement.native_result {
-            Some(result) => {
-                bytes.push(1);
-                bytes.extend_from_slice(&[0; 3]);
-                push_u64(&mut bytes, result.value.get());
-                push_u64(&mut bytes, result.return_edge.get());
-                encode_boundary_result_scalar_type(&mut bytes, result.scalar_type);
-                encode_placement(&mut bytes, &result.placement)?;
-            }
-            None => bytes.extend_from_slice(&[0; 4]),
-        }
-    }
+    encode_boundary_settlements(&mut bytes, settlement_count, &record.boundary_settlements)?;
     Ok(bytes)
 }
 
@@ -944,142 +841,7 @@ pub fn decode_terminal_installation_record(
     }
     let fuel_attribution = decode_fuel_attributions(&mut reader)?;
     let port_effects = decode_port_effects(&mut reader)?;
-    let settlement_count = usize::try_from(reader.u32()?)
-        .map_err(|_| TerminalInstallationError::TooManyBoundarySettlements)?;
-    let mut boundary_settlements = Vec::with_capacity(settlement_count);
-    for _ in 0..settlement_count {
-        let machine = MachineId::new(reader.u64()?).ok_or(
-            TerminalInstallationError::ZeroSettlementIdentity("MachineId"),
-        )?;
-        let psi_operation = OperationId::new(reader.u64()?).ok_or(
-            TerminalInstallationError::ZeroSettlementIdentity("OperationId"),
-        )?;
-        let boundary = BoundaryMachineId::new(reader.u64()?).ok_or(
-            TerminalInstallationError::ZeroSettlementIdentity("BoundaryMachineId"),
-        )?;
-        let provider_execution = decode_provider_execution(&mut reader)?;
-        let realization_tag = reader.u8()?;
-        let effect_operation = reader.u64()?;
-        let service = ServiceId::new(reader.u64()?).ok_or(
-            TerminalInstallationError::ZeroSettlementIdentity("realization ServiceId"),
-        )?;
-        let port = reader.u16()?;
-        let value = reader.u8()?;
-        let realization = match realization_tag {
-            0 => {
-                TerminalBoundaryRealization::MetadataOnlyPort(TerminalMetadataOnlyPortRealization {
-                    effect_operation: OperationId::new(effect_operation).ok_or(
-                        TerminalInstallationError::ZeroSettlementIdentity(
-                            "realization OperationId",
-                        ),
-                    )?,
-                    service,
-                    port,
-                    value,
-                })
-            }
-            1 if effect_operation == 0 && value == 0 => {
-                TerminalBoundaryRealization::DirectPortReadU8(TerminalDirectPortReadU8Realization {
-                    service,
-                    port,
-                })
-            }
-            _ => return Err(TerminalInstallationError::InvalidBoundaryRealizationTag),
-        };
-        if reader.u8()? != 0 {
-            return Err(TerminalInstallationError::NonzeroReservedField);
-        }
-        let operation_ordinal = usize::try_from(reader.u64()?)
-            .map_err(|_| TerminalInstallationError::SettlementOffsetNotRepresentable)?;
-        let text_offset = usize::try_from(reader.u64()?)
-            .map_err(|_| TerminalInstallationError::SettlementOffsetNotRepresentable)?;
-        let code_offset = usize::try_from(reader.u64()?)
-            .map_err(|_| TerminalInstallationError::SettlementOffsetNotRepresentable)?;
-        let byte_count = usize::try_from(reader.u64()?)
-            .map_err(|_| TerminalInstallationError::SettlementOffsetNotRepresentable)?;
-        let argument_count = usize::try_from(reader.u32()?)
-            .map_err(|_| TerminalInstallationError::TooManySettlementArguments)?;
-        if argument_count > reader.remaining() / 12 {
-            return Err(TerminalInstallationError::UnexpectedEnd);
-        }
-        let mut arguments = Vec::with_capacity(argument_count);
-        for _ in 0..argument_count {
-            arguments.push(decode_structural_argument(&mut reader)?);
-        }
-        let source_count = usize::try_from(reader.u32()?)
-            .map_err(|_| TerminalInstallationError::TooManyCompletionClaimSources)?;
-        if source_count > reader.remaining() / 24 {
-            return Err(TerminalInstallationError::UnexpectedEnd);
-        }
-        let mut completion_claim_sources = Vec::with_capacity(source_count);
-        for _ in 0..source_count {
-            completion_claim_sources.push(decode_completion_claim_source(&mut reader)?);
-        }
-        let claim_count = usize::try_from(reader.u32()?)
-            .map_err(|_| TerminalInstallationError::TooManyCompletionReceipts)?;
-        if claim_count > reader.remaining() / 12 {
-            return Err(TerminalInstallationError::UnexpectedEnd);
-        }
-        let mut completion_receipts = Vec::with_capacity(claim_count);
-        for _ in 0..claim_count {
-            completion_receipts.push(CompletionReceipt {
-                claim: ClaimId::new(reader.u64()?)
-                    .ok_or(TerminalInstallationError::ZeroSettlementIdentity("ClaimId"))?,
-                argument_index: reader.u32()?,
-            });
-        }
-        let provider_custody_count = usize::try_from(reader.u32()?)
-            .map_err(|_| TerminalInstallationError::TooManyCompletionProviderCustody)?;
-        if provider_custody_count > reader.remaining() / 64 {
-            return Err(TerminalInstallationError::UnexpectedEnd);
-        }
-        let mut completion_provider_custody = Vec::with_capacity(provider_custody_count);
-        for _ in 0..provider_custody_count {
-            completion_provider_custody.push(TerminalCompletionProviderCustodyBinding {
-                source: decode_completion_claim_source(&mut reader)?,
-                receipt: CompletionReceipt {
-                    claim: ClaimId::new(reader.u64()?)
-                        .ok_or(TerminalInstallationError::ZeroSettlementIdentity("ClaimId"))?,
-                    argument_index: reader.u32()?,
-                },
-                provider_execution: decode_provider_execution(&mut reader)?,
-            });
-        }
-        let native_result_present = decode_boolean(reader.u8()?)?;
-        if reader.take(3)? != [0; 3] {
-            return Err(TerminalInstallationError::NonzeroReservedField);
-        }
-        let native_result = if native_result_present {
-            Some(TerminalBoundaryResultRecord {
-                value: psi_core::ValueId::new(reader.u64()?)
-                    .ok_or(TerminalInstallationError::InvalidBoundaryResult)?,
-                return_edge: EdgeId::new(reader.u64()?)
-                    .ok_or(TerminalInstallationError::InvalidBoundaryResult)?,
-                scalar_type: decode_boundary_result_scalar_type(&mut reader)?,
-                placement: decode_placement(&mut reader)?,
-            })
-        } else {
-            None
-        };
-        boundary_settlements.push(TerminalObjectBoundarySettlement {
-            machine,
-            settlement: TerminalBoundarySettlementRecord {
-                psi_operation,
-                boundary,
-                provider_execution,
-                realization,
-                arguments,
-                completion_claim_sources,
-                completion_receipts,
-                completion_provider_custody,
-                native_result,
-                operation_ordinal,
-                code_offset,
-                byte_count,
-            },
-            text_offset,
-        });
-    }
+    let boundary_settlements = decode_boundary_settlements(&mut reader)?;
     if reader.remaining() != 0 {
         return Err(TerminalInstallationError::TrailingBytes(reader.remaining()));
     }
@@ -3447,6 +3209,7 @@ impl std::error::Error for TerminalInstallationError {}
 #[cfg(test)]
 mod resource_tests {
     use super::*;
+    use psi_core::EdgeId;
 
     fn installed_function_with_unit_call() -> TerminalInstalledFunction {
         TerminalInstalledFunction {
