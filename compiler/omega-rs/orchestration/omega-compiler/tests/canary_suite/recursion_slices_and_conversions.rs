@@ -1929,10 +1929,13 @@ fn runtime_slice_fixed_index_guard_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("runtime slice fixed index guard canary should compile");
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("runtime slice fixed index guard canary should retain its executable receipt");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(executable)
         .output()
         .expect("runtime slice fixed index guard canary should run");
 
@@ -1956,10 +1959,13 @@ fn runtime_local_slice_len_comparison_value_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("runtime local slice len comparison canary should compile");
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("runtime local slice len comparison canary should retain its executable receipt");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(executable)
         .output()
         .expect("runtime local slice len comparison canary should run");
 
