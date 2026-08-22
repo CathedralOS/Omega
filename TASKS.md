@@ -2320,6 +2320,13 @@ Remaining:
   retains propositions. Ledger/orientation order, carrier checks, same-fact
   rejection, proof shapes, completion precedence, and all fixed affine
   frontiers remain unchanged.
+  Retained affine `LessOrEqual` enumeration now lives in paired side-local
+  ordered-bound catalogs. Producer selection still derives citation custody
+  from assumptions before semantic axioms, while reconstruction independently
+  enumerates retained propositions in the same order; direct endpoint
+  candidates and bounded two-citation left/right indexes reuse those
+  authorities without changing value eligibility, direct-before-transitive
+  precedence, proof shape, same-fact rejection, or any fixed affine frontier.
   One-equality transitive affine completion now lives in independent side-local
   `affine_selection/transitive/alias/completion` modules. Each parent retains
   its own ledger-ordered equality discovery, distinct root/alias custody, and
@@ -4564,6 +4571,18 @@ Owners:
   preserving literal status 70 and all detailed diagnostics. Exact-owner
   ambiguity, the 795 rooted/3 legacy inventory, and receipt-drift fences remain
   green; adjacent float and timer owners stay explicitly fenced.
+  Four authored-root multi-arm/text-scope executions—same-named arm locals,
+  per-arm text-equality locals, pre-guard text-equality guard reads, and pre-
+  guard argument forwarding—now launch solely through exact checked-report
+  executable receipts while preserving literal status 70, interpreter parity,
+  and all detailed diagnostics. Exact-owner ambiguity, the 795 rooted/3 legacy
+  inventory, and receipt-drift fences remain green.
+  Three authored-root parameter-receiver identity executions—second-instance
+  binding, forwarded/reborrowed receiver chains, and the single-instance
+  control—now launch solely through exact checked-report executable receipts
+  while preserving literal status 70 and all detailed diagnostics. Exact-owner
+  ambiguity, the 795 rooted/3 legacy inventory, and receipt-drift fences remain
+  green; intervening timer/control-flow owners remain untouched.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
@@ -5181,6 +5200,12 @@ Remaining N6/N8 work:
   identity child shared by construction and validation. Its 1,220-line parent
   retains the same public API, graph/node identities, validation order, errors,
   and 48-function inventory.
+  Exact current migration-graph construction—registered roots, Rust
+  implementation nodes, reducers, operation rows, and acceptance closure—now
+  lives in a focused 536-line child while source-byte constants, public
+  carriers, validation, and identity hashing remain separate. Its 710-line
+  parent retains the same public API, exact node/graph identities, canonical
+  order and errors, and 43-function inventory.
 - Then migrate suffix law discovery to propositions plus explicit conformances,
   and expand the checked `Nat`/`Int`/`Rat`/Cauchy/approximation corpus. `Real`
   remains proof-only and core-level.
@@ -5292,6 +5317,9 @@ conformance cannot change token meaning; and no accepted source contains a
   through provider execution, Terminal installation records, manifests, trust
   reports, and diagnostics. Missing, duplicate, partial, name-only, or
   identity-drifting selections reject.
+  The compiler provider-plan coordinator's 2,070-line unit corpus now lives in
+  a private test child rather than sharing its 3,591-line production module;
+  all 38 provider-plan tests and the production surface remain unchanged.
 - Replace string-backed intrinsic identity. `Binding::CompilerIntrinsic` has no
   authored payload; its exact resolved realization-machine symbol, normalized
   signature, and selected target key the sealed compiler lowering catalog.
