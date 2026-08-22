@@ -1171,6 +1171,7 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "core/numeric_cross_signed_exact_negative_unproven",
     "core/numeric_cross_signed_exact_unsigned_unproven",
     "data/boundary_data_construction_rejected",
+    "data/generic_boundary_data_construction_rejected",
     "data/boundary_data_relaxed_carry_unadmitted",
     "capabilities/provider_widens_requirement_ceiling",
     "capabilities/provider_hidden_extra_effect",
