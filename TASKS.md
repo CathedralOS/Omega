@@ -3045,6 +3045,11 @@ Remaining:
   line `where_fact_intervals` child, preserving the crate-visible query,
   recursive depth cap, declared-range/product guards, and fail-closed behavior
   while leaving write analysis and diagnostic order in a 1,739-line parent.
+  Callback-free cross-state flow primitives now live in an 83-line `state_flow`
+  child, owning exact transition-edge reconstruction and transported literal-
+  valuation must-meet while the 1,669-line parent retains fixpoint scheduling,
+  statement walking, and diagnostic order; the 41-function inventory remains
+  unchanged.
   The measured nominal affine integer-comparison reconstruction hotspot now
   uses independent producer- and verifier-local affine-definition indexes.
   Each immutable invocation maps an exact current Value term to source-ordered
@@ -4651,6 +4656,12 @@ Owners:
   preserving literal exits 175, 191, 181, 201, and 70, interpreter parity, and
   all detailed diagnostics. Exact-owner ambiguity, the 795 rooted/3 legacy
   inventory, and receipt-drift fences remain green.
+  Two authored-root reference-forwarding executions—bare-name mutable-
+  reference forwarding and frame-local slice descriptor forwarding—now launch
+  solely through exact checked-report executable receipts while preserving
+  literal status 70, interpreter parity, and all detailed diagnostics. Exact-
+  owner ambiguity, the 795 rooted/3 legacy inventory, and receipt-drift fences
+  remain green; adjacent `f32` owners stay fenced.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
