@@ -2373,19 +2373,15 @@ fn runtime_tick_paced_marquee_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+#[cfg(windows)]
 #[test]
 fn runtime_user32_key_state_exit_canary_runs() {
     // Multi-DLL proof: KERNEL32 + User32 in one PE; key_state(32) completes and stores -> exit 70.
     let canary = pass_canary("host/runtime_user32_key_state_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-keystate-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("key_state canary should compile");
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("key_state canary should compile from its authored root");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("key_state canary should run");

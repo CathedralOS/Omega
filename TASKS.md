@@ -388,10 +388,14 @@ Remaining:
   by a structural width proof limited to two unsigned widening operands whose
   source-width sum fits their common target. The local-named dynamic probe also
   now has an authored root. Raw Windows and GUI fixtures remain platform-bound.
-  A registry-derived inventory now pins 890 `RUN_CANARIES`, 883 with authored
-  roots, and 7 rootless. The tracked backlog is 3 after separately excluding
-  the exact four GUI fixtures that still lack a general Linux `Gui`/`Input`
-  provider. The earlier reported
+  The final three non-GUI gaps—User32 key-state and the two raw-filesystem
+  Windows probes—now retain authored Windows entry selection. Their exact
+  Windows roots are structurally cross-compiled on every development host,
+  while native execution remains Windows-gated; this does not imply Linux
+  `Gui`, `Input`, or raw-filesystem lowering. A registry-derived inventory now
+  pins 890 `RUN_CANARIES`, 886 with authored roots, and exactly the four
+  excluded GUI fixtures rootless. The tracked non-GUI authored-root backlog is
+  zero. The earlier reported
   backlog of 18 was incorrect: its baseline parser omitted 39 multiline-form
   RUN rows, then
   the migration ledger subtracted 34 authored roots outside `RUN_CANARIES` as
