@@ -606,6 +606,14 @@ Owners:
   unnumbered) and normalized constrained type identity. Coordinated schema-
   symbol and field-inventory substitution rejects fail closed; cloned arena
   type-reference handles remain non-authoritative implementation coordinates.
+  Plan-laid layout custody now also retains the exact validated target-neutral
+  `LayoutPlanReport` beside its host-sized consumer projections. Independent
+  validation reconstructs and compares size, alignment, field offsets, stored-
+  integer geometry, repeated destination strides, and bit fragments before
+  interpreter or backend consumption. Flattened-geometry drift rejects fail
+  closed without re-evaluating policy code or treating compact identity as
+  authority; stored-integer total-write capability remains a separate exact
+  semantic type fact.
 - Keep alias-exclusion admission separate from access rights; `&mut` does not
   claim exclusivity against a device. Sealed primitive events now specialize
   linearly into Stable read/take/write/swap, External read/take/write, or one
