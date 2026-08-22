@@ -2082,10 +2082,13 @@ fn runtime_dispatch_result_alias_read_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("dispatch alias-read terminal canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("dispatch alias-read terminal canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("dispatch alias-read terminal canary should run");
 
@@ -2115,10 +2118,13 @@ fn runtime_dispatch_slice_element_terminal_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("dispatch slice-element terminal canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("dispatch slice-element terminal canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("dispatch slice-element terminal canary should run");
 
@@ -2144,10 +2150,13 @@ fn runtime_dispatch_result_binary_terminal_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("runtime_dispatch_result_binary_terminal_exit should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("binary-terminal canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("runtime_dispatch_result_binary_terminal_exit should run");
 
@@ -2172,10 +2181,13 @@ fn runtime_dispatch_result_multi_arm_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("runtime_dispatch_result_multi_arm_exit should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("multi-arm result canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("runtime_dispatch_result_multi_arm_exit should run");
 
@@ -2200,10 +2212,13 @@ fn runtime_dispatch_result_guard_subject_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("runtime_dispatch_result_guard_subject_exit should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("guard-subject result canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("runtime_dispatch_result_guard_subject_exit should run");
 
