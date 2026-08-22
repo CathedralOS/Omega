@@ -51,6 +51,7 @@ pub(super) struct DirectTerminalRelationPlan {
     pub(super) define_correspondence: Option<DefineRuntimeCorrespondence>,
     pub(super) public_precondition: Option<RepresentativePreconditionPartition>,
     pub(super) representative_precondition: Option<RepresentativePreconditionPartition>,
+    pub(super) define_precondition_correspondence: Option<DefinePreconditionCorrespondence>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -120,6 +121,18 @@ pub(super) struct RepresentativePreconditionPartition {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) struct DefinePreconditionFactPair {
+    pub(super) public: RepresentativeContractFactLocation,
+    pub(super) representative: RepresentativeContractFactLocation,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct DefinePreconditionCorrespondence {
+    pub(super) dependent: Vec<DefinePreconditionFactPair>,
+    pub(super) fixed: Vec<DefinePreconditionFactPair>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum RepresentativeStaticBindingKind {
     Type,
     Const,
@@ -161,6 +174,7 @@ pub(super) enum RelationPlanError {
     DefineParameterTypeMismatch(usize),
     DefineResultTypeMismatch,
     PreconditionDependencyUnresolved,
+    DefinePreconditionMismatch,
 }
 
 impl fmt::Display for RelationPlanError {
@@ -234,6 +248,9 @@ impl fmt::Display for RelationPlanError {
             Self::PreconditionDependencyUnresolved => formatter.write_str(
                 "a quotient-facing or representative precondition contains an unresolved value identity and cannot be partitioned by quotient-bearing position",
             ),
+            Self::DefinePreconditionMismatch => formatter.write_str(
+                "the quotient-facing and representative preconditions are not one exact position-substituted bijection",
+            ),
         }
     }
 }
@@ -296,6 +313,24 @@ pub(super) fn derive_direct_terminal_plan(
         .as_ref()
         .map(|_| derive_public_precondition_partition(program, machine, state, &input_relations))
         .transpose()?;
+    let define_precondition_correspondence = match (
+        define_correspondence.as_ref(),
+        public_precondition.as_ref(),
+        representative_precondition.as_ref(),
+    ) {
+        (Some(runtime), Some(public), Some(representative_partition)) => {
+            Some(derive_define_precondition_correspondence(
+                program,
+                machine,
+                state,
+                &representative,
+                public,
+                representative_partition,
+                runtime,
+            )?)
+        }
+        _ => None,
+    };
     Ok(DirectTerminalRelationPlan {
         input_relations,
         result_relation,
@@ -303,6 +338,7 @@ pub(super) fn derive_direct_terminal_plan(
         define_correspondence,
         public_precondition,
         representative_precondition,
+        define_precondition_correspondence,
     })
 }
 
@@ -548,6 +584,173 @@ fn derive_precondition_partition(
         }
     }
     Ok(partition)
+}
+
+fn derive_define_precondition_correspondence(
+    program: &TypedTrees,
+    public_machine: &Machine,
+    public_state: &State,
+    representative: &RepresentativeTelescope,
+    public: &RepresentativePreconditionPartition,
+    representative_partition: &RepresentativePreconditionPartition,
+    runtime: &DefineRuntimeCorrespondence,
+) -> Result<DefinePreconditionCorrespondence, RelationPlanError> {
+    let public_substitutions = runtime
+        .positions
+        .iter()
+        .enumerate()
+        .map(|(position, binding)| (binding.public_parameter, format!("${position}")))
+        .collect::<Vec<_>>();
+    let representative_substitutions = runtime
+        .positions
+        .iter()
+        .enumerate()
+        .map(|(position, binding)| (binding.representative_parameter, format!("${position}")))
+        .collect::<Vec<_>>();
+    let dependent = pair_precondition_facts(
+        program,
+        public_machine.contracts,
+        public_state.contracts,
+        representative.machine_contracts,
+        representative.state_contracts,
+        &public.dependent,
+        &representative_partition.dependent,
+        &public_substitutions,
+        &representative_substitutions,
+    )?;
+    let fixed = pair_precondition_facts(
+        program,
+        public_machine.contracts,
+        public_state.contracts,
+        representative.machine_contracts,
+        representative.state_contracts,
+        &public.fixed,
+        &representative_partition.fixed,
+        &public_substitutions,
+        &representative_substitutions,
+    )?;
+    Ok(DefinePreconditionCorrespondence { dependent, fixed })
+}
+
+#[allow(clippy::too_many_arguments)]
+fn pair_precondition_facts(
+    program: &TypedTrees,
+    public_machine_contracts: HandleSpan<SignatureContract>,
+    public_state_contracts: HandleSpan<SignatureContract>,
+    representative_machine_contracts: HandleSpan<SignatureContract>,
+    representative_state_contracts: HandleSpan<SignatureContract>,
+    public_locations: &[RepresentativeContractFactLocation],
+    representative_locations: &[RepresentativeContractFactLocation],
+    public_substitutions: &[(SymbolHandle, String)],
+    representative_substitutions: &[(SymbolHandle, String)],
+) -> Result<Vec<DefinePreconditionFactPair>, RelationPlanError> {
+    if public_locations.len() != representative_locations.len() {
+        return Err(RelationPlanError::DefinePreconditionMismatch);
+    }
+    let mut unmatched = representative_locations.to_vec();
+    let mut pairs = Vec::with_capacity(public_locations.len());
+    for public_location in public_locations {
+        let public_fact = precondition_fact_at(
+            program,
+            public_machine_contracts,
+            public_state_contracts,
+            *public_location,
+        )
+        .ok_or(RelationPlanError::DefinePreconditionMismatch)?;
+        let Some((position, representative_location)) =
+            unmatched.iter().copied().enumerate().find(|(_, location)| {
+                precondition_fact_at(
+                    program,
+                    representative_machine_contracts,
+                    representative_state_contracts,
+                    *location,
+                )
+                .is_some_and(|representative_fact| {
+                    precondition_facts_match(
+                        program,
+                        public_fact,
+                        representative_fact,
+                        public_substitutions,
+                        representative_substitutions,
+                    )
+                })
+            })
+        else {
+            return Err(RelationPlanError::DefinePreconditionMismatch);
+        };
+        unmatched.remove(position);
+        pairs.push(DefinePreconditionFactPair {
+            public: *public_location,
+            representative: representative_location,
+        });
+    }
+    Ok(pairs)
+}
+
+fn precondition_fact_at(
+    program: &TypedTrees,
+    machine_contracts: HandleSpan<SignatureContract>,
+    state_contracts: HandleSpan<SignatureContract>,
+    location: RepresentativeContractFactLocation,
+) -> Option<&ProofFact> {
+    let contracts = match location.owner {
+        RepresentativeContractOwner::Machine => {
+            program.signature_contracts.span_or_empty(machine_contracts)
+        }
+        RepresentativeContractOwner::State => {
+            program.signature_contracts.span_or_empty(state_contracts)
+        }
+    };
+    let contract = contracts.get(location.contract_position)?;
+    if contract.kind != SignatureContractKind::Requires {
+        return None;
+    }
+    program
+        .proof_facts
+        .span_or_empty(contract.facts)
+        .get(location.fact_position)
+}
+
+fn precondition_facts_match(
+    program: &TypedTrees,
+    public: &ProofFact,
+    representative: &ProofFact,
+    public_substitutions: &[(SymbolHandle, String)],
+    representative_substitutions: &[(SymbolHandle, String)],
+) -> bool {
+    let expression_matches = |public, representative| {
+        program.render_proof_expression_with_symbols(public, public_substitutions)
+            == program
+                .render_proof_expression_with_symbols(representative, representative_substitutions)
+    };
+    match (public, representative) {
+        (ProofFact::Expression(public), ProofFact::Expression(representative)) => {
+            expression_matches(*public, *representative)
+        }
+        (ProofFact::Membership(public), ProofFact::Membership(representative)) => {
+            public.domain_symbol.is_valid()
+                && public.domain_symbol == representative.domain_symbol
+                && expression_matches(public.value, representative.value)
+        }
+        (ProofFact::Proposition(public), ProofFact::Proposition(representative)) => {
+            public.proposition.is_valid()
+                && public.proposition == representative.proposition
+                && public.binder_arguments == representative.binder_arguments
+                && {
+                    let public_arguments = program
+                        .expression_table
+                        .expression_handles(public.arguments);
+                    let representative_arguments = program
+                        .expression_table
+                        .expression_handles(representative.arguments);
+                    public_arguments.len() == representative_arguments.len()
+                        && public_arguments.iter().zip(representative_arguments).all(
+                            |(public, representative)| expression_matches(*public, *representative),
+                        )
+                }
+        }
+        _ => false,
+    }
 }
 
 fn proof_fact_depends_on_any(
@@ -1021,6 +1224,18 @@ impl DirectTerminalRelationPlan {
             )
         })
     }
+
+    pub(super) fn render_define_precondition_correspondence(&self) -> Option<String> {
+        self.define_precondition_correspondence
+            .as_ref()
+            .map(|correspondence| {
+                format!(
+                    "Q<->P=[dependent:{}, fixed:{}]",
+                    correspondence.dependent.len(),
+                    correspondence.fixed.len()
+                )
+            })
+    }
 }
 
 fn relation_name(program: &TypedTrees, symbol: SymbolHandle) -> String {
@@ -1039,10 +1254,11 @@ mod tests {
         RepresentativeContractFactLocation, RepresentativeContractOwner,
         RepresentativeRuntimeParameter, RepresentativeStaticApplication,
         RepresentativeStaticBindingKind, RepresentativeTelescope,
-        complete_single_state_result_flow, derive_direct_terminal_plan,
-        derive_exact_representative_static_application, derive_public_precondition_partition,
-        derive_representative_precondition_partition, derive_representative_telescope,
-        fallthrough_result_root, immutable_alias_fallthrough_root, substituted_type_matches,
+        complete_single_state_result_flow, derive_define_precondition_correspondence,
+        derive_direct_terminal_plan, derive_exact_representative_static_application,
+        derive_public_precondition_partition, derive_representative_precondition_partition,
+        derive_representative_telescope, fallthrough_result_root, immutable_alias_fallthrough_root,
+        substituted_type_matches,
     };
     use psi_arena::HandleSpan;
     use psi_symbols::SymbolHandle;
@@ -1934,6 +2150,132 @@ mod tests {
     }
 
     #[test]
+    fn define_preconditions_require_one_exact_alpha_renamed_bijection() {
+        let mut program = TypedTrees::default();
+        let public_left = symbol(740);
+        let public_right = symbol(741);
+        let representative_left = symbol(742);
+        let representative_right = symbol(743);
+        let public_fact = {
+            let left = named_argument(&mut program, "public_left", public_left);
+            let right = named_argument(&mut program, "public_right", public_right);
+            program
+                .expression_table
+                .insert(ExpressionNode::Binary(TableBinaryExpression {
+                    left,
+                    operator: BinaryOperator::Less,
+                    right,
+                }))
+        };
+        let representative_fact = {
+            let left = named_argument(&mut program, "representative_left", representative_left);
+            let right = named_argument(&mut program, "representative_right", representative_right);
+            program
+                .expression_table
+                .insert(ExpressionNode::Binary(TableBinaryExpression {
+                    left,
+                    operator: BinaryOperator::Less,
+                    right,
+                }))
+        };
+        let public_facts = program
+            .proof_facts
+            .insert_many([ProofFact::Expression(public_fact)]);
+        let representative_facts = program
+            .proof_facts
+            .insert_many([ProofFact::Expression(representative_fact)]);
+        let mut public_machine = Machine::default();
+        program.push_machine_contract(
+            &mut public_machine,
+            SignatureContract {
+                kind: SignatureContractKind::Requires,
+                facts: public_facts,
+                ..Default::default()
+            },
+        );
+        let public_state = State::default();
+        let mut representative_contracts = HandleSpan::empty();
+        program.signature_contracts.append_to_span(
+            &mut representative_contracts,
+            SignatureContract {
+                kind: SignatureContractKind::Requires,
+                facts: representative_facts,
+                ..Default::default()
+            },
+        );
+        let location = RepresentativeContractFactLocation {
+            owner: RepresentativeContractOwner::Machine,
+            contract_position: 0,
+            fact_position: 0,
+        };
+        let partition = super::RepresentativePreconditionPartition {
+            dependent: vec![location],
+            fixed: Vec::new(),
+        };
+        let representative = RepresentativeTelescope {
+            machine_symbol: symbol(744),
+            state_symbol: symbol(745),
+            parameters: Vec::new(),
+            return_type: TypeReferenceHandle::invalid(),
+            machine_contracts: representative_contracts,
+            state_contracts: HandleSpan::empty(),
+            static_application: RepresentativeStaticApplication {
+                lifetime_arguments: Vec::new(),
+                bindings: Vec::new(),
+            },
+        };
+        let correspondence = super::DefineRuntimeCorrespondence {
+            positions: vec![
+                super::DefineRuntimePosition {
+                    public_parameter: public_left,
+                    representative_parameter: representative_left,
+                },
+                super::DefineRuntimePosition {
+                    public_parameter: public_right,
+                    representative_parameter: representative_right,
+                },
+            ],
+        };
+
+        let exact = derive_define_precondition_correspondence(
+            &program,
+            &public_machine,
+            &public_state,
+            &representative,
+            &partition,
+            &partition,
+            &correspondence,
+        )
+        .expect("parameter names may differ while exact positions agree");
+        assert_eq!(exact.dependent.len(), 1);
+
+        let redirected = super::DefineRuntimeCorrespondence {
+            positions: vec![
+                super::DefineRuntimePosition {
+                    public_parameter: public_left,
+                    representative_parameter: representative_right,
+                },
+                super::DefineRuntimePosition {
+                    public_parameter: public_right,
+                    representative_parameter: representative_left,
+                },
+            ],
+        };
+        assert_eq!(
+            derive_define_precondition_correspondence(
+                &program,
+                &public_machine,
+                &public_state,
+                &representative,
+                &partition,
+                &partition,
+                &redirected,
+            ),
+            Err(RelationPlanError::DefinePreconditionMismatch)
+        );
+    }
+
+    #[test]
     fn define_correspondence_applies_closed_representative_type_substitution() {
         let mut program = TypedTrees::default();
         let mut request = push_generic_representative_application(&mut program);
@@ -1999,6 +2341,13 @@ mod tests {
         assert_eq!(
             plan.public_precondition,
             Some(super::RepresentativePreconditionPartition {
+                dependent: Vec::new(),
+                fixed: Vec::new(),
+            })
+        );
+        assert_eq!(
+            plan.define_precondition_correspondence,
+            Some(super::DefinePreconditionCorrespondence {
                 dependent: Vec::new(),
                 fixed: Vec::new(),
             })
@@ -2122,6 +2471,11 @@ mod tests {
         assert!(diagnostics[0].message.contains("define-runtime=[0]"));
         assert!(diagnostics[0].message.contains("Q=[dependent:0, fixed:0]"));
         assert!(diagnostics[0].message.contains("P=[dependent:0, fixed:0]"));
+        assert!(
+            diagnostics[0]
+                .message
+                .contains("Q<->P=[dependent:0, fixed:0]")
+        );
         assert!(
             diagnostics[0].message.contains(
                 "one unchanged state-fallthrough result edge through the exact result root"

@@ -786,8 +786,20 @@ fixed contract surface. Expression, proposition-argument, membership, receiver,
 aggregate, indexing, and nested-call positions are traversed without
 short-circuiting validation, and an unresolved value identity rejects the plan
 rather than being classified as ambient. Exact side/owner/contract/fact
-coordinates are retained, but proposition substitution, `Q <-> P` checking,
-and the selected `Respects` clauses remain later obligations.
+coordinates are retained. General proposition/static substitution, semantic
+`Q <-> P` entailment, and the selected `Respects` clauses remain later
+obligations.
+
+The first exact `define` equivalence rung now consumes those partitions. It
+alpha-renames the public and representative runtime parameters to their retained
+position identities, then requires one order-independent bijection across the
+dependent facts and another across the fixed facts. Each match retains both
+side/owner/contract/fact coordinates. Expression, membership, and proposition
+facts compare their closed structural identities after that positional rename;
+missing, duplicated, category-drifted, or redirected facts reject. This proves
+`Q <-> P` only when both sides are already the same normalized fact set. General
+logical implication/equivalence and the selected `Respects` clauses remain
+unresolved, so this evidence still cannot admit execution.
 
 The direct planning boundary recognizes a result root when the sealed request
 is the call at the exact root of the state's last expression statement. It also
