@@ -171,28 +171,13 @@ impl InstalledExecutablePublicationEvidence {
     }
 
     fn recomputed_fingerprint(&self) -> u64 {
-        let mut hash = FNV_OFFSET;
-        fingerprint_into(
-            &mut hash,
-            b"omega.installed-executable-publication-evidence.v1",
-        );
-        fingerprint_into(
-            &mut hash,
-            &self.publication_evidence_fingerprint.to_le_bytes(),
-        );
-        fingerprint_into(
-            &mut hash,
-            &[match self.destination {
-                super::ExecutablePublicationDestination::FlatOutput => 0,
-                super::ExecutablePublicationDestination::MacOsAppBundle => 1,
-            }],
-        );
-        let path = self.output_path.as_os_str().as_encoded_bytes();
-        fingerprint_into(&mut hash, &(path.len() as u64).to_le_bytes());
-        fingerprint_into(&mut hash, path);
-        fingerprint_into(&mut hash, &(self.container_byte_count as u64).to_le_bytes());
-        fingerprint_into(&mut hash, &self.container_fingerprint.to_le_bytes());
-        hash
+        super::compile_report::executable_installation_evidence_fingerprint(
+            self.destination,
+            self.publication_evidence_fingerprint,
+            &self.output_path,
+            self.container_byte_count,
+            self.container_fingerprint,
+        )
     }
 
     fn retained_receipt(
@@ -1103,6 +1088,7 @@ mod tests {
             retained.container_fingerprint(),
             super::byte_fingerprint(&image.bytes)
         );
+        assert!(retained.has_consistent_installation_identity());
 
         let bundle_directory = directory.join("Main.app/Contents/MacOS");
         std::fs::create_dir_all(&bundle_directory).expect("bundle directory");
@@ -1129,6 +1115,7 @@ mod tests {
             bundle_retained.container_fingerprint(),
             retained.container_fingerprint()
         );
+        assert!(bundle_retained.has_consistent_installation_identity());
         assert_eq!(
             std::fs::read(&output).expect("installed bytes"),
             image.bytes

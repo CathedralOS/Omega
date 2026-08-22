@@ -1547,6 +1547,12 @@ machine build(builder: &mut Build) {
     })
     .expect("receiver-free UEFI entry should retain its source ABI");
     assert!(report.has_consistent_program_storage_entry_custody());
+    assert!(
+        report
+            .executable_publication()
+            .expect("written bridge publication receipt")
+            .has_consistent_installation_identity()
+    );
     let bridge = report
         .program_storage_entry_bridge()
         .cloned()
