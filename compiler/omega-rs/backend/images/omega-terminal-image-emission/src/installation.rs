@@ -39,11 +39,13 @@ use crate::{
 };
 
 mod boundary_result_scalar_codec;
+mod call_site_owner_codec;
 mod completion_custody_codec;
 mod structural_argument_codec;
 use boundary_result_scalar_codec::{
     decode_boundary_result_scalar_type, encode_boundary_result_scalar_type,
 };
+use call_site_owner_codec::{decode_call_site_owner, encode_call_site_owner};
 use completion_custody_codec::{decode_completion_claim_source, encode_completion_claim_source};
 use structural_argument_codec::{decode_structural_argument, encode_structural_argument};
 
@@ -908,26 +910,6 @@ fn encode_function_stack_facts(
     Ok(())
 }
 
-fn encode_call_site_owner(bytes: &mut Vec<u8>, owner: TerminalCallSiteOwner) {
-    match owner {
-        TerminalCallSiteOwner::Operation(operation) => {
-            bytes.push(1);
-            bytes.extend_from_slice(&[0; 3]);
-            push_u64(bytes, operation.get());
-        }
-        TerminalCallSiteOwner::CleanupAction {
-            edge,
-            action_ordinal,
-        } => {
-            bytes.push(2);
-            bytes.extend_from_slice(&[0; 3]);
-            push_u64(bytes, edge.get());
-            push_u32(bytes, action_ordinal);
-            push_u32(bytes, 0);
-        }
-    }
-}
-
 pub fn decode_terminal_installation_record(
     bytes: &[u8],
 ) -> Result<TerminalInstallationRecord, TerminalInstallationError> {
@@ -1518,34 +1500,6 @@ fn decode_function_stack_facts(
         unit_call_stacks,
         scalar_call_stacks,
     ))
-}
-
-fn decode_call_site_owner(
-    reader: &mut Reader<'_>,
-) -> Result<TerminalCallSiteOwner, TerminalInstallationError> {
-    let tag = reader.u8()?;
-    if reader.take(3)? != [0; 3] {
-        return Err(TerminalInstallationError::NonzeroReservedField);
-    }
-    match tag {
-        1 => Ok(TerminalCallSiteOwner::Operation(
-            OperationId::new(reader.u64()?)
-                .ok_or(TerminalInstallationError::ZeroInternalUnitCallIdentity)?,
-        )),
-        2 => {
-            let edge = EdgeId::new(reader.u64()?)
-                .ok_or(TerminalInstallationError::ZeroInternalUnitCallIdentity)?;
-            let action_ordinal = reader.u32()?;
-            if reader.u32()? != 0 {
-                return Err(TerminalInstallationError::NonzeroReservedField);
-            }
-            Ok(TerminalCallSiteOwner::CleanupAction {
-                edge,
-                action_ordinal,
-            })
-        }
-        tag => Err(TerminalInstallationError::InvalidCallSiteOwnerTag(tag)),
-    }
 }
 
 pub fn validate_terminal_installation_record(
