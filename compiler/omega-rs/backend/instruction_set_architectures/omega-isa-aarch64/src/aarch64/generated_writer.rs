@@ -300,7 +300,8 @@ mod tests {
         }
         .lower_reusable_fragment()
         .expect("reusable fragment")
-        .fragment
+        .fragment()
+        .clone()
     }
 
     #[test]
