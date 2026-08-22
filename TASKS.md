@@ -530,9 +530,11 @@ Owners:
   that carrier into a fresh nonzero `PlacedOccurrenceId`, field/access/lowering
   requests retain both identities, and resident-preserving retirement returns
   the same claim and receipts for a later fresh view. Ordinary borrowed views
-  retain neither identity. Source-visible domain establishment, borrowed
-  resident loans, `Vacant` transitions, partial moves, Terminal propagation,
-  and installation remain.
+  retain neither identity. Borrowed resident views retain the lender's exact
+  claim and provider receipts, one fresh placed occurrence, and a whole-range
+  shared or exclusive `ExtentLoan`; ending the view releases only that loan and
+  remints nothing. Source-visible domain establishment, `Vacant` transitions,
+  partial moves, Terminal propagation, and installation remain.
 - Complete the atomic 2x2 compare-exchange family: existing observing strong
   and weak forms require copyable residents; new non-observing strong and weak
   forms return the proposal on failure and may transfer affine or linear
