@@ -2325,7 +2325,12 @@ Owners:
   complete certificate is now constructed and revalidated before executable or
   app-bundle installation, and auxiliary inventory serialization consumes that
   existing certificate rather than discovering a semantic failure only after
-  executable bytes become visible.
+  executable bytes become visible. Publication now additionally seals that
+  certificate to the exact emitted image evidence, final-text/inventory pair,
+  output name and format, and complete container-byte identity. Flat executable
+  and app-bundle installation consume only this validated view, so certificate,
+  container, or output-identity drift rejects before either byte copy is
+  published.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected

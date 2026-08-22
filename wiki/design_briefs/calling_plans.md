@@ -686,6 +686,12 @@ before installing the executable or app-bundle bytes. Auxiliary inventory
 serialization consumes that already validated certificate instead of creating
 authority after publication; report I/O may fail later, but no semantic
 certificate failure can occur only after executable visibility.
+Publication then seals the certificate to the exact emitted image evidence,
+replayed final-text/inventory pair, output name and format, and full container
+byte identity. Both the flat executable and optional app-bundle copy consume
+that same validated view. This is non-serialized orchestration custody, not a
+new semantic footprint class: it prevents a valid certificate from being
+paired with another container or output identity before publication.
 Final relocation replay also builds one exact owner map from every retained
 selected-instruction identity to that function symbol. A selected instruction
 retained twice, an instruction relocation naming another function, or an
