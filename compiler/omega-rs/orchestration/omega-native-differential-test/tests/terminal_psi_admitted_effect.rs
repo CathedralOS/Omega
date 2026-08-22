@@ -363,7 +363,7 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
         .into_validated_for_consumer(&installed_code)
         .expect("written bound carrier replays its retained installed realization");
     assert_eq!(
-        validated_written.written().installed_code().identity(),
+        validated_written.installed_code().identity(),
         installed_code.identity()
     );
     assert_eq!(validated_written.provider_execution(), bound_provider);

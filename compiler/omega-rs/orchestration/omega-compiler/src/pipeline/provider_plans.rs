@@ -128,7 +128,13 @@ pub struct ValidatedWrittenBoundExternalRootPostHandoffWriterDestination<
     'mapping,
     'bytes,
 > {
-    written: WrittenBoundExternalRootPostHandoffWriterDestination<'installed, 'mapping, 'bytes>,
+    selected_provider: SelectedExternalRootProviderPlan,
+    lowered: omega_instruction_selection::LoweredPostHandoffWriter,
+    installed_code: &'installed omega_executable_installation::InstalledCode,
+    written: omega_external_roots::ValidatedWrittenExternalRootPostHandoffWriterDestination<
+        'mapping,
+        'bytes,
+    >,
 }
 
 /// Outward-consumer rejection returns the complete written carrier unchanged,
@@ -201,17 +207,6 @@ impl<'installed, 'mapping, 'bytes>
         self.written.validate_for_consumer(self.installed_code)?;
         if self.lowered.fragment().target().architecture != self.installed_code.architecture()
             || self.written.invocation() != self.lowered.invocation()
-            || !self
-                .written
-                .written()
-                .context()
-                .binds_invocation(self.lowered.invocation())
-            || self
-                .written
-                .written()
-                .context()
-                .normalized_fragment_fingerprint()
-                != self.lowered.fragment().normalized_plan_fingerprint()
         {
             return Err(psi_layout_plans::MaterializationDiagnostic(
                 "written bound external-root destination does not retain its exact lowered fragment and installation context"
@@ -245,7 +240,34 @@ impl<'installed, 'mapping, 'bytes>
                 diagnostic,
             }));
         }
-        Ok(ValidatedWrittenBoundExternalRootPostHandoffWriterDestination { written: self })
+        let Self {
+            selected_provider,
+            lowered,
+            installed_code,
+            written,
+        } = self;
+        match written.into_validated_for_consumer(installed_code) {
+            Ok(written) => Ok(
+                ValidatedWrittenBoundExternalRootPostHandoffWriterDestination {
+                    selected_provider,
+                    lowered,
+                    installed_code,
+                    written,
+                },
+            ),
+            Err(error) => {
+                let diagnostic = error.diagnostic().clone();
+                Err(Box::new(WrittenBoundExternalRootConsumerValidationError {
+                    written: WrittenBoundExternalRootPostHandoffWriterDestination {
+                        selected_provider,
+                        lowered,
+                        installed_code,
+                        written: (*error).into_written(),
+                    },
+                    diagnostic,
+                }))
+            }
+        }
     }
 
     /// Recover the exact bound invocation with its still-unpublished
@@ -293,22 +315,6 @@ impl<'installed, 'mapping, 'bytes>
             }
         }
     }
-
-    fn into_parts(
-        self,
-    ) -> (
-        SelectedExternalRootProviderPlan,
-        omega_instruction_selection::LoweredPostHandoffWriter,
-        &'installed omega_executable_installation::InstalledCode,
-        omega_external_roots::WrittenExternalRootPostHandoffWriterDestination<'mapping, 'bytes>,
-    ) {
-        (
-            self.selected_provider,
-            self.lowered,
-            self.installed_code,
-            self.written,
-        )
-    }
 }
 
 impl<'installed, 'mapping, 'bytes>
@@ -317,31 +323,29 @@ impl<'installed, 'mapping, 'bytes>
     /// Bytes remain unpublished; this is observation after complete replay,
     /// not a publication transition.
     pub fn bytes(&self) -> &[u8] {
-        self.written.written.bytes()
+        self.written.bytes()
     }
 
-    pub const fn written(
-        &self,
-    ) -> &WrittenBoundExternalRootPostHandoffWriterDestination<'installed, 'mapping, 'bytes> {
-        &self.written
+    pub const fn installed_code(&self) -> &'installed omega_executable_installation::InstalledCode {
+        self.installed_code
     }
 
     pub const fn provider_execution(
         &self,
     ) -> omega_external_roots::AdmittedTerminalProviderExecution {
-        self.written.written.provider_execution()
+        self.written.provider_execution()
     }
 
     pub const fn selected_entry(&self) -> psi_layout_plans::EntryStubId {
-        self.written.written.selected_entry()
+        self.written.selected_entry()
     }
 
     pub const fn selected_entry_source_slot(&self) -> usize {
-        self.written.written.selected_entry_source_slot()
+        self.written.selected_entry_source_slot()
     }
 
     pub fn selected_requirement_identity(&self) -> &str {
-        self.written.written.selected_requirement_identity()
+        self.written.selected_requirement_identity()
     }
 
     pub fn recover_for_retry(
@@ -350,7 +354,33 @@ impl<'installed, 'mapping, 'bytes>
         BoundExternalRootPostHandoffWriterInvocation<'installed, 'mapping, 'bytes>,
         Box<WrittenBoundExternalRootWriterRecoveryError<'installed, 'mapping, 'bytes>>,
     > {
-        self.written.recover_for_retry()
+        let Self {
+            selected_provider,
+            lowered,
+            installed_code,
+            written,
+        } = self;
+        match written.recover_for_retry(installed_code) {
+            Ok((prepared, destination)) => Ok(BoundExternalRootPostHandoffWriterInvocation {
+                selected_provider,
+                lowered,
+                installed_code,
+                prepared,
+                destination,
+            }),
+            Err(error) => {
+                let diagnostic = error.diagnostic().clone();
+                Err(Box::new(WrittenBoundExternalRootWriterRecoveryError {
+                    written: WrittenBoundExternalRootPostHandoffWriterDestination {
+                        selected_provider,
+                        lowered,
+                        installed_code,
+                        written: (*error).into_written(),
+                    },
+                    diagnostic,
+                }))
+            }
+        }
     }
 
     pub fn into_parts(
@@ -359,9 +389,17 @@ impl<'installed, 'mapping, 'bytes>
         SelectedExternalRootProviderPlan,
         omega_instruction_selection::LoweredPostHandoffWriter,
         &'installed omega_executable_installation::InstalledCode,
-        omega_external_roots::WrittenExternalRootPostHandoffWriterDestination<'mapping, 'bytes>,
+        omega_external_roots::ValidatedWrittenExternalRootPostHandoffWriterDestination<
+            'mapping,
+            'bytes,
+        >,
     ) {
-        self.written.into_parts()
+        (
+            self.selected_provider,
+            self.lowered,
+            self.installed_code,
+            self.written,
+        )
     }
 }
 
