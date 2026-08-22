@@ -163,6 +163,10 @@ impl<'resident> EstablishedBorrowedResidentPlacement<'resident> {
         &self.resources
     }
 
+    pub(super) const fn content(&self) -> &'resident ProviderExistingContentGrant {
+        self.content
+    }
+
     pub const fn base(&self) -> u64 {
         self.loan.base()
     }
