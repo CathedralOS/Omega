@@ -422,6 +422,12 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
     assert_eq!(selected_entry_source_slot, 0);
     assert_eq!(architecture, installed_code.architecture());
     assert_eq!(&invocation, retained_lowered.invocation());
+    written
+        .validate_for_consumer(&colliding_code)
+        .expect_err("retained installation validation must reject artifact identity drift");
+    written
+        .validate_for_consumer(&installed_code)
+        .expect("retained installation validation supports corrected borrowed retry");
     let (_mapping, _receipt, _site, _bytes) = written.into_parts();
 
     let machine = MachineId::new(1).unwrap();
