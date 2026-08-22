@@ -607,18 +607,20 @@ fn retain_callback_thunk_emission_blockers(
             ));
             continue;
         }
-        if thunk.entry_key.machine != placement.selected_machine
-            || thunk.entry_key.state != placement.selected_entry
-        {
+        let selected_entry = omega_control_flow::StateKey {
+            machine: placement.selected_machine,
+            state: placement.selected_entry,
+            segment_index: 0,
+        };
+        if thunk.entry_key != selected_entry {
             emission.blockers.insert(omega_artifacts::emission_blocker(
                 "callback thunk emission",
                 &format!(
-                    "planned private callback `{}` targets {:?}, not placement row {} selected machine/entry ({:?}, {:?})",
+                    "planned private callback `{}` targets {:?}, not placement row {} selected machine/entry {:?}",
                     thunk.private_symbol,
                     thunk.entry_key,
                     thunk.placement_index,
-                    placement.selected_machine,
-                    placement.selected_entry
+                    selected_entry,
                 ),
             ));
             continue;
@@ -1127,6 +1129,28 @@ mod tests {
             &[placement],
             std::slice::from_ref(&thunk),
             &encoded_machine(target, &[drifted], &thunk.private_symbol),
+            &object_with_symbols(target, &thunk, &[(7, 11)]),
+        );
+
+        assert_eq!(blockers.len(), 1);
+        assert!(blockers[0].contains("not placement row 0 selected machine/entry"));
+    }
+
+    #[test]
+    fn callback_thunk_emission_rejects_selected_entry_segment_drift() {
+        let target = NativeTarget::host();
+        let selected = state_key(2);
+        let placement = placement(selected);
+        let segmented = StateKey {
+            segment_index: 1,
+            ..selected
+        };
+        let thunk = thunk(segmented, &placement);
+
+        let blockers = callback_blockers(
+            &[placement],
+            std::slice::from_ref(&thunk),
+            &encoded_machine(target, &[segmented], &thunk.private_symbol),
             &object_with_symbols(target, &thunk, &[(7, 11)]),
         );
 

@@ -28,6 +28,12 @@ pub(super) fn plan_callback_thunks(
                         placement.canonical_requirement_overload
                     ))
                 })?;
+            if entry_key.segment_index != 0 {
+                return Err(Diagnostic::error(format!(
+                    "nominal callback use for `{}` selected noncanonical entry segment {}",
+                    placement.canonical_requirement_overload, entry_key.segment_index
+                )));
+            }
             Ok(CallbackThunkPlan {
                 placement_index,
                 entry_key,
@@ -175,5 +181,22 @@ mod tests {
                 .message
                 .contains("drifted from its retained fingerprint")
         );
+    }
+
+    #[test]
+    fn callback_thunk_rejects_noncanonical_selected_entry_segment() {
+        let (mut control_flow, placement) = fixture();
+        let state_handle = control_flow
+            .states
+            .iter()
+            .next()
+            .map(|(handle, _)| handle)
+            .expect("callback fixture state");
+        control_flow.states.get_mut(state_handle).key.segment_index = 1;
+
+        let error = plan_callback_thunks(&control_flow, &[placement])
+            .expect_err("callback thunk must target the canonical selected entry");
+
+        assert!(error.message.contains("noncanonical entry segment 1"));
     }
 }
