@@ -2345,7 +2345,12 @@ Owners:
   byte-for-byte before its atomic rename and returns an exact installation
   receipt binding the publication identity, output path, byte count, and
   container identity. A redirected name or changed/partial staged file is
-  removed and rejects before becoming visible.
+  removed and rejects before becoming visible. The compile report now retains
+  that exact native-executable receipt through the orchestration return
+  boundary, including certificate, inventory, publication, path, container,
+  and installation identities. Check-only and object-container fallback paths
+  retain no such receipt; it remains artifact custody, not runtime loading
+  authority.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected

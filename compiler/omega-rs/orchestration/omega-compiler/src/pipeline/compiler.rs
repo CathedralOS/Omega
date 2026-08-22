@@ -762,6 +762,7 @@ impl Compiler {
                 root_path: self.options.root_path,
                 source_file_count,
                 wrote_output: false,
+                executable_publication: None,
                 program_storage_entry: None,
                 program_storage_entry_bridge: None,
                 build_evaluation_usage,
@@ -912,8 +913,8 @@ impl Compiler {
         let (emission_plan, emitted) =
             backend_plan_to_native_image_payload(&backend, subsystem, &mut timings)?;
 
-        if self.options.write_output {
-            let output_path = write_output(
+        let executable_publication = if self.options.write_output {
+            let written_output = write_output(
                 &self.options,
                 &executable_tcb_installation_authorization,
                 emitted,
@@ -939,6 +940,7 @@ impl Compiler {
                         .map_err(|diagnostic| vec![Diagnostic::error(diagnostic.to_string())])
                 },
             )?;
+            let output_path = written_output.path;
             if emit_auxiliary_artifacts {
                 if let Some(bridge) = &program_storage_entry_bridge {
                     write_program_storage_entry_snapshot(&self.options, bridge)?;
@@ -951,9 +953,13 @@ impl Compiler {
                 )?;
                 write_timings(&self.options, timings.as_slice())?;
             }
+            written_output.executable_publication
         } else if emit_auxiliary_artifacts {
             write_emission_plan(&self.options, &backend.plan, &emission_plan, None)?;
-        }
+            None
+        } else {
+            None
+        };
 
         if emit_auxiliary_artifacts {
             write_pipeline_shell(&self.options)?;
@@ -963,6 +969,7 @@ impl Compiler {
             root_path: self.options.root_path,
             source_file_count,
             wrote_output: self.options.write_output,
+            executable_publication,
             program_storage_entry: program_storage_entry_bridge
                 .as_ref()
                 .map(|bridge| bridge.binding().clone()),
