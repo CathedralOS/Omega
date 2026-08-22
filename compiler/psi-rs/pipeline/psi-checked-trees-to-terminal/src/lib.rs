@@ -94,6 +94,7 @@ mod content_conservation;
 mod crash_routes;
 mod debug_map;
 mod evidence_lowering;
+mod float_meaning_projection;
 mod nonzero_divisor_certificate;
 mod operation_emission;
 mod scalar_call_closure;
@@ -135,6 +136,9 @@ use crash_routes::{
 };
 use debug_map::build_debug_map;
 use evidence_lowering::lower_and_install_evidence_artifacts;
+pub use float_meaning_projection::{
+    FloatMeaningProjectionLoweringError, lower_float_meaning_projection,
+};
 use operation_emission::{
     emit_boolean_expression, emit_direct_expression, emit_scalar_binding,
     emit_staged_scalar_call_binding, finalize_operation_proofs,
