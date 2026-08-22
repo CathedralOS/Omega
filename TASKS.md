@@ -1482,7 +1482,13 @@ Remaining:
   independent selection regressions now live in side-local `tests` modules.
   Production facades are 35 and 608 lines respectively, while every test name
   and assertion is retained; no proof logic, authority, precedence, or search
-  frontier moved between sides. A
+  frontier moved between sides. Reconstruction control-flow evidence
+  propagation now lives in a side-local `path_facts` module. It alone decodes
+  retained condition predicates, binds successor parameters, emits edge
+  equalities before rewritten facts, and deduplicates propagated facts. The
+  reconstruction parent still owns traversal, merge intersection, and
+  certificate selection; this extraction grants no proof authority and changes
+  no fact order. A
   single exact prior value equality may also transport a completed affine bound
   from its checked target alias to the canonical goal endpoint. The producer
   replaces that one endpoint, constructs the bounded affine relation directly,
@@ -2095,9 +2101,11 @@ Remaining:
   interval propagation, difference-bound closure, and arithmetic verdicts to
   a separate 984-line child. Inductive transition-arm recognition, path-fact
   preparation, strict-decrease discharge, and hypothesis instantiation form a
-  separate 456-line child. The citation and law coordinator is 3,571 lines,
-  with the existing parent-facing judgments and proved-index-algebra surface
-  unchanged.
+  separate 456-line child. Boundary-operator contract matching, proposition-law
+  binder synthesis, carrier-slot substitution, and structural diagnostics form
+  a separate 1,040-line conformance child. The remaining citation coordinator
+  is 2,535 lines, with the existing parent-facing judgments, conformance checks,
+  and proved-index-algebra surface unchanged.
   Compiler footprint derivation now has a 509-line composition/partition parent
   over a declarative four-family registry: 249-line control/entry, 621-line
   storage/place, 866-line outbound-call, and 512-line buffer/wire/text
@@ -2577,7 +2585,10 @@ Owners:
   The exact-native source index accepts that form only for an exact report-local
   binding plus literal exit status, adding seven unique rooted owners (795
   total); the twice-owned linear-transfer fixture remains fail-closed and
-  unelided.
+  unelided. The five authored-root value/type-check executions now also launch
+  through their checked reports rather than reconstructing `out/<executable>`;
+  their literal-status exact-owner identities remain unique, so the 795 pin is
+  unchanged. Output-kind tampering is pinned to expose no native path.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
