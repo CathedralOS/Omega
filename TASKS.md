@@ -543,6 +543,20 @@ Owners:
   identity rather than presentation spelling; positional renames, identity
   drift or collision, and derived-offset drift reject before an access plan is
   sealed.
+  Compiler-derived source `Placed<P, T>` plans now retain exact synthesized-
+  view, source-schema, and source-field symbols together with every field's
+  stable member identity. Typed lookup uses the exact synthesized symbol, while
+  validation independently reconstructs the schema/member binding, canonical
+  layout slot, admitted access decision, and synthesized accessor. Numbered
+  presentation renames remain nonsemantic; member, schema, access, or accessor
+  substitution rejects fail closed.
+  Compiler-derived non-atomic placed accessors now retain the exact generated
+  machine and callable-state symbols for every admitted `read`, `take`, and
+  `write` operation. Independent validation reconstructs the operation set,
+  attachment, machine identity, and unique callable state, while statement-call
+  authorization joins directly through the retained state symbol rather than
+  presentation names. Operation or target substitution rejects fail closed;
+  Atomic access remains on its distinct typed carrier.
 - Keep alias-exclusion admission separate from access rights; `&mut` does not
   claim exclusivity against a device. Sealed primitive events now specialize
   linearly into Stable read/take/write/swap, External read/take/write, or one
@@ -1546,13 +1560,12 @@ Remaining:
   signed carriers, the `MIN / -1` primitive pair (including remainder's shared
   hardware-definedness edge). A guard in the proposition containing the
   operation supplies no authority for that operation's own formation.
-  Finish the settled total-specification arithmetic slice: retain explicit
-  fixed-integer/address embeddings into proof `Int` with their derived carrier-
-  range facts. This remains blocked on a real vocabulary dependency: the
-  shipped core `embed` is a transitional ordinary machine returning structural
-  `Nat`, while typed primitive expressions and Terminal `ScalarTerm` have no
-  unbounded proof-`Int` embedding that can retain and independently verify the
-  source carrier identity/range; do not substitute dead checked evidence.
+  Explicit fixed-integer/address proof embeddings are production-capable:
+  checked `embed(u64)` yields proof `Int` with carrier-range facts. The
+  inductive climbing-sum and multiplication-distributivity canaries express
+  unbounded theorem arithmetic entirely through `embed`, while the climbing
+  false twin still rejects on its intended transition arm. Raw Exact `u64`
+  contract arithmetic remains rejected without independent bounds.
   Explicit same-carrier policy-erasure `as` coercions now retain the
   ordinary Exact representability obligation in concrete machine/state Prop
   and across the direct abstract signature form; only independently accepted
@@ -3325,6 +3338,15 @@ Remaining:
   allocation suppression. A structural-resolution cache and in-place vector-
   reuse prototype were rejected and fully removed because they increased
   allocations or produced no measurable phase benefit.
+  Structural contract application unfolding now retains one zero-allocation
+  last-machine hint per judge. A hit revalidates the complete unattached-
+  machine/name predicate, while a miss still scans from the beginning; source-
+  order selection, clone behavior, unfolding depth, proof acceptance, and
+  rejection remain unchanged. In uncontaminated three-run comparisons, the
+  broad float canaries' allocation-enabled Checked-phase medians fell from
+  1.732s/1.711s to 1.679s/1.672s, with allocation counts and bytes exactly
+  unchanged. Lower-sample effects-owner and machine-parameter parent-lookup
+  prototypes were removed after failing to establish a benefit.
   Default-domain validation now delegates conservative symbolic values,
   literal/sequence measures, valuation folding, canonical symbolic equality,
   and recursive call detection to a focused 281-line child while state walking,
