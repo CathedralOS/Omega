@@ -732,6 +732,14 @@ Owners:
   schema/device provenance without copied-identity reconstruction or mutation;
   rejection preserves that same carrier, repaired replay reproduces it exactly,
   and no transfer, device operation, or target lowering is established.
+  Provider/device-bound External lowering now crosses a distinct
+  correspondence-required preflight after generic External specialization. The
+  sealed carrier retains the exact lifetime-bound non-Clone schema/device
+  correspondence and independently replays the complete placed request,
+  supply, operation, and correspondence identity; correspondence-free or
+  substituted authority rejects without observation and returns the exact
+  External specialization for repair or alternate use. No provider operation
+  is selected, no transfer occurs, and no target lowering is established.
 
 #### L6c — symbolic materialization
 
@@ -1417,6 +1425,14 @@ Remaining:
   are no longer a disconnected Terminal authority. Exact cast and all
   remainder rows remain explicitly unbound because the catalog defines no
   corresponding primitive; no policy is inferred past the settled vocabulary.
+  The independent Terminal verifier's structural crash-policy validation now
+  also obtains exact/wrapping/saturating divide and exact left/right-shift
+  formation conditions directly from the shared catalog before applying its
+  own retained-fact safety checks. Exact division still requires both nonzero
+  and representability custody, policy division requires nonzero custody, left
+  shift requires count and representability custody, and right shift requires
+  count custody. Remainder remains on its explicit verifier path because the
+  settled catalog has no remainder primitive.
   The next bounded proof-calculus parity slice exposes canonical disjunction
   introduction in the production certificate kernel. One
   `DisjunctionIntroduction` node owns exactly one independently checked child
@@ -3326,6 +3342,12 @@ Owners:
   retaining literal statuses 70, 70, 70, 70, and 21. Existing interpreter
   assertions remain unchanged, and the 795 rooted/3 legacy exact-owner pins
   remain stable.
+  Five further authored-root executable-domain executions—local and imported
+  membership expressions, imported membership guarding, and imported
+  intersection/union guards—now launch only from exact checked-report receipts
+  while retaining literal statuses 81, 91, 81, 219, and 217. Existing
+  diagnostic assertions remain unchanged, and the 795 rooted/3 legacy exact-
+  owner pins remain stable.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected

@@ -1,5 +1,10 @@
 //! Validates scalar crash routes, live frontiers, and Boolean field predicates.
 
+use psi_numerics::{
+    arithmetic::ArithmeticDomain,
+    integer_policy::{IntegerFormationCondition, IntegerPolicyPrimitive, integer_policy_bridge},
+};
+
 use super::*;
 
 pub(super) fn substitute_crash_routes(
@@ -560,12 +565,32 @@ fn validate_boolean_field_terms(
                 left,
                 right,
             }
-            | ScalarTerm::WrappingIntegerRemainder {
+            | ScalarTerm::SaturatingIntegerDivide {
                 scalar_type,
                 left,
                 right,
+            } => {
+                let policy = if matches!(term, ScalarTerm::WrappingIntegerDivide { .. }) {
+                    ArithmeticDomain::Wrapping
+                } else {
+                    ArithmeticDomain::Saturating
+                };
+                let conditions = integer_policy_bridge(IntegerPolicyPrimitive::Divide, policy)
+                    .formation_conditions;
+                if conditions != [IntegerFormationCondition::NonZeroDivisor]
+                    || !safe_policy_divisor(*scalar_type, right, runtime_requirements)
+                {
+                    return Err(ModuleError::UnsafeStructuralCrashPolicyDivisor {
+                        machine: machine.id,
+                        scalar_type: *scalar_type,
+                    });
+                }
+                validate_term(module, machine, left, runtime_requirements)?;
+                validate_term(module, machine, right, runtime_requirements)?;
             }
-            | ScalarTerm::SaturatingIntegerDivide {
+            // Remainder retains its explicit safety path until the shared
+            // integer-policy catalog settles a remainder primitive.
+            ScalarTerm::WrappingIntegerRemainder {
                 scalar_type,
                 left,
                 right,
@@ -588,8 +613,26 @@ fn validate_boolean_field_terms(
                 scalar_type,
                 left,
                 right,
+            } => {
+                let conditions =
+                    integer_policy_bridge(IntegerPolicyPrimitive::Divide, ArithmeticDomain::Exact)
+                        .formation_conditions;
+                if conditions
+                    != [
+                        IntegerFormationCondition::NonZeroDivisor,
+                        IntegerFormationCondition::ResultRepresentable,
+                    ]
+                    || !safe_exact_divisor(*scalar_type, left, right, runtime_requirements)
+                {
+                    return Err(ModuleError::UnsafeStructuralCrashExactDivisor {
+                        machine: machine.id,
+                        scalar_type: *scalar_type,
+                    });
+                }
+                validate_term(module, machine, left, runtime_requirements)?;
+                validate_term(module, machine, right, runtime_requirements)?;
             }
-            | ScalarTerm::ExactIntegerRemainder {
+            ScalarTerm::ExactIntegerRemainder {
                 scalar_type,
                 left,
                 right,
@@ -621,14 +664,31 @@ fn validate_boolean_field_terms(
                 count,
             } => {
                 let left_shift = matches!(term, ScalarTerm::ExactIntegerShiftLeft { .. });
-                if !safe_exact_shift(
-                    left_shift,
-                    *value_type,
-                    *count_type,
-                    value,
-                    count,
-                    runtime_requirements,
-                ) {
+                let primitive = if left_shift {
+                    IntegerPolicyPrimitive::ShiftLeft
+                } else {
+                    IntegerPolicyPrimitive::ShiftRight
+                };
+                let conditions =
+                    integer_policy_bridge(primitive, ArithmeticDomain::Exact).formation_conditions;
+                let expected_conditions: &[IntegerFormationCondition] = if left_shift {
+                    &[
+                        IntegerFormationCondition::ShiftCountWithinWidth,
+                        IntegerFormationCondition::ResultRepresentable,
+                    ]
+                } else {
+                    &[IntegerFormationCondition::ShiftCountWithinWidth]
+                };
+                if conditions != expected_conditions
+                    || !safe_exact_shift(
+                        conditions.contains(&IntegerFormationCondition::ResultRepresentable),
+                        *value_type,
+                        *count_type,
+                        value,
+                        count,
+                        runtime_requirements,
+                    )
+                {
                     return Err(ModuleError::UnsafeStructuralCrashExactShift {
                         machine: machine.id,
                         value_type: *value_type,
