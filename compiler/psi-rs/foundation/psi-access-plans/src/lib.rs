@@ -141,7 +141,14 @@ pub struct AtomicPermissions {
     pub fetch_or: bool,
     pub fetch_and: bool,
     pub swap: bool,
+    /// Observing decisive compare-exchange.
     pub compare_exchange: bool,
+    /// Observing single-attempt compare-exchange.
+    pub compare_exchange_once: bool,
+    /// Non-observing decisive compare-exchange.
+    pub try_exchange: bool,
+    /// Non-observing single-attempt compare-exchange.
+    pub try_exchange_once: bool,
 }
 
 impl AtomicPermissions {
@@ -155,6 +162,9 @@ impl AtomicPermissions {
             || self.fetch_and
             || self.swap
             || self.compare_exchange
+            || self.compare_exchange_once
+            || self.try_exchange
+            || self.try_exchange_once
     }
 
     pub const fn contains(self, required: Self) -> bool {
@@ -167,6 +177,9 @@ impl AtomicPermissions {
             && (!required.fetch_and || self.fetch_and)
             && (!required.swap || self.swap)
             && (!required.compare_exchange || self.compare_exchange)
+            && (!required.compare_exchange_once || self.compare_exchange_once)
+            && (!required.try_exchange || self.try_exchange)
+            && (!required.try_exchange_once || self.try_exchange_once)
     }
 }
 
@@ -1645,6 +1658,9 @@ fn hash_atomic_permissions(hash: &mut u64, permissions: AtomicPermissions) {
         permissions.fetch_and,
         permissions.swap,
         permissions.compare_exchange,
+        permissions.compare_exchange_once,
+        permissions.try_exchange,
+        permissions.try_exchange_once,
     ] {
         hash_byte(hash, u8::from(enabled));
     }
@@ -1655,7 +1671,7 @@ fn normalized_access_plan_identity(plan: &AccessPlan, layout_fingerprint: u64) -
     // as authorization or collision-resistant evidence. The versioned prefix
     // makes any future vocabulary change an explicit identity migration.
     let mut hash = 0xcbf29ce484222325u64;
-    hash_bytes(&mut hash, b"omega.access-plan.v4");
+    hash_bytes(&mut hash, b"omega.access-plan.v5");
     hash_u64(&mut hash, layout_fingerprint);
     hash_u64(&mut hash, plan.entries.len() as u64);
     for entry in &plan.entries {
@@ -5464,6 +5480,40 @@ mod tests {
     }
 
     #[test]
+    fn compare_exchange_permissions_keep_both_axes_distinct() {
+        let permissions = [
+            AtomicPermissions {
+                compare_exchange: true,
+                ..AtomicPermissions::default()
+            },
+            AtomicPermissions {
+                compare_exchange_once: true,
+                ..AtomicPermissions::default()
+            },
+            AtomicPermissions {
+                try_exchange: true,
+                ..AtomicPermissions::default()
+            },
+            AtomicPermissions {
+                try_exchange_once: true,
+                ..AtomicPermissions::default()
+            },
+        ];
+        for (provided_index, provided) in permissions.iter().copied().enumerate() {
+            assert!(provided.any());
+            assert!(provided.contains(provided));
+            for (required_index, required) in permissions.iter().copied().enumerate() {
+                if provided_index != required_index {
+                    assert!(
+                        !provided.contains(required),
+                        "compare-exchange permission row {provided_index} must not cover row {required_index}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
     fn overlapping_atomic_fields_cannot_select_mixed_widths() {
         let layout = LayoutPlanReport {
             schema_identity: 0xa70,
@@ -5867,6 +5917,9 @@ mod tests {
             fetch_and: true,
             swap: true,
             compare_exchange: true,
+            compare_exchange_once: true,
+            try_exchange: true,
+            try_exchange_once: true,
         }
     }
 

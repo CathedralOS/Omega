@@ -176,7 +176,10 @@ satisfies Access::plan
                     fetch_or: false,
                     fetch_and: false,
                     swap: false,
-                    compare_exchange: false
+                    compare_exchange: false,
+                    compare_exchange_once: false,
+                    try_exchange: false,
+                    try_exchange_once: false
                 },
                 exposure: Exposure::Exported
             }
@@ -285,7 +288,10 @@ machine UartPlacement::plan(&mut self, schema: Schema) -> PlacementPlan {
                         fetch_or: false,
                         fetch_and: false,
                         swap: false,
-                        compare_exchange: false
+                        compare_exchange: false,
+                        compare_exchange_once: false,
+                        try_exchange: false,
+                        try_exchange_once: false
                     },
                     exposure: Exposure::Exported
                 }
@@ -867,6 +873,40 @@ data Main {}
         &field.access,
         FieldAccess::Atomic { operations, .. }
             if operations.load && operations.fetch_add && !operations.store
+    ));
+}
+
+#[test]
+fn source_access_policy_retains_each_compare_exchange_axis_independently() {
+    let source = POLICY_SOURCE
+        .replace("try_exchange: false", "try_exchange: true")
+        .replace(
+            "data Main {}",
+            r#"
+machine inspect(view: &Placed<UartPlacement, Registers>) {
+    let observed: u64 = view.counter.load(NoOrdering);
+}
+
+data Main {}
+"#,
+        );
+    let main = write_program("placed-view-atomic-exchange-axes", &source);
+    let checked = compile_to_checked(&main, None)
+        .expect("non-observing decisive permission should remain a distinct plan fact");
+    let field = checked
+        .typed
+        .placed_view_plans
+        .iter()
+        .flat_map(|view| view.fields.iter())
+        .find(|field| field.field_name == "counter")
+        .expect("retained atomic field plan");
+    assert!(matches!(
+        &field.access,
+        FieldAccess::Atomic { operations, .. }
+            if operations.try_exchange
+                && !operations.compare_exchange
+                && !operations.compare_exchange_once
+                && !operations.try_exchange_once
     ));
 }
 
