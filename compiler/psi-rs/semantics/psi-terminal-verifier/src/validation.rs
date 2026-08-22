@@ -172,6 +172,7 @@ struct IdRegistry {
 enum StructuralRootKey {
     Parameter(u32),
     Result,
+    ByteSequenceLiteral(u32),
     TrivialAffineLocal(u32),
 }
 

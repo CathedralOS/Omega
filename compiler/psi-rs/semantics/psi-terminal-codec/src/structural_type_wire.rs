@@ -4,7 +4,9 @@
 //! case payload envelopes. Field payloads remain delegated to the dedicated
 //! structural-field codec.
 
-use psi_terminal::{StructuralCaseDeclaration, StructuralTypeDeclaration, StructuralTypeShape};
+use psi_terminal::{
+    ByteSequenceCarrier, StructuralCaseDeclaration, StructuralTypeDeclaration, StructuralTypeShape,
+};
 
 use super::structural_field_wire::{decode_structural_field, encode_structural_field};
 use super::wire::{Reader, Writer};
@@ -17,6 +19,16 @@ pub(super) fn encode_structural_type(
     writer.id(declaration.id);
     writer.string("structural type identity", &declaration.identity)?;
     match &declaration.shape {
+        StructuralTypeShape::ByteSequence(carrier) => {
+            writer.u8(4);
+            match carrier {
+                ByteSequenceCarrier::BorrowedView => writer.u8(1),
+                ByteSequenceCarrier::BoundedOwned { capacity } => {
+                    writer.u8(2);
+                    writer.u64(*capacity);
+                }
+            }
+        }
         StructuralTypeShape::Record { fields } => {
             writer.u8(1);
             writer.len("structural fields", fields.len())?;
@@ -67,6 +79,13 @@ pub(super) fn decode_structural_type(
                 })
             })?,
         },
+        4 => StructuralTypeShape::ByteSequence(match reader.u8()? {
+            1 => ByteSequenceCarrier::BorrowedView,
+            2 => ByteSequenceCarrier::BoundedOwned {
+                capacity: reader.u64()?,
+            },
+            tag => return Err(CodecError::InvalidTag("ByteSequenceCarrier", tag)),
+        }),
         tag => return Err(CodecError::InvalidTag("StructuralTypeShape", tag)),
     };
     Ok(StructuralTypeDeclaration {

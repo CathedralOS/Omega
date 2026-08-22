@@ -26,7 +26,7 @@ impl VocabularyMarker {
     }
 
     pub const fn get(self) -> u16 {
-        23
+        24
     }
 }
 
@@ -228,6 +228,9 @@ pub struct StructuralTypeDeclaration {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum StructuralTypeShape {
+    /// One immutable borrowed view over an exact sequence of bytes. The bytes
+    /// are semantic payload, not UTF-8 text and not a native pointer/layout.
+    ByteSequence(ByteSequenceCarrier),
     Record {
         /// Declaration order is semantic. Field IDs must nevertheless be
         /// strictly increasing so the same record has one canonical spelling.
@@ -891,6 +894,12 @@ pub struct CompletionReceipt {
 /// reconstructs its exact result-term axiom.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OperationKind {
+    /// Establish one immutable borrowed byte-sequence literal in a declared
+    /// structural place. `bytes` are exact octets; no text transcoding occurs.
+    EstablishByteSequenceLiteral {
+        destination: PlaceId,
+        bytes: Vec<u8>,
+    },
     /// Establish one whole, claim-free affine empty-record local. This is a
     /// semantic ownership event, not an ABI input or a target storage choice.
     EstablishTrivialAffineLocal {

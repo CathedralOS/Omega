@@ -427,11 +427,36 @@ fn append_mov_syscall_register_imm64(
     Ok(())
 }
 
+/// Exact import-free Linux x86-64 realization of `exit_process(i32)`.
+///
+/// `edi` receives the exact i32 bit pattern, `eax` receives syscall 231
+/// (`exit_group`), and `ud2` closes the impossible return path.
+pub fn encode_linux_exit_group_i32(value: i32) -> Vec<u8> {
+    let mut bytes = Vec::with_capacity(14);
+    bytes.push(0xbf); // mov edi, imm32
+    bytes.extend_from_slice(&value.to_le_bytes());
+    bytes.push(0xb8); // mov eax, imm32
+    bytes.extend_from_slice(&231_u32.to_le_bytes());
+    bytes.extend_from_slice(&[0x0f, 0x05]); // syscall
+    bytes.extend_from_slice(&[0x0f, 0x0b]); // ud2 if exit_group returns
+    bytes
+}
+
 #[cfg(test)]
 mod syscall_plan_register_tests {
     use super::*;
     use omega_calling_conventions::MachineRegister;
     use omega_target_operations::{InstructionOperandKind, TargetInstructionOperand};
+
+    #[test]
+    fn linux_exit_group_i32_has_exact_nonreturning_sequence() {
+        assert_eq!(
+            encode_linux_exit_group_i32(0x1234_5678),
+            [
+                0xbf, 0x78, 0x56, 0x34, 0x12, 0xb8, 0xe7, 0x00, 0x00, 0x00, 0x0f, 0x05, 0x0f, 0x0b,
+            ]
+        );
+    }
 
     #[test]
     fn syscall_arguments_use_the_plan_selected_register() {

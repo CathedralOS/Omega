@@ -1,4 +1,4 @@
-//! Canonical format-31 structural source and result declaration rows.
+//! Canonical format-32 structural source and result declaration rows.
 
 use psi_core::{PlaceId, StructuralTypeId};
 use psi_terminal::{StructuralParameterDeclaration, StructuralResultDeclaration};

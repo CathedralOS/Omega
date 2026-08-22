@@ -423,50 +423,50 @@ pub(super) fn lower_ordered_nominal_affine_unit_cleanup_machine(
     {
         return unsupported("contextual nominal cleanup obligation namespace is not isolated");
     }
-    let terminal_field = |source_parameter_index: u32,
-                          field_identity: &str|
-     -> Result<
-        (PlaceId, StructuralTypeId, StructuralFieldId),
-        LoweringError,
-    > {
-        let parameter = plan
-            .structural_parameters
-            .get(usize::try_from(source_parameter_index).map_err(|_| {
-                LoweringError::Unsupported(
-                    "contextual nominal cleanup terminal root is out of range",
-                )
-            })?)
-            .ok_or(LoweringError::Unsupported(
-                "contextual nominal cleanup terminal root is absent",
-            ))?;
-        let terminal_parameter = entry_parameters
-            .iter()
-            .find(|candidate| candidate.position == parameter.position)
-            .ok_or(LoweringError::Unsupported(
-                "contextual nominal cleanup terminal parameter is absent",
-            ))?;
-        let structural_type = lookup_type_id(&type_ids, &parameter.type_identity)?;
-        let field = lowered
-            .semantic_module
-            .structural_types
-            .iter()
-            .find(|declaration| declaration.id == structural_type)
-            .and_then(|declaration| match &declaration.shape {
-                StructuralTypeShape::Record { fields } => {
-                    fields.iter().find(|field| field.identity == field_identity)
-                }
-                StructuralTypeShape::FixedArray { .. } | StructuralTypeShape::Sum { .. } => None,
-            })
-            .filter(|field| {
-                !field.relevance.is_erased()
-                    && field.field_type == StructuralFieldType::Scalar(ScalarType::Boolean)
-            })
-            .map(|field| field.id)
-            .ok_or(LoweringError::Unsupported(
-                "contextual nominal cleanup terminal field identity drifted",
-            ))?;
-        Ok((terminal_parameter.place, structural_type, field))
-    };
+    let terminal_field =
+        |source_parameter_index: u32,
+         field_identity: &str|
+         -> Result<(PlaceId, StructuralTypeId, StructuralFieldId), LoweringError> {
+            let parameter = plan
+                .structural_parameters
+                .get(usize::try_from(source_parameter_index).map_err(|_| {
+                    LoweringError::Unsupported(
+                        "contextual nominal cleanup terminal root is out of range",
+                    )
+                })?)
+                .ok_or(LoweringError::Unsupported(
+                    "contextual nominal cleanup terminal root is absent",
+                ))?;
+            let terminal_parameter = entry_parameters
+                .iter()
+                .find(|candidate| candidate.position == parameter.position)
+                .ok_or(LoweringError::Unsupported(
+                    "contextual nominal cleanup terminal parameter is absent",
+                ))?;
+            let structural_type = lookup_type_id(&type_ids, &parameter.type_identity)?;
+            let field = lowered
+                .semantic_module
+                .structural_types
+                .iter()
+                .find(|declaration| declaration.id == structural_type)
+                .and_then(|declaration| match &declaration.shape {
+                    StructuralTypeShape::Record { fields } => {
+                        fields.iter().find(|field| field.identity == field_identity)
+                    }
+                    StructuralTypeShape::ByteSequence(_)
+                    | StructuralTypeShape::FixedArray { .. }
+                    | StructuralTypeShape::Sum { .. } => None,
+                })
+                .filter(|field| {
+                    !field.relevance.is_erased()
+                        && field.field_type == StructuralFieldType::Scalar(ScalarType::Boolean)
+                })
+                .map(|field| field.id)
+                .ok_or(LoweringError::Unsupported(
+                    "contextual nominal cleanup terminal field identity drifted",
+                ))?;
+            Ok((terminal_parameter.place, structural_type, field))
+        };
     let mut caller_clauses = contextual_caller_requirements
         .iter()
         .map(|(root, (field_identity, expected))| {

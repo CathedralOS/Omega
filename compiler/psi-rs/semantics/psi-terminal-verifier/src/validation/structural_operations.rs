@@ -73,6 +73,7 @@ pub(super) fn validate_unit_operation_static(
                 &callee.structural_parameters,
                 operation.id,
                 true,
+                false,
             )?;
             if let Some((argument_index, _)) = structural_arguments
                 .iter()
@@ -177,6 +178,7 @@ pub(super) fn validate_unit_operation_static(
                 &callee.structural_parameters,
                 operation.id,
                 true,
+                false,
             )?;
             validate_unit_call_contract_places(callee, operation.id)?;
             validate_service_reach(
@@ -234,6 +236,7 @@ pub(super) fn validate_unit_operation_static(
                 &boundary.structural_parameters,
                 operation.id,
                 true,
+                true,
             )?;
             validate_service_reach(
                 operation.id,
@@ -263,6 +266,43 @@ pub(super) fn validate_unit_operation_static(
                 return Err(ModuleError::OperationServiceOutsidePublishedCeiling {
                     operation: operation.id,
                     service: *service,
+                });
+            }
+        }
+        OperationKind::EstablishByteSequenceLiteral { destination, .. } => {
+            let Some(place) = machine
+                .structural_places
+                .iter()
+                .find(|place| place.id == *destination)
+            else {
+                return Err(ModuleError::UnknownByteSequenceLiteral {
+                    operation: operation.id,
+                    place: *destination,
+                });
+            };
+            let StructuralPlaceKind::ByteSequenceLiteral {
+                structural_type, ..
+            } = place.kind
+            else {
+                return Err(ModuleError::UnknownByteSequenceLiteral {
+                    operation: operation.id,
+                    place: *destination,
+                });
+            };
+            let Some(declaration) = module
+                .structural_types
+                .iter()
+                .find(|declaration| declaration.id == structural_type)
+            else {
+                return Err(ModuleError::UnknownStructuralType(structural_type));
+            };
+            if !matches!(
+                declaration.shape,
+                StructuralTypeShape::ByteSequence(psi_terminal::ByteSequenceCarrier::BorrowedView)
+            ) {
+                return Err(ModuleError::ByteSequenceLiteralRequiresBorrowedView {
+                    operation: operation.id,
+                    place: *destination,
                 });
             }
         }
@@ -368,6 +408,7 @@ fn validate_structural_arguments(
     expected: &[StructuralParameterDeclaration],
     operation: OperationId,
     allow_projected: bool,
+    allow_local_literal: bool,
 ) -> Result<(), ModuleError> {
     if arguments.len() != expected.len() {
         return Err(ModuleError::StructuralArgumentArityMismatch {
@@ -377,10 +418,37 @@ fn validate_structural_arguments(
         });
     }
     for (index, (argument, expected)) in arguments.iter().zip(expected).enumerate() {
-        let Some(actual) = caller
+        let Some((actual_type, actual_multiplicity, actual_qualifications)) = caller
             .structural_parameters
             .iter()
             .find(|parameter| parameter.place == argument.place)
+            .map(|parameter| {
+                (
+                    parameter.structural_type,
+                    parameter.multiplicity,
+                    parameter.qualifications.as_slice(),
+                )
+            })
+            .or_else(|| {
+                if !allow_local_literal {
+                    return None;
+                }
+                caller.structural_places.iter().find_map(|place| {
+                    if place.id != argument.place {
+                        return None;
+                    }
+                    match place.kind {
+                        StructuralPlaceKind::ByteSequenceLiteral {
+                            structural_type, ..
+                        } => Some((
+                            structural_type,
+                            StructuralMultiplicity::Unrestricted,
+                            &[][..],
+                        )),
+                        _ => None,
+                    }
+                })
+            })
         else {
             return Err(ModuleError::UnknownStructuralArgument {
                 operation,
@@ -394,9 +462,7 @@ fn validate_structural_arguments(
                 argument_index: index as u32,
             });
         }
-        let Some(actual_type) =
-            resolve_structural_path(module, actual.structural_type, &argument.path)
-        else {
+        let Some(actual_type) = resolve_structural_path(module, actual_type, &argument.path) else {
             return Err(ModuleError::InvalidStructuralArgumentPath {
                 operation,
                 argument_index: index as u32,
@@ -411,10 +477,10 @@ fn validate_structural_arguments(
             });
         }
         let actual_multiplicity = if argument.path.is_empty() {
-            actual.multiplicity
+            actual_multiplicity
         } else if expected.multiplicity == StructuralMultiplicity::Affine
             && is_nonempty_field_path(&argument.path)
-            && actual.multiplicity == StructuralMultiplicity::Affine
+            && actual_multiplicity == StructuralMultiplicity::Affine
         {
             StructuralMultiplicity::Affine
         } else {
@@ -429,7 +495,7 @@ fn validate_structural_arguments(
             });
         }
         for qualification in &expected.qualifications {
-            if !argument.path.is_empty() || !actual.qualifications.contains(qualification) {
+            if !argument.path.is_empty() || !actual_qualifications.contains(qualification) {
                 return Err(ModuleError::StructuralArgumentMissingQualification {
                     operation,
                     argument_index: index as u32,
@@ -764,8 +830,20 @@ pub(crate) fn structural_argument_canonical_prefix(
     let mut structural_type = caller
         .structural_parameters
         .iter()
-        .find(|parameter| parameter.place == argument.place)?
-        .structural_type;
+        .find_map(|parameter| {
+            (parameter.place == argument.place).then_some(parameter.structural_type)
+        })
+        .or_else(|| {
+            caller
+                .structural_places
+                .iter()
+                .find_map(|place| match place.kind {
+                    StructuralPlaceKind::ByteSequenceLiteral {
+                        structural_type, ..
+                    } if place.id == argument.place => Some(structural_type),
+                    _ => None,
+                })
+        })?;
     let mut prefix = Vec::with_capacity(argument.path.len());
     for segment in &argument.path {
         match segment {
@@ -778,7 +856,8 @@ pub(crate) fn structural_argument_canonical_prefix(
                         StructuralTypeShape::Record { fields } => fields.iter().find(|field| {
                             field.identity == *identity && !field.relevance.is_erased()
                         }),
-                        StructuralTypeShape::FixedArray { .. }
+                        StructuralTypeShape::ByteSequence(_)
+                        | StructuralTypeShape::FixedArray { .. }
                         | StructuralTypeShape::Sum { .. } => None,
                     })?;
                 let StructuralFieldType::Structural(next) = field.field_type else {

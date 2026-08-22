@@ -401,7 +401,9 @@ pub(super) fn lower_nominal_structural_scalar_return_machine(
                             && field.field_type == StructuralFieldType::Scalar(ScalarType::Boolean)
                     })
                     .map(|field| field.id),
-                StructuralTypeShape::FixedArray { .. } | StructuralTypeShape::Sum { .. } => None,
+                StructuralTypeShape::ByteSequence(_)
+                | StructuralTypeShape::FixedArray { .. }
+                | StructuralTypeShape::Sum { .. } => None,
             }
             .ok_or(LoweringError::Unsupported(
                 "contextual nominal scalar full caller field drifted",

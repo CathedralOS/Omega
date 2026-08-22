@@ -270,6 +270,7 @@ pub(super) fn emit_unit_body(
                     boundary: *boundary,
                     provider_execution,
                     realization: *realization,
+                    scalar_arguments: Vec::new(),
                     arguments: arguments.clone(),
                     completion_claim_sources: completion_claim_sources.clone(),
                     completion_receipts: completion_receipts.clone(),

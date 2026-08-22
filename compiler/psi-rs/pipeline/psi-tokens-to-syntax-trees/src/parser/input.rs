@@ -267,7 +267,14 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
     pub(super) fn take_string(self) -> Result<(String, Self), ParseError> {
         let (token, rest) = self.expect_token()?;
         if token.is_string_literal() {
-            Ok((token.lexeme.as_str().trim_matches('"').to_owned(), rest))
+            let bytes = token.lexeme.as_bytes();
+            let value = std::str::from_utf8(bytes).map_err(|_| {
+                ParseError::at_source_span(
+                    "raw byte string literal requires the terminal byte-sequence lowering path",
+                    self.source_span(token),
+                )
+            })?;
+            Ok((value.to_owned(), rest))
         } else {
             Err(diagnostics::expected(self, token, "string literal"))
         }

@@ -1,4 +1,4 @@
-//! Canonical format-31 codec for one installed structural-return row.
+//! Canonical format-32 codec for one installed structural-return row.
 //!
 //! Row ordering, function association, and structural-return validation remain
 //! in the installation parent. This child owns only the exact row bytes.

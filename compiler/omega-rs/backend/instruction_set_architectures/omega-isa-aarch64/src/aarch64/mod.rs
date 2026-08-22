@@ -1546,10 +1546,35 @@ fn append_syscall_operands(
     Ok(())
 }
 
+/// Exact import-free Linux AArch64 realization of `exit_process(i32)`.
+/// `x0` receives the sign-extended i32 value, `x8` receives syscall 94
+/// (`exit_group`), and `brk #0` closes the impossible return path.
+pub fn encode_linux_exit_group_i32(value: i32) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = encode_syscall_sequence_from_operands(
+        [Aarch64CallOperand::ImmediateInteger(i64::from(value))].into_iter(),
+        94,
+        &[omega_calling_conventions::MachineRegister::Aarch64X(0)],
+        omega_calling_conventions::MachineRegister::Aarch64X(8),
+        0,
+    )?;
+    bytes.extend_from_slice(&0xd420_0000_u32.to_le_bytes());
+    Ok(bytes)
+}
+
 #[cfg(test)]
 mod syscall_plan_register_tests {
     use super::*;
     use omega_calling_conventions::MachineRegister;
+
+    #[test]
+    fn linux_exit_group_i32_has_exact_nonreturning_sequence() {
+        let bytes = encode_linux_exit_group_i32(37).expect("exit_group sequence");
+        assert_eq!(bytes.len(), 16);
+        assert_eq!(&bytes[0..4], &0xd280_04a0_u32.to_le_bytes());
+        assert_eq!(&bytes[4..8], &0xd280_0bc8_u32.to_le_bytes());
+        assert_eq!(&bytes[8..12], &0xd400_0001_u32.to_le_bytes());
+        assert_eq!(&bytes[12..16], &0xd420_0000_u32.to_le_bytes());
+    }
 
     #[test]
     fn syscall_arguments_and_control_use_the_plan_selected_registers() {

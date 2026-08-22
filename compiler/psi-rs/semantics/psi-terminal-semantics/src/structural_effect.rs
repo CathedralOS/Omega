@@ -13,6 +13,7 @@ pub enum StructuralEffectResultShape {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum StructuralEffectCustody {
+    ExactByteSequenceLiteral,
     ExactLiveBooleanField,
     ExactPublishedService,
     ExactEmptyAffineLocal,
@@ -20,6 +21,7 @@ pub enum StructuralEffectCustody {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum StructuralEffectAction {
+    EstablishByteSequencePlace,
     ReadBooleanField,
     EmitPortWrite,
     EstablishAffinePlace,
@@ -38,6 +40,7 @@ pub enum StructuralEffectFuelPolicy {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum StructuralEffectFrontierPolicy {
+    AddsUnrestrictedPlace,
     RequiresAndKeepsAffinePlace,
     KeepsPlaceFrontier,
     AddsAffinePlace,
@@ -106,7 +109,17 @@ pub struct StructuralEffectSemanticRow {
 }
 
 impl StructuralEffectSemanticRow {
-    pub const ALL: [Self; 3] = [
+    pub const ALL: [Self; 4] = [
+        Self {
+            tag: OperationSemanticTag::EstablishByteSequenceLiteral,
+            schema: structural_effect_leaf(
+                StructuralEffectResultShape::Unit,
+                StructuralEffectCustody::ExactByteSequenceLiteral,
+                StructuralEffectAction::EstablishByteSequencePlace,
+                StructuralEffectExternalEffect::None,
+                StructuralEffectFrontierPolicy::AddsUnrestrictedPlace,
+            ),
+        },
         Self {
             tag: OperationSemanticTag::BooleanStructuralField,
             schema: structural_effect_leaf(
@@ -151,7 +164,8 @@ impl StructuralEffectSemanticRow {
 const fn is_structural_effect_tag(tag: OperationSemanticTag) -> bool {
     matches!(
         tag,
-        OperationSemanticTag::BooleanStructuralField
+        OperationSemanticTag::EstablishByteSequenceLiteral
+            | OperationSemanticTag::BooleanStructuralField
             | OperationSemanticTag::PortWrite
             | OperationSemanticTag::EstablishTrivialAffineLocal
     )
@@ -195,6 +209,7 @@ pub fn validate_structural_effect_semantic_rows(
         }
     }
     for tag in [
+        OperationSemanticTag::EstablishByteSequenceLiteral,
         OperationSemanticTag::BooleanStructuralField,
         OperationSemanticTag::PortWrite,
         OperationSemanticTag::EstablishTrivialAffineLocal,
@@ -208,6 +223,9 @@ pub fn validate_structural_effect_semantic_rows(
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StructuralEffectObservation {
+    ByteSequencePlaceEstablished {
+        destination: PlaceId,
+    },
     BooleanFieldEquation(Proposition),
     PortWrite {
         service: ServiceId,
@@ -223,7 +241,9 @@ impl StructuralEffectObservation {
     pub fn local_equation(&self) -> Option<&Proposition> {
         match self {
             Self::BooleanFieldEquation(proposition) => Some(proposition),
-            Self::PortWrite { .. } | Self::AffinePlaceEstablished { .. } => None,
+            Self::ByteSequencePlaceEstablished { .. }
+            | Self::PortWrite { .. }
+            | Self::AffinePlaceEstablished { .. } => None,
         }
     }
 }
@@ -233,6 +253,9 @@ fn validate_structural_effect_schema(
     schema: StructuralEffectLeafSchema,
 ) -> Result<(), OperationSemanticError> {
     let action_tag = match schema.action {
+        StructuralEffectAction::EstablishByteSequencePlace => {
+            OperationSemanticTag::EstablishByteSequenceLiteral
+        }
         StructuralEffectAction::ReadBooleanField => OperationSemanticTag::BooleanStructuralField,
         StructuralEffectAction::EmitPortWrite => OperationSemanticTag::PortWrite,
         StructuralEffectAction::EstablishAffinePlace => {
@@ -241,6 +264,12 @@ fn validate_structural_effect_schema(
     };
     let valid = action_tag == tag
         && match schema.action {
+            StructuralEffectAction::EstablishByteSequencePlace => {
+                schema.result == StructuralEffectResultShape::Unit
+                    && schema.custody == StructuralEffectCustody::ExactByteSequenceLiteral
+                    && schema.external_effect == StructuralEffectExternalEffect::None
+                    && schema.frontier == StructuralEffectFrontierPolicy::AddsUnrestrictedPlace
+            }
             StructuralEffectAction::ReadBooleanField => {
                 schema.result == StructuralEffectResultShape::Boolean
                     && schema.custody == StructuralEffectCustody::ExactLiveBooleanField
@@ -305,6 +334,12 @@ pub fn structural_effect_leaf_observation_in(
     validate_structural_effect_result(operation, tag, schema)?;
     let observation = match (schema.action, &operation.kind) {
         (
+            StructuralEffectAction::EstablishByteSequencePlace,
+            OperationKind::EstablishByteSequenceLiteral { destination, .. },
+        ) => StructuralEffectObservation::ByteSequencePlaceEstablished {
+            destination: *destination,
+        },
+        (
             StructuralEffectAction::ReadBooleanField,
             OperationKind::BooleanStructuralField { source, field },
         ) => {
@@ -361,13 +396,14 @@ mod tests {
 
     #[test]
     fn inventory_is_exact_unique_and_keeps_axes_separate() {
-        assert_eq!(StructuralEffectSemanticRow::ALL.len(), 3);
+        assert_eq!(StructuralEffectSemanticRow::ALL.len(), 4);
         assert_eq!(
             StructuralEffectSemanticRow::ALL
                 .iter()
                 .map(|row| row.tag())
                 .collect::<BTreeSet<_>>(),
             BTreeSet::from([
+                OperationSemanticTag::EstablishByteSequenceLiteral,
                 OperationSemanticTag::BooleanStructuralField,
                 OperationSemanticTag::PortWrite,
                 OperationSemanticTag::EstablishTrivialAffineLocal,
@@ -421,7 +457,11 @@ mod tests {
         );
 
         let mut drifted = StructuralEffectSemanticRow::ALL;
-        drifted[0].schema.frontier = StructuralEffectFrontierPolicy::KeepsPlaceFrontier;
+        let boolean_index = drifted
+            .iter()
+            .position(|row| row.tag == tag)
+            .expect("Boolean structural row");
+        drifted[boolean_index].schema.frontier = StructuralEffectFrontierPolicy::KeepsPlaceFrontier;
         let operation = Operation {
             id: OperationId::new(1).unwrap(),
             result: OperationResult::Scalar(ValueDeclaration {
@@ -511,7 +551,11 @@ mod tests {
         );
 
         let mut crossed = StructuralEffectSemanticRow::ALL;
-        crossed[0].schema.action = StructuralEffectAction::EmitPortWrite;
+        let boolean_index = crossed
+            .iter()
+            .position(|row| row.tag == OperationSemanticTag::BooleanStructuralField)
+            .expect("Boolean structural row");
+        crossed[boolean_index].schema.action = StructuralEffectAction::EmitPortWrite;
         assert_eq!(
             structural_effect_leaf_observation_in(
                 &Operation {

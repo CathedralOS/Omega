@@ -168,16 +168,44 @@ pub struct TerminalDirectPortReadU8Realization {
     pub port: u16,
 }
 
+/// Import-free Linux process termination through the kernel's `exit_group`
+/// syscall. The syscall number and register assignment are target facts, not
+/// producer-selected metadata, so this realization carries no configurable
+/// fields.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct TerminalLinuxExitGroupI32Realization;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TerminalBoundaryRealization {
     MetadataOnlyPort(TerminalMetadataOnlyPortRealization),
     DirectPortReadU8(TerminalDirectPortReadU8Realization),
+    LinuxExitGroupI32(TerminalLinuxExitGroupI32Realization),
 }
 
 impl From<TerminalMetadataOnlyPortRealization> for TerminalBoundaryRealization {
     fn from(realization: TerminalMetadataOnlyPortRealization) -> Self {
         Self::MetadataOnlyPort(realization)
     }
+}
+
+impl From<TerminalLinuxExitGroupI32Realization> for TerminalBoundaryRealization {
+    fn from(realization: TerminalLinuxExitGroupI32Realization) -> Self {
+        Self::LinuxExitGroupI32(realization)
+    }
+}
+
+/// Exact scalar value consumed by a native boundary realization.
+///
+/// The value identity and type bind this row back to terminal Psi; the
+/// immediate and destination register make the emitted provider interval
+/// independently replayable. This is deliberately separate from structural
+/// settlement custody and from a machine result.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TerminalBoundaryScalarArgument {
+    pub source_value: ValueId,
+    pub scalar_type: ScalarType,
+    pub immediate: IntegerValue,
+    pub destination: MachineRegister,
 }
 
 /// The first boundary realization is metadata-only: an exact selected
@@ -309,6 +337,21 @@ pub enum TerminalTargetOperation {
         completion_receipts: Vec<CompletionReceipt>,
         call_plan: CallPlan,
         structural_parameters: Vec<TerminalTargetStructuralParameter>,
+    },
+    /// One verified `exit_process(i32)` call realized directly by Linux
+    /// `exit_group`. `nominal_return_edge` remains zero-byte provenance: if
+    /// the nominally nonreturning syscall returns, the emitted code traps
+    /// before that semantic tail can execute.
+    ExitProcessI32 {
+        constant_operation: OperationId,
+        psi_operation: OperationId,
+        nominal_return_edge: EdgeId,
+        boundary: BoundaryMachineId,
+        provider_execution: TerminalProviderExecutionBinding,
+        realization: TerminalLinuxExitGroupI32Realization,
+        argument: TerminalBoundaryScalarArgument,
+        completion_claim_sources: Vec<TerminalCompletionClaimSource>,
+        completion_receipts: Vec<CompletionReceipt>,
     },
     /// One finite short-circuit Boolean tree whose value-return leaves all
     /// execute the same complete structural cleanup stream. Each leaf retains

@@ -65,15 +65,19 @@ spike, and the terminal-ledger migration remain execution work under P3 in
 Production optimization remains outside the trusted proof kernel.
 
 The first O0 console canary now has its canonical scalar boundary lane.
-Terminal-Psi vocabulary 23 carries ordered scalar parameter types on boundary
+Terminal-Psi vocabulary 24 carries ordered scalar parameter types on boundary
 declarations and ordered scalar values on `BoundaryCall`; the checked producer,
 codec, semantic schema, verifier, interpreter, and Omega abstract consumer all
 preserve that lane. This closed an implementation seam, not a language ruling.
 
-The next boundary is native realization. Omega target lowering intentionally
-rejects nonempty scalar boundary calls until an exact `exit_process(i32)`
-realization is supplied; the existing metadata-only port settlement is not one.
-Bootstrap work must continue through the canonical representation rather than
-bypass it with a private Omega0 IR or reinterpret the exit effect as an ordinary
-return. `write_line` separately needs its exact structural string carrier and
-custody retained through the same path.
+The import-free Linux `exit_process(i32)` realization now consumes that scalar
+through `exit_group` on x86-64 and AArch64, records its exact native settlement
+interval, and traps if the nominally nonreturning syscall returns. Darwin and
+Windows stay fail-closed pending validated import and relocation evidence.
+
+The remaining console boundary is `write_line`. Vocabulary 24 provides its
+borrowed byte-sequence structural shape, exact literal establishment, canonical
+codec/verifier/interpreter path, and bodyless-boundary custody. Source, typed,
+and checked trees do not yet own arbitrary raw bytes, and Omega native lowering
+still rejects the literal. Bootstrap work must continue through that canonical
+representation rather than bypass it with a private Omega0 IR.

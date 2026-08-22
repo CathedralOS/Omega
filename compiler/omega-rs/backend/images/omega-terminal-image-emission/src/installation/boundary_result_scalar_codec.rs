@@ -1,4 +1,4 @@
-//! Canonical format-31 scalar-type codec for boundary result evidence.
+//! Canonical format-32 scalar-type codec for boundary result evidence.
 //!
 //! Result presence, value/edge identity, placement, and settlement sequencing
 //! remain in the installation parent. This child owns only the six-byte scalar

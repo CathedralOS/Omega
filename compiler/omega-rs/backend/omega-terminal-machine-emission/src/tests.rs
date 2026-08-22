@@ -2,6 +2,7 @@ use super::*;
 use omega_calling_conventions::{CallSignature, CallingPolicy, evaluate_call_plan};
 use omega_target::NativeTarget;
 use omega_terminal_target_operations::{
+    TerminalBoundaryScalarArgument, TerminalLinuxExitGroupI32Realization,
     TerminalMetadataOnlyPortRealization, TerminalProviderExecutionBinding,
     TerminalProviderPlanIdentity, TerminalPsiProvenance, TerminalScalarParameterLocation,
     TerminalTargetBooleanControl, TerminalTargetBooleanExpression, TerminalTargetCallArgument,
@@ -25,6 +26,98 @@ fn emit_machine_code(
 ) -> Result<TerminalMachineCodePlan, EmissionError> {
     let assigned = assign_registers(plan).expect("test target operations must assign");
     super::emit_machine_code(&assigned)
+}
+
+#[test]
+fn linux_exit_group_consumes_i32_and_traps_on_both_linux_architectures() {
+    let machine = MachineId::new(990).unwrap();
+    let boundary = BoundaryMachineId::new(990).unwrap();
+    let constant_operation = OperationId::new(990).unwrap();
+    let settlement_operation = OperationId::new(991).unwrap();
+    let nominal_return_edge = EdgeId::new(990).unwrap();
+    let source_value = psi_core::ValueId::new(990).unwrap();
+    let i32_type = psi_core::IntegerType::new(psi_core::IntegerSign::Signed, 32).unwrap();
+    let provider_execution = TerminalProviderExecutionBinding::from_execution_record(
+        TerminalProviderPlanIdentity::new(990).unwrap(),
+        991,
+        992,
+        993,
+        994,
+    )
+    .unwrap();
+    let plan_for = |target: NativeTarget, destination| TerminalTargetOperationPlan {
+        terminal_psi: TerminalPsiIdentity {
+            vocabulary_marker: VocabularyMarker::CURRENT,
+            program_fingerprint: SemanticFingerprint::from_bytes([0x99; 32]),
+        },
+        target,
+        entry: machine,
+        functions: vec![TerminalTargetFunction {
+            machine,
+            attachment: None,
+            provenance: TerminalPsiProvenance {
+                operations: vec![constant_operation, settlement_operation],
+                edges: vec![nominal_return_edge],
+            },
+            operation: TerminalTargetOperation::ExitProcessI32 {
+                constant_operation,
+                psi_operation: settlement_operation,
+                nominal_return_edge,
+                boundary,
+                provider_execution,
+                realization: TerminalLinuxExitGroupI32Realization,
+                argument: TerminalBoundaryScalarArgument {
+                    source_value,
+                    scalar_type: psi_core::ScalarType::Integer(i32_type),
+                    immediate: psi_core::IntegerValue::Signed(37),
+                    destination,
+                },
+                completion_claim_sources: Vec::new(),
+                completion_receipts: Vec::new(),
+            },
+        }],
+    };
+
+    let x86_plan = plan_for(NativeTarget::linux_x64(), MachineRegister::X86Rdi);
+    let x86 = emit_machine_code(&x86_plan).expect("x86 exit_group emission");
+    assert_eq!(
+        x86,
+        emit_machine_code(&x86_plan).expect("deterministic x86 emission")
+    );
+    assert_eq!(
+        x86.functions[0].bytes,
+        omega_isa_x86_64::encode_linux_exit_group_i32(37)
+    );
+    let settlement = &x86.functions[0].boundary_settlements[0];
+    assert_eq!(settlement.code_offset, 0);
+    assert_eq!(settlement.byte_count, x86.functions[0].bytes.len());
+    assert_eq!(settlement.scalar_arguments.len(), 1);
+    assert!(settlement.arguments.is_empty());
+    assert_eq!(
+        &x86.functions[0].bytes[x86.functions[0].bytes.len() - 2..],
+        &[0x0f, 0x0b]
+    );
+    assert!(matches!(
+        x86.functions[0].fuel_attribution[2].site,
+        TerminalNativeFuelSite::Edge(edge) if edge == nominal_return_edge
+    ));
+    assert_eq!(x86.functions[0].fuel_attribution[2].byte_count, 0);
+
+    let arm_plan = plan_for(NativeTarget::linux_arm64(), MachineRegister::Aarch64X(0));
+    let arm = emit_machine_code(&arm_plan).expect("AArch64 exit_group emission");
+    assert_eq!(
+        arm.functions[0].bytes,
+        omega_isa_aarch64::encode_linux_exit_group_i32(37).unwrap()
+    );
+    assert_eq!(
+        &arm.functions[0].bytes[arm.functions[0].bytes.len() - 4..],
+        &0xd420_0000_u32.to_le_bytes()
+    );
+
+    let windows = plan_for(NativeTarget::windows_x64(), MachineRegister::X86Rdi);
+    assert!(assign_registers(&windows).is_err());
+    let darwin = plan_for(NativeTarget::macos_arm64(), MachineRegister::Aarch64X(0));
+    assert!(assign_registers(&darwin).is_err());
 }
 
 #[test]

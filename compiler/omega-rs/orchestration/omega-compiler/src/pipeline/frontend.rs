@@ -408,6 +408,7 @@ fn own_token_stream(tokens: &TokenStream<'_>, source: &Arc<str>) -> TokenStream<
             TokenText::Source(_) => TokenText::shared(source.clone(), token.span),
             TokenText::Shared { source, span } => TokenText::shared(source.clone(), *span),
             TokenText::Owned(value) => TokenText::owned(value.clone()),
+            TokenText::OwnedBytes(value) => TokenText::owned_bytes(value.clone()),
         };
 
         owned_tokens.push(Token {

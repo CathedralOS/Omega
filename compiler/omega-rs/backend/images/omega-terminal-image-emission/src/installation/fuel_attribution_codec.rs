@@ -1,4 +1,4 @@
-//! Canonical format-31 codec for native fuel-attribution rows.
+//! Canonical format-32 codec for native fuel-attribution rows.
 //!
 //! The installation parent retains upfront count conversion, row ordering,
 //! canonicality, and schedule validation. This child owns exact collection bytes.

@@ -39,6 +39,10 @@ pub(super) fn validate_machine(
                 StructuralRootKey::Parameter(position)
             }
             psi_core::StructuralPlaceKind::Result => StructuralRootKey::Result,
+            psi_core::StructuralPlaceKind::ByteSequenceLiteral {
+                declaration_ordinal,
+                ..
+            } => StructuralRootKey::ByteSequenceLiteral(declaration_ordinal),
             psi_core::StructuralPlaceKind::TrivialAffineLocal {
                 declaration_ordinal,
                 ..
@@ -107,6 +111,7 @@ pub(super) fn validate_machine(
                 operation.kind,
                 OperationKind::CallUnit { .. }
                     | OperationKind::PortWrite { .. }
+                    | OperationKind::EstablishByteSequenceLiteral { .. }
                     | OperationKind::EstablishTrivialAffineLocal { .. }
             ) {
                 if !matches!(operation.result, psi_terminal::OperationResult::Unit) {
@@ -169,6 +174,7 @@ pub(super) fn validate_machine(
                 OperationKind::CallUnit { .. }
                 | OperationKind::CallStructuralScalar { .. }
                 | OperationKind::PortWrite { .. }
+                | OperationKind::EstablishByteSequenceLiteral { .. }
                 | OperationKind::EstablishTrivialAffineLocal { .. } => {
                     unreachable!("structural/effect operations were validated above")
                 }

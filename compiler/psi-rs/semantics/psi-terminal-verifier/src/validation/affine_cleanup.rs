@@ -442,7 +442,9 @@ pub(super) fn valid_nominal_cleanup_requirements(
         .find(|declaration| declaration.id == cleanup.structural_type)
         .and_then(|declaration| match &declaration.shape {
             StructuralTypeShape::Record { fields } => Some(fields),
-            StructuralTypeShape::FixedArray { .. } | StructuralTypeShape::Sum { .. } => None,
+            StructuralTypeShape::ByteSequence(_)
+            | StructuralTypeShape::FixedArray { .. }
+            | StructuralTypeShape::Sum { .. } => None,
         })
     else {
         return false;
