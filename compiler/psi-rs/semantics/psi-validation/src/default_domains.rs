@@ -24,11 +24,13 @@ use psi_typed_trees::machine::Machine;
 use psi_typed_trees::state::State;
 use psi_typed_trees::statement::StatementNode;
 
+mod call_summaries;
 mod place_queries;
 mod state_flow;
 mod symbolic_values;
 mod where_fact_intervals;
 
+use call_summaries::{collect_call_summaries, machine_symbol_for_state};
 use place_queries::{
     data_definition_for_expression, domain_definition_by_name, field_is_where_mentioned,
     is_self_rooted, membership_field_name, self_place_spelling,
@@ -665,65 +667,6 @@ fn preserve_proven_establishment(tracked: &[TrackedPlace<'_>], established: &mut
             .filter(|place| place.established && is_self_rooted(&place.spelling))
             .map(|place| place.spelling.clone()),
     );
-}
-
-/// Slice 11: the machine owning a state symbol (call targets carry the
-/// STATE's symbol -- the effects builder's proven resolution rule).
-fn machine_symbol_for_state(
-    program: &TypedTrees,
-    state_symbol: psi_symbols::SymbolHandle,
-) -> psi_symbols::SymbolHandle {
-    if !state_symbol.is_valid() {
-        return psi_symbols::SymbolHandle::invalid();
-    }
-    for machine in program.machines() {
-        if program
-            .machine_states(machine)
-            .iter()
-            .any(|state| state.symbol == state_symbol)
-        {
-            return machine.symbol;
-        }
-    }
-    psi_symbols::SymbolHandle::invalid()
-}
-
-/// Slice 11: find call targets inside an expression and join their
-/// establishment summaries.
-fn collect_call_summaries(
-    program: &TypedTrees,
-    expression: ExpressionHandle,
-    summaries: &[(psi_symbols::SymbolHandle, Vec<String>)],
-    call_established: &mut Vec<String>,
-) {
-    if !expression.is_valid() {
-        return;
-    }
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Call(call) => {
-            let target_machine = machine_symbol_for_state(program, call.target_symbol);
-            if let Some((_, established)) = summaries
-                .iter()
-                .find(|(symbol, _)| *symbol == target_machine)
-            {
-                call_established.extend(established.iter().cloned());
-            }
-            for argument in program.expression_table.expression_handles(call.arguments) {
-                collect_call_summaries(program, *argument, summaries, call_established);
-            }
-        }
-        ExpressionNode::Binary(binary) => {
-            collect_call_summaries(program, binary.left, summaries, call_established);
-            collect_call_summaries(program, binary.right, summaries, call_established);
-        }
-        ExpressionNode::Member(member) => {
-            collect_call_summaries(program, member.receiver, summaries, call_established);
-        }
-        ExpressionNode::Mutable(inner) => {
-            collect_call_summaries(program, *inner, summaries, call_established);
-        }
-        _ => {}
-    }
 }
 
 /// Ch11 (slice 8): refuse every open invariant window at a consumption
