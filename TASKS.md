@@ -5389,6 +5389,12 @@ Owners:
   Exact-owner ambiguity, the 795 rooted/3 legacy inventory, and cross-copy
   receipt-drift fences remain green; structural/nested/recursion-heavy owners
   remain untouched.
+  The finite init-hoisted-counter and write-first back-edge loop-invariant
+  regressions now launch solely through the exact executables retained by their
+  checked compilation reports while preserving bounded indexed-fill self-
+  checks and literal exit 70. Exact-owner ambiguity, the 795 rooted/3 legacy
+  inventory, and cross-copy receipt-drift fences remain green; their warm
+  compiler/interpreter bodies remain 0.02s.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
