@@ -721,6 +721,10 @@ Each receipt also carries its exact destination role, and that role participates
 in the installation identity. The flat report slot accepts only `FlatOutput`,
 while the optional bundle slot accepts only `MacOsAppBundle`; swapping two
 otherwise matching receipts therefore rejects.
+The bundle slot additionally rederives the canonical
+`<build>/<sanitized-project>.app/Contents/MacOS/<executable>` path from the
+report root and flat output. A same-leaf receipt under another bundle or
+directory cannot substitute for that exact destination.
 Immediately before either outward receipt is minted, installation replays the
 renamed destination bytes once more against the sealed container. Destination
 drift in the interval after the installation check removes the changed file and

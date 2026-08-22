@@ -358,7 +358,7 @@ pub(super) fn write_output(
             publication
                 .validate_identity()
                 .map_err(|diagnostic| vec![diagnostic])?;
-            Some(write_macos_app_bundle(options, &build_dir, &publication)?)
+            Some(write_macos_app_bundle(options, &output_path, &publication)?)
         } else {
             None
         };
@@ -652,27 +652,13 @@ const GUI_SUBSYSTEM: u16 = 2;
 /// is the project directory name (e.g. `window_demo`).
 fn write_macos_app_bundle(
     options: &CompileOptions,
-    build_dir: &std::path::Path,
+    flat_output_path: &std::path::Path,
     publication: &ValidatedExecutablePublication<'_>,
 ) -> Result<super::ExecutablePublicationReceipt, Vec<Diagnostic>> {
     let executable_name = publication.file_name();
-    let app_name: String = options
-        .root_path
-        .parent()
-        .and_then(|parent| parent.file_name())
-        .and_then(|name| name.to_str())
-        .unwrap_or("omega-program")
-        .chars()
-        .map(|character| {
-            // Keep the plist honest without an XML escaper: path characters that
-            // are XML-significant or exotic collapse to '-'.
-            if character.is_ascii_alphanumeric() || matches!(character, '_' | '.' | ' ' | '-') {
-                character
-            } else {
-                '-'
-            }
-        })
-        .collect();
+    // Keep the plist honest without an XML escaper: path characters that are
+    // XML-significant or exotic collapse to '-' in the shared canonical name.
+    let app_name = super::compile_report::macos_app_bundle_name(&options.root_path);
     let bundle_identifier: String = app_name
         .chars()
         .map(|character| {
@@ -684,8 +670,25 @@ fn write_macos_app_bundle(
         })
         .collect();
 
-    let contents_dir = build_dir.join(format!("{app_name}.app")).join("Contents");
-    let macos_dir = contents_dir.join("MacOS");
+    let executable_path = super::compile_report::expected_macos_app_bundle_executable_path(
+        &options.root_path,
+        flat_output_path,
+    )
+    .ok_or_else(|| {
+        vec![Diagnostic::error(
+            "flat executable path cannot derive a canonical macOS app-bundle destination",
+        )]
+    })?;
+    let macos_dir = executable_path.parent().ok_or_else(|| {
+        vec![Diagnostic::error(
+            "canonical macOS app-bundle executable has no MacOS directory",
+        )]
+    })?;
+    let contents_dir = macos_dir.parent().ok_or_else(|| {
+        vec![Diagnostic::error(
+            "canonical macOS app-bundle executable has no Contents directory",
+        )]
+    })?;
     std::fs::create_dir_all(&macos_dir).map_err(io_diagnostic)?;
 
     let info_plist = format!(
@@ -711,7 +714,6 @@ fn write_macos_app_bundle(
     );
     std::fs::write(contents_dir.join("Info.plist"), info_plist).map_err(io_diagnostic)?;
     std::fs::write(contents_dir.join("PkgInfo"), b"APPL????").map_err(io_diagnostic)?;
-    let executable_path = macos_dir.join(executable_name);
     let installation = write_validated_executable_output_file(
         super::ExecutablePublicationDestination::MacOsAppBundle,
         &executable_path,

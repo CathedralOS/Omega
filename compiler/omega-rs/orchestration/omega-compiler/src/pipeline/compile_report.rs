@@ -13,6 +13,38 @@ pub enum ExecutablePublicationDestination {
     MacOsAppBundle,
 }
 
+pub(super) fn macos_app_bundle_name(root_path: &std::path::Path) -> String {
+    root_path
+        .parent()
+        .and_then(|parent| parent.file_name())
+        .and_then(|name| name.to_str())
+        .unwrap_or("omega-program")
+        .chars()
+        .map(|character| {
+            if character.is_ascii_alphanumeric() || matches!(character, '_' | '.' | ' ' | '-') {
+                character
+            } else {
+                '-'
+            }
+        })
+        .collect()
+}
+
+pub(super) fn expected_macos_app_bundle_executable_path(
+    root_path: &std::path::Path,
+    flat_output_path: &std::path::Path,
+) -> Option<PathBuf> {
+    let build_dir = flat_output_path.parent()?;
+    let executable_name = flat_output_path.file_name()?;
+    Some(
+        build_dir
+            .join(format!("{}.app", macos_app_bundle_name(root_path)))
+            .join("Contents")
+            .join("MacOS")
+            .join(executable_name),
+    )
+}
+
 /// Immutable custody for one compiler-published executable container.
 ///
 /// This records the exact final-footprint certificate, publication seal, and
@@ -165,8 +197,9 @@ impl CompileReport {
             (None, Some(_)) => false,
             (Some(flat), Some(bundle)) => {
                 bundle.destination == ExecutablePublicationDestination::MacOsAppBundle
-                    && flat.output_path != bundle.output_path
-                    && flat.output_path.file_name() == bundle.output_path.file_name()
+                    && expected_macos_app_bundle_executable_path(&self.root_path, &flat.output_path)
+                        .as_deref()
+                        == Some(bundle.output_path.as_path())
                     && flat.certificate_fingerprint == bundle.certificate_fingerprint
                     && flat.inventory_fingerprint == bundle.inventory_fingerprint
                     && flat.publication_evidence_fingerprint
@@ -211,7 +244,7 @@ mod tests {
         bundle: Option<ExecutablePublicationReceipt>,
     ) -> CompileReport {
         CompileReport {
-            root_path: "main.omg".into(),
+            root_path: "Main/main.omg".into(),
             source_file_count: 1,
             wrote_output,
             output_kind,
@@ -308,6 +341,17 @@ mod tests {
                 CompileOutputKind::NativeExecutable,
                 Some(bundle.clone()),
                 Some(flat.clone()),
+            )
+            .has_consistent_executable_publication_custody()
+        );
+        let mut changed = bundle.clone();
+        changed.output_path = "build/Other.app/Contents/MacOS/main".into();
+        assert!(
+            !report(
+                true,
+                CompileOutputKind::NativeExecutable,
+                Some(flat.clone()),
+                Some(changed),
             )
             .has_consistent_executable_publication_custody()
         );
