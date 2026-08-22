@@ -4149,6 +4149,20 @@ Owners:
   citation custody. Landing-index order, same-row rejection, literal carrier
   checks, proof shape, completion precedence, and the fixed one-intermediate-
   alias frontier remain unchanged.
+  Three authored-root shared-reference executions—content-spilled member
+  access, large-reference dereference, and large-reference direct assignment—
+  now launch solely through exact checked-report executable receipts while
+  preserving literal statuses 42, 42, and 70 and all address/content-custody
+  diagnostics. Exact-owner pins remain stable; profiled record-view and
+  exceptional, interactive, report-bearing, slow float/cast/policy, rendering,
+  coercion, and automaton owners remain fenced.
+  Exact affine literal alias-landing joins now live in paired, side-local
+  `affine_selection/literal/alias/candidates/join` modules. Producer and
+  reconstruction independently reject reuse of the outer equality as the
+  literal landing and require the affine root carrier to match the indexed
+  integer literal exactly. Root-alias order, landing-index order, producer-only
+  citation custody, completion precedence, nested proof shape, and the fixed
+  one-intermediate-alias frontier remain unchanged.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
