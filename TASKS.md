@@ -4337,6 +4337,12 @@ Owners:
   and citation order, per-alias landing order, producer-only citation custody,
   direct-before-alias precedence, proof shapes, rejection behavior, and the
   fixed affine-literal frontier remain unchanged.
+  Five authored-root text/result executions—stored and value-position text
+  equality, branching callee chains, bind-first recursive results, and
+  recursive guard/transition-result roles—now launch solely through exact
+  checked-report executable receipts while preserving literal status 70,
+  interpreter parity, and all equality, call-result, and delivery-role
+  diagnostics. Exact-owner pins and established fences remain unchanged.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
@@ -4898,13 +4904,16 @@ Remaining N6/N8 work:
   drifted canonical declaration unless it is the exact ordinary tokenless
   `f32`/`f64` to `FloatMeaning` signature, without lifetime/type parameters or
   receiver qualification. Leaf spelling alone grants no projection semantics.
-  Terminal and independent-verifier binding to the catalog remains open. The
-  current checked/Terminal proposition and operation vocabularies have no
-  source-handle-free proof-only `FloatMeaning` carrier or projection fact, so
-  this cannot be completed as a name-table join. The next slice must first add
-  that erased carrier and exact format-specific projection operation, keeping
-  it separate from Terminal runtime float evaluation; only then can producer
-  emission and independent verifier reconstruction bind to the catalog.
+  Checked and Terminal representations now retain a source-handle-free proof-
+  only `FloatMeaning` value namespace and exact `Meaning32`/`Meaning64`
+  projection rows. Checked-to-Terminal lowering independently replays the
+  source primitive and result shape, preserves plan-local input/result
+  identities, and maps only the matching format. The independent verifier
+  reconstructs the shared projection-catalog row solely from Terminal
+  operation and format fields, without source names, a name-table join,
+  runtime bits, or float evaluation. Binding an actual checked operator
+  invocation and landed source value, module/codec emission, and proposition
+  consumption remain open.
 - Then migrate suffix law discovery to propositions plus explicit conformances,
   and expand the checked `Nat`/`Int`/`Rat`/Cauchy/approximation corpus. `Real`
   remains proof-only and core-level.
