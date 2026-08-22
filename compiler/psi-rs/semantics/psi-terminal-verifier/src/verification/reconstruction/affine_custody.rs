@@ -4,10 +4,9 @@
 //! bounded witness frontier, exact mapped bound, and closed relaxation replay.
 
 use psi_core::{Proposition, PropositionContext, ScalarTerm};
-use psi_proof_kernel::{
-    IntegerAffineWitness, check_integer_affine_bound_conversion, check_integer_affine_witness,
-};
+use psi_proof_kernel::IntegerAffineWitness;
 
+mod completion;
 mod definition_index;
 mod frontier;
 mod relaxation;
@@ -37,12 +36,7 @@ pub(super) fn retained_from_root(
                         target: target.clone(),
                         definition_axioms,
                     };
-                    check_integer_affine_witness(context, semantic_axioms, &witness).is_ok_and(
-                        |form| {
-                            check_integer_affine_bound_conversion(&form, root_bound, goal).is_ok()
-                                || relaxation::retained(&form, root_bound, goal)
-                        },
-                    )
+                    completion::retained(context, goal, semantic_axioms, root_bound, &witness)
                 })
         })
 }
