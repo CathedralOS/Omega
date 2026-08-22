@@ -31,6 +31,34 @@ fn retained_field_identity(name: &str, identity: Option<u64>) -> RetainedFieldId
     }
 }
 
+fn expected_accessor_operations(access: &FieldAccess) -> Vec<&'static str> {
+    match access {
+        FieldAccess::Inaccessible | FieldAccess::Atomic { .. } => Vec::new(),
+        FieldAccess::Stable { read, write, .. } => {
+            let mut operations = Vec::new();
+            if *read {
+                operations.push("read");
+            }
+            if *write {
+                operations.push("write");
+            }
+            operations
+        }
+        FieldAccess::External { read, write, .. } => {
+            let mut operations = Vec::new();
+            match read {
+                psi_access_plans::ExternalRead::None => {}
+                psi_access_plans::ExternalRead::Read => operations.push("read"),
+                psi_access_plans::ExternalRead::Take => operations.push("take"),
+            }
+            if *write {
+                operations.push("write");
+            }
+            operations
+        }
+    }
+}
+
 /// Independently replay the compiler-derived nominal and stable-member joins
 /// before any placed accessor is accepted as an ordinary typed operation.
 pub(crate) fn validate_plans(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>) {
@@ -161,6 +189,52 @@ pub(crate) fn validate_plans(program: &TypedTrees, diagnostics: &mut Vec<Diagnos
                     "placed view `{}` field `{}` changed its exact synthesized accessor binding",
                     view.data_name, field.field_name
                 )));
+            }
+
+            let expected_operations = expected_accessor_operations(&field.access);
+            if field
+                .accessor_targets
+                .iter()
+                .map(|target| target.operation.as_str())
+                .ne(expected_operations.iter().copied())
+            {
+                diagnostics.push(Diagnostic::error(format!(
+                    "placed view `{}` field `{}` changed its generated accessor operation set",
+                    view.data_name, field.field_name
+                )));
+                continue;
+            }
+            for target in &field.accessor_targets {
+                let Some(machine) = program
+                    .machines()
+                    .iter()
+                    .find(|machine| machine.symbol == target.machine_symbol)
+                else {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "placed view `{}` field `{}` operation `{}` no longer names its exact generated accessor machine",
+                        view.data_name, field.field_name, target.operation
+                    )));
+                    continue;
+                };
+                let exact_machine = machine
+                    .attached_data
+                    .as_ref()
+                    .is_some_and(|attached| attached.as_str() == field.accessor_name)
+                    && machine
+                        .name
+                        .as_str()
+                        .rsplit("::")
+                        .next()
+                        .is_some_and(|operation| operation == target.operation);
+                let states = program.machine_states(machine);
+                if !exact_machine
+                    || !matches!(states, [state] if state.symbol == target.state_symbol)
+                {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "placed view `{}` field `{}` operation `{}` changed its exact generated accessor target",
+                        view.data_name, field.field_name, target.operation
+                    )));
+                }
             }
         }
     }
@@ -387,22 +461,15 @@ fn placed_view_field_for_call_target(
     if !target.is_valid() {
         return None;
     }
-    let accessor_name = program
-        .machines()
-        .iter()
-        .find(|machine| {
-            program
-                .machine_states(machine)
-                .iter()
-                .any(|state| state.symbol == target)
-        })?
-        .attached_data
-        .as_ref()?
-        .as_str();
     program.placed_view_plans.iter().find_map(|view| {
         view.fields
             .iter()
-            .find(|field| field.accessor_name == accessor_name)
+            .find(|field| {
+                field
+                    .accessor_targets
+                    .iter()
+                    .any(|accessor| accessor.state_symbol == target)
+            })
             .map(|field| (view, field))
     })
 }

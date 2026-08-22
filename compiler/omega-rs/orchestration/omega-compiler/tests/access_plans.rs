@@ -745,6 +745,10 @@ data Main {}
         .find(|field| field.field_name == "status")
         .expect("retained status field");
     assert_eq!(status.member_identity, None);
+    let [status_read_target] = status.accessor_targets.as_slice() else {
+        panic!("readable status field should retain one exact generated operation target")
+    };
+    assert_eq!(status_read_target.operation, "read");
     let schema_status = checked
         .typed
         .data_members(schema)
@@ -787,6 +791,22 @@ data Main {}
         diagnostic
             .message
             .contains("field `status` no longer names its exact source field identity")
+    }));
+
+    checked.typed.placed_view_plans[0].schema_symbol = schema_symbol;
+    checked.typed.placed_view_plans[0]
+        .fields
+        .iter_mut()
+        .find(|field| field.field_name == "status")
+        .expect("retained status field")
+        .accessor_targets[0]
+        .state_symbol = schema_symbol;
+    let diagnostics = psi_validation::validate_program(&checked.typed)
+        .expect_err("substituted generated accessor state must fail closed");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("operation `read` changed its exact generated accessor target")
     }));
 }
 

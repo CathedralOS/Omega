@@ -151,8 +151,19 @@ pub struct PlacedFieldPlan {
     pub member_identity: Option<u64>,
     pub field_symbol: psi_symbols::SymbolHandle,
     pub accessor_name: String,
+    /// Exact generated operation targets for non-atomic placed accessors.
+    /// Atomic operations retain their separate typed carrier and therefore
+    /// have no cloned `PlacedField` operation target rows here.
+    pub accessor_targets: Vec<PlacedAccessorTarget>,
     pub value_type: crate::types::TypeReferenceHandle,
     pub access: psi_access_plans::FieldAccess,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlacedAccessorTarget {
+    pub operation: String,
+    pub machine_symbol: psi_symbols::SymbolHandle,
+    pub state_symbol: psi_symbols::SymbolHandle,
 }
 
 fn named_type_name_through_shells(
