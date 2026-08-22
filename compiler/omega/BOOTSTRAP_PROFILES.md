@@ -124,7 +124,7 @@ deterministic runnable artifact. The artifact must print the literal plus one
 newline, then exit with the requested low-byte status; those observations must
 agree with canonical meaning.
 
-Terminal-Psi vocabulary 23 now represents the scalar half of that lowering.
+Terminal-Psi vocabulary 24 represents both boundary operands needed by O0.
 `BoundaryMachineDeclaration` carries ordered scalar parameter types and
 `OperationKind::BoundaryCall` carries ordered scalar `ValueId` arguments. The
 checked producer retains exact scalar expressions, the codec and verifier bind
@@ -133,19 +133,25 @@ abstract operation preserves them. Provider candidates remain outside this
 scalar boundary slice and reject such signatures rather than silently ignoring
 them.
 
-O0 still waits on a genuine native realization of `exit_process(i32)`. Omega
-target lowering deliberately rejects every nonempty scalar boundary call until
-that realization exists; its metadata-only port settlement is not an exit
-operation. Treating the exit literal as an unrelated machine return or
-introducing an Omega0-only IR would evade, not close, the intended seam. The
-string passed to `write_line` must likewise retain its exact structural carrier
-and custody through the canonical call.
+Vocabulary 24 also carries a first-class borrowed byte-sequence structural type,
+an exact raw-octet literal establishment, and the literal's custody through a
+bodyless boundary call. Source/typed/checked ownership and native realization of
+that byte carrier remain the `write_line` seam; unsupported paths reject rather
+than transcoding or discarding it.
 
-The frontend is not yet covered by canonical Delta meaning: the current
-Beta-written Delta-to-Gamma elaboration route rejects the canonical frontend
-execution that both native production and Delta-written `lowermachine` accept.
-That is an explicit D0 meaning-coverage task, not permission to weaken the O0
-front end or treat native agreement as semantic authority.
+Linux `exit_process(i32)` is now realized directly as import-free `exit_group`
+on x86-64 and AArch64. Lowering accepts only the exact constant/call/nominal-tail
+shape, preserves the consumed scalar in settlement evidence, emits a trap after
+the nominally nonreturning syscall, and keeps Darwin/Windows fail-closed pending
+validated import/relocation evidence. The metadata-only port settlement remains
+unrelated to process exit.
+
+The frontend is covered by the canonical lower-rung meaning route for its used
+profile. Native execution, Delta-written `lowermachine`, and the Beta-written
+`omega2gamma.beta` plus Gamma interpreter agree on retained operand digest 107
+for the canonical `cli_mvp` input, while semantic rejection remains pinned at
+251. Exact coverage must continue to grow with the eventual Omega0 source; this
+gate is not authority for constructs that source has not exercised.
 
 O0 excludes build files, packages beyond the fixed `use`, arbitrary data,
 general expressions, user calls, control flow, allocation, proofs, and
