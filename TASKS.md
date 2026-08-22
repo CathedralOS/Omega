@@ -2925,7 +2925,12 @@ Remaining N6/N8 work:
   leaving the production relation-plan coordinator at 449 lines without
   changing judgment ownership.
   Every request still rejects as non-executable until all remaining obligations
-  are checked and retained in checked/terminal identity.
+  are checked and retained in checked/terminal identity. Executable admission
+  is blocked on one concrete vocabulary decision: the source/core surface has
+  no sealed `Respects` declaration or compiler evidence carrier capable of the
+  ruled variadic positional telescope. Authored empty lookalikes cannot supply
+  that authority, and an arity-indexed `Respects1`/`Respects2` ladder is
+  explicitly rejected.
 - Suppress every synthesized representation observer on quotient formation.
   Resolved-to-typed lowering now rejects runtime `==`/`!=`, a direct
   `Equatable` conformance, and synthesized container equality through a quotient
@@ -3214,6 +3219,9 @@ specifications:
   `wiki/language_guide/appendix_open_questions.md`.
 - **NATIVE-LOGICAL-FUEL-METERING:** owner Q2.
 - **PROGRESS-PROFILE-CLASSIFICATION:** owner Q4.
+- **QUOTIENT-RESPECTS-CARRIER:** owner propositions/quotients; define the sealed
+  compiler-derived positional-telescope interface and its checked/terminal
+  evidence identity without an arity ladder or authored adapter.
 
 ## Platform-gated verification
 
