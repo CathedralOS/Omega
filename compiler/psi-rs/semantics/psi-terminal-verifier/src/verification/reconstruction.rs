@@ -560,10 +560,7 @@ fn retained_bounded_affine_bound(
     requirements: &[Proposition],
     semantic_axioms: &[Proposition],
 ) -> bool {
-    let Proposition::LessOrEqual(goal_left, goal_right) = goal else {
-        return false;
-    };
-    requirements
+    if requirements
         .iter()
         .chain(semantic_axioms)
         .filter_map(|fact| match fact {
@@ -575,27 +572,113 @@ fn retained_bounded_affine_bound(
                 .into_iter()
                 .filter(|root| matches!(root, ScalarTerm::Value { .. }))
                 .any(|root| {
-                    [goal_left, goal_right]
-                        .into_iter()
-                        .filter(|target| matches!(target, ScalarTerm::Value { .. }))
-                        .any(|target| {
-                            affine_definition_words(context, semantic_axioms, root)
-                                .into_iter()
-                                .any(|definition_axioms| {
-                                    let witness = IntegerAffineWitness {
-                                        root: root.clone(),
-                                        target: target.clone(),
-                                        definition_axioms,
-                                    };
-                                    check_integer_affine_witness(context, semantic_axioms, &witness)
-                                        .is_ok_and(|form| {
-                                            check_integer_affine_bound_conversion(
-                                                &form, root_bound, goal,
-                                            )
-                                            .is_ok()
-                                        })
-                                })
+                    retained_affine_bound_from_root(
+                        context,
+                        goal,
+                        semantic_axioms,
+                        root,
+                        root_bound,
+                    )
+                })
+        })
+    {
+        return true;
+    }
+    retained_alias_substituted_affine_bound(context, goal, requirements, semantic_axioms)
+}
+
+fn retained_alias_substituted_affine_bound(
+    context: &PropositionContext,
+    goal: &Proposition,
+    requirements: &[Proposition],
+    semantic_axioms: &[Proposition],
+) -> bool {
+    let mut bounds_by_endpoint = BTreeMap::<_, Vec<_>>::new();
+    for fact in requirements.iter().chain(semantic_axioms) {
+        let Proposition::LessOrEqual(left, right) = fact else {
+            continue;
+        };
+        if matches!(left, ScalarTerm::Value { .. }) {
+            bounds_by_endpoint
+                .entry(left.clone())
+                .or_default()
+                .push((fact, 0));
+        }
+        if right != left && matches!(right, ScalarTerm::Value { .. }) {
+            bounds_by_endpoint
+                .entry(right.clone())
+                .or_default()
+                .push((fact, 1));
+        }
+    }
+
+    requirements
+        .iter()
+        .chain(semantic_axioms)
+        .filter_map(|equality| match equality {
+            Proposition::Equal(left, right) => Some((left, right)),
+            _ => None,
+        })
+        .any(|(left, right)| {
+            [(left, right), (right, left)]
+                .into_iter()
+                .filter(|(root, alias)| {
+                    root != alias
+                        && matches!(root, ScalarTerm::Value { .. })
+                        && matches!(alias, ScalarTerm::Value { .. })
+                })
+                .any(|(root, alias)| {
+                    bounds_by_endpoint.get(alias).is_some_and(|bounds| {
+                        bounds.iter().any(|(relation, endpoint)| {
+                            let Proposition::LessOrEqual(relation_left, relation_right) = relation
+                            else {
+                                unreachable!("only integer bounds are indexed")
+                            };
+                            let root_bound = if *endpoint == 0 {
+                                Proposition::LessOrEqual(root.clone(), relation_right.clone())
+                            } else {
+                                Proposition::LessOrEqual(relation_left.clone(), root.clone())
+                            };
+                            retained_affine_bound_from_root(
+                                context,
+                                goal,
+                                semantic_axioms,
+                                root,
+                                &root_bound,
+                            )
                         })
+                    })
+                })
+        })
+}
+
+fn retained_affine_bound_from_root(
+    context: &PropositionContext,
+    goal: &Proposition,
+    semantic_axioms: &[Proposition],
+    root: &ScalarTerm,
+    root_bound: &Proposition,
+) -> bool {
+    let Proposition::LessOrEqual(goal_left, goal_right) = goal else {
+        return false;
+    };
+    [goal_left, goal_right]
+        .into_iter()
+        .filter(|target| matches!(target, ScalarTerm::Value { .. }))
+        .any(|target| {
+            affine_definition_words(context, semantic_axioms, root)
+                .into_iter()
+                .any(|definition_axioms| {
+                    let witness = IntegerAffineWitness {
+                        root: root.clone(),
+                        target: target.clone(),
+                        definition_axioms,
+                    };
+                    check_integer_affine_witness(context, semantic_axioms, &witness).is_ok_and(
+                        |form| {
+                            check_integer_affine_bound_conversion(&form, root_bound, goal).is_ok()
+                        },
+                    )
                 })
         })
 }
@@ -1966,6 +2049,64 @@ mod tests {
                 .expect("redirected exact add"),
             )],
             &[root_bound],
+        ));
+    }
+
+    #[test]
+    fn exact_division_selects_alias_substituted_affine_root_bound() {
+        let signed = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+        let context = PropositionContext::from_value_types((1..=5).map(|id| {
+            (
+                ValueId::new(id).expect("value id"),
+                ScalarType::Integer(signed),
+            )
+        }))
+        .expect("five i8 values");
+        let goal = CanonicalScalarGoal::ExactDivisionDefined {
+            integer_type: signed,
+            left: value(1, signed),
+            right: value(2, signed),
+        };
+        let alias_equality = Proposition::Equal(value(3, signed), value(4, signed));
+        let alias_bound = Proposition::LessOrEqual(
+            ScalarTerm::integer(signed, IntegerValue::Signed(0)).expect("i8 zero"),
+            value(4, signed),
+        );
+        let definition = Proposition::Equal(
+            value(2, signed),
+            ScalarTerm::exact_integer_add(
+                signed,
+                value(3, signed),
+                ScalarTerm::integer(signed, IntegerValue::Signed(1)).expect("i8 one"),
+            )
+            .expect("exact add"),
+        );
+        assert!(exact_division_has_prior_certificate(
+            &context,
+            &goal,
+            std::slice::from_ref(&definition),
+            &[alias_equality.clone(), alias_bound.clone()],
+        ));
+        assert!(!exact_division_has_prior_certificate(
+            &context,
+            &goal,
+            std::slice::from_ref(&definition),
+            std::slice::from_ref(&alias_bound),
+        ));
+        assert!(!exact_division_has_prior_certificate(
+            &context,
+            &goal,
+            std::slice::from_ref(&definition),
+            std::slice::from_ref(&alias_equality),
+        ));
+        assert!(!exact_division_has_prior_certificate(
+            &context,
+            &goal,
+            &[definition],
+            &[
+                Proposition::Equal(value(5, signed), value(4, signed)),
+                alias_bound,
+            ],
         ));
     }
 

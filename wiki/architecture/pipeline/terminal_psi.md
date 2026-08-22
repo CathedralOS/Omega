@@ -1885,9 +1885,15 @@ within each depth, semantic-axiom indices remain strictly ordered. The kernel
 independently checks continuity, algebra, the mapped conclusion, and
 accepted-premise custody. Missing root custody, incomplete, reversed,
 redirected, or stale words, wrong targets, and noncanonical mapped arms reject.
-Words of five or more definitions, joins, cast/shift compositions, and
-correlated results remain trusted-reducer work; neither complete exact row
-changes trust.
+Root custody may now also use one exact prior value-alias transport: one
+directly cited integer bound at the alias endpoint and one independently cited
+value equality form a checked endpoint-substitution child before the affine
+node. Direct roots remain preferred; alias equalities stay in ledger order and
+bounds are indexed by exact endpoint. A missing bound or equality, identity,
+non-value, redirected, or mistyped alias rejects. Multi-alias or transitively
+reconstructed root bounds, words of five or more definitions, joins,
+cast/shift compositions, and correlated results remain trusted-reducer work;
+neither complete exact row changes trust.
 
 The common pure-cast spine now has the same kind of producer-visible custody.
 `IntegerCastChainWitness` binds one or more contiguous partial fixed-native

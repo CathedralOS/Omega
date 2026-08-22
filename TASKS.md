@@ -1355,9 +1355,16 @@ Remaining:
   strictly ordered. The kernel independently checks continuity, algebra, the
   mapped conclusion, and accepted-premise custody. Missing root custody,
   incomplete, reversed, redirected, or stale words, wrong targets, and
-  noncanonical mapped arms reject. Words of five or more definitions, joins,
-  cast/shift compositions, and correlated results remain on trusted reduction;
-  neither complete exact row changes trust and `fully-derived false` remains. A
+  noncanonical mapped arms reject. Root custody may now also use one exact
+  prior value-alias transport: one directly cited integer bound at the alias
+  endpoint and one independently cited value equality form a checked
+  endpoint-substitution child before the affine node. Direct roots remain
+  preferred; alias equalities stay in ledger order and bounds are indexed by
+  exact endpoint. A missing bound or equality, identity, non-value, redirected,
+  or mistyped alias rejects. Multi-alias or transitively reconstructed root
+  bounds, words of five or more definitions, joins, cast/shift compositions,
+  and correlated results remain on trusted reduction; neither complete exact
+  row changes trust and `fully-derived false` remains. A
   second non-serialized common checker now normalizes the contiguous pure
   fixed-integer cast spine used by the accepted one-cast and multi-cast
   sandwiches. It binds strictly ordered canonical semantic equalities to exact
