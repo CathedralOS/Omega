@@ -22,18 +22,15 @@ pub(super) fn find<'a, T>(
     let landings = LandingIndex::new(assumptions, semantic_axioms);
     equalities::value_aliases(assumptions, semantic_axioms).find_map(
         |(outer_citation, outer_equality, root, alias)| {
-            if root.scalar_type() != alias.scalar_type() {
-                return None;
-            }
-            landings.find(alias, outer_equality, |literal, inner_proof| {
-                complete(
-                    root,
-                    alias,
-                    literal,
-                    outer_citation.proof(outer_equality),
-                    inner_proof,
-                )
-            })
+            landings.find(
+                root,
+                alias,
+                outer_citation,
+                outer_equality,
+                |literal, outer_proof, inner_proof| {
+                    complete(root, alias, literal, outer_proof, inner_proof)
+                },
+            )
         },
     )
 }

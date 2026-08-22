@@ -26,10 +26,14 @@ impl<'a> LandingIndex<'a> {
 
     pub(super) fn any(
         &self,
+        root: &ScalarTerm,
         alias: &ScalarTerm,
         outer_equality: &Proposition,
         mut complete: impl FnMut(&'a ScalarTerm) -> bool,
     ) -> bool {
+        if root.scalar_type() != alias.scalar_type() {
+            return false;
+        }
         self.by_alias
             .get(alias)
             .into_iter()
