@@ -5,7 +5,10 @@
 //! content remain in the separate invocation plan.
 
 use omega_calling_conventions::{MachineRegister, StateFootprintEvidence};
-use omega_executable_installation::{InstalledCode, ResolvedPostHandoffEntryWriterContext};
+use omega_executable_installation::{
+    InstalledCode, ResolvedPostHandoffEntryWriterContext,
+    ValidatedPreparedPostHandoffWriterDestination,
+};
 use omega_target::{Architecture, NativeTarget};
 use psi_diagnostics::Diagnostic;
 use psi_layout_plans::{PostHandoffWriterInvocationPlan, PostHandoffWriterPlan};
@@ -66,38 +69,52 @@ impl LoweredPostHandoffWriter {
 /// consume it. The installed-code resolver owns the sealed packed words;
 /// fragment code, target identity, and exact footprint remain inspectable final
 /// artifact inputs without returning destination or entry addresses.
-#[derive(Debug, PartialEq, Eq)]
-pub struct PreparedPostHandoffEntryWriterInvocation {
+#[derive(Debug)]
+pub struct PreparedPostHandoffEntryWriterInvocation<'mapping, 'bytes> {
     lowered: LoweredPostHandoffWriter,
     context: ResolvedPostHandoffEntryWriterContext,
+    destination: ValidatedPreparedPostHandoffWriterDestination<'mapping, 'bytes>,
 }
 
 /// Failed binding returns the exact lowered writer evidence so callers may
 /// inspect it or retry against corrected installed/provider facts without
 /// regenerating bytes or invocation identity.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PostHandoffEntryWriterBindingError {
+#[derive(Debug)]
+pub struct PostHandoffEntryWriterBindingError<'mapping, 'bytes> {
     lowered: LoweredPostHandoffWriter,
+    destination: ValidatedPreparedPostHandoffWriterDestination<'mapping, 'bytes>,
     diagnostic: Diagnostic,
 }
 
-impl PostHandoffEntryWriterBindingError {
+impl<'mapping, 'bytes> PostHandoffEntryWriterBindingError<'mapping, 'bytes> {
     pub const fn diagnostic(&self) -> &Diagnostic {
         &self.diagnostic
     }
 
-    pub fn into_parts(self) -> (LoweredPostHandoffWriter, Diagnostic) {
-        (self.lowered, self.diagnostic)
+    pub fn into_parts(
+        self,
+    ) -> (
+        LoweredPostHandoffWriter,
+        ValidatedPreparedPostHandoffWriterDestination<'mapping, 'bytes>,
+        Diagnostic,
+    ) {
+        (self.lowered, self.destination, self.diagnostic)
     }
 }
 
-impl PreparedPostHandoffEntryWriterInvocation {
+impl<'mapping, 'bytes> PreparedPostHandoffEntryWriterInvocation<'mapping, 'bytes> {
     pub const fn lowered(&self) -> &LoweredPostHandoffWriter {
         &self.lowered
     }
 
     pub const fn context(&self) -> &ResolvedPostHandoffEntryWriterContext {
         &self.context
+    }
+
+    pub const fn destination(
+        &self,
+    ) -> &ValidatedPreparedPostHandoffWriterDestination<'mapping, 'bytes> {
+        &self.destination
     }
 }
 
@@ -159,14 +176,29 @@ pub fn lower_post_handoff_writer_fragment(
 /// rejects target/installed-artifact drift and proves that the opaque packed
 /// context is the invocation sibling of the exact normalized fragment whose
 /// bytes and footprint entered the final artifact.
-pub fn bind_post_handoff_entry_writer_invocation(
+pub fn bind_post_handoff_entry_writer_invocation<'mapping, 'bytes>(
     lowered: LoweredPostHandoffWriter,
     installed: &InstalledCode,
     writer: &PostHandoffWriterPlan,
-    destination_len: usize,
-    destination_site: psi_layout_plans::PlacementSite,
-) -> Result<PreparedPostHandoffEntryWriterInvocation, PostHandoffEntryWriterBindingError> {
-    let lowered = preflight_post_handoff_entry_writer_binding(lowered, installed.architecture())?;
+    destination: ValidatedPreparedPostHandoffWriterDestination<'mapping, 'bytes>,
+) -> Result<
+    PreparedPostHandoffEntryWriterInvocation<'mapping, 'bytes>,
+    PostHandoffEntryWriterBindingError<'mapping, 'bytes>,
+> {
+    let lowered =
+        match preflight_post_handoff_entry_writer_binding(lowered, installed.architecture()) {
+            Ok(lowered) => lowered,
+            Err(error) => {
+                let (lowered, diagnostic) = error.into_parts();
+                return Err(PostHandoffEntryWriterBindingError {
+                    lowered,
+                    destination,
+                    diagnostic,
+                });
+            }
+        };
+    let destination_len = destination.len();
+    let destination_site = destination.site();
     let context = match installed.populate_post_handoff_entry_writer_context(
         writer,
         destination_len,
@@ -176,6 +208,7 @@ pub fn bind_post_handoff_entry_writer_invocation(
         Err(error) => {
             return Err(PostHandoffEntryWriterBindingError {
                 lowered,
+                destination,
                 diagnostic: Diagnostic::error(error.0),
             });
         }
@@ -185,19 +218,41 @@ pub fn bind_post_handoff_entry_writer_invocation(
     {
         return Err(PostHandoffEntryWriterBindingError {
             lowered,
+            destination,
             diagnostic: Diagnostic::error(
                 "provider context does not bind the exact lowered post-handoff writer invocation",
             ),
         });
     }
-    Ok(PreparedPostHandoffEntryWriterInvocation { lowered, context })
+    Ok(PreparedPostHandoffEntryWriterInvocation {
+        lowered,
+        context,
+        destination,
+    })
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct PostHandoffEntryWriterPreflightError {
+    lowered: LoweredPostHandoffWriter,
+    diagnostic: Diagnostic,
+}
+
+impl PostHandoffEntryWriterPreflightError {
+    #[cfg(test)]
+    const fn diagnostic(&self) -> &Diagnostic {
+        &self.diagnostic
+    }
+
+    fn into_parts(self) -> (LoweredPostHandoffWriter, Diagnostic) {
+        (self.lowered, self.diagnostic)
+    }
 }
 
 fn preflight_post_handoff_entry_writer_binding(
     lowered: LoweredPostHandoffWriter,
     installed_architecture: Architecture,
-) -> Result<LoweredPostHandoffWriter, PostHandoffEntryWriterBindingError> {
-    let rejection = |lowered, diagnostic| PostHandoffEntryWriterBindingError {
+) -> Result<LoweredPostHandoffWriter, PostHandoffEntryWriterPreflightError> {
+    let rejection = |lowered, diagnostic| PostHandoffEntryWriterPreflightError {
         lowered,
         diagnostic: Diagnostic::error(diagnostic),
     };
@@ -212,7 +267,7 @@ fn preflight_post_handoff_entry_writer_binding(
         ));
     }
     if let Err(diagnostic) = validate_lowered_post_handoff_writer(&lowered) {
-        return Err(PostHandoffEntryWriterBindingError {
+        return Err(PostHandoffEntryWriterPreflightError {
             lowered,
             diagnostic,
         });
@@ -438,5 +493,39 @@ mod tests {
         assert!(rejection.diagnostic().message.contains("exact replay"));
         let (returned, _) = rejection.into_parts();
         assert_eq!(returned, corrupted_snapshot);
+    }
+
+    #[test]
+    fn binding_api_requires_and_returns_validated_destination_custody() {
+        fn assert_binding_contract<'mapping, 'bytes>(
+            binding: fn(
+                LoweredPostHandoffWriter,
+                &InstalledCode,
+                &PostHandoffWriterPlan,
+                ValidatedPreparedPostHandoffWriterDestination<'mapping, 'bytes>,
+            ) -> Result<
+                PreparedPostHandoffEntryWriterInvocation<'mapping, 'bytes>,
+                PostHandoffEntryWriterBindingError<'mapping, 'bytes>,
+            >,
+        ) {
+            let _ = binding;
+        }
+
+        fn recover_destination<'mapping, 'bytes>(
+            error: PostHandoffEntryWriterBindingError<'mapping, 'bytes>,
+        ) -> ValidatedPreparedPostHandoffWriterDestination<'mapping, 'bytes> {
+            let (_lowered, destination, _diagnostic) = error.into_parts();
+            destination
+        }
+
+        fn retained_destination<'prepared, 'mapping, 'bytes>(
+            prepared: &'prepared PreparedPostHandoffEntryWriterInvocation<'mapping, 'bytes>,
+        ) -> &'prepared ValidatedPreparedPostHandoffWriterDestination<'mapping, 'bytes> {
+            prepared.destination()
+        }
+
+        assert_binding_contract(bind_post_handoff_entry_writer_invocation);
+        let _ = recover_destination;
+        let _ = retained_destination;
     }
 }
