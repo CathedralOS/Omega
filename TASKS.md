@@ -6186,39 +6186,12 @@ compiler concept is introduced.
   and out-of-isolated-root shapes remain conservative fences. Do not restore
   authored `stores` clauses or treat lifetime elision as evidence; Git carries
   individual evidence cohorts.
-- **STR/EFX:** finish independent normalization/publication of machine supply,
-  service reach, suspension, blocking, termination, mutation, and trust. The
-  state graph and checked-tree visualization now consume suspension and blocking
-  independently from exact flow-state and machine-contract facts while service
-  reach stays on its dedicated facts. Provider approval now consumes exact
-  checked-flow call coordinates directly and no longer replays the operational
-  umbrella. Static-machine selection validation now projects transient
-  inference into separate machine-keyed suspension and blocking rows before
-  threading callable-shape judgments; service reach is inferred separately and
-  neither operational axis can supply the other's fallback. Checked fact
-  construction likewise projects separate machine-keyed rows before publishing
-  the suspension and blocking roots, including mixed-axis checked bodies. The
-  published checked operational root is retired; its plan remains only as a
-  transient validation and independent-fact construction input.
-  A complete consumer audit now finds only transient validation, normalized
-  call-topology/service inference, independent checked-fact projection, and
-  typed-report projection; no checked or Omega artifact retains the umbrella.
-  Operational-carrier retirement is complete. Continue only the remaining
-  independent axis publication and trust/qualification consumers.
 - **TPR4/TPR6 — design blocked on owner Q4.** Choose how an ordinary domain or
   routed requirement is classified and attached as a progress premise before
   connecting progress-profile grants and receipts. Generic routed/domain
   requirements must not be treated as progress merely because they are
   predicate-free or provider-backed; private ranking witnesses remain outside
   public identity.
-- **GR6:** finish qualification/trust consumers and their artifact rows. The
-  retained selected-provider rows already bind exact plan, overload, grant,
-  subject, authority-flow, semantic-domain, carry, predicate, and root-selector
-  identity across lock/report/runtime admission. Continue with consumers that
-  still lack exact blast-radius rows. Selected schemas, adapter dispatch, and
-  calling-plan lookup require nonempty overload identities; name-only singleton
-  matching remains forbidden.
-
 Acceptance: contract axes normalize independently, wrappers cannot launder
 reach or trust, and private proof improvements do not change public identity.
 
