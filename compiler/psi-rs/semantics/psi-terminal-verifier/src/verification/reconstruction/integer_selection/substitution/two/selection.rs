@@ -1,7 +1,8 @@
 //! Verifier-local fixed two-equality affine endpoint selection.
 
-use psi_core::{Proposition, PropositionContext, ScalarTerm};
+use psi_core::{Proposition, PropositionContext};
 
+mod aliases;
 mod completion;
 
 pub(super) fn retained(
@@ -23,18 +24,8 @@ pub(super) fn retained(
             [(outer_left, outer_right), (outer_right, outer_left)]
                 .into_iter()
                 .filter_map(|(old, middle_alias)| {
-                    let endpoint = if old == goal_left {
-                        0
-                    } else if old == goal_right {
-                        1
-                    } else {
-                        return None;
-                    };
-                    (matches!(old, ScalarTerm::Value { .. })
-                        && matches!(middle_alias, ScalarTerm::Value { .. })
-                        && old != middle_alias
-                        && old.scalar_type() == middle_alias.scalar_type())
-                    .then_some((old, middle_alias, endpoint))
+                    aliases::outer(goal_left, goal_right, old, middle_alias)
+                        .map(|endpoint| (old, middle_alias, endpoint))
                 })
                 .any(|(old, middle_alias, endpoint)| {
                     facts()
@@ -44,20 +35,11 @@ pub(super) fn retained(
                             _ => None,
                         })
                         .any(|(inner_left, inner_right)| {
-                            let target_alias = if inner_left == middle_alias {
-                                inner_right
-                            } else if inner_right == middle_alias {
-                                inner_left
-                            } else {
+                            let Some(target_alias) =
+                                aliases::inner(old, middle_alias, inner_left, inner_right)
+                            else {
                                 return false;
                             };
-                            if !matches!(target_alias, ScalarTerm::Value { .. })
-                                || target_alias == old
-                                || target_alias == middle_alias
-                                || target_alias.scalar_type() != old.scalar_type()
-                            {
-                                return false;
-                            }
                             completion::retained(
                                 context,
                                 goal_left,
