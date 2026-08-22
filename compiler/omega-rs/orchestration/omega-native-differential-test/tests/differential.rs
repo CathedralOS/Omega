@@ -1718,6 +1718,21 @@ enum DifferentialCanaryResult {
     Mismatch(String),
 }
 
+const DEFAULT_DIFFERENTIAL_OUTER_JOB_CAP: usize = 12;
+
+fn default_differential_job_count(available_parallelism: usize) -> usize {
+    available_parallelism
+        .max(1)
+        .min(DEFAULT_DIFFERENTIAL_OUTER_JOB_CAP)
+}
+
+#[test]
+fn differential_parallelism_default_is_pinned() {
+    assert_eq!(default_differential_job_count(14), 12);
+    assert_eq!(default_differential_job_count(4), 4);
+    assert_eq!(default_differential_job_count(0), 1);
+}
+
 fn run_differential_canary(
     name: &str,
     expected_code: i32,
@@ -1837,10 +1852,15 @@ fn interpreter_matches_native_on_supported_canaries() {
         selected_canary
     );
 
-    let default_jobs = thread::available_parallelism()
-        .map(usize::from)
-        .unwrap_or(1)
-        .min(4);
+    // Prefer independent single-worker compiles over nested backend fan-out.
+    // On a 14-thread host, a representative 64-canary slice fell from
+    // 10.45--10.77s at four jobs to 5.62s at twelve; DIFF_JOBS remains the
+    // explicit host-specific profiling seam.
+    let default_jobs = default_differential_job_count(
+        thread::available_parallelism()
+            .map(usize::from)
+            .unwrap_or(1),
+    );
     let requested_jobs = std::env::var("DIFF_JOBS")
         .ok()
         .map(|value| {
