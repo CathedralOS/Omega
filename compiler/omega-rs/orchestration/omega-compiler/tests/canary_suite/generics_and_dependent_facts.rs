@@ -597,9 +597,12 @@ fn runtime_guard_proven_counter_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_guard_proven_counter_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-gpc-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("guard-proven counter canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("guard-proven counter canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("guard-proven counter canary should run");
     assert_eq!(
@@ -620,9 +623,12 @@ fn runtime_guard_narrowed_transition_arg_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_guard_narrowed_transition_arg_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-gnta-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("guard-narrowed transition arg canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("guard-narrowed transition arg canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("guard-narrowed transition arg canary should run");
     assert_eq!(
@@ -742,9 +748,12 @@ fn runtime_generic_value_call_agreeing_exit_canary_runs() {
     let canary = pass_canary("generics/runtime_generic_value_call_agreeing_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-gen-agree-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("agreeing generic value calls canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("agreeing generic calls canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("agreeing generic value calls canary should run");
     assert_eq!(
@@ -766,9 +775,12 @@ fn runtime_generic_value_call_exit_canary_runs() {
     let canary = pass_canary("generics/runtime_generic_value_call_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-gen-vcall-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("generic value call canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("generic value call canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("generic value call canary should run");
     assert_eq!(
@@ -796,9 +808,12 @@ fn trait_generic_bound_static_dispatch_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("bounded generic call should compile natively from its authored root");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("bounded generic call canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("bounded generic call canary should run");
     assert_eq!(
