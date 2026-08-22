@@ -2477,6 +2477,13 @@ Remaining:
   row traversal, oriented expression selection, and index recording. Input
   order, witness/proof shape, rejection behavior, and the fixed four-definition
   frontier remain unchanged.
+  Ordered affine-prefix target projection now lives in paired, side-local
+  `affine_custody/frontier/prefix/targets` modules. Producer and reconstruction
+  independently require the indexed definition to remain an equality and
+  enumerate only its `Value` endpoints left before right; prefix parents retain
+  independent witness construction and proof-kernel replay. Definition-word
+  order, proof shape, rejection behavior, and the fixed four-layer frontier
+  remain unchanged.
   One-equality transitive affine completion now lives in independent side-local
   `affine_selection/transitive/alias/completion` modules. Each parent retains
   its own ledger-ordered equality discovery, distinct root/alias custody, and
@@ -4955,6 +4962,13 @@ Owners:
   launch `OutputOnly` native execution solely through exact checked-report
   executable receipts while preserving literal status 70 and their exact
   policy/source diagnostics. Exact-owner ambiguity, the 795 rooted/3 legacy
+  inventory, and receipt-drift fences remain green.
+  Three authored-root integer signedness regressions—cross-width signed/
+  unsigned comparisons, arithmetic versus logical right shifts, and signed,
+  unsigned, and left shifts evaluated directly in guard subjects—now launch
+  `OutputOnly` native execution solely through exact checked-report executable
+  receipts while preserving literal status 70 and detailed wrong-branch/`sar`-
+  versus-`shr` diagnostics. Exact-owner ambiguity, the 795 rooted/3 legacy
   inventory, and receipt-drift fences remain green.
   Final
   replay now also retains an exact
