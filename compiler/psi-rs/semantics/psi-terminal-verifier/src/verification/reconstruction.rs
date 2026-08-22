@@ -605,7 +605,7 @@ fn affine_definition_words(
     semantic_axioms: &[Proposition],
     root: &ScalarTerm,
 ) -> Vec<Vec<usize>> {
-    const MAX_DEFINITIONS: usize = 3;
+    const MAX_DEFINITIONS: usize = 4;
 
     // This only prunes candidate words. Every retained prefix and final bound
     // is independently replayed by the proof-kernel checkers below.
@@ -2029,22 +2029,31 @@ mod tests {
     }
 
     #[test]
-    fn exact_division_selects_three_definition_affine_safe_divisor() {
+    fn exact_division_selects_three_and_four_definition_affine_safe_divisors() {
         let signed = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
-        let context = PropositionContext::from_value_types((1..=5).map(|id| {
+        let context = PropositionContext::from_value_types((1..=6).map(|id| {
             (
                 ValueId::new(id).expect("value id"),
                 ScalarType::Integer(signed),
             )
         }))
-        .expect("five i8 values");
-        let goal = CanonicalScalarGoal::ExactDivisionDefined {
+        .expect("six i8 values");
+        let three_step_goal = CanonicalScalarGoal::ExactDivisionDefined {
+            integer_type: signed,
+            left: value(1, signed),
+            right: value(6, signed),
+        };
+        let four_step_goal = CanonicalScalarGoal::ExactDivisionDefined {
             integer_type: signed,
             left: value(1, signed),
             right: value(2, signed),
         };
-        let root_bound = Proposition::LessOrEqual(
+        let three_step_root_bound = Proposition::LessOrEqual(
             ScalarTerm::integer(signed, IntegerValue::Signed(-2)).expect("i8 -2"),
+            value(3, signed),
+        );
+        let four_step_root_bound = Proposition::LessOrEqual(
+            ScalarTerm::integer(signed, IntegerValue::Signed(-3)).expect("i8 -3"),
             value(3, signed),
         );
         let definitions = [
@@ -2067,7 +2076,7 @@ mod tests {
                 .expect("second exact add"),
             ),
             Proposition::Equal(
-                value(2, signed),
+                value(6, signed),
                 ScalarTerm::exact_integer_add(
                     signed,
                     value(5, signed),
@@ -2075,28 +2084,44 @@ mod tests {
                 )
                 .expect("third exact add"),
             ),
+            Proposition::Equal(
+                value(2, signed),
+                ScalarTerm::exact_integer_add(
+                    signed,
+                    value(6, signed),
+                    ScalarTerm::integer(signed, IntegerValue::Signed(1)).expect("i8 one"),
+                )
+                .expect("fourth exact add"),
+            ),
         ];
         assert!(exact_division_has_prior_certificate(
             &context,
-            &goal,
+            &three_step_goal,
             &definitions,
-            std::slice::from_ref(&root_bound),
+            std::slice::from_ref(&three_step_root_bound),
+        ));
+        assert!(exact_division_has_prior_certificate(
+            &context,
+            &four_step_goal,
+            &definitions,
+            std::slice::from_ref(&four_step_root_bound),
         ));
         assert!(!exact_division_has_prior_certificate(
             &context,
-            &goal,
-            &definitions[..2],
-            std::slice::from_ref(&root_bound),
+            &four_step_goal,
+            &definitions[..3],
+            std::slice::from_ref(&four_step_root_bound),
         ));
         assert!(!exact_division_has_prior_certificate(
             &context,
-            &goal,
+            &four_step_goal,
             &[
+                definitions[3].clone(),
                 definitions[2].clone(),
                 definitions[1].clone(),
                 definitions[0].clone(),
             ],
-            &[root_bound],
+            &[four_step_root_bound],
         ));
     }
 }
