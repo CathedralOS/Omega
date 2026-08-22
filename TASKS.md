@@ -5151,6 +5151,13 @@ Owners:
   scalar diagnostics. Exact-owner ambiguity, the 795 rooted/3 legacy inventory,
   and receipt-drift fences remain green; crash semantics and legacy owners are
   unchanged.
+  Four authored-root data-layout/copy regressions—deep nested-field access,
+  struct value-copy semantics, whole-struct mutation copy with interpreter
+  parity, and data-property declarations—now launch `OutputOnly` native
+  execution solely through exact checked-report executable receipts, including
+  exact nested `out/` publications. Literal exit 70 and all copy/layout
+  diagnostics remain unchanged; exact-owner ambiguity, the 795 rooted/3 legacy
+  inventory, and receipt-drift fences remain green.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
