@@ -3,7 +3,7 @@
 use psi_core::{Proposition, ScalarTerm};
 use psi_proof_kernel::{PrimitiveJudgment, ProofNode, ProofRule};
 
-use super::super::super::root_bounds;
+use super::super::root_bounds;
 
 pub(super) fn prove(
     root: &ScalarTerm,
