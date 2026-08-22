@@ -939,6 +939,14 @@ Owners:
   execution, write failures, and validated recovery retain that validated
   carrier end to end. This establishes no provider-operation authority,
   consumer semantics, publication, device event, or native execution.
+  Instruction-selection's standalone post-handoff entry-writer binder no
+  longer accepts bare destination length and placement while resolving symbolic
+  entry values. It consumes and retains the exact validated non-clonable
+  prepared destination beside the lowered fragment and opaque resolved context;
+  every lowering, architecture, resolution, or context rejection returns both
+  lowered evidence and destination custody unchanged. This closes the parallel
+  preflight bypass without granting provider-operation authority, exposing
+  resolved words, publishing bytes, or claiming device/native execution.
   External-root writer preparation now independently replays the complete
   admitted provider execution before symbolic-source resolution: exact
   validated root structure, retained validated boundary carrier, execution-to-
