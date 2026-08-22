@@ -5219,6 +5219,14 @@ Owners:
   their construction/index diagnostics. Exact-owner ambiguity, the 795 rooted/
   3 legacy inventory, and receipt-drift fences remain green; slow-float, crash-
   specific, and explicit legacy owners remain untouched.
+  Two authored-root value-flow regressions—trailing bare-local returns and
+  same-type receiver-field post-entry routing with interpreter parity—now
+  launch `OutputOnly` native execution solely through exact checked-report
+  executable receipts while preserving literal exit 70, the trailing-local
+  71/72/73 diagnostics, and exact receiver result flow. Exact-owner ambiguity,
+  the 795 rooted/3 legacy inventory, and receipt-drift fences remain green;
+  slow-float, crash-specific, timer/loop, and explicit legacy owners remain
+  untouched.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
@@ -5484,6 +5492,10 @@ reach or trust, and private proof improvements do not change public identity.
   `scalar_conditional_regions` child. Higher scalar-control and image
   orchestration remain in the 4,137-line parent, with APIs, native bytes,
   validation order, and the 69-function inventory unchanged.
+  Conditional call-location reconstruction and mutual-exclusivity queries now
+  live in a focused 86-line `scalar_conditional_call_paths` child. The 4,066-
+  line parent retains higher scalar-control and image orchestration, with APIs,
+  native bytes, validation order, and the 69-function inventory unchanged.
   The installed-cleanup ordinal-tamper regression now locates the authoritative
   internal-call custody row by its complete machine/text-offset/owner/target
   header before mutating the ordinal, rather than accidentally changing an
