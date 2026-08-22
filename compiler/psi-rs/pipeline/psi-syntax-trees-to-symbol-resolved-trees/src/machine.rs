@@ -35,12 +35,7 @@ pub(crate) fn lower_machine_into(
     lowerer.current_state_name = None;
     lowerer.current_evidence_term_names.clear();
     let type_parameters = lower_type_parameters(lowerer, syntax_trees, machine.type_parameters)?;
-    let satisfies = lower_machine_trait_conformances(
-        lowerer,
-        syntax_trees,
-        machine.satisfies,
-        machine.name.as_str(),
-    )?;
+    let satisfies = lower_machine_trait_conformances(lowerer, syntax_trees, machine.satisfies)?;
     let conformance_bounds =
         lower_generic_conformance_bounds(lowerer, syntax_trees, &machine.conformance_bounds)?;
     let ranking_subjects =
@@ -77,7 +72,7 @@ pub(crate) fn lower_machine_into(
             .satisfies_clauses(machine.satisfies)
             .iter()
             .find_map(|clause| clause.via.as_ref())
-            .map(|binding| external_binding_identity(binding, machine.name.as_str()));
+            .map(external_binding_identity);
         if machine.bodyless && machine.boundary {
             // A bodyless boundary declaration is ACCEPTED only when it
             // actually authors a fact. Claim-free symbols such as the
@@ -461,7 +456,6 @@ fn lower_machine_trait_conformances(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
     satisfies: HandleSpan<syntax::item::SatisfiesClause>,
-    machine_name: &str,
 ) -> Result<HandleSpan<TraitConformance>, Diagnostic> {
     let mut span = HandleSpan::empty();
 
@@ -475,7 +469,7 @@ fn lower_machine_trait_conformances(
             lowerer
                 .symbol_resolved_trees
                 .external_bindings
-                .intern(external_binding_identity(binding, machine_name))
+                .intern(external_binding_identity(binding))
         });
         lowerer
             .symbol_resolved_trees
@@ -500,7 +494,6 @@ fn lower_machine_trait_conformances(
 
 fn external_binding_identity(
     binding: &syntax::item::ExternalBinding,
-    machine_name: &str,
 ) -> psi_language_semantics::ExternalBindingIdentity {
     use psi_language_semantics::ExternalBindingIdentity;
 
@@ -515,9 +508,7 @@ fn external_binding_identity(
             }
         }
         syntax::item::ExternalBinding::CompilerIntrinsic => {
-            ExternalBindingIdentity::CompilerIntrinsic {
-                machine: machine_name.to_owned(),
-            }
+            ExternalBindingIdentity::CompilerIntrinsic
         }
         syntax::item::ExternalBinding::VtableSlot { index } => {
             ExternalBindingIdentity::VtableSlot { index: *index }

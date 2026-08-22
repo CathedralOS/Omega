@@ -1722,7 +1722,7 @@ fn exact_satisfied_requirement_identity(
     }
 }
 
-fn exact_external_binding_identity<'typed>(
+pub(crate) fn exact_external_binding_identity<'typed>(
     typed: &'typed TypedTrees,
     machine: &psi_typed_trees::machine::Machine,
     trait_name: &str,
@@ -1756,7 +1756,7 @@ fn external_provider_binding(
             library: library.clone(),
             symbol: symbol.clone(),
         },
-        ExternalBindingIdentity::CompilerIntrinsic { .. } => ProviderBinding::CompilerIntrinsic {
+        ExternalBindingIdentity::CompilerIntrinsic => ProviderBinding::CompilerIntrinsic {
             machine: intrinsic_machine_identity.to_owned(),
         },
         ExternalBindingIdentity::VtableSlot { index } => {
