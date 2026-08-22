@@ -989,21 +989,13 @@ fn runtime_machine_bounded_subslice_local_exit_canary_runs() {
     let scratch = std::env::temp_dir().join(format!("omega-mach-subslice-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("machine-bounded subslice canary should compile");
-
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("machine-bounded subslice canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(3),
-        "expected `self.arr[self.lo..self.hi]` (1..4) len 3 to exit 3, got {:?}
-stderr:
-{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        3,
+        "machine-bounded subslice canary",
+        "the machine-field bounds should produce a subslice of length three",
     );
 
     let _ = fs::remove_dir_all(&scratch);
@@ -1017,21 +1009,13 @@ fn runtime_subslice_start_pointer_exit_canary_runs() {
     let scratch = std::env::temp_dir().join(format!("omega-subslice-ptr-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("subslice start pointer canary should compile");
-
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("subslice start pointer canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(1),
-        "expected sub[0] == arr[1] == 10 (the shrunk pointer, not the array base) to exit 1, got {:?}
-stderr:
-{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        1,
+        "subslice start-pointer canary",
+        "the subslice pointer should begin at the runtime start index",
     );
 
     let _ = fs::remove_dir_all(&scratch);
@@ -1045,21 +1029,13 @@ fn runtime_loop_accumulator_exit_canary_runs() {
     let build_dir = std::env::temp_dir().join(format!("omega-rec-accum-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("recursive accumulator canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
-        .output()
-        .expect("recursive accumulator canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(1),
-        "expected sum(5,0) == 15 (parallel-assignment staging) to exit 1, got {:?}
-stderr:
-{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        1,
+        "loop-accumulator canary",
+        "parallel assignment should preserve the pre-decrement accumulator input",
     );
 
     let _ = fs::remove_dir_all(&build_dir);
@@ -1073,21 +1049,13 @@ fn runtime_loop_rotation_exit_canary_runs() {
     let build_dir = std::env::temp_dir().join(format!("omega-rec-rot-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("recursive rotation canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
-        .output()
-        .expect("recursive rotation canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(1),
-        "expected rot(3,1,2,3) to rotate back to a==1 and exit 1, got {:?}
-stderr:
-{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        1,
+        "loop-rotation canary",
+        "parallel assignment should preserve the three-argument rotation cycle",
     );
 
     let _ = fs::remove_dir_all(&build_dir);
@@ -1103,21 +1071,13 @@ fn runtime_post_clauses_return_type_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-post-clauses-ret-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("post-clauses return type canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
-        .output()
-        .expect("post-clauses return type canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(1),
-        "expected `terminates -> usize` pick(1) to return 5 and exit 1, got {:?}
-stderr:
-{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        1,
+        "post-clauses return-type canary",
+        "the post-clause return type should retain and deliver the value result",
     );
 
     let _ = fs::remove_dir_all(&build_dir);
