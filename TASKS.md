@@ -3309,6 +3309,16 @@ Remaining:
   canary; warm no-allocation phases fell from 1.899s/1.906s to 1.848s/1.846s.
   Raw full-run wall remained noisy, so the claim is limited to phase timing and
   allocation evidence.
+  Checked semantic-call state lookup now uses a valid state symbol's retained
+  parent as an exact owning-machine fast path, while retaining the prior
+  source-ordered global scan when table metadata is unresolved or disagrees
+  with storage. Invalid handles remain rejected and the final exact state-
+  handle match is unchanged. Allocation-enabled broad-float checked phases
+  fell from 1.947s/1.920s to 1.772s/1.663s with allocation counts and bytes
+  exactly unchanged, so this is avoided machine/state traversal rather than
+  allocation suppression. A structural-resolution cache and in-place vector-
+  reuse prototype were rejected and fully removed because they increased
+  allocations or produced no measurable phase benefit.
   Default-domain validation now delegates conservative symbolic values,
   literal/sequence measures, valuation folding, canonical symbolic equality,
   and recursive call detection to a focused 281-line child while state walking,
@@ -5476,6 +5486,12 @@ Owners:
   and transitioned indexed-read iteration exit 91. Exact-owner ambiguity, the
   795 rooted/3 legacy inventory, and cross-copy receipt-drift fences remain
   green; both warm compiler/interpreter bodies are 0.02s.
+  The machine-owned single- and double-runtime-indexed String-field concat
+  regressions now launch solely through the exact executables retained by their
+  checked compilation reports while preserving direct/double indexed writes
+  and literal exits 81/83. Exact-owner ambiguity, the 795 rooted/3 legacy
+  inventory, and cross-copy receipt-drift fences remain green; their warm
+  compiler/interpreter bodies remain 0.02s.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
