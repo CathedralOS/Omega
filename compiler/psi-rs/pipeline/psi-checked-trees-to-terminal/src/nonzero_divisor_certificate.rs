@@ -1629,6 +1629,74 @@ mod tests {
     }
 
     #[test]
+    fn exact_division_goal_composes_two_citation_bounds_for_both_signed_joint_conjuncts() {
+        let signed = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+        let context = PropositionContext::from_value_types([
+            (ValueId::new(1).unwrap(), ScalarType::Integer(signed)),
+            (ValueId::new(2).unwrap(), ScalarType::Integer(signed)),
+            (ValueId::new(3).unwrap(), ScalarType::Integer(signed)),
+            (ValueId::new(4).unwrap(), ScalarType::Integer(signed)),
+        ])
+        .expect("four i8 values");
+        let divisor = value(2, signed);
+        let goal = Proposition::Disjunction(vec![
+            Proposition::LessOrEqual(divisor.clone(), integer(signed, -2)),
+            Proposition::LessOrEqual(integer(signed, 1), divisor.clone()),
+            Proposition::Conjunction(vec![
+                Proposition::LessOrEqual(divisor, integer(signed, -1)),
+                Proposition::LessOrEqual(integer(signed, -127), value(1, signed)),
+            ]),
+        ]);
+        let assumptions = [
+            Proposition::LessOrEqual(value(2, signed), value(3, signed)),
+            Proposition::LessOrEqual(value(3, signed), integer(signed, -1)),
+            Proposition::LessOrEqual(integer(signed, -127), value(4, signed)),
+            Proposition::LessOrEqual(value(4, signed), value(1, signed)),
+        ];
+        let proof = prove_canonical_integer_proposition(&context, &goal, &assumptions, &[])
+            .expect("two cited bounds prove each signed joint conjunct");
+        let ProofRule::DisjunctionIntroduction { disjunct, index } = proof.rule else {
+            panic!("two-citation joint bounds select the canonical joint arm")
+        };
+        assert_eq!(index, 2);
+        let ProofRule::ConjunctionIntroduction(conjuncts) = disjunct.rule else {
+            panic!("two-citation joint bounds prove both canonical conjuncts")
+        };
+        for (conjunct, first, second) in [(&conjuncts[0], 0, 1), (&conjuncts[1], 2, 3)] {
+            let ProofRule::IntegerLessOrEqualTransitivity {
+                left_less_or_equal_middle,
+                middle_less_or_equal_right,
+            } = &conjunct.rule
+            else {
+                panic!("joint conjunct uses two-citation transitivity")
+            };
+            assert!(matches!(
+                left_less_or_equal_middle.rule,
+                ProofRule::Assumption { index } if index == first
+            ));
+            assert!(matches!(
+                middle_less_or_equal_right.rule,
+                ProofRule::Assumption { index } if index == second
+            ));
+        }
+
+        assert!(
+            prove_canonical_integer_proposition(
+                &context,
+                &goal,
+                &[
+                    assumptions[0].clone(),
+                    assumptions[1].clone(),
+                    assumptions[2].clone(),
+                ],
+                &[],
+            )
+            .is_none(),
+            "missing one citation cannot prove both joint conjuncts",
+        );
+    }
+
+    #[test]
     fn exact_division_goal_composes_two_exact_transitive_bound_citations() {
         let unsigned = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
         let context = PropositionContext::from_value_types([
