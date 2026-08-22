@@ -4920,6 +4920,12 @@ Owners:
   while preserving literal status 70 and exact clamp diagnostics. Exact-owner
   ambiguity, the 795 rooted/3 legacy inventory, and receipt-drift fences remain
   green; trapping owners remain separate.
+  Two authored-root in-range trapping-policy regressions—division `140 / 2`
+  and multiplication `10 × 10`—now launch `OutputOnly` native execution solely
+  through exact checked-report executable receipts while preserving literal
+  status 70 and exact diagnostics; crash-process semantics are unchanged.
+  Exact-owner ambiguity, the 795 rooted/3 legacy inventory, and receipt-drift
+  fences remain green.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
