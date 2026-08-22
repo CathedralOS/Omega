@@ -2568,7 +2568,14 @@ Remaining:
   literal remapping. Root-bound custody, witness indices, target order, proof
   shape, rejection behavior, and the finite unique-spine frontier are
   unchanged; no alternate-path, permutation, or generic graph search is
-  introduced. Exact integer-literal carrier remapping now lives in independent
+  introduced. Per-target completion now lives in paired, side-local
+  `cast_custody/completion/target` modules. Producer and reconstruction
+  independently recover and validate the deterministic exact-cast word for
+  every ordered value endpoint and construct or replay its bound conversion;
+  only production materializes and kernel-checks `IntegerCastBound`. The
+  completion parents retain left-before-right endpoint order and value
+  eligibility, so proof bytes, per-target rejection, and the finite unique-
+  spine frontier remain unchanged. Exact integer-literal carrier remapping now lives in independent
   side-local `cast_custody/literal` modules. Production and reconstruction each
   resolve the retained literal's exact source carrier and value, apply exact
   integer-cast semantics, and rebuild the target-carrier literal before their
@@ -7071,9 +7078,12 @@ exact target-range checks retain fail-closed behavior and diagnostic order. The
 source-value classifier and store-conflict diagnostics now live in a focused
 299-line private owner. Scalar class inference, named-operator representation-
 change refusal, concrete data identity resolution, and cross-class/nominal
-diagnostics retain exact behavior and order across all consumers. The
-expression-type coordinator is now 1,123 lines; crate-facing APIs and the exact
-51-function inventory remain unchanged.
+diagnostics retain exact behavior and order across all consumers. Expression
+operator type validation now lives in a focused 483-line private owner. Binary
+check order, float/integer fences, cross-class/text/logical/struct/array
+diagnostics, unary checks, and shared shape classifiers retain exact behavior.
+The expression-type root is now 656 lines; crate-facing APIs, identities, and
+the exact 51-function inventory remain unchanged.
 
 Checked-result float/integer conversion remains blocked on the separate
 checked-result arithmetic decision listed below.
