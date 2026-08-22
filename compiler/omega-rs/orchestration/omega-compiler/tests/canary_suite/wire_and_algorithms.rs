@@ -1955,9 +1955,12 @@ fn runtime_row_const_column_write_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_row_const_column_write_exit");
     let scratch = std::env::temp_dir().join(format!("omega-row-const-col-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("runtime-row const-column write canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("runtime-row const-column write canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("runtime-row const-column write canary should run");
     assert_eq!(
@@ -1978,9 +1981,12 @@ fn runtime_nested_array_const_index_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-nested-array-const-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("nested array const-index canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("nested array const-index canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("nested array const-index canary should run");
     assert_eq!(
@@ -2001,9 +2007,12 @@ fn runtime_whole_array_value_copy_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-whole-array-copy-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("whole-array value copy canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("whole-array value copy canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("whole-array value copy canary should run");
     assert_eq!(
@@ -2026,9 +2035,12 @@ fn runtime_whole_struct_value_copy_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-whole-struct-copy-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("whole-struct value copy canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("whole-struct value copy canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("whole-struct value copy canary should run");
     assert_eq!(
@@ -2080,9 +2092,12 @@ fn runtime_fixed_array_field_guard_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("fixed-array field guard canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("fixed-array field guard canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("fixed-array field guard canary should run");
 
