@@ -7053,9 +7053,13 @@ checked-result arithmetic decision listed below.
   implication now live in a focused 377-line private owner. Exact integer two's-
   complement bit-pattern intervals, same-carrier float intervals, domain-
   conjunction implication, mutable bidirectional equivalence, and five focused
-  tests retain behavior and order. The recast coordinator is now 2,442 lines;
-  public APIs, diagnostics, and the exact 49-function inventory remain
-  unchanged. Remaining computed aggregate expression forms still
+  tests retain behavior and order. Aggregate recast representation
+  normalization now lives in a focused 370-line private owner. Exact record/
+  array geometry, plan-laid stored-width and repeated-field normalization,
+  stable leaf order, exact tiling, shared implication, and mutable
+  bidirectional equivalence retain behavior and identity. The recast
+  coordinator is now 2,088 lines; public APIs, diagnostic order, and the exact
+  49-function inventory remain unchanged. Remaining computed aggregate expression forms still
   need the same propagation law.
 - Materialize dynamic descriptors for pass-through, rebound, and escaping
   borrows from the retained exact conformance rows and declaring-trait symbol.
