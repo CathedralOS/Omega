@@ -919,10 +919,13 @@ fn runtime_dyn_single_impl_dispatch_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("dyn single-impl dispatch canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("dyn single-impl dispatch canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("dyn single-impl dispatch canary should run");
 
@@ -948,10 +951,13 @@ fn runtime_local_named_dyn_devirtualized_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("a local named dynamic coercion should devirtualize through its exact row");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("local named dynamic canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("local named dynamic canary should run");
 
