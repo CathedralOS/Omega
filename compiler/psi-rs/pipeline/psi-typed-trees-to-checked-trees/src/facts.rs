@@ -697,20 +697,27 @@ fn build_mutation_facts(program: &TypedTrees) -> psi_checked_trees::MutationFact
     let machines = program
         .machines()
         .iter()
-        .map(|machine| psi_checked_trees::MachineMutationFact {
-            machine: machine.symbol,
-            state_write_frames: program
-                .machine_states(machine)
-                .iter()
-                .map(|state| psi_checked_trees::StateWriteFramePlan {
-                    state: state.symbol,
-                    frame: frame_resolver
-                        .as_ref()
-                        .map_or_else(psi_facts::NormalizedWriteFrame::opaque, |resolver| {
-                            resolver.inferred_state_write_frame(machine, state)
-                        }),
-                })
-                .collect(),
+        .map(|machine| {
+            let states = program.machine_states(machine);
+            let frames = frame_resolver.as_ref().map_or_else(
+                || {
+                    (0..states.len())
+                        .map(|_| psi_facts::NormalizedWriteFrame::opaque())
+                        .collect()
+                },
+                |resolver| resolver.inferred_machine_state_write_frames(machine),
+            );
+            psi_checked_trees::MachineMutationFact {
+                machine: machine.symbol,
+                state_write_frames: states
+                    .iter()
+                    .zip(frames)
+                    .map(|(state, frame)| psi_checked_trees::StateWriteFramePlan {
+                        state: state.symbol,
+                        frame,
+                    })
+                    .collect(),
+            }
         })
         .collect();
     psi_checked_trees::MutationFacts { machines }
