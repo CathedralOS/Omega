@@ -187,11 +187,12 @@ story.
   - [ ] Audit the eventual Omega0 Delta source against D0 and make every construct
     either elaborate through the lower-rung route or reject before it can enter
     the compiler. Keep `gamma_emit.rs` only as a reference differential producer.
-    - [ ] Extend `omega2gamma.beta` for the Delta-written O0 frontend. The native
-      on-ramp and Delta-written `lowermachine` both return its retained operand
-      digest 107 for `cli_mvp`; the current lower-rung elaboration/interpreter
-      route returns rejection 251 for that same canonical bundle. Preserve this
-      as an explicit meaning-coverage gap rather than weakening the frontend.
+    - [x] Extend `omega2gamma.beta` for the Delta-written O0 frontend. Native,
+      Delta-self-hosted, and lower-rung elaboration/interpreter routes now return
+      the retained operand digest 107 for `cli_mvp`; the lower-rung route also
+      preserves semantic rejection at 251. The focused gate pins multi-slot
+      void/value method-state threading, bounded per-machine capacity, and the
+      private chunked carrier used only for compiler-sized scalar arrays.
 - [ ] **Build a vertical Omega canary in Delta.** A Delta-written program must
   accept a small Omega source file, perform name/type checks, lower through the
   chosen terminal-Psi path, and produce a runnable artifact whose behavior
@@ -364,6 +365,7 @@ sh compiler/omega/kernel-diamond.sh
 sh compiler/omega/omega-meaning.sh
 sh compiler/omega/meaning-cert-diamond.sh
 sh compiler/omega/translation-validation.sh
+sh compiler/delta-rs/omega0-frontend-meaning.sh
 ```
 
 ## Persistent implementation facts

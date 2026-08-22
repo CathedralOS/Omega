@@ -86,10 +86,10 @@ explicit boundary surfaces and remain in the platform trust ledger.
 - Make the rung sufficient to build the spec-compliant bootstrap Omega compiler.
 - Use bootstrap Omega to build and validate the full Omega-source production
   compiler.
-- Continue widening the Delta-to-Gamma meaning route and its differential gates.
-- Extend that lower-rung route to the O0 frontend; native and Delta-self-hosted
-  execution agree today, while the current Beta-to-Gamma path rejects the
-  canonical frontend run and therefore does not yet grant semantic authority.
+- Continue widening the Delta-to-Gamma meaning route beyond the now-gated O0
+  frontend. Native, Delta-self-hosted, and Beta-to-Gamma execution agree on its
+  canonical retained-operand digest, and the lower-rung route pins semantic
+  rejection independently of the Rust producer.
 - Keep the now-logical `lowermachine` table/source arenas within the checked D0
   backing convention as compiler capacity grows. Compiler tables use integer
   offsets in one typed backing extent; source storage grows in an explicit byte
