@@ -3035,10 +3035,13 @@ fn runtime_ordered_room_dispatch_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("runtime ordered room dispatch canary should compile from its authored root");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("runtime ordered room dispatch canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("runtime ordered room dispatch canary should run");
 
@@ -3062,11 +3065,14 @@ fn runtime_ordered_room_dispatch_after_call_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
         "runtime ordered room dispatch after call canary should compile from its authored root",
     );
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation.checked_native_executable_path().expect(
+        "runtime ordered room dispatch after call canary should retain its executable receipt",
+    );
+    let output = Command::new(executable)
         .output()
         .expect("runtime ordered room dispatch after call canary should run");
 
@@ -3090,11 +3096,14 @@ fn runtime_ordered_room_dispatch_game_shape_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
         "runtime ordered room dispatch game-shape canary should compile from its authored root",
     );
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation.checked_native_executable_path().expect(
+        "runtime ordered room dispatch game-shape canary should retain its executable receipt",
+    );
+    let output = Command::new(executable)
         .output()
         .expect("runtime ordered room dispatch game-shape canary should run");
 
@@ -3118,11 +3127,14 @@ fn runtime_ordered_room_dispatch_large_machine_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
         "runtime ordered room dispatch large-machine canary should compile from its authored root",
     );
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation.checked_native_executable_path().expect(
+        "runtime ordered room dispatch large-machine canary should retain its executable receipt",
+    );
+    let output = Command::new(executable)
         .output()
         .expect("runtime ordered room dispatch large-machine canary should run");
 
@@ -3184,11 +3196,14 @@ fn runtime_guarded_inline_leaf_arm_skip_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
         "runtime guarded inline leaf arm skip canary should compile from its authored root",
     );
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("runtime guarded inline leaf arm skip canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("runtime guarded inline leaf arm skip canary should run");
 
