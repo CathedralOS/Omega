@@ -2921,9 +2921,12 @@ fn runtime_nested_unsigned_witness_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_nested_unsigned_witness_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-nestuns-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("nested unsigned witness canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("nested unsigned witness canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("nested unsigned witness canary should run");
     assert_eq!(
@@ -2944,9 +2947,12 @@ fn runtime_local_array_element_value_operand_exit_canary_runs() {
     let canary = pass_canary("slices/runtime_local_array_element_value_operand_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-localarr-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("local-array value-operand canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("local-array value-operand canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("local-array value-operand canary should run");
     assert_eq!(
@@ -2966,9 +2972,12 @@ fn runtime_machine_array_element_fused_call_arg_exit_canary_runs() {
     let canary = pass_canary("slices/runtime_machine_array_element_fused_call_arg_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-machidx-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("machine-array fused-call-arg canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("machine-array fused-call-arg canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("machine-array fused-call-arg canary should run");
     assert_eq!(
@@ -2988,9 +2997,12 @@ fn runtime_saturating_array_element_guard_exit_canary_runs() {
     let canary = pass_canary("slices/runtime_saturating_array_element_guard_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-satarr-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("saturating array-element guard canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("saturating array-element guard canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("saturating array-element guard canary should run");
     assert_eq!(
@@ -3060,9 +3072,12 @@ fn runtime_float_nested_operand_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_float_nested_operand_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-fnest-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("nested float operand canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("nested float operand canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("nested float operand canary should run");
     assert_eq!(
