@@ -456,7 +456,14 @@ Remaining:
   retaining field/index tags, reserved bytes, UTF-8/nonempty-field validation,
   count/end guards, exact bytes, and established errors. A 51-line scalar-
   result codec additionally owns the exact six-byte Boolean/integer/address
-  type grammar and reserved-byte/invalid-result errors. This is
+  type grammar and reserved-byte/invalid-result errors. A 57-line call-site
+  owner codec likewise owns operation and cleanup tags, exact identities,
+  canonical cleanup zero, reserved bytes, and the established invalid-tag and
+  nonzero-cleanup errors. A 33-line provider-execution codec now owns the
+  ordered five-identity grammar and nonzero decoding shared by enclosing
+  settlements and nested completion-custody bindings, removing the final
+  duplicate byte spelling while leaving admission and closure checks in the
+  parent. This is
   custody, not
   authorization. The remaining
   work is real
@@ -658,7 +665,13 @@ Owners:
   lives in a focused 126-line private owner. Stable member lookup,
   `At`/`IntegerAt`/`Bits` encoding, capacity padding, dynamic-size
   representation, evaluation order, diagnostics, and public APIs remain
-  unchanged; the access-plan coordinator is now 505 lines.
+  unchanged. Evaluated `AccessPlan` and `PlacementPlan` normalization now lives
+  in a focused 426-line private owner, including exact field-decision parsing,
+  scalar transfer-width derivation, atomic operation permissions, exposure,
+  boundary reach, and final sealed placement construction. The 107-function
+  package inventory, public APIs, and diagnostic order remain unchanged; the
+  remaining 88-line root is the natural policy-evaluation orchestration
+  boundary.
   Plan-laid value layouts now retain the exact synthesized data symbol and
   ordered runtime field-symbol inventory independently from their diagnostic
   name. Interpreter record views, recast/relevance validation, boundary ABI
@@ -2215,7 +2228,13 @@ Remaining:
   Direct-root evidence remains before the fixed affine/cast/affine family;
   citation order, strict cast boundaries, endpoint conversion, proof shapes,
   rejection, and fixed frontiers remain unchanged, with no authority shared
-  across the trust boundary. Boundary-aware affine custody now likewise uses
+  across the trust boundary. Fixed affine/cast/affine selection now further
+  separates source-ordered candidate enumeration from resolved proof
+  completion in independent side-local
+  `affine_selection/cast/sandwich/completion` modules. Parents retain cast-root,
+  unique-spine, requirement, and root-endpoint precedence; mapped-prefix,
+  exact-cast, affine-suffix proof shape, strict boundaries, rejection, and the
+  fixed frontier remain unchanged. Boundary-aware affine custody now likewise uses
   independent producer/verifier `boundary` modules for strict post-boundary
   completion and `mapped` modules for exact pre-boundary mapping, while the
   parent retains ordinary root completion. Citation order, strict inequalities,
