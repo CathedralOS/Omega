@@ -1866,6 +1866,12 @@ Remaining:
   derivation now has a 509-line composition/partition parent over a declarative
   four-family registry: 249-line control/entry, 621-line storage/place,
   866-line outbound-call, and 512-line buffer/wire/text responsibilities. A
+  separate instruction-selection boundary-footprint owner has begun the same
+  split: its 6,344-line `entry.rs` parent delegates all eleven compact-binary
+  append/read footprint derivations to a 433-line `entry/wire.rs` child. The
+  public re-export surface, validation order, and 135-function inventory are
+  unchanged; the child depends only on retained instructions, the validated
+  boundary plan, and architecture encoder clobber/state facts. A
   separate 1,547-line
   module owns assembly footprints, operand-loader semantics, exact instruction
   bytes, and retained relocation checks behind two parent entry points; and a
