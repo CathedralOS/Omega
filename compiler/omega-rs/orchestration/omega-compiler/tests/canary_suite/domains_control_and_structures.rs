@@ -3096,9 +3096,12 @@ fn runtime_shift_count_domain_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_shift_count_domain_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-shiftdom-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("shift count domain canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("shift count domain canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("shift count domain canary should run");
     assert_eq!(
@@ -3115,9 +3118,12 @@ fn runtime_exact_guarded_shift_count_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_exact_guarded_shift_count_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-shiftexact-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("guard-proven Exact shift canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("guard-proven Exact shift canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("guard-proven Exact shift canary should run");
     assert_eq!(output.status.code(), Some(70));
@@ -3131,9 +3137,12 @@ fn runtime_shift_atwidth_signed_modular_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_shift_atwidth_signed_modular_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-shlatw-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("at-width modular shl canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("at-width modular shl canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("at-width modular shl canary should run");
     assert_eq!(
@@ -3152,9 +3161,12 @@ fn runtime_shift_right_atwidth_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_shift_right_atwidth_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-shratw-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("at-width shr canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("at-width shr canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("at-width shr canary should run");
     assert_eq!(
@@ -3175,9 +3187,12 @@ fn runtime_shift_atwidth_indexed_targets_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_shift_atwidth_indexed_targets_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-shlidx-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("indexed-targets shift canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("indexed-targets shift canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("indexed-targets shift canary should run");
     assert_eq!(
