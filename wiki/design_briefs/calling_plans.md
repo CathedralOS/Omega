@@ -741,6 +741,10 @@ The validated output flag, category, flat receipt, and optional bundle receipt
 are exposed only through read-only report accessors. Callers can inspect that
 custody tuple but cannot rearrange, replace, or drop one component after the
 compiler's final consistency check.
+Production orchestration now constructs both early check-only and backend
+reports through the same checked constructor. The constructor rejects an
+inconsistent output/category/receipt tuple before it can cross the return
+boundary; raw custody-field construction remains confined to its unit tests.
 Final relocation replay also builds one exact owner map from every retained
 selected-instruction identity to that function symbol. A selected instruction
 retained twice, an instruction relocation naming another function, or an

@@ -758,17 +758,18 @@ impl Compiler {
             if emit_auxiliary_artifacts {
                 write_pipeline_shell(&self.options)?;
             }
-            return Ok(CompileReport {
-                root_path: self.options.root_path,
+            return CompileReport::checked(
+                self.options.root_path,
                 source_file_count,
-                wrote_output: false,
-                output_kind: super::CompileOutputKind::CheckOnly,
-                executable_publication: None,
-                app_bundle_publication: None,
-                program_storage_entry: None,
-                program_storage_entry_bridge: None,
+                false,
+                super::CompileOutputKind::CheckOnly,
+                None,
+                None,
+                None,
+                None,
                 build_evaluation_usage,
-            });
+            )
+            .map_err(|message| vec![Diagnostic::error(message)]);
         }
 
         // Frontend-only compilation never submits work to the backend pool.
@@ -974,25 +975,20 @@ impl Compiler {
             write_pipeline_shell(&self.options)?;
         }
 
-        let report = CompileReport {
-            root_path: self.options.root_path,
+        CompileReport::checked(
+            self.options.root_path,
             source_file_count,
-            wrote_output: self.options.write_output,
+            self.options.write_output,
             output_kind,
             executable_publication,
             app_bundle_publication,
-            program_storage_entry: program_storage_entry_bridge
+            program_storage_entry_bridge
                 .as_ref()
                 .map(|bridge| bridge.binding().clone()),
             program_storage_entry_bridge,
             build_evaluation_usage,
-        };
-        if !report.has_consistent_executable_publication_custody() {
-            return Err(vec![Diagnostic::error(
-                "compiler report retained inconsistent executable publication receipts",
-            )]);
-        }
-        Ok(report)
+        )
+        .map_err(|message| vec![Diagnostic::error(message)])
     }
 }
 
