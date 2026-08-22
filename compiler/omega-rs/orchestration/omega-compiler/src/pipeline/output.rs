@@ -11,6 +11,7 @@ use psi_diagnostics::Diagnostic;
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct ExecutablePublicationEvidence {
     certificate_fingerprint: u64,
+    callback_placement_identity_fingerprint: u64,
     inventory_fingerprint: u64,
     file_name: String,
     format: String,
@@ -45,6 +46,8 @@ impl ExecutablePublicationEvidence {
         )?;
         let mut evidence = Self {
             certificate_fingerprint: certificate.certificate_fingerprint,
+            callback_placement_identity_fingerprint: certificate
+                .callback_placement_identity_fingerprint,
             inventory_fingerprint: image.executable_regions.inventory_fingerprint,
             file_name: image.file_name.clone(),
             format: image.format.clone(),
@@ -76,6 +79,10 @@ impl ExecutablePublicationEvidence {
         let mut hash = FNV_OFFSET;
         fingerprint_into(&mut hash, b"omega.executable-publication-evidence.v1");
         fingerprint_into(&mut hash, &self.certificate_fingerprint.to_le_bytes());
+        fingerprint_into(
+            &mut hash,
+            &self.callback_placement_identity_fingerprint.to_le_bytes(),
+        );
         fingerprint_into(&mut hash, &self.inventory_fingerprint.to_le_bytes());
         fingerprint_into(&mut hash, &(self.file_name.len() as u64).to_le_bytes());
         fingerprint_into(&mut hash, self.file_name.as_bytes());
@@ -133,6 +140,7 @@ impl<'a> ValidatedExecutablePublication<'a> {
 struct InstalledExecutablePublicationEvidence {
     destination: super::ExecutablePublicationDestination,
     publication_evidence_fingerprint: u64,
+    callback_placement_identity_fingerprint: u64,
     output_path: std::path::PathBuf,
     container_byte_count: usize,
     container_fingerprint: u64,
@@ -150,6 +158,9 @@ impl InstalledExecutablePublicationEvidence {
         let mut evidence = Self {
             destination,
             publication_evidence_fingerprint: publication.evidence.evidence_fingerprint,
+            callback_placement_identity_fingerprint: publication
+                .evidence
+                .callback_placement_identity_fingerprint,
             output_path: output_path.to_path_buf(),
             container_byte_count: publication.bytes().len(),
             container_fingerprint: byte_fingerprint(publication.bytes()),
@@ -176,6 +187,7 @@ impl InstalledExecutablePublicationEvidence {
         super::compile_report::executable_installation_evidence_fingerprint(
             self.destination,
             self.publication_evidence_fingerprint,
+            self.callback_placement_identity_fingerprint,
             &self.output_path,
             self.container_byte_count,
             self.container_fingerprint,
@@ -197,6 +209,9 @@ impl InstalledExecutablePublicationEvidence {
             self.destination,
             self.output_path.clone(),
             publication.certificate.certificate_fingerprint,
+            publication
+                .certificate
+                .callback_placement_identity_fingerprint,
             publication.certificate.boundary_contract_fingerprint,
             publication.certificate.inventory.inventory_fingerprint,
             publication
@@ -1150,6 +1165,10 @@ mod tests {
         assert_eq!(
             retained.certificate_fingerprint(),
             certificate.certificate_fingerprint
+        );
+        assert_eq!(
+            retained.callback_placement_identity_fingerprint(),
+            certificate.callback_placement_identity_fingerprint
         );
         assert_eq!(
             retained.boundary_contract_fingerprint(),

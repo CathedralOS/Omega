@@ -48,6 +48,7 @@ pub(super) fn expected_macos_app_bundle_executable_path(
 pub(super) fn executable_installation_evidence_fingerprint(
     destination: ExecutablePublicationDestination,
     publication_evidence_fingerprint: u64,
+    callback_placement_identity_fingerprint: u64,
     output_path: &std::path::Path,
     container_byte_count: usize,
     container_fingerprint: u64,
@@ -58,6 +59,10 @@ pub(super) fn executable_installation_evidence_fingerprint(
         b"omega.installed-executable-publication-evidence.v1",
     );
     fingerprint_into(&mut hash, &publication_evidence_fingerprint.to_le_bytes());
+    fingerprint_into(
+        &mut hash,
+        &callback_placement_identity_fingerprint.to_le_bytes(),
+    );
     fingerprint_into(
         &mut hash,
         &[match destination {
@@ -86,6 +91,8 @@ pub(super) fn executable_publication_pair_matches(
         && expected_macos_app_bundle_executable_path(root_path, &flat.output_path).as_deref()
             == Some(bundle.output_path.as_path())
         && flat.certificate_fingerprint == bundle.certificate_fingerprint
+        && flat.callback_placement_identity_fingerprint
+            == bundle.callback_placement_identity_fingerprint
         && flat.boundary_contract_fingerprint == bundle.boundary_contract_fingerprint
         && flat.inventory_fingerprint == bundle.inventory_fingerprint
         && flat.compiler_text_validation_fingerprint == bundle.compiler_text_validation_fingerprint
@@ -115,6 +122,7 @@ pub struct ExecutablePublicationReceipt {
     destination: ExecutablePublicationDestination,
     output_path: PathBuf,
     certificate_fingerprint: u64,
+    callback_placement_identity_fingerprint: u64,
     boundary_contract_fingerprint: Option<u64>,
     inventory_fingerprint: u64,
     compiler_text_validation_fingerprint: u64,
@@ -130,6 +138,7 @@ impl ExecutablePublicationReceipt {
         destination: ExecutablePublicationDestination,
         output_path: PathBuf,
         certificate_fingerprint: u64,
+        callback_placement_identity_fingerprint: u64,
         boundary_contract_fingerprint: Option<u64>,
         inventory_fingerprint: u64,
         compiler_text_validation_fingerprint: u64,
@@ -143,6 +152,7 @@ impl ExecutablePublicationReceipt {
             destination,
             output_path,
             certificate_fingerprint,
+            callback_placement_identity_fingerprint,
             boundary_contract_fingerprint,
             inventory_fingerprint,
             compiler_text_validation_fingerprint,
@@ -164,6 +174,10 @@ impl ExecutablePublicationReceipt {
 
     pub const fn certificate_fingerprint(&self) -> u64 {
         self.certificate_fingerprint
+    }
+
+    pub const fn callback_placement_identity_fingerprint(&self) -> u64 {
+        self.callback_placement_identity_fingerprint
     }
 
     pub const fn boundary_contract_fingerprint(&self) -> Option<u64> {
@@ -203,6 +217,7 @@ impl ExecutablePublicationReceipt {
             == executable_installation_evidence_fingerprint(
                 self.destination,
                 self.publication_evidence_fingerprint,
+                self.callback_placement_identity_fingerprint,
                 &self.output_path,
                 self.container_byte_count,
                 self.container_fingerprint,
@@ -498,11 +513,12 @@ mod tests {
     ) -> ExecutablePublicationReceipt {
         let path: std::path::PathBuf = path.into();
         let installation =
-            super::executable_installation_evidence_fingerprint(destination, 5, &path, 6, 7);
+            super::executable_installation_evidence_fingerprint(destination, 5, 8, &path, 6, 7);
         ExecutablePublicationReceipt::new(
             destination,
             path,
             1,
+            8,
             Some(2),
             2,
             3,
@@ -824,6 +840,16 @@ mod tests {
 
         let mut changed = bundle.clone();
         changed.certificate_fingerprint ^= 1;
+        let changed = report(
+            true,
+            CompileOutputKind::NativeExecutable,
+            Some(flat.clone()),
+            Some(changed),
+        );
+        assert!(!changed.has_consistent_executable_publication_custody());
+        assert!(changed.checked_native_executable_path().is_none());
+        let mut changed = bundle.clone();
+        changed.callback_placement_identity_fingerprint ^= 1;
         let changed = report(
             true,
             CompileOutputKind::NativeExecutable,
