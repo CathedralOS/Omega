@@ -683,10 +683,68 @@ fn retained_affine_bound_from_root(
                     check_integer_affine_witness(context, semantic_axioms, &witness).is_ok_and(
                         |form| {
                             check_integer_affine_bound_conversion(&form, root_bound, goal).is_ok()
+                                || mapped_affine_bound(&form, root_bound).is_some_and(|mapped| {
+                                    check_integer_affine_bound_conversion(
+                                        &form, root_bound, &mapped,
+                                    )
+                                    .is_ok()
+                                        && closed_affine_bound_relaxes_to_goal(&mapped, goal)
+                                })
                         },
                     )
                 })
         })
+}
+
+/// Reconstruct a candidate exact affine conclusion. The proof-kernel checker
+/// below must accept that candidate before its closed relaxation is considered.
+fn mapped_affine_bound(
+    form: &psi_proof_kernel::CheckedIntegerAffineForm,
+    root_bound: &Proposition,
+) -> Option<Proposition> {
+    let Proposition::LessOrEqual(left, right) = root_bound else {
+        return None;
+    };
+    let (bound, root_is_lower_endpoint) = if left == form.root() {
+        (right, false)
+    } else if right == form.root() {
+        (left, true)
+    } else {
+        return None;
+    };
+    let (bound_type, psi_core::IntegerValue::Signed(bound)) = bound.integer_value()? else {
+        return None;
+    };
+    if bound_type != form.integer_type() {
+        return None;
+    }
+    let mapped = form
+        .coefficient()
+        .checked_mul(bound)?
+        .checked_add(form.offset())?;
+    let mapped =
+        ScalarTerm::integer(form.integer_type(), psi_core::IntegerValue::Signed(mapped)).ok()?;
+    let target_is_left = if form.coefficient() < 0 {
+        root_is_lower_endpoint
+    } else {
+        !root_is_lower_endpoint
+    };
+    Some(if target_is_left {
+        Proposition::LessOrEqual(form.target().clone(), mapped)
+    } else {
+        Proposition::LessOrEqual(mapped, form.target().clone())
+    })
+}
+
+fn closed_affine_bound_relaxes_to_goal(mapped: &Proposition, goal: &Proposition) -> bool {
+    let Proposition::LessOrEqual(mapped_left, mapped_right) = mapped else {
+        return false;
+    };
+    let Proposition::LessOrEqual(goal_left, goal_right) = goal else {
+        return false;
+    };
+    (goal_right == mapped_right && closed_integer_less_or_equal(goal_left, mapped_left))
+        || (goal_left == mapped_left && closed_integer_less_or_equal(mapped_right, goal_right))
 }
 
 fn retained_transitively_reconstructed_affine_bound(
@@ -2110,6 +2168,73 @@ mod tests {
                 .expect("redirected exact add"),
             )],
             &[root_bound],
+        ));
+    }
+
+    #[test]
+    fn exact_division_selects_stronger_affine_endpoint_bounds() {
+        let signed = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+        let context = PropositionContext::from_value_types((1..=3).map(|id| {
+            (
+                ValueId::new(id).expect("value id"),
+                ScalarType::Integer(signed),
+            )
+        }))
+        .expect("three i8 values");
+        let goal = CanonicalScalarGoal::ExactDivisionDefined {
+            integer_type: signed,
+            left: value(1, signed),
+            right: value(2, signed),
+        };
+        let zero = ScalarTerm::integer(signed, IntegerValue::Signed(0)).expect("i8 zero");
+        let positive_root_bound = Proposition::LessOrEqual(zero.clone(), value(3, signed));
+        let positive_definition = Proposition::Equal(
+            value(2, signed),
+            ScalarTerm::exact_integer_add(
+                signed,
+                value(3, signed),
+                ScalarTerm::integer(signed, IntegerValue::Signed(2)).expect("i8 two"),
+            )
+            .expect("exact add"),
+        );
+        assert!(exact_division_has_prior_certificate(
+            &context,
+            &goal,
+            std::slice::from_ref(&positive_definition),
+            std::slice::from_ref(&positive_root_bound),
+        ));
+
+        let negative_root_bound = Proposition::LessOrEqual(value(3, signed), zero);
+        let negative_definition = Proposition::Equal(
+            value(2, signed),
+            ScalarTerm::exact_integer_subtract(
+                signed,
+                value(3, signed),
+                ScalarTerm::integer(signed, IntegerValue::Signed(3)).expect("i8 three"),
+            )
+            .expect("exact subtract"),
+        );
+        assert!(exact_division_has_prior_certificate(
+            &context,
+            &goal,
+            std::slice::from_ref(&negative_definition),
+            std::slice::from_ref(&negative_root_bound),
+        ));
+
+        let weak_definition = Proposition::Equal(
+            value(2, signed),
+            ScalarTerm::exact_integer_add(
+                signed,
+                value(3, signed),
+                ScalarTerm::integer(signed, IntegerValue::Signed(0)).expect("i8 zero"),
+            )
+            .expect("exact add zero"),
+        );
+        assert!(!exact_division_has_prior_certificate(
+            &context,
+            &goal,
+            &[weak_definition],
+            &[positive_root_bound],
         ));
     }
 
