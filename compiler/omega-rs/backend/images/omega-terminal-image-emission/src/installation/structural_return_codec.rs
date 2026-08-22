@@ -14,7 +14,19 @@ use super::{
     value_placement_codec::{decode_placement, decode_shape, encode_placement, encode_shape},
 };
 
-pub(super) fn encode_structural_return(
+pub(super) fn encode_structural_returns(
+    bytes: &mut Vec<u8>,
+    count: u32,
+    installed: &[TerminalInstalledStructuralReturn],
+) -> Result<(), TerminalInstallationError> {
+    push_u32(bytes, count);
+    for returned in installed {
+        encode_structural_return(bytes, returned)?;
+    }
+    Ok(())
+}
+
+fn encode_structural_return(
     bytes: &mut Vec<u8>,
     installed: &TerminalInstalledStructuralReturn,
 ) -> Result<(), TerminalInstallationError> {
@@ -81,7 +93,19 @@ pub(super) fn encode_structural_return(
     Ok(())
 }
 
-pub(super) fn decode_structural_return(
+pub(super) fn decode_structural_returns(
+    reader: &mut Reader<'_>,
+) -> Result<Vec<TerminalInstalledStructuralReturn>, TerminalInstallationError> {
+    let count = usize::try_from(reader.u32()?)
+        .map_err(|_| TerminalInstallationError::TooManyStructuralReturns)?;
+    let mut structural_returns = Vec::with_capacity(count);
+    for _ in 0..count {
+        structural_returns.push(decode_structural_return(reader)?);
+    }
+    Ok(structural_returns)
+}
+
+fn decode_structural_return(
     reader: &mut Reader<'_>,
 ) -> Result<TerminalInstalledStructuralReturn, TerminalInstallationError> {
     let machine =

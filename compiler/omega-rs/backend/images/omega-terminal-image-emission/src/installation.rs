@@ -45,9 +45,9 @@ mod value_placement_codec;
 use boundary_settlement_codec::{decode_boundary_settlements, encode_boundary_settlements};
 use fuel_attribution_codec::{decode_fuel_attributions, encode_fuel_attributions};
 use function_codec::{decode_functions, encode_functions};
-use internal_unit_call_codec::{decode_internal_unit_call, encode_internal_unit_call};
+use internal_unit_call_codec::{decode_internal_unit_calls, encode_internal_unit_calls};
 use port_effect_codec::{decode_port_effects, encode_port_effects};
-use structural_return_codec::{decode_structural_return, encode_structural_return};
+use structural_return_codec::{decode_structural_returns, encode_structural_returns};
 
 pub const TERMINAL_INSTALLATION_FORMAT_MARKER: u16 = 31;
 const MAGIC: &[u8; 8] = b"PSIINST\0";
@@ -595,14 +595,16 @@ pub fn encode_terminal_installation_record(
         push_u64(&mut bytes, provider.get());
     }
     encode_functions(&mut bytes, function_count, &record.functions)?;
-    push_u32(&mut bytes, structural_return_count);
-    for installed in &record.structural_returns {
-        encode_structural_return(&mut bytes, installed)?;
-    }
-    push_u32(&mut bytes, internal_unit_call_count);
-    for installed in &record.internal_unit_calls {
-        encode_internal_unit_call(&mut bytes, installed)?;
-    }
+    encode_structural_returns(
+        &mut bytes,
+        structural_return_count,
+        &record.structural_returns,
+    )?;
+    encode_internal_unit_calls(
+        &mut bytes,
+        internal_unit_call_count,
+        &record.internal_unit_calls,
+    )?;
     encode_fuel_attributions(&mut bytes, fuel_attribution_count, &record.fuel_attribution)?;
     encode_port_effects(&mut bytes, port_effect_count, &record.port_effects)?;
     encode_boundary_settlements(&mut bytes, settlement_count, &record.boundary_settlements)?;
@@ -679,21 +681,8 @@ pub fn decode_terminal_installation_record(
         selected_provider_plans.push(provider);
     }
     let functions = decode_functions(&mut reader)?;
-    let structural_return_count = usize::try_from(reader.u32()?)
-        .map_err(|_| TerminalInstallationError::TooManyStructuralReturns)?;
-    let mut structural_returns = Vec::with_capacity(structural_return_count);
-    for _ in 0..structural_return_count {
-        structural_returns.push(decode_structural_return(&mut reader)?);
-    }
-    let internal_unit_call_count = usize::try_from(reader.u32()?)
-        .map_err(|_| TerminalInstallationError::TooManyInternalUnitCalls)?;
-    if internal_unit_call_count > reader.remaining() / 64 {
-        return Err(TerminalInstallationError::UnexpectedEnd);
-    }
-    let mut internal_unit_calls = Vec::with_capacity(internal_unit_call_count);
-    for _ in 0..internal_unit_call_count {
-        internal_unit_calls.push(decode_internal_unit_call(&mut reader)?);
-    }
+    let structural_returns = decode_structural_returns(&mut reader)?;
+    let internal_unit_calls = decode_internal_unit_calls(&mut reader)?;
     let fuel_attribution = decode_fuel_attributions(&mut reader)?;
     let port_effects = decode_port_effects(&mut reader)?;
     let boundary_settlements = decode_boundary_settlements(&mut reader)?;
