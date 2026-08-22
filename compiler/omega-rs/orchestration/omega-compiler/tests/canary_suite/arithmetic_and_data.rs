@@ -2463,10 +2463,13 @@ fn equatable_string_field_equality_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("equatable string field equality canary should compile");
 
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("equatable string field canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("equatable string field equality canary should run");
 
@@ -2496,10 +2499,13 @@ fn equatable_string_not_equals_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("equatable string not-equals canary should compile");
 
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("equatable string inequality canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("equatable string not-equals canary should run");
 
@@ -2527,10 +2533,13 @@ fn equatable_string_equality_guard_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("equatable string guard canary should compile");
 
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("equatable string guard canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("equatable string guard canary should run");
 
