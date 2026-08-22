@@ -1,5 +1,6 @@
 use omega_backend_plan::{
     BoundNominalCallbackPlacement, CallbackThunkPlan, canonical_callback_private_symbol,
+    validate_bound_nominal_callback_placement,
 };
 use omega_control_flow::ControlFlowPlan;
 use psi_diagnostics::Diagnostic;
@@ -13,6 +14,12 @@ pub(super) fn plan_callback_thunks(
         .iter()
         .enumerate()
         .map(|(placement_index, placement)| {
+            validate_bound_nominal_callback_placement(placement).map_err(|error| {
+                Diagnostic::error(format!(
+                    "nominal callback use for `{}` retained an invalid target calling plan: {error}",
+                    placement.canonical_requirement_overload
+                ))
+            })?;
             let entry_key = control_flow
                 .state_key_by_symbols(placement.selected_machine, placement.selected_entry)
                 .ok_or_else(|| {
@@ -141,6 +148,32 @@ mod tests {
             error
                 .message
                 .contains("duplicate compiler-private callback identity")
+        );
+    }
+
+    #[test]
+    fn callback_thunk_rejects_retained_plan_or_fingerprint_drift() {
+        let (control_flow, placement) = fixture();
+
+        let mut plan_drift = placement.clone();
+        plan_drift.boundary_entry_plan.state.preemption =
+            omega_calling_conventions::Preemption::ProviderDefined;
+        let error = plan_callback_thunks(&control_flow, &[plan_drift])
+            .expect_err("changed target plan must reject before thunk planning");
+        assert!(
+            error
+                .message
+                .contains("drifted from its retained fingerprint")
+        );
+
+        let mut fingerprint_drift = placement;
+        fingerprint_drift.boundary_calling_plan_fingerprint ^= 1;
+        let error = plan_callback_thunks(&control_flow, &[fingerprint_drift])
+            .expect_err("changed plan fingerprint must reject before thunk planning");
+        assert!(
+            error
+                .message
+                .contains("drifted from its retained fingerprint")
         );
     }
 }

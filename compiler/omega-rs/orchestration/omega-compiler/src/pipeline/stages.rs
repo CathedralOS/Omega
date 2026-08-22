@@ -596,6 +596,17 @@ fn retain_callback_thunk_emission_blockers(
             ));
             continue;
         };
+        if let Err(error) = omega_backend_plan::validate_bound_nominal_callback_placement(placement)
+        {
+            emission.blockers.insert(omega_artifacts::emission_blocker(
+                "callback thunk emission",
+                &format!(
+                    "planned private callback `{}` retained an invalid target calling plan: {error}",
+                    thunk.private_symbol
+                ),
+            ));
+            continue;
+        }
         if thunk.entry_key.machine != placement.selected_machine
             || thunk.entry_key.state != placement.selected_entry
         {
@@ -1140,6 +1151,26 @@ mod tests {
 
         assert_eq!(blockers.len(), 1);
         assert!(blockers[0].contains("does not match placement row 0 canonical identity"));
+    }
+
+    #[test]
+    fn callback_thunk_emission_rejects_retained_boundary_plan_drift() {
+        let target = NativeTarget::host();
+        let key = state_key(2);
+        let mut placement = placement(key);
+        placement.boundary_entry_plan.state.preemption =
+            omega_calling_conventions::Preemption::ProviderDefined;
+        let thunk = thunk(key, &placement);
+
+        let blockers = callback_blockers(
+            &[placement],
+            std::slice::from_ref(&thunk),
+            &encoded_machine(target, &[key], &thunk.private_symbol),
+            &object_with_symbols(target, &thunk, &[(7, 11)]),
+        );
+
+        assert_eq!(blockers.len(), 1);
+        assert!(blockers[0].contains("drifted from its retained fingerprint"));
     }
 
     #[test]
