@@ -768,10 +768,13 @@ fn runtime_wire_decoded_byte_slice_len_exit_canary_runs() {
     ));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("wire decoded byte-slice .len canary should compile");
 
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("wire decoded byte-slice .len canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("wire decoded byte-slice .len canary should run");
 
@@ -800,10 +803,13 @@ fn runtime_call_result_binary_operand_exit_canary_runs() {
     ));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("call-result-binary-operand canary should compile");
 
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("call-result-binary-operand canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("call-result-binary-operand canary should run");
 
@@ -919,10 +925,13 @@ fn runtime_multi_arm_value_transition_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-multi-arm-value-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("multi-arm value transition canary should compile");
 
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("multi-arm value transition canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("multi-arm value transition canary should run");
 
@@ -953,10 +962,13 @@ fn runtime_value_transition_unsigned_guard_exit_canary_runs() {
     ));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("unsigned value-transition guard canary should compile");
 
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("unsigned value-transition guard canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("unsigned value-transition guard canary should run");
 
@@ -985,10 +997,13 @@ fn runtime_const_array_length_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-const-array-length-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("const array length canary should compile");
 
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("const array length canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("const array length canary should run");
 
