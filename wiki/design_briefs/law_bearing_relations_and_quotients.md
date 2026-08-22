@@ -802,6 +802,17 @@ that every normal exit returns the value unchanged: transition exits,
 forwarding states, and multi-state result flow still require the normalized
 result-flow judgment and remain behind the global non-executable fence.
 
+One closed owner shape can now strengthen that edge without crossing the
+fence. When the owner machine and state symbols are each exact-unique, the
+machine has exactly that state, and the state contains no transition, the
+non-authoritative plan records complete transition-free single-state normal-
+result coverage. A duplicate owner identity, second state, or any transition
+rejects this stronger certificate and retains at most the previously derived
+fallthrough edge. The certificate says nothing about effects, termination,
+contract correspondence, the selected `Respects` conformance, checked/terminal
+retention, or execution; transition and forwarding-state coverage remain later
+normalized judgments.
+
 Acceptance requires:
 
 1. primitive and witness-bearing proposition declarations retain their exact
