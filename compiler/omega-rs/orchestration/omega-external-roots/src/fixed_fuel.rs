@@ -388,6 +388,10 @@ impl FuelSuspensionFreeEvidence {
             .values()
             .map(|evidence| evidence.suspension_validation_receipt)
     }
+
+    pub(crate) fn exact_demand(&self) -> &ComposedFuelDemand {
+        &self.demand
+    }
 }
 
 /// Derive the stronger no-fuel-suspension property for one exact sponsor
