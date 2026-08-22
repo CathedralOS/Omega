@@ -5354,6 +5354,12 @@ Owners:
   diagnostics. Exact-owner ambiguity, the 795 rooted/3 legacy inventory, and
   receipt-drift fences remain green; cyclic/loop-heavy, report-bearing, slow-
   float, crash-specific, timer, and explicit legacy owners remain untouched.
+  The authored-root integer suffix boundary-magnitude and suffix-landed
+  operand-position regressions now launch solely through their exact checked-
+  report executable receipts while preserving interpreter parity and literal
+  exits 70/77. Exact-owner ambiguity, the 795 rooted/3 legacy inventory, and
+  cross-copy receipt-drift fences remain green; rebuild/lock wall-time spikes
+  remain distinct from their 0.04–0.05s compiler/interpreter bodies.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
@@ -5652,6 +5658,10 @@ reach or trust, and private proof improvements do not change public identity.
   `scalar_control_cleanup` child. The 3,372-line parent retains terminal image
   orchestration, with crate linkage, native byte/error order, and the 69-
   function inventory unchanged.
+  Exact Unit-affine root, residual, and nominal cleanup validation now lives in
+  a cohesive 399-line `unit_affine_cleanup` child. The 2,986-line parent retains
+  terminal image orchestration, with crate linkage, native byte/error order,
+  and the 69-function inventory unchanged.
   The installed-cleanup ordinal-tamper regression now locates the authoritative
   internal-call custody row by its complete machine/text-offset/owner/target
   header before mutating the ordinal, rather than accidentally changing an
