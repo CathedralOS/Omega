@@ -39,6 +39,54 @@ pub struct CallbackThunkPlan {
     pub private_symbol: Arc<str>,
 }
 
+/// Independently replay the exact evaluated calling plan retained by one
+/// callback placement.
+///
+/// The source-to-checked join already validates this pair, but backend planning
+/// and final emission are separate consumers. Reconstructing the signature
+/// from the retained placements and revalidating the complete entry plan keeps
+/// either consumer from trusting a copied fingerprint or a noncanonical plan.
+pub fn validate_bound_nominal_callback_placement(
+    placement: &BoundNominalCallbackPlacement,
+) -> Result<
+    omega_calling_conventions::ValidatedBoundaryEntryPlan,
+    omega_calling_conventions::PlanDiagnostic,
+> {
+    let signature = omega_calling_conventions::CallSignature {
+        parameters: placement
+            .boundary_entry_plan
+            .call
+            .parameters
+            .iter()
+            .map(|parameter| parameter.shape)
+            .collect(),
+        result: placement
+            .boundary_entry_plan
+            .call
+            .result
+            .as_ref()
+            .map(|result| result.shape),
+    };
+    let validated = omega_calling_conventions::validate_boundary_entry_plan(
+        placement.boundary_entry_plan.clone(),
+        &signature,
+    )?;
+    if validated.plan() != &placement.boundary_entry_plan {
+        return Err(omega_calling_conventions::PlanDiagnostic(
+            "callback placement retained a noncanonical boundary entry plan".to_owned(),
+        ));
+    }
+    if placement.boundary_calling_plan_fingerprint == 0
+        || validated.contract_fingerprint() != placement.boundary_calling_plan_fingerprint
+    {
+        return Err(omega_calling_conventions::PlanDiagnostic(
+            "callback placement boundary entry plan drifted from its retained fingerprint"
+                .to_owned(),
+        ));
+    }
+    Ok(validated)
+}
+
 /// Derive the one compiler-private object identity bound to an exact validated
 /// callback placement. Planning and final emission both use this function so a
 /// stored thunk symbol cannot drift from its source/selected identities or
@@ -118,5 +166,25 @@ mod tests {
         for drifted in drifts {
             assert_ne!(canonical_callback_private_symbol(&drifted), baseline_symbol);
         }
+    }
+
+    #[test]
+    fn callback_placement_replay_rejects_plan_or_fingerprint_drift() {
+        let baseline = placement();
+        validate_bound_nominal_callback_placement(&baseline)
+            .expect("exact retained callback plan should replay");
+
+        let mut plan_drift = baseline.clone();
+        plan_drift.boundary_entry_plan.state.preemption =
+            omega_calling_conventions::Preemption::ProviderDefined;
+        let error = validate_bound_nominal_callback_placement(&plan_drift)
+            .expect_err("changed callback plan must not retain the old fingerprint");
+        assert!(error.0.contains("drifted from its retained fingerprint"));
+
+        let mut fingerprint_drift = baseline;
+        fingerprint_drift.boundary_calling_plan_fingerprint ^= 1;
+        let error = validate_bound_nominal_callback_placement(&fingerprint_drift)
+            .expect_err("changed callback fingerprint must not retain the old plan");
+        assert!(error.0.contains("drifted from its retained fingerprint"));
     }
 }
