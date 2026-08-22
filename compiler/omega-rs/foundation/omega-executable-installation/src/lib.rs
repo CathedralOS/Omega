@@ -1398,6 +1398,20 @@ impl InstalledCode {
             && frozen.materialized.bytes() == expected
     }
 
+    /// Test both sides of a relocatable installation: the exact frozen
+    /// compiler-authored bytes before relocation and the exact materialized
+    /// bytes after the admitted relocation set was applied. No bytes or
+    /// addresses cross this evidence boundary.
+    pub fn binds_exact_materialized_artifact_bytes(
+        &self,
+        expected_unrelocated: &[u8],
+        expected_materialized: &[u8],
+    ) -> bool {
+        let frozen = &self.validated.frozen;
+        frozen.artifact.artifact.0.code == expected_unrelocated
+            && frozen.materialized.bytes() == expected_materialized
+    }
+
     /// Test the exact admitted code offset of one selected entry without
     /// exposing a resolved address.
     pub fn binds_entry_offset(&self, entry: EntryStubId, expected_offset: u64) -> bool {
@@ -2331,6 +2345,36 @@ mod tests {
         .expect("receipt is bound to canonical materializer output");
         assert_eq!(frozen.bytes(), materialized.bytes());
         assert_eq!(frozen.final_bytes(), materialized.final_bytes());
+
+        let certificate = FinalValidationCertificate::from_validator(
+            id(181, FinalValidationId::from_normalized_identity),
+            &frozen,
+            true,
+        );
+        let validated = validate_final_placement(frozen, &certificate).unwrap();
+        let authority = InstallAuthority::from_admitted_provider(&validated);
+        let receipt = InstallationReceipt::from_provider(
+            id(281, InstalledCodeId::from_normalized_identity),
+            &validated,
+            true,
+            WxEnforcement::HardwareEnforced,
+        );
+        let installed = install_validated(validated, authority, receipt).unwrap();
+        assert!(
+            installed
+                .binds_exact_materialized_artifact_bytes(candidate.code(), materialized.bytes())
+        );
+        let mut changed_source = candidate.code().to_vec();
+        changed_source[0] ^= 1;
+        assert!(
+            !installed
+                .binds_exact_materialized_artifact_bytes(&changed_source, materialized.bytes())
+        );
+        let mut changed_final = materialized.bytes().to_vec();
+        changed_final[1] ^= 1;
+        assert!(
+            !installed.binds_exact_materialized_artifact_bytes(candidate.code(), &changed_final)
+        );
     }
 
     #[test]

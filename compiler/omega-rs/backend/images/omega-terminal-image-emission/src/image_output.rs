@@ -162,32 +162,26 @@ pub fn emit_terminal_native_fuel_executable_image(
     let mut output = emitted_direct_executable_output(output);
     output.compiler_text_validation = Some(validate_terminal_native_fuel_image(artifact, &output)?);
     Ok(TerminalNativeFuelExecutableImage {
-        terminal_psi: artifact.semantic_artifact().terminal_psi(),
-        target,
+        artifact: artifact.clone(),
         subsystem: matches!(target.object_format, ObjectFormat::Coff).then_some(subsystem),
-        target_policy: artifact.target_policy(),
-        functions: artifact.functions().to_vec(),
         output,
     })
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalNativeFuelExecutableImage {
-    terminal_psi: TerminalPsiIdentity,
-    target: NativeTarget,
+    artifact: ValidatedTerminalNativeFuelArtifact,
     subsystem: Option<u16>,
-    target_policy: NativeFuelTargetPlanProjection,
-    functions: Vec<ValidatedTerminalNativeFuelFunction>,
     output: EmittedImageOutput,
 }
 
 impl TerminalNativeFuelExecutableImage {
     pub const fn terminal_psi(&self) -> TerminalPsiIdentity {
-        self.terminal_psi
+        self.artifact.semantic_artifact().terminal_psi()
     }
 
     pub const fn target(&self) -> NativeTarget {
-        self.target
+        self.artifact.semantic_artifact().target()
     }
 
     pub const fn subsystem(&self) -> Option<u16> {
@@ -195,15 +189,100 @@ impl TerminalNativeFuelExecutableImage {
     }
 
     pub const fn target_policy(&self) -> NativeFuelTargetPlanProjection {
-        self.target_policy
+        self.artifact.target_policy()
     }
 
     pub fn functions(&self) -> &[ValidatedTerminalNativeFuelFunction] {
-        &self.functions
+        self.artifact.functions()
     }
 
     pub const fn output(&self) -> &EmittedImageOutput {
         &self.output
+    }
+}
+
+impl omega_terminal_installation_evidence::TerminalNativeFuelImageEvidence
+    for TerminalNativeFuelExecutableImage
+{
+    fn terminal_psi(&self) -> TerminalPsiIdentity {
+        self.terminal_psi()
+    }
+
+    fn target(&self) -> NativeTarget {
+        self.target()
+    }
+
+    fn target_policy(&self) -> NativeFuelTargetPlanProjection {
+        self.target_policy()
+    }
+
+    fn source_text_bytes(&self) -> &[u8] {
+        self.artifact.semantic_artifact().text_bytes()
+    }
+
+    fn metered_text_bytes(&self) -> &[u8] {
+        self.artifact.text_bytes()
+    }
+
+    fn final_text_bytes(&self) -> &[u8] {
+        &self.output.final_text_bytes
+    }
+
+    fn function_text_offset(&self, machine: psi_core::MachineId) -> Option<usize> {
+        self.artifact
+            .functions()
+            .iter()
+            .find(|function| function.machine == machine)
+            .map(|function| function.text_offset)
+    }
+
+    fn charges(
+        &self,
+    ) -> Vec<omega_terminal_installation_evidence::TerminalNativeFuelChargeEvidence> {
+        self.artifact
+            .functions()
+            .iter()
+            .flat_map(|metered| {
+                let source = self
+                    .artifact
+                    .semantic_artifact()
+                    .functions()
+                    .iter()
+                    .find(|function| function.machine == metered.machine)
+                    .expect("validated metered function retains its semantic source");
+                metered.charges.iter().map(move |charge| {
+                    let site = match charge.attribution.site {
+                        omega_terminal_machine_code::TerminalNativeFuelSite::Operation(
+                            operation,
+                        ) => omega_terminal_installation_evidence::TerminalFuelAttributionSite::Operation(
+                            operation,
+                        ),
+                        omega_terminal_machine_code::TerminalNativeFuelSite::Edge(edge) => {
+                            omega_terminal_installation_evidence::TerminalFuelAttributionSite::Edge(
+                                edge,
+                            )
+                        }
+                    };
+                    omega_terminal_installation_evidence::TerminalNativeFuelChargeEvidence {
+                        attribution: omega_terminal_installation_evidence::TerminalFuelAttributionEvidence {
+                            machine: metered.machine,
+                            schedule: charge.attribution.schedule,
+                            site,
+                            units: charge.attribution.units,
+                            operation_ordinal: charge.attribution.operation_ordinal,
+                            text_offset: source.text_offset + charge.attribution.code_offset,
+                            byte_count: charge.attribution.byte_count,
+                        },
+                        charge_text_offset: metered.text_offset + charge.charge_code_offset,
+                        charge_byte_count: charge.charge_byte_count,
+                        semantic_text_offset: metered.text_offset + charge.semantic_code_offset,
+                        cold_dispatch_text_offset: metered.text_offset
+                            + charge.cold_dispatch_code_offset,
+                        cold_dispatch_byte_count: charge.cold_dispatch_byte_count,
+                    }
+                })
+            })
+            .collect()
     }
 }
 
