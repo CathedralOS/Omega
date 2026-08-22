@@ -1,5 +1,26 @@
 use super::*;
 
+fn assert_native_exit_code(
+    report: &CompileReport,
+    expected: i32,
+    fixture: &str,
+    expectation: &str,
+) {
+    let executable = report
+        .checked_native_executable_path()
+        .unwrap_or_else(|| panic!("{fixture} lost its exact executable publication receipt"));
+    let output = Command::new(executable)
+        .output()
+        .unwrap_or_else(|error| panic!("{fixture} should run: {error}"));
+    assert_eq!(
+        output.status.code(),
+        Some(expected),
+        "{expectation}; expected exit {expected}, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
 #[test]
 fn runtime_guarded_runtime_index_increment_exit_canary_runs() {
     let canary = pass_canary("range/runtime_guarded_runtime_index_increment_exit");
@@ -7,21 +28,13 @@ fn runtime_guarded_runtime_index_increment_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-guarded-rt-idx-inc-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("guarded runtime-index increment canary should compile");
-
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("guarded runtime-index increment canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(1),
-        "expected `tallies[self.k] = tallies[self.k] + 1` under the          `tallies[self.k] < 16` guard to prove and exit 1, got {:?}
-stderr:
-{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        1,
+        "guarded runtime-index increment canary",
+        "the guarded indexed increment should prove and update its element",
     );
 
     let _ = fs::remove_dir_all(&scratch);
@@ -37,20 +50,13 @@ fn runtime_guarded_element_increment_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-guarded-elem-inc-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("guarded element increment canary should compile");
-
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("guarded element increment canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(1),
-        "expected `tallies[1] = tallies[1] + 1` under the `tallies[1] < 16` guard \
-         to prove into [0..=16] and exit 1, got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        1,
+        "guarded element-increment canary",
+        "the constant-index increment should prove into its element range",
     );
 
     let _ = fs::remove_dir_all(&scratch);
@@ -66,20 +72,13 @@ fn runtime_element_range_dataflow_exit_canary_runs() {
     let scratch = std::env::temp_dir().join(format!("omega-elem-range-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("element range dataflow canary should compile");
-
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("element range dataflow canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(15),
-        "expected `self.cells[self.i] * 2 + 1` (element range [0..=7]) to prove \
-         into next: [0..=15] and exit 15, got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        15,
+        "element-range dataflow canary",
+        "the indexed element range should prove the derived value into [0..=15]",
     );
 
     let _ = fs::remove_dir_all(&scratch);
@@ -95,20 +94,13 @@ fn runtime_funnel_guard_agreement_exit_canary_runs() {
     let scratch = std::env::temp_dir().join(format!("omega-funnel-guard-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("funnel guard agreement canary should compile");
-
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("funnel guard agreement canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(7),
-        "expected the two-edge funnel (identical `sp >= 0 && sp < 16` guards) to \
-         prove `self.y = self.sp` into y: [0..=15] and exit 7, got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        7,
+        "funnel guard-agreement canary",
+        "identical incoming guards should prove the narrowed funnel copy",
     );
 
     let _ = fs::remove_dir_all(&scratch);
@@ -127,20 +119,13 @@ fn runtime_guarded_binary_operand_exit_canary_runs() {
 
     let _ = fs::remove_dir_all(&scratch);
     let host_scratch = scratch.join("host");
-    compile_rooted_canary_for_native_host(&canary, host_scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, host_scratch.clone())
         .expect("guarded binary operand canary should compile");
-
-    let output = Command::new(host_scratch.join(executable_name()))
-        .output()
-        .expect("guarded binary operand canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(9),
-        "expected `self.y = self.p + self.dir` (p: [0..=8], dir guard-bounded to \
-         [0..=1]) to prove into y: [0..=9] and exit 9, got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        9,
+        "guarded binary-operand canary",
+        "the declared and guard-bounded operands should prove their sum into [0..=9]",
     );
 
     let arm_scratch = scratch.join("linux-arm64");
