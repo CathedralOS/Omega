@@ -4329,6 +4329,14 @@ Owners:
   executable receipts while preserving literal status 70, interpreter parity,
   and all content, tag, and delivery diagnostics. Exact-owner pins and
   established fences remain unchanged.
+  Exact affine-literal eligibility now includes the fixed one-alias join in
+  paired, side-local `affine_selection/literal/eligibility` modules. Producer
+  and reconstruction independently require distinct outer and inner equality
+  rows plus an exact Value root whose integer carrier matches the landed
+  literal, eliminating the redundant `alias/candidates/join` wrappers. Source
+  and citation order, per-alias landing order, producer-only citation custody,
+  direct-before-alias precedence, proof shapes, rejection behavior, and the
+  fixed affine-literal frontier remain unchanged.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
