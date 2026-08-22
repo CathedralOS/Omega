@@ -2512,10 +2512,13 @@ fn exact_member_division_and_remainder_rebase_safe_literals_end_to_end() {
     let syntax = parse_syntax_trees(&tokens).expect("unproven-runtime-divisor parse");
     let resolved = lower_syntax_trees(&syntax).expect("unproven-runtime-divisor resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("unproven-runtime-divisor type");
-    let checked = lower_typed_trees(typed).expect("unproven-runtime-divisor check");
+    let diagnostics =
+        lower_typed_trees(typed).expect_err("an unproven runtime divisor must reject");
     assert!(
-        psi_checked_trees_to_terminal::lower_machine(&checked, "Root::enter").is_err(),
-        "a runtime member divisor remains fenced without explicit terminal safety evidence"
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("divisor must be proven nonzero")),
+        "unexpected unproven-runtime-divisor diagnostics: {diagnostics:?}"
     );
 }
 
