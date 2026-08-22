@@ -131,9 +131,14 @@ pub struct BoundaryCallingPlanIdentity {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PlacedViewPlan {
     pub data_name: String,
+    /// Exact synthesized placed-view data identity. `data_name` is diagnostic
+    /// presentation and must not be used as the semantic join key.
+    pub data_symbol: psi_symbols::SymbolHandle,
     pub policy_name: String,
     pub policy_symbol: psi_symbols::SymbolHandle,
     pub schema_name: String,
+    /// Exact source schema identity whose fields the plan interprets.
+    pub schema_symbol: psi_symbols::SymbolHandle,
     pub placement: psi_access_plans::ValidatedPlacementPlan,
     pub fields: Vec<PlacedFieldPlan>,
 }
@@ -141,6 +146,10 @@ pub struct PlacedViewPlan {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PlacedFieldPlan {
     pub field_name: String,
+    /// Stable numbered identity when the source schema numbers this field.
+    /// The spelling remains diagnostic presentation only in that case.
+    pub member_identity: Option<u64>,
+    pub field_symbol: psi_symbols::SymbolHandle,
     pub accessor_name: String,
     pub value_type: crate::types::TypeReferenceHandle,
     pub access: psi_access_plans::FieldAccess,
@@ -1474,10 +1483,13 @@ impl TypedTrees {
         &self,
         type_reference: types::TypeReferenceHandle,
     ) -> Option<&PlacedViewPlan> {
-        let view_name = named_type_name_through_shells(&self.type_reference_table, type_reference)?;
+        let view_symbol = self.type_reference_table.type_symbol(type_reference);
+        if !view_symbol.is_valid() {
+            return None;
+        }
         self.placed_view_plans
             .iter()
-            .find(|view| view.data_name == view_name)
+            .find(|view| view.data_symbol == view_symbol)
     }
 
     pub fn placed_view_field_plan_for_type_reference(

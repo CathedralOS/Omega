@@ -706,6 +706,91 @@ data Main {}
 }
 
 #[test]
+fn placed_view_plan_retains_and_replays_exact_nominal_and_member_identities() {
+    let source = POLICY_SOURCE.replace(
+        "data Main {}",
+        r#"
+machine inspect(view: &Placed<UartPlacement, Registers>) {
+    let status: u32 = view.status.read();
+}
+
+data Main {}
+"#,
+    );
+    let main = write_program("placed-view-exact-identities", &source);
+    let mut checked =
+        compile_to_checked(&main, None).expect("exact placed-view identities should compile");
+    let [view] = checked.typed.placed_view_plans.as_slice() else {
+        panic!("fixture should derive exactly one placed view")
+    };
+    let schema = checked
+        .typed
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name.as_str() == "Registers")
+        .expect("source schema");
+    let view_data = checked
+        .typed
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name.as_str() == view.data_name)
+        .expect("synthesized placed view");
+    let schema_symbol = schema.symbol;
+    let view_data_symbol = view_data.symbol;
+    assert_eq!(view.schema_symbol, schema_symbol);
+    assert_eq!(view.data_symbol, view_data_symbol);
+    let status = view
+        .fields
+        .iter()
+        .find(|field| field.field_name == "status")
+        .expect("retained status field");
+    assert_eq!(status.member_identity, None);
+    let schema_status = checked
+        .typed
+        .data_members(schema)
+        .iter()
+        .find_map(|member| match member {
+            psi_typed_trees::data::DataMember::Field(field) if field.name.as_str() == "status" => {
+                Some(field)
+            }
+            _ => None,
+        })
+        .expect("source status field");
+    assert_eq!(status.field_symbol, schema_status.symbol);
+    psi_validation::validate_program(&checked.typed)
+        .expect("independent exact placed-view replay should accept retained identities");
+
+    checked.typed.placed_view_plans[0]
+        .fields
+        .iter_mut()
+        .find(|field| field.field_name == "status")
+        .expect("retained status field")
+        .member_identity = Some(8);
+    let diagnostics = psi_validation::validate_program(&checked.typed)
+        .expect_err("substituted stable member identity must fail closed");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("field `status` changed its exact source member binding")
+    }));
+
+    checked.typed.placed_view_plans[0]
+        .fields
+        .iter_mut()
+        .find(|field| field.field_name == "status")
+        .expect("retained status field")
+        .member_identity = None;
+    checked.typed.placed_view_plans[0].schema_symbol = view_data_symbol;
+    let diagnostics = psi_validation::validate_program(&checked.typed)
+        .expect_err("substituted source schema identity must fail closed");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("field `status` no longer names its exact source field identity")
+    }));
+}
+
+#[test]
 fn placed_view_allows_exported_accessors_across_package_boundary() {
     let main = write_cross_package_program(
         "placed-view-exported-package",
