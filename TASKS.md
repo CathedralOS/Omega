@@ -2228,7 +2228,11 @@ Owners:
   and generations, and segment, so handle-generation drift changes linkage
   spelling instead of aliasing the earlier generation. The richer callback
   name remains bound by the placement-specific join. Final
-  replay now also retains an exact
+  image construction now revalidates its copied function-symbol carrier before
+  format emission: the entry handle and every identity-owned function name,
+  text classification, interval, and kind must match exactly, while unowned or
+  multiply owned function symbols reject. This does not expose an address or
+  synthesize a body. Final replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
   instruction identities, redirected instruction relocation origins, and
   instruction-origin rows without a retained owner reject, while semantic and

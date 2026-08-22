@@ -568,6 +568,7 @@ name = "omega-image"
 version = "0.1.0"
 dependencies = [
  "omega-calling-conventions",
+ "omega-control-flow",
  "omega-object-file",
  "omega-target",
  "psi-arena",
