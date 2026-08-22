@@ -1215,6 +1215,39 @@ impl<'mapping, 'bytes> WrittenPostHandoffWriterDestination<'mapping, 'bytes> {
 }
 
 impl<'mapping, 'bytes> ValidatedWrittenPostHandoffWriterDestination<'mapping, 'bytes> {
+    pub const fn installed_code(&self) -> InstalledCodeId {
+        self.written.installed_code()
+    }
+
+    pub const fn artifact(&self) -> ArtifactId {
+        self.written.artifact()
+    }
+
+    pub const fn site(&self) -> PlacementSite {
+        self.written.site()
+    }
+
+    pub const fn writer_context_fingerprint(&self) -> u64 {
+        self.written.writer_context_fingerprint()
+    }
+
+    pub fn binds_invocation(&self, invocation: &PostHandoffWriterInvocationPlan) -> bool {
+        self.written.binds_invocation(invocation)
+    }
+
+    pub const fn normalized_fragment_fingerprint(&self) -> u64 {
+        self.written.normalized_fragment_fingerprint()
+    }
+
+    /// Replay the installed realization and destination preparation without
+    /// downgrading this already-validated custody carrier.
+    pub fn validate_for_consumer(
+        &self,
+        installed_code: &InstalledCode,
+    ) -> Result<(), InstallationDiagnostic> {
+        self.written.validate_for_consumer(installed_code)
+    }
+
     pub const fn context(&self) -> &ResolvedPostHandoffEntryWriterContext {
         &self.written.context
     }

@@ -1716,8 +1716,10 @@ pub struct PreparedExternalRootPostHandoffWriterInvocation {
 
 /// Still-unpublished destination retaining the exact selected external-root
 /// execution and writer preparation that produced its bytes. The provider
-/// evidence is not reduced to copied report identities, and this carrier does
-/// not establish consumer semantics or publication authority.
+/// evidence is not reduced to copied report identities, and the installation-
+/// owned destination remains in its consuming validated typestate rather than
+/// being downgraded after replay. This outer carrier still exposes no bytes and
+/// does not establish consumer semantics or publication authority.
 #[derive(Debug)]
 #[must_use = "written external-root destination retains provider and mapping custody"]
 pub struct WrittenExternalRootPostHandoffWriterDestination<'mapping, 'bytes> {
@@ -1729,7 +1731,10 @@ pub struct WrittenExternalRootPostHandoffWriterDestination<'mapping, 'bytes> {
     architecture: omega_target::Architecture,
     invocation: PostHandoffWriterInvocationPlan,
     writer: PostHandoffWriterPlan,
-    written: omega_executable_installation::WrittenPostHandoffWriterDestination<'mapping, 'bytes>,
+    written: omega_executable_installation::ValidatedWrittenPostHandoffWriterDestination<
+        'mapping,
+        'bytes,
+    >,
 }
 
 /// A written external-root destination whose provider, root, invocation,
@@ -1947,7 +1952,7 @@ impl PreparedExternalRootPostHandoffWriterInvocation {
         {
             Ok(written) => {
                 let written = match written.into_validated_for_consumer(installed_code) {
-                    Ok(written) => written.into_written(),
+                    Ok(written) => written,
                     Err(error) => {
                         let diagnostic = psi_layout_plans::MaterializationDiagnostic(
                             error.diagnostic().0.clone(),
@@ -2107,37 +2112,17 @@ impl<'mapping, 'bytes> WrittenExternalRootPostHandoffWriterDestination<'mapping,
             writer,
             written,
         } = self;
-        match written.into_validated_for_consumer(installed_code) {
-            Ok(written) => Ok(ValidatedWrittenExternalRootPostHandoffWriterDestination {
-                provider_execution,
-                provider_execution_evidence,
-                root_evidence,
-                selected_entry,
-                selected_entry_source_slot,
-                architecture,
-                invocation,
-                writer,
-                written,
-            }),
-            Err(error) => {
-                let diagnostic =
-                    psi_layout_plans::MaterializationDiagnostic(error.diagnostic().0.clone());
-                Err(Box::new(WrittenExternalRootConsumerValidationError {
-                    written: WrittenExternalRootPostHandoffWriterDestination {
-                        provider_execution,
-                        provider_execution_evidence,
-                        root_evidence,
-                        selected_entry,
-                        selected_entry_source_slot,
-                        architecture,
-                        invocation,
-                        writer,
-                        written: (*error).into_written(),
-                    },
-                    diagnostic,
-                }))
-            }
-        }
+        Ok(ValidatedWrittenExternalRootPostHandoffWriterDestination {
+            provider_execution,
+            provider_execution_evidence,
+            root_evidence,
+            selected_entry,
+            selected_entry_source_slot,
+            architecture,
+            invocation,
+            writer,
+            written,
+        })
     }
 
     /// Return this still-unpublished destination to the exact provider-writer
