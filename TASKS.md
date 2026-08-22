@@ -634,6 +634,14 @@ Owners:
   receipt or policy re-evaluation; compact fingerprints and duplicate mutable
   reports cannot serve as authority. Sum placement remains blocked on tagged-
   case vocabulary, while placed lifecycle work remains a separate L6b strand.
+  Terminal placed-access propagation currently stops on its first authority
+  producer: the source core has no live `Placed<P,T>` establishment/retirement
+  operation, checked Psi has no occurrence/resident/loan fact, and installation
+  has no qualified placed-root binding. The Rust access-plan foundation's
+  manually supplied occurrence IDs cannot become artifact authority. Land one
+  settled source or installed-root establishment carrier before adding Terminal
+  access events; never derive occurrence authority from plan identity, accessor
+  identity, parameter ordinal, names, or offsets.
 - Keep alias-exclusion admission separate from access rights; `&mut` does not
   claim exclusivity against a device. Sealed primitive events now specialize
   linearly into Stable read/take/write/swap, External read/take/write, or one
