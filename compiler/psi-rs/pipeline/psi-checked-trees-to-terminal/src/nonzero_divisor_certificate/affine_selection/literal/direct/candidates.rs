@@ -3,18 +3,18 @@
 use psi_core::{Proposition, ScalarTerm, ScalarType};
 use psi_proof_kernel::ProofNode;
 
-use super::super::super::super::integer_evidence::cited_facts;
+mod equalities;
+
+use equalities::OrientedEqualities;
 
 pub(super) struct DirectLiteralCandidates<'a> {
-    assumptions: &'a [Proposition],
-    semantic_axioms: &'a [Proposition],
+    equalities: OrientedEqualities<'a>,
 }
 
 impl<'a> DirectLiteralCandidates<'a> {
     pub(super) fn new(assumptions: &'a [Proposition], semantic_axioms: &'a [Proposition]) -> Self {
         Self {
-            assumptions,
-            semantic_axioms,
+            equalities: OrientedEqualities::new(assumptions, semantic_axioms),
         }
     }
 
@@ -22,25 +22,17 @@ impl<'a> DirectLiteralCandidates<'a> {
         &self,
         mut complete: impl FnMut(&'a ScalarTerm, &'a ScalarTerm, ProofNode) -> Option<T>,
     ) -> Option<T> {
-        for (citation, equality) in cited_facts(self.assumptions, self.semantic_axioms) {
-            let Proposition::Equal(left, right) = equality else {
-                continue;
-            };
-            for (root, literal) in [(left, right), (right, left)] {
-                if !matches!(root, ScalarTerm::Value { .. }) {
-                    continue;
-                }
-                let Some((integer_type, _)) = literal.integer_value() else {
-                    continue;
-                };
-                if root.scalar_type() != ScalarType::Integer(integer_type) {
-                    continue;
-                }
-                if let Some(result) = complete(root, literal, citation.proof(equality)) {
-                    return Some(result);
-                }
+        self.equalities.find(|citation, equality, root, literal| {
+            if !matches!(root, ScalarTerm::Value { .. }) {
+                return None;
             }
-        }
-        None
+            let Some((integer_type, _)) = literal.integer_value() else {
+                return None;
+            };
+            if root.scalar_type() != ScalarType::Integer(integer_type) {
+                return None;
+            }
+            complete(root, literal, citation.proof(equality))
+        })
     }
 }
