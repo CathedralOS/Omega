@@ -24,6 +24,26 @@ pub struct BoundNominalCallbackPlacement {
     pub boundary_entry_plan: BoundaryEntryPlan,
 }
 
+/// Exact checked identity retained when a callback placement becomes a thunk.
+///
+/// The thunk continues to join the placement recipe by index rather than
+/// cloning it, but final emission must be able to distinguish replacement of
+/// the registration operation, satisfaction row, or canonical overload after
+/// backend planning. Those identities are deliberately not encoded into the
+/// compiler-private linkage name.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CallbackPlacementBindingIdentity {
+    pub site: NominalMachineUseSite,
+    pub registration_operation: SymbolHandle,
+    pub static_machine_ordinal: u32,
+    pub selected_machine: SymbolHandle,
+    pub selected_entry: SymbolHandle,
+    pub satisfaction_trait: SymbolHandle,
+    pub satisfaction_requirement: SymbolHandle,
+    pub canonical_requirement_overload: String,
+    pub boundary_calling_plan_fingerprint: u64,
+}
+
 /// One private inbound function that later target lowering must emit.
 ///
 /// `placement_index` joins back to the exact validated placement row without
@@ -34,9 +54,27 @@ pub struct BoundNominalCallbackPlacement {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CallbackThunkPlan {
     pub placement_index: usize,
+    pub placement_identity: CallbackPlacementBindingIdentity,
     pub entry_key: StateKey,
     pub function_identity: omega_control_flow::MachineFunctionIdentity,
     pub private_symbol: Arc<str>,
+}
+
+/// Retain the exact checked identities that authorize one callback placement.
+pub fn callback_placement_binding_identity(
+    placement: &BoundNominalCallbackPlacement,
+) -> CallbackPlacementBindingIdentity {
+    CallbackPlacementBindingIdentity {
+        site: placement.site,
+        registration_operation: placement.registration_operation,
+        static_machine_ordinal: placement.static_machine_ordinal,
+        selected_machine: placement.selected_machine,
+        selected_entry: placement.selected_entry,
+        satisfaction_trait: placement.satisfaction_trait,
+        satisfaction_requirement: placement.satisfaction_requirement,
+        canonical_requirement_overload: placement.canonical_requirement_overload.clone(),
+        boundary_calling_plan_fingerprint: placement.boundary_calling_plan_fingerprint,
+    }
 }
 
 /// Independently replay the exact evaluated calling plan retained by one
@@ -186,5 +224,32 @@ mod tests {
         let error = validate_bound_nominal_callback_placement(&fingerprint_drift)
             .expect_err("changed callback fingerprint must not retain the old plan");
         assert!(error.0.contains("drifted from its retained fingerprint"));
+    }
+
+    #[test]
+    fn callback_placement_binding_identity_binds_registration_and_satisfaction_row() {
+        let baseline = placement();
+        let identity = callback_placement_binding_identity(&baseline);
+
+        let mut registration_drift = baseline.clone();
+        registration_drift.registration_operation = SymbolHandle::from_parts(3, 2);
+        assert_ne!(
+            callback_placement_binding_identity(&registration_drift),
+            identity
+        );
+
+        let mut satisfaction_drift = baseline.clone();
+        satisfaction_drift.satisfaction_requirement = SymbolHandle::from_parts(8, 2);
+        assert_ne!(
+            callback_placement_binding_identity(&satisfaction_drift),
+            identity
+        );
+
+        let mut overload_drift = baseline;
+        overload_drift.canonical_requirement_overload = "Handler::other".to_owned();
+        assert_ne!(
+            callback_placement_binding_identity(&overload_drift),
+            identity
+        );
     }
 }

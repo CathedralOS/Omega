@@ -607,6 +607,17 @@ fn retain_callback_thunk_emission_blockers(
             ));
             continue;
         }
+        let placement_identity = omega_backend_plan::callback_placement_binding_identity(placement);
+        if thunk.placement_identity != placement_identity {
+            emission.blockers.insert(omega_artifacts::emission_blocker(
+                "callback thunk emission",
+                &format!(
+                    "planned private callback `{}` placement identity drifted from placement row {}",
+                    thunk.private_symbol, thunk.placement_index
+                ),
+            ));
+            continue;
+        }
         let selected_entry = omega_control_flow::StateKey {
             machine: placement.selected_machine,
             state: placement.selected_entry,
@@ -879,6 +890,7 @@ mod tests {
     ) -> omega_backend_plan::CallbackThunkPlan {
         omega_backend_plan::CallbackThunkPlan {
             placement_index: 0,
+            placement_identity: omega_backend_plan::callback_placement_binding_identity(placement),
             entry_key,
             function_identity: omega_control_flow::MachineFunctionIdentity::callback_thunk(
                 entry_key, 0,
@@ -1195,6 +1207,38 @@ mod tests {
 
         assert_eq!(blockers.len(), 1);
         assert!(blockers[0].contains("drifted from its retained fingerprint"));
+    }
+
+    #[test]
+    fn callback_thunk_emission_rejects_registration_or_satisfaction_identity_drift() {
+        let target = NativeTarget::host();
+        let key = state_key(2);
+        let placement = placement(key);
+        let thunk = thunk(key, &placement);
+        let encoded = encoded_machine(target, &[key], &thunk.private_symbol);
+        let object = object_with_symbols(target, &thunk, &[(7, 11)]);
+
+        let mut registration_drift = placement.clone();
+        registration_drift.registration_operation = SymbolHandle::from_parts(3, 2);
+        let blockers = callback_blockers(
+            &[registration_drift],
+            std::slice::from_ref(&thunk),
+            &encoded,
+            &object,
+        );
+        assert_eq!(blockers.len(), 1);
+        assert!(blockers[0].contains("placement identity drifted"));
+
+        let mut satisfaction_drift = placement;
+        satisfaction_drift.satisfaction_trait = SymbolHandle::from_parts(4, 2);
+        let blockers = callback_blockers(
+            &[satisfaction_drift],
+            std::slice::from_ref(&thunk),
+            &encoded,
+            &object,
+        );
+        assert_eq!(blockers.len(), 1);
+        assert!(blockers[0].contains("placement identity drifted"));
     }
 
     #[test]
