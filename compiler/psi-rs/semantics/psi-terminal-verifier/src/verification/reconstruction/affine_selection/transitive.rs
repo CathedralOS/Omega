@@ -1,11 +1,10 @@
 //! Fixed two-citation transitive affine evidence reconstruction.
 
-use psi_core::{Proposition, PropositionContext, ScalarTerm};
-
-use super::super::affine_custody;
+use psi_core::{Proposition, PropositionContext};
 
 mod alias;
 mod chains;
+mod completion;
 
 use chains::TwoCitationChains;
 
@@ -31,18 +30,6 @@ pub(super) fn retained_transitively_reconstructed_affine_bound(
         let Proposition::LessOrEqual(_, right) = right_fact else {
             unreachable!("only integer chains are enumerated")
         };
-        let root_bound = Proposition::LessOrEqual(left.clone(), right.clone());
-        [left, right]
-            .into_iter()
-            .filter(|root| matches!(root, ScalarTerm::Value { .. }))
-            .any(|root| {
-                affine_custody::retained_from_root(
-                    context,
-                    goal,
-                    semantic_axioms,
-                    root,
-                    &root_bound,
-                )
-            })
+        completion::retained(context, goal, semantic_axioms, left, right)
     })
 }
