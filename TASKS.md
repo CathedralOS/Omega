@@ -6524,10 +6524,13 @@ state through a raw address.
     `InstallationReachResolution`. External-root admission now accepts only a
     `ResolvedRootServiceReach`, substitutes `concrete + selected rows`, rejects
     absent selections, and retains the resolutions in the installed record.
+    The preselection capability manifest publishes every unresolved exact
+    requirement identity with its conservative upper bound rather than
+    pretending the bound is the selected provider row.
   - **Remaining:** encode the exact dependencies in source-handle-free terminal
-    root closures; expose unresolved bounds in preselection manifests and exact
-    rows after selection; reject their escape through ordinary callable package
-    or component contracts; feed the terminal closure into root admission.
+    root closures; expose exact rows after selection; reject unresolved rows
+    escaping through ordinary callable package or component contracts; feed
+    the terminal closure into root admission.
   - **Constraints:** `+` is union. Do not infer one shared row from equal sets or
     add negation, subtraction, lower bounds, exclusive-or, named row variables,
     or cross-requirement correlation.
