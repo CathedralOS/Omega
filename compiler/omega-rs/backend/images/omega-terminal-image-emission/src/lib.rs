@@ -47,7 +47,7 @@ pub(crate) use partial_cleanup_partition::exact_partial_cleanup_partition;
 pub use stack_demand::{derive_terminal_stack_demand, derive_terminal_unit_stack_demand};
 
 use boundary_results::boundary_result_is_exact;
-use completion_receipts::completion_receipts_have_exact_custody;
+use completion_receipts::{CompletionCustodyError, validate_completion_custody};
 use scalar_cleanup_preservation::validate_scalar_cleanup_preservation;
 use scalar_conditional_call_paths::{conditional_call_path, conditional_paths_are_exclusive};
 use scalar_control_cleanup::{cleanup_for_owner, validate_scalar_control_cleanup_evidence};
@@ -68,13 +68,12 @@ use omega_target::{Architecture, NativeTarget};
 use omega_terminal_machine_code::{
     TerminalBoundarySettlementRecord, TerminalMachineCodePlan, TerminalNativeFuelAttribution,
     TerminalNativeFuelSite, TerminalPortEffectRecord, TerminalScalarControlAffineCleanupRecord,
-    TerminalStructuralReturnRecord, derive_completion_provider_custody,
+    TerminalStructuralReturnRecord,
 };
 use omega_terminal_target_operations::{
     TerminalBoundaryRealization, TerminalCallSiteOwner, TerminalPsiProvenance,
 };
 use psi_core::MachineId;
-use psi_terminal::StructuralPathSegment;
 use psi_terminal::TerminalPsiIdentity;
 use psi_terminal_fuel::TerminalFuelSchedule;
 
@@ -888,45 +887,32 @@ pub fn build_terminal_object_artifact(
                     operation: settlement.psi_operation,
                 });
             }
-            if settlement.arguments.iter().any(|argument| {
-                argument.path.iter().any(
-                    |segment| matches!(segment, StructuralPathSegment::Field(identity) if identity.is_empty()),
-                )
-            }) {
-                return Err(TerminalObjectError::InvalidBoundarySettlementArgumentPath {
-                    machine: function.machine,
-                    operation: settlement.psi_operation,
-                });
-            }
-            if settlement.completion_receipts.iter().any(|receipt| {
-                usize::try_from(receipt.argument_index)
-                    .map_or(true, |index| index >= settlement.arguments.len())
-            }) {
-                return Err(TerminalObjectError::InvalidCompletionReceiptArgumentIndex {
-                    machine: function.machine,
-                    operation: settlement.psi_operation,
-                });
-            }
-            if !completion_receipts_have_exact_custody(
-                &settlement.arguments,
-                &settlement.completion_claim_sources,
-                &settlement.completion_receipts,
-            ) {
-                return Err(TerminalObjectError::InvalidCompletionReceiptCustody {
-                    machine: function.machine,
-                    operation: settlement.psi_operation,
-                });
-            }
-            if derive_completion_provider_custody(
-                settlement.provider_execution,
-                &settlement.completion_claim_sources,
-                &settlement.completion_receipts,
-            )
-            .is_none_or(|expected| expected != settlement.completion_provider_custody)
-            {
-                return Err(TerminalObjectError::InvalidCompletionProviderCustody {
-                    machine: function.machine,
-                    operation: settlement.psi_operation,
+            if let Err(error) = validate_completion_custody(settlement) {
+                return Err(match error {
+                    CompletionCustodyError::InvalidArgumentPath => {
+                        TerminalObjectError::InvalidBoundarySettlementArgumentPath {
+                            machine: function.machine,
+                            operation: settlement.psi_operation,
+                        }
+                    }
+                    CompletionCustodyError::InvalidReceiptArgumentIndex => {
+                        TerminalObjectError::InvalidCompletionReceiptArgumentIndex {
+                            machine: function.machine,
+                            operation: settlement.psi_operation,
+                        }
+                    }
+                    CompletionCustodyError::InvalidReceiptCustody => {
+                        TerminalObjectError::InvalidCompletionReceiptCustody {
+                            machine: function.machine,
+                            operation: settlement.psi_operation,
+                        }
+                    }
+                    CompletionCustodyError::InvalidProviderCustody => {
+                        TerminalObjectError::InvalidCompletionProviderCustody {
+                            machine: function.machine,
+                            operation: settlement.psi_operation,
+                        }
+                    }
                 });
             }
             let valid_realization = match settlement.realization {

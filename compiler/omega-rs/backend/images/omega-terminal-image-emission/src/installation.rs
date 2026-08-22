@@ -10,7 +10,7 @@ use omega_terminal_machine_code::{
     TerminalBoundaryResultRecord, TerminalBoundarySettlementRecord,
     TerminalCompletionProviderCustodyBinding, TerminalNativeFuelAttribution,
     TerminalNativeFuelSite, TerminalPortEffectRecord, TerminalProviderExecutionRecord,
-    TerminalStructuralReturnRecord, derive_completion_provider_custody,
+    TerminalStructuralReturnRecord,
 };
 use omega_terminal_target_operations::{
     TerminalBoundaryRealization, TerminalCallSiteOwner, TerminalCompletionClaimSource,
@@ -33,9 +33,10 @@ use sha2::{Digest, Sha256};
 
 use crate::{
     TerminalExecutableImage, TerminalObjectBoundarySettlement, TerminalObjectFuelAttribution,
-    TerminalObjectPortEffect, boundary_results::boundary_result_is_exact,
+    TerminalObjectPortEffect,
+    boundary_results::boundary_result_is_exact,
     can_emit_terminal_executable_image,
-    completion_receipts::completion_receipts_have_exact_custody,
+    completion_receipts::{CompletionCustodyError, validate_completion_custody},
 };
 
 pub const TERMINAL_INSTALLATION_FORMAT_MARKER: u16 = 31;
@@ -2937,52 +2938,30 @@ fn validate_record_shape(
                 operation: installed.settlement.psi_operation,
             });
         }
-        if installed.settlement.arguments.iter().any(|argument| {
-            argument.path.iter().any(
-                |segment| matches!(segment, StructuralPathSegment::Field(identity) if identity.is_empty()),
-            )
-        }) {
-            return Err(TerminalInstallationError::InvalidSettlementArgumentField);
-        }
-        if installed
-            .settlement
-            .completion_receipts
-            .iter()
-            .any(|receipt| {
-                usize::try_from(receipt.argument_index)
-                    .map_or(true, |index| index >= installed.settlement.arguments.len())
-            })
-        {
-            return Err(
-                TerminalInstallationError::InvalidCompletionReceiptArgumentIndex {
-                    machine: installed.machine,
-                    operation: installed.settlement.psi_operation,
-                },
-            );
-        }
-        if !completion_receipts_have_exact_custody(
-            &installed.settlement.arguments,
-            &installed.settlement.completion_claim_sources,
-            &installed.settlement.completion_receipts,
-        ) {
-            return Err(TerminalInstallationError::InvalidCompletionReceiptCustody {
-                machine: installed.machine,
-                operation: installed.settlement.psi_operation,
+        if let Err(error) = validate_completion_custody(&installed.settlement) {
+            return Err(match error {
+                CompletionCustodyError::InvalidArgumentPath => {
+                    TerminalInstallationError::InvalidSettlementArgumentField
+                }
+                CompletionCustodyError::InvalidReceiptArgumentIndex => {
+                    TerminalInstallationError::InvalidCompletionReceiptArgumentIndex {
+                        machine: installed.machine,
+                        operation: installed.settlement.psi_operation,
+                    }
+                }
+                CompletionCustodyError::InvalidReceiptCustody => {
+                    TerminalInstallationError::InvalidCompletionReceiptCustody {
+                        machine: installed.machine,
+                        operation: installed.settlement.psi_operation,
+                    }
+                }
+                CompletionCustodyError::InvalidProviderCustody => {
+                    TerminalInstallationError::InvalidCompletionProviderCustody {
+                        machine: installed.machine,
+                        operation: installed.settlement.psi_operation,
+                    }
+                }
             });
-        }
-        if derive_completion_provider_custody(
-            installed.settlement.provider_execution,
-            &installed.settlement.completion_claim_sources,
-            &installed.settlement.completion_receipts,
-        )
-        .is_none_or(|expected| expected != installed.settlement.completion_provider_custody)
-        {
-            return Err(
-                TerminalInstallationError::InvalidCompletionProviderCustody {
-                    machine: installed.machine,
-                    operation: installed.settlement.psi_operation,
-                },
-            );
         }
         let valid_realization = match installed.settlement.realization {
             TerminalBoundaryRealization::MetadataOnlyPort(realization) => {

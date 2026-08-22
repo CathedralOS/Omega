@@ -2,13 +2,66 @@
 
 use std::collections::BTreeSet;
 
+use omega_terminal_machine_code::{
+    TerminalBoundarySettlementRecord, derive_completion_provider_custody,
+};
 use omega_terminal_target_operations::TerminalCompletionClaimSource;
 use psi_core::{ClaimId, ContentPlaceSegment, ContentPlaceVersion};
 use psi_terminal::{CompletionReceipt, StructuralArgument, StructuralPathSegment};
 
+/// Closed failure classes shared by object and installation settlement replay.
+/// Callers translate these private classes to their existing public errors.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum CompletionCustodyError {
+    InvalidArgumentPath,
+    InvalidReceiptArgumentIndex,
+    InvalidReceiptCustody,
+    InvalidProviderCustody,
+}
+
+/// Replay the complete completion-custody responsibility after the verified
+/// module has been discarded.
+///
+/// Check order is load-bearing because object and installation validation
+/// expose distinct public error enums with established precedence.
+pub(super) fn validate_completion_custody(
+    settlement: &TerminalBoundarySettlementRecord,
+) -> Result<(), CompletionCustodyError> {
+    if settlement.arguments.iter().any(|argument| {
+        argument.path.iter().any(
+            |segment| matches!(segment, StructuralPathSegment::Field(identity) if identity.is_empty()),
+        )
+    }) {
+        return Err(CompletionCustodyError::InvalidArgumentPath);
+    }
+    if settlement.completion_receipts.iter().any(|receipt| {
+        usize::try_from(receipt.argument_index)
+            .map_or(true, |index| index >= settlement.arguments.len())
+    }) {
+        return Err(CompletionCustodyError::InvalidReceiptArgumentIndex);
+    }
+    if !completion_receipts_have_exact_custody(
+        &settlement.arguments,
+        &settlement.completion_claim_sources,
+        &settlement.completion_receipts,
+    ) {
+        return Err(CompletionCustodyError::InvalidReceiptCustody);
+    }
+    if derive_completion_provider_custody(
+        settlement.provider_execution,
+        &settlement.completion_claim_sources,
+        &settlement.completion_receipts,
+    )
+    .is_none_or(|expected| expected != settlement.completion_provider_custody)
+    {
+        return Err(CompletionCustodyError::InvalidProviderCustody);
+    }
+    Ok(())
+}
+
 /// Replay the verifier's exact claim-source matching, claim uniqueness, and
 /// canonical receipt ordering after the verified module has been discarded.
-pub(super) fn completion_receipts_have_exact_custody(
+fn completion_receipts_have_exact_custody(
     arguments: &[StructuralArgument],
     sources: &[TerminalCompletionClaimSource],
     receipts: &[CompletionReceipt],
@@ -107,6 +160,44 @@ fn claim_source_is_canonical(source: &TerminalCompletionClaimSource) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn settlement(
+        arguments: Vec<StructuralArgument>,
+        completion_claim_sources: Vec<TerminalCompletionClaimSource>,
+        completion_receipts: Vec<CompletionReceipt>,
+    ) -> TerminalBoundarySettlementRecord {
+        let provider_execution =
+            omega_terminal_machine_code::TerminalProviderExecutionRecord::new(1, 2, 3, 4, 5)
+                .expect("provider execution");
+        let completion_provider_custody = derive_completion_provider_custody(
+            provider_execution,
+            &completion_claim_sources,
+            &completion_receipts,
+        )
+        .unwrap_or_default();
+        TerminalBoundarySettlementRecord {
+            psi_operation: psi_core::OperationId::new(1).expect("operation"),
+            boundary: psi_core::BoundaryMachineId::new(1).expect("boundary"),
+            provider_execution,
+            realization:
+                omega_terminal_target_operations::TerminalBoundaryRealization::MetadataOnlyPort(
+                    omega_terminal_target_operations::TerminalMetadataOnlyPortRealization {
+                        effect_operation: psi_core::OperationId::new(2).expect("effect operation"),
+                        service: psi_core::ServiceId::new(1).expect("service"),
+                        port: 0x20,
+                        value: 0x20,
+                    },
+                ),
+            arguments,
+            completion_claim_sources,
+            completion_receipts,
+            completion_provider_custody,
+            native_result: None,
+            operation_ordinal: 1,
+            code_offset: 0,
+            byte_count: 0,
+        }
+    }
 
     fn receipt(claim: u64, argument_index: u32) -> CompletionReceipt {
         CompletionReceipt {
@@ -227,5 +318,42 @@ mod tests {
             &[combined],
             &[receipt(1, 0)],
         ));
+    }
+
+    #[test]
+    fn complete_custody_replay_preserves_validation_precedence() {
+        let valid = settlement(vec![argument(1)], vec![source(1, 1)], vec![receipt(1, 0)]);
+        assert_eq!(validate_completion_custody(&valid), Ok(()));
+
+        let mut invalid_argument = valid.clone();
+        invalid_argument.arguments[0].path = vec![StructuralPathSegment::Field(String::new())];
+        invalid_argument.completion_receipts[0].argument_index = 2;
+        assert_eq!(
+            validate_completion_custody(&invalid_argument),
+            Err(CompletionCustodyError::InvalidArgumentPath)
+        );
+
+        let mut invalid_index = valid.clone();
+        invalid_index.completion_receipts[0].argument_index = 2;
+        assert_eq!(
+            validate_completion_custody(&invalid_index),
+            Err(CompletionCustodyError::InvalidReceiptArgumentIndex)
+        );
+
+        let mut invalid_receipt = valid.clone();
+        invalid_receipt.completion_receipts[0].claim = ClaimId::new(2).expect("other claim");
+        assert_eq!(
+            validate_completion_custody(&invalid_receipt),
+            Err(CompletionCustodyError::InvalidReceiptCustody)
+        );
+
+        let mut invalid_provider = valid;
+        invalid_provider.completion_provider_custody[0]
+            .provider_execution
+            .provider_plan = 9;
+        assert_eq!(
+            validate_completion_custody(&invalid_provider),
+            Err(CompletionCustodyError::InvalidProviderCustody)
+        );
     }
 }
