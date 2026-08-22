@@ -6,7 +6,9 @@
 //! fact produced by that same operation.
 
 use psi_core::{Proposition, PropositionContext};
-use psi_proof_kernel::{PrimitiveJudgment, ProofNode, ProofRule, check_certificate};
+use psi_proof_kernel::{
+    IntegerAffineWitness, PrimitiveJudgment, ProofNode, ProofRule, check_certificate,
+};
 
 #[derive(Clone, Copy)]
 enum Citation {
@@ -25,13 +27,14 @@ pub(super) fn prove_canonical_integer_proposition(
     assumptions: &[Proposition],
     semantic_axioms: &[Proposition],
 ) -> Option<ProofNode> {
-    let proof = build_canonical_integer_proposition(goal, assumptions, semantic_axioms)?;
+    let proof = build_canonical_integer_proposition(context, goal, assumptions, semantic_axioms)?;
     check_certificate(context, goal, assumptions, semantic_axioms, &proof)
         .is_ok()
         .then_some(proof)
 }
 
 fn build_canonical_integer_proposition(
+    context: &PropositionContext,
     goal: &Proposition,
     assumptions: &[Proposition],
     semantic_axioms: &[Proposition],
@@ -46,14 +49,21 @@ fn build_canonical_integer_proposition(
             conclusion: Proposition::Truth,
             rule: ProofRule::Primitive(PrimitiveJudgment::Truth),
         }),
-        Proposition::LessOrEqual(_, _) => prove_integer_bound(goal, assumptions, semantic_axioms),
+        Proposition::LessOrEqual(_, _) => {
+            prove_integer_bound(context, goal, assumptions, semantic_axioms)
+        }
         Proposition::Conjunction(conjuncts) => Some(ProofNode {
             conclusion: goal.clone(),
             rule: ProofRule::ConjunctionIntroduction(
                 conjuncts
                     .iter()
                     .map(|conjunct| {
-                        build_canonical_integer_proposition(conjunct, assumptions, semantic_axioms)
+                        build_canonical_integer_proposition(
+                            context,
+                            conjunct,
+                            assumptions,
+                            semantic_axioms,
+                        )
                     })
                     .collect::<Option<Vec<_>>>()?,
             ),
@@ -61,8 +71,13 @@ fn build_canonical_integer_proposition(
         Proposition::Disjunction(disjuncts) => {
             let (index, disjunct) =
                 disjuncts.iter().enumerate().find_map(|(index, disjunct)| {
-                    build_canonical_integer_proposition(disjunct, assumptions, semantic_axioms)
-                        .map(|proof| (index, proof))
+                    build_canonical_integer_proposition(
+                        context,
+                        disjunct,
+                        assumptions,
+                        semantic_axioms,
+                    )
+                    .map(|proof| (index, proof))
                 })?;
             Some(ProofNode {
                 conclusion: goal.clone(),
@@ -77,6 +92,7 @@ fn build_canonical_integer_proposition(
 }
 
 fn prove_integer_bound(
+    context: &PropositionContext,
     goal: &Proposition,
     assumptions: &[Proposition],
     semantic_axioms: &[Proposition],
@@ -146,6 +162,51 @@ fn prove_integer_bound(
                         endpoint,
                     },
                 });
+            }
+        }
+    }
+    prove_single_definition_affine_bound(context, goal, assumptions, semantic_axioms)
+}
+
+fn prove_single_definition_affine_bound(
+    context: &PropositionContext,
+    goal: &Proposition,
+    assumptions: &[Proposition],
+    semantic_axioms: &[Proposition],
+) -> Option<ProofNode> {
+    let Proposition::LessOrEqual(goal_left, goal_right) = goal else {
+        return None;
+    };
+    for (citation, root_bound) in cited_facts(assumptions, semantic_axioms) {
+        let Proposition::LessOrEqual(root_left, root_right) = root_bound else {
+            continue;
+        };
+        for root in [root_left, root_right]
+            .into_iter()
+            .filter(|root| matches!(root, psi_core::ScalarTerm::Value { .. }))
+        {
+            for target in [goal_left, goal_right]
+                .into_iter()
+                .filter(|target| matches!(target, psi_core::ScalarTerm::Value { .. }))
+            {
+                for (index, _) in semantic_axioms.iter().enumerate() {
+                    let proof = ProofNode {
+                        conclusion: goal.clone(),
+                        rule: ProofRule::IntegerAffineBound {
+                            root_bound: Box::new(citation.proof(root_bound)),
+                            witness: IntegerAffineWitness {
+                                root: root.clone(),
+                                target: target.clone(),
+                                definition_axioms: vec![index],
+                            },
+                        },
+                    };
+                    if check_certificate(context, goal, assumptions, semantic_axioms, &proof)
+                        .is_ok()
+                    {
+                        return Some(proof);
+                    }
+                }
             }
         }
     }
@@ -1780,5 +1841,75 @@ mod tests {
             middle_less_or_equal_right.rule,
             ProofRule::Assumption { index: 1 }
         ));
+    }
+
+    #[test]
+    fn exact_division_goal_proves_single_definition_affine_safe_divisor() {
+        let signed = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+        let context = PropositionContext::from_value_types((1..=4).map(|id| {
+            (
+                ValueId::new(id).expect("value id"),
+                ScalarType::Integer(signed),
+            )
+        }))
+        .expect("four i8 values");
+        let divisor = value(2, signed);
+        let goal = Proposition::Disjunction(vec![
+            Proposition::LessOrEqual(divisor.clone(), integer(signed, -2)),
+            Proposition::LessOrEqual(integer(signed, 1), divisor.clone()),
+            Proposition::Conjunction(vec![
+                Proposition::LessOrEqual(divisor, integer(signed, -1)),
+                Proposition::LessOrEqual(integer(signed, -127), value(1, signed)),
+            ]),
+        ]);
+        let root_bound = Proposition::LessOrEqual(integer(signed, 0), value(3, signed));
+        let definition = Proposition::Equal(
+            value(2, signed),
+            ScalarTerm::exact_integer_add(signed, value(3, signed), integer(signed, 1))
+                .expect("exact add"),
+        );
+        let proof = prove_canonical_integer_proposition(
+            &context,
+            &goal,
+            std::slice::from_ref(&root_bound),
+            std::slice::from_ref(&definition),
+        )
+        .expect("affine root bound proves the canonical positive divisor arm");
+        let ProofRule::DisjunctionIntroduction { disjunct, index } = proof.rule else {
+            panic!("affine safe divisor selects one canonical arm")
+        };
+        assert_eq!(index, 1);
+        let ProofRule::IntegerAffineBound {
+            root_bound: child,
+            witness,
+        } = disjunct.rule
+        else {
+            panic!("affine safe divisor uses the checked affine-bound rule")
+        };
+        assert!(matches!(child.rule, ProofRule::Assumption { index: 0 }));
+        assert_eq!(witness.root, value(3, signed));
+        assert_eq!(witness.target, value(2, signed));
+        assert_eq!(witness.definition_axioms, vec![0]);
+
+        assert!(
+            prove_canonical_integer_proposition(
+                &context,
+                &goal,
+                &[],
+                std::slice::from_ref(&definition),
+            )
+            .is_none(),
+            "an affine definition without its root bound is not proof authority",
+        );
+        let redirected = Proposition::Equal(
+            value(4, signed),
+            ScalarTerm::exact_integer_add(signed, value(3, signed), integer(signed, 1))
+                .expect("redirected exact add"),
+        );
+        assert!(
+            prove_canonical_integer_proposition(&context, &goal, &[root_bound], &[redirected],)
+                .is_none(),
+            "a definition for another target cannot prove divisor safety",
+        );
     }
 }
