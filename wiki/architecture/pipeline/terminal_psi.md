@@ -1995,9 +1995,14 @@ canonical bound at that alias. Its fixed proof nests one
 `IntegerLessOrEqualSubstitution` under `IntegerCastBound`; verification repeats
 the same exact equality/bound selection. Missing, redirected, cross-carrier, or
 weaker bounds reject. The constructor does not recurse or strengthen the alias
-bound. Two aliases, landed-literal-via-alias, affine/cast, shift/cast, joins,
-and correlated results remain outside this sibling; neither complete exact row
-changes trust and `fully-derived false` remains.
+bound. One fixed sibling may instead land that alias through exactly one
+same-carrier `alias == literal` citation. It proves the closed canonical bridge,
+substitutes the alias, substitutes the root, then applies `IntegerCastBound`;
+production and verification select the same two exact equalities. Missing,
+reused, redirected, mistyped, or weaker literals reject. A second alias,
+affine/cast, shift/cast, joins, and correlated results remain outside this
+sibling; neither complete exact row changes trust and `fully-derived false`
+remains.
 
 The common exact-shift spine now also has a producer-visible, non-serialized
 `IntegerShiftChainWitness`. It binds a nonempty ordered word of exact left and
