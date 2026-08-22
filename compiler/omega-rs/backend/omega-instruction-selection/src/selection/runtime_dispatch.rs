@@ -3128,7 +3128,7 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
             // callee's spliced effect operations; each waits here for the
             // statement's own LocalStorage operation (see the deferral note at
             // the leaf emission below).
-            let mut deferred_leaf_operations: Vec<RuntimeDispatchBodyOperation> = Vec::new();
+            let mut deferred_leaf_operations: Vec<DeferredLeafOperation> = Vec::new();
 
             for (operation_index, operation) in operations.iter().enumerate() {
                 let (call_ordinal, call_target, target_entry) = match &operation.kind {
@@ -3235,25 +3235,27 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
                     // (e.g. `rr`) is written before the expansion reads it.
                     while let Some(deferred_index) =
                         deferred_leaf_operations.iter().position(|deferred| {
-                            deferred.source_key == operation.source_key
-                                && deferred.statement_index == operation.statement_index
+                            deferred.operation.source_key == operation.source_key
+                                && deferred.operation.statement_index == operation.statement_index
                         })
                     {
                         let deferred = deferred_leaf_operations.remove(deferred_index);
-                        select_runtime_branch_preludes_for_operation(
-                            input,
-                            dispatch_case.dispatch_index,
-                            &deferred,
-                            &mut prelude_expansion_cursor,
-                            &mut prelude_selection_scratch,
-                            operands,
-                            runtime_value_operands,
-                            selected_instructions,
-                        );
+                        if deferred.defer_prelude {
+                            select_runtime_branch_preludes_for_operation(
+                                input,
+                                dispatch_case.dispatch_index,
+                                &deferred.operation,
+                                &mut prelude_expansion_cursor,
+                                &mut prelude_selection_scratch,
+                                operands,
+                                runtime_value_operands,
+                                selected_instructions,
+                            );
+                        }
                         select_runtime_straight_line_branch_expansions_for_operation(
                             input,
                             dispatch_case.dispatch_index,
-                            &deferred,
+                            &deferred.operation,
                             &mut straight_line_expansion_cursor,
                             &mut straight_line_selection_scratch,
                             operands,
@@ -3263,7 +3265,7 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
                         select_runtime_leaf_branch_expansions_for_operation(
                             input,
                             dispatch_case.dispatch_index,
-                            &deferred,
+                            &deferred.operation,
                             &mut leaf_expansion_cursor,
                             &mut leaf_selection_scratch,
                             runtime_value_operands,
@@ -3450,6 +3452,25 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
                 let defers_to_local_initializer =
                     has_spliced_effect || (leaf_defers_to_local_initializer && has_caller_local);
                 if defers_to_local_initializer {
+                    // Assignment/transition-result and host-argument leaves already
+                    // had their preludes emitted at the call site before nested-splice
+                    // ordering was introduced. Preserve that declaration-time capture
+                    // while deferring only the newly covered statement-call prelude.
+                    let defer_prelude = has_spliced_effect
+                        && !leaf_defers_to_local_initializer
+                        && !is_host_call_argument;
+                    if !defer_prelude {
+                        select_runtime_branch_preludes_for_operation(
+                            input,
+                            dispatch_case.dispatch_index,
+                            operation,
+                            &mut prelude_expansion_cursor,
+                            &mut prelude_selection_scratch,
+                            operands,
+                            runtime_value_operands,
+                            selected_instructions,
+                        );
+                    }
                     // The callee's ARM effects defer WITH the leaf: its branch
                     // prelude, straight-line statements, and terminal expansion
                     // all run after the callee's entry body. Emitting any of that
@@ -3457,7 +3478,10 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
                     // source order. In particular, a nested branching prelude can
                     // mutate a field before the parent entry mutation that should
                     // precede it. They fire together at the fire sites below.
-                    deferred_leaf_operations.push(operation.clone());
+                    deferred_leaf_operations.push(DeferredLeafOperation {
+                        operation: operation.clone(),
+                        defer_prelude,
+                    });
                 } else {
                     select_runtime_branch_preludes_for_operation(
                         input,
@@ -4713,7 +4737,7 @@ fn fire_ready_deferred_leaf_expansions(
     operation_index: usize,
     operations: &PagedSlice<'_, RuntimeDispatchBodyOperation>,
     dispatch_body_key: StateKey,
-    deferred_leaf_operations: &mut Vec<RuntimeDispatchBodyOperation>,
+    deferred_leaf_operations: &mut Vec<DeferredLeafOperation>,
     prelude_expansion_cursor: &mut usize,
     prelude_selection_scratch: &mut BranchPreludeSelectionScratch,
     straight_line_expansion_cursor: &mut usize,
@@ -4728,15 +4752,16 @@ fn fire_ready_deferred_leaf_expansions(
         .iter()
         .enumerate()
         .filter_map(|(deferred_index, deferred)| {
-            state_call_target_key(deferred)?;
-            if operation.source_key == deferred.source_key {
+            state_call_target_key(&deferred.operation)?;
+            if operation.source_key == deferred.operation.source_key {
                 return None;
             }
             let has_more = operations
                 .iter()
                 .skip(operation_index + 1)
                 .take_while(|later| {
-                    later.source_key != deferred.source_key && later.source_key != dispatch_body_key
+                    later.source_key != deferred.operation.source_key
+                        && later.source_key != dispatch_body_key
                 })
                 .next()
                 .is_some();
@@ -4745,20 +4770,22 @@ fn fire_ready_deferred_leaf_expansions(
         .collect();
     for deferred_index in deferred_indices_to_fire.into_iter().rev() {
         let deferred = deferred_leaf_operations.remove(deferred_index);
-        select_runtime_branch_preludes_for_operation(
-            input,
-            dispatch_index,
-            &deferred,
-            prelude_expansion_cursor,
-            prelude_selection_scratch,
-            operands,
-            runtime_value_operands,
-            selected_instructions,
-        );
+        if deferred.defer_prelude {
+            select_runtime_branch_preludes_for_operation(
+                input,
+                dispatch_index,
+                &deferred.operation,
+                prelude_expansion_cursor,
+                prelude_selection_scratch,
+                operands,
+                runtime_value_operands,
+                selected_instructions,
+            );
+        }
         select_runtime_straight_line_branch_expansions_for_operation(
             input,
             dispatch_index,
-            &deferred,
+            &deferred.operation,
             straight_line_expansion_cursor,
             straight_line_selection_scratch,
             operands,
@@ -4768,13 +4795,19 @@ fn fire_ready_deferred_leaf_expansions(
         select_runtime_leaf_branch_expansions_for_operation(
             input,
             dispatch_index,
-            &deferred,
+            &deferred.operation,
             leaf_expansion_cursor,
             leaf_selection_scratch,
             runtime_value_operands,
             selected_instructions,
         );
     }
+}
+
+#[derive(Clone)]
+struct DeferredLeafOperation {
+    operation: RuntimeDispatchBodyOperation,
+    defer_prelude: bool,
 }
 
 fn state_call_target_key(operation: &RuntimeDispatchBodyOperation) -> Option<StateKey> {
