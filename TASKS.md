@@ -542,8 +542,12 @@ Remaining:
   strings, multiplicity tags, and qualification-domain catalogs shared across
   function, return, completion, and structural-type rows. Exact bytes, UTF-8/
   nonempty and identity diagnostics, domain/multiplicity error order, public
-  APIs, validation, and admission replay remain unchanged. The installation
-  parent is now 3,114
+  APIs, validation, and admission replay remain unchanged. A structural-
+  signature codec now owns exact source-parameter and result-declaration rows,
+  including place/type identities, multiplicity, reserved fields, and
+  qualification catalogs. Structural-return order, row bytes, literal
+  diagnostics and precedence, public APIs, validation, and admission replay
+  remain unchanged. The installation parent is now 3,043
   lines. This is
   custody, not
   authorization. The remaining
@@ -4405,6 +4409,12 @@ Remaining:
   identity while supported runtime carriers recursively omit erased storage,
   initialization, topology, bytes, tags, and ABI transfer; runtime use rejects
   and omitted evidence remains a required semantic term.
+
+  Erased runtime-use noninterference now lives in a focused 463-line owner.
+  Proof, runtime, and erased contexts, recursive expression traversal, struct-
+  initializer completeness, runtime field/payload rejection, and proof-machine
+  call fencing retain exact diagnostic order; the relevance shape-admission
+  coordinator is now 415 lines with the exact 15-function inventory unchanged.
 
   Continue moving any remaining target-neutral generic/build-time probe
   sequencing out of `omega-compiler`; Psi owns those services and normalized
