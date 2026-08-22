@@ -833,10 +833,13 @@ fn runtime_local_boolean_conjunction_value_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("runtime local boolean conjunction value canary should compile");
 
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation.checked_native_executable_path().expect(
+        "runtime local boolean conjunction value canary should retain its executable receipt",
+    );
+    let output = Command::new(executable)
         .output()
         .expect("runtime local boolean conjunction value canary should run");
 
@@ -859,10 +862,13 @@ fn runtime_local_scalar_comparison_value_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("runtime local scalar comparison value canary should compile");
 
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation.checked_native_executable_path().expect(
+        "runtime local scalar comparison value canary should retain its executable receipt",
+    );
+    let output = Command::new(executable)
         .output()
         .expect("runtime local scalar comparison value canary should run");
 
@@ -885,10 +891,13 @@ fn runtime_local_string_comparison_value_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("runtime local string comparison value canary should compile");
 
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation.checked_native_executable_path().expect(
+        "runtime local string comparison value canary should retain its executable receipt",
+    );
+    let output = Command::new(executable)
         .output()
         .expect("runtime local string comparison value canary should run");
 
@@ -911,10 +920,13 @@ fn runtime_boolean_or_guard_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("runtime boolean or guard canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("runtime boolean or guard canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("runtime boolean or guard canary should run");
 
@@ -937,10 +949,13 @@ fn runtime_direct_boolean_transition_argument_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("runtime direct boolean transition argument canary should compile");
 
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation.checked_native_executable_path().expect(
+        "runtime direct boolean transition argument canary should retain its executable receipt",
+    );
+    let output = Command::new(executable)
         .output()
         .expect("runtime direct boolean transition argument canary should run");
 
