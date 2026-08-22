@@ -469,21 +469,13 @@ fn runtime_value_machine_param_array_index_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-vm-param-arr-idx-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("value machine param array index canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
-        .output()
-        .expect("value machine param array index canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(1),
-        "expected `container.items[k].id` (items[1].id=42, k=1) through the value          machine to read 42 and exit 1, got {:?}
-stderr:
-{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        1,
+        "value-machine parameter-array index canary",
+        "the value machine should read the runtime-indexed member-array field",
     );
 
     let _ = fs::remove_dir_all(&build_dir);
@@ -497,21 +489,13 @@ fn runtime_machine_frame_index_read_exit_canary_runs() {
     let scratch = std::env::temp_dir().join(format!("omega-mfi-read-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("machine frame-index read canary should compile");
-
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("machine frame-index read canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(1),
-        "expected `self.arr[k]` (arr[2]=9, k=2 a param) to read 9 and exit 1, got {:?}
-stderr:
-{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        1,
+        "machine frame-index read canary",
+        "the machine-owned array should read through its frame-resident index",
     );
 
     let _ = fs::remove_dir_all(&scratch);
@@ -525,21 +509,13 @@ fn runtime_machine_frame_index_write_exit_canary_runs() {
     let scratch = std::env::temp_dir().join(format!("omega-mfi-write-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("machine frame-index write canary should compile");
-
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("machine frame-index write canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(1),
-        "expected `self.arr[k] = self.b` (b=7, k=2) to store 7 and exit 1, got {:?}
-stderr:
-{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        1,
+        "machine frame-index write canary",
+        "the runtime value should store through the frame-resident index",
     );
 
     let _ = fs::remove_dir_all(&scratch);
@@ -553,21 +529,13 @@ fn runtime_machine_frame_index_dual_frame_write_exit_canary_runs() {
     let scratch = std::env::temp_dir().join(format!("omega-mfi-dual-write-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("machine frame-index dual-frame write canary should compile");
-
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("machine frame-index dual-frame write canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(1),
-        "expected `self.arr[k] = v` (k=1, v=44, both params) to store 44 and exit 1, got {:?}
-stderr:
-{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        1,
+        "machine dual-frame index-write canary",
+        "the frame-resident source and index should drive the machine-array write",
     );
 
     let _ = fs::remove_dir_all(&scratch);
@@ -582,21 +550,13 @@ fn runtime_machine_frame_index_rmw_exit_canary_runs() {
     let scratch = std::env::temp_dir().join(format!("omega-mfi-rmw-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("machine frame-index rmw canary should compile");
-
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("machine frame-index rmw canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(1),
-        "expected `self.arr[k] = self.arr[k] + 1` (arr[2]: 4 -> 5, k a param) to exit 1, got {:?}
-stderr:
-{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        1,
+        "machine frame-index read-modify-write canary",
+        "the frame-indexed machine-array read-modify-write should preserve its update",
     );
 
     let _ = fs::remove_dir_all(&scratch);

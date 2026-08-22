@@ -785,15 +785,14 @@ mod tests {
             )
             .has_consistent_executable_publication_custody()
         );
-        assert!(
-            !report(
-                true,
-                CompileOutputKind::NativeExecutable,
-                Some(flat.clone()),
-                Some(flat.clone()),
-            )
-            .has_consistent_executable_publication_custody()
+        let self_aliased = report(
+            true,
+            CompileOutputKind::NativeExecutable,
+            Some(flat.clone()),
+            Some(flat.clone()),
         );
+        assert!(!self_aliased.has_consistent_executable_publication_custody());
+        assert!(self_aliased.checked_native_executable_path().is_none());
         assert!(
             !report(
                 true,
