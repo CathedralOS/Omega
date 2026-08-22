@@ -2274,7 +2274,13 @@ Remaining:
   its retained literal, closed-strengthening, and exact two-fact forms. Fixed
   endpoint substitution likewise lives in independent side-local
   `integer_selection/substitution` modules; each side owns its existing one-
-  and two-equality completion without sharing authority. One-substitution
+  and two-equality completion without sharing authority. Fixed one-equality
+  endpoint substitution now lives in independent side-local
+  `integer_selection/substitution/one` modules. Production alone owns citation
+  indices and constructs the outer proof; reconstruction independently
+  enumerates equalities and rechecks the inner relation. One-before-two
+  precedence, orientation, source order, endpoint identity, proof shapes,
+  rejection, and fixed frontiers are unchanged. One-substitution
   inner-relation custody now lives in independent side-local
   `integer_selection/substitution/relation` modules. Production alone preserves
   exact or closed-strengthened prior relation, exact two-fact transitivity,
