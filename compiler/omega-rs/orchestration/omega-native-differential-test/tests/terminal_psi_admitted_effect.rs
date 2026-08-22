@@ -184,14 +184,23 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
     .expect("provider execution admission");
 
     let installed_code = install_entry_artifact(entry);
-    let selected_provider = SelectedExternalRootProviderPlan {
+    let mut selected_provider = SelectedExternalRootProviderPlan {
         identity: execution.provider_plan(),
         schema: Default::default(),
     };
+    selected_provider.schema.trait_name = "TimerRoot".into();
+    selected_provider.schema.methods.push(Default::default());
+    let selected_method = &mut selected_provider.schema.methods[0];
+    selected_method.name = "tick".into();
+    selected_method.requirement_owner = "TimerRoot".into();
+    selected_method.requirement_identity = "TimerRoot::tick".into();
+    selected_method.parameter_count = 1;
+    selected_method.parameter_type_identities = vec!["Test::BoundaryWord".into()];
+    selected_method.calling_plan_fingerprint = Some(validated.boundary_contract_fingerprint());
     let writer = entry_writer(entry);
     let wrong_selected_provider = SelectedExternalRootProviderPlan {
         identity: root_id(56, ProviderPlanId::from_normalized_identity),
-        schema: Default::default(),
+        schema: selected_provider.schema.clone(),
     };
     assert!(
         wrong_selected_provider
@@ -249,16 +258,19 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
     .expect("same reusable geometry with a different symbolic entry");
     let drifted_lowering_snapshot = drifted_lowering.clone();
     let prepared_provider = drifted_preparation.provider_execution();
-    let error =
-        bind_external_root_post_handoff_writer_invocation(drifted_lowering, drifted_preparation)
-            .expect_err("lowered writer invocation drift must reject");
+    let error = bind_external_root_post_handoff_writer_invocation(
+        selected_provider,
+        drifted_lowering,
+        drifted_preparation,
+    )
+    .expect_err("lowered writer invocation drift must reject");
     assert!(
         error
             .diagnostic()
             .message
             .contains("exact lowered post-handoff writer invocation")
     );
-    let (returned_lowering, prepared_writer) = error.into_parts();
+    let (selected_provider, returned_lowering, prepared_writer) = error.into_parts();
     assert_eq!(returned_lowering, drifted_lowering_snapshot);
     assert_eq!(prepared_writer.provider_execution(), prepared_provider);
     let lowered_writer = lower_post_handoff_writer_fragment(
@@ -267,12 +279,37 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
         &writer,
     )
     .expect("AOT writer lowering");
-    let bound_writer =
-        bind_external_root_post_handoff_writer_invocation(lowered_writer, prepared_writer)
-            .expect("lowered fragment and provider preparation should bind");
+    let mut drifted_selected_provider = selected_provider.clone();
+    drifted_selected_provider.schema.methods[0].requirement_identity = "SiblingRoot::tick".into();
+    let drifted_selected_snapshot = drifted_selected_provider.clone();
+    let error = bind_external_root_post_handoff_writer_invocation(
+        drifted_selected_provider,
+        lowered_writer,
+        prepared_writer,
+    )
+    .expect_err("selected source requirement substitution must reject");
+    assert!(
+        error
+            .diagnostic()
+            .message
+            .contains("exact writer requirement")
+    );
+    let (returned_selected, lowered_writer, prepared_writer) = error.into_parts();
+    assert_eq!(returned_selected, drifted_selected_snapshot);
+    assert_eq!(lowered_writer.invocation(), prepared_writer.invocation());
+    let bound_writer = bind_external_root_post_handoff_writer_invocation(
+        selected_provider,
+        lowered_writer,
+        prepared_writer,
+    )
+    .expect("lowered fragment, selected source schema, and provider preparation should bind");
     assert_eq!(
         bound_writer.prepared().provider_execution(),
         execution.terminal_binding()
+    );
+    assert_eq!(
+        bound_writer.selected_provider().schema.methods[0].requirement_identity,
+        "TimerRoot::tick"
     );
     let mapping = activated_writer_mapping(0x8000, 16);
     let destination_receipt = DestinationPreparationReceipt::from_admitted_provider(
@@ -351,7 +388,11 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
     let written = bound_writer
         .execute(&installed_code, destination)
         .expect("recovered writer and destination execute again");
-    let (retained_lowered, written) = written.into_parts();
+    let (retained_selected_provider, retained_lowered, written) = written.into_parts();
+    assert_eq!(
+        retained_selected_provider.schema.methods[0].requirement_identity,
+        "TimerRoot::tick"
+    );
     assert_eq!(retained_lowered, bound_lowered);
     let (
         provider_execution,

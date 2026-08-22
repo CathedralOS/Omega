@@ -1830,6 +1830,18 @@ impl PreparedExternalRootPostHandoffWriterInvocation {
         &self.root_evidence.candidate.requirement_identity
     }
 
+    pub fn selected_boundary_parameter_count(&self) -> usize {
+        self.root_evidence.boundary.call.parameters.len()
+    }
+
+    pub const fn selected_boundary_contract_fingerprint(&self) -> u64 {
+        self.root_evidence.boundary_contract_fingerprint
+    }
+
+    pub fn selected_entry_claims(&self) -> &[ExternalRootEntryClaim] {
+        &self.root_evidence.candidate.entry_claims
+    }
+
     pub const fn architecture(&self) -> omega_target::Architecture {
         self.architecture
     }
@@ -1957,6 +1969,18 @@ impl<'mapping, 'bytes> WrittenExternalRootPostHandoffWriterDestination<'mapping,
 
     pub fn selected_requirement_identity(&self) -> &str {
         &self.root_evidence.candidate.requirement_identity
+    }
+
+    pub fn selected_boundary_parameter_count(&self) -> usize {
+        self.root_evidence.boundary.call.parameters.len()
+    }
+
+    pub const fn selected_boundary_contract_fingerprint(&self) -> u64 {
+        self.root_evidence.boundary_contract_fingerprint
+    }
+
+    pub fn selected_entry_claims(&self) -> &[ExternalRootEntryClaim] {
+        &self.root_evidence.candidate.entry_claims
     }
 
     pub const fn architecture(&self) -> omega_target::Architecture {
