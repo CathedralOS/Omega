@@ -56,6 +56,7 @@ pub struct ExecutablePublicationReceipt {
     destination: ExecutablePublicationDestination,
     output_path: PathBuf,
     certificate_fingerprint: u64,
+    boundary_contract_fingerprint: Option<u64>,
     inventory_fingerprint: u64,
     compiler_text_validation_fingerprint: u64,
     compiler_function_validation_fingerprint: u64,
@@ -70,6 +71,7 @@ impl ExecutablePublicationReceipt {
         destination: ExecutablePublicationDestination,
         output_path: PathBuf,
         certificate_fingerprint: u64,
+        boundary_contract_fingerprint: Option<u64>,
         inventory_fingerprint: u64,
         compiler_text_validation_fingerprint: u64,
         compiler_function_validation_fingerprint: u64,
@@ -82,6 +84,7 @@ impl ExecutablePublicationReceipt {
             destination,
             output_path,
             certificate_fingerprint,
+            boundary_contract_fingerprint,
             inventory_fingerprint,
             compiler_text_validation_fingerprint,
             compiler_function_validation_fingerprint,
@@ -102,6 +105,10 @@ impl ExecutablePublicationReceipt {
 
     pub const fn certificate_fingerprint(&self) -> u64 {
         self.certificate_fingerprint
+    }
+
+    pub const fn boundary_contract_fingerprint(&self) -> Option<u64> {
+        self.boundary_contract_fingerprint
     }
 
     pub const fn inventory_fingerprint(&self) -> u64 {
@@ -263,6 +270,14 @@ impl CompileReport {
                             .evidence_fingerprint(),
                     )
                 }),
+        ) && emitted_boundary_contract_matches_publication(
+            self.executable_publication
+                .as_ref()
+                .and_then(ExecutablePublicationReceipt::boundary_contract_fingerprint),
+            self.program_storage_entry_bridge
+                .as_ref()
+                .and_then(super::ProgramStorageEntryNativeBridgePlan::emitted_wrapper_evidence)
+                .map(|evidence| evidence.arrival().boundary_contract_fingerprint()),
         )
     }
 
@@ -303,6 +318,7 @@ impl CompileReport {
                         .as_deref()
                         == Some(bundle.output_path.as_path())
                     && flat.certificate_fingerprint == bundle.certificate_fingerprint
+                    && flat.boundary_contract_fingerprint == bundle.boundary_contract_fingerprint
                     && flat.inventory_fingerprint == bundle.inventory_fingerprint
                     && flat.compiler_text_validation_fingerprint
                         == bundle.compiler_text_validation_fingerprint
@@ -366,6 +382,14 @@ fn emitted_validation_matches_publication(
         .is_none_or(|emitted| publication_validation_fingerprints == Some(emitted))
 }
 
+fn emitted_boundary_contract_matches_publication(
+    publication_boundary_contract_fingerprint: Option<u64>,
+    emitted_boundary_contract_fingerprint: Option<u64>,
+) -> bool {
+    emitted_boundary_contract_fingerprint
+        .is_none_or(|emitted| publication_boundary_contract_fingerprint == Some(emitted))
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
@@ -382,6 +406,7 @@ mod tests {
             destination,
             path.into(),
             1,
+            Some(2),
             2,
             3,
             4,
@@ -483,6 +508,25 @@ mod tests {
         assert!(!super::emitted_validation_matches_publication(
             Some((1, 2)),
             Some((3, 2)),
+        ));
+        assert!(super::emitted_boundary_contract_matches_publication(
+            None, None,
+        ));
+        assert!(super::emitted_boundary_contract_matches_publication(
+            Some(1),
+            None,
+        ));
+        assert!(super::emitted_boundary_contract_matches_publication(
+            Some(1),
+            Some(1),
+        ));
+        assert!(!super::emitted_boundary_contract_matches_publication(
+            None,
+            Some(1),
+        ));
+        assert!(!super::emitted_boundary_contract_matches_publication(
+            Some(1),
+            Some(2),
         ));
 
         let flat = receipt(
@@ -600,6 +644,17 @@ mod tests {
 
         let mut changed = bundle.clone();
         changed.certificate_fingerprint ^= 1;
+        assert!(
+            !report(
+                true,
+                CompileOutputKind::NativeExecutable,
+                Some(flat.clone()),
+                Some(changed),
+            )
+            .has_consistent_executable_publication_custody()
+        );
+        let mut changed = bundle.clone();
+        changed.boundary_contract_fingerprint = Some(99);
         assert!(
             !report(
                 true,

@@ -765,6 +765,10 @@ The receipt now also retains the compiler-text derivation and compiler-function
 evidence fingerprints already present in the sealed certificate. Flat and
 bundle receipts must agree on both, and native wrapper evidence must rejoin the
 same pair rather than relying on inventory identity alone.
+The receipt additionally retains the certificate's optional boundary-contract
+fingerprint. Flat and bundle copies must agree, and a native program-storage
+arrival must name that same concrete contract; absent or redirected contract
+custody rejects before report return.
 Final relocation replay also builds one exact owner map from every retained
 selected-instruction identity to that function symbol. A selected instruction
 retained twice, an instruction relocation naming another function, or an
