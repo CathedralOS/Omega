@@ -3870,45 +3870,55 @@ fn validate_owned_content_binding(
     content: &ProviderExistingContentGrant,
 ) -> Result<(), AccessPlanDiagnostic> {
     let extent = &admission.extent;
-    if content.interpretation().normalized_identity()
-        != admission.placement_plan.identity().normalized_identity()
-    {
+    let loan = extent.loan(0, extent.length()).map_err(|diagnostic| {
+        AccessPlanDiagnostic(format!(
+            "owned content binding could not replay its whole-range loan: {diagnostic}"
+        ))
+    })?;
+    validate_provider_content_binding(&admission.placement_plan, &loan, content)
+}
+
+fn validate_provider_content_binding(
+    plan: &ValidatedPlacementPlan,
+    loan: &ExtentLoan<'_>,
+    content: &ProviderExistingContentGrant,
+) -> Result<(), AccessPlanDiagnostic> {
+    if content.interpretation().normalized_identity() != plan.identity().normalized_identity() {
         return Err(AccessPlanDiagnostic(
             "provider existing-content interpretation does not match the admitted placement".into(),
         ));
     }
-    if content.origin() != extent.origin() {
+    if content.origin() != loan.origin() {
         return Err(AccessPlanDiagnostic(
             "provider existing-content origin does not match the admitted Extent".into(),
         ));
     }
-    if content.lineage_root() != extent.lineage_root() {
+    if content.lineage_root() != loan.lineage_root() {
         return Err(AccessPlanDiagnostic(
             "provider existing-content lineage does not match the admitted Extent".into(),
         ));
     }
-    if content.base() != extent.base() || content.length() != extent.length() {
+    if content.base() != loan.base() || content.length() != loan.length() {
         return Err(AccessPlanDiagnostic(
             "provider existing-content geometry does not match the admitted Extent".into(),
         ));
     }
-    if content.address_space() != extent.address_space() {
+    if content.address_space() != loan.address_space() {
         return Err(AccessPlanDiagnostic(
             "provider existing-content address space does not match the admitted Extent".into(),
         ));
     }
-    if content.provenance() != extent.provenance() {
+    if content.provenance() != loan.provenance() {
         return Err(AccessPlanDiagnostic(
             "provider existing-content provenance does not match the admitted Extent".into(),
         ));
     }
-    if content.era() != extent.era() {
+    if content.era() != loan.era() {
         return Err(AccessPlanDiagnostic(
             "provider existing-content mapping era does not match the admitted Extent".into(),
         ));
     }
-    if let Some(descriptor) = admission
-        .placement_plan
+    if let Some(descriptor) = plan
         .access()
         .field_descriptors()
         .iter()
@@ -6470,6 +6480,19 @@ mod tests {
             assert_eq!(borrowed.validity_receipt(), validity);
             assert_eq!(borrowed.custody_receipt(), custody);
             borrowed.replace_profile_for_test(correct_profile);
+
+            let (_coincident_extent, coincident_content) =
+                provider_existing_content(&plan, 0xa100, 4, 215, 216);
+            let correct_content = borrowed.replace_content_for_test(&coincident_content);
+            let rejection = borrowed
+                .retire()
+                .expect_err("shared retirement must replay the exact borrowed content grant");
+            assert!(rejection.diagnostic().0.contains("provider content grant"));
+            let (mut borrowed, _) = rejection.into_parts();
+            borrowed.replace_content_for_test(correct_content);
+            assert_eq!(borrowed.resident_claim(), claim);
+            assert_eq!(borrowed.validity_receipt(), validity);
+            assert_eq!(borrowed.custody_receipt(), custody);
             borrowed
                 .retire()
                 .expect("returned shared resident carrier supports corrected retirement");
