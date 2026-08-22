@@ -1040,7 +1040,7 @@ impl<'program> LayoutBuilder<'program> {
             .placed_view_plans
             .iter()
             .flat_map(|view| &view.fields)
-            .any(|field| field.accessor_name == definition.name.as_str())
+            .any(|field| field.accessor_data_symbol == definition.symbol)
     }
 
     fn data_definition_by_symbol(

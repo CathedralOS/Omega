@@ -749,6 +749,14 @@ data Main {}
         panic!("readable status field should retain one exact generated operation target")
     };
     assert_eq!(status_read_target.operation, "read");
+    let status_read_state_symbol = status_read_target.state_symbol;
+    let accessor_data = checked
+        .typed
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.symbol == status.accessor_data_symbol)
+        .expect("exact generated status accessor data");
+    assert_eq!(accessor_data.name.as_str(), status.accessor_name);
     let schema_status = checked
         .typed
         .data_members(schema)
@@ -807,6 +815,21 @@ data Main {}
         diagnostic
             .message
             .contains("operation `read` changed its exact generated accessor target")
+    }));
+
+    let status = checked.typed.placed_view_plans[0]
+        .fields
+        .iter_mut()
+        .find(|field| field.field_name == "status")
+        .expect("retained status field");
+    status.accessor_targets[0].state_symbol = status_read_state_symbol;
+    status.accessor_data_symbol = schema_symbol;
+    let diagnostics = psi_validation::validate_program(&checked.typed)
+        .expect_err("substituted generated accessor data identity must fail closed");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("field `status` changed its exact generated accessor data binding")
     }));
 }
 
