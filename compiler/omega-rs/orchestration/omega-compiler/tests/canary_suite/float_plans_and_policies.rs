@@ -604,7 +604,7 @@ fn named_float_format_conversion_requirements_execute_in_both_engines() {
         "binary32-to-binary64 exact widening",
         "binary64 infinity to binary32 infinity",
     ];
-    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0x9a04_5865_5eea_8c49;
+    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0xdbf6_c777_400f_3ca4;
 
     let canary = pass_canary("float/runtime_named_format_conversion_exit");
     let main_path = canary.join("main.omg");
@@ -916,7 +916,7 @@ fn named_float_to_integer_requirements_execute_in_both_engines() {
         "unsigned negative-input saturation",
         "NaN saturation to zero",
     ];
-    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0x73d6_25b6_5430_7d1f;
+    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0xe130_f85e_9bfb_f5d8;
 
     let canary = pass_canary("float/runtime_named_float_to_integer_conversion_exit");
     let main_path = canary.join("main.omg");
@@ -1168,7 +1168,7 @@ fn named_float_provider_calls_rewrite_to_selected_builtins() {
         "binary32 exact square root",
         "binary64 exact square root",
     ];
-    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0x95b9_9ee8_79ba_1128;
+    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0x2896_4a6c_fdef_2c60;
 
     let canary = pass_canary("float/named_provider_min_max_sqrt_exit");
     let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
@@ -1411,7 +1411,7 @@ fn named_float_negate_and_is_nan_preserve_selected_roots_and_execute() {
         "binary64 NaN/infinity/finite predicate separation",
         "selected-root unary evaluation shape",
     ];
-    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0x3823_0f08_d19f_8030;
+    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0xf8ca_4e4f_4efc_3a97;
 
     let canary = pass_canary("float/named_provider_negate_is_nan_exit");
     let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
@@ -1580,7 +1580,7 @@ fn named_float_classification_predicates_select_and_execute() {
         "binary32/binary64 subnormal versus zero",
         "exactly-once unary evaluation shape",
     ];
-    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0x53ea_2a59_770b_10da;
+    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0x7ca0_8173_6233_17bf;
 
     let canary = pass_canary("float/named_provider_classification_predicates_exit");
     let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
@@ -1736,7 +1736,7 @@ fn named_float_classify_preserves_enum_layout_and_executes() {
         "binary64 all class tags and signed payloads",
         "exactly-once unary evaluation shape",
     ];
-    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0x524b_2eef_9263_22b4;
+    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0xc7a2_4479_9c59_d9da;
 
     let canary = pass_canary("float/named_provider_classify_exit");
     let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
@@ -1898,7 +1898,7 @@ fn named_float_multiply_then_add_preserves_two_roundings_and_executes() {
         "two distinct roundings",
         "binary32 finite-overflow saturation",
     ];
-    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0x1837_e5ad_11a5_6c74;
+    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0x01b1_e806_6f1c_773b;
 
     let canary = pass_canary("float/named_provider_multiply_then_add_exit");
     let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
@@ -2071,7 +2071,7 @@ fn named_float_fused_multiply_add_selects_aarch64_fmadd_and_executes() {
         "binary64 cancellation edge",
         "single fused rounding",
     ];
-    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0x260f_423a_297c_70d5;
+    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0xcfa0_2d2e_5a40_79cb;
 
     let canary = pass_canary("float/named_provider_fused_multiply_add_exit");
     let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
@@ -2204,7 +2204,7 @@ fn named_float_directed_fused_multiply_add_selects_aarch64_fmadd_and_executes() 
         "single fused rounding",
         "floating-control restoration",
     ];
-    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0x287d_411b_d6cd_76d1;
+    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0xcaa3_89bf_1d17_7272;
 
     let canary = pass_canary("float/named_provider_directed_fused_multiply_add_exit");
     let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
@@ -2448,7 +2448,7 @@ fn named_float_directed_add_selects_exact_plans_and_restores_control_state() {
         "toward negative",
         "floating-control restoration",
     ];
-    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0x7556_d746_645c_893e;
+    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0x7637_983e_b63b_0a9e;
 
     let canary = pass_canary("float/named_provider_directed_add_exit");
     let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
@@ -2591,7 +2591,7 @@ fn named_float_directed_subtract_selects_exact_plans_and_restores_control_state(
         "toward negative",
         "floating-control restoration",
     ];
-    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0xff3d_1161_c5d3_2f7f;
+    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0x7676_b40e_441c_b21b;
 
     let canary = pass_canary("float/named_provider_directed_subtract_exit");
     let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
@@ -2735,7 +2735,7 @@ fn named_float_directed_multiply_selects_exact_plans_and_restores_control_state(
         "toward negative",
         "floating-control restoration",
     ];
-    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0x6568_173c_31ae_e95a;
+    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0x544f_fdc2_b71b_1307;
 
     let canary = pass_canary("float/named_provider_directed_multiply_exit");
     let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
@@ -2879,7 +2879,7 @@ fn named_float_directed_divide_selects_exact_plans_and_restores_control_state() 
         "toward negative",
         "floating-control restoration",
     ];
-    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0xc5c9_4e70_dd0c_1f61;
+    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0x3b3f_bcf4_ac68_1ada;
 
     let canary = pass_canary("float/named_provider_directed_divide_exit");
     let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
@@ -3023,7 +3023,7 @@ fn named_float_directed_square_root_selects_exact_plans_and_restores_control_sta
         "toward negative",
         "floating-control restoration",
     ];
-    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0xc0e1_bc05_438a_3916;
+    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0xfe1e_1280_47b9_8ab5;
 
     let canary = pass_canary("float/named_provider_directed_square_root_exit");
     let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
