@@ -696,7 +696,12 @@ Owners:
   one retained fragment; an empty provider program cannot claim materialization.
   Validation also binds every supplied source word to any exact pre-resolved
   value sealed for that slot, so numeric substitution under unchanged evidence
-  rejects before resolver observation or destination mutation.
+  rejects before resolver observation or destination mutation. Post-handoff
+  writer execution now stages the complete resolved fragment program and
+  commits its writer range once. Any late application rejection leaves the
+  provider's exact destination bytes unchanged for recovery/retry, while
+  successful bytes remain unpublished until the existing consumer-specific
+  validation/publication transition.
 
 Acceptance: UART/MMIO, shared-page IPC, and ordinary RAM use one extent/layout
 foundation with different profiles. Misalignment, insufficient rights,
@@ -1688,6 +1693,11 @@ Remaining:
   Production alone constructs one-alias, closed-strengthened alias,
   alias-landed-literal, then two-alias proofs before cast completion;
   reconstruction independently enumerates and rechecks those fixed families.
+  Closed-strengthened and alias-landed-literal transport are further separated
+  into paired `alias_transport/cast/stronger` and `cast/literal` modules. Each
+  producer constructs only its exact closed bridge/substitution proof, while
+  reconstruction independently enumerates and rechecks the same typed facts;
+  the cast-alias parent is now a small facade over those authorities.
   Direct retained bounds and direct landed literals remain earlier in each
   parent. Citation orientation, endpoint order, proof shapes, rejection
   behavior, and the finite two-alias frontier are unchanged. These slices do
@@ -2755,18 +2765,17 @@ Owners:
   arguments—now launch only from exact checked-report receipts while retaining
   literal statuses 40, 1, 1, 1, and 1. The 795 owner pin remains stable, and
   reused flat/bundle installation evidence exposes no executable path.
-  Twenty-five further authored-root indexed executions now cross the same
-  checked report boundary in five exact cohorts: by-value parameter/local indexed
-  access; machine/frame read, write, RMW, dual-frame, operand, and argument use;
-  nested constant-row, runtime-middle 3D, and let-bound computed indexing; and
-  aggregate-field, double-runtime-index, deep-prefix, and dual-frame-copy use.
-  The fifth cohort covers mixed-index frame aggregates, cross-region single/
-  double-index aggregate copies, a constant nested-index guard, and dual mixed-
-  index copies.
-  All retain literal status 1 and the 795-owner pin. Certificate-fingerprint
-  drift, flat substitution into the bundle role, a bundle without its required
-  flat receipt, swapped destination roles, a dropped native-output flag, and
-  related receipt-cardinality drift each expose no executable path.
+  Forty further authored-root indexed/slice executions now cross the same
+  checked report boundary in eight exact cohorts. The first five cover by-value
+  parameter/local indexed access; machine/frame read, write, RMW, dual-frame,
+  operand, and argument use; nested and runtime-middle indexing; aggregate and
+  cross-region indexed copies; and constant/computed index guards, all retaining
+  literal status 1. Three later cohorts cover constructor/slice/member use
+  (statuses 70, 1, 1, 1, 1), subslice/loop/post-clause delivery (3, 1, 1, 1,
+  1), and slice-length/descriptor shrinking (5, 6, 3, 3, 3). The 795-owner pin
+  remains stable. Certificate drift, flat/bundle substitution or omission,
+  swapped destination roles, a dropped native-output flag, and related
+  receipt-cardinality drift each expose no executable path.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
@@ -3280,9 +3289,10 @@ Remaining N6/N8 work:
   integer and address
   `embed` returns proof `Int` and contributes exact source-carrier range facts;
   proof `Int as Nat` requires nonnegativity. Make ordinary `Nat - Nat` Exact
-  with `right <= left` discharged at formation, rename the bootstrap monus
-  operation and its dependent order/metric corpus to
-  `Nat::saturating_sub`, and keep clamping unavailable through bare `-`.
+  with `right <= left` discharged at formation and keep clamping unavailable
+  through bare `-`. The named monus operation and its complete dependent
+  order/metric/Cauchy/Rat corpus now use `Nat::saturating_sub`; measured-recursion
+  recognition and affected pass/fail canaries consume the same final identity.
   Migrate `Granted::content` and the content-projection examples to explicit
   `as Nat` conversions while retaining `IntervalSet<Nat>` as their public
   nonnegative algebra. Add the integer-policy bridge catalog and the separate
