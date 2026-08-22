@@ -39,6 +39,11 @@ data ValueField {
     byte_offset: u64;
 }
 
+data CallbackBinderIdentity {
+    binder: u64;
+    requirement: u64;
+}
+
 data AbiValueClass {
     case Integer;
     case Float;
@@ -62,6 +67,8 @@ data BoundarySignature {
     field_count: u64 [0..=256];
     parameters: [u64; 32];
     parameter_count: u64 [0..=32];
+    callback_binders: [CallbackBinderIdentity; 32];
+    callback_binder_count: u64 [0..=32];
     has_result: bool;
     result: u64;
 }
