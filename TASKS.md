@@ -487,7 +487,13 @@ Remaining:
   returned claims, trivial affine locals and discards, offsets, literal
   diagnostics, representability errors, exact bytes, and precedence remain
   unchanged; the parent retains function association, validation, and
-  admission replay. The installation parent is now 4,244
+  admission replay. Each installed internal Unit-call custody row now lives in
+  a private 296-line codec. Owner/result tags, structural arguments, exact
+  source/destination placements, fixed-array facts, emitted bytes, claim
+  transfers, reserved fields, count guards, literal diagnostics, and offset
+  errors preserve exact bytes and precedence; the parent retains call order,
+  stack composition, validation, and admission replay. The installation parent
+  is now 3,963
   lines. This is
   custody, not
   authorization. The remaining
