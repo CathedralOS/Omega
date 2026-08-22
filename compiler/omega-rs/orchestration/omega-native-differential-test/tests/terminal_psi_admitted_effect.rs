@@ -318,10 +318,11 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
     let written = bound_writer
         .execute(&installed_code, destination)
         .expect("recovered bound writer and destination remain usable");
-    let diagnostic = written
-        .validate_for_consumer(&colliding_code)
-        .expect_err("written bound carrier must replay its exact installed realization");
-    assert!(diagnostic.0.contains("exact installed artifact"));
+    let error = written
+        .recover_for_retry(&colliding_code)
+        .expect_err("written bound recovery must replay its exact installed realization");
+    assert!(error.diagnostic().0.contains("exact installed artifact"));
+    let written = (*error).into_written();
     written
         .validate_for_consumer(&installed_code)
         .expect("unchanged written bound carrier supports corrected consumer retry");
@@ -334,6 +335,16 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
         u64::from_le_bytes(written.bytes()[..8].try_into().unwrap()),
         0x1010
     );
+    let (bound_writer, destination) = written
+        .recover_for_retry(&installed_code)
+        .expect("exact written carrier returns to its sealed retry state");
+    assert_eq!(bound_writer.lowered(), &bound_lowered);
+    assert_eq!(bound_writer.prepared().provider_execution(), bound_provider);
+    assert_eq!(destination.site(), writer_site(0x8000));
+    assert_eq!(destination.len(), 16);
+    let written = bound_writer
+        .execute(&installed_code, destination)
+        .expect("recovered writer and destination execute again");
     let (retained_lowered, written) = written.into_parts();
     assert_eq!(retained_lowered, bound_lowered);
     let (provider_execution, architecture, invocation, _writer, written) = written.into_parts();
