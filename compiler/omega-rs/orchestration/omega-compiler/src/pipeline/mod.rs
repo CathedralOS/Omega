@@ -48,7 +48,10 @@ pub use calling_policy_plans::evaluate_calling_policy_plan;
 pub use checked_entry::{CheckedCompilation, compile_to_checked};
 pub use compile_options::{ArtifactEmissionPolicy, CompileOptions};
 pub use compile_policy::ExecutableTcbBuildPolicy;
-pub use compile_report::{CompileOutputKind, CompileReport, ExecutablePublicationReceipt};
+pub use compile_report::{
+    CompileOutputKind, CompileReport, ExecutablePublicationDestination,
+    ExecutablePublicationReceipt,
+};
 pub use compiler::{
     compile, compile_with_artifact_policy, compile_with_policy, compile_with_test_entry,
     compile_with_test_entry_and_artifact_policy, compile_with_test_entry_and_worker_count,
