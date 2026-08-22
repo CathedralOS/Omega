@@ -1589,9 +1589,12 @@ fn arithmetic_domain_trapping_mul_overflow_aborts() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("arithmetic_domain_trapping_mul_overflow canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("trapping multiply overflow canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("arithmetic_domain_trapping_mul_overflow canary should run");
     assert!(
@@ -1614,9 +1617,12 @@ fn arithmetic_domain_saturating_signed_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("arithmetic_domain_saturating_signed canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("signed saturation canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("arithmetic_domain_saturating_signed canary should run");
 
@@ -1641,9 +1647,12 @@ fn arithmetic_domain_requires_proven_exact_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("arithmetic_domain_requires_proven_exact canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("requires-proven Exact canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("arithmetic_domain_requires_proven_exact canary should run");
 
@@ -1666,9 +1675,12 @@ fn arithmetic_domain_range_proven_exact_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-arith-domain-range-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("arithmetic_domain_range_proven_exact canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("range-proven Exact canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("arithmetic_domain_range_proven_exact canary should run");
 
