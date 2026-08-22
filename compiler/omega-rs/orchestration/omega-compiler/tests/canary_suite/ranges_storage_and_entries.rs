@@ -2180,19 +2180,13 @@ fn runtime_numeric_cast_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-runtime-numeric-cast-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("numeric cast canary should compile");
-
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("numeric cast canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected numeric casts (float->int, int->float, signed widen) to evaluate correctly and exit 70, got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        70,
+        "numeric-cast canary",
+        "float-to-integer, integer-to-float, and signed widening casts should agree",
     );
 
     let _ = fs::remove_dir_all(&scratch);
@@ -2274,19 +2268,13 @@ fn runtime_float_place_comparison_exit_canary_runs() {
     ));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("float place comparison canary should compile");
-
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("float place comparison canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected field-to-field float comparisons (<, >=, negative) to evaluate correctly and exit 70, got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        70,
+        "float place-comparison canary",
+        "field-to-field float comparisons should preserve ordering and negative operands",
     );
 
     let _ = fs::remove_dir_all(&scratch);
@@ -2301,19 +2289,13 @@ fn runtime_float_comparison_exit_canary_runs() {
     ));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("float comparison canary should compile");
-
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("float comparison canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected float comparison guards (==, <, negative operand) to evaluate correctly and exit 70, got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        70,
+        "float comparison-guard canary",
+        "float equality and ordering guards should preserve negative operands",
     );
 
     let _ = fs::remove_dir_all(&scratch);
@@ -2326,19 +2308,13 @@ fn runtime_float_arithmetic_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-runtime-float-arith-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("float arithmetic canary should compile");
-
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("float arithmetic canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected float arithmetic (add/sub/mul/div + field operand) to execute and exit 70, got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        70,
+        "float-arithmetic canary",
+        "float addition, subtraction, multiplication, division, and field operands should agree",
     );
 
     let _ = fs::remove_dir_all(&scratch);
