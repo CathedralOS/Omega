@@ -779,6 +779,14 @@ Citation order, strict boundary tests, proof shapes, rejection, and the fixed
 four-definition frontier remain unchanged; the verifier does not consume the
 producer's mapped proposition as authority.
 
+Pre-boundary affine mapping likewise separates target candidate enumeration
+from per-witness completion. Side-local producer and verifier
+`affine_custody/mapped/completion` modules independently enforce the strict
+definition and literal-axiom boundaries, validate the witness, and construct
+or replay its exact mapped bound. Their `mapped` parents retain requested-
+target and definition-word order. Proof bytes, candidate rejection, and the
+fixed four-definition frontier remain unchanged.
+
 Affine-witness candidate coordination likewise separates goal-target
 enumeration from exact fixed-target completion. Side-local producer and
 verifier `affine_custody/candidates/fixed` modules independently align literal
