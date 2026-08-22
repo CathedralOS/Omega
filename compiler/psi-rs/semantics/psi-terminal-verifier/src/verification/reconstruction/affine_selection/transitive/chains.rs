@@ -1,6 +1,6 @@
 //! Ordered exact two-citation chains for independent affine reconstruction.
 
-use psi_core::Proposition;
+use psi_core::{Proposition, ScalarTerm};
 
 use super::super::eligibility;
 
@@ -26,17 +26,17 @@ impl<'a> TwoCitationChains<'a> {
 
     pub(super) fn any(
         &self,
-        mut complete: impl FnMut(&'a Proposition, &'a Proposition) -> bool,
+        mut complete: impl FnMut(&'a ScalarTerm, &'a ScalarTerm) -> bool,
     ) -> bool {
         left_legs::any(
             self.requirements,
             self.semantic_axioms,
-            |left_fact, middle| {
-                for &right_fact in self.right_legs.candidates(middle) {
+            |left_fact, left, middle| {
+                for &(right_fact, right) in self.right_legs.candidates(middle) {
                     if !eligibility::distinct_facts(left_fact, right_fact) {
                         continue;
                     }
-                    if complete(left_fact, right_fact) {
+                    if complete(left, right) {
                         return true;
                     }
                 }

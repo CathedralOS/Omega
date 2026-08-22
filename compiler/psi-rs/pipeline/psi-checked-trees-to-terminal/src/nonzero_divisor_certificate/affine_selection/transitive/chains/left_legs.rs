@@ -8,13 +8,13 @@ use super::super::super::{bounds, eligibility};
 pub(super) fn find<'a, T>(
     assumptions: &'a [Proposition],
     semantic_axioms: &'a [Proposition],
-    mut join: impl FnMut(Citation, &'a Proposition, &'a ScalarTerm) -> Option<T>,
+    mut join: impl FnMut(Citation, &'a Proposition, &'a ScalarTerm, &'a ScalarTerm) -> Option<T>,
 ) -> Option<T> {
-    for (citation, fact, _, middle) in bounds::ordered(assumptions, semantic_axioms) {
+    for (citation, fact, left, middle) in bounds::ordered(assumptions, semantic_axioms) {
         if !eligibility::is_value(middle) {
             continue;
         }
-        if let Some(result) = join(citation, fact, middle) {
+        if let Some(result) = join(citation, fact, left, middle) {
             return Some(result);
         }
     }
