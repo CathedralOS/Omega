@@ -14,13 +14,11 @@ pub(super) struct RightLegIndex<'a> {
 impl<'a> RightLegIndex<'a> {
     pub(super) fn new(assumptions: &'a [Proposition], semantic_axioms: &'a [Proposition]) -> Self {
         let mut by_left_endpoint = BTreeMap::<_, Vec<_>>::new();
-        for (citation, fact, left, right) in bounds::ordered(assumptions, semantic_axioms) {
-            if bounds::is_value(left) {
-                by_left_endpoint
-                    .entry(left.clone())
-                    .or_default()
-                    .push((citation, fact, right));
-            }
+        for (citation, fact, left, right) in bounds::with_value_left(assumptions, semantic_axioms) {
+            by_left_endpoint
+                .entry(left.clone())
+                .or_default()
+                .push((citation, fact, right));
         }
         Self { by_left_endpoint }
     }

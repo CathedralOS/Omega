@@ -4,8 +4,22 @@ use psi_core::{Proposition, ScalarTerm};
 
 use super::super::integer_evidence::{Citation, cited_facts};
 
-pub(super) fn is_value(term: &ScalarTerm) -> bool {
+fn is_value(term: &ScalarTerm) -> bool {
     matches!(term, ScalarTerm::Value { .. })
+}
+
+pub(super) fn with_value_left<'a>(
+    assumptions: &'a [Proposition],
+    semantic_axioms: &'a [Proposition],
+) -> impl Iterator<Item = (Citation, &'a Proposition, &'a ScalarTerm, &'a ScalarTerm)> + 'a {
+    ordered(assumptions, semantic_axioms).filter(|(_, _, left, _)| is_value(left))
+}
+
+pub(super) fn with_value_right<'a>(
+    assumptions: &'a [Proposition],
+    semantic_axioms: &'a [Proposition],
+) -> impl Iterator<Item = (Citation, &'a Proposition, &'a ScalarTerm, &'a ScalarTerm)> + 'a {
+    ordered(assumptions, semantic_axioms).filter(|(_, _, _, right)| is_value(right))
 }
 
 pub(super) fn ordered<'a>(

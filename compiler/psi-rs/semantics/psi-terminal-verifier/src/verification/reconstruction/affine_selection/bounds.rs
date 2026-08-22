@@ -2,8 +2,22 @@
 
 use psi_core::{Proposition, ScalarTerm};
 
-pub(super) fn is_value(term: &ScalarTerm) -> bool {
+fn is_value(term: &ScalarTerm) -> bool {
     matches!(term, ScalarTerm::Value { .. })
+}
+
+pub(super) fn with_value_left<'a>(
+    requirements: &'a [Proposition],
+    semantic_axioms: &'a [Proposition],
+) -> impl Iterator<Item = (&'a Proposition, &'a ScalarTerm, &'a ScalarTerm)> + 'a {
+    ordered(requirements, semantic_axioms).filter(|(_, left, _)| is_value(left))
+}
+
+pub(super) fn with_value_right<'a>(
+    requirements: &'a [Proposition],
+    semantic_axioms: &'a [Proposition],
+) -> impl Iterator<Item = (&'a Proposition, &'a ScalarTerm, &'a ScalarTerm)> + 'a {
+    ordered(requirements, semantic_axioms).filter(|(_, _, right)| is_value(right))
 }
 
 pub(super) fn ordered<'a>(
