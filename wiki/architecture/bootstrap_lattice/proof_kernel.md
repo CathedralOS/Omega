@@ -672,6 +672,15 @@ mapping, alias recursion, rule, or v19 field is added. Broader affine/cast
 families and both exact rows remain trusted, and `fully-derived false` is
 unchanged.
 
+The producer and reconstruction implementations now place this cast-adjacent
+affine responsibility behind matching small dispatch facades. Independent
+side-local `cast/direct`, `cast/sandwich`, and `cast/endpoint` modules own the
+direct-root case, the fixed affine/cast/affine case, and exact typed endpoint
+remapping. The parents retain direct-before-sandwich precedence. Citation
+order, strict definition boundaries, proof shapes, rejection behavior, and the
+fixed witness frontier do not change, and no authority crosses the producer/
+verifier boundary.
+
 The root-bound child may also come from exactly one retained same-carrier
 `root == literal` fact when that literal equals or strengthens the canonical
 bound endpoint. The producer remaps the endpoint into the source carrier,
