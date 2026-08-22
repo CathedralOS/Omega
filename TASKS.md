@@ -2912,6 +2912,12 @@ Remaining:
   overflow or an unrepresentable mapped scalar. Endpoint custody, sign-directed
   target orientation, proof shape, rejection behavior, and the fixed frontier
   remain unchanged.
+  Sign-directed mapped affine-bound orientation now lives in paired, side-local
+  `affine_custody/relaxation/mapping/orientation` modules. Producer and
+  reconstruction independently reverse lower-versus-upper direction only for a
+  negative coefficient and preserve the exact target-versus-mapped endpoint
+  placement. Endpoint custody, checked scalar mapping, proof shape, rejection
+  behavior, and the fixed frontier remain unchanged.
   Direct retained affine-bound custody handoff now lives in paired, side-local
   `affine_selection/direct/completion` modules. The producer independently
   converts the selected origin-indexed citation into its exact proof before
@@ -4031,6 +4037,13 @@ Owners:
   Windows x64/Linux ARM64 cross-target assertions. The 2.88-second plain
   record-view owner joins the retained slow exceptions; all other fenced
   exception classes remain unchanged and exact-owner pins remain stable.
+  Five further authored-root layout/value executions—nested-record, fixed-
+  record-array, and ordinary mutable record views, sequential self-capture value
+  calls, and nested local state arguments—now launch solely through checked-
+  report receipts while preserving status 70, interpreter parity, and existing
+  Windows x64/Linux ARM64 cross-target assertions. The 2.88-second plain record-
+  view owner remains retained for a dedicated profiled migration; all other
+  fenced exception classes remain unchanged and exact-owner pins remain stable.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
