@@ -80,16 +80,19 @@ pub(super) fn write_output(
                 "checked executable image omitted compiler-function validation evidence",
             )]
         })?;
+        let final_footprint_certificate = build_final_footprint_certificate(
+            footprints,
+            compiler_text_validation,
+            compiler_function_validation,
+            image.compiler_entry_footprint_binding,
+            &image.executable_regions,
+        )?;
         let output_path = build_dir.join(&image.file_name);
         write_output_file(&output_path, &image.bytes, true)
             .map_err(|diagnostic| vec![diagnostic])?;
         write_executable_region_inventory(
             options,
-            footprints,
-            &compiler_text_validation,
-            &compiler_function_validation,
-            image.compiler_entry_footprint_binding,
-            &image.executable_regions,
+            &final_footprint_certificate,
             emit_auxiliary_artifacts,
         )?;
 
@@ -122,13 +125,33 @@ pub(super) fn write_output(
     Ok(output_path)
 }
 
-fn write_executable_region_inventory(
-    options: &CompileOptions,
+fn build_final_footprint_certificate(
     footprints: &omega_target_operations::BoundaryFootprintPlan,
-    compiler_text_validation: &omega_image::CompilerTextValidationEvidence,
-    compiler_function_validation: &omega_image::CompilerFunctionValidationEvidence,
+    compiler_text_validation: omega_image::CompilerTextValidationEvidence,
+    compiler_function_validation: omega_image::CompilerFunctionValidationEvidence,
     compiler_entry_footprint_binding: Option<omega_image::CompilerEntryFootprintBindingEvidence>,
     inventory: &omega_image::PlacedExecutableRegionInventory,
+) -> Result<omega_image::FinalFootprintCertificate, Vec<Diagnostic>> {
+    let implementation_evidence_fingerprint = footprints.composed_evidence().evidence_fingerprint();
+    let certificate = omega_image::FinalFootprintCertificate::current(
+        footprints.boundary_contract_fingerprint,
+        implementation_evidence_fingerprint,
+        footprints.fragments.len(),
+        compiler_text_validation,
+        compiler_function_validation,
+        compiler_entry_footprint_binding,
+        inventory.clone(),
+    )
+    .map_err(|diagnostic| vec![diagnostic])?;
+    certificate
+        .validate_identity()
+        .map_err(|diagnostic| vec![diagnostic])?;
+    Ok(certificate)
+}
+
+fn write_executable_region_inventory(
+    options: &CompileOptions,
+    certificate: &omega_image::FinalFootprintCertificate,
     emit_auxiliary_artifacts: bool,
 ) -> Result<(), Vec<Diagnostic>> {
     fn push_string(output: &mut String, value: &str) {
@@ -183,26 +206,12 @@ fn write_executable_region_inventory(
         output.push(']');
     }
 
-    let implementation_evidence = footprints.composed_evidence();
-    let implementation_evidence_fingerprint = implementation_evidence.evidence_fingerprint();
-    let certificate = omega_image::FinalFootprintCertificate::current(
-        footprints.boundary_contract_fingerprint,
-        implementation_evidence_fingerprint,
-        footprints.fragments.len(),
-        *compiler_text_validation,
-        *compiler_function_validation,
-        compiler_entry_footprint_binding,
-        inventory.clone(),
-    )
-    .map_err(|diagnostic| vec![diagnostic])?;
-    certificate
-        .validate_identity()
-        .map_err(|diagnostic| vec![diagnostic])?;
     if !emit_auxiliary_artifacts {
         return Ok(());
     }
     let coverage = &certificate.coverage;
     let inventory = &certificate.inventory;
+    let implementation_evidence_fingerprint = certificate.implementation_evidence_fingerprint;
     let mut json = format!(
         "{{\n  \"certificate_marker\": \"{}\",\n  \"certificate_fingerprint\": \"0x{:016x}\",\n  \"coverage_fingerprint\": \"0x{:016x}\",\n  \"placement_stage\": \"final_image\",\n  \"enumeration_complete\": {},\n  \"region_enumeration_complete\": {},\n  \"footprint_enumeration_complete\": {},\n",
         certificate.marker,
@@ -496,4 +505,81 @@ fn mark_executable_if_needed(path: &std::path::Path) -> Result<(), Diagnostic> {
 #[cfg(not(unix))]
 fn mark_executable_if_needed(_path: &std::path::Path) -> Result<(), Diagnostic> {
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::build_final_footprint_certificate;
+
+    fn compiler_text_validation() -> omega_image::CompilerTextValidationEvidence {
+        omega_image::CompilerTextValidationEvidence {
+            encoded_text_fingerprint: 1,
+            final_compiler_text_fingerprint: 2,
+            relocation_envelope_fingerprint: 3,
+            checked_instruction_validation_fingerprint: 4,
+            checked_instruction_footprint_fingerprint: 5,
+            derivation_fingerprint: 6,
+            text_relocation_count: 0,
+            checked_instruction_validation_count: 0,
+        }
+    }
+
+    fn compiler_function_validation() -> omega_image::CompilerFunctionValidationEvidence {
+        omega_image::CompilerFunctionValidationEvidence {
+            function_count: 0,
+            instruction_count: 0,
+            zero_width_instruction_count: 0,
+            checked_assembly_instruction_count: 0,
+            fixed_mechanics_instruction_count: 0,
+            fixed_mechanics_validation_fingerprint: 0,
+            fixed_mechanics_boundary_contract_fingerprint: 0,
+            fixed_mechanics_footprint_fingerprint: 0,
+            body_specification_instruction_count: 0,
+            body_specification_validation_fingerprint: 0,
+            body_specification_boundary_contract_fingerprint: 0,
+            body_specification_footprint_fingerprint: 0,
+            composed_footprint_fingerprint: 0,
+            final_region_binding_fingerprint: 7,
+            validation_fingerprint: 8,
+        }
+    }
+
+    fn inventory() -> omega_image::PlacedExecutableRegionInventory {
+        omega_image::PlacedExecutableRegionInventory {
+            text_address: 0x1000,
+            text_byte_count: 0,
+            text_fingerprint: 9,
+            inventory_fingerprint: 10,
+            regions: Vec::new(),
+            unclassified_gaps: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn final_footprint_gate_rejects_missing_boundary_mutation_custody() {
+        let without_boundary = omega_target_operations::BoundaryFootprintPlan::default();
+        build_final_footprint_certificate(
+            &without_boundary,
+            compiler_text_validation(),
+            compiler_function_validation(),
+            None,
+            &inventory(),
+        )
+        .expect("a boundary-free image needs no entry mutation receipt");
+
+        let with_boundary = omega_target_operations::BoundaryFootprintPlan {
+            boundary_contract_fingerprint: Some(11),
+            ..omega_target_operations::BoundaryFootprintPlan::default()
+        };
+        assert!(
+            build_final_footprint_certificate(
+                &with_boundary,
+                compiler_text_validation(),
+                compiler_function_validation(),
+                None,
+                &inventory(),
+            )
+            .is_err()
+        );
+    }
 }
