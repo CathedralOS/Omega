@@ -1292,10 +1292,13 @@ fn match_exhaustive_by_case_union_domain_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("case-union-domain canary should compile without a `_` arm");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("case-union-domain canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("case-union-domain canary should run");
 
@@ -1319,10 +1322,13 @@ fn case_membership_union_guard_exit_canary_runs() {
         "omega-case-membership-union-guard-{}",
         std::process::id()
     ));
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("case membership union guard canary should compile from its authored root");
 
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("case membership union guard canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("case membership union guard canary should run");
 
@@ -1347,10 +1353,13 @@ fn runtime_case_reassignment_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-case-reassignment-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("case reassignment canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("case reassignment canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("case reassignment canary should run");
 
@@ -1376,10 +1385,13 @@ fn runtime_mixed_shape_exit_canary_runs() {
     let canary = pass_canary("data/runtime_mixed_shape_exit");
     let scratch = std::env::temp_dir().join(format!("omega-mixed-shape-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("mixed shape canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("mixed shape canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("mixed shape canary should run");
 
@@ -1411,10 +1423,13 @@ fn runtime_array_literal_string_field_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("array literal string field canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("array literal string field canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("array literal string field canary should run");
 
