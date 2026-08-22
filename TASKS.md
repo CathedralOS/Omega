@@ -2455,6 +2455,13 @@ Remaining:
   parents retain the exact four-layer limit and accumulated word order, so
   candidate order, witness/proof shape, rejection behavior, and the fixed
   frontier remain unchanged.
+  Affine-definition input projection now lives in paired, side-local
+  `affine_custody/definition_index/candidates/inputs` modules. Producer and
+  reconstruction independently preserve exact add/multiply left-before-right
+  input order, subtract-left-only projection, and unsupported-operation
+  rejection; parent catalogs retain equality orientation, source order,
+  `Value` eligibility, and index insertion. Proof replay, witness shape,
+  rejection behavior, and the fixed four-definition frontier remain unchanged.
   One-equality transitive affine completion now lives in independent side-local
   `affine_selection/transitive/alias/completion` modules. Each parent retains
   its own ledger-ordered equality discovery, distinct root/alias custody, and
@@ -4907,6 +4914,12 @@ Owners:
   and the distinct wrong-variant versus wrong-offset/width diagnostics for
   `(i16, i16, i64)` payload reads. Exact-owner ambiguity, the 795 rooted/3
   legacy inventory, and receipt-drift fences remain green.
+  Two authored-root saturating-multiply regressions—unsigned overflow clamping
+  to 255 and signed overflow clamping to +127/-128—now launch `OutputOnly`
+  native execution solely through exact checked-report executable receipts
+  while preserving literal status 70 and exact clamp diagnostics. Exact-owner
+  ambiguity, the 795 rooted/3 legacy inventory, and receipt-drift fences remain
+  green; trapping owners remain separate.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
@@ -5563,6 +5576,11 @@ Remaining N6/N8 work:
   nesting bounds, operand order, invalid-tag/error behavior, and sibling-owned
   scalar, content, and structural-field payload bytes. The parent is 3,798
   lines and the exact 199-function codec inventory remains unchanged.
+  Canonical recursive scalar-term encoding/decoding now lives in a focused
+  private `scalar_term_wire` child, preserving all 35 exact tags, depth/error
+  behavior, operand order, primitive scalar delegation, structural field-path
+  tags, and decode-time constructor validation. The parent is 3,169 lines and
+  the exact 199-function codec inventory remains unchanged.
   Proof-bundle coding likewise keeps its `PSIPRF`-specific little-endian
   cursor, bounded string/count/index handling, and nonzero semantic-ID
   primitives in a focused private child; its public API, exact bytes and
