@@ -385,10 +385,13 @@ fn runtime_wire_decode_rejects_scalar_width_overflow_exit_canary_runs() {
     ));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("scalar width overflow wire decode canary should compile");
 
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("scalar width overflow wire decode canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("scalar width overflow wire decode canary should run");
 
@@ -416,10 +419,13 @@ fn runtime_wire_roundtrip_nested_exit_canary_runs() {
     let scratch = std::env::temp_dir().join(format!("omega-wire-nested-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("wire nested roundtrip canary should compile");
 
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("wire nested roundtrip canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("wire nested roundtrip canary should run");
 
@@ -446,10 +452,13 @@ fn runtime_wire_decode_rejects_bad_nested_length_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-wire-nested-length-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("wire bad-nested-length canary should compile");
 
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("wire bad-nested-length canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("wire bad-nested-length canary should run");
 
@@ -477,10 +486,13 @@ fn runtime_wire_roundtrip_repeated_exit_canary_runs() {
     let scratch = std::env::temp_dir().join(format!("omega-wire-repeated-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("wire repeated roundtrip canary should compile");
 
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("wire repeated roundtrip canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("wire repeated roundtrip canary should run");
 
@@ -512,10 +524,13 @@ fn runtime_wire_decode_rejects_repeated_overflow_exit_canary_runs() {
     ));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("wire repeated overflow canary should compile");
 
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("wire repeated overflow canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("wire repeated overflow canary should run");
 
