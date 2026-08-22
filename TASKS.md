@@ -3535,6 +3535,10 @@ Remaining:
   `trust_report` child. The 1,476-line parent retains artifact carriers, shared
   HTML presentation, and general orchestration; public APIs, exact Markdown,
   and the 79-function inventory are unchanged.
+  The 11 artifact construction/projection regressions now live in a dedicated
+  778-line `tests` child, leaving a 698-line production root over carrier
+  definitions, shared HTML infrastructure, and module wiring. Test coverage,
+  public APIs, exact artifacts, and the 79-function inventory are unchanged.
   Development and test profiles now both omit full DWARF by default, with an
   explicit `CARGO_PROFILE_{DEV,TEST}_DEBUG=2` escape hatch for debugger
   sessions. On the same macOS host, rebuilding the development CLI after the
@@ -5360,6 +5364,12 @@ Owners:
   exits 70/77. Exact-owner ambiguity, the 795 rooted/3 legacy inventory, and
   cross-copy receipt-drift fences remain green; rebuild/lock wall-time spikes
   remain distinct from their 0.04–0.05s compiler/interpreter bodies.
+  The finite Darwin authored-import argument regression now launches solely
+  through the exact macOS ARM64 executable retained by its checked compilation
+  report while preserving the selected free-DllImport provider-plan identity,
+  literal exit 70, and its documented no-interpreter-custom-capability
+  boundary. Exact-owner ambiguity, the 795 rooted/3 legacy inventory, and
+  cross-copy receipt-drift fences remain green.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
