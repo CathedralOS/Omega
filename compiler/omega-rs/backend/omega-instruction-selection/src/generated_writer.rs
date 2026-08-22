@@ -94,12 +94,12 @@ pub fn lower_post_handoff_writer_fragment(
     let invocation = writer
         .lower_reusable_fragment()
         .map_err(|error| Diagnostic::error(error.0))?;
-    let normalized_plan_fingerprint = invocation.fragment.fingerprint();
+    let normalized_plan_fingerprint = invocation.fragment().fingerprint();
     let (bytes, footprint) = match target.architecture {
         Architecture::X86_64 => (
             omega_isa_x86_64::encode_generated_post_handoff_writer_bytes(
                 pointer_register,
-                &invocation.fragment,
+                invocation.fragment(),
             )?,
             StateFootprintEvidence::new(
                 omega_isa_x86_64::generated_post_handoff_writer_clobbers(),
@@ -109,7 +109,7 @@ pub fn lower_post_handoff_writer_fragment(
         Architecture::Aarch64 => (
             omega_isa_aarch64::encode_generated_post_handoff_writer_bytes(
                 pointer_register,
-                &invocation.fragment,
+                invocation.fragment(),
             )?,
             StateFootprintEvidence::new(
                 omega_isa_aarch64::generated_post_handoff_writer_clobbers(),
@@ -261,8 +261,8 @@ mod tests {
                 data_lowered.fragment().emitted_bytes_fingerprint()
             );
             assert_ne!(
-                entry_lowered.invocation().sources,
-                data_lowered.invocation().sources
+                entry_lowered.invocation().sources(),
+                data_lowered.invocation().sources()
             );
         }
     }
