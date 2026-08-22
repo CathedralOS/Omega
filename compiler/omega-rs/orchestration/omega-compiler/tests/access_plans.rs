@@ -737,6 +737,8 @@ data Main {}
         .expect("synthesized placed view");
     let schema_symbol = schema.symbol;
     let view_data_symbol = view_data.symbol;
+    let policy_symbol = view.policy_symbol;
+    let policy_plan_machine_symbol = view.policy_plan_machine_symbol;
     assert_eq!(view.schema_symbol, schema_symbol);
     assert_eq!(view.data_symbol, view_data_symbol);
     let status = view
@@ -803,6 +805,27 @@ data Main {}
         .accessor_name = status_accessor_name;
     psi_validation::validate_program(&checked.typed)
         .expect("independent exact placed-view replay should accept retained identities");
+
+    checked.typed.placed_view_plans[0].policy_symbol = schema_symbol;
+    let diagnostics = psi_validation::validate_program(&checked.typed)
+        .expect_err("substituted placement-policy identity must fail closed");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("changed its exact placement-policy binding")
+    }));
+
+    checked.typed.placed_view_plans[0].policy_symbol = policy_symbol;
+    checked.typed.placed_view_plans[0].policy_plan_machine_symbol = view_data_symbol;
+    let diagnostics = psi_validation::validate_program(&checked.typed)
+        .expect_err("substituted placement-policy plan machine must fail closed");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("no longer names its exact placement-policy plan machine")
+    }));
+
+    checked.typed.placed_view_plans[0].policy_plan_machine_symbol = policy_plan_machine_symbol;
 
     checked.typed.placed_view_plans[0]
         .fields

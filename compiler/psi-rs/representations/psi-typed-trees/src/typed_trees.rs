@@ -135,7 +135,10 @@ pub struct PlacedViewPlan {
     /// presentation and must not be used as the semantic join key.
     pub data_symbol: psi_symbols::SymbolHandle,
     pub policy_name: String,
+    /// Exact nominal placement-policy data identity.
     pub policy_symbol: psi_symbols::SymbolHandle,
+    /// Exact build-time `Policy::plan` machine that produced `placement`.
+    pub policy_plan_machine_symbol: psi_symbols::SymbolHandle,
     pub schema_name: String,
     /// Exact source schema identity whose fields the plan interprets.
     pub schema_symbol: psi_symbols::SymbolHandle,
