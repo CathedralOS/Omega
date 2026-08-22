@@ -31,11 +31,7 @@ pub(super) fn expand(
 ) -> Vec<Entry> {
     let mut next = Vec::new();
     for entry in frontier {
-        for &index in definitions
-            .candidates(&entry.current)
-            .iter()
-            .skip_while(|&&index| index < entry.start)
-        {
+        for index in definitions.candidates_from(&entry.current, entry.start) {
             let mut word = entry.word.clone();
             word.push(index);
             if let Some(next_target) = prefix::checked_target(
