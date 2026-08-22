@@ -1986,10 +1986,13 @@ fn runtime_string_concat_membership_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("runtime string concat membership canary should compile from its authored root");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("string concat membership canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("runtime string concat membership canary should run");
 
@@ -2013,10 +2016,13 @@ fn runtime_string_field_concat_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("runtime string field concat canary should compile from its authored root");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("string field concat canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("runtime string field concat canary should run");
 
