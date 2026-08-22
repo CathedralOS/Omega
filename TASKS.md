@@ -3675,6 +3675,11 @@ Remaining:
   provenance, expression-walk, frame-equation, and diagnostic helper remains
   private to its owner. Validation order, the 141-function inventory, and
   public API are unchanged.
+  Privileged inline-assembly effect discharge now lives in a focused 326-line
+  owner. Hosted/freestanding authority gating, exact catalog/service mapping,
+  direct and transitive declaration checks, cycle-safe call-path recovery, and
+  unchanged path diagnostics remain one settled judgment; the effects
+  coordinator is now 436 lines with the exact 23-function inventory unchanged.
   Profiling the differential corpus also ruled out a wholesale Arena-to-
   `PagedArena` migration as a concurrency fix: `PagedArena` provides stable
   paged storage, not concurrent mutation, and the existing sound parallel
