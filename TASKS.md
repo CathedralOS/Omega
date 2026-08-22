@@ -5406,6 +5406,12 @@ Owners:
   compilation reports while preserving the 20/40 content and `j + 1` sorted-
   adjacency self-checks plus literal exit 70. Exact-owner ambiguity, the 795
   rooted/3 legacy inventory, and cross-copy receipt-drift fences remain green.
+  The guarded signed-index and relational two-pointer-sum regressions now
+  launch solely through the exact executables retained by their checked
+  compilation reports while preserving bounded sums 10/210 and literal exit
+  70. Exact-owner ambiguity, the 795 rooted/3 legacy inventory, and cross-copy
+  receipt-drift fences remain green; rebuild/lock waits remain distinct from
+  their 0.02–0.03s compiler/interpreter bodies.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
@@ -5723,6 +5729,12 @@ reach or trust, and private proof improvements do not change public identity.
   `scalar_shared_convergence` child. The 1,690-line parent retains terminal
   image orchestration, with crate linkage, native byte/error order, and the 69-
   function inventory unchanged.
+  Control-flow dispatch and exact balanced linear x86-64/AArch64 stack replay
+  now live in a cohesive 350-line `scalar_stack` child. The remaining 1,360-
+  line parent is the cohesive object-construction/API root for public artifact
+  records and accessors, relocation-site validation, and the public error
+  surface; crate linkage, native byte/error order, and the 69-function
+  inventory remain unchanged.
   The installed-cleanup ordinal-tamper regression now locates the authoritative
   internal-call custody row by its complete machine/text-offset/owner/target
   header before mutating the ordinal, rather than accidentally changing an
