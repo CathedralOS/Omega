@@ -679,9 +679,12 @@ fn runtime_transition_arg_saturating_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("Saturating transition-arg accumulator should compile (no exact-arith obligation)");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("saturating transition-arg canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("transition-arg saturating canary should run");
     assert_eq!(
@@ -704,9 +707,12 @@ fn runtime_cast_element_accumulator_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-cast-element-accum-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("cast-of-element accumulator should compile");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("cast-element accumulator canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("cast-element accumulator canary should run");
     assert_eq!(
@@ -725,9 +731,12 @@ fn runtime_domain_boundaries_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-domain-boundaries-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("domain-boundaries canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("domain-boundaries canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("domain-boundaries canary should run");
     assert_eq!(
