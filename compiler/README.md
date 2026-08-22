@@ -1,141 +1,117 @@
-# `compiler/` — the bootstrap lattice
+# `compiler/` — the bootstrap and self-build lattice
 
-One tower, built bottom-up, aimed at hosting the **Psi/Omega** toolchain from a
-small audited seed. Omega programs can ship with machine-checked evidence of
-their safety and correctness, validated by a proof kernel small enough to audit.
+Omega is rebuilt from a small audited seed through increasingly capable
+languages, then through one deliberate Omega self-host edge:
 
-The rung names (Alpha, Beta, Gamma, Delta) are languages in one bootstrap spine,
-each built by the rung beneath it. The only thing taken on faith is the ~300-line
-seed at the very bottom, and even that is hand-audited and cross-checked three independent
-ways. The thesis is **trust by checking, not by pedigree**: every rung's output is
-re-derived, conformance-tested, or diverse-double-checked. The whole tower verifies in one
-command:
-
-```sh
-sh verify-lattice.sh        # language spine plus proof-kernel and meaning gates
+```text
+Alpha → Beta → Gamma → Delta
+                           ↓
+              Omega (Delta-built, simple)
+                           ↓
+              Omega (Omega-built, optimized)
 ```
 
-The lattice has two connected jobs:
+The first Omega compiler is required to be spec-compliant, not fast. It may use
+simple lowering, omit advanced optimization, compile slowly, and emit slower
+code. It is nevertheless a valid self-sufficient endpoint. The second compiler
+is the full production implementation written in Omega and built by the first.
+That single self-host dependency replaces a historical tower of external
+implementation-language dependencies.
 
-1. Build a compiler-host language chain: Alpha → Beta → Gamma → Delta.
-2. Produce a proof kernel the product toolchain can emit certificates to.
+The repeated Omega does not claim self-hosting proves correctness. A defect in
+bootstrap Omega can reproduce into production Omega. Canonical meaning routes,
+artifact reconstruction, proof checking, operational cross-checks, and
+translation validation supply the assurance.
 
-## The ladder is a tower of languages
+## Language spine
 
-Each greek name is a **language**, from the simplest and most auditable up to the richest.
-A tier's *tools* — its compiler, interpreter, or checker — are built by the tier below and
-pinned by their own gate. Trust flows strictly upward: the hand-audited seed runs the
-assembler, which lowers `bc`, which compiles the checker, which validates a proof. Every
-step is re-checkable. (The tiers are emergent — they fall out of the dependency graph — so
-the names are labels, not a fixed contract.)
+| Language | Role | Principal gate |
+| --- | --- | --- |
+| **Alpha** | 21-opcode raw executor and native seed | written semantics, conformance, audited x64/arm64 realizations |
+| **Beta** | small structured compiler language with Omega-shaped state graphs | `bc` self-host, language corpus, source-to-artifact refinement (incomplete for the whole compiler) |
+| **Gamma** | pure ADTs, matching, types, and fuel-bounded definitional meaning | interpreter/type-checker gates and meaning corpora |
+| **Delta** | systems/compiler-host language that can build bootstrap Omega | self-host, native corpus, Delta-to-Gamma meaning diamond |
 
-| tier | the language | built with it | how the tier earns trust |
-| --- | --- | --- | --- |
-| **α Alpha** | a ~300-line, 21-opcode VM + its bytecode and assembly — the root of trust | the **seed** (kept) and the **assembler** (kept) | hand audit against a written semantics + a conformance suite over every opcode + a **triple diamond** — two independently authored seeds (x64, arm64) and a Python reference agree byte-for-byte; the assembler self-hosts and an independent Python assembler agrees |
-| **β Beta** | the first structured language | **bc**, its self-hosting compiler (kept); a Rust on-ramp, `beta-lang-rs` (scaffolding), cold-starts it | `bc` self-hosts to a fixed point — **Rust leaves the lineage** — and a second independent front-end double-compiles the trust surface |
-| **γ Gamma** | a safe functional language: ADTs + pattern matching | an interpreter, static type checker, and an independent proof-kernel implementation | interpreter and type-checker gates; checker diamond |
-| **δ Delta** | the compiler-host systems language | the self-hosting compiler, native producer, and Delta-to-Gamma meaning path | self-host fixed point, native corpus, meaning diamond |
+The Greek names and order are fixed language roles. The Alpha assembler lives
+historically under `compiler/beta/`, but it is an Alpha tool; Beta proper is the
+language compiled by `compiler/beta-lang/bc.beta`.
 
-**On the names.** The Greek letters track *languages*. The proof kernel is a
-cross-cutting assurance service under `proof-kernel/`; Psi and Omega are compiler
-products hosted by Delta rather than additional rungs. The **assembler** lives in
-`beta/` and the gates label
-its step `beta`, but it is an **Alpha** tool (written in Alpha, it turns Alpha assembly into
-bytecode). Read “the beta assembler” as “Alpha's assembler,” and reserve **Beta**
-for the language `bc` compiles.
+## Proof kernel
 
-## Why a compiler project is full of math proofs
+The proof kernel is a cross-cutting assurance service, not a language rung.
+`compiler/proof-kernel/check.beta` and `compiler/gamma/checker.gamma` are
+separately written implementations checked against shared positive, negative,
+cross-check, fuzz, and operational-seam gates. Their agreement is useful
+evidence while the soundness bridge matures; it is not DDC and does not replace
+artifact-specific refinement.
 
-Three reasons, in order of how directly they aim at Omega.
+The kernel answers only:
 
-**1. The proof kernel *decides* proofs, and these are its test cases.** It doesn't find proofs; it
-decides whether a given one is valid. To trust that verdict, we exercise it: feed it real
-theorems and confirm it accepts the sound and rejects the bogus. The number-theory results
-— commutative semiring → divisibility → the Euclidean algorithm → the **Fundamental Theorem
-of Arithmetic** — are a deliberate torture test: a checker that correctly verifies a
-231-lemma proof that every integer factors into primes will handle the small obligations a
-real program emits. The **soundness battery** is the other half — famous non-theorems
-(excluded middle, the drinker paradox, fabricated "proofs") that it must reject.
+```text
+Does this certificate derive proposition P from these explicit premises?
+```
 
-**2. The proofs are increasingly the *actual* obligations a verified program emits.** A
-memory-safe array access needs a proof its index is in bounds; a refinement type needs a
-proof one range fits inside a wider one. So `proof-kernel/` banks a growing library of
-**verification conditions** in exactly the form Omega's verifier generates them —
-flat/2-D/3-D and strided (array-of-structs) index bounds, overflow bounds, slice-element
-bounds, bounded-integer range subtyping. The trust anchor, shown discharging the precise
-lemmas the language above it produces.
+It does not decide what proposition a terminal-Psi artifact must prove. The
+Psi-aware artifact verifier or canonical semantic-ledger generator reconstructs
+the exact obligations from canonical artifact bytes; the proof kernel checks the
+attached derivations. Proof search and optimization remain untrusted producers.
 
-**3. Convergence — programs that prove themselves.** The Omega idea in miniature, running
-today (`omega/convergence-reference.sh`, `delta-rs/convergence.sh`): a program computes
-something — a sum, a sort, a gcd, a bounds check — **and emits a proof certificate that
-its own result is correct**; the trust anchor then checks that certificate independently.
-The anchor validates the *result*; how the certificate was produced, and whether its author
-is honest, is irrelevant. The two ends of the ladder meet: a program at the top is verified
-by the checker at the bottom.
+See [`proof-kernel/README.md`](proof-kernel/README.md) and
+[`wiki/architecture/bootstrap_lattice/proof_kernel.md`](../wiki/architecture/bootstrap_lattice/proof_kernel.md).
 
-The library stands at **238 machine-checked theorems** today (`proof-kernel/README.md`,
-`ORDER.md`, `INTEGERS.md`, `FUNCTIONS.md`, `FTA-UNIQUENESS.md`): pure logic, algebra,
-number theory through the FTA and the infinitude of primes (a 244-lemma proof), a full ℤ
-built as difference pairs, user-function fold laws, and the VC library above.
+## Psi and the two Omega compilers
 
-## The proof kernel — why you can believe the trust anchor
+Psi owns Omega source semantics through terminal portable IR. Omega consumes
+terminal Psi and performs target realization and native emission.
 
-The rung the architecture exists to produce: a small, hand-auditable checker with sole
-authority over what is true. An arbitrarily clever proof-*search* engine may propose
-certificates; this checker decides — a false proposition cannot pass, however the
-certificate was found.
+The hosted build has two stages:
 
-`check.beta` decides first-order intuitionistic predicate logic with induction:
-propositional logic (by Curry–Howard, a simply-typed λ-calculus type checker); equality
-with the conversion rule (`refl` discharged by computation); ∀/∃ with capture-avoiding
-instantiation; induction over the built-in types and over user `data` types; user recursive
-functions whose equations reduce under conversion (so theorems *about* user functions prove
-by induction); named lemmas so big proofs factor; and two inductive predicates — list
-membership and the relational product — needed even to *state* facts like "every element of
-this list is prime."
+1. Delta builds the minimal conforming Psi/Omega path and produces bootstrap
+   Omega.
+2. Bootstrap Omega compiles the full optimizing compiler from Omega source.
 
-It is defended several independent ways, all under `verify-lattice.sh`:
+The current Rust implementations remain migration/reference producers while
+that hosted path matures. `compiler/omega/` contains Rust-free meaning and
+translation-validation experiments. `compiler/omega-rs/` and
+`compiler/psi-rs/` contain the current production implementations.
 
-- **acceptance + soundness** — valid certificates accepted, invalid rejected, plus a battery
-  of famous non-theorems (including classically-valid but non-constructive tautologies) that
-  must *all* be rejected. Rejecting those is what makes the logic intuitionistic.
-- **the checker diamond** (83 cases) — *diversity is security* applied to the checker
-  itself: `check.beta` (Beta) and `checker.gamma` (a fully independent Gamma implementation)
-  must return identical verdicts on every proof. It has caught real bugs.
-- **type-safety** — the checker's own code, fully type-annotated, is accepted by gamma's
-  type checker: the trust anchor is statically safe.
-- **soundness seams** — definitional `=` cross-checked against the interpreter's operational
-  eval, and inductively-proved universals confirmed against the interpreter at concrete
-  instances: evidence for the open bridge *provable ⟹ true-about-the-reference-interpreter*.
+## Trust and verification
 
-## The product toolchain — Psi/Omega
+Self-hosting establishes dependency closure and reproducibility, not semantic
+correctness. Trust comes from explicit, independently checked boundaries:
 
-`omega-rs/` is the full Rust compiler for Omega: the untrusted fast producer and today's
-executable reference. `omega/` holds the **Rust-free** artifacts — the meaning route and its
-gates:
+- Alpha is audited against written small-step semantics; its native realizations
+  are conformance-checked across supported platforms.
+- Higher-language meaning is exposed through the lower reference route.
+- Artifact-specific obligations are reconstructed rather than selected by the
+  producer.
+- The proof kernel validates certificate derivations after the artifact-aware
+  layer reconstructs the claims the producer must establish.
+- Native and optimized paths are compared or translation-validated against
+  canonical meaning.
 
-- **`omega2gamma.beta`** elaborates Omega source to a gamma meaning term (decision D2), which
-  `interp.beta` runs — the same alpha→beta→bc lineage as the checker. It covers a growing
-  kernel subset (state machines, self fields/arrays, cross-machine calls and recursion,
-  stdin/stdout, self-methods) plus omega surface syntax.
-- **`omega-meaning.sh`** runs real samples down this route; each must exit with the value its
-  header documents.
-- **`kernel-diamond.sh`** — a triple diamond over kernel-subset programs: native execution
-  matches the Rust-free `omega2gamma → interp` matches the Rust cross-check, across
-  arithmetic, machines, fields, arrays, calls, and I/O.
-- **`convergence-reference.sh`** — the proof-carrying loop with no Rust anywhere: certifiers,
-  including Omega's own safety obligations, are translated, *run*, and their proof
-  certificates checked — all on the trusted lineage.
+Rust is removed first from meaning and checking, where it affects soundness, and
+later from producers, where it affects self-sufficiency. The Delta-built Omega
+compiler is the point at which an external compiler can be omitted entirely;
+the Omega-built production compiler improves performance rather than closing a
+new language dependency.
 
-The subset grows slice by slice. The deep remaining arc is validating omega-rs's native
-output per-compilation against this route — translation validation, decision D3.
+## Entry points
 
-## Honest frontiers
+```sh
+sh compiler/verify-lattice.sh
+sh compiler/beta-lang/selfhost.sh
+sh compiler/gamma/test-interp.sh
+sh compiler/gamma/test-typeck.sh
+sh compiler/proof-kernel/test.sh
+```
 
-- The **soundness theorem** — *provable ⟹ true* — is the deep open problem; the seams above
-  are strong evidence for it, and the proof of it remains ahead.
-- The proof kernel's `fun` rules pattern-match user constructors only, and function application is
-  binary-max.
-- The Omega subset given Rust-free meaning is still a fragment; slices, strings, floats (a
-  native-producer concern by design), and full dependent types lie ahead — the subset grows
-  slice by slice, as it has since slice 0.
+Architecture and standing decisions live in
+[`wiki/architecture/bootstrap_lattice/`](../wiki/architecture/bootstrap_lattice/).
+The current flat `compiler/` directory is migration state; the role-based target
+layout is documented in
+[`repository_structure.md`](../wiki/architecture/bootstrap_lattice/repository_structure.md).
+Live bootstrap work belongs in [`TASKS_BOOTSTRAP.md`](../TASKS_BOOTSTRAP.md),
+while broader product work belongs in [`TASKS.md`](../TASKS.md). Exact corpus and
+gate counts belong beside the scripts that produce them rather than in this
+overview.

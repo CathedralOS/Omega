@@ -1,5 +1,5 @@
 #!/usr/bin/env sh
-# MEANING-CERT DIAMOND — D5 (diversity at every seam) for the summit's certificate stream.
+# MEANING-CERT CROSS-CHECK — replay the summit's certificate stream across checkers.
 #
 # meaning-tv.sh proves each omega-meaning sample's meaning with check.beta alone. This gate re-decides
 # EVERY certificate that stream produces — meaning claims, perturbed negative controls, value pins,
@@ -7,7 +7,9 @@
 # INDEPENDENT reference checker proof-kernel/check_ref.py AND by checker.gamma running on interp.beta (the
 # table-carrying Fap translation), requiring verdict-for-verdict agreement with the built check.beta
 # binary (plus the structurally expected verdict per line). One checker lying about a certificate class
-# now breaks a THREE-checker diamond instead of silently anchoring trust. The gamma leg may abstain on
+# now breaks a three-checker regression cross-check instead of silently escaping the
+# test corpus. This is not DDC and does not replace artifact-bound obligation reconstruction or soundness.
+# The gamma leg may abstain on
 # resource exhaustion — abstentions are counted and reported, never silent.
 cd "$(dirname "$0")"
 command -v python3 >/dev/null 2>&1 || { echo "meaning-cert diamond: skipped (python3 absent)"; exit 0; }

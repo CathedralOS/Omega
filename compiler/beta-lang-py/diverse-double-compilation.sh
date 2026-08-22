@@ -1,17 +1,14 @@
 #!/usr/bin/env sh
-# DIVERSE DOUBLE COMPILATION — the Thompson-resistance gate for the Beta rung (decision D5).
+# LEGACY OPTIONAL COMPILER COMPARISON — not a principal lattice gate.
 #
-# bc.beta's only source->assembly path is the Rust on-ramp (beta-lang-rs). Self-host reproduces bc but
-# does NOT diversify it: a Trojan the on-ramp injected would ride through the self-host fixed point
-# undetected. Wheeler's defence is a SECOND, INDEPENDENT compiler for the same language — here
-# ../beta-lang-py/bc2.py, written from scratch in Python against the ISA + the Beta grammar.
+# This script predates the current D5 ruling. It compares the Rust on-ramp and
+# bc2.py and remains available for regression archaeology, but agreement does not
+# establish source-to-artifact correctness and is not part of the trust architecture.
 #
 # This gate compiles a corpus with BOTH front-ends, assembles + runs each output, and asserts the two
-# independent compilers AGREE (and match the expected result). bc2.py is UNTRUSTED — a bug or Trojan in
-# it makes a disagreement, i.e. a LOUD failure, never a silent pass. Today bc2.py covers slice 1
-# (arithmetic + let); as it grows to the whole language the corpus grows toward bc.beta itself, at which
-# point this becomes true DDC: bc.beta compiled via the independent path must reproduce the official
-# self-host fixed point.
+# compilers agree (and match the expected result). bc2.py is untrusted; this is a
+# diagnostic comparison only. The real open edge is complete lower-rooted
+# refinement of the cold-started bc artifact against bc.beta.
 set -e
 cd "$(dirname "$0")"
 command -v python3 >/dev/null 2>&1 || { echo "diverse-double-compilation SKIP — no python3"; exit 0; }
@@ -187,34 +184,31 @@ if [ -f ../beta-lang-rs/examples/calc.beta ]; then
 fi
 
 # ============================================================================================
-# THE REAL THING — true diverse double compilation of the whole TRUST SURFACE. bc2.py compiles all
-# of these; build the Beta compiler two independent ways and check each program compiles IDENTICALLY:
+# Historical whole-surface compiler comparison. bc2.py compiles all of these;
+# build the Beta compiler two ways and record whether each program compiles identically:
 #   official : prog --(Rust on-ramp)--> bc0 ; asmO = bc0(prog)      [the shipped lineage]
 #   diverse  : prog --(bc2.py, Python)--> bcA ; asmA = bcA(prog)    [the independent path]
-# If asmO == asmA byte-for-byte for EVERY trust-critical Beta program — bc itself, AND the checker,
-# the meaning interpreter, the type checker, the omega elaborator — then their compilation is
-# independent of which bootstrap compiler produced it: a Trojan would have to sit, identically, in
-# BOTH independent paths. Agreement on bc.beta alone does not imply agreement on all programs, so we
-# check the actual programs whose compilation determines trust. (selfhost.sh proves bc0(bc.beta) is a
-# fixed point, so bc0 is the canonical bc.)
+# Agreement here is regression information only. It does not establish compiler
+# correctness or close the lower-rooted refinement edge. (selfhost.sh separately
+# establishes the deterministic fixed point.)
 if build ../beta-lang/bc.beta "$BCRS" && cp "$T/o.exe" "$T/bc0.exe" \
    && build ../beta-lang/bc.beta python3 bc2.py && cp "$T/o.exe" "$T/bcA.exe"; then
   for prog in ../beta-lang/bc.beta ../proof-kernel/check.beta ../proof-kernel/eq.beta \
               ../gamma/interp.beta ../gamma/typeck.beta ../omega/omega2gamma.beta; do
     [ -f "$prog" ] || continue
     if ! python3 bc2.py < "$prog" > /dev/null 2>"$T/e"; then
-      FAIL=$((FAIL+1)); echo "  FAIL DDC $prog : bc2.py cannot compile it: $(head -1 "$T/e")"; continue; fi
+      FAIL=$((FAIL+1)); echo "  FAIL COMPARE $prog : bc2.py cannot compile it: $(head -1 "$T/e")"; continue; fi
     "$T/bc0.exe" < "$prog" > "$T/asmO" 2>/dev/null
     "$T/bcA.exe" < "$prog" > "$T/asmA" 2>/dev/null
     if cmp -s "$T/asmO" "$T/asmA"; then
-      PASS=$((PASS+1)); echo "  DDC $(basename "$prog"): bc0 == bcA ($(wc -l < "$T/asmO" | tr -d ' ') asm lines)"
+      PASS=$((PASS+1)); echo "  COMPARE $(basename "$prog"): bc0 == bcA ($(wc -l < "$T/asmO" | tr -d ' ') asm lines)"
     else
-      FAIL=$((FAIL+1)); echo "  FAIL DDC $prog : the two independent compilations DIFFER"; fi
+      FAIL=$((FAIL+1)); echo "  FAIL COMPARE $prog : the two compilations DIFFER"; fi
   done
-  echo "  => the Thompson gap is closed for the whole Beta trust surface, not just bc"
+  echo "  => optional compiler comparison completed; no trust claim is implied"
 else
-  FAIL=$((FAIL+1)); echo "  FAIL DDC : could not build both compilers"
+  FAIL=$((FAIL+1)); echo "  FAIL COMPARE : could not build both compilers"
 fi
 
-echo "diverse double compilation (bc2.py — independent Rust-free Beta front-end — agrees with the on-ramp; incl. true DDC of bc AND the whole trust surface): $PASS ok, $FAIL failed"
+echo "legacy compiler comparison (bc2.py vs Rust on-ramp): $PASS ok, $FAIL failed"
 [ "$FAIL" = 0 ] || exit 1

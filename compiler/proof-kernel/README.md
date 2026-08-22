@@ -5,12 +5,18 @@ checking, not by pedigree** — becomes concrete. The bootstrap spine gives us a
 Rust-free route to run it; this artifact decides whether supplied proof evidence
 is valid.
 
+The current path is historical. Because this is assurance infrastructure rather
+than a compiler or language rung, its target home is
+`bootstrap/assurance/proof-kernel/`, split into checker implementations,
+untrusted tooling, corpora, and gates. See the
+[repository structure](../../wiki/architecture/bootstrap_lattice/repository_structure.md).
+
 ```
 check.beta           a natural-deduction proof checker (validates LOGICAL proofs)
 eq.beta              a definitional-equality checker (validates COMPUTATIONAL claims)
 test.sh              the gate: bc compiles both, then they accept/reject certificates
 soundness.sh         adversarial battery — invalid certificates must ALL be rejected
-checker-diamond.sh   diverse double-check: check.beta vs checker.gamma must agree
+checker-diamond.sh   implementation cross-check: check.beta vs checker.gamma
 semantics-diamond.sh definitional equality vs the interpreter's operational eval
 ```
 
@@ -125,12 +131,13 @@ certificates; it has no authority — a false proposition cannot get past `check
 however the certificate was found. That asymmetry (tiny trusted checker, unbounded
 untrusted producer) is the entire point.
 
-## Status — diverse, type-checked, adversarially tested
+## Status — cross-checked, type-checked, adversarially tested
 
-[`proof_kernel.md`](../../wiki/architecture/bootstrap_lattice/proof_kernel.md) says the
-checker should be a **Gamma** program — Gamma's algebraic data types + pattern
-matching keep such a checker small and auditable. That now exists *both* ways, and
-the difference is the point:
+[`proof_kernel.md`](../../wiki/architecture/bootstrap_lattice/proof_kernel.md)
+places the checker outside the language spine and requires independent low-rung
+implementations. Gamma's algebraic data types + pattern matching keep one such
+implementation small and auditable. The implementations provide useful
+bug-finding evidence while the soundness bridge matures:
 
 - `check.beta` (this file) hand-encodes the term/type trees as tagged 3-word nodes in
   raw memory and decides everything with a CFG guard-state dispatch on integer tags
@@ -138,9 +145,8 @@ the difference is the point:
   motivated the Gamma rung.
 - [`gamma/checker.gamma`](../gamma/checker.gamma) is the *same logic* as a dozen tiny
   functions over algebraic data + pattern matching. `checker-diamond.sh` runs proofs
-  through **both** and requires identical verdicts — two independent implementations,
-  in different languages at different rungs, cross-checking the trust anchor
-  (diversity = security, applied to the checker itself).
+  through **both** and requires identical verdicts. This agreement is not DDC
+  and does not itself prove either checker sound.
 - [`gamma/checker_typed.gamma`](../gamma/checker_typed.gamma) is that Gamma checker
   fully annotated, and Gamma's own static type checker (`gamma/typeck.beta`) accepts
   it — so the trust anchor's *code* is shown statically type-safe.
@@ -184,6 +190,7 @@ What it is **not** (yet), tracked in the architecture's `proof_kernel.md`:
   interpreter` is the deep open problem, untouched.
 - It is the *reference* checker (small + audited), not a fast one.
 
-The thing the whole architecture exists to produce — a tiny, hand-auditable checker
-with sole authority over what is true — is here, end-to-end runnable on the seed,
-proving real arithmetic by induction, and double-checked by an independent twin.
+The small generic checker is here, end-to-end runnable on the seed, proving real
+arithmetic by induction and double-checked by an independent twin. It has sole
+authority over derivation validity, while the separate artifact-aware ledger
+reconstruction determines which propositions a deployed program must prove.

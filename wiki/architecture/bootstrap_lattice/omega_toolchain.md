@@ -2,33 +2,51 @@
 
 [Lattice overview](bootstrap_lattice.md) | [Delta language rung](rungs/delta.md)
 
-Omega is the product toolchain, not another bootstrap rung. Psi owns source
+Omega is the product language and toolchain, not another Greek bootstrap rung. Psi owns source
 processing through terminal portable IR; Omega consumes that IR and performs
 target realization, optimization, and native emission. Today the working
-implementations are primarily Rust. The bootstrap destination is to host them in
-Delta.
+implementations are primarily Rust. The bootstrap destination has two compiler
+artifacts for the same Omega language:
+
+```text
+Delta → Omega (simple, Delta-built) → Omega (optimized, Omega-built)
+```
+
+The first compiler contains the Psi source/semantic path and enough target
+realization to compile conforming Omega programs. It deliberately omits advanced
+optimization and may compile slowly or emit slow code. The second is the full
+production compiler written in Omega and built by the first.
 
 The distinction is architectural:
 
-- Alpha, Beta, Gamma, and Delta form the language chain used to rebuild the
-  toolchain from the audited seed.
-- Psi and Omega are the real compiler products built by that chain.
+- Alpha, Beta, Gamma, and Delta form the small language chain used to build the
+  first Omega compiler from the audited seed.
+- The Delta-built Omega compiler is a valid self-sufficient endpoint.
+- That compiler then builds the optimized Omega compiler from Omega source. The
+  repeated Omega is a self-host edge, not another language rung.
 - The Psi-aware artifact verifier reconstructs the obligations imposed by an
   exact terminal-Psi module; the [proof kernel](proof_kernel.md) independently
   checks the certificate derivations that discharge those obligations.
 
 ## Current repository roles
 
-- `omega-rs/` is the current production compiler and executable reference.
+- `compiler/omega-rs/` is the current production compiler and executable reference.
 - `compiler/omega/` contains Rust-free meaning and translation-validation
   experiments, including `omega2gamma.beta`.
-- `compiler/delta-rs/` is the bootstrap language on-ramp that is growing toward
-  hosting the production compiler.
+- `compiler/delta-rs/` is the bootstrap language on-ramp growing toward building
+  the simple bootstrap Omega compiler.
 
-Self-hosting does not by itself prove compiler correctness. It removes external
-toolchain dependencies and gives the project a reproducible path from the audited
-seed. Semantic correctness comes from the canonical meaning route, proof
-obligations, and independent certificate checking.
+These are historical paths. The target ownership is `bootstrap/omega0/` for the
+Delta-built first compiler and its meaning/gates, and `compiler/psi/` plus
+`compiler/omega/` for the product implementation. See the
+[repository structure](repository_structure.md).
+
+Self-hosting does not by itself prove compiler correctness. A defect in bootstrap
+Omega can reproduce while it builds production Omega. The value of this shape is
+dependency closure: one checked self-host edge replaces a historical tower of
+external implementation-language dependencies. Semantic correctness still comes
+from the canonical meaning route, reconstructed proof obligations, derivation
+checking, and translation validation across that edge.
 
 The current Rust `psi-terminal-verifier` demonstrates the artifact-aware half:
 it validates canonical terminal Psi, reconstructs its exact obligation set,
@@ -41,7 +59,7 @@ ledger; Rust agreement grants no authority. Local operation denotations and
 canonical goals come from restricted declarative schemas, while algebraic
 reduction is untrusted and must emit a checked proof of the unchanged goal.
 
-Bootstrap hosting, native refinement evidence, the Gamma/schema feasibility
+Bootstrap-Omega hosting, the Omega self-build, native refinement evidence, the Gamma/schema feasibility
 spike, and the terminal-ledger migration remain execution work under P3 in
 [`TASKS.md`](../../../TASKS.md).
 Production optimization remains outside the trusted proof kernel.

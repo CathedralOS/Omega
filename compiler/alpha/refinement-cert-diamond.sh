@@ -1,14 +1,14 @@
 #!/usr/bin/env sh
-# REFINEMENT-CERT DIAMOND — diverse double-checking of the refinement gate's certificates.
+# REFINEMENT-CERT CROSS-CHECK — replay refinement certificates across implementations.
 #
 # The instruction-level refinement gate proves `bc(P) ≡ P` with refl certificates over the meaning
 # language's CONSTRUCTOR families — (k 5 ..) ℤ pairs, (k 6 ..) monus, (k 7/8 ..) the input stream, (k 9..13)
-# cond/booleans, (k 14/15) div/mod, and the (f 90 ..) triangular recurrence. The lattice's diversity thesis
-# says every certificate class must be decided identically by INDEPENDENT checkers, so this gate re-runs every
+# cond/booleans, (k 14/15) div/mod, and the (f 90 ..) triangular recurrence. As regression evidence, this gate re-runs every
 # cert the refinement gate produces (accepts AND the perturbed teeth rejects) through BOTH check_ref.py (the
 # auditable reference checker) AND checker.gamma (the gamma-language checker, via refcert_to_gamma.py, which
 # maps (k CID args) to the curried (Apply.. (Con CID) ..) constructor encoding — Con/Apply thread through
-# pnorm/nateq/subt/freet, so no gamma feature was needed). All THREE must agree verdict-for-verdict. (The
+# pnorm/nateq/subt/freet, so no gamma feature was needed). All THREE must agree verdict-for-verdict; this is a
+# bug-finding cross-check, not DDC or a replacement for the soundness bridge. (The
 # straight-line fuzz certs go through prover.py; the prover-diamond triple-checks those separately.)
 set -e
 cd "$(dirname "$0")"

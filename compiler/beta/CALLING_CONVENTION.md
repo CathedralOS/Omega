@@ -87,13 +87,13 @@ run on the alpha seed):
 
 Build either with `./build.sh examples/factorial.alpha && ./build/factorial.exe`.
 
-## Deferred (note, don't build yet)
+## Remaining limits
 
 - **>4 arguments** — spill the rest onto the data stack (left-to-right; caller
   cleans up).
-- **`let` locals + multi-statement bodies + `if`/`while`** — slice 3 of the
-  compiler. Today the frame holds only parameters and a body is a single
-  `return <expr>`; locals are just more frame slots, and control flow is `jz`/`jmp`.
+- **Language control shape** — Beta now has locals and multi-statement bodies.
+  Source control is expressed as `state` blocks and guarded `to` transitions,
+  not `if`/`while`; the compiler lowers those edges to Alpha jumps.
 - **Stack-overflow guard** — the sp grows down with no limit check. A higher rung
   proves depth bounds (see `totality_and_bounded_computation.md`); until then it is
   an unchecked region.
@@ -101,6 +101,7 @@ Build either with `./build.sh examples/factorial.alpha && ./build/factorial.exe`
 ## Why this is the Beta-the-language foundation
 
 A "procedure with parameters and locals" is exactly a source construct that lowers
-to: prologue, argument moves, body, epilogue. Once Beta-the-language has this, its
-compiler emits these frames mechanically — and *that* is the language gamma (and
-everything above) gets rewritten in, instead of raw assembly.
+to: prologue, argument moves, body, epilogue. Beta's self-hosting compiler emits
+these frames mechanically. Gamma's canonical interpreter and type checker are
+Beta programs, so everything higher can grow without another hand-written
+assembly compiler.

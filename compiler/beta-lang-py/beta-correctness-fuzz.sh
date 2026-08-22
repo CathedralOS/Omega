@@ -1,6 +1,6 @@
 #!/usr/bin/env sh
 # BETA COMPILER CORRECTNESS FUZZ — random differential testing of bc's SEMANTICS (not just its
-# reproducibility, which diverse-double-compilation.sh covers). For each random program, run it two
+# reproducibility or cross-compiler agreement). For each random program, run it two
 # independent ways and require agreement on exit code AND stdout:
 #   interpret : beta_interp.py runs the Beta source directly (a second, independent definition of Beta)
 #   compile   : bc compiles it to Alpha bytecode, which the seed VM runs

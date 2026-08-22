@@ -3,8 +3,8 @@
 # source directly (tree-walking bc2.py's AST) and exits with the program's exit code, writing its stdout.
 # It reuses bc2.py's lexer + parser but is an entirely separate back end from the code generator.
 #
-# WHY THIS EXISTS — translation validation for the Beta compiler. Diverse double compilation (bc2.py's gate)
-# proves bc compiles REPRODUCIBLY (Thompson); it says nothing about whether bc compiles CORRECTLY. Beta has
+# WHY THIS EXISTS — executable reference meaning for Beta compiler validation.
+# Compiler agreement and self-reproduction say nothing about whether bc compiles correctly. Beta has
 # no formal spec — bc.beta is its de-facto definition — so this interpreter is a SECOND, independent
 # definition of Beta's meaning. `beta-correctness-fuzz.sh` runs random programs both ways — interpret here
 # vs. compile-with-bc-and-run-on-the-VM — and asserts they agree, so a bc miscompile surfaces as a

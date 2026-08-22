@@ -2,158 +2,66 @@
 
 [Lattice overview](../bootstrap_lattice.md) | Prev: [Beta](beta.md) | Next: [Delta](delta.md)
 
-Gamma is where computation becomes *safe and definitional*: enough to write
-parsers, validators, interpreters, and the reference implementation of the
-[proof kernel](../proof_kernel.md) in a substantially safer language than raw
-assembly.
+Gamma is where computation becomes safe and definitional: enough to write
+parsers, validators, canonical decoders, interpreters, and an independent
+reference implementation of the cross-cutting [proof kernel](../proof_kernel.md).
 
 ## Adds
 
-- algebraic data types and pattern matching
-- pure functions and structural recursion
-- a simple static type system
-- possibly **total** computation (every function terminates — see honest edge #4
-  below)
+- algebraic data types and pattern matching;
+- pure functions and recursion;
+- a small monomorphic static type system;
+- fuel-bounded reference evaluation with explicit exhaustion.
+
+Reference evaluation is total because the interpreter always returns a value,
+rejection, or exhaustion within its supplied fuel. That statement does not
+pretend every unbounded mathematical computation terminates.
 
 ## Written in
 
-Beta. Gamma's type checker and reference interpreter are beta programs.
+Beta. Gamma's canonical reference interpreter and static type checker are Beta
+programs compiled by the self-hosting `bc`.
 
 ## Meaning
 
-A gamma program means what a **gamma reference interpreter written in beta** does
-with it. The gamma *compiler* (to alpha/beta) is then an acceleration that must
-behave like the interpreter — not the definition.
+A Gamma program means what the canonical, fuel-bounded Gamma reference
+interpreter written in Beta does with it. Any compiler for Gamma is an
+acceleration checked against that interpreter, never a second definition.
 
 ## Must not contain
 
-No mutable memory, ownership, regions, or effects (those are
-[Delta](delta.md)). Proof checking is a cross-cutting service rather than a
-Gamma language feature; its reference implementation is written in Gamma.
-Keeping Gamma pure, safe, and definitional makes that implementation small and
-auditable.
+No mutable memory, ownership, regions, runtime effects, or hardware boundaries;
+those belong to [Delta](delta.md). Proof checking is not a Gamma language feature
+or language rung. Gamma merely provides a safe language in which one independent
+implementation of the generic proof kernel is small and auditable.
 
-## Totality (honest edge)
+## Current repository reality
 
-If gamma is total, it cannot contain a plain interpreter for a Turing-complete
-language — the interpreter would loop forever on looping input. Reference
-interpreters then become **fuel-bounded**:
-`interp(program, fuel) -> Result | OutOfFuel`. This is a feature: it makes the
-slow reference route's cost bounded and explicit, and it is exactly
-[`totality_and_bounded_computation.md`](../../../design_briefs/totality_and_bounded_computation.md).
-Decide it deliberately; it reshapes every interpreter in the spine.
+- `compiler/gamma/interp.beta` — canonical pure, fuel-bounded interpreter;
+- `compiler/gamma/typeck.beta` — static checker for `Int`, declared ADTs,
+  functions, constructors, and matches;
+- `compiler/gamma/checker.gamma` and `checker_typed.gamma` — independent
+  proof-kernel implementations hosted by Gamma;
+- `compiler/gamma/canonical-bytes/` and `terminal-codec-primitives/` — reusable
+  typed canonical-byte decoding layers;
+- `compiler/gamma/terminal-ledger-spike/` — bounded feasibility work for the
+  terminal-Psi semantic-ledger generator.
 
-## Current repo reality
+The exact spike sizes, supported operation cohorts, and gate counts belong in
+the spike's own README and live task status, not in this durable rung definition.
 
-Two things live here, pulling in opposite directions:
+## Parked imperative surface
 
-- `gamma.alpha` (~3540 lines) — the **old compiler-first imperative** v13:
-  variables `a`–`j` in registers, arithmetic, `if`/`else`, `while`, `print`/`read`.
-  Compiler written in alpha-asm, assembled by beta; not self-hosting. Parked.
-- `interp.beta` — a **new interpreter-first reference interpreter**, stage 1
-  (`test-interp.sh`), written in **Beta** (compiled by the self-hosting `bc`). A
-  pure functional, **fuel-bounded** core: integers, top-level recursive functions,
-  `if`, `let`, arithmetic/comparisons (`fac 5 → 120`, `fib 10 → 55`, `gcd → 12`).
-  This is the architecturally-favored shape — *meaning is the interpreter* — and
-  resolves the first divergence below. Stage 2 (DONE) adds the
-  gamma-defining features (ADTs + pattern matching), so the proof kernel can now
-  be rewritten in it cleanly (its hand-encoded tagged nodes are exactly that pull).
+`gamma.alpha`, its native executable, `build.sh`, and the root `examples/`
+directory implement the older compiler-first imperative language. It has fixed
+variables, mutation, `if`/`while`, and decimal I/O. It remains a compatibility
+and differential-testing artifact only. It does not define Gamma and must not
+grow into a parallel meaning path.
 
-The old gamma diverges from the target in two ways the architecture wants
-reconciled — `interp.beta` is the start of that reconciliation:
+## Implementation frontiers
 
-- **Compiler-first, not interpreter-first** — `gamma.alpha`'s compiler *is* the
-  definition; the lattice wants a reference interpreter to define meaning, with
-  the compiler checked against it. `interp.beta` is that reference interpreter.
-- **Imperative, not functional/total** — `gamma.alpha` has no algebraic data,
-  pattern matching, or totality. `interp.beta` is functional + fuel-bounded;
-  ADTs + pattern matching landed in stage 2 (`Z`/`S`, `Nil`/`Cons`, `Pair`; `match` with nullary, applied-binding, and catch-all patterns).
-
-The **simple static type system** gamma.md calls for now exists too:
-[`typeck.beta`](../../../../compiler/gamma/typeck.beta) (run by `test-typeck.sh`),
-a monomorphic, fully-annotated type checker — Int + `(data T (C ArgTy...)...)`
-declarations, typed functions, and type checking of `if`/`let`/calls/constructor
-application/`match`. It catches the errors you want (an Int op on a `List`, a
-constructor given the wrong argument type, divergent `match` arms, a pattern from
-the wrong type, a return-type mismatch) and accepts well-typed `Nat`/`List` code —
-"just enough to make the proof kernel safe to write, no more."
-
-Gamma now also hosts the bounded `PCC-CANONICAL-SEMANTIC-LEDGER` feasibility spike
-in `compiler/gamma/terminal-ledger-spike/`. The typed program consumes exact
-current terminal-Psi bytes, validates a closed subset, and emits/audits ranked
-semantic rows. Both the Beta-written reference interpreter and the independent
-Python evaluator agree on the positive fixture, an asymmetric join rejection,
-and malformed-byte rejection. The assembled core is 4,982 lines rather than a
-permutation-expanded verifier. Its bounded thirty-two-kind scalar leaf semantics
-now live in five composed exact-unique policy-cohort schema tables; one generic
-interpreter consumes result, denotation, goal, fact, crash, fuel, and frontier
-fields, while calls and control remain separate algebra. Missing, duplicate,
-and altered schema rows reject end to end. Exact cast, exact-right-shift, and
-exact-left-shift retain distinct canonical goals; widening and wrapping shifts
-remain total. Its value environment retains the complete decoded scalar type
-grammar and applies the Boolean/i8/i16 limit only at the bounded operation-row
-boundary. Integer-constant operations retain the exact signed/unsigned 128-bit
-payload until that row performs signed-i8 narrowing, so duplicate IDs and type
-drift cannot cross the generic schema
-boundary. A separate 695-byte fixture and exact-unique table now cover
-`BooleanStructuralField`, `EstablishTrivialAffineLocal`, and `PortWrite` through
-their own place/frontier/effect vocabulary; they produce a 3-row, 185-byte
-ledger and reject relevance, custody, service, effect, cleanup, and retirement
-drift. Structural/effect byte decoding is isolated from its schema/evaluator.
-The three call variants likewise live in a separate exact-unique composition
-table. A dedicated 697-byte canonical fixture decodes exact `CallUnit` and
-`BoundaryCall` resource, requirement, claim-transfer, completion-receipt, and
-boundary custody through that table. One generic checker keeps signature, state
-version, movement, requirement
-coverage, substitution, outcome, crash-route, evidence-lifetime, fuel, and
-frontier custody independent; missing, duplicate, altered, cross-kind, and
-per-axis drift reject without adding call-specific evaluator branches.
-That decomposition into decoder, typed row vocabulary, schema tables,
-validators, and sequencing helpers is the intended shape for the production low
-generator.
-
-The spike also makes one scaling limit concrete: the monomorphic type system
-requires a distinct parse-result ADT for each decoded type. Completing the
-structural/effect and canonical call slices plus the shared terminal envelope,
-scalar, semantic-identity, scalar-type, integer-value, and UTF-8 decoders grow
-the assembled core to 198,971 bytes, 182 data declarations, and 423 typed
-functions, at nesting
-depth 25.
-That repetition is an engineering/audit cost, not a reason to weaken the
-canonical-byte endpoint.
-The reusable PSITERM-neutral byte cursor, checked fixed-width primitives, exact
-low/high-half `u64`, and exact four-limb `u128` carriers are now factored and
-independently gated in
-`compiler/gamma/canonical-bytes/`. Type-specific results and the spike's
-explicit post-decode zero-high-half identity limitation remain local to the
-bounded fixture. The exact current envelope, signed/unsigned 128-bit integer
-value payloads, and length-prefixed UTF-8 grammar
-are independently factored and gated in
-`compiler/gamma/terminal-codec-primitives/`; one typed header parser serves all
-bounded decoders, canonical Boolean plus optional and required semantic-ID
-carriers retain exact values and canonical identity order, the complete current
-scalar-type grammar retains carrier/sign/
-width, integer values retain their exact raw two's-complement or unsigned bits,
-and strings retain raw bytes without assigning identity or path meaning.
-An independently gated structural-leaf module in the same directory owns the
-exact v18 IEEE kind/format, byte-sequence carrier, full-width canonical
-structural path including exact case segments, and atomic
-IEEE/byte/case-membership proposition-tag grammar.
-It checks the leaf-specific nonempty-path and canonical operand constraints but
-is intentionally not imported by the bounded ledger spike, which still rejects
-those tags.
-The bounded fixture narrows IDs and types only in explicit consumer adapters.
-If the complete closed vocabulary cannot remain auditable after those
-extractions, that is the point for an explicit Gamma rung-design correction.
-
-The architectural fork is now settled: the functional interpreter-first Gamma
-defines meaning, while the old imperative compiler-first surface remains a
-parked compatibility artifact. Future acceleration must be checked against the
-reference interpreter; it cannot become a second definition.
-
-## Open questions
-
-- Retirement or differential validation of the parked compiler-first surface.
-- Totality vs partiality, and the fuel discipline for interpreters.
-- Whether the full canonical decoder remains auditable with monomorphic result
-  ADTs or needs one explicit, minimal type-system ergonomics correction.
+- Retire or keep differential coverage for the parked imperative compiler.
+- Keep the full canonical decoder auditable within Gamma's deliberately small
+  type system; shared decoding primitives should absorb repeated mechanics.
+- Improve reference-route performance without changing fuel visibility or
+  semantic authority.

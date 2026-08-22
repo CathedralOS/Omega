@@ -1,9 +1,9 @@
 #!/usr/bin/env sh
-# PROOF-LIBRARY CROSS-CHECK — the diversity thesis applied to the WHOLE theorem library.
+# PROOF-LIBRARY CROSS-CHECK — replay the whole theorem library across implementations.
 #
 # elab-test.sh already checks that every proofs/*.elab elaborates to a certificate the trusted check.beta
-# accepts. But that is a SINGLE checker. The lattice's diversity thesis says every certificate should be
-# decided identically by an INDEPENDENT checker; the trust-anchor diamond establishes check_ref.py ==
+# accepts. Replaying the certificates through separately written checkers provides
+# regression evidence; it is not DDC and does not replace a soundness argument. The cross-check establishes check_ref.py ==
 # check.beta on a rule-coverage FUZZ corpus, but the real compositional theorems (the FTA, sqrt2
 # irrationality, the list/number-theory library — 200+ proofs) were only ever run through check.beta.
 #

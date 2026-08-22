@@ -113,8 +113,9 @@ that — this is the part to get right before writing any code:
 That representational split is the single most important thing to settle up front: it
 means the *reduction logic* (`instantiate` over a constructor head) is shared in spirit but
 the *rule sourcing* (table vs. inline) is deliberately different per checker — and neither
-side may grow a second responsibility (e.g. check.beta must not start inlining rules, gamma
-must not grow a table) or the diversity that makes the diamond meaningful is lost.
+side should grow a second responsibility (for example, check.beta should not
+start inlining rules and Gamma should not grow a table), because the
+representation-sensitive cross-check would then lose diagnostic independence.
 
 ## Verification plan (before it is trusted)
 

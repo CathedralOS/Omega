@@ -2,7 +2,7 @@
 # vm-fuzz-gen.py SEED — emit ONE random, valid, terminating Alpha tape (raw bytecode) to stdout, chosen
 # deterministically from SEED. Used by vm-fuzz.sh to differential-test the hand-authored seed VMs against
 # the independent reference alpha_ref.py: three implementations of the same 21-op semantics must agree on
-# every tape, so a divergence is a VM bug (or a Thompson backdoor) in one of them.
+# every tape, so a divergence exposes a VM or reference-model bug.
 #
 # Scope = ARITHMETIC: imm / mov / add / sub / mul / div / mod / halt. Straight-line (no jumps, no memory,
 # no I/O) so every tape terminates and stays in bounds by construction — the point is to hammer the

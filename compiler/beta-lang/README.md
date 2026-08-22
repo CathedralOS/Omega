@@ -3,9 +3,10 @@
 This is **slice 7 of the lattice, done**: the Beta-language compiler written *in
 Beta itself* (`bc.beta`), not in the throwaway Rust on-ramp (`../beta-lang-rs`) and
 not hand-written in assembly. **It self-hosts** — `bc` compiles its own source to a
-compiler that reproduces that compilation byte-for-byte (`selfhost.sh`), so from
-that compiler on, Rust is out of the lineage; it only cold-started the first `bc`,
-exactly as `beta-rs` cold-starts the assembler.
+compiler that reproduces that compilation byte-for-byte (`selfhost.sh`). This
+closes the steady-state execution dependency on Rust. It does not by itself prove
+that the cold-started artifact corresponds to `bc.beta`; complete lower-rooted
+source-to-artifact validation remains open.
 
 ```
 bc.beta       the Beta compiler, in Beta:  reads .beta on stdin, emits Alpha asm
@@ -20,11 +21,12 @@ test.sh       per-feature gate: bc compiles + runs small programs across slices 
   program.beta ──(bc.exe)──▶ asm ──(assembler)──▶ tape ──▶ run
 ```
 
-`bc.exe` is a real Beta compiler with no Rust in *its* execution — only in the
-one-time lowering of `bc.beta`'s own text. The endgame: `bc.exe` compiles
+`bc.exe` is a real Beta compiler with no Rust in *its* execution—only in the
+one-time lowering of `bc.beta`'s own text. The fixed-point gate has `bc.exe` compile
 `bc.beta` to a tape `T1`, and `T1` compiles `bc.beta` to `T2` with `T1 == T2` — a
-self-hosting fixed point, just like `../beta/selfhost.sh` for the assembler. At
-that point the Rust on-ramp is discardable.
+self-hosting fixed point, just like `../beta/selfhost.sh` for the assembler. The
+Rust on-ramp becomes architecturally discardable only when this artifact is also
+validated against canonical Beta meaning through a checker rooted below `bc`.
 
 Run the gate:
 
@@ -47,7 +49,7 @@ fixed point. Built slice by slice, mirroring `beta-lang-rs`:
 | 5  | char literals `'x'`, `read_byte`/`write_byte`, call statements | + prescan skips char/string literals |
 | 6  | string literals via `emit("...")` | inline `db` data jumped over + a `__write_str` loop |
 
-`sh selfhost.sh` is the proof; `sh test.sh` is the per-feature gate. bc's self-tape
+`sh selfhost.sh` is the fixed-point gate; `sh test.sh` is the per-feature gate. bc's self-tape
 is ~45 KB — well within the 256 KB arm64 hole (see below).
 
 ### The hole (resolved)
@@ -58,7 +60,7 @@ data section (1 byte/char) — but that only trimmed ~12%, because **bc's tape i
 dominated by its own compiled *logic*, not emit strings**. So the arm64 tape hole
 was grown 32 KB → **256 KB** (`.space 0x40000`; `HOLE_SIZE` in `seed_env.sh` is now
 per-platform). The x64 hole stays 32 KB until a forge rebuild matches it — a
-flagged, capacity-only asymmetry (the diamond holds for any tape that fits both;
+flagged, capacity-only asymmetry (cross-platform behavior agrees for any tape that fits both;
 the self-hosting bc tape is arm64-runnable now, x64 after that one-line catch-up).
 
 <details><summary>historical: the compact-asm + db steps</summary>
@@ -73,9 +75,11 @@ the `db` directive itself.
 
 </details>
 
-## Next
+## Role in the lattice
 
-The Beta rung is self-sufficient. Up the lattice: rewrite **gamma in Beta**
-(retiring `gamma.alpha`), then **Delta** — the checker / evidence rung, where trust
-actually starts. The Rust on-ramp (`../beta-lang-rs`) is now discardable from the
-steady state; keep it only as the documented cold-start.
+The Beta compiler has a Rust-free steady-state execution path; complete
+lower-rooted validation of its cold-started artifact remains open. It builds
+Gamma's canonical interpreter and type checker; Gamma in turn supplies Delta's meaning substrate. The proof kernel
+is a cross-cutting service with independent Beta and Gamma implementations, not
+a later language rung. The Rust on-ramp (`../beta-lang-rs`) is outside the steady
+lineage and remains only as a documented cold-start/reference producer.

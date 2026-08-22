@@ -69,8 +69,9 @@ The sound baseline is source-distributed, host-compiled code:
    statement about itself.
 
 This remains conditional on trusting the compiler or independently checking
-the admitted proof/certificate. Diverse compilation, bootstrap verification,
-and proof-carrying code are separate upgrades to that TCB story. Installation
+the admitted proof/certificate. Lower-rooted bootstrap refinement and
+proof-carrying code are upgrades to that TCB story; cross-compiler agreement is
+only diagnostic evidence. Installation
 prevents injection. Backward-edge return integrity in checked Omega follows
 from memory safety plus non-addressable compiler-owned live and parked control
 state; WCSU proves sufficient stack capacity. Forward-edge indirect targeting
@@ -175,6 +176,6 @@ consumer's lifecycle types.
 - admission policy for prebuilt third-party binaries without checkable PCC;
 - optional independent final-byte control-transfer certificates and
   target-hardware CFI hardening;
-- diverse compilation/trusting-trust defenses;
+- lower-rooted source-to-artifact refinement for bootstrap and supplied code;
 - implementation of terminal-Psi verification and distribution; and
 - any separate future proof-carrying chain from IR to supplied native bytes.

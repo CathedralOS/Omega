@@ -1,50 +1,47 @@
-# `compiler/gamma/` — the language above assembly
+# `compiler/gamma/` — safe definitional computation
 
-gamma is the rung above beta: a language a bit higher than raw alpha assembly. Its
-compiler is **written in alpha assembly** (`gamma.alpha`), assembled by beta into a tape,
-and stamped into the alpha seed → `gamma_x64_windows.exe`. gamma reads `.gamma` source and
-emits assembly; the chain targets one level down at each step:
+Gamma is the pure functional rung above Beta. It supplies algebraic data,
+pattern matching, recursion, fuel-bounded reference evaluation, and a small
+static type system. It is suitable for parsers, validators, interpreters, and an
+implementation of the cross-cutting proof kernel.
 
-```
-.gamma  --[gamma]-->  assembly  --[beta]-->  tape  --[stamp]-->  standalone .exe
-```
+The canonical implementation path is Rust-free:
 
-- `gamma.alpha` — gamma's compiler, in alpha assembly.
-- `rebuild.sh` — rebuild `gamma_x64_windows.exe` from `gamma.alpha` (assemble via beta, stamp).
-- `build.sh PROG.gamma` → `build/PROG.exe` — run the full chain on a gamma program.
-- `examples/` — gamma programs.
-- `canonical-bytes/` — shared typed byte-cursor primitives for low-rung decoders;
-  run `test-canonical-bytes.sh`.
-- `terminal-codec-primitives/` — exact terminal-codec grammar layered over the
-  byte cursor, beginning with the current envelope, exact scalar/type/value
-  grammar, and bounded canonical UTF-8; run
-  `test-terminal-codec-primitives.sh`.
-- `terminal-ledger-spike/` — the `PCC-CANONICAL-SEMANTIC-LEDGER` typed,
-  canonical-byte semantic-ledger
-  feasibility spike, including separate scalar leaf, structural/effect leaf,
-  and three-row call-composition tables plus independently owned scalar,
-  structural/effect, and Unit/boundary decoder/evaluator modules; run
-  `test-terminal-ledger-spike.sh`.
-
-```
-./rebuild.sh
-./build.sh examples/answer.gamma && ./build/answer.exe   # exits with the program's value
+```text
+interp.beta / typeck.beta --bc.beta--> Alpha assembly --assembler--> tape --seed-->
+    canonical interpreter / type checker consuming Gamma source
 ```
 
-**Status: v13** — variables, arithmetic (with precedence), comparisons, `if`, `while`,
-and `print`:
-`statement := var '=' expr | 'if' expr '{'…'}' | 'while' expr '{'…'}' | 'print' expr`.
-`if`/`while` run/loop while the condition is nonzero (nestable). **`read var`** reads a decimal from stdin into a variable (runtime decimal-parse
-routine, like print's). **`print expr` writes
-the decimal value of the result followed by a newline** (via a runtime int→decimal
-routine emitted once, called per print). The program exits with the value of the last
-variable assigned; vars are `a`–`j` in `r6`–`r15`. Comparison operators `< > == <= >= !=`
-yield 0/1 (so `while i < n`, `if a == b`). **Parentheses** `(expr)` work to any
-nesting depth, via a runtime value stack (saving the sum/term accumulators around the
-sub-expression). Source supports `#` line comments. >10 vars not yet (needs memory
-slots). Growing next: more variables (memory slots), then functions; factor gamma's emission to curb tape size.
+Principal artifacts:
 
+- `interp.beta` — canonical Gamma reference interpreter, written in Beta;
+- `typeck.beta` — monomorphic Gamma type checker, written in Beta;
+- `checker.gamma` and `checker_typed.gamma` — independent proof-kernel
+  implementations hosted by Gamma today; their target owner is
+  `bootstrap/assurance/proof-kernel/`, not the Gamma rung;
+- `canonical-bytes/` — reusable typed byte-cursor primitives;
+- `terminal-codec-primitives/` — exact terminal-Psi codec primitives;
+- `terminal-ledger-spike/` — bounded canonical semantic-ledger feasibility work.
+
+Run the principal gates from the repository root:
+
+```sh
+sh compiler/gamma/test-interp.sh
+sh compiler/gamma/test-typeck.sh
+sh compiler/gamma/test-checker.sh
+sh compiler/gamma/test-canonical-bytes.sh
+sh compiler/gamma/test-terminal-codec-primitives.sh
+sh compiler/gamma/test-terminal-ledger-spike.sh
 ```
-a = 6 * 7  print a                          -> 42
-a = 1  while a < 6 { print a  a = a + 1 }    -> 1 2 3 4 5  (one per line)
-```
+
+## Parked imperative Gamma
+
+`gamma.alpha`, `gamma_x64_windows.exe`, `build.sh`, `rebuild.sh`, and the root
+`examples/` directory implement the older compiler-first language with variables
+`a`–`j`, mutation, `if`/`while`, and decimal I/O. They remain compatibility and
+differential-testing artifacts only. They do not define canonical Gamma and
+must not grow into a second meaning path.
+
+See [LANGUAGE.md](LANGUAGE.md) for the canonical surface and
+[`rungs/gamma.md`](../../wiki/architecture/bootstrap_lattice/rungs/gamma.md) for
+Gamma's architectural role.

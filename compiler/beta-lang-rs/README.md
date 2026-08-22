@@ -1,15 +1,15 @@
 # `compiler/beta-lang-rs/` — the Beta compiler, throwaway Rust on-ramp
 
-This is the **Beta language** compiler (not the assembler) as a temporary Rust
-on-ramp. It reads `.beta` source and emits **Alpha assembly**; the existing
-assembler (`../beta`) lowers that to a tape, which the seed runs.
+This is the retained Rust cold-start/reference compiler for the **Beta language**
+(not the assembler). It reads `.beta` source and emits **Alpha assembly**; the
+existing assembler (`../beta`) lowers that to a tape, which the seed runs.
 
-Its only job is to discover and pin the Beta language *ergonomically* — Rust lets
-us iterate the design to an elegant shape instead of hand-editing assembly. The
-**trusted** Beta compiler is later transcribed into Alpha assembly (the one
-unavoidable assembly compiler) and cross-checked against this; then this crate is
-discarded, exactly as `alpha-rs`/`beta-rs` are. It is deliberately dumb,
-index/arena-based, monomorphic Rust so that port is mechanical.
+Its original job was to discover and cold-start the language. The steady-state
+compiler now exists as `../beta-lang/bc.beta`, self-hosts, and is independently
+self-reproducing. This crate is no longer intended as a steady-state dependency.
+It remains useful as a reference producer while complete lower-rooted validation
+of the cold-started `bc` artifact is built. The fixed point alone proves
+dependency closure, not source-to-artifact correctness.
 
 > Naming: `beta-rs` is the on-ramp for the **assembler**; `beta-lang-rs` is the
 > on-ramp for the **language compiler**. (The long-view cleanup — the assembler is
@@ -25,7 +25,7 @@ index/arena-based, monomorphic Rust so that port is mechanical.
 `build.sh` runs `cargo run` to produce the assembly, then reuses the assembler +
 seed-stamp. Needs `cargo`.
 
-## Status (incremental, like the alpha-rs/beta-rs slices)
+## Historical implementation slices
 
 - **Slice 1 — arithmetic: DONE.** `proc main() { return <expr> }` with
   `+ - * / %` and parentheses, lowered onto the data stack. `answer.beta` → 42.
@@ -58,14 +58,12 @@ seed-stamp. Needs `cargo`.
   the proof Beta is *compiler-grade*: a real parser/evaluator is pleasant to write
   in it. `2+3*4`→14, `(2+3)*4`→20, `2*(3+4)*5`→70. (calc tape ≈ 6.7 KB.)
 
-## Next
+## Current role
 
-The self-check passed — Beta is compiler-grade. The remaining lattice steps:
-
-7. **Transcribe** the trusted compiler to Alpha assembly (the one unavoidable time
-   we hand-write a structured-language compiler in asm), cross-check against this
-   on-ramp (a diamond), and discard the Rust.
-8. **Rewrite gamma in Beta**, retiring `gamma.alpha`.
+The self-check passed and the Beta-written compiler superseded this on-ramp.
+Changes to the Beta surface must update `bc.beta`, its language gates, and the
+canonical Beta meaning/refinement route. Agreement with this Rust implementation
+or another compiler is diagnostic, not semantic authority.
 
 See [`../beta/LANGUAGE.md`](../beta/LANGUAGE.md) for the language surface, and run
 `sh test.sh` to verify the whole compiler end to end (8 examples + 9 calc cases).

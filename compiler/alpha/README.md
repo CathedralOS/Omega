@@ -1,6 +1,7 @@
-# `compiler/alpha/` — the seed (the binary from god)
+# `compiler/alpha/` — the native seed executor
 
-Alpha is the trust root of the whole lattice: a tiny, hand-written, hand-auditable VM.
+Alpha is the native execution floor of the lattice: a small, hand-written,
+hand-auditable VM checked against written semantics.
 This folder is just **a bundle of per-platform seed binaries + the listings they're
 built from** — nothing else lives here.
 
@@ -16,7 +17,7 @@ seed_env.sh              per-platform seed selection + tape-stamping, sourced by
 
 SEMANTICS.md             the written small-step operational semantics — the meaning a seed is audited AGAINST
 conformance.sh           executable companion: hand-built tapes pinning every opcode + edge; any seed must pass
-verify.sh                the per-platform acceptance gate: provenance + conformance + diamond, one command
+verify.sh                the per-platform acceptance gate: provenance + conformance + reproduction
 ```
 
 `sh verify.sh` runs the whole local trust check for the host's seed:
@@ -25,7 +26,7 @@ verify.sh                the per-platform acceptance gate: provenance + conforma
   (arm64: `clang -arch arm64 -Wl,-no_uuid …`, reproducible modulo the OS signature; x64:
   audit the `.exe` against its `.hex` by hand, as no committed forge ships);
 - **behavior** — `conformance.sh` (every opcode + edge realizes `SEMANTICS.md`);
-- **diamond** — `../beta/selfhost.sh` (the VM reproduces the canonical assembler bytecode).
+- **reproduction** — `../beta/selfhost.sh` (the VM reproduces the canonical assembler bytecode).
 
 To audit a seed: disassemble the binary and read it against its listing (the `.hex` for
 x64, the `.s` + `.lst` for arm64), checking that each opcode realizes the transition in
@@ -33,26 +34,26 @@ x64, the `.s` + `.lst` for arm64), checking that each opcode realizes the transi
 instructions. `conformance.sh` mechanically checks the runtime behavior against the spec
 (`sh conformance.sh` runs the host seed through every case).
 
-## Independent implementations = a real diamond
+## Platform realizations and executable references
 
 The x64 and arm64 seeds are **independently hand-authored** (different ISA, OS, executable
 format, and author). They are not transcriptions of each other — they are two
-realizations of the same 21-opcode small-step semantics. That independence is the whole
-point: feeding the *same source* through both VMs produces **byte-identical tapes**, so a
-disagreement would expose a bug (or a Thompson backdoor) in one of them. This is the
-"diversity is the security" property the lattice calls for, established at the seed rather
-than bolted on later. Verified: the arm64 macOS VM reproduces the x64 VM's assembler
+realizations of the same 21-opcode small-step semantics. Feeding the *same source*
+through both VMs produces **byte-identical tapes**, so disagreement exposes a
+conformance or implementation problem. The written semantics and audited
+implementation correspondence supply authority; multiplicity supplies useful
+evidence. Verified: the arm64 macOS VM reproduces the x64 VM's assembler
 bytecode from `../beta/assembler.alpha` byte-for-byte (sha256 `945c8061…`), and the full
 example corpus runs to the same answers on both.
 
 **Third point — `alpha_ref.py`.** The two seeds are hand-authored *assembly*, hard to audit.
 `alpha_ref.py` is a third, independent realization of the same semantics in ~150 lines of
 Python, written straight from `SEMANTICS.md` and short enough to read line by line against
-it. It is **UNTRUSTED and checked** (like `../beta-lang-py/bc2.py`): `diamond-py.sh` runs
+it. It is **UNTRUSTED and checked**: `diamond-py.sh` runs
 opcode edges (signedness, traps, EOF) *and* real bc-compiled programs through both the host
 seed and `alpha_ref.py` and asserts they agree — so the semantics is now pinned by two opaque
 seeds *and* one auditable reference. The runtime lineage never runs `alpha_ref.py`; it is a
-verification instrument that makes the seed diamond a triple. Run `sh diamond-py.sh`.
+verification instrument and regression oracle. Run `sh diamond-py.sh`.
 
 macOS note: `dd`-stamping a tape into a Mach-O invalidates its code signature, and Apple
 Silicon refuses to exec an invalid one, so a stamped seed is re-signed (`codesign -f -s -`)

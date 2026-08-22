@@ -1,79 +1,62 @@
-# Rung: Beta — names and structure
+# Rung: Beta — structured compiler construction
 
 [Lattice overview](../bootstrap_lattice.md) | Prev: [Alpha](alpha.md) | Next: [Gamma](gamma.md)
 
-Beta turns "painful raw machine construction" into something a human can inspect,
-without yet adding an elaborate semantic theory. It is the first rung that exists
-as an alpha *program* rather than native code.
+Beta turns raw Alpha construction into a small language suitable for writing
+compilers. It deliberately resembles Omega control flow without importing the
+types, ownership, effects, or proof machinery of higher rungs.
 
 ## Adds
 
-- labels instead of numeric jump offsets
-- structured procedures and a basic stack convention
-- canonical lists and tagged records
-- a symbolic, textual representation
+- named procedures, parameters, locals, calls, and recursion;
+- explicit stack frames and a fixed calling convention;
+- CFG/Omega-shaped `state` blocks and guarded `to` transitions;
+- one `i64` scalar plus raw byte/word memory;
+- byte I/O, character literals, and fixed-text emission.
 
-## Written in
+Beta has no `if` or `while`; loops and branches are explicit state-graph edges.
+That gives later compilers an Omega-like control representation while keeping
+the implementation small.
 
-Alpha. Beta's assembler/interpreter is an alpha program (a tape).
+## Implementation and meaning
 
-## Meaning
+Beta compiles structurally to Alpha assembly, which the Alpha assembler lowers
+to a tape governed by Alpha's written semantics. The steady-state compiler is
+`compiler/beta-lang/bc.beta`, written in Beta and self-hosted to a byte-identical
+fixed point. The first compiler was cold-started by `beta-lang-rs`; the current
+artifact still needs complete lower-rooted validation against `bc.beta`. A fixed
+point proves deterministic dependency closure, not compiler correctness or
+source correspondence. DDC is not an architectural closure mechanism.
 
-A beta program means what a **beta interpreter/assembler written in alpha** does
-with it. (Today this is realized as an assembler that lowers beta text to an alpha
-tape; the [lattice overview](../bootstrap_lattice.md) prefers a reference
-*interpreter* as the definition, with the assembler/compiler demoted to an
-acceleration — see [Honest edges / gamma reconciliation](../bootstrap_lattice.md#honest-edges).)
+The Alpha assembler lives historically in `compiler/beta/`, but it is an Alpha
+tool: it is written in Alpha assembly and translates Alpha assembly to Alpha
+tapes. “Beta” without qualification means the structured language compiled by
+`bc`.
 
 ## Must not contain
 
-No algebraic data types, no pattern matching, no type system, no proofs. Beta is
-structure over raw alpha, not yet safe definitional computation — that is
-[Gamma](gamma.md).
+No algebraic data types, pattern matching, safe type hierarchy, ownership,
+regions, effects, generics, or proofs. Those capabilities belong to Gamma,
+Delta, or Omega. Beta remains a small compiler-construction substrate with raw
+memory.
 
-## Current repo reality
+## Current repository reality
 
-`compiler/beta/` is an assembler written in alpha-asm (`assembler.alpha`, ~683
-lines): it reads human mnemonics, emits a tape, and memcpys it into a seed to make
-a standalone executable. It **self-hosts**: beta assembles its own source to a
-byte-identical fixed point (`beta1 == beta2`). A throwaway Rust on-ramp
-(`beta-rs`) only cold-starts the very first beta.
+- `compiler/beta/assembler.alpha` — self-hosting Alpha assembler;
+- `compiler/beta-lang/bc.beta` — self-hosting Beta compiler;
+- `compiler/beta-lang-rs/` — retained Rust cold-start/reference producer;
+- `compiler/beta-lang-py/` — historical mixed Python reference/refinement tools;
+- `compiler/beta/CALLING_CONVENTION.md` — frame and register discipline;
+- `compiler/beta/LANGUAGE.md` — current Beta surface.
 
-Note: the byte-identical fixed point proves **consistency + provenance**, not
-faithfulness — a Thompson seed reproduces identically too. It is a determinism
-precondition for future Diverse Double-Compiling, not a correctness result. See
-the [trust ledger](../bootstrap_lattice.md#the-irreducible-trust-ledger).
+`compiler/beta-lang/selfhost.sh` and `test.sh` gate the fixed point and language
+behavior. The legacy Python compiler-comparison script is optional diagnostic
+scaffolding, not a principal lattice gate.
 
-**Beyond the assembler — Beta is growing into a real language.** The assembler is
-only 1:1 mnemonics; the point of the rung is a *structured systems language* (tiny
-C / Oberon-0: procedures, locals, `if`/`while`, `byte[]`/`word[]` memory) so that
-gamma and everything above is written in something pleasant instead of assembly.
-That language is specified in
-[`compiler/beta/LANGUAGE.md`](../../../../compiler/beta/LANGUAGE.md) and is being
-built as a throwaway Rust on-ramp (`compiler/beta-lang-rs/`, slices 1–6 done:
-arithmetic, procedures+calls, recursion+loops, memory, char literals + the
-`read_byte`/`write_byte` host boundary, and **the self-check** — a recursive-descent
-calculator written *in Beta* (`examples/calc.beta`) proving the language is
-compiler-grade) to be transcribed to Alpha assembly later. Live status:
-[TASKS_BOOTSTRAP.md](../../../../TASKS_BOOTSTRAP.md).
+## Implementation frontiers
 
-## Calling convention (proven 2026-06-22)
-
-The one thing that turns beta from "an assembler" into "a language": a **frame
-discipline**. The assembler dodged it (state survives a `call` only via fixed
-global addresses → no recursion). The convention now exists and is verified on the
-seed — **two stacks**: control on the VM's hidden return-address stack (`call`/
-`ret`), data on an explicit program-managed stack (`r15` = data stack pointer,
-grows down). `r0`–`r3` args, `r0` return, `r0`–`r5` caller-saved, `r6`–`r14`
-callee-saved. Recursion proven: `factorial(5) → 120`, `fib(10) → 55` (tree
-recursion). Spec + worked examples:
-[`compiler/beta/CALLING_CONVENTION.md`](../../../../compiler/beta/CALLING_CONVENTION.md).
-This is the foundation a procedure construct lowers to.
-
-## Open questions
-
-- Interpreter-first vs assembler-first: should beta's *definition* be a reference
-  interpreter (with the assembler as an accelerator checked against it), per the
-  lattice's meaning-by-interpreter principle?
-- What structured-data and calling-convention surface gamma actually needs from
-  beta (drive it from gamma's needs, not speculation).
+- Guard the explicit data stack against overflow.
+- Close the complete `bc.beta` source-to-artifact refinement edge with authority
+  rooted below the compiler being checked.
+- Extend resource budgets only when a higher-rung implementation demonstrates a
+  concrete need; do not import higher-rung language machinery speculatively.
