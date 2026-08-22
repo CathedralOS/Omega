@@ -90,6 +90,7 @@ explicit boundary surfaces and remain in the platform trust ledger.
 - Extend that lower-rung route to the O0 frontend; native and Delta-self-hosted
   execution agree today, while the current Beta-to-Gamma path rejects the
   canonical frontend run and therefore does not yet grant semantic authority.
-- Replace `lowermachine`'s remaining dedicated fixed tables with logical arenas
-  over the checked D0 backing convention. Its source extent now fails explicitly
-  on exhaustion rather than silently truncating the input.
+- Keep the now-logical `lowermachine` table/source arenas within the checked D0
+  backing convention as compiler capacity grows. Compiler tables use integer
+  offsets in one typed backing extent; source storage grows in an explicit byte
+  backing and rejects exhaustion rather than truncating input.

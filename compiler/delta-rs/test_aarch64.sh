@@ -522,15 +522,15 @@ else
   FAIL=$((FAIL+1)); echo "  FAIL self-compile fixpoint: not byte-identical"
 fi
 
-# The Delta-written compiler must never accept a prefix after silently dropping
-# the source tail. Its current fixed backing is explicit and exhaustion is a
-# checked failure until that buffer is replaced by the scalable storage profile.
+# The Delta-written compiler grows its logical source arena one checked cell at
+# a time inside explicit byte backing. It must never accept a prefix after
+# exhausting that backing.
 set +e
 dd if=/dev/zero bs=262145 count=1 2>/dev/null | "$T/lmx" > /dev/null 2>&1
 source_overflow=$?
 set -e
 if [ "$source_overflow" = 2 ]; then
-  PASS=$((PASS+1)); echo "  ok  lowermachine rejects source larger than its fixed backing"
+  PASS=$((PASS+1)); echo "  ok  lowermachine rejects exhausted logical source backing"
 else
   FAIL=$((FAIL+1)); echo "  FAIL lowermachine source overflow: exit $source_overflow, expected 2"
 fi

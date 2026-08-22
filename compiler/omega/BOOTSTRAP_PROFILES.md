@@ -81,6 +81,10 @@ Zero-sized allocations succeed at the aligned cursor. Successful allocations
 are deterministic, monotonic, aligned, and disjoint until a valid bulk reset.
 Handles are indices, not host addresses. The executable canary is
 [`../delta-rs/samples/bootstrap-storage.alp`](../delta-rs/samples/bootstrap-storage.alp).
+The Delta-written `lowermachine.alp` now applies the same convention at compiler
+scale: one explicitly reserved typed extent is partitioned into integer-offset
+logical tables, while source bytes reserve contiguous cells at runtime in a
+separate byte backing. Checked exhaustion cannot compile a retained prefix.
 
 ## O0 — Omega vertical-canary acceptance profile
 

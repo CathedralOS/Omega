@@ -24,21 +24,90 @@ data Main {
     ps: i32; pe: i32; kind: i32; val: i32; cj: i32; tsi: i32; tmi: i32; found: i32; v: i32; di: i32; ek: i32;
     nf: i32; dp: i32; ind: i32; expf: i32; fs: i32; fe: i32; foff: i32; sval: i32; lsi: i32; opnd: i32; cc: i32; mode: i32; laoff: i32; ns: i32;
     aoff: i32; acnt: i32; aeb: i32; omode: i32; oopnd: i32; astore: i32; aidx: i32; rpos: i32; fv: i32; fhipart: i32; flopart: i32; aop: i32; nstr: i32; wlstart: i32; wllen: i32;
-    osp: i32; naop: i32; ncc: i32; nprec: i32; opret: i32; usesio: i32; lstri: i32; wrap: i32; sacnt: i32; saeb: i32; saoff: i32; callmode: i32; ocmode: i32; ocopnd: i32; stoff: i32; stcnt: i32; steb: i32; opaop: [i32; 16]; opcc: [i32; 16]; opprec: [i32; 16];
-    coff: i32; dsize: i32; foffs: [i32; 256]; fcnt: [i32; 256]; feb: [i32; 256]; fdom: [i32; 256];
-    lc: i32; frame: i32; sd: i32; nl: i32; lpend: i32; ldisp: i32; lstgt: i32; lns: [i32; 32]; lne: [i32; 32]; lmi: [i32; 32]; plidx: [i32; 32]; lcs: [i32; 64];
-    vns: [i32; 32]; vne: [i32; 32]; vtag: [i32; 32]; nv: i32; vcc: i32;
-    spls: [i32; 3072]; skl: i32; eskl: i32;
-    etn: [i32; 32]; etne: [i32; 32]; etsz: [i32; 32]; ne: i32; cei: i32; cdtns: i32; cdtne: i32; fc: i32;
-    bns: [i32; 8]; bne: [i32; 8]; bndoff: [i32; 8]; nb: i32; subjoff: i32; payidx: i32; unegate: i32;
+    osp: i32; naop: i32; ncc: i32; nprec: i32; opret: i32; usesio: i32; lstri: i32; wrap: i32; sacnt: i32; saeb: i32; saoff: i32; callmode: i32; ocmode: i32; ocopnd: i32; stoff: i32; stcnt: i32; steb: i32;
+    coff: i32; dsize: i32;
+    lc: i32; frame: i32; sd: i32; nl: i32; lpend: i32; ldisp: i32; lstgt: i32;
+    nv: i32; vcc: i32; skl: i32; eskl: i32;
+    ne: i32; cei: i32; cdtns: i32; cdtne: i32; fc: i32;
+    nb: i32; subjoff: i32; payidx: i32; unegate: i32;
     apbase: i32; aix: i32; scc: i32; mmk: i32;
-    mn: i32; mdecl: i32; cmi: i32; emi: i32; lastws: i32; lastwe: i32; argc: i32; insig: i32; cp: i32; np: i32; pcs: [i32; 64]; hsf: [i32; 64]; mns: [i32; 64]; mne: [i32; 64];
-    pns: [i32; 64]; pne: [i32; 64]; pmi: [i32; 64]; ppidx: [i32; 64];
-    fns: [i32; 256]; fne: [i32; 256];
-    sns: [i32; 3072]; sne: [i32; 3072]; smi: [i32; 3072]; ssi: [i32; 3072];
+    mn: i32; mdecl: i32; cmi: i32; emi: i32; lastws: i32; lastwe: i32; argc: i32; insig: i32; cp: i32; np: i32;
     qa: i32; qb: i32; qc: i32; qd: i32; qk: i32;
-    dig: [i32; 16];
-    buf: [u8; 262144];
+    byte_cursor: i32; typed_cursor: i32; alloc_base: i32; alloc_ok: i32; alloc_pad: i32; storage_ok: i32; source_base: i32;
+    opaop_base: i32; opcc_base: i32; opprec_base: i32;
+    foffs_base: i32; fcnt_base: i32; feb_base: i32; fdom_base: i32;
+    lns_base: i32; lne_base: i32; lmi_base: i32; plidx_base: i32; lcs_base: i32;
+    vns_base: i32; vne_base: i32; vtag_base: i32; spls_base: i32;
+    etn_base: i32; etne_base: i32; etsz_base: i32;
+    bns_base: i32; bne_base: i32; bndoff_base: i32;
+    pcs_base: i32; hsf_base: i32; mns_base: i32; mne_base: i32;
+    pns_base: i32; pne_base: i32; pmi_base: i32; ppidx_base: i32;
+    fns_base: i32; fne_base: i32;
+    sns_base: i32; sne_base: i32; smi_base: i32; ssi_base: i32; dig_base: i32;
+    typed_backing: [i32; 17880];
+    byte_backing: [u8; 262144];
+}
+
+machine Main::reserve_typed(&mut self, count: i32, align: i32) {
+    self.alloc_ok = 0;
+    transition count < 0 { true -> fail() false -> align_check() }
+    state align_check() { transition align <= 0 { true -> fail() false -> pad() } }
+    state pad() { self.alloc_pad = (align - (self.typed_cursor % align)) % align; transition self.alloc_pad <= 17880 - self.typed_cursor { true -> count_check() false -> fail() } }
+    state count_check() { transition count <= 17880 - (self.typed_cursor + self.alloc_pad) { true -> commit() false -> fail() } }
+    state commit() { self.alloc_base = self.typed_cursor + self.alloc_pad; self.typed_cursor = self.alloc_base + count; self.alloc_ok = 1; }
+    state fail() { self.storage_ok = 0; }
+}
+
+machine Main::reserve_byte(&mut self, count: i32, align: i32) {
+    self.alloc_ok = 0;
+    transition count < 0 { true -> fail() false -> align_check() }
+    state align_check() { transition align <= 0 { true -> fail() false -> pad() } }
+    state pad() { self.alloc_pad = (align - (self.byte_cursor % align)) % align; transition self.alloc_pad <= 262144 - self.byte_cursor { true -> count_check() false -> fail() } }
+    state count_check() { transition count <= 262144 - (self.byte_cursor + self.alloc_pad) { true -> commit() false -> fail() } }
+    state commit() { self.alloc_base = self.byte_cursor + self.alloc_pad; self.byte_cursor = self.alloc_base + count; self.alloc_ok = 1; }
+    state fail() { self.storage_ok = 0; }
+}
+
+machine Main::init_storage(&mut self) {
+    self.byte_cursor = 0; self.typed_cursor = 0; self.storage_ok = 1; self.source_base = 0;
+    self.reserve_typed(17880,1); self.storage_ok = self.alloc_ok;
+    self.opaop_base=self.alloc_base;
+    self.opcc_base=self.opaop_base+16;
+    self.opprec_base=self.opcc_base+16;
+    self.foffs_base=self.opprec_base+16;
+    self.fcnt_base=self.foffs_base+256;
+    self.feb_base=self.fcnt_base+256;
+    self.fdom_base=self.feb_base+256;
+    self.lns_base=self.fdom_base+256;
+    self.lne_base=self.lns_base+32;
+    self.lmi_base=self.lne_base+32;
+    self.plidx_base=self.lmi_base+32;
+    self.lcs_base=self.plidx_base+32;
+    self.vns_base=self.lcs_base+64;
+    self.vne_base=self.vns_base+32;
+    self.vtag_base=self.vne_base+32;
+    self.spls_base=self.vtag_base+32;
+    self.etn_base=self.spls_base+3072;
+    self.etne_base=self.etn_base+32;
+    self.etsz_base=self.etne_base+32;
+    self.bns_base=self.etsz_base+32;
+    self.bne_base=self.bns_base+8;
+    self.bndoff_base=self.bne_base+8;
+    self.pcs_base=self.bndoff_base+8;
+    self.hsf_base=self.pcs_base+64;
+    self.mns_base=self.hsf_base+64;
+    self.mne_base=self.mns_base+64;
+    self.pns_base=self.mne_base+64;
+    self.pne_base=self.pns_base+64;
+    self.pmi_base=self.pne_base+64;
+    self.ppidx_base=self.pmi_base+64;
+    self.fns_base=self.ppidx_base+64;
+    self.fne_base=self.fns_base+256;
+    self.sns_base=self.fne_base+256;
+    self.sne_base=self.sns_base+3072;
+    self.smi_base=self.sne_base+3072;
+    self.ssi_base=self.smi_base+3072;
+    self.dig_base=self.ssi_base+3072;
 }
 machine Main::is_word(&mut self, c: i32) -> i32 {
     transition c == 95 { true -> yes()  false -> w1() }
@@ -53,57 +122,57 @@ machine Main::is_word(&mut self, c: i32) -> i32 {
 }
 machine Main::is_state(&mut self, s: i32, e: i32) -> i32 {     // "state"
     transition e - s == 5 { true -> k0()  false -> kno() }
-    state k0() { transition self.buf[s]     == 115 { true -> k1()  false -> kno() } }
-    state k1() { transition self.buf[s + 1] == 116 { true -> k2()  false -> kno() } }
-    state k2() { transition self.buf[s + 2] == 97  { true -> k3()  false -> kno() } }
-    state k3() { transition self.buf[s + 3] == 116 { true -> k4()  false -> kno() } }
-    state k4() { transition self.buf[s + 4] == 101 { true -> kyes() false -> kno() } }
+    state k0() { transition self.byte_backing[self.source_base + s]     == 115 { true -> k1()  false -> kno() } }
+    state k1() { transition self.byte_backing[self.source_base + s + 1] == 116 { true -> k2()  false -> kno() } }
+    state k2() { transition self.byte_backing[self.source_base + s + 2] == 97  { true -> k3()  false -> kno() } }
+    state k3() { transition self.byte_backing[self.source_base + s + 3] == 116 { true -> k4()  false -> kno() } }
+    state k4() { transition self.byte_backing[self.source_base + s + 4] == 101 { true -> kyes() false -> kno() } }
     state kyes() { return 1; }
     state kno()  { return 0; }
 }
 machine Main::is_machine(&mut self, s: i32, e: i32) -> i32 {   // "machine"
     transition e - s == 7 { true -> m0()  false -> mno() }
-    state m0() { transition self.buf[s]     == 109 { true -> m1()  false -> mno() } }
-    state m1() { transition self.buf[s + 1] == 97  { true -> m2()  false -> mno() } }
-    state m2() { transition self.buf[s + 2] == 99  { true -> m3()  false -> mno() } }
-    state m3() { transition self.buf[s + 3] == 104 { true -> m4()  false -> mno() } }
-    state m4() { transition self.buf[s + 4] == 105 { true -> m5()  false -> mno() } }
-    state m5() { transition self.buf[s + 5] == 110 { true -> m6()  false -> mno() } }
-    state m6() { transition self.buf[s + 6] == 101 { true -> myes() false -> mno() } }
+    state m0() { transition self.byte_backing[self.source_base + s]     == 109 { true -> m1()  false -> mno() } }
+    state m1() { transition self.byte_backing[self.source_base + s + 1] == 97  { true -> m2()  false -> mno() } }
+    state m2() { transition self.byte_backing[self.source_base + s + 2] == 99  { true -> m3()  false -> mno() } }
+    state m3() { transition self.byte_backing[self.source_base + s + 3] == 104 { true -> m4()  false -> mno() } }
+    state m4() { transition self.byte_backing[self.source_base + s + 4] == 105 { true -> m5()  false -> mno() } }
+    state m5() { transition self.byte_backing[self.source_base + s + 5] == 110 { true -> m6()  false -> mno() } }
+    state m6() { transition self.byte_backing[self.source_base + s + 6] == 101 { true -> myes() false -> mno() } }
     state myes() { return 1; }
     state mno()  { return 0; }
 }
 machine Main::is_trans(&mut self, s: i32, e: i32) -> i32 {    // "transition"
     transition e - s == 10 { true -> t0()  false -> tno() }
-    state t0() { transition self.buf[s]     == 116 { true -> t1()  false -> tno() } }
-    state t1() { transition self.buf[s + 1] == 114 { true -> t2()  false -> tno() } }
-    state t2() { transition self.buf[s + 2] == 97  { true -> t3()  false -> tno() } }
-    state t3() { transition self.buf[s + 3] == 110 { true -> t4()  false -> tno() } }
-    state t4() { transition self.buf[s + 4] == 115 { true -> t5()  false -> tno() } }
-    state t5() { transition self.buf[s + 5] == 105 { true -> t6()  false -> tno() } }
-    state t6() { transition self.buf[s + 6] == 116 { true -> t7()  false -> tno() } }
-    state t7() { transition self.buf[s + 7] == 105 { true -> t8()  false -> tno() } }
-    state t8() { transition self.buf[s + 8] == 111 { true -> t9()  false -> tno() } }
-    state t9() { transition self.buf[s + 9] == 110 { true -> tyes() false -> tno() } }
+    state t0() { transition self.byte_backing[self.source_base + s]     == 116 { true -> t1()  false -> tno() } }
+    state t1() { transition self.byte_backing[self.source_base + s + 1] == 114 { true -> t2()  false -> tno() } }
+    state t2() { transition self.byte_backing[self.source_base + s + 2] == 97  { true -> t3()  false -> tno() } }
+    state t3() { transition self.byte_backing[self.source_base + s + 3] == 110 { true -> t4()  false -> tno() } }
+    state t4() { transition self.byte_backing[self.source_base + s + 4] == 115 { true -> t5()  false -> tno() } }
+    state t5() { transition self.byte_backing[self.source_base + s + 5] == 105 { true -> t6()  false -> tno() } }
+    state t6() { transition self.byte_backing[self.source_base + s + 6] == 116 { true -> t7()  false -> tno() } }
+    state t7() { transition self.byte_backing[self.source_base + s + 7] == 105 { true -> t8()  false -> tno() } }
+    state t8() { transition self.byte_backing[self.source_base + s + 8] == 111 { true -> t9()  false -> tno() } }
+    state t9() { transition self.byte_backing[self.source_base + s + 9] == 110 { true -> tyes() false -> tno() } }
     state tyes() { return 1; }
     state tno()  { return 0; }
 }
 machine Main::is_true(&mut self, s: i32, e: i32) -> i32 {     // "true"
     transition e - s == 4 { true -> a0()  false -> ano() }
-    state a0() { transition self.buf[s]     == 116 { true -> a1()  false -> ano() } }
-    state a1() { transition self.buf[s + 1] == 114 { true -> a2()  false -> ano() } }
-    state a2() { transition self.buf[s + 2] == 117 { true -> a3()  false -> ano() } }
-    state a3() { transition self.buf[s + 3] == 101 { true -> ayes() false -> ano() } }
+    state a0() { transition self.byte_backing[self.source_base + s]     == 116 { true -> a1()  false -> ano() } }
+    state a1() { transition self.byte_backing[self.source_base + s + 1] == 114 { true -> a2()  false -> ano() } }
+    state a2() { transition self.byte_backing[self.source_base + s + 2] == 117 { true -> a3()  false -> ano() } }
+    state a3() { transition self.byte_backing[self.source_base + s + 3] == 101 { true -> ayes() false -> ano() } }
     state ayes() { return 1; }
     state ano()  { return 0; }
 }
 machine Main::is_false(&mut self, s: i32, e: i32) -> i32 {    // "false"
     transition e - s == 5 { true -> f0()  false -> fno() }
-    state f0() { transition self.buf[s]     == 102 { true -> f1()  false -> fno() } }
-    state f1() { transition self.buf[s + 1] == 97  { true -> f2()  false -> fno() } }
-    state f2() { transition self.buf[s + 2] == 108 { true -> f3()  false -> fno() } }
-    state f3() { transition self.buf[s + 3] == 115 { true -> f4()  false -> fno() } }
-    state f4() { transition self.buf[s + 4] == 101 { true -> fyes() false -> fno() } }
+    state f0() { transition self.byte_backing[self.source_base + s]     == 102 { true -> f1()  false -> fno() } }
+    state f1() { transition self.byte_backing[self.source_base + s + 1] == 97  { true -> f2()  false -> fno() } }
+    state f2() { transition self.byte_backing[self.source_base + s + 2] == 108 { true -> f3()  false -> fno() } }
+    state f3() { transition self.byte_backing[self.source_base + s + 3] == 115 { true -> f4()  false -> fno() } }
+    state f4() { transition self.byte_backing[self.source_base + s + 4] == 101 { true -> fyes() false -> fno() } }
     state fyes() { return 1; }
     state fno()  { return 0; }
 }
@@ -111,7 +180,7 @@ machine Main::streq(&mut self) -> i32 {     // buf[qa..qb) == buf[qc..qd)
     transition self.qb - self.qa == self.qd - self.qc { true -> q0()  false -> qno() }
     state q0()  { self.qk = 0; transition 0 { _ -> ql() } }
     state ql()  { transition self.qa + self.qk < self.qb { true -> qc2()  false -> qyes() } }
-    state qc2() { transition self.buf[self.qa + self.qk] == self.buf[self.qc + self.qk] { true -> qa2()  false -> qno() } }
+    state qc2() { transition self.byte_backing[self.source_base + self.qa + self.qk] == self.byte_backing[self.source_base + self.qc + self.qk] { true -> qa2()  false -> qno() } }
     state qa2() { self.qk = self.qk + 1; transition 0 { _ -> ql() } }
     state qyes(){ return 1; }
     state qno() { return 0; }
@@ -121,10 +190,10 @@ machine Main::emit_int(&mut self) {
     state z()    { write_byte(48); }
     state ex0()  { self.di = 0; transition 0 { _ -> exl() } }
     state exl()  { transition self.v > 0 { true -> ex()  false -> em0() } }
-    state ex()   { self.dig[self.di] = self.v - (self.v / 10) * 10; self.v = self.v / 10; self.di = self.di + 1; transition 0 { _ -> exl() } }
+    state ex()   { self.typed_backing[self.dig_base + self.di] = self.v - (self.v / 10) * 10; self.v = self.v / 10; self.di = self.di + 1; transition 0 { _ -> exl() } }
     state em0()  { self.ek = self.di; transition 0 { _ -> eml() } }
     state eml()  { transition self.ek > 0 { true -> emd()  false -> ed() } }
-    state emd()  { write_byte(48 + self.dig[self.ek - 1]); self.ek = self.ek - 1; transition 0 { _ -> eml() } }
+    state emd()  { write_byte(48 + self.typed_backing[self.dig_base + self.ek - 1]); self.ek = self.ek - 1; transition 0 { _ -> eml() } }
     state ed()   { }
 }
 machine Main::p_movw1(&mut self) {       // "    movz w1, #"
@@ -191,10 +260,10 @@ machine Main::emit_lab(&mut self) {       // <mi> 's' <tsi> then newline   (afte
 }
 machine Main::is_data(&mut self, s: i32, e: i32) -> i32 {     // "data"
     transition e - s == 4 { true -> d0()  false -> dno() }
-    state d0() { transition self.buf[s]     == 100 { true -> d1()  false -> dno() } }
-    state d1() { transition self.buf[s + 1] == 97  { true -> d2()  false -> dno() } }
-    state d2() { transition self.buf[s + 2] == 116 { true -> d3()  false -> dno() } }
-    state d3() { transition self.buf[s + 3] == 97  { true -> dyes() false -> dno() } }
+    state d0() { transition self.byte_backing[self.source_base + s]     == 100 { true -> d1()  false -> dno() } }
+    state d1() { transition self.byte_backing[self.source_base + s + 1] == 97  { true -> d2()  false -> dno() } }
+    state d2() { transition self.byte_backing[self.source_base + s + 2] == 116 { true -> d3()  false -> dno() } }
+    state d3() { transition self.byte_backing[self.source_base + s + 3] == 97  { true -> dyes() false -> dno() } }
     state dyes() { return 1; }
     state dno()  { return 0; }
 }
@@ -236,110 +305,110 @@ machine Main::p_ldrw0(&mut self) {       // "    ldr w0, [x9, #"
 }
 machine Main::is_boundary(&mut self, s: i32, e: i32) -> i32 {  // "boundary"
     transition e - s == 8 { true -> y0()  false -> yno() }
-    state y0() { transition self.buf[s]     == 98  { true -> y1()  false -> yno() } }
-    state y1() { transition self.buf[s + 1] == 111 { true -> y2()  false -> yno() } }
-    state y2() { transition self.buf[s + 2] == 117 { true -> y3()  false -> yno() } }
-    state y3() { transition self.buf[s + 3] == 110 { true -> y4()  false -> yno() } }
-    state y4() { transition self.buf[s + 4] == 100 { true -> y5()  false -> yno() } }
-    state y5() { transition self.buf[s + 5] == 97  { true -> y6()  false -> yno() } }
-    state y6() { transition self.buf[s + 6] == 114 { true -> y7()  false -> yno() } }
-    state y7() { transition self.buf[s + 7] == 121 { true -> yyes() false -> yno() } }
+    state y0() { transition self.byte_backing[self.source_base + s]     == 98  { true -> y1()  false -> yno() } }
+    state y1() { transition self.byte_backing[self.source_base + s + 1] == 111 { true -> y2()  false -> yno() } }
+    state y2() { transition self.byte_backing[self.source_base + s + 2] == 117 { true -> y3()  false -> yno() } }
+    state y3() { transition self.byte_backing[self.source_base + s + 3] == 110 { true -> y4()  false -> yno() } }
+    state y4() { transition self.byte_backing[self.source_base + s + 4] == 100 { true -> y5()  false -> yno() } }
+    state y5() { transition self.byte_backing[self.source_base + s + 5] == 97  { true -> y6()  false -> yno() } }
+    state y6() { transition self.byte_backing[self.source_base + s + 6] == 114 { true -> y7()  false -> yno() } }
+    state y7() { transition self.byte_backing[self.source_base + s + 7] == 121 { true -> yyes() false -> yno() } }
     state yyes() { return 1; }
     state yno()  { return 0; }
 }
 machine Main::is_u8(&mut self, s: i32, e: i32) -> i32 {       // "u8"
     transition e - s == 2 { true -> u0()  false -> uno() }
-    state u0() { transition self.buf[s]     == 117 { true -> u1()  false -> uno() } }
-    state u1() { transition self.buf[s + 1] == 56  { true -> uyes() false -> uno() } }
+    state u0() { transition self.byte_backing[self.source_base + s]     == 117 { true -> u1()  false -> uno() } }
+    state u1() { transition self.byte_backing[self.source_base + s + 1] == 56  { true -> uyes() false -> uno() } }
     state uyes() { return 1; }
     state uno()  { return 0; }
 }
 machine Main::is_let(&mut self, s: i32, e: i32) -> i32 {      // "let"
     transition e - s == 3 { true -> l0()  false -> lno() }
-    state l0() { transition self.buf[s]     == 108 { true -> l1()  false -> lno() } }
-    state l1() { transition self.buf[s + 1] == 101 { true -> l2()  false -> lno() } }
-    state l2() { transition self.buf[s + 2] == 116 { true -> lyes() false -> lno() } }
+    state l0() { transition self.byte_backing[self.source_base + s]     == 108 { true -> l1()  false -> lno() } }
+    state l1() { transition self.byte_backing[self.source_base + s + 1] == 101 { true -> l2()  false -> lno() } }
+    state l2() { transition self.byte_backing[self.source_base + s + 2] == 116 { true -> lyes() false -> lno() } }
     state lyes() { return 1; }
     state lno()  { return 0; }
 }
 machine Main::is_case(&mut self, s: i32, e: i32) -> i32 {     // "case"
     transition e - s == 4 { true -> cs0()  false -> csno() }
-    state cs0() { transition self.buf[s]     == 99  { true -> cs1()  false -> csno() } }  // 'c'
-    state cs1() { transition self.buf[s + 1] == 97  { true -> cs2()  false -> csno() } }  // 'a'
-    state cs2() { transition self.buf[s + 2] == 115 { true -> cs3()  false -> csno() } }  // 's'
-    state cs3() { transition self.buf[s + 3] == 101 { true -> csyes() false -> csno() } } // 'e'
+    state cs0() { transition self.byte_backing[self.source_base + s]     == 99  { true -> cs1()  false -> csno() } }  // 'c'
+    state cs1() { transition self.byte_backing[self.source_base + s + 1] == 97  { true -> cs2()  false -> csno() } }  // 'a'
+    state cs2() { transition self.byte_backing[self.source_base + s + 2] == 115 { true -> cs3()  false -> csno() } }  // 's'
+    state cs3() { transition self.byte_backing[self.source_base + s + 3] == 101 { true -> csyes() false -> csno() } } // 'e'
     state csyes(){ return 1; }
     state csno() { return 0; }
 }
 machine Main::is_wbyte(&mut self, s: i32, e: i32) -> i32 {    // "write_byte"
     transition e - s == 10 { true -> wz0()  false -> wzn() }
-    state wz0() { transition self.buf[s]     == 119 { true -> wz1()  false -> wzn() } }
-    state wz1() { transition self.buf[s + 1] == 114 { true -> wz2()  false -> wzn() } }
-    state wz2() { transition self.buf[s + 2] == 105 { true -> wz3()  false -> wzn() } }
-    state wz3() { transition self.buf[s + 3] == 116 { true -> wz4()  false -> wzn() } }
-    state wz4() { transition self.buf[s + 4] == 101 { true -> wz5()  false -> wzn() } }
-    state wz5() { transition self.buf[s + 5] == 95  { true -> wz6()  false -> wzn() } }
-    state wz6() { transition self.buf[s + 6] == 98  { true -> wz7()  false -> wzn() } }
-    state wz7() { transition self.buf[s + 7] == 121 { true -> wz8()  false -> wzn() } }
-    state wz8() { transition self.buf[s + 8] == 116 { true -> wz9()  false -> wzn() } }
-    state wz9() { transition self.buf[s + 9] == 101 { true -> wzy()  false -> wzn() } }
+    state wz0() { transition self.byte_backing[self.source_base + s]     == 119 { true -> wz1()  false -> wzn() } }
+    state wz1() { transition self.byte_backing[self.source_base + s + 1] == 114 { true -> wz2()  false -> wzn() } }
+    state wz2() { transition self.byte_backing[self.source_base + s + 2] == 105 { true -> wz3()  false -> wzn() } }
+    state wz3() { transition self.byte_backing[self.source_base + s + 3] == 116 { true -> wz4()  false -> wzn() } }
+    state wz4() { transition self.byte_backing[self.source_base + s + 4] == 101 { true -> wz5()  false -> wzn() } }
+    state wz5() { transition self.byte_backing[self.source_base + s + 5] == 95  { true -> wz6()  false -> wzn() } }
+    state wz6() { transition self.byte_backing[self.source_base + s + 6] == 98  { true -> wz7()  false -> wzn() } }
+    state wz7() { transition self.byte_backing[self.source_base + s + 7] == 121 { true -> wz8()  false -> wzn() } }
+    state wz8() { transition self.byte_backing[self.source_base + s + 8] == 116 { true -> wz9()  false -> wzn() } }
+    state wz9() { transition self.byte_backing[self.source_base + s + 9] == 101 { true -> wzy()  false -> wzn() } }
     state wzy()  { return 1; }
     state wzn()  { return 0; }
 }
 machine Main::is_rbyte(&mut self, s: i32, e: i32) -> i32 {    // "read_byte"
     transition e - s == 9 { true -> rz0()  false -> rzn() }
-    state rz0() { transition self.buf[s]     == 114 { true -> rz1()  false -> rzn() } }
-    state rz1() { transition self.buf[s + 1] == 101 { true -> rz2()  false -> rzn() } }
-    state rz2() { transition self.buf[s + 2] == 97  { true -> rz3()  false -> rzn() } }
-    state rz3() { transition self.buf[s + 3] == 100 { true -> rz4()  false -> rzn() } }
-    state rz4() { transition self.buf[s + 4] == 95  { true -> rz5()  false -> rzn() } }
-    state rz5() { transition self.buf[s + 5] == 98  { true -> rz6()  false -> rzn() } }
-    state rz6() { transition self.buf[s + 6] == 121 { true -> rz7()  false -> rzn() } }
-    state rz7() { transition self.buf[s + 7] == 116 { true -> rz8()  false -> rzn() } }
-    state rz8() { transition self.buf[s + 8] == 101 { true -> rzy()  false -> rzn() } }
+    state rz0() { transition self.byte_backing[self.source_base + s]     == 114 { true -> rz1()  false -> rzn() } }
+    state rz1() { transition self.byte_backing[self.source_base + s + 1] == 101 { true -> rz2()  false -> rzn() } }
+    state rz2() { transition self.byte_backing[self.source_base + s + 2] == 97  { true -> rz3()  false -> rzn() } }
+    state rz3() { transition self.byte_backing[self.source_base + s + 3] == 100 { true -> rz4()  false -> rzn() } }
+    state rz4() { transition self.byte_backing[self.source_base + s + 4] == 95  { true -> rz5()  false -> rzn() } }
+    state rz5() { transition self.byte_backing[self.source_base + s + 5] == 98  { true -> rz6()  false -> rzn() } }
+    state rz6() { transition self.byte_backing[self.source_base + s + 6] == 121 { true -> rz7()  false -> rzn() } }
+    state rz7() { transition self.byte_backing[self.source_base + s + 7] == 116 { true -> rz8()  false -> rzn() } }
+    state rz8() { transition self.byte_backing[self.source_base + s + 8] == 101 { true -> rzy()  false -> rzn() } }
     state rzy()  { return 1; }
     state rzn()  { return 0; }
 }
 machine Main::is_minmax(&mut self, s: i32, e: i32) -> i32 {    // "min" -> 1, "max" -> 2, else 0
     transition e - s == 3 { true -> mmz0()  false -> mmzn() }
-    state mmz0() { transition self.buf[s] == 109 { true -> mmz1()  false -> mmzn() } }        // 'm'
-    state mmz1() { transition self.buf[s + 1] == 105 { true -> mmzi()  false -> mmza() } }    // 'i' -> min, else check 'a'
-    state mmzi() { transition self.buf[s + 2] == 110 { true -> mmymin()  false -> mmzn() } }  // 'n'
-    state mmza() { transition self.buf[s + 1] == 97 { true -> mmza2()  false -> mmzn() } }    // 'a'
-    state mmza2(){ transition self.buf[s + 2] == 120 { true -> mmymax()  false -> mmzn() } }  // 'x'
+    state mmz0() { transition self.byte_backing[self.source_base + s] == 109 { true -> mmz1()  false -> mmzn() } }        // 'm'
+    state mmz1() { transition self.byte_backing[self.source_base + s + 1] == 105 { true -> mmzi()  false -> mmza() } }    // 'i' -> min, else check 'a'
+    state mmzi() { transition self.byte_backing[self.source_base + s + 2] == 110 { true -> mmymin()  false -> mmzn() } }  // 'n'
+    state mmza() { transition self.byte_backing[self.source_base + s + 1] == 97 { true -> mmza2()  false -> mmzn() } }    // 'a'
+    state mmza2(){ transition self.byte_backing[self.source_base + s + 2] == 120 { true -> mmymax()  false -> mmzn() } }  // 'x'
     state mmymin(){ return 1; }
     state mmymax(){ return 2; }
     state mmzn()  { return 0; }
 }
 machine Main::is_exitp(&mut self, s: i32, e: i32) -> i32 {    // "exit_process"
     transition e - s == 12 { true -> ez0()  false -> ezn() }
-    state ez0() { transition self.buf[s]      == 101 { true -> ez1()  false -> ezn() } }
-    state ez1() { transition self.buf[s + 1]  == 120 { true -> ez2()  false -> ezn() } }
-    state ez2() { transition self.buf[s + 2]  == 105 { true -> ez3()  false -> ezn() } }
-    state ez3() { transition self.buf[s + 3]  == 116 { true -> ez4()  false -> ezn() } }
-    state ez4() { transition self.buf[s + 4]  == 95  { true -> ez5()  false -> ezn() } }
-    state ez5() { transition self.buf[s + 5]  == 112 { true -> ez6()  false -> ezn() } }
-    state ez6() { transition self.buf[s + 6]  == 114 { true -> ez7()  false -> ezn() } }
-    state ez7() { transition self.buf[s + 7]  == 111 { true -> ez8()  false -> ezn() } }
-    state ez8() { transition self.buf[s + 8]  == 99  { true -> ez9()  false -> ezn() } }
-    state ez9() { transition self.buf[s + 9]  == 101 { true -> eza()  false -> ezn() } }
-    state eza() { transition self.buf[s + 10] == 115 { true -> ezb()  false -> ezn() } }
-    state ezb() { transition self.buf[s + 11] == 115 { true -> ezy()  false -> ezn() } }
+    state ez0() { transition self.byte_backing[self.source_base + s]      == 101 { true -> ez1()  false -> ezn() } }
+    state ez1() { transition self.byte_backing[self.source_base + s + 1]  == 120 { true -> ez2()  false -> ezn() } }
+    state ez2() { transition self.byte_backing[self.source_base + s + 2]  == 105 { true -> ez3()  false -> ezn() } }
+    state ez3() { transition self.byte_backing[self.source_base + s + 3]  == 116 { true -> ez4()  false -> ezn() } }
+    state ez4() { transition self.byte_backing[self.source_base + s + 4]  == 95  { true -> ez5()  false -> ezn() } }
+    state ez5() { transition self.byte_backing[self.source_base + s + 5]  == 112 { true -> ez6()  false -> ezn() } }
+    state ez6() { transition self.byte_backing[self.source_base + s + 6]  == 114 { true -> ez7()  false -> ezn() } }
+    state ez7() { transition self.byte_backing[self.source_base + s + 7]  == 111 { true -> ez8()  false -> ezn() } }
+    state ez8() { transition self.byte_backing[self.source_base + s + 8]  == 99  { true -> ez9()  false -> ezn() } }
+    state ez9() { transition self.byte_backing[self.source_base + s + 9]  == 101 { true -> eza()  false -> ezn() } }
+    state eza() { transition self.byte_backing[self.source_base + s + 10] == 115 { true -> ezb()  false -> ezn() } }
+    state ezb() { transition self.byte_backing[self.source_base + s + 11] == 115 { true -> ezy()  false -> ezn() } }
     state ezy()  { return 1; }
     state ezn()  { return 0; }
 }
 machine Main::is_wline(&mut self, s: i32, e: i32) -> i32 {    // "write_line"
     transition e - s == 10 { true -> lz0()  false -> lzn() }
-    state lz0() { transition self.buf[s]     == 119 { true -> lz1()  false -> lzn() } }
-    state lz1() { transition self.buf[s + 1] == 114 { true -> lz2()  false -> lzn() } }
-    state lz2() { transition self.buf[s + 2] == 105 { true -> lz3()  false -> lzn() } }
-    state lz3() { transition self.buf[s + 3] == 116 { true -> lz4()  false -> lzn() } }
-    state lz4() { transition self.buf[s + 4] == 101 { true -> lz5()  false -> lzn() } }
-    state lz5() { transition self.buf[s + 5] == 95  { true -> lz6()  false -> lzn() } }
-    state lz6() { transition self.buf[s + 6] == 108 { true -> lz7()  false -> lzn() } }
-    state lz7() { transition self.buf[s + 7] == 105 { true -> lz8()  false -> lzn() } }
-    state lz8() { transition self.buf[s + 8] == 110 { true -> lz9()  false -> lzn() } }
-    state lz9() { transition self.buf[s + 9] == 101 { true -> lzy()  false -> lzn() } }
+    state lz0() { transition self.byte_backing[self.source_base + s]     == 119 { true -> lz1()  false -> lzn() } }
+    state lz1() { transition self.byte_backing[self.source_base + s + 1] == 114 { true -> lz2()  false -> lzn() } }
+    state lz2() { transition self.byte_backing[self.source_base + s + 2] == 105 { true -> lz3()  false -> lzn() } }
+    state lz3() { transition self.byte_backing[self.source_base + s + 3] == 116 { true -> lz4()  false -> lzn() } }
+    state lz4() { transition self.byte_backing[self.source_base + s + 4] == 101 { true -> lz5()  false -> lzn() } }
+    state lz5() { transition self.byte_backing[self.source_base + s + 5] == 95  { true -> lz6()  false -> lzn() } }
+    state lz6() { transition self.byte_backing[self.source_base + s + 6] == 108 { true -> lz7()  false -> lzn() } }
+    state lz7() { transition self.byte_backing[self.source_base + s + 7] == 105 { true -> lz8()  false -> lzn() } }
+    state lz8() { transition self.byte_backing[self.source_base + s + 8] == 110 { true -> lz9()  false -> lzn() } }
+    state lz9() { transition self.byte_backing[self.source_base + s + 9] == 101 { true -> lzy()  false -> lzn() } }
     state lzy()  { return 1; }
     state lzn()  { return 0; }
 }
@@ -433,32 +502,32 @@ machine Main::p_ldrw0x29(&mut self) {    // "    ldr w0, [x29, #"
 }
 machine Main::is_return(&mut self, s: i32, e: i32) -> i32 {   // "return"
     transition e - s == 6 { true -> r0()  false -> rno() }
-    state r0() { transition self.buf[s]     == 114 { true -> r1()  false -> rno() } }
-    state r1() { transition self.buf[s + 1] == 101 { true -> r2()  false -> rno() } }
-    state r2() { transition self.buf[s + 2] == 116 { true -> r3()  false -> rno() } }
-    state r3() { transition self.buf[s + 3] == 117 { true -> r4()  false -> rno() } }
-    state r4() { transition self.buf[s + 4] == 114 { true -> r5()  false -> rno() } }
-    state r5() { transition self.buf[s + 5] == 110 { true -> ryes() false -> rno() } }
+    state r0() { transition self.byte_backing[self.source_base + s]     == 114 { true -> r1()  false -> rno() } }
+    state r1() { transition self.byte_backing[self.source_base + s + 1] == 101 { true -> r2()  false -> rno() } }
+    state r2() { transition self.byte_backing[self.source_base + s + 2] == 116 { true -> r3()  false -> rno() } }
+    state r3() { transition self.byte_backing[self.source_base + s + 3] == 117 { true -> r4()  false -> rno() } }
+    state r4() { transition self.byte_backing[self.source_base + s + 4] == 114 { true -> r5()  false -> rno() } }
+    state r5() { transition self.byte_backing[self.source_base + s + 5] == 110 { true -> ryes() false -> rno() } }
     state ryes() { return 1; }
     state rno()  { return 0; }
 }
 machine Main::is_assert(&mut self, s: i32, e: i32) -> i32 {   // "assert"
     transition e - s == 6 { true -> as0()  false -> asno() }
-    state as0() { transition self.buf[s]     == 97  { true -> as1()  false -> asno() } }  // 'a'
-    state as1() { transition self.buf[s + 1] == 115 { true -> as2()  false -> asno() } }  // 's'
-    state as2() { transition self.buf[s + 2] == 115 { true -> as3()  false -> asno() } }  // 's'
-    state as3() { transition self.buf[s + 3] == 101 { true -> as4()  false -> asno() } }  // 'e'
-    state as4() { transition self.buf[s + 4] == 114 { true -> as5()  false -> asno() } }  // 'r'
-    state as5() { transition self.buf[s + 5] == 116 { true -> asyes() false -> asno() } } // 't'
+    state as0() { transition self.byte_backing[self.source_base + s]     == 97  { true -> as1()  false -> asno() } }  // 'a'
+    state as1() { transition self.byte_backing[self.source_base + s + 1] == 115 { true -> as2()  false -> asno() } }  // 's'
+    state as2() { transition self.byte_backing[self.source_base + s + 2] == 115 { true -> as3()  false -> asno() } }  // 's'
+    state as3() { transition self.byte_backing[self.source_base + s + 3] == 101 { true -> as4()  false -> asno() } }  // 'e'
+    state as4() { transition self.byte_backing[self.source_base + s + 4] == 114 { true -> as5()  false -> asno() } }  // 'r'
+    state as5() { transition self.byte_backing[self.source_base + s + 5] == 116 { true -> asyes() false -> asno() } } // 't'
     state asyes(){ return 1; }
     state asno() { return 0; }
 }
 machine Main::is_self(&mut self, s: i32, e: i32) -> i32 {     // "self"
     transition e - s == 4 { true -> z0()  false -> zno() }
-    state z0() { transition self.buf[s]     == 115 { true -> z1()  false -> zno() } }
-    state z1() { transition self.buf[s + 1] == 101 { true -> z2()  false -> zno() } }
-    state z2() { transition self.buf[s + 2] == 108 { true -> z3()  false -> zno() } }
-    state z3() { transition self.buf[s + 3] == 102 { true -> zyes() false -> zno() } }
+    state z0() { transition self.byte_backing[self.source_base + s]     == 115 { true -> z1()  false -> zno() } }
+    state z1() { transition self.byte_backing[self.source_base + s + 1] == 101 { true -> z2()  false -> zno() } }
+    state z2() { transition self.byte_backing[self.source_base + s + 2] == 108 { true -> z3()  false -> zno() } }
+    state z3() { transition self.byte_backing[self.source_base + s + 3] == 102 { true -> zyes() false -> zno() } }
     state zyes() { return 1; }
     state zno()  { return 0; }
 }
@@ -623,8 +692,8 @@ machine Main::emit_prologue(&mut self) {
     }
     state selfnon() { self.cj = 1; transition 0 { _ -> spar() } }
     state spar()  { transition self.cj <= self.cp { true -> spar1()  false -> snself() } }
-    state spar1() { self.p_strw(); self.v = self.cj - 1 + self.hsf[self.mi]; self.emit_int(); self.p_x29suf(); self.v = 8 + 8 * self.cj; self.emit_int(); write_byte(93); write_byte(10); self.cj = self.cj + 1; transition 0 { _ -> spar() } }
-    state snself(){ transition self.hsf[self.mi] == 1 { true -> snself2()  false -> pdone() } }
+    state spar1() { self.p_strw(); self.v = self.cj - 1 + self.typed_backing[self.hsf_base + self.mi]; self.emit_int(); self.p_x29suf(); self.v = 8 + 8 * self.cj; self.emit_int(); write_byte(93); write_byte(10); self.cj = self.cj + 1; transition 0 { _ -> spar() } }
+    state snself(){ transition self.typed_backing[self.hsf_base + self.mi] == 1 { true -> snself2()  false -> pdone() } }
     state snself2(){ self.p_strx0x29(); self.v = self.sd; self.emit_int(); write_byte(93); write_byte(10); transition 0 { _ -> pdone() } }
     state pdone() { }
 }
@@ -641,31 +710,34 @@ machine Main::p_lm(&mut self) {          // "Lm"  (label def, column 0)
 }
 machine Main::main(&mut self) {
     self.n = 0; self.phase = 0; self.depth = 0; self.mi = 0 - 1; self.si = 0; self.pend = 0; self.nf = 0; self.dp = 0; self.ind = 0; self.expf = 0; self.nl = 0; self.lpend = 0; self.ns = 0; self.mn = 0; self.mdecl = 0; self.insig = 0; self.np = 0; self.emi = 0; self.nstr = 0; self.osp = 0; self.usesio = 0; self.skl = 0; self.ne = 0;
-    transition 0 { _ -> rd() }
+    self.init_storage();
+    transition self.storage_ok == 1 { true -> rd() false -> storage_exhausted() }
     state rd()    { self.c = read_byte(); transition self.c < 0 { true -> scan()  false -> store() } }
-    state store() { transition self.n < 1024 * 256 { true -> store2()  false -> source_too_large() } }
-    state store2(){ self.buf[self.n] = self.c; self.n = self.n + 1; transition 0 { _ -> rd() } }
+    state store() { self.reserve_byte(1,1); transition self.alloc_ok == 1 { true -> contiguous() false -> source_too_large() } }
+    state contiguous() { transition self.alloc_base == self.source_base + self.n { true -> store2() false -> storage_exhausted() } }
+    state store2(){ self.byte_backing[self.source_base + self.n] = self.c; self.n = self.n + 1; transition 0 { _ -> rd() } }
     state source_too_large() { self.console.exit_process(2) }
+    state storage_exhausted() { self.console.exit_process(3) }
     state scan()  { self.pos = 0; transition 0 { _ -> sk() } }
     state sk()    { self.wrap = 0; transition self.pos < self.n { true -> ws()  false -> endph() } }
-    state ws()    { transition self.buf[self.pos] <= 32 { true -> wadv()  false -> cm() } }
+    state ws()    { transition self.byte_backing[self.source_base + self.pos] <= 32 { true -> wadv()  false -> cm() } }
     state wadv()  { self.pos = self.pos + 1; transition 0 { _ -> sk() } }
-    state cm()    { transition self.buf[self.pos] == 47 { true -> cm2()  false -> str0() } }
-    state cm2()   { transition self.buf[self.pos + 1] == 47 { true -> cms()  false -> str0() } }
+    state cm()    { transition self.byte_backing[self.source_base + self.pos] == 47 { true -> cm2()  false -> str0() } }
+    state cm2()   { transition self.byte_backing[self.source_base + self.pos + 1] == 47 { true -> cms()  false -> str0() } }
     state cms()   { transition self.pos < self.n { true -> cnl()  false -> endph() } }
-    state cnl()   { transition self.buf[self.pos] == 10 { true -> wadv()  false -> cadv() } }
+    state cnl()   { transition self.byte_backing[self.source_base + self.pos] == 10 { true -> wadv()  false -> cadv() } }
     state cadv()  { self.pos = self.pos + 1; transition 0 { _ -> cms() } }
-    state str0()  { transition self.buf[self.pos] == 34 { true -> stra()  false -> tok() } }
+    state str0()  { transition self.byte_backing[self.source_base + self.pos] == 34 { true -> stra()  false -> tok() } }
     state stra()  { self.pos = self.pos + 1; transition 0 { _ -> ssx() } }
     state ssx()   { transition self.pos < self.n { true -> ss2()  false -> endph() } }
-    state ss2()   { transition self.buf[self.pos] == 34 { true -> wadv()  false -> ssa() } }
+    state ss2()   { transition self.byte_backing[self.source_base + self.pos] == 34 { true -> wadv()  false -> ssa() } }
     state ssa()   { self.pos = self.pos + 1; transition 0 { _ -> ssx() } }
     state tok()   { transition self.phase == 0 { true -> tok0()  false -> tok12() } }
     state tok12() { transition self.phase == 1 { true -> tok1()  false -> tok2() } }
     // ---- phase 0: collect the field table (scalar fields in decl order; offset = 8*index) ----
-    state tok0()  { self.w = self.is_word(self.buf[self.pos]); transition self.w == 1 { true -> word0()  false -> punc0() } }
+    state tok0()  { self.w = self.is_word(self.byte_backing[self.source_base + self.pos]); transition self.w == 1 { true -> word0()  false -> punc0() } }
     state word0() { self.start = self.pos; transition 0 { _ -> wr0() } }
-    state wr0()   { self.w = self.is_word(self.buf[self.pos]); transition self.w == 1 { true -> wa0()  false -> wc0() } }
+    state wr0()   { self.w = self.is_word(self.byte_backing[self.source_base + self.pos]); transition self.w == 1 { true -> wa0()  false -> wc0() } }
     state wa0()   { self.pos = self.pos + 1; transition 0 { _ -> wr0() } }
     state wc0()   { self.w = self.is_data(self.start, self.pos); transition self.w == 1 { true -> setdp()  false -> wc0b() } }
     state setdp() { self.dp = 1; transition 0 { _ -> sk() } }
@@ -674,122 +746,122 @@ machine Main::main(&mut self) {
     state wc0bb() { transition self.ind == 1 { true -> wc0c()  false -> sk() } }
     state wc0c()  { transition self.expf == 1 { true -> ckcase()  false -> ckdom() } }
     // a skipped type token of the last-parsed field: capture `in Wrapping`/`in Saturating` -> fdom[nf-1]
-    state ckdom() { transition self.buf[self.start] == 87 { true -> ckdomw()  false -> ckdoms() } }   // 'W'
-    state ckdomw(){ self.fdom[self.nf - 1] = 1; transition 0 { _ -> sk() } }
-    state ckdoms(){ transition self.buf[self.start] == 83 { true -> ckdomsat()  false -> sk() } }       // 'S'
-    state ckdomsat(){ self.fdom[self.nf - 1] = 2; transition 0 { _ -> sk() } }
+    state ckdom() { transition self.byte_backing[self.source_base + self.start] == 87 { true -> ckdomw()  false -> ckdoms() } }   // 'W'
+    state ckdomw(){ self.typed_backing[self.fdom_base + self.nf - 1] = 1; transition 0 { _ -> sk() } }
+    state ckdoms(){ transition self.byte_backing[self.source_base + self.start] == 83 { true -> ckdomsat()  false -> sk() } }       // 'S'
+    state ckdomsat(){ self.typed_backing[self.fdom_base + self.nf - 1] = 2; transition 0 { _ -> sk() } }
     state ckcase()  { self.w = self.is_case(self.start, self.pos); transition self.w == 1 { true -> casev0()  false -> addF() } }   // 'case X;' enum variant, else a normal field
-    state casev0()  { transition self.buf[self.pos] <= 32 { true -> casev0a()  false -> casev1() } }   // skip ws after 'case'
+    state casev0()  { transition self.byte_backing[self.source_base + self.pos] <= 32 { true -> casev0a()  false -> casev1() } }   // skip ws after 'case'
     state casev0a() { self.pos = self.pos + 1; transition 0 { _ -> casev0() } }
     state casev1()  { self.qa = self.pos; transition 0 { _ -> casevr() } }                              // variant name start
-    state casevr()  { self.w = self.is_word(self.buf[self.pos]); transition self.w == 1 { true -> caseva()  false -> casevd() } }
+    state casevr()  { self.w = self.is_word(self.byte_backing[self.source_base + self.pos]); transition self.w == 1 { true -> caseva()  false -> casevd() } }
     state caseva()  { self.pos = self.pos + 1; transition 0 { _ -> casevr() } }
-    state casevd()  { self.vns[self.nv] = self.qa; self.vne[self.nv] = self.pos; self.vtag[self.nv] = self.vcc; self.nv = self.nv + 1; self.vcc = self.vcc + 1; self.expf = 0; transition 0 { _ -> cpc0() } }
+    state casevd()  { self.typed_backing[self.vns_base + self.nv] = self.qa; self.typed_backing[self.vne_base + self.nv] = self.pos; self.typed_backing[self.vtag_base + self.nv] = self.vcc; self.nv = self.nv + 1; self.vcc = self.vcc + 1; self.expf = 0; transition 0 { _ -> cpc0() } }
     // count this variant's payload fields (one per ':' in its `(...)`) and size the enum to the widest variant
-    state cpc0()  { self.fc = 0; transition self.buf[self.pos] == 40 { true -> cpc1()  false -> regenum() } }   // '(' -> has payload
+    state cpc0()  { self.fc = 0; transition self.byte_backing[self.source_base + self.pos] == 40 { true -> cpc1()  false -> regenum() } }   // '(' -> has payload
     state cpc1()  { self.pos = self.pos + 1; transition 0 { _ -> cpcscan() } }
-    state cpcscan(){ transition self.buf[self.pos] == 41 { true -> regenum()  false -> cpcchk() } }   // ')' -> done counting
-    state cpcchk(){ transition self.buf[self.pos] == 58 { true -> cpcinc()  false -> cpcadv() } }     // ':' -> one payload field
+    state cpcscan(){ transition self.byte_backing[self.source_base + self.pos] == 41 { true -> regenum()  false -> cpcchk() } }   // ')' -> done counting
+    state cpcchk(){ transition self.byte_backing[self.source_base + self.pos] == 58 { true -> cpcinc()  false -> cpcadv() } }     // ':' -> one payload field
     state cpcinc(){ self.fc = self.fc + 1; self.pos = self.pos + 1; transition 0 { _ -> cpcscan() } }
     state cpcadv(){ self.pos = self.pos + 1; transition 0 { _ -> cpcscan() } }
     state regenum(){ transition self.cei == 0 - 1 { true -> regnew()  false -> regupd() } }   // first case of this enum -> register; else widen
-    state regnew(){ self.etn[self.ne] = self.cdtns; self.etne[self.ne] = self.cdtne; self.etsz[self.ne] = 8 + 8 * self.fc; self.cei = self.ne; self.ne = self.ne + 1; transition 0 { _ -> sk() } }
-    state regupd(){ transition 8 + 8 * self.fc > self.etsz[self.cei] { true -> regbig()  false -> sk() } }
-    state regbig(){ self.etsz[self.cei] = 8 + 8 * self.fc; transition 0 { _ -> sk() } }
-    state addF()  { self.fns[self.nf] = self.start; self.fne[self.nf] = self.pos; self.foffs[self.nf] = self.coff; self.fcnt[self.nf] = 0; self.feb[self.nf] = 0; self.fdom[self.nf] = 0; transition 0 { _ -> ftc() } }
-    state ftc()   { transition self.buf[self.pos] == 58 { true -> ftc2()  false -> ftadv() } }     // skip to ':'
+    state regnew(){ self.typed_backing[self.etn_base + self.ne] = self.cdtns; self.typed_backing[self.etne_base + self.ne] = self.cdtne; self.typed_backing[self.etsz_base + self.ne] = 8 + 8 * self.fc; self.cei = self.ne; self.ne = self.ne + 1; transition 0 { _ -> sk() } }
+    state regupd(){ transition 8 + 8 * self.fc > self.typed_backing[self.etsz_base + self.cei] { true -> regbig()  false -> sk() } }
+    state regbig(){ self.typed_backing[self.etsz_base + self.cei] = 8 + 8 * self.fc; transition 0 { _ -> sk() } }
+    state addF()  { self.typed_backing[self.fns_base + self.nf] = self.start; self.typed_backing[self.fne_base + self.nf] = self.pos; self.typed_backing[self.foffs_base + self.nf] = self.coff; self.typed_backing[self.fcnt_base + self.nf] = 0; self.typed_backing[self.feb_base + self.nf] = 0; self.typed_backing[self.fdom_base + self.nf] = 0; transition 0 { _ -> ftc() } }
+    state ftc()   { transition self.byte_backing[self.source_base + self.pos] == 58 { true -> ftc2()  false -> ftadv() } }     // skip to ':'
     state ftadv() { self.pos = self.pos + 1; transition 0 { _ -> ftc() } }
     state ftc2()  { self.pos = self.pos + 1; transition 0 { _ -> ftw() } }                          // past ':'
-    state ftw()   { transition self.buf[self.pos] <= 32 { true -> ftw2()  false -> ftt() } }
+    state ftw()   { transition self.byte_backing[self.source_base + self.pos] <= 32 { true -> ftw2()  false -> ftt() } }
     state ftw2()  { self.pos = self.pos + 1; transition 0 { _ -> ftw() } }
-    state ftt()   { transition self.buf[self.pos] == 91 { true -> farr()  false -> ftt2() } }       // '[' -> array type
-    state ftt2()  { transition self.buf[self.pos] <= 90 { true -> ftname()  false -> fscal() } }    // uppercase -> enum-or-boundary; else scalar
+    state ftt()   { transition self.byte_backing[self.source_base + self.pos] == 91 { true -> farr()  false -> ftt2() } }       // '[' -> array type
+    state ftt2()  { transition self.byte_backing[self.source_base + self.pos] <= 90 { true -> ftname()  false -> fscal() } }    // uppercase -> enum-or-boundary; else scalar
     state ftname(){ self.start = self.pos; transition 0 { _ -> ftnr() } }                            // capture the type name to look it up
-    state ftnr()  { self.w = self.is_word(self.buf[self.pos]); transition self.w == 1 { true -> ftna()  false -> ftne() } }
+    state ftnr()  { self.w = self.is_word(self.byte_backing[self.source_base + self.pos]); transition self.w == 1 { true -> ftna()  false -> ftne() } }
     state ftna()  { self.pos = self.pos + 1; transition 0 { _ -> ftnr() } }
     state ftne()  { self.qa = self.start; self.qb = self.pos; self.cj = 0; transition 0 { _ -> ftelk() } }
     state ftelk() { transition self.cj < self.ne { true -> ftelkc()  false -> fbnd() } }             // not a known enum -> boundary (size 0)
-    state ftelkc(){ self.qc = self.etn[self.cj]; self.qd = self.etne[self.cj]; self.w = self.streq(); transition self.w == 1 { true -> ftelkh()  false -> ftelkn() } }
-    state ftelkh(){ self.coff = self.coff + self.etsz[self.cj]; transition 0 { _ -> fdone() } }      // enum field: reserve tag + widest payload
+    state ftelkc(){ self.qc = self.typed_backing[self.etn_base + self.cj]; self.qd = self.typed_backing[self.etne_base + self.cj]; self.w = self.streq(); transition self.w == 1 { true -> ftelkh()  false -> ftelkn() } }
+    state ftelkh(){ self.coff = self.coff + self.typed_backing[self.etsz_base + self.cj]; transition 0 { _ -> fdone() } }      // enum field: reserve tag + widest payload
     state ftelkn(){ self.cj = self.cj + 1; transition 0 { _ -> ftelk() } }
     state fbnd()  { transition 0 { _ -> fdone() } }                                                 // boundary (Console): size 0
     state fscal() { self.coff = self.coff + 8; transition 0 { _ -> fdone() } }                      // scalar: 8
     state farr()  { self.pos = self.pos + 1; transition 0 { _ -> farw() } }                          // past '['
-    state farw()  { transition self.buf[self.pos] <= 32 { true -> farw2()  false -> fare() } }
+    state farw()  { transition self.byte_backing[self.source_base + self.pos] <= 32 { true -> farw2()  false -> fare() } }
     state farw2() { self.pos = self.pos + 1; transition 0 { _ -> farw() } }
     state fare()  { self.start = self.pos; transition 0 { _ -> farr2() } }                           // capture element type
-    state farr2() { self.w = self.is_word(self.buf[self.pos]); transition self.w == 1 { true -> fara()  false -> faret() } }
+    state farr2() { self.w = self.is_word(self.byte_backing[self.source_base + self.pos]); transition self.w == 1 { true -> fara()  false -> faret() } }
     state fara()  { self.pos = self.pos + 1; transition 0 { _ -> farr2() } }
     state faret() { self.w = self.is_u8(self.start, self.pos); transition self.w == 1 { true -> faeb1()  false -> faeb8() } }
-    state faeb1() { self.feb[self.nf] = 1; transition 0 { _ -> facnt() } }
-    state faeb8() { self.feb[self.nf] = 8; transition 0 { _ -> facnt() } }
-    state facnt() { transition self.buf[self.pos] == 59 { true -> facn2()  false -> facadv() } }     // skip to ';' inside []
+    state faeb1() { self.typed_backing[self.feb_base + self.nf] = 1; transition 0 { _ -> facnt() } }
+    state faeb8() { self.typed_backing[self.feb_base + self.nf] = 8; transition 0 { _ -> facnt() } }
+    state facnt() { transition self.byte_backing[self.source_base + self.pos] == 59 { true -> facn2()  false -> facadv() } }     // skip to ';' inside []
     state facadv(){ self.pos = self.pos + 1; transition 0 { _ -> facnt() } }
     state facn2() { self.pos = self.pos + 1; transition 0 { _ -> facw() } }                          // past ';'
-    state facw()  { transition self.buf[self.pos] <= 32 { true -> facw2()  false -> facd() } }
+    state facw()  { transition self.byte_backing[self.source_base + self.pos] <= 32 { true -> facw2()  false -> facd() } }
     state facw2() { self.pos = self.pos + 1; transition 0 { _ -> facw() } }
-    state facd()  { transition self.buf[self.pos] < 48 { true -> fasz()  false -> facd2() } }
-    state facd2() { transition self.buf[self.pos] > 57 { true -> fasz()  false -> facacc() } }
-    state facacc(){ self.fcnt[self.nf] = self.fcnt[self.nf] * 10 + self.buf[self.pos] - 48; self.pos = self.pos + 1; transition 0 { _ -> facw() } }
-    state fasz()  { self.coff = self.coff + self.fcnt[self.nf] * self.feb[self.nf]; transition 0 { _ -> fdone() } }
+    state facd()  { transition self.byte_backing[self.source_base + self.pos] < 48 { true -> fasz()  false -> facd2() } }
+    state facd2() { transition self.byte_backing[self.source_base + self.pos] > 57 { true -> fasz()  false -> facacc() } }
+    state facacc(){ self.typed_backing[self.fcnt_base + self.nf] = self.typed_backing[self.fcnt_base + self.nf] * 10 + self.byte_backing[self.source_base + self.pos] - 48; self.pos = self.pos + 1; transition 0 { _ -> facw() } }
+    state fasz()  { self.coff = self.coff + self.typed_backing[self.fcnt_base + self.nf] * self.typed_backing[self.feb_base + self.nf]; transition 0 { _ -> fdone() } }
     state fdone() { self.nf = self.nf + 1; self.expf = 0; transition 0 { _ -> sk() } }
-    state punc0() { transition self.buf[self.pos] == 123 { true -> opn0()  false -> p0b() } }
+    state punc0() { transition self.byte_backing[self.source_base + self.pos] == 123 { true -> opn0()  false -> p0b() } }
     state opn0()  { transition self.dp == 1 { true -> opn0b()  false -> p0adv() } }
     state opn0b() { self.ind = 1; self.expf = 1; self.dp = 0; self.coff = 0; self.vcc = 0; self.pos = self.pos + 1; transition 0 { _ -> sk() } }
-    state p0b()   { transition self.buf[self.pos] == 125 { true -> cls0()  false -> p0c() } }
+    state p0b()   { transition self.byte_backing[self.source_base + self.pos] == 125 { true -> cls0()  false -> p0c() } }
     state cls0()  { self.ind = 0; self.pos = self.pos + 1; transition 0 { _ -> sk() } }
-    state p0c()   { transition self.buf[self.pos] == 59 { true -> semi0()  false -> p0adv() } }
+    state p0c()   { transition self.byte_backing[self.source_base + self.pos] == 59 { true -> semi0()  false -> p0adv() } }
     state semi0() { transition self.ind == 1 { true -> semi0b()  false -> p0adv() } }
     state semi0b(){ self.expf = 1; self.pos = self.pos + 1; transition 0 { _ -> sk() } }
     state p0adv() { self.pos = self.pos + 1; transition 0 { _ -> sk() } }
     // ---- pass 1: collect state labels (mi over depth-0 machines, si over depth-1 states) ----
-    state tok1()  { self.w = self.is_word(self.buf[self.pos]); transition self.w == 1 { true -> word1()  false -> punc1() } }
-    state punc1() { transition self.buf[self.pos] == 123 { true -> opn1()  false -> p1b() } }
+    state tok1()  { self.w = self.is_word(self.byte_backing[self.source_base + self.pos]); transition self.w == 1 { true -> word1()  false -> punc1() } }
+    state punc1() { transition self.byte_backing[self.source_base + self.pos] == 123 { true -> opn1()  false -> p1b() } }
     state opn1()  { self.depth = self.depth + 1; self.pos = self.pos + 1; transition 0 { _ -> sk() } }
-    state p1b()   { transition self.buf[self.pos] == 125 { true -> cls1()  false -> p1c() } }
-    state p1c()   { transition self.buf[self.pos] == 40 { true -> mname()  false -> p1d() } }
-    state p1d()   { transition self.buf[self.pos] == 58 { true -> colon()  false -> p1e() } }    // ':'
+    state p1b()   { transition self.byte_backing[self.source_base + self.pos] == 125 { true -> cls1()  false -> p1c() } }
+    state p1c()   { transition self.byte_backing[self.source_base + self.pos] == 40 { true -> mname()  false -> p1d() } }
+    state p1d()   { transition self.byte_backing[self.source_base + self.pos] == 58 { true -> colon()  false -> p1e() } }    // ':'
     state colon() { transition self.insig == 1 { true -> coln2()  false -> padv1() } }
-    state coln2() { self.pns[self.np] = self.lastws; self.pne[self.np] = self.lastwe; self.pmi[self.np] = self.mi; self.ppidx[self.np] = self.pcs[self.mi]; self.np = self.np + 1; self.pcs[self.mi] = self.pcs[self.mi] + 1; self.pos = self.pos + 1; transition 0 { _ -> sk() } }
-    state p1e()   { transition self.buf[self.pos] == 41 { true -> rparen()  false -> padv1() } } // ')'
+    state coln2() { self.typed_backing[self.pns_base + self.np] = self.lastws; self.typed_backing[self.pne_base + self.np] = self.lastwe; self.typed_backing[self.pmi_base + self.np] = self.mi; self.typed_backing[self.ppidx_base + self.np] = self.typed_backing[self.pcs_base + self.mi]; self.np = self.np + 1; self.typed_backing[self.pcs_base + self.mi] = self.typed_backing[self.pcs_base + self.mi] + 1; self.pos = self.pos + 1; transition 0 { _ -> sk() } }
+    state p1e()   { transition self.byte_backing[self.source_base + self.pos] == 41 { true -> rparen()  false -> padv1() } } // ')'
     state rparen(){ transition self.insig == 1 { true -> rpar2()  false -> padv1() } }
     state rpar2() { self.insig = 0; self.pos = self.pos + 1; transition 0 { _ -> sk() } }
     state mname() { transition self.mdecl == 1 { true -> mrec()  false -> p1d() } }
-    state mrec()  { self.mns[self.mi] = self.lastws; self.mne[self.mi] = self.lastwe; self.mn = self.mi + 1; self.mdecl = 0; self.insig = 1; transition self.lastwe - self.lastws == 4 { true -> mck0()  false -> mrecd() } }
-    state mck0()  { transition self.buf[self.lastws] == 109 { true -> mck1()  false -> mrecd() } }
-    state mck1()  { transition self.buf[self.lastws + 1] == 97 { true -> mck2()  false -> mrecd() } }
-    state mck2()  { transition self.buf[self.lastws + 2] == 105 { true -> mck3()  false -> mrecd() } }
-    state mck3()  { transition self.buf[self.lastws + 3] == 110 { true -> mckok()  false -> mrecd() } }
+    state mrec()  { self.typed_backing[self.mns_base + self.mi] = self.lastws; self.typed_backing[self.mne_base + self.mi] = self.lastwe; self.mn = self.mi + 1; self.mdecl = 0; self.insig = 1; transition self.lastwe - self.lastws == 4 { true -> mck0()  false -> mrecd() } }
+    state mck0()  { transition self.byte_backing[self.source_base + self.lastws] == 109 { true -> mck1()  false -> mrecd() } }
+    state mck1()  { transition self.byte_backing[self.source_base + self.lastws + 1] == 97 { true -> mck2()  false -> mrecd() } }
+    state mck2()  { transition self.byte_backing[self.source_base + self.lastws + 2] == 105 { true -> mck3()  false -> mrecd() } }
+    state mck3()  { transition self.byte_backing[self.source_base + self.lastws + 3] == 110 { true -> mckok()  false -> mrecd() } }
     state mckok() { self.emi = self.mi; transition 0 { _ -> mrecd() } }
     state mrecd() { self.pos = self.pos + 1; transition 0 { _ -> sk() } }
     state cls1()  { self.depth = self.depth - 1; self.pos = self.pos + 1; transition 0 { _ -> sk() } }
     state padv1() { self.pos = self.pos + 1; transition 0 { _ -> sk() } }
     state word1() { self.start = self.pos; transition 0 { _ -> wr1() } }
-    state wr1()   { self.w = self.is_word(self.buf[self.pos]); transition self.w == 1 { true -> wa1()  false -> wlw() } }
+    state wr1()   { self.w = self.is_word(self.byte_backing[self.source_base + self.pos]); transition self.w == 1 { true -> wa1()  false -> wlw() } }
     state wlw()   { self.lastws = self.start; self.lastwe = self.pos; transition self.insig == 1 { true -> wsig()  false -> wc1() } }
     state wsig()  { self.w = self.is_self(self.start, self.pos); transition self.w == 1 { true -> wsig2()  false -> wc1() } }
-    state wsig2() { self.hsf[self.mi] = 1; transition 0 { _ -> wc1() } }
+    state wsig2() { self.typed_backing[self.hsf_base + self.mi] = 1; transition 0 { _ -> wc1() } }
     state wa1()   { self.pos = self.pos + 1; transition 0 { _ -> wr1() } }
     state wc1()   { transition self.pend == 1 { true -> addS()  false -> wc1b() } }
     state wc1b()  { transition self.lpend == 1 { true -> addL()  false -> ck1m() } }
-    state addL()  { self.lns[self.nl] = self.start; self.lne[self.nl] = self.pos; self.lmi[self.nl] = self.mi; self.plidx[self.nl] = self.lcs[self.mi]; self.nl = self.nl + 1; self.lcs[self.mi] = self.lcs[self.mi] + 1; self.lpend = 0; transition 0 { _ -> sk() } }
-    state addS()  { self.sns[self.ns] = self.start; transition 0 { _ -> addS2() } }
-    state addS2() { self.sne[self.ns] = self.pos; self.smi[self.ns] = self.mi; self.ssi[self.ns] = self.si; self.spls[self.ns] = 0 - 1; transition 0 { _ -> ckspar() } }
+    state addL()  { self.typed_backing[self.lns_base + self.nl] = self.start; self.typed_backing[self.lne_base + self.nl] = self.pos; self.typed_backing[self.lmi_base + self.nl] = self.mi; self.typed_backing[self.plidx_base + self.nl] = self.typed_backing[self.lcs_base + self.mi]; self.nl = self.nl + 1; self.typed_backing[self.lcs_base + self.mi] = self.typed_backing[self.lcs_base + self.mi] + 1; self.lpend = 0; transition 0 { _ -> sk() } }
+    state addS()  { self.typed_backing[self.sns_base + self.ns] = self.start; transition 0 { _ -> addS2() } }
+    state addS2() { self.typed_backing[self.sne_base + self.ns] = self.pos; self.typed_backing[self.smi_base + self.ns] = self.mi; self.typed_backing[self.ssi_base + self.ns] = self.si; self.typed_backing[self.spls_base + self.ns] = 0 - 1; transition 0 { _ -> ckspar() } }
     // state parameter: `state got(v: i32)` registers v as a machine local (slot after params), and
     // records spls[state] = that local's index so an arm `got(EXPR)` can store EXPR to it before branching.
-    state ckspar(){ self.scc = 0; transition self.buf[self.pos] == 40 { true -> spar0()  false -> addSf() } }   // '(' -> params; reset the param counter
+    state ckspar(){ self.scc = 0; transition self.byte_backing[self.source_base + self.pos] == 40 { true -> spar0()  false -> addSf() } }   // '(' -> params; reset the param counter
     state spar0() { self.pos = self.pos + 1; transition 0 { _ -> sparw() } }
-    state sparw() { transition self.buf[self.pos] <= 32 { true -> sparws()  false -> sparck() } }
+    state sparw() { transition self.byte_backing[self.source_base + self.pos] <= 32 { true -> sparws()  false -> sparck() } }
     state sparws(){ self.pos = self.pos + 1; transition 0 { _ -> sparw() } }
-    state sparck(){ transition self.buf[self.pos] == 41 { true -> addSf()  false -> spar1() } }   // ')' -> empty params
+    state sparck(){ transition self.byte_backing[self.source_base + self.pos] == 41 { true -> addSf()  false -> spar1() } }   // ')' -> empty params
     state spar1() { self.start = self.pos; transition 0 { _ -> sparr() } }
-    state sparr() { self.w = self.is_word(self.buf[self.pos]); transition self.w == 1 { true -> spara()  false -> spare() } }
+    state sparr() { self.w = self.is_word(self.byte_backing[self.source_base + self.pos]); transition self.w == 1 { true -> spara()  false -> spare() } }
     state spara() { self.pos = self.pos + 1; transition 0 { _ -> sparr() } }
-    state spare() { self.lns[self.nl] = self.start; self.lne[self.nl] = self.pos; self.lmi[self.nl] = self.mi; self.plidx[self.nl] = self.lcs[self.mi]; transition self.scc == 0 { true -> spsetf()  false -> sparx() } }   // each param is a consecutive local
-    state spsetf(){ self.spls[self.ns] = self.lcs[self.mi]; transition 0 { _ -> sparx() } }   // the FIRST param's local index is spls[state]
-    state sparx() { self.nl = self.nl + 1; self.lcs[self.mi] = self.lcs[self.mi] + 1; self.scc = self.scc + 1; transition 0 { _ -> sparnx() } }
-    state sparnx(){ transition self.buf[self.pos] == 41 { true -> addSf()  false -> sparnc() } }   // ')' -> done
-    state sparnc(){ transition self.buf[self.pos] == 44 { true -> sparcom()  false -> sparadv() } }   // ',' -> next param, else skip the ': type' chars
+    state spare() { self.typed_backing[self.lns_base + self.nl] = self.start; self.typed_backing[self.lne_base + self.nl] = self.pos; self.typed_backing[self.lmi_base + self.nl] = self.mi; self.typed_backing[self.plidx_base + self.nl] = self.typed_backing[self.lcs_base + self.mi]; transition self.scc == 0 { true -> spsetf()  false -> sparx() } }   // each param is a consecutive local
+    state spsetf(){ self.typed_backing[self.spls_base + self.ns] = self.typed_backing[self.lcs_base + self.mi]; transition 0 { _ -> sparx() } }   // the FIRST param's local index is spls[state]
+    state sparx() { self.nl = self.nl + 1; self.typed_backing[self.lcs_base + self.mi] = self.typed_backing[self.lcs_base + self.mi] + 1; self.scc = self.scc + 1; transition 0 { _ -> sparnx() } }
+    state sparnx(){ transition self.byte_backing[self.source_base + self.pos] == 41 { true -> addSf()  false -> sparnc() } }   // ')' -> done
+    state sparnc(){ transition self.byte_backing[self.source_base + self.pos] == 44 { true -> sparcom()  false -> sparadv() } }   // ',' -> next param, else skip the ': type' chars
     state sparcom(){ self.pos = self.pos + 1; transition 0 { _ -> sparw() } }
     state sparadv(){ self.pos = self.pos + 1; transition 0 { _ -> sparnx() } }
     state addSf() { self.ns = self.ns + 1; self.si = self.si + 1; self.pend = 0; transition 0 { _ -> sk() } }
@@ -797,26 +869,26 @@ machine Main::main(&mut self) {
     state ck1l()  { self.w = self.is_let(self.start, self.pos); transition self.w == 1 { true -> setL1()  false -> ck1s() } }
     state setL1() { self.lpend = 1; transition 0 { _ -> sk() } }
     state newM1() { transition self.depth == 0 { true -> nm1()  false -> sk() } }
-    state nm1()   { self.mi = self.mi + 1; self.si = 0; self.mdecl = 1; self.hsf[self.mi] = 0; transition 0 { _ -> sk() } }
+    state nm1()   { self.mi = self.mi + 1; self.si = 0; self.mdecl = 1; self.typed_backing[self.hsf_base + self.mi] = 0; transition 0 { _ -> sk() } }
     state ck1s()  { transition self.depth == 1 { true -> ck1s2()  false -> sk() } }
     state ck1s2() { self.w = self.is_state(self.start, self.pos); transition self.w == 1 { true -> setP1()  false -> sk() } }
     state setP1() { self.pend = 1; transition 0 { _ -> sk() } }
     // ---- pass 2: find the first `transition`, skip its subject, emit pop + arm dispatch ----
-    state tok2()  { self.w = self.is_word(self.buf[self.pos]); transition self.w == 1 { true -> word2()  false -> padv2() } }
+    state tok2()  { self.w = self.is_word(self.byte_backing[self.source_base + self.pos]); transition self.w == 1 { true -> word2()  false -> padv2() } }
     state padv2() { self.pos = self.pos + 1; transition 0 { _ -> sk() } }
     state word2() { self.start = self.pos; transition 0 { _ -> wr2() } }
-    state wr2()   { self.w = self.is_word(self.buf[self.pos]); transition self.w == 1 { true -> wa2()  false -> wc2() } }
+    state wr2()   { self.w = self.is_word(self.byte_backing[self.source_base + self.pos]); transition self.w == 1 { true -> wa2()  false -> wc2() } }
     state wa2()   { self.pos = self.pos + 1; transition 0 { _ -> wr2() } }
     state wc2()   { self.w = self.is_boundary(self.start, self.pos); transition self.w == 1 { true -> bskip()  false -> wc2m() } }
     state wc2m()  { self.w = self.is_machine(self.start, self.pos); transition self.w == 1 { true -> nm2()  false -> ck2t() } }
-    state bskip() { transition self.buf[self.pos] == 123 { true -> bskip2()  false -> bsadv() } }   // skip to '{'
+    state bskip() { transition self.byte_backing[self.source_base + self.pos] == 123 { true -> bskip2()  false -> bsadv() } }   // skip to '{'
     state bsadv() { self.pos = self.pos + 1; transition 0 { _ -> bskip() } }
-    state bskip2(){ transition self.buf[self.pos] == 125 { true -> bskip3()  false -> bsadv2() } }   // skip to '}' (no nested braces in a boundary trait)
+    state bskip2(){ transition self.byte_backing[self.source_base + self.pos] == 125 { true -> bskip3()  false -> bsadv2() } }   // skip to '}' (no nested braces in a boundary trait)
     state bsadv2(){ self.pos = self.pos + 1; transition 0 { _ -> bskip2() } }
     state bskip3(){ self.pos = self.pos + 1; transition 0 { _ -> sk() } }
     state nm2()   { transition self.mi < 0 { true -> nm2b()  false -> nm2a() } }   // emit previous machine's epilogue first (unless this is the first)
     state nm2a()  { self.emit_epilogue(); transition 0 { _ -> nm2b() } }
-    state nm2b()  { self.mi = self.mi + 1; self.lsi = 0; self.cp = self.pcs[self.mi]; self.sd = 16 + 8 * (self.pcs[self.mi] + self.lcs[self.mi]); self.frame = (31 + 8 * self.hsf[self.mi] + 8 * (self.pcs[self.mi] + self.lcs[self.mi])) / 16 * 16; transition 0 { _ -> nm2c() } }
+    state nm2b()  { self.mi = self.mi + 1; self.lsi = 0; self.cp = self.typed_backing[self.pcs_base + self.mi]; self.sd = 16 + 8 * (self.typed_backing[self.pcs_base + self.mi] + self.typed_backing[self.lcs_base + self.mi]); self.frame = (31 + 8 * self.typed_backing[self.hsf_base + self.mi] + 8 * (self.typed_backing[self.pcs_base + self.mi] + self.typed_backing[self.lcs_base + self.mi])) / 16 * 16; transition 0 { _ -> nm2c() } }
     state nm2c()  { self.emit_prologue(); transition 0 { _ -> sk() } }
     state ck2t()  { self.w = self.is_trans(self.start, self.pos); transition self.w == 1 { true -> subjinit()  false -> ck2s() } }
     state subjinit(){ self.mode = 0; self.opnd = 0; transition 0 { _ -> subj0() } }
@@ -833,111 +905,111 @@ machine Main::main(&mut self) {
     // prior drop behavior). Reuses lstgt + mode 2 + ltStore, exactly like a `let` initializer store.
     state lasgn0(){ self.qa = self.start; self.qb = self.pos; self.cj = 0; transition 0 { _ -> lalk() } }
     state lalk()  { transition self.cj < self.nl { true -> lalkc()  false -> sk() } }
-    state lalkc() { transition self.lmi[self.cj] == self.mi { true -> lalkc2()  false -> lalkn() } }
-    state lalkc2(){ self.qc = self.lns[self.cj]; self.qd = self.lne[self.cj]; self.w = self.streq(); transition self.w == 1 { true -> lalkh()  false -> lalkn() } }
-    state lalkh() { self.lstgt = 16 + 8 * (self.pcs[self.mi] + self.plidx[self.cj]); transition 0 { _ -> laeq() } }
+    state lalkc() { transition self.typed_backing[self.lmi_base + self.cj] == self.mi { true -> lalkc2()  false -> lalkn() } }
+    state lalkc2(){ self.qc = self.typed_backing[self.lns_base + self.cj]; self.qd = self.typed_backing[self.lne_base + self.cj]; self.w = self.streq(); transition self.w == 1 { true -> lalkh()  false -> lalkn() } }
+    state lalkh() { self.lstgt = 16 + 8 * (self.typed_backing[self.pcs_base + self.mi] + self.typed_backing[self.plidx_base + self.cj]); transition 0 { _ -> laeq() } }
     state lalkn() { self.cj = self.cj + 1; transition 0 { _ -> lalk() } }
-    state laeq()  { transition self.buf[self.pos] <= 32 { true -> laeqa()  false -> laeqck() } }   // skip ws to '='
+    state laeq()  { transition self.byte_backing[self.source_base + self.pos] <= 32 { true -> laeqa()  false -> laeqck() } }   // skip ws to '='
     state laeqa() { self.pos = self.pos + 1; transition 0 { _ -> laeq() } }
-    state laeqck(){ transition self.buf[self.pos] == 61 { true -> laeq2()  false -> sk() } }        // '=' -> assign; else not a local-assignment stmt
+    state laeqck(){ transition self.byte_backing[self.source_base + self.pos] == 61 { true -> laeq2()  false -> sk() } }        // '=' -> assign; else not a local-assignment stmt
     state laeq2() { self.pos = self.pos + 1; self.mode = 2; self.opnd = 0; transition 0 { _ -> subj0() } }   // past '=', lower RHS (mode 2 -> ltStore to lstgt)
-    state wb0()    { transition self.buf[self.pos] == 40 { true -> wb1()  false -> wbadv() } }   // skip to '('
+    state wb0()    { transition self.byte_backing[self.source_base + self.pos] == 40 { true -> wb1()  false -> wbadv() } }   // skip to '('
     state wbadv()  { self.pos = self.pos + 1; transition 0 { _ -> wb0() } }
     state wb1()    { self.pos = self.pos + 1; self.mode = 8; self.opnd = 0; transition 0 { _ -> subj0() } }   // past '(', lower the byte arg
     state wbemit() { self.usesio = 1; self.console.write_line("    ldr x0, [sp], #16"); self.console.write_line("    adrp x9, _iobyte@PAGE"); self.console.write_line("    add x9, x9, _iobyte@PAGEOFF"); self.console.write_line("    strb w0, [x9]"); self.console.write_line("    mov x0, #1"); self.console.write_line("    adrp x1, _iobyte@PAGE"); self.console.write_line("    add x1, x1, _iobyte@PAGEOFF"); self.console.write_line("    mov x2, #1"); self.console.write_line("    bl _write"); transition 0 { _ -> wbsk() } }
-    state wbsk()   { transition self.buf[self.pos] == 59 { true -> wbsk2()  false -> wbsk3() } }   // ';' -> consume
-    state wbsk3()  { transition self.buf[self.pos] == 125 { true -> sk()  false -> wbadv2() } }    // '}' -> stop (block end)
+    state wbsk()   { transition self.byte_backing[self.source_base + self.pos] == 59 { true -> wbsk2()  false -> wbsk3() } }   // ';' -> consume
+    state wbsk3()  { transition self.byte_backing[self.source_base + self.pos] == 125 { true -> sk()  false -> wbadv2() } }    // '}' -> stop (block end)
     state wbadv2() { self.pos = self.pos + 1; transition 0 { _ -> wbsk() } }
     state wbsk2()  { self.pos = self.pos + 1; transition 0 { _ -> sk() } }
     state ret0()  { self.mode = 4; self.opnd = 0; transition 0 { _ -> subj0() } }
     state retemit(){ self.console.write_line("    ldr x0, [sp], #16"); self.console.write_line("    mov sp, x29"); self.console.write_line("    ldp x29, x30, [sp]"); self.p_addsp(); self.v = self.frame; self.emit_int(); write_byte(10); self.console.write_line("    ret"); transition 0 { _ -> retsk() } }
-    state retsk() { transition self.buf[self.pos] == 59 { true -> retsk2()  false -> retsk3() } }
-    state retsk3(){ transition self.buf[self.pos] == 125 { true -> sk()  false -> retadv() } }   // '}' (no trailing ';') -> stop, leave it for the block handler
+    state retsk() { transition self.byte_backing[self.source_base + self.pos] == 59 { true -> retsk2()  false -> retsk3() } }
+    state retsk3(){ transition self.byte_backing[self.source_base + self.pos] == 125 { true -> sk()  false -> retadv() } }   // '}' (no trailing ';') -> stop, leave it for the block handler
     state retadv(){ self.pos = self.pos + 1; transition 0 { _ -> retsk() } }
     state retsk2(){ self.pos = self.pos + 1; transition 0 { _ -> sk() } }
-    state let0()  { transition self.buf[self.pos] <= 32 { true -> let0a()  false -> let1() } }
+    state let0()  { transition self.byte_backing[self.source_base + self.pos] <= 32 { true -> let0a()  false -> let1() } }
     state let0a() { self.pos = self.pos + 1; transition 0 { _ -> let0() } }
     state let1()  { self.fs = self.pos; transition 0 { _ -> letr() } }
-    state letr()  { self.w = self.is_word(self.buf[self.pos]); transition self.w == 1 { true -> leta()  false -> lete() } }
+    state letr()  { self.w = self.is_word(self.byte_backing[self.source_base + self.pos]); transition self.w == 1 { true -> leta()  false -> lete() } }
     state leta()  { self.pos = self.pos + 1; transition 0 { _ -> letr() } }
     state lete()  { self.fe = self.pos; self.qa = self.fs; self.qb = self.fe; self.cj = 0; self.ldisp = 0; transition 0 { _ -> llk() } }
     state llk()   { transition self.cj < self.nl { true -> llkc()  false -> leteq() } }
-    state llkc()  { transition self.lmi[self.cj] == self.mi { true -> llkc2()  false -> llkn() } }
-    state llkc2() { self.qc = self.lns[self.cj]; self.qd = self.lne[self.cj]; self.w = self.streq(); transition self.w == 1 { true -> llkh()  false -> llkn() } }
-    state llkh()  { self.lstgt = 16 + 8 * (self.pcs[self.mi] + self.plidx[self.cj]); transition 0 { _ -> leteq() } }
+    state llkc()  { transition self.typed_backing[self.lmi_base + self.cj] == self.mi { true -> llkc2()  false -> llkn() } }
+    state llkc2() { self.qc = self.typed_backing[self.lns_base + self.cj]; self.qd = self.typed_backing[self.lne_base + self.cj]; self.w = self.streq(); transition self.w == 1 { true -> llkh()  false -> llkn() } }
+    state llkh()  { self.lstgt = 16 + 8 * (self.typed_backing[self.pcs_base + self.mi] + self.typed_backing[self.plidx_base + self.cj]); transition 0 { _ -> leteq() } }
     state llkn()  { self.cj = self.cj + 1; transition 0 { _ -> llk() } }
-    state leteq() { transition self.buf[self.pos] == 61 { true -> leteq2()  false -> letadv() } }
-    state letadv(){ transition self.buf[self.pos] == 87 { true -> letadvw()  false -> letadvs() } }   // 'W' of `in Wrapping` (unique in a let's type region)
-    state letadvs(){ transition self.buf[self.pos] == 83 { true -> letadvsat()  false -> letadv2() } } // 'S' of `in Saturating`
+    state leteq() { transition self.byte_backing[self.source_base + self.pos] == 61 { true -> leteq2()  false -> letadv() } }
+    state letadv(){ transition self.byte_backing[self.source_base + self.pos] == 87 { true -> letadvw()  false -> letadvs() } }   // 'W' of `in Wrapping` (unique in a let's type region)
+    state letadvs(){ transition self.byte_backing[self.source_base + self.pos] == 83 { true -> letadvsat()  false -> letadv2() } } // 'S' of `in Saturating`
     state letadvw(){ self.wrap = 1; self.pos = self.pos + 1; transition 0 { _ -> leteq() } }           // wrap = domain: 1 Wrapping
     state letadvsat(){ self.wrap = 2; self.pos = self.pos + 1; transition 0 { _ -> leteq() } }         // 2 Saturating
     state letadv2(){ self.pos = self.pos + 1; transition 0 { _ -> leteq() } }
     state leteq2(){ self.pos = self.pos + 1; self.mode = 2; self.opnd = 0; transition 0 { _ -> subj0() } }
-    state asgn0() { transition self.buf[self.pos] == 46 { true -> asgn1()  false -> sk() } }                  // '.' ? else not an assignment
+    state asgn0() { transition self.byte_backing[self.source_base + self.pos] == 46 { true -> asgn1()  false -> sk() } }                  // '.' ? else not an assignment
     state asgn1() { self.pos = self.pos + 1; self.fs = self.pos; transition 0 { _ -> asgnr() } }              // past '.', capture LHS field
-    state asgnr() { self.w = self.is_word(self.buf[self.pos]); transition self.w == 1 { true -> asgna()  false -> asgne() } }
+    state asgnr() { self.w = self.is_word(self.byte_backing[self.source_base + self.pos]); transition self.w == 1 { true -> asgna()  false -> asgne() } }
     state asgna() { self.pos = self.pos + 1; transition 0 { _ -> asgnr() } }
-    state asgne() { self.fe = self.pos; transition self.buf[self.pos] == 91 { true -> astore0()  false -> asgne2() } }   // '[' -> array store
-    state asgne2(){ transition self.buf[self.pos] == 46 { true -> qcall0()  false -> asgnws() } }   // '.' -> qualified console call (self.console.METHOD)
+    state asgne() { self.fe = self.pos; transition self.byte_backing[self.source_base + self.pos] == 91 { true -> astore0()  false -> asgne2() } }   // '[' -> array store
+    state asgne2(){ transition self.byte_backing[self.source_base + self.pos] == 46 { true -> qcall0()  false -> asgnws() } }   // '.' -> qualified console call (self.console.METHOD)
     state qcall0(){ self.pos = self.pos + 1; self.fs = self.pos; transition 0 { _ -> qcr() } }   // skip '.', mark method-name start (reuse fs)
-    state qcr()   { self.w = self.is_word(self.buf[self.pos]); transition self.w == 1 { true -> qca()  false -> qce() } }
+    state qcr()   { self.w = self.is_word(self.byte_backing[self.source_base + self.pos]); transition self.w == 1 { true -> qca()  false -> qce() } }
     state qca()   { self.pos = self.pos + 1; transition 0 { _ -> qcr() } }
     state qce()   { self.w = self.is_exitp(self.fs, self.pos); transition self.w == 1 { true -> exitp0()  false -> ck_wl() } }
     state ck_wl() { self.w = self.is_wline(self.fs, self.pos); transition self.w == 1 { true -> wline()  false -> sk() } }
-    state wline() { transition self.buf[self.pos] == 40 { true -> wlq()  false -> wladv() } }   // skip to '('
+    state wline() { transition self.byte_backing[self.source_base + self.pos] == 40 { true -> wlq()  false -> wladv() } }   // skip to '('
     state wladv() { self.pos = self.pos + 1; transition 0 { _ -> wline() } }
     state wlq()   { self.pos = self.pos + 1; transition 0 { _ -> wlq2() } }                      // past '('
-    state wlq2()  { transition self.buf[self.pos] == 34 { true -> wlstr()  false -> wlq2a() } }  // skip to '"'
+    state wlq2()  { transition self.byte_backing[self.source_base + self.pos] == 34 { true -> wlstr()  false -> wlq2a() } }  // skip to '"'
     state wlq2a() { self.pos = self.pos + 1; transition 0 { _ -> wlq2() } }
     state wlstr() { self.pos = self.pos + 1; self.wlstart = self.pos; transition 0 { _ -> wlscan() } }   // past '"', mark string start
-    state wlscan(){ transition self.buf[self.pos] == 34 { true -> wllen0()  false -> wlsadv() } }   // scan to closing '"'
+    state wlscan(){ transition self.byte_backing[self.source_base + self.pos] == 34 { true -> wllen0()  false -> wlsadv() } }   // scan to closing '"'
     state wlsadv(){ self.pos = self.pos + 1; transition 0 { _ -> wlscan() } }
     state wllen0(){ self.wllen = self.pos - self.wlstart + 1; transition 0 { _ -> wlemit() } }   // len = content + trailing '\n'
     state wlemit(){ self.usesio = 1; self.console.write_line("    mov x0, #1"); self.p_adrpx1l(); self.v = self.nstr; self.emit_int(); self.console.write_line("@PAGE"); self.p_addx1l(); self.v = self.nstr; self.emit_int(); self.console.write_line("@PAGEOFF"); self.p_movw2(); self.v = self.wllen; self.emit_int(); write_byte(10); self.console.write_line("    bl _write"); self.nstr = self.nstr + 1; transition 0 { _ -> wlsk() } }
     state wlsk()  { self.pos = self.pos + 1; transition 0 { _ -> wlsk2() } }   // past the closing '"'
-    state wlsk2() { transition self.buf[self.pos] == 41 { true -> wlsk3()  false -> wlsadv2() } }   // skip to write_line's ')'
+    state wlsk2() { transition self.byte_backing[self.source_base + self.pos] == 41 { true -> wlsk3()  false -> wlsadv2() } }   // skip to write_line's ')'
     state wlsadv2(){ self.pos = self.pos + 1; transition 0 { _ -> wlsk2() } }
     state wlsk3() { self.pos = self.pos + 1; transition 0 { _ -> sk() } }   // past ')', resume the walker (it handles ; / next stmt / })
-    state exitp0(){ transition self.buf[self.pos] == 40 { true -> exitp1()  false -> exitpadv() } }   // skip to '('
+    state exitp0(){ transition self.byte_backing[self.source_base + self.pos] == 40 { true -> exitp1()  false -> exitpadv() } }   // skip to '('
     state exitpadv(){ self.pos = self.pos + 1; transition 0 { _ -> exitp0() } }
     state exitp1(){ self.pos = self.pos + 1; self.mode = 4; self.opnd = 0; transition 0 { _ -> subj0() } }   // past '(', lower the exit code as a return value (mode 4 -> retemit)
     state astore0(){ self.qa = self.fs; self.qb = self.fe; self.cj = 0; self.aoff = 0; self.acnt = 0; self.aeb = 0; self.astore = 1; transition 0 { _ -> aslk() } }
     state aslk()  { transition self.cj < self.nf { true -> aslkc()  false -> asidx() } }
-    state aslkc() { self.qc = self.fns[self.cj]; self.qd = self.fne[self.cj]; self.w = self.streq(); transition self.w == 1 { true -> aslkh()  false -> aslkn() } }
-    state aslkh() { self.aoff = self.foffs[self.cj]; self.acnt = self.fcnt[self.cj]; self.aeb = self.feb[self.cj]; self.stoff = self.aoff; self.stcnt = self.acnt; self.steb = self.aeb; transition 0 { _ -> asidx() } }
+    state aslkc() { self.qc = self.typed_backing[self.fns_base + self.cj]; self.qd = self.typed_backing[self.fne_base + self.cj]; self.w = self.streq(); transition self.w == 1 { true -> aslkh()  false -> aslkn() } }
+    state aslkh() { self.aoff = self.typed_backing[self.foffs_base + self.cj]; self.acnt = self.typed_backing[self.fcnt_base + self.cj]; self.aeb = self.typed_backing[self.feb_base + self.cj]; self.stoff = self.aoff; self.stcnt = self.acnt; self.steb = self.aeb; transition 0 { _ -> asidx() } }
     state aslkn() { self.cj = self.cj + 1; transition 0 { _ -> aslk() } }
     state asidx() { self.pos = self.pos + 1; self.aidx = self.pos; transition 0 { _ -> assk() } }   // past '[', save index span start
-    state assk()  { transition self.buf[self.pos] == 93 { true -> assk2()  false -> assadv() } }    // skip to ']'
+    state assk()  { transition self.byte_backing[self.source_base + self.pos] == 93 { true -> assk2()  false -> assadv() } }    // skip to ']'
     state assadv(){ self.pos = self.pos + 1; transition 0 { _ -> assk() } }
     state assk2() { self.pos = self.pos + 1; transition 0 { _ -> aseq() } }                          // past ']'
-    state aseq()  { transition self.buf[self.pos] == 61 { true -> aseq2()  false -> aseqadv() } }    // skip to '='
+    state aseq()  { transition self.byte_backing[self.source_base + self.pos] == 61 { true -> aseq2()  false -> aseqadv() } }    // skip to '='
     state aseqadv(){ self.pos = self.pos + 1; transition 0 { _ -> aseq() } }
     state aseq2() { self.pos = self.pos + 1; self.mode = 6; self.opnd = 0; transition 0 { _ -> subj0() } }   // past '=', lower the VALUE first (mode 6)
-    state asgnws(){ transition self.buf[self.pos] <= 32 { true -> asgnw2()  false -> asgneq() } }             // skip ws to '='
+    state asgnws(){ transition self.byte_backing[self.source_base + self.pos] <= 32 { true -> asgnw2()  false -> asgneq() } }             // skip ws to '='
     state asgnw2(){ self.pos = self.pos + 1; transition 0 { _ -> asgnws() } }
-    state asgneq(){ transition self.buf[self.pos] == 61 { true -> asgnlk()  false -> ckparen() } }            // '=' assign? else maybe a method call
-    state ckparen(){ transition self.buf[self.pos] == 40 { true -> stmtcall()  false -> sk() } }                // '(' -> method call (statement position)
+    state asgneq(){ transition self.byte_backing[self.source_base + self.pos] == 61 { true -> asgnlk()  false -> ckparen() } }            // '=' assign? else maybe a method call
+    state ckparen(){ transition self.byte_backing[self.source_base + self.pos] == 40 { true -> stmtcall()  false -> sk() } }                // '(' -> method call (statement position)
     state stmtcall(){ self.callmode = 0; transition 0 { _ -> calllk() } }
     state calllk(){ self.qa = self.fs; self.qb = self.fe; self.cj = 0; self.cmi = 0 - 1; transition 0 { _ -> mlk() } }  // resolve callee -> mi
     state mlk()   { transition self.cj < self.mn { true -> mlkc()  false -> carg0() } }
-    state mlkc()  { self.qc = self.mns[self.cj]; self.qd = self.mne[self.cj]; self.w = self.streq(); transition self.w == 1 { true -> mlkh()  false -> mlkn() } }
+    state mlkc()  { self.qc = self.typed_backing[self.mns_base + self.cj]; self.qd = self.typed_backing[self.mne_base + self.cj]; self.w = self.streq(); transition self.w == 1 { true -> mlkh()  false -> mlkn() } }
     state mlkh()  { self.cmi = self.cj; transition 0 { _ -> carg0() } }
     state mlkn()  { self.cj = self.cj + 1; transition 0 { _ -> mlk() } }
     state carg0() { self.pos = self.pos + 1; self.argc = 0; transition 0 { _ -> carg() } }      // past '(', argc 0
-    state carg()  { transition self.buf[self.pos] <= 32 { true -> cargws()  false -> cargck() } }
+    state carg()  { transition self.byte_backing[self.source_base + self.pos] <= 32 { true -> cargws()  false -> cargck() } }
     state cargws(){ self.pos = self.pos + 1; transition 0 { _ -> carg() } }
-    state cargck(){ transition self.buf[self.pos] == 41 { true -> cargdone()  false -> cargl() } } // ')' no more args
-    state cargl() { self.opaop[self.osp] = 0; self.opcc[self.osp] = 0; self.opprec[self.osp] = 0 - 2; self.osp = self.osp + 1; self.mode = 3; self.opnd = 0; transition 0 { _ -> subj0() } }                  // lower one arg (pushes it)
+    state cargck(){ transition self.byte_backing[self.source_base + self.pos] == 41 { true -> cargdone()  false -> cargl() } } // ')' no more args
+    state cargl() { self.typed_backing[self.opaop_base + self.osp] = 0; self.typed_backing[self.opcc_base + self.osp] = 0; self.typed_backing[self.opprec_base + self.osp] = 0 - 2; self.osp = self.osp + 1; self.mode = 3; self.opnd = 0; transition 0 { _ -> subj0() } }                  // lower one arg (pushes it)
     state cargnext(){ self.argc = self.argc + 1; transition 0 { _ -> cnws() } }
-    state cnws()  { transition self.buf[self.pos] <= 32 { true -> cnws2()  false -> cncheck() } }
+    state cnws()  { transition self.byte_backing[self.source_base + self.pos] <= 32 { true -> cnws2()  false -> cncheck() } }
     state cnws2() { self.pos = self.pos + 1; transition 0 { _ -> cnws() } }
-    state cncheck(){ transition self.buf[self.pos] == 44 { true -> cncomma()  false -> cargdone() } } // ',' more args
+    state cncheck(){ transition self.byte_backing[self.source_base + self.pos] == 44 { true -> cncomma()  false -> cargdone() } } // ',' more args
     state cncomma(){ self.pos = self.pos + 1; transition 0 { _ -> carg() } }
     state cargdone(){ transition 0 { _ -> callemit2() } }
     state callemit2(){ self.cj = self.argc; transition 0 { _ -> cpop() } }                          // pop args x{argc}..x1
     state cpop()  { transition self.cj > 0 { true -> cpop1()  false -> cself() } }
-    state cpop1() { self.p_ldrx(); self.v = self.cj - 1 + self.hsf[self.cmi]; self.emit_int(); self.p_spsuf(); write_byte(10); self.cj = self.cj - 1; transition 0 { _ -> cpop() } }
-    state cself() { transition self.hsf[self.cmi] == 1 { true -> cself2()  false -> cselfbl() } }
+    state cpop1() { self.p_ldrx(); self.v = self.cj - 1 + self.typed_backing[self.hsf_base + self.cmi]; self.emit_int(); self.p_spsuf(); write_byte(10); self.cj = self.cj - 1; transition 0 { _ -> cpop() } }
+    state cself() { transition self.typed_backing[self.hsf_base + self.cmi] == 1 { true -> cself2()  false -> cselfbl() } }
     state cself2() { self.p_ldrx0x29(); self.v = self.sd; self.emit_int(); write_byte(93); write_byte(10); transition 0 { _ -> cselfbl() } }
     state cselfbl(){ self.p_bl(); transition self.cmi == self.emi { true -> blmain()  false -> blmach() } }
     state blmain(){ write_byte(95); write_byte(109); write_byte(97); write_byte(105); write_byte(110); write_byte(10); transition 0 { _ -> callpush() } }
@@ -945,60 +1017,60 @@ machine Main::main(&mut self) {
     state callpush(){ transition self.callmode == 1 { true -> ocallret()  false -> callpush0() } }
     state callpush0(){ self.console.write_line("    str x0, [sp, #-16]!"); self.console.write_line("    ldr x0, [sp], #16"); transition 0 { _ -> callsk() } }
     state ocallret(){ self.console.write_line("    str x0, [sp, #-16]!"); self.pos = self.pos + 1; self.mode = self.ocmode; self.opnd = self.ocopnd; transition 0 { _ -> opdisp() } }
-    state callsk(){ transition self.buf[self.pos] == 59 { true -> callsk2()  false -> callsk3() } }   // ';' -> consume
-    state callsk3(){ transition self.buf[self.pos] == 125 { true -> sk()  false -> calladv() } }       // '}' -> stop (last stmt in a block, no trailing ';')
+    state callsk(){ transition self.byte_backing[self.source_base + self.pos] == 59 { true -> callsk2()  false -> callsk3() } }   // ';' -> consume
+    state callsk3(){ transition self.byte_backing[self.source_base + self.pos] == 125 { true -> sk()  false -> calladv() } }       // '}' -> stop (last stmt in a block, no trailing ';')
     state calladv(){ self.pos = self.pos + 1; transition 0 { _ -> callsk() } }
     state callsk2(){ self.pos = self.pos + 1; transition 0 { _ -> sk() } }
     state asgnlk(){ self.qa = self.fs; self.qb = self.fe; self.cj = 0; self.laoff = 0; transition 0 { _ -> alk() } } // resolve LHS offset
     state alk()   { transition self.cj < self.nf { true -> alkc()  false -> argo() } }
-    state alkc()  { self.qc = self.fns[self.cj]; self.qd = self.fne[self.cj]; self.w = self.streq(); transition self.w == 1 { true -> alkh()  false -> alkn() } }
-    state alkh()  { self.laoff = self.foffs[self.cj]; self.wrap = self.fdom[self.cj]; transition 0 { _ -> argo() } }   // store into a domain-typed field uses its domain
+    state alkc()  { self.qc = self.typed_backing[self.fns_base + self.cj]; self.qd = self.typed_backing[self.fne_base + self.cj]; self.w = self.streq(); transition self.w == 1 { true -> alkh()  false -> alkn() } }
+    state alkh()  { self.laoff = self.typed_backing[self.foffs_base + self.cj]; self.wrap = self.typed_backing[self.fdom_base + self.cj]; transition 0 { _ -> argo() } }   // store into a domain-typed field uses its domain
     state alkn()  { self.cj = self.cj + 1; transition 0 { _ -> alk() } }
     state argo()  { self.pos = self.pos + 1; transition 0 { _ -> argows() } }    // past '='
-    state argows(){ transition self.buf[self.pos] <= 32 { true -> argowsa()  false -> ckctor() } }   // skip ws to the RHS
+    state argows(){ transition self.byte_backing[self.source_base + self.pos] <= 32 { true -> argowsa()  false -> ckctor() } }   // skip ws to the RHS
     state argowsa(){ self.pos = self.pos + 1; transition 0 { _ -> argows() } }
     state ckctor(){ self.start = self.pos; transition 0 { _ -> ckctr2() } }   // capture the RHS first ident, to detect Type::Variant construction
-    state ckctr2(){ self.w = self.is_word(self.buf[self.pos]); transition self.w == 1 { true -> ckctr3()  false -> ckctr4() } }
+    state ckctr2(){ self.w = self.is_word(self.byte_backing[self.source_base + self.pos]); transition self.w == 1 { true -> ckctr3()  false -> ckctr4() } }
     state ckctr3(){ self.pos = self.pos + 1; transition 0 { _ -> ckctr2() } }
-    state ckctr4(){ transition self.buf[self.pos] == 58 { true -> ctor0()  false -> argplain() } }   // '::' -> enum construction, else a normal value RHS
+    state ckctr4(){ transition self.byte_backing[self.source_base + self.pos] == 58 { true -> ctor0()  false -> argplain() } }   // '::' -> enum construction, else a normal value RHS
     state argplain(){ self.pos = self.start; self.mode = 1; self.opnd = 0; transition 0 { _ -> subj0() } }   // lower the RHS as a value (-> stStore at laoff)
     // enum construction: self.FIELD = Type::Variant(payload) -> store tag at laoff, payload at laoff+8
     state ctor0() { self.pos = self.pos + 2; self.qa = self.pos; transition 0 { _ -> ctorr() } }   // skip '::', mark variant name
-    state ctorr() { self.w = self.is_word(self.buf[self.pos]); transition self.w == 1 { true -> ctora()  false -> ctore() } }
+    state ctorr() { self.w = self.is_word(self.byte_backing[self.source_base + self.pos]); transition self.w == 1 { true -> ctora()  false -> ctore() } }
     state ctora() { self.pos = self.pos + 1; transition 0 { _ -> ctorr() } }
     state ctore() { self.qb = self.pos; self.cj = 0; self.sval = 0; transition 0 { _ -> ctlk() } }   // variant -> tag
     state ctlk()  { transition self.cj < self.nv { true -> ctlkc()  false -> ctstag() } }
-    state ctlkc() { self.qc = self.vns[self.cj]; self.qd = self.vne[self.cj]; self.w = self.streq(); transition self.w == 1 { true -> ctlkh()  false -> ctlkn() } }
-    state ctlkh() { self.sval = self.vtag[self.cj]; transition 0 { _ -> ctstag() } }
+    state ctlkc() { self.qc = self.typed_backing[self.vns_base + self.cj]; self.qd = self.typed_backing[self.vne_base + self.cj]; self.w = self.streq(); transition self.w == 1 { true -> ctlkh()  false -> ctlkn() } }
+    state ctlkh() { self.sval = self.typed_backing[self.vtag_base + self.cj]; transition 0 { _ -> ctstag() } }
     state ctlkn() { self.cj = self.cj + 1; transition 0 { _ -> ctlk() } }
     state ctstag(){ self.movw0v(); self.p_ldrx29(); self.v = self.sd; self.emit_int(); write_byte(93); write_byte(10); self.p_strw0(); self.v = self.laoff; self.emit_int(); write_byte(93); write_byte(10); transition 0 { _ -> ctpay() } }   // movz w0,#tag ; ldr x9,[x29,#sd] ; str w0,[x9,#laoff]
-    state ctpay() { transition self.buf[self.pos] == 40 { true -> ctpay2()  false -> ctpsk() } }   // '(' -> payload(s), else tag-only variant
+    state ctpay() { transition self.byte_backing[self.source_base + self.pos] == 40 { true -> ctpay2()  false -> ctpsk() } }   // '(' -> payload(s), else tag-only variant
     state ctpay2(){ self.pos = self.pos + 1; self.payidx = 0; transition 0 { _ -> ctpayw() } }    // past '('
-    state ctpayw(){ transition self.buf[self.pos] <= 32 { true -> ctpayws()  false -> ctpayl() } }   // skip ws (also after ',')
+    state ctpayw(){ transition self.byte_backing[self.source_base + self.pos] <= 32 { true -> ctpayws()  false -> ctpayl() } }   // skip ws (also after ',')
     state ctpayws(){ self.pos = self.pos + 1; transition 0 { _ -> ctpayw() } }
     state ctpayl(){ self.lstgt = self.laoff + 8 + 8 * self.payidx; self.mode = 12; self.opnd = 0; transition 0 { _ -> subj0() } }   // lower the payidx-th payload (mode 12 -> ctpemit stores at laoff+8+8*i)
-    state ctpsk() { transition self.buf[self.pos] == 59 { true -> ctpsk2()  false -> ctpsk3() } }   // ';' -> consume
-    state ctpsk3(){ transition self.buf[self.pos] == 125 { true -> sk()  false -> ctpadv() } }       // '}' -> stop
+    state ctpsk() { transition self.byte_backing[self.source_base + self.pos] == 59 { true -> ctpsk2()  false -> ctpsk3() } }   // ';' -> consume
+    state ctpsk3(){ transition self.byte_backing[self.source_base + self.pos] == 125 { true -> sk()  false -> ctpadv() } }       // '}' -> stop
     state ctpadv(){ self.pos = self.pos + 1; transition 0 { _ -> ctpsk() } }
     state ctpsk2(){ self.pos = self.pos + 1; transition 0 { _ -> sk() } }
     state stStore(){ self.console.write_line("    ldr x0, [sp], #16"); self.p_ldrx29(); self.v = self.sd; self.emit_int(); write_byte(93); write_byte(10); transition self.laoff > 16380 { true -> stBig()  false -> stImm() } }
     state stImm()  { self.p_strw0(); self.v = self.laoff; self.emit_int(); write_byte(93); write_byte(10); transition 0 { _ -> stsk() } }
     state stBig()  { self.fv = self.laoff; self.foldx9(); self.console.write_line("    str w0, [x9]"); transition 0 { _ -> stsk() } }
-    state stsk()  { transition self.buf[self.pos] == 59 { true -> stsk2()  false -> stadv() } }               // skip past ';'
+    state stsk()  { transition self.byte_backing[self.source_base + self.pos] == 59 { true -> stsk2()  false -> stadv() } }               // skip past ';'
     state stadv() { self.pos = self.pos + 1; transition 0 { _ -> stsk() } }
     state stsk2() { self.pos = self.pos + 1; transition 0 { _ -> sk() } }
     state emitL() { self.p_lm(); self.v = self.mi; self.emit_int(); write_byte(115); self.v = self.lsi; self.emit_int(); write_byte(58); write_byte(10); self.lsi = self.lsi + 1; transition 0 { _ -> sk() } }
     // lower the SUBJECT: skip ws, then a literal (digits) or a self.field
-    state subj0() { transition self.buf[self.pos] <= 32 { true -> subadv()  false -> subc() } }
+    state subj0() { transition self.byte_backing[self.source_base + self.pos] <= 32 { true -> subadv()  false -> subc() } }
     state subadv(){ self.pos = self.pos + 1; transition 0 { _ -> subj0() } }
-    state subc()  { transition self.buf[self.pos] == 45 { true -> uminus0()  false -> subc0() } }    // '-' -> unary minus on the following primary
+    state subc()  { transition self.byte_backing[self.source_base + self.pos] == 45 { true -> uminus0()  false -> subc0() } }    // '-' -> unary minus on the following primary
     state uminus0(){ self.pos = self.pos + 1; self.unegate = 1; transition 0 { _ -> subj0() } }       // skip '-', flag negate, re-lower the operand
-    state subc0() { transition self.buf[self.pos] == 40 { true -> opensent()  false -> subc1() } }   // '(' -> parenthesized sub-expression
-    state subc1() { transition self.buf[self.pos] < 48 { true -> idsub()  false -> subc2() } }
-    state opensent(){ self.opaop[self.osp] = 0; self.opcc[self.osp] = 0; self.opprec[self.osp] = 0 - 3; self.osp = self.osp + 1; self.pos = self.pos + 1; transition 0 { _ -> subj0() } }   // push paren sentinel (-3, below the -1 bit-op prec), skip '(', lower the inner operand
-    state subc2() { transition self.buf[self.pos] > 57 { true -> idsub()  false -> litsub() } }
+    state subc0() { transition self.byte_backing[self.source_base + self.pos] == 40 { true -> opensent()  false -> subc1() } }   // '(' -> parenthesized sub-expression
+    state subc1() { transition self.byte_backing[self.source_base + self.pos] < 48 { true -> idsub()  false -> subc2() } }
+    state opensent(){ self.typed_backing[self.opaop_base + self.osp] = 0; self.typed_backing[self.opcc_base + self.osp] = 0; self.typed_backing[self.opprec_base + self.osp] = 0 - 3; self.osp = self.osp + 1; self.pos = self.pos + 1; transition 0 { _ -> subj0() } }   // push paren sentinel (-3, below the -1 bit-op prec), skip '(', lower the inner operand
+    state subc2() { transition self.byte_backing[self.source_base + self.pos] > 57 { true -> idsub()  false -> litsub() } }
     state idsub() { self.start = self.pos; transition 0 { _ -> idr() } }
-    state idr()   { self.w = self.is_word(self.buf[self.pos]); transition self.w == 1 { true -> ida()  false -> ide() } }
+    state idr()   { self.w = self.is_word(self.byte_backing[self.source_base + self.pos]); transition self.w == 1 { true -> ida()  false -> ide() } }
     state ida()   { self.pos = self.pos + 1; transition 0 { _ -> idr() } }
     state ide()   { self.w = self.is_self(self.start, self.pos); transition self.w == 1 { true -> fldname()  false -> ck_rb() } }
     state ck_rb() { self.w = self.is_rbyte(self.start, self.pos); transition self.w == 1 { true -> rbemit()  false -> ck_mm() } }
@@ -1006,58 +1078,58 @@ machine Main::main(&mut self) {
     // -5 max, below the -3 paren sentinel), lower arg1; the ',' drains arg1's ops to the sentinel (mmcomma) then
     // lowers arg2; the ')' pops the sentinel and emits cmp+csel (mmclose). Nests correctly (the op stack is a stack).
     state ck_mm() { self.mmk = self.is_minmax(self.start, self.pos); transition self.mmk > 0 { true -> mmopen()  false -> ckcolon() } }
-    state mmopen(){ transition self.buf[self.pos] == 40 { true -> mmopen2()  false -> ckcolon() } }   // a call `min(` else a plain ident
-    state mmopen2(){ self.opaop[self.osp] = 0; self.opcc[self.osp] = 0; self.opprec[self.osp] = 0 - 3 - self.mmk; self.osp = self.osp + 1; self.pos = self.pos + 1; transition 0 { _ -> subj0() } }   // push -4/-5 sentinel, skip '(', lower arg1
-    state ckcolon(){ transition self.buf[self.pos] == 58 { true -> cvar0()  false -> ckfcall() } }   // 'Type::Variant' enum-tag literal (else a bare ident -> call/local)
+    state mmopen(){ transition self.byte_backing[self.source_base + self.pos] == 40 { true -> mmopen2()  false -> ckcolon() } }   // a call `min(` else a plain ident
+    state mmopen2(){ self.typed_backing[self.opaop_base + self.osp] = 0; self.typed_backing[self.opcc_base + self.osp] = 0; self.typed_backing[self.opprec_base + self.osp] = 0 - 3 - self.mmk; self.osp = self.osp + 1; self.pos = self.pos + 1; transition 0 { _ -> subj0() } }   // push -4/-5 sentinel, skip '(', lower arg1
+    state ckcolon(){ transition self.byte_backing[self.source_base + self.pos] == 58 { true -> cvar0()  false -> ckfcall() } }   // 'Type::Variant' enum-tag literal (else a bare ident -> call/local)
     state cvar0() { self.pos = self.pos + 2; self.qa = self.pos; transition 0 { _ -> cvarr() } }     // skip '::', mark variant name
-    state cvarr() { self.w = self.is_word(self.buf[self.pos]); transition self.w == 1 { true -> cvara()  false -> cvare() } }
+    state cvarr() { self.w = self.is_word(self.byte_backing[self.source_base + self.pos]); transition self.w == 1 { true -> cvara()  false -> cvare() } }
     state cvara() { self.pos = self.pos + 1; transition 0 { _ -> cvarr() } }
     state cvare() { self.qb = self.pos; self.cj = 0; self.sval = 0; transition 0 { _ -> cvlk() } }    // look the variant up -> its tag
     state cvlk()  { transition self.cj < self.nv { true -> cvlkc()  false -> cvemit() } }
-    state cvlkc() { self.qc = self.vns[self.cj]; self.qd = self.vne[self.cj]; self.w = self.streq(); transition self.w == 1 { true -> cvlkh()  false -> cvlkn() } }
-    state cvlkh() { self.sval = self.vtag[self.cj]; transition 0 { _ -> cvemit() } }
+    state cvlkc() { self.qc = self.typed_backing[self.vns_base + self.cj]; self.qd = self.typed_backing[self.vne_base + self.cj]; self.w = self.streq(); transition self.w == 1 { true -> cvlkh()  false -> cvlkn() } }
+    state cvlkh() { self.sval = self.typed_backing[self.vtag_base + self.cj]; transition 0 { _ -> cvemit() } }
     state cvlkn() { self.cj = self.cj + 1; transition 0 { _ -> cvlk() } }
     state cvemit(){ self.movw0v(); self.console.write_line("    str x0, [sp, #-16]!"); transition 0 { _ -> opdisp() } }   // tag as a constant operand
-    state ckfcall(){ transition self.buf[self.pos] == 40 { true -> fcall()  false -> bchk() } }   // bare ident '(' -> free-machine call; else maybe a payload binding, else a local/param
+    state ckfcall(){ transition self.byte_backing[self.source_base + self.pos] == 40 { true -> fcall()  false -> bchk() } }   // bare ident '(' -> free-machine call; else maybe a payload binding, else a local/param
     state bchk()  { self.cj = 0; transition 0 { _ -> bchk2() } }                                      // search the binding table
     state bchk2() { transition self.cj < self.nb { true -> bchk3()  false -> locsub() } }              // not a binding -> local/param
-    state bchk3() { self.qa = self.start; self.qb = self.pos; self.qc = self.bns[self.cj]; self.qd = self.bne[self.cj]; self.w = self.streq(); transition self.w == 1 { true -> bemit()  false -> bchkn() } }
+    state bchk3() { self.qa = self.start; self.qb = self.pos; self.qc = self.typed_backing[self.bns_base + self.cj]; self.qd = self.typed_backing[self.bne_base + self.cj]; self.w = self.streq(); transition self.w == 1 { true -> bemit()  false -> bchkn() } }
     state bchkn() { self.cj = self.cj + 1; transition 0 { _ -> bchk2() } }
-    state bemit() { self.p_ldrx29(); self.v = self.sd; self.emit_int(); write_byte(93); write_byte(10); self.p_ldrw0(); self.v = self.bndoff[self.cj]; self.emit_int(); write_byte(93); write_byte(10); self.console.write_line("    str x0, [sp, #-16]!"); transition 0 { _ -> opdisp() } }   // payload read: ldr x9,[x29,#sd]; ldr w0,[x9,#bndoff[i]]; push
+    state bemit() { self.p_ldrx29(); self.v = self.sd; self.emit_int(); write_byte(93); write_byte(10); self.p_ldrw0(); self.v = self.typed_backing[self.bndoff_base + self.cj]; self.emit_int(); write_byte(93); write_byte(10); self.console.write_line("    str x0, [sp, #-16]!"); transition 0 { _ -> opdisp() } }   // payload read: ldr x9,[x29,#sd]; ldr w0,[x9,#bndoff[i]]; push
     state fcall() { self.ocmode = self.mode; self.ocopnd = self.opnd; self.callmode = 1; self.fs = self.start; self.fe = self.pos; transition 0 { _ -> calllk() } }
     state rbemit(){ self.usesio = 1; self.console.write_line("    mov x0, #0"); self.console.write_line("    adrp x1, _iobyte@PAGE"); self.console.write_line("    add x1, x1, _iobyte@PAGEOFF"); self.console.write_line("    mov x2, #1"); self.console.write_line("    bl _read"); self.console.write_line("    adrp x9, _iobyte@PAGE"); self.console.write_line("    add x9, x9, _iobyte@PAGEOFF"); self.console.write_line("    ldrb w1, [x9]"); self.console.write_line("    movz w2, #65535"); self.console.write_line("    movk w2, #65535, lsl #16"); self.console.write_line("    cmp x0, #1"); self.console.write_line("    csel w0, w1, w2, ge"); self.console.write_line("    str x0, [sp, #-16]!"); transition 0 { _ -> rbsk() } }
-    state rbsk()  { transition self.buf[self.pos] == 41 { true -> rbsk2()  false -> rbadv() } }   // skip to ')'
+    state rbsk()  { transition self.byte_backing[self.source_base + self.pos] == 41 { true -> rbsk2()  false -> rbadv() } }   // skip to ')'
     state rbadv() { self.pos = self.pos + 1; transition 0 { _ -> rbsk() } }
     state rbsk2() { self.pos = self.pos + 1; transition 0 { _ -> opdisp() } }   // past ')', operand done
     state locsub(){ self.qa = self.start; self.qb = self.pos; self.cj = 0; self.ldisp = 0; transition 0 { _ -> plk() } }
     state plk()   { transition self.cj < self.np { true -> plkc()  false -> rlk0() } }
-    state plkc()  { transition self.pmi[self.cj] == self.mi { true -> plkc2()  false -> plkn() } }
-    state plkc2() { self.qc = self.pns[self.cj]; self.qd = self.pne[self.cj]; self.w = self.streq(); transition self.w == 1 { true -> plkh()  false -> plkn() } }
-    state plkh()  { self.ldisp = 16 + 8 * self.ppidx[self.cj]; transition 0 { _ -> remit() } }
+    state plkc()  { transition self.typed_backing[self.pmi_base + self.cj] == self.mi { true -> plkc2()  false -> plkn() } }
+    state plkc2() { self.qc = self.typed_backing[self.pns_base + self.cj]; self.qd = self.typed_backing[self.pne_base + self.cj]; self.w = self.streq(); transition self.w == 1 { true -> plkh()  false -> plkn() } }
+    state plkh()  { self.ldisp = 16 + 8 * self.typed_backing[self.ppidx_base + self.cj]; transition 0 { _ -> remit() } }
     state plkn()  { self.cj = self.cj + 1; transition 0 { _ -> plk() } }
     state rlk0()  { self.cj = 0; transition 0 { _ -> rlk() } }
     state rlk()   { transition self.cj < self.nl { true -> rlkc()  false -> remit() } }
-    state rlkc()  { transition self.lmi[self.cj] == self.mi { true -> rlkc2()  false -> rlkn() } }
-    state rlkc2() { self.qc = self.lns[self.cj]; self.qd = self.lne[self.cj]; self.w = self.streq(); transition self.w == 1 { true -> rlkh()  false -> rlkn() } }
-    state rlkh()  { self.ldisp = 16 + 8 * (self.pcs[self.mi] + self.plidx[self.cj]); transition 0 { _ -> remit() } }
+    state rlkc()  { transition self.typed_backing[self.lmi_base + self.cj] == self.mi { true -> rlkc2()  false -> rlkn() } }
+    state rlkc2() { self.qc = self.typed_backing[self.lns_base + self.cj]; self.qd = self.typed_backing[self.lne_base + self.cj]; self.w = self.streq(); transition self.w == 1 { true -> rlkh()  false -> rlkn() } }
+    state rlkh()  { self.ldisp = 16 + 8 * (self.typed_backing[self.pcs_base + self.mi] + self.typed_backing[self.plidx_base + self.cj]); transition 0 { _ -> remit() } }
     state rlkn()  { self.cj = self.cj + 1; transition 0 { _ -> rlk() } }
     state remit() { self.p_ldrw0x29(); self.v = self.ldisp; self.emit_int(); write_byte(93); write_byte(10); self.console.write_line("    str x0, [sp, #-16]!"); transition 0 { _ -> opdisp() } }
     state litsub(){ self.sval = 0; transition 0 { _ -> litr() } }
-    state litr()  { transition self.buf[self.pos] < 48 { true -> litdone()  false -> litr2() } }
-    state litr2() { transition self.buf[self.pos] > 57 { true -> litdone()  false -> litacc() } }
-    state litacc(){ self.sval = self.sval * 10 + self.buf[self.pos] - 48; self.pos = self.pos + 1; transition 0 { _ -> litr() } }
+    state litr()  { transition self.byte_backing[self.source_base + self.pos] < 48 { true -> litdone()  false -> litr2() } }
+    state litr2() { transition self.byte_backing[self.source_base + self.pos] > 57 { true -> litdone()  false -> litacc() } }
+    state litacc(){ self.sval = self.sval * 10 + self.byte_backing[self.source_base + self.pos] - 48; self.pos = self.pos + 1; transition 0 { _ -> litr() } }
     state litdone(){ self.movw0v(); self.console.write_line("    str x0, [sp, #-16]!"); transition 0 { _ -> opdisp() } }
     state fldname(){ self.pos = self.pos + 1; self.fs = self.pos; transition 0 { _ -> fldr() } }   // past '.', capture field name
-    state fldr()  { self.w = self.is_word(self.buf[self.pos]); transition self.w == 1 { true -> flda()  false -> flde() } }
+    state fldr()  { self.w = self.is_word(self.byte_backing[self.source_base + self.pos]); transition self.w == 1 { true -> flda()  false -> flde() } }
     state flda()  { self.pos = self.pos + 1; transition 0 { _ -> fldr() } }
-    state flde()  { self.fe = self.pos; self.qa = self.fs; self.qb = self.fe; transition self.buf[self.pos] == 40 { true -> ocall()  false -> flk0() } }   // '(' -> self-machine call in operand position
+    state flde()  { self.fe = self.pos; self.qa = self.fs; self.qb = self.fe; transition self.byte_backing[self.source_base + self.pos] == 40 { true -> ocall()  false -> flk0() } }   // '(' -> self-machine call in operand position
     state flk0()  { self.cj = 0; self.foff = 0; transition 0 { _ -> flk() } }
     state ocall() { self.ocmode = self.mode; self.ocopnd = self.opnd; self.callmode = 1; transition 0 { _ -> calllk() } }
     state flk()   { transition self.cj < self.nf { true -> flkc()  false -> femit() } }
-    state flkc()  { self.qc = self.fns[self.cj]; self.qd = self.fne[self.cj]; self.w = self.streq(); transition self.w == 1 { true -> flkh()  false -> flkn() } }
-    state flkh()  { self.foff = self.foffs[self.cj]; self.acnt = self.fcnt[self.cj]; self.aeb = self.feb[self.cj]; transition 0 { _ -> fchk() } }
-    state fchk()  { transition self.buf[self.pos] == 91 { true -> arr0()  false -> femit() } }     // '[' -> array index
-    state arr0()  { self.omode = self.mode; self.oopnd = self.opnd; self.aoff = self.foff; self.sacnt = self.acnt; self.saeb = self.aeb; self.saoff = self.foff; self.astore = 0; self.pos = self.pos + 1; self.opaop[self.osp] = 0; self.opcc[self.osp] = 0; self.opprec[self.osp] = 0 - 3; self.osp = self.osp + 1; self.mode = 5; self.opnd = 0; transition 0 { _ -> subj0() } }
+    state flkc()  { self.qc = self.typed_backing[self.fns_base + self.cj]; self.qd = self.typed_backing[self.fne_base + self.cj]; self.w = self.streq(); transition self.w == 1 { true -> flkh()  false -> flkn() } }
+    state flkh()  { self.foff = self.typed_backing[self.foffs_base + self.cj]; self.acnt = self.typed_backing[self.fcnt_base + self.cj]; self.aeb = self.typed_backing[self.feb_base + self.cj]; transition 0 { _ -> fchk() } }
+    state fchk()  { transition self.byte_backing[self.source_base + self.pos] == 91 { true -> arr0()  false -> femit() } }     // '[' -> array index
+    state arr0()  { self.omode = self.mode; self.oopnd = self.opnd; self.aoff = self.foff; self.sacnt = self.acnt; self.saeb = self.aeb; self.saoff = self.foff; self.astore = 0; self.pos = self.pos + 1; self.typed_backing[self.opaop_base + self.osp] = 0; self.typed_backing[self.opcc_base + self.osp] = 0; self.typed_backing[self.opprec_base + self.osp] = 0 - 3; self.osp = self.osp + 1; self.mode = 5; self.opnd = 0; transition 0 { _ -> subj0() } }
     state arremit(){ transition self.mode == 7 { true -> aremst()  false -> aremrd() } }
     state aremst() { self.acnt = self.stcnt; self.aeb = self.steb; self.aoff = self.stoff; self.astore = 1; transition 0 { _ -> arem2() } }
     state aremrd() { self.acnt = self.sacnt; self.aeb = self.saeb; self.aoff = self.saoff; transition 0 { _ -> arem2() } }
@@ -1079,14 +1151,14 @@ machine Main::main(&mut self) {
     state aststrb(){ self.console.write_line("    strb w1, [x9]"); transition 0 { _ -> astdone() } }
     state aststrw(){ self.console.write_line("    str w1, [x9]"); transition 0 { _ -> astdone() } }
     state astdone(){ self.pos = self.rpos; transition 0 { _ -> astsk() } }
-    state astsk()  { transition self.buf[self.pos] == 59 { true -> astsk2()  false -> astadv() } }
+    state astsk()  { transition self.byte_backing[self.source_base + self.pos] == 59 { true -> astsk2()  false -> astadv() } }
     state astadv() { self.pos = self.pos + 1; transition 0 { _ -> astsk() } }
     state astsk2() { self.pos = self.pos + 1; transition 0 { _ -> sk() } }
     state arload(){ transition self.aeb == 1 { true -> arldb()  false -> arldw() } }
     state arldb() { self.console.write_line("    ldrb w0, [x9]"); transition 0 { _ -> arpush() } }
     state arldw() { self.console.write_line("    ldr w0, [x9]"); transition 0 { _ -> arpush() } }
     state arpush(){ self.console.write_line("    str x0, [sp, #-16]!"); self.mode = self.omode; self.opnd = self.oopnd; transition 0 { _ -> arsk() } }
-    state arsk()  { transition self.buf[self.pos] == 93 { true -> arsk2()  false -> arsadv() } }   // skip ']'
+    state arsk()  { transition self.byte_backing[self.source_base + self.pos] == 93 { true -> arsk2()  false -> arsadv() } }   // skip ']'
     state arsadv(){ self.pos = self.pos + 1; transition 0 { _ -> arsk() } }
     state arsk2() { self.pos = self.pos + 1; transition 0 { _ -> opdisp() } }
     state flkn()  { self.cj = self.cj + 1; transition 0 { _ -> flk() } }
@@ -1099,13 +1171,13 @@ machine Main::main(&mut self) {
     // after an operand: first operand -> check for an operator; second operand -> emit it
     state opdisp(){ transition self.unegate == 1 { true -> uneg()  false -> opchk() } }   // negate the just-lowered primary if a unary '-' preceded it
     state uneg()  { self.unegate = 0; self.console.write_line("    ldr x0, [sp], #16"); self.console.write_line("    neg w0, w0"); self.console.write_line("    str x0, [sp, #-16]!"); transition 0 { _ -> opchk() } }
-    state opchk() { transition self.buf[self.pos] <= 32 { true -> opadv()  false -> opchk2() } }
+    state opchk() { transition self.byte_backing[self.source_base + self.pos] <= 32 { true -> opadv()  false -> opchk2() } }
     state opadv() { self.pos = self.pos + 1; transition 0 { _ -> opchk() } }
-    state opchk2(){ transition self.buf[self.pos] == 123 { true -> opflush()  false -> opchk3() } }  // '{' subject end
-    state opchk3(){ transition self.buf[self.pos] == 59 { true -> opflush()  false -> opchk4() } }   // ';' RHS end
-    state opchk4(){ transition self.buf[self.pos] == 44 { true -> caclose()  false -> opchk5() } }   // ',' call-arg end -> drain to the arg's -2 sentinel
-    state opchk5(){ transition self.buf[self.pos] == 41 { true -> pclose()  false -> opchk6() } }   // ')' -> paren close (if sentinel on stack) or arg/context end
-    state opchk6(){ transition self.buf[self.pos] == 93 { true -> aclose()  false -> opp() } }      // ']' index end -> pop to sentinel
+    state opchk2(){ transition self.byte_backing[self.source_base + self.pos] == 123 { true -> opflush()  false -> opchk3() } }  // '{' subject end
+    state opchk3(){ transition self.byte_backing[self.source_base + self.pos] == 59 { true -> opflush()  false -> opchk4() } }   // ';' RHS end
+    state opchk4(){ transition self.byte_backing[self.source_base + self.pos] == 44 { true -> caclose()  false -> opchk5() } }   // ',' call-arg end -> drain to the arg's -2 sentinel
+    state opchk5(){ transition self.byte_backing[self.source_base + self.pos] == 41 { true -> pclose()  false -> opchk6() } }   // ')' -> paren close (if sentinel on stack) or arg/context end
+    state opchk6(){ transition self.byte_backing[self.source_base + self.pos] == 93 { true -> aclose()  false -> opp() } }      // ']' index end -> pop to sentinel
     state subjend(){ transition self.mode == 0 { true -> toarms()  false -> sjm12() } }
     state sjm12()  { transition self.mode == 1 { true -> stStore()  false -> sjm23() } }
     state sjm23()  { transition self.mode == 2 { true -> ltStore()  false -> sjm34() } }
@@ -1119,52 +1191,52 @@ machine Main::main(&mut self) {
     state sjm10a() { transition self.mode == 10 { true -> sargemit()  false -> sjm11a() } }
     state sjm11a() { transition self.mode == 11 { true -> eargemit()  false -> ctpemit() } }   // mode 12 -> enum-construction payload: store at laoff+8
     state ctpemit(){ self.console.write_line("    ldr x0, [sp], #16"); self.p_ldrx29(); self.v = self.sd; self.emit_int(); write_byte(93); write_byte(10); self.p_strw0(); self.v = self.lstgt; self.emit_int(); write_byte(93); write_byte(10); transition 0 { _ -> ctpnx() } }
-    state ctpnx() { transition self.buf[self.pos] <= 32 { true -> ctpnxa()  false -> ctpnxc() } }   // skip ws after a payload
+    state ctpnx() { transition self.byte_backing[self.source_base + self.pos] <= 32 { true -> ctpnxa()  false -> ctpnxc() } }   // skip ws after a payload
     state ctpnxa(){ self.pos = self.pos + 1; transition 0 { _ -> ctpnx() } }
-    state ctpnxc(){ transition self.buf[self.pos] == 44 { true -> ctpcom()  false -> ctpdone() } }   // ',' -> another payload, else ')'
+    state ctpnxc(){ transition self.byte_backing[self.source_base + self.pos] == 44 { true -> ctpcom()  false -> ctpdone() } }   // ',' -> another payload, else ')'
     state ctpcom(){ self.pos = self.pos + 1; self.payidx = self.payidx + 1; transition 0 { _ -> ctpayw() } }   // past ',', next payload at +8*(i+1)
     state ctpdone(){ self.pos = self.pos + 1; transition 0 { _ -> ctpsk() } }   // past ')'
     state eargemit(){ self.console.write_line("    ldr x0, [sp], #16"); self.p_strw0x29(); self.v = self.lstgt; self.emit_int(); write_byte(93); write_byte(10); transition 0 { _ -> eargnx() } }   // store this arg, then check for more
-    state eargnx(){ transition self.buf[self.pos] <= 32 { true -> eargnxa()  false -> eargnxc() } }
+    state eargnx(){ transition self.byte_backing[self.source_base + self.pos] <= 32 { true -> eargnxa()  false -> eargnxc() } }
     state eargnxa(){ self.pos = self.pos + 1; transition 0 { _ -> eargnx() } }
-    state eargnxc(){ transition self.buf[self.pos] == 44 { true -> eargcom()  false -> eargbr() } }   // ',' -> next arg, else ')' -> branch + skip label
+    state eargnxc(){ transition self.byte_backing[self.source_base + self.pos] == 44 { true -> eargcom()  false -> eargbr() } }   // ',' -> next arg, else ')' -> branch + skip label
     state eargcom(){ self.pos = self.pos + 1; self.aix = self.aix + 1; transition 0 { _ -> eargw() } }
     state eargbr(){ self.p_b(); self.emit_lab(); self.p_lsk(); self.v = self.eskl; self.emit_int(); write_byte(58); write_byte(10); transition 0 { _ -> aend() } }   // b target ; Lsk<eskl>:
     state sargemit(){ self.console.write_line("    ldr x0, [sp], #16"); self.p_strw0x29(); self.v = self.lstgt; self.emit_int(); write_byte(93); write_byte(10); transition 0 { _ -> sargnx() } }   // store this arg, then check for more
-    state sargnx(){ transition self.buf[self.pos] <= 32 { true -> sargnxa()  false -> sargnxc() } }
+    state sargnx(){ transition self.byte_backing[self.source_base + self.pos] <= 32 { true -> sargnxa()  false -> sargnxc() } }
     state sargnxa(){ self.pos = self.pos + 1; transition 0 { _ -> sargnx() } }
-    state sargnxc(){ transition self.buf[self.pos] == 44 { true -> sargcom()  false -> sargbr() } }   // ',' -> next arg, else ')' -> branch
+    state sargnxc(){ transition self.byte_backing[self.source_base + self.pos] == 44 { true -> sargcom()  false -> sargbr() } }   // ',' -> next arg, else ')' -> branch
     state sargcom(){ self.pos = self.pos + 1; self.aix = self.aix + 1; transition 0 { _ -> ewargw() } }
     state sargbr(){ self.p_b(); self.emit_lab(); transition 0 { _ -> aend() } }   // all args stored -> b target
     state asrtemit(){ self.console.write_line("    ldr x0, [sp], #16"); self.console.write_line("    cbz w0, Ltrap"); transition 0 { _ -> asrtsk() } }
-    state asrtsk()  { transition self.buf[self.pos] == 59 { true -> asrtsk2()  false -> asrtsk3() } }   // ';' -> consume
-    state asrtsk3() { transition self.buf[self.pos] == 125 { true -> sk()  false -> asrtadv() } }       // '}' -> stop (block end)
+    state asrtsk()  { transition self.byte_backing[self.source_base + self.pos] == 59 { true -> asrtsk2()  false -> asrtsk3() } }   // ';' -> consume
+    state asrtsk3() { transition self.byte_backing[self.source_base + self.pos] == 125 { true -> sk()  false -> asrtadv() } }       // '}' -> stop (block end)
     state asrtadv() { self.pos = self.pos + 1; transition 0 { _ -> asrtsk() } }
     state asrtsk2() { self.pos = self.pos + 1; transition 0 { _ -> sk() } }
-    state astidx() { self.rpos = self.pos; self.pos = self.aidx; self.opaop[self.osp] = 0; self.opcc[self.osp] = 0; self.opprec[self.osp] = 0 - 3; self.osp = self.osp + 1; self.mode = 7; self.opnd = 0; transition 0 { _ -> subj0() } }
+    state astidx() { self.rpos = self.pos; self.pos = self.aidx; self.typed_backing[self.opaop_base + self.osp] = 0; self.typed_backing[self.opcc_base + self.osp] = 0; self.typed_backing[self.opprec_base + self.osp] = 0 - 3; self.osp = self.osp + 1; self.mode = 7; self.opnd = 0; transition 0 { _ -> subj0() } }
     state ltStore(){ self.console.write_line("    ldr x0, [sp], #16"); self.p_strw0x29(); self.v = self.lstgt; self.emit_int(); write_byte(93); write_byte(10); transition 0 { _ -> stsk() } }
-    state opp()   { self.naop = 0; transition self.buf[self.pos] == 60 { true -> oplt()  false -> opp2() } }     // '<'
-    state oplt()  { transition self.buf[self.pos + 1] == 61 { true -> ople()  false -> opltsh() } }
-    state opltsh(){ transition self.buf[self.pos + 1] == 60 { true -> opshl()  false -> opltx() } }   // '<<'
+    state opp()   { self.naop = 0; transition self.byte_backing[self.source_base + self.pos] == 60 { true -> oplt()  false -> opp2() } }     // '<'
+    state oplt()  { transition self.byte_backing[self.source_base + self.pos + 1] == 61 { true -> ople()  false -> opltsh() } }
+    state opltsh(){ transition self.byte_backing[self.source_base + self.pos + 1] == 60 { true -> opshl()  false -> opltx() } }   // '<<'
     state ople()  { self.ncc = 1; self.nprec = 0; self.pos = self.pos + 2; transition 0 { _ -> opclimb() } }
     state opltx() { self.ncc = 0; self.nprec = 0; self.pos = self.pos + 1; transition 0 { _ -> opclimb() } }
-    state opp2()  { transition self.buf[self.pos] == 62 { true -> opgt()  false -> opp3() } }      // '>'
-    state opgt()  { transition self.buf[self.pos + 1] == 61 { true -> opge()  false -> opgtsh() } }
-    state opgtsh(){ transition self.buf[self.pos + 1] == 62 { true -> opshr()  false -> opgtx() } }   // '>>'
+    state opp2()  { transition self.byte_backing[self.source_base + self.pos] == 62 { true -> opgt()  false -> opp3() } }      // '>'
+    state opgt()  { transition self.byte_backing[self.source_base + self.pos + 1] == 61 { true -> opge()  false -> opgtsh() } }
+    state opgtsh(){ transition self.byte_backing[self.source_base + self.pos + 1] == 62 { true -> opshr()  false -> opgtx() } }   // '>>'
     state opge()  { self.ncc = 5; self.nprec = 0; self.pos = self.pos + 2; transition 0 { _ -> opclimb() } }
     state opgtx() { self.ncc = 4; self.nprec = 0; self.pos = self.pos + 1; transition 0 { _ -> opclimb() } }
-    state opp3()  { transition self.buf[self.pos] == 61 { true -> opeq()  false -> opp4() } }      // '=='
+    state opp3()  { transition self.byte_backing[self.source_base + self.pos] == 61 { true -> opeq()  false -> opp4() } }      // '=='
     state opeq()  { self.ncc = 2; self.nprec = 0; self.pos = self.pos + 2; transition 0 { _ -> opclimb() } }
-    state opp4()  { transition self.buf[self.pos] == 33 { true -> opne()  false -> opar() } }       // '!' -> '!=' ; else arithmetic
+    state opp4()  { transition self.byte_backing[self.source_base + self.pos] == 33 { true -> opne()  false -> opar() } }       // '!' -> '!=' ; else arithmetic
     state opne()  { self.ncc = 3; self.nprec = 0; self.pos = self.pos + 2; transition 0 { _ -> opclimb() } }   // '!=' -> ne
-    state opar()  { transition self.buf[self.pos] == 43 { true -> opadd()  false -> opar2() } }      // '+'
-    state opar2() { transition self.buf[self.pos] == 45 { true -> opsub()  false -> opar3() } }      // '-'
-    state opar3() { transition self.buf[self.pos] == 42 { true -> opmul()  false -> opar4() } }      // '*'
-    state opar4() { transition self.buf[self.pos] == 47 { true -> opdiv()  false -> opcls() } }      // '/'
-    state opcls() { transition self.buf[self.pos] == 37  { true -> opmod()  false -> opand() } }     // '%'
-    state opand() { transition self.buf[self.pos] == 38  { true -> opbitand()  false -> opor() } }   // '&'
-    state opor()  { transition self.buf[self.pos] == 124 { true -> opbitor()  false -> opxor() } }   // '|'
-    state opxor() { transition self.buf[self.pos] == 94  { true -> opbitxor()  false -> opmod() } }  // '^' (else: unknown op char -> old % catch-all)
+    state opar()  { transition self.byte_backing[self.source_base + self.pos] == 43 { true -> opadd()  false -> opar2() } }      // '+'
+    state opar2() { transition self.byte_backing[self.source_base + self.pos] == 45 { true -> opsub()  false -> opar3() } }      // '-'
+    state opar3() { transition self.byte_backing[self.source_base + self.pos] == 42 { true -> opmul()  false -> opar4() } }      // '*'
+    state opar4() { transition self.byte_backing[self.source_base + self.pos] == 47 { true -> opdiv()  false -> opcls() } }      // '/'
+    state opcls() { transition self.byte_backing[self.source_base + self.pos] == 37  { true -> opmod()  false -> opand() } }     // '%'
+    state opand() { transition self.byte_backing[self.source_base + self.pos] == 38  { true -> opbitand()  false -> opor() } }   // '&'
+    state opor()  { transition self.byte_backing[self.source_base + self.pos] == 124 { true -> opbitor()  false -> opxor() } }   // '|'
+    state opxor() { transition self.byte_backing[self.source_base + self.pos] == 94  { true -> opbitxor()  false -> opmod() } }  // '^' (else: unknown op char -> old % catch-all)
     state opadd() { self.naop = 1; self.nprec = 1; self.pos = self.pos + 1; transition 0 { _ -> opclimb() } }
     state opsub() { self.naop = 2; self.nprec = 1; self.pos = self.pos + 1; transition 0 { _ -> opclimb() } }
     state opmul() { self.naop = 3; self.nprec = 2; self.pos = self.pos + 1; transition 0 { _ -> opclimb() } }
@@ -1177,37 +1249,37 @@ machine Main::main(&mut self) {
     state opshr()   { self.naop = 10; self.nprec = 0 - 1; self.pos = self.pos + 2; transition 0 { _ -> opclimb() } } // '>>'
     // shunting-yard: pop stacked ops of >= precedence (emit them), then push this op (precedence climb -> left-assoc)
     state opclimb(){ transition self.osp > 0 { true -> opclimb2()  false -> oppush() } }
-    state opclimb2(){ transition self.opprec[self.osp - 1] >= self.nprec { true -> oppop()  false -> oppush() } }
-    state oppop() { self.aop = self.opaop[self.osp - 1]; self.cc = self.opcc[self.osp - 1]; self.osp = self.osp - 1; self.opret = 0; transition 0 { _ -> emitop() } }
-    state oppush(){ self.opaop[self.osp] = self.naop; self.opcc[self.osp] = self.ncc; self.opprec[self.osp] = self.nprec; self.osp = self.osp + 1; transition 0 { _ -> op2() } }
+    state opclimb2(){ transition self.typed_backing[self.opprec_base + self.osp - 1] >= self.nprec { true -> oppop()  false -> oppush() } }
+    state oppop() { self.aop = self.typed_backing[self.opaop_base + self.osp - 1]; self.cc = self.typed_backing[self.opcc_base + self.osp - 1]; self.osp = self.osp - 1; self.opret = 0; transition 0 { _ -> emitop() } }
+    state oppush(){ self.typed_backing[self.opaop_base + self.osp] = self.naop; self.typed_backing[self.opcc_base + self.osp] = self.ncc; self.typed_backing[self.opprec_base + self.osp] = self.nprec; self.osp = self.osp + 1; transition 0 { _ -> op2() } }
     state op2()   { transition 0 { _ -> subj0() } }
     state opflush(){ transition self.osp > 0 { true -> opfpop()  false -> subjend() } }   // expression end: emit all remaining stacked ops, then end
-    state opfpop(){ self.aop = self.opaop[self.osp - 1]; self.cc = self.opcc[self.osp - 1]; self.osp = self.osp - 1; self.opret = 1; transition 0 { _ -> emitop() } }
+    state opfpop(){ self.aop = self.typed_backing[self.opaop_base + self.osp - 1]; self.cc = self.typed_backing[self.opcc_base + self.osp - 1]; self.osp = self.osp - 1; self.opret = 1; transition 0 { _ -> emitop() } }
     state opretdisp(){ transition self.opret == 0 { true -> opclimb()  false -> opretd2() } }
     state opretd2(){ transition self.opret == 1 { true -> opflush()  false -> opretd3() } }
     state opretd3(){ transition self.opret == 2 { true -> pclose()  false -> opretd4() } }
     state opretd4(){ transition self.opret == 3 { true -> aclose()  false -> caclose() } }   // 2=paren 3=array 4=call-arg close
     // ')' : pop+emit stacked ops until the precedence -1 sentinel; if one is found it's a paren close (discard + continue), else it's the context end (arg/subject)
     state pclose(){ transition self.osp > 0 { true -> pclose2()  false -> subjend() } }
-    state pclose2(){ transition self.opprec[self.osp - 1] == 0 - 3 { true -> pdiscard()  false -> pclose3() } }
-    state pclose3(){ transition self.opprec[self.osp - 1] == 0 - 2 { true -> cadiscard()  false -> pclose4() } }
-    state pclose4(){ transition self.opprec[self.osp - 1] <= 0 - 4 { true -> mmclose()  false -> pcpop() } }   // -4/-5 = min/max close -> pop sentinel, emit cmp+csel
-    state mmclose(){ self.mmk = self.opprec[self.osp - 1]; self.osp = self.osp - 1; self.pos = self.pos + 1; transition 0 { _ -> mmemit() } }   // save kind (-4 min/-5 max), pop sentinel, skip ')'
+    state pclose2(){ transition self.typed_backing[self.opprec_base + self.osp - 1] == 0 - 3 { true -> pdiscard()  false -> pclose3() } }
+    state pclose3(){ transition self.typed_backing[self.opprec_base + self.osp - 1] == 0 - 2 { true -> cadiscard()  false -> pclose4() } }
+    state pclose4(){ transition self.typed_backing[self.opprec_base + self.osp - 1] <= 0 - 4 { true -> mmclose()  false -> pcpop() } }   // -4/-5 = min/max close -> pop sentinel, emit cmp+csel
+    state mmclose(){ self.mmk = self.typed_backing[self.opprec_base + self.osp - 1]; self.osp = self.osp - 1; self.pos = self.pos + 1; transition 0 { _ -> mmemit() } }   // save kind (-4 min/-5 max), pop sentinel, skip ')'
     state mmemit(){ self.console.write_line("    ldr x1, [sp], #16"); self.console.write_line("    ldr x0, [sp], #16"); self.console.write_line("    cmp w0, w1"); transition self.mmk == 0 - 4 { true -> mmemin()  false -> mmemax() } }
     state mmemin(){ self.console.write_line("    csel w0, w0, w1, lt"); transition 0 { _ -> mmepush() } }   // min: keep the smaller
     state mmemax(){ self.console.write_line("    csel w0, w0, w1, gt"); transition 0 { _ -> mmepush() } }   // max: keep the larger
     state mmepush(){ self.console.write_line("    str x0, [sp, #-16]!"); transition 0 { _ -> opdisp() } }
-    state pcpop(){ self.aop = self.opaop[self.osp - 1]; self.cc = self.opcc[self.osp - 1]; self.osp = self.osp - 1; self.opret = 2; transition 0 { _ -> emitop() } }
+    state pcpop(){ self.aop = self.typed_backing[self.opaop_base + self.osp - 1]; self.cc = self.typed_backing[self.opcc_base + self.osp - 1]; self.osp = self.osp - 1; self.opret = 2; transition 0 { _ -> emitop() } }
     state pdiscard(){ self.osp = self.osp - 1; self.pos = self.pos + 1; transition 0 { _ -> opdisp() } }   // drop sentinel, skip ')', the paren value is now an operand
     state aclose(){ transition self.osp > 0 { true -> aclose2()  false -> subjend() } }
-    state aclose2(){ transition self.opprec[self.osp - 1] == 0 - 3 { true -> adiscard()  false -> acpop() } }
-    state acpop(){ self.aop = self.opaop[self.osp - 1]; self.cc = self.opcc[self.osp - 1]; self.osp = self.osp - 1; self.opret = 3; transition 0 { _ -> emitop() } }
+    state aclose2(){ transition self.typed_backing[self.opprec_base + self.osp - 1] == 0 - 3 { true -> adiscard()  false -> acpop() } }
+    state acpop(){ self.aop = self.typed_backing[self.opaop_base + self.osp - 1]; self.cc = self.typed_backing[self.opcc_base + self.osp - 1]; self.osp = self.osp - 1; self.opret = 3; transition 0 { _ -> emitop() } }
     state adiscard(){ self.osp = self.osp - 1; transition 0 { _ -> subjend() } }
     state caclose(){ transition self.osp > 0 { true -> caclose2()  false -> subjend() } }
-    state caclose2(){ transition self.opprec[self.osp - 1] == 0 - 2 { true -> cadiscard()  false -> caclose3() } }
-    state caclose3(){ transition self.opprec[self.osp - 1] <= 0 - 4 { true -> mmcomma()  false -> cacpop() } }   // -4/-5 = min/max: arg1 done (stays pushed under the sentinel), lower arg2
+    state caclose2(){ transition self.typed_backing[self.opprec_base + self.osp - 1] == 0 - 2 { true -> cadiscard()  false -> caclose3() } }
+    state caclose3(){ transition self.typed_backing[self.opprec_base + self.osp - 1] <= 0 - 4 { true -> mmcomma()  false -> cacpop() } }   // -4/-5 = min/max: arg1 done (stays pushed under the sentinel), lower arg2
     state mmcomma(){ self.pos = self.pos + 1; transition 0 { _ -> subj0() } }   // skip ',', lower arg2
-    state cacpop(){ self.aop = self.opaop[self.osp - 1]; self.cc = self.opcc[self.osp - 1]; self.osp = self.osp - 1; self.opret = 4; transition 0 { _ -> emitop() } }
+    state cacpop(){ self.aop = self.typed_backing[self.opaop_base + self.osp - 1]; self.cc = self.typed_backing[self.opcc_base + self.osp - 1]; self.osp = self.osp - 1; self.opret = 4; transition 0 { _ -> emitop() } }
     state cadiscard(){ self.osp = self.osp - 1; transition 0 { _ -> subjend() } }
     state emitop(){ self.console.write_line("    ldr x1, [sp], #16"); self.console.write_line("    ldr x0, [sp], #16"); transition self.aop == 0 { true -> emitcmp()  false -> emitar() } }
     state emitcmp(){ self.console.write_line("    cmp w0, w1"); self.p_cset(); transition 0 { _ -> ec() } }
@@ -1256,46 +1328,46 @@ machine Main::main(&mut self) {
     state ecgt()  { write_byte(103); write_byte(116); transition 0 { _ -> ecend() } }
     state ecge()  { write_byte(103); write_byte(101); transition 0 { _ -> ecend() } }
     state ecend() { write_byte(10); self.console.write_line("    str x0, [sp, #-16]!"); transition 0 { _ -> opretdisp() } }
-    state toarms(){ transition self.buf[self.pos] == 123 { true -> arms0()  false -> toaadv() } }
+    state toarms(){ transition self.byte_backing[self.source_base + self.pos] == 123 { true -> arms0()  false -> toaadv() } }
     state toaadv(){ self.pos = self.pos + 1; transition 0 { _ -> toarms() } }
     state arms0() { self.console.write_line("    ldr x0, [sp], #16"); self.pos = self.pos + 1; self.tmi = self.mi; transition 0 { _ -> arm() } }   // '{', emit subject pop
     // arm loop: skip ws, then a pattern token (-> '_'/true/false/N), '->', target '(', emit dispatch; '}' ends
-    state arm()   { transition self.buf[self.pos] <= 32 { true -> aadv()  false -> arm2() } }
+    state arm()   { transition self.byte_backing[self.source_base + self.pos] <= 32 { true -> aadv()  false -> arm2() } }
     state aadv()  { self.pos = self.pos + 1; transition 0 { _ -> arm() } }
-    state arm2()  { transition self.buf[self.pos] == 125 { true -> armend()  false -> patw() } }   // arms '}' -> continue the body walk
+    state arm2()  { transition self.byte_backing[self.source_base + self.pos] == 125 { true -> armend()  false -> patw() } }   // arms '}' -> continue the body walk
     state armend(){ self.nb = 0; self.pos = self.pos + 1; transition 0 { _ -> sk() } }   // arms done -> clear bindings so state bodies don't see them
     state patw()  { self.ps = self.pos; self.nb = 0; transition 0 { _ -> pwr() } }   // reset the payload bindings for this arm
-    state pwr()   { self.w = self.is_word(self.buf[self.pos]); transition self.w == 1 { true -> pwa()  false -> pwe() } }
+    state pwr()   { self.w = self.is_word(self.byte_backing[self.source_base + self.pos]); transition self.w == 1 { true -> pwa()  false -> pwe() } }
     state pwa()   { self.pos = self.pos + 1; transition 0 { _ -> pwr() } }
-    state pwe()   { self.pe = self.pos; transition self.buf[self.pos] == 58 { true -> pvar0()  false -> cls() } }   // 'Type::Variant' arm pattern, else classify
+    state pwe()   { self.pe = self.pos; transition self.byte_backing[self.source_base + self.pos] == 58 { true -> pvar0()  false -> cls() } }   // 'Type::Variant' arm pattern, else classify
     state pvar0() { self.pos = self.pos + 2; self.qa = self.pos; transition 0 { _ -> pvarr() } }
-    state pvarr() { self.w = self.is_word(self.buf[self.pos]); transition self.w == 1 { true -> pvara()  false -> pvare() } }
+    state pvarr() { self.w = self.is_word(self.byte_backing[self.source_base + self.pos]); transition self.w == 1 { true -> pvara()  false -> pvare() } }
     state pvara() { self.pos = self.pos + 1; transition 0 { _ -> pvarr() } }
     state pvare() { self.qb = self.pos; self.cj = 0; self.kind = 1; self.val = 0; transition 0 { _ -> pvlk() } }
     state pvlk()  { transition self.cj < self.nv { true -> pvlkc()  false -> ckbind() } }
-    state pvlkc() { self.qc = self.vns[self.cj]; self.qd = self.vne[self.cj]; self.w = self.streq(); transition self.w == 1 { true -> pvlkh()  false -> pvlkn() } }
-    state pvlkh() { self.val = self.vtag[self.cj]; transition 0 { _ -> ckbind() } }
+    state pvlkc() { self.qc = self.typed_backing[self.vns_base + self.cj]; self.qd = self.typed_backing[self.vne_base + self.cj]; self.w = self.streq(); transition self.w == 1 { true -> pvlkh()  false -> pvlkn() } }
+    state pvlkh() { self.val = self.typed_backing[self.vtag_base + self.cj]; transition 0 { _ -> ckbind() } }
     // payload binding: after a variant pattern, an optional `{ name }` binds name to the subject's payload (subjoff + 8)
-    state ckbind(){ transition self.buf[self.pos] <= 32 { true -> ckbinda()  false -> ckbindc() } }   // skip ws
+    state ckbind(){ transition self.byte_backing[self.source_base + self.pos] <= 32 { true -> ckbinda()  false -> ckbindc() } }   // skip ws
     state ckbinda(){ self.pos = self.pos + 1; transition 0 { _ -> ckbind() } }
-    state ckbindc(){ transition self.buf[self.pos] == 123 { true -> bind0()  false -> toarrow() } }   // '{' -> a binding, else go to '->'
+    state ckbindc(){ transition self.byte_backing[self.source_base + self.pos] == 123 { true -> bind0()  false -> toarrow() } }   // '{' -> a binding, else go to '->'
     state bind0() { self.pos = self.pos + 1; transition 0 { _ -> bindw() } }   // past '{'
-    state bindw() { transition self.buf[self.pos] <= 32 { true -> bindws()  false -> bind1() } }
+    state bindw() { transition self.byte_backing[self.source_base + self.pos] <= 32 { true -> bindws()  false -> bind1() } }
     state bindws(){ self.pos = self.pos + 1; transition 0 { _ -> bindw() } }
-    state bind1() { self.bns[self.nb] = self.pos; transition 0 { _ -> bindr() } }                     // i-th binding name start
-    state bindr() { self.w = self.is_word(self.buf[self.pos]); transition self.w == 1 { true -> binda()  false -> binde() } }
+    state bind1() { self.typed_backing[self.bns_base + self.nb] = self.pos; transition 0 { _ -> bindr() } }                     // i-th binding name start
+    state bindr() { self.w = self.is_word(self.byte_backing[self.source_base + self.pos]); transition self.w == 1 { true -> binda()  false -> binde() } }
     state binda() { self.pos = self.pos + 1; transition 0 { _ -> bindr() } }
-    state binde() { self.bne[self.nb] = self.pos; self.bndoff[self.nb] = self.subjoff + 8 + 8 * self.nb; self.nb = self.nb + 1; transition 0 { _ -> bindnx() } }   // i-th field at subject + 8 + 8*i
-    state bindnx(){ transition self.buf[self.pos] <= 32 { true -> bindnxa()  false -> bindnxc() } }   // skip ws
+    state binde() { self.typed_backing[self.bne_base + self.nb] = self.pos; self.typed_backing[self.bndoff_base + self.nb] = self.subjoff + 8 + 8 * self.nb; self.nb = self.nb + 1; transition 0 { _ -> bindnx() } }   // i-th field at subject + 8 + 8*i
+    state bindnx(){ transition self.byte_backing[self.source_base + self.pos] <= 32 { true -> bindnxa()  false -> bindnxc() } }   // skip ws
     state bindnxa(){ self.pos = self.pos + 1; transition 0 { _ -> bindnx() } }
-    state bindnxc(){ transition self.buf[self.pos] == 44 { true -> bindcom()  false -> bindend() } }  // ',' -> another field, else '}'
+    state bindnxc(){ transition self.byte_backing[self.source_base + self.pos] == 44 { true -> bindcom()  false -> bindend() } }  // ',' -> another field, else '}'
     state bindcom(){ self.pos = self.pos + 1; transition 0 { _ -> bindw() } }                          // past ',', next name
-    state bindend(){ transition self.buf[self.pos] == 125 { true -> bindend2()  false -> bindenda() } } // skip to '}'
+    state bindend(){ transition self.byte_backing[self.source_base + self.pos] == 125 { true -> bindend2()  false -> bindenda() } } // skip to '}'
     state bindenda(){ self.pos = self.pos + 1; transition 0 { _ -> bindend() } }
     state bindend2(){ self.pos = self.pos + 1; transition 0 { _ -> toarrow() } }
     state pvlkn() { self.cj = self.cj + 1; transition 0 { _ -> pvlk() } }
     state cls()   { transition self.pe - self.ps == 1 { true -> cku()  false -> ckk() } }
-    state cku()   { transition self.buf[self.ps] == 95 { true -> setWild()  false -> ckdig() } }  // '_'
+    state cku()   { transition self.byte_backing[self.source_base + self.ps] == 95 { true -> setWild()  false -> ckdig() } }  // '_'
     state setWild(){ self.kind = 0; transition 0 { _ -> toarrow() } }
     state ckk()   { self.w = self.is_true(self.ps, self.pe); transition self.w == 1 { true -> setT()  false -> ckf() } }
     state setT()  { self.kind = 1; self.val = 1; transition 0 { _ -> toarrow() } }
@@ -1303,44 +1375,44 @@ machine Main::main(&mut self) {
     state setF()  { self.kind = 1; self.val = 0; transition 0 { _ -> toarrow() } }
     state ckdig() { self.kind = 1; self.val = 0; self.cj = self.ps; transition 0 { _ -> diga() } } // int literal pattern
     state diga()  { transition self.cj < self.pe { true -> digacc()  false -> toarrow() } }
-    state digacc(){ self.val = self.val * 10 + self.buf[self.cj] - 48; self.cj = self.cj + 1; transition 0 { _ -> diga() } }
+    state digacc(){ self.val = self.val * 10 + self.byte_backing[self.source_base + self.cj] - 48; self.cj = self.cj + 1; transition 0 { _ -> diga() } }
     // advance to the target name (skip ws + the "->")
-    state toarrow(){ transition self.buf[self.pos] == 45 { true -> arrskip()  false -> toa2() } }  // '-'
+    state toarrow(){ transition self.byte_backing[self.source_base + self.pos] == 45 { true -> arrskip()  false -> toa2() } }  // '-'
     state arrskip(){ self.pos = self.pos + 2; transition 0 { _ -> totgt() } }                      // skip "->"
     state toa2()  { self.pos = self.pos + 1; transition 0 { _ -> toarrow() } }
-    state totgt() { transition self.buf[self.pos] <= 32 { true -> tgadv()  false -> tgt0() } }
+    state totgt() { transition self.byte_backing[self.source_base + self.pos] <= 32 { true -> tgadv()  false -> tgt0() } }
     state tgadv() { self.pos = self.pos + 1; transition 0 { _ -> totgt() } }
     state tgt0()  { self.start = self.pos; transition 0 { _ -> tgr() } }
-    state tgr()   { self.w = self.is_word(self.buf[self.pos]); transition self.w == 1 { true -> tga()  false -> tge() } }
+    state tgr()   { self.w = self.is_word(self.byte_backing[self.source_base + self.pos]); transition self.w == 1 { true -> tga()  false -> tge() } }
     state tga()   { self.pos = self.pos + 1; transition 0 { _ -> tgr() } }
     state tge()   { self.qa = self.start; self.qb = self.pos; self.cj = 0; self.found = 0; transition 0 { _ -> lk() } } // resolve target -> tsi
     state lk()    { transition self.cj < self.ns { true -> lkc()  false -> emitA() } }
-    state lkc()   { transition self.smi[self.cj] == self.tmi { true -> lkc2()  false -> lkn() } }
-    state lkc2()  { self.qc = self.sns[self.cj]; self.qd = self.sne[self.cj]; self.w = self.streq(); transition self.w == 1 { true -> lkh()  false -> lkn() } }
-    state lkh()   { self.tsi = self.ssi[self.cj]; self.found = 1; transition 0 { _ -> emitA() } }
+    state lkc()   { transition self.typed_backing[self.smi_base + self.cj] == self.tmi { true -> lkc2()  false -> lkn() } }
+    state lkc2()  { self.qc = self.typed_backing[self.sns_base + self.cj]; self.qd = self.typed_backing[self.sne_base + self.cj]; self.w = self.streq(); transition self.w == 1 { true -> lkh()  false -> lkn() } }
+    state lkh()   { self.tsi = self.typed_backing[self.ssi_base + self.cj]; self.found = 1; transition 0 { _ -> emitA() } }
     state lkn()   { self.cj = self.cj + 1; transition 0 { _ -> lk() } }
     // emit the arm
     state emitA() { transition self.found == 1 { true -> ekind()  false -> aend() } }
     state ekind() { transition self.kind == 0 { true -> ewild()  false -> eval() } }
-    state ewild() { transition self.spls[self.cj] == 0 - 1 { true -> ewildp()  false -> ewilda() } }   // target has a param? -> pass the arg
+    state ewild() { transition self.typed_backing[self.spls_base + self.cj] == 0 - 1 { true -> ewildp()  false -> ewilda() } }   // target has a param? -> pass the arg
     state ewildp(){ self.p_b(); self.emit_lab(); transition 0 { _ -> aend() } }                          // plain unconditional branch
-    state ewilda(){ self.apbase = self.spls[self.cj]; self.aix = 0; transition 0 { _ -> ewa2() } }   // target's first param index + arg index 0
-    state ewa2()  { transition self.buf[self.pos] == 40 { true -> ewa3()  false -> ewaadv() } }          // skip to '('
+    state ewilda(){ self.apbase = self.typed_backing[self.spls_base + self.cj]; self.aix = 0; transition 0 { _ -> ewa2() } }   // target's first param index + arg index 0
+    state ewa2()  { transition self.byte_backing[self.source_base + self.pos] == 40 { true -> ewa3()  false -> ewaadv() } }          // skip to '('
     state ewaadv(){ self.pos = self.pos + 1; transition 0 { _ -> ewa2() } }
     state ewa3()  { self.pos = self.pos + 1; transition 0 { _ -> ewargw() } }   // past '('
-    state ewargw(){ transition self.buf[self.pos] <= 32 { true -> ewargws()  false -> ewargl() } }   // skip ws (also after ',')
+    state ewargw(){ transition self.byte_backing[self.source_base + self.pos] <= 32 { true -> ewargws()  false -> ewargl() } }   // skip ws (also after ',')
     state ewargws(){ self.pos = self.pos + 1; transition 0 { _ -> ewargw() } }
-    state ewargl(){ self.lstgt = 16 + 8 * (self.pcs[self.tmi] + self.apbase + self.aix); self.mode = 10; self.opnd = 0; transition 0 { _ -> subj0() } }   // lower arg aix -> param slot (mode 10 -> sargemit)
-    state eval()  { transition self.spls[self.cj] == 0 - 1 { true -> evalp()  false -> evala() } }   // target has a param? -> store the arg on match
+    state ewargl(){ self.lstgt = 16 + 8 * (self.typed_backing[self.pcs_base + self.tmi] + self.apbase + self.aix); self.mode = 10; self.opnd = 0; transition 0 { _ -> subj0() } }   // lower arg aix -> param slot (mode 10 -> sargemit)
+    state eval()  { transition self.typed_backing[self.spls_base + self.cj] == 0 - 1 { true -> evalp()  false -> evala() } }   // target has a param? -> store the arg on match
     state evalp() { self.p_movw1(); self.v = self.val; self.emit_int(); write_byte(10); self.console.write_line("    cmp w0, w1"); self.p_beq(); self.emit_lab(); transition 0 { _ -> aend() } }
-    state evala() { self.p_movw1(); self.v = self.val; self.emit_int(); write_byte(10); self.console.write_line("    cmp w0, w1"); self.eskl = self.skl; self.skl = self.skl + 1; self.apbase = self.spls[self.cj]; self.aix = 0; self.p_bnesk(); self.v = self.eskl; self.emit_int(); write_byte(10); transition 0 { _ -> evarg() } }   // cmp; b.ne Lsk<eskl> (skip if no match)
-    state evarg() { transition self.buf[self.pos] == 40 { true -> evarg2()  false -> evargadv() } }   // skip to '('
+    state evala() { self.p_movw1(); self.v = self.val; self.emit_int(); write_byte(10); self.console.write_line("    cmp w0, w1"); self.eskl = self.skl; self.skl = self.skl + 1; self.apbase = self.typed_backing[self.spls_base + self.cj]; self.aix = 0; self.p_bnesk(); self.v = self.eskl; self.emit_int(); write_byte(10); transition 0 { _ -> evarg() } }   // cmp; b.ne Lsk<eskl> (skip if no match)
+    state evarg() { transition self.byte_backing[self.source_base + self.pos] == 40 { true -> evarg2()  false -> evargadv() } }   // skip to '('
     state evargadv(){ self.pos = self.pos + 1; transition 0 { _ -> evarg() } }
     state evarg2(){ self.pos = self.pos + 1; transition 0 { _ -> eargw() } }   // past '('
-    state eargw(){ transition self.buf[self.pos] <= 32 { true -> eargws()  false -> eargl() } }   // skip ws (also after ',')
+    state eargw(){ transition self.byte_backing[self.source_base + self.pos] <= 32 { true -> eargws()  false -> eargl() } }   // skip ws (also after ',')
     state eargws(){ self.pos = self.pos + 1; transition 0 { _ -> eargw() } }
-    state eargl(){ self.lstgt = 16 + 8 * (self.pcs[self.tmi] + self.apbase + self.aix); self.mode = 11; self.opnd = 0; transition 0 { _ -> subj0() } }   // lower arg aix (mode 11 -> eargemit)
-    state aend()  { transition self.buf[self.pos] == 41 { true -> aend2()  false -> aendsk() } }     // skip up to & incl ')' after target
+    state eargl(){ self.lstgt = 16 + 8 * (self.typed_backing[self.pcs_base + self.tmi] + self.apbase + self.aix); self.mode = 11; self.opnd = 0; transition 0 { _ -> subj0() } }   // lower arg aix (mode 11 -> eargemit)
+    state aend()  { transition self.byte_backing[self.source_base + self.pos] == 41 { true -> aend2()  false -> aendsk() } }     // skip up to & incl ')' after target
     state aendsk(){ self.pos = self.pos + 1; transition 0 { _ -> aend() } }
     state aend2() { self.pos = self.pos + 1; transition 0 { _ -> arm() } }
     state endph() { transition self.phase == 0 { true -> p1()  false -> endph1() } }
@@ -1356,14 +1428,14 @@ machine Main::main(&mut self) {
     state wsec()  { self.console.write_line(".section __TEXT,__const"); self.console.write_line(".align 2"); self.pos = 0; self.lstri = 0; transition 0 { _ -> rps() } }
     // re-scan the source for write_line string literals (in source order = nstr order); skip // comments
     state rps()   { transition self.pos < self.n { true -> rps2()  false -> wexit() } }
-    state rps2()  { transition self.buf[self.pos] == 47 { true -> rpcm()  false -> rps3() } }   // '/'
-    state rpcm()  { transition self.buf[self.pos + 1] == 47 { true -> rpcm2()  false -> rpadv() } }   // '//' comment
-    state rpcm2() { transition self.buf[self.pos] == 10 { true -> rpadv()  false -> rpcmadv() } }     // skip to newline
+    state rps2()  { transition self.byte_backing[self.source_base + self.pos] == 47 { true -> rpcm()  false -> rps3() } }   // '/'
+    state rpcm()  { transition self.byte_backing[self.source_base + self.pos + 1] == 47 { true -> rpcm2()  false -> rpadv() } }   // '//' comment
+    state rpcm2() { transition self.byte_backing[self.source_base + self.pos] == 10 { true -> rpadv()  false -> rpcmadv() } }     // skip to newline
     state rpcmadv(){ self.pos = self.pos + 1; transition 0 { _ -> rpcm2() } }
-    state rps3()  { transition self.buf[self.pos] == 34 { true -> rpstr()  false -> rpadv() } }   // '"' -> string literal
+    state rps3()  { transition self.byte_backing[self.source_base + self.pos] == 34 { true -> rpstr()  false -> rpadv() } }   // '"' -> string literal
     state rpadv() { self.pos = self.pos + 1; transition 0 { _ -> rps() } }
     state rpstr() { self.p_lstr(); self.v = self.lstri; self.emit_int(); write_byte(58); write_byte(10); self.p_dotbyte(); self.pos = self.pos + 1; transition 0 { _ -> rpbyte() } }   // Lstr<i>:\n    .byte  ; skip opening '"'
-    state rpbyte(){ transition self.buf[self.pos] == 34 { true -> rpbend()  false -> rpb2() } }   // closing '"'?
-    state rpb2()  { self.v = self.buf[self.pos]; self.emit_int(); write_byte(44); self.pos = self.pos + 1; transition 0 { _ -> rpbyte() } }   // "<byte>,"
+    state rpbyte(){ transition self.byte_backing[self.source_base + self.pos] == 34 { true -> rpbend()  false -> rpb2() } }   // closing '"'?
+    state rpb2()  { self.v = self.byte_backing[self.source_base + self.pos]; self.emit_int(); write_byte(44); self.pos = self.pos + 1; transition 0 { _ -> rpbyte() } }   // "<byte>,"
     state rpbend(){ self.v = 10; self.emit_int(); write_byte(10); self.pos = self.pos + 1; self.lstri = self.lstri + 1; transition 0 { _ -> rps() } }
 }
