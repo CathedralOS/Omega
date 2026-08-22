@@ -2833,6 +2833,12 @@ mod tests {
         assert!(diagnostics[0].message.contains("P=[dependent:0, fixed:0]"));
         assert!(diagnostics[0].message.contains("Q<->P=[dependent:0]"));
         assert!(
+            diagnostics[0]
+                .message
+                .contains("checked pure representative effect summary")
+        );
+        assert!(!diagnostics[0].message.contains("the effect fence"));
+        assert!(
             diagnostics[0].message.contains(
                 "one unchanged state-fallthrough result edge through the exact result root"
             )
