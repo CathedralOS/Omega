@@ -1,4 +1,4 @@
-//! Source-ordered oriented equalities for direct literal reconstruction.
+//! Source-ordered oriented equalities for independent affine-literal reconstruction.
 
 use psi_core::{Proposition, ScalarTerm};
 
@@ -17,14 +17,14 @@ impl<'a> OrientedEqualities<'a> {
 
     pub(super) fn any(
         &self,
-        mut candidate: impl FnMut(&'a ScalarTerm, &'a ScalarTerm) -> bool,
+        mut candidate: impl FnMut(&'a Proposition, &'a ScalarTerm, &'a ScalarTerm) -> bool,
     ) -> bool {
         for equality in self.requirements.iter().chain(self.semantic_axioms) {
             let Proposition::Equal(left, right) = equality else {
                 continue;
             };
-            for (root, literal) in [(left, right), (right, left)] {
-                if candidate(root, literal) {
+            for (left, right) in [(left, right), (right, left)] {
+                if candidate(equality, left, right) {
                     return true;
                 }
             }
