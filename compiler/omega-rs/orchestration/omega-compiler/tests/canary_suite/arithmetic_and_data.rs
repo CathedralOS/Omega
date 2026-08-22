@@ -2598,10 +2598,13 @@ fn runtime_unsigned_min_max_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-unsigned-min-max-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("unsigned min/max canary should compile");
 
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("unsigned min/max canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("unsigned min/max canary should run");
 
@@ -2625,10 +2628,13 @@ fn runtime_unsigned_modulo_call_argument_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("unsigned modulo call-argument canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("unsigned modulo call-argument canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("unsigned modulo call-argument canary should run");
 
@@ -2690,10 +2696,13 @@ fn runtime_unsigned_modulo_cast_operand_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("unsigned modulo cast-operand canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("unsigned modulo cast-operand canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("unsigned modulo cast-operand canary should run");
 
