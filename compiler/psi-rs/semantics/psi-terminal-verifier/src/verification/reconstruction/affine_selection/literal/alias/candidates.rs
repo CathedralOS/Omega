@@ -1,7 +1,8 @@
 //! Source-ordered one-alias literal candidates for independent reconstruction.
 
-use psi_core::{Proposition, ScalarTerm, ScalarType};
+use psi_core::{Proposition, ScalarTerm};
 
+mod join;
 mod landing_index;
 mod root_aliases;
 
@@ -27,13 +28,7 @@ impl<'a> LiteralAliasCandidates<'a> {
     ) -> bool {
         self.root_aliases.any(|outer_equality, root, alias| {
             for &(inner_equality, literal) in self.landings.candidates(alias) {
-                if std::ptr::eq(outer_equality, inner_equality) {
-                    continue;
-                }
-                let Some((integer_type, _)) = literal.integer_value() else {
-                    unreachable!("literal index contains only integer landings")
-                };
-                if root.scalar_type() == ScalarType::Integer(integer_type)
+                if join::eligible(outer_equality, root, inner_equality, literal)
                     && complete(root, literal)
                 {
                     return true;

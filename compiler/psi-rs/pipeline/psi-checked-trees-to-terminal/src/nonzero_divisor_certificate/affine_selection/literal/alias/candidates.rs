@@ -1,8 +1,9 @@
 //! Source-ordered one-alias literal candidates for certificate production.
 
-use psi_core::{Proposition, ScalarTerm, ScalarType};
+use psi_core::{Proposition, ScalarTerm};
 use psi_proof_kernel::ProofNode;
 
+mod join;
 mod landing_index;
 mod root_aliases;
 
@@ -35,13 +36,7 @@ impl<'a> LiteralAliasCandidates<'a> {
         self.root_aliases
             .find(|outer_citation, outer_equality, root, alias| {
                 for &(inner_citation, inner_equality, literal) in self.landings.candidates(alias) {
-                    if std::ptr::eq(outer_equality, inner_equality) {
-                        continue;
-                    }
-                    let Some((integer_type, _)) = literal.integer_value() else {
-                        unreachable!("literal index contains only integer landings")
-                    };
-                    if root.scalar_type() != ScalarType::Integer(integer_type) {
+                    if !join::eligible(outer_equality, root, inner_equality, literal) {
                         continue;
                     }
                     if let Some(result) = complete(
