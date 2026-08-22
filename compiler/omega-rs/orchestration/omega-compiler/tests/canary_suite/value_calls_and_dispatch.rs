@@ -1436,9 +1436,12 @@ fn runtime_nested_receiver_same_type_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("nested same-type receiver canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("nested same-type receiver canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("nested same-type receiver canary should run");
     assert_eq!(
@@ -1463,9 +1466,12 @@ fn runtime_dispatch_second_receiver_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("second-receiver dispatch canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("second-receiver dispatch canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("second-receiver dispatch canary should run");
     assert_eq!(
@@ -1486,9 +1492,12 @@ fn runtime_dispatch_sibling_value_calls_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("sibling dispatched value calls should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("sibling dispatched value calls should retain their executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("sibling dispatched value calls should run");
     assert_eq!(
@@ -1509,9 +1518,12 @@ fn runtime_inline_repeated_receiver_value_calls_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("repeated inline value calls on one receiver should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("repeated inline value calls should retain their executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("repeated inline value calls on one receiver should run");
     assert_eq!(
@@ -1537,9 +1549,12 @@ fn runtime_nonentry_second_receiver_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("non-entry second-receiver canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("non-entry second-receiver canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("non-entry second-receiver canary should run");
     assert_eq!(
