@@ -4398,8 +4398,12 @@ Remaining:
   direct/vtable/table calls, byte I/O, and exact relocation-site replay form a
   separate 4,399-line production responsibility; its 2,005-line ABI regression
   corpus is separately compiled. Runtime value comparison, operand replay,
-  binary arithmetic, conversion, and text equality form a separate 4,340-line
-  scalar responsibility; integer/bit-field/indexed place writes and copy-layout
+  binary arithmetic, conversion, and text equality now form a 4,161-line
+  scalar parent. Its recursive-operand register-write ceilings, stack/control-
+  state traversal, and comparison/binary/conversion machine-state contracts
+  live in a focused 187-line child; the exact 104-function inventory, public
+  surface, bytes, widths, and failure behavior remain unchanged. Integer/bit-
+  field/indexed place writes and copy-layout
   contracts form a separate 675-line responsibility. Their 652-line arithmetic
   and conversion regression corpus is separately compiled. Dispatch-loop,
   case-entry, state-write, case-leave, and static-guard encoding now form a
