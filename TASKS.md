@@ -572,7 +572,12 @@ Owners:
   placement plan, admitted profile/receipt, exact resource compatibility,
   admission, base, and source-loan polarity before field lookup or address
   derivation; rejection borrows and therefore preserves the complete placed
-  authority for repair and retry.
+  authority for repair and retry. Placed field authorization independently
+  replays the retained placement plan, admitted profile/resources, exact field
+  descriptor and supply row, admission/reach, loan/resident identities, and
+  derived primitive address before issuing an authorized access; rejection
+  only borrows the projection, preserving its complete authority for repair
+  and retry.
   Stable content adoption independently replays that retained profile against
   the exact owned extent and placement before establishing resident custody;
   rejection returns both the unchanged owned admission and provider content
@@ -1560,7 +1565,15 @@ Remaining:
   reconstruction independently indexes and rechecks those same retained
   facts. Direct, literal-landed, one-alias, transitive, alias-transitive, then
   two-alias precedence, citation order, rejection behavior, proof shapes, and
-  the finite search frontier are unchanged. A
+  the finite search frontier are unchanged. Affine landed-literal custody now
+  lives in independent side-local `affine_selection/literal` modules.
+  Production alone constructs the closed reflexive order and one or two exact
+  substitutions for direct and fixed one-intermediate-alias literal roots;
+  reconstruction independently enumerates and rechecks the same retained
+  equalities and typed literals. Direct-bound, literal, one-alias, transitive,
+  alias-transitive, then two-alias precedence, citation and endpoint order,
+  rejection behavior, proof shapes, and the finite search frontier are
+  unchanged. A
   single exact prior value equality may also transport a completed affine bound
   from its checked target alias to the canonical goal endpoint. The producer
   replaces that one endpoint, constructs the bounded affine relation directly,
@@ -2688,7 +2701,12 @@ Owners:
   range index read/write—now launch only from exact checked-report receipts
   while retaining literal statuses 7, 4, 3, 30, and 30. The 795 owner pin
   remains stable, and flat/bundle container-fingerprint drift exposes no
-  executable path.
+  executable path. Five additional authored-root range/indexed-structure
+  executions—constant-expression range bounds, indexed struct-field read-
+  modify-write and operand use, and machine-indexed scalar/struct-field
+  arguments—now launch only from exact checked-report receipts while retaining
+  literal statuses 40, 1, 1, 1, and 1. The 795 owner pin remains stable, and
+  reused flat/bundle installation evidence exposes no executable path.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
@@ -3186,8 +3204,10 @@ Remaining N6/N8 work:
   219-line test-only child instead of sharing the 5,729-line production
   analysis module. Its closed dependent-subtraction refinement and conservative
   machine/state field-preservation bridge now live in a separate 313-line
-  `dependent_relations` child, leaving the production parent at 5,423 lines.
-  No accepted relation, call-write fence, interval, judgment, or diagnostic
+  `dependent_relations` child. The closed bounded-product recognizer and its
+  exact unsigned-widening/coupling gates form a separate 260-line
+  `dependent_products` child, leaving the production parent at 5,166 lines. No
+  accepted relation, call-write fence, interval, judgment, or diagnostic
   ordering changed. Fixed-width
   integer and address
   `embed` returns proof `Int` and contributes exact source-carrier range facts;
