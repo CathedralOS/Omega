@@ -2338,7 +2338,11 @@ Owners:
   output name and format, and complete container-byte identity. Flat executable
   and app-bundle installation consume only this validated view, so certificate,
   container, or output-identity drift rejects before either byte copy is
-  published.
+  published. Each executable copy now also replays the complete staged file
+  byte-for-byte before its atomic rename and returns an exact installation
+  receipt binding the publication identity, output path, byte count, and
+  container identity. A redirected name or changed/partial staged file is
+  removed and rejects before becoming visible.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
