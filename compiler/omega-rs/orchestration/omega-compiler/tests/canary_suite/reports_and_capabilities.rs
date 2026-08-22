@@ -823,19 +823,10 @@ fn linear_obligation_survives_dispatched_call_continuation() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host_with_auxiliary_artifacts(&canary, build_dir.clone())
-        .expect("linear call-continuation canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
-        .output()
-        .expect("linear call-continuation canary should run");
-    assert_eq!(
-        output.status.code(),
-        Some(7),
-        "the post-continuation consume result should reach exit_process, got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
-    );
+    let compilation =
+        compile_rooted_canary_for_native_host_with_auxiliary_artifacts(&canary, build_dir.clone())
+            .expect("linear call-continuation canary should compile");
+    assert_native_exit_code(&compilation, 7, "linear call-continuation canary");
 
     let report = fs::read_to_string(build_dir.join("backend_report.txt"))
         .expect("backend report should be written");
