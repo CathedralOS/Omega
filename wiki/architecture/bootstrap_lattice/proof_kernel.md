@@ -789,13 +789,14 @@ remapping, exact-cast completion, and the strictly post-cast affine suffix.
 Assumption identity, proof bytes, the last-cast boundary, rejection,
 direct-before-sandwich precedence, and the finite frontier remain unchanged.
 
-The fixed affine/cast/affine sibling likewise separates candidate enumeration
-from completion. Matching producer and verifier `cast/sandwich` parents retain
-cast-root, source-spine, requirement, and root-endpoint order; independent
-`cast/sandwich/completion` modules own the mapped-prefix, exact-cast, then
-affine-suffix composition. Citation identity, strict first/last-cast
-boundaries, nested proof shape, rejection, and the fixed frontier are
-unchanged.
+The fixed affine/cast/affine sibling likewise separates entry dispatch,
+candidate enumeration, and completion. Matching producer and verifier
+`cast/sandwich` facades delegate to independent `cast/sandwich/candidates`
+modules that retain cast-root, source-spine, requirement, and root-endpoint
+order. Their `cast/sandwich/completion` siblings own the mapped-prefix,
+exact-cast, then affine-suffix composition. Citation identity, strict
+first/last-cast boundaries, nested proof shape, rejection, and the fixed
+frontier are unchanged.
 
 Boundary-aware affine custody is also owned by matching side-local modules.
 Producer and verifier `affine_custody/boundary` modules independently complete
