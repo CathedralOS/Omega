@@ -6611,8 +6611,12 @@ compiler concept is introduced.
   premises and discharge them against the selected provider occurrence at
   composition. Add authored qualification-preserving correspondence beyond
   direct parameter/field identity; unknown, indexed, and local correspondence
-  remains fail closed. Keep nominal static-machine binder premises pinned to
-  the named requirement contract and ranking witnesses outside public identity.
+  remains fail closed. `QualificationEvidence` currently retains the evidence
+  kind and source declaration but no source-place relation; add an exact
+  contract/flow correspondence rather than treating every
+  `CheckedTransformation` as identity. Keep nominal static-machine binder
+  premises pinned to the named requirement contract and ranking witnesses
+  outside public identity.
 Acceptance: contract axes normalize independently, wrappers cannot launder
 reach or trust, and private proof improvements do not change public identity.
 
@@ -6635,19 +6639,21 @@ reach or trust, and private proof improvements do not change public identity.
   conservation/backend-ledger reporting. This is not yet a general conditional
   CFG, complete cleanup plan, or conservation witness.
 - **EXTERNAL-ENTRY-STACK-EPOCHS — implement the settled root realization.**
-  Replace the scalar provider-local stack summary with the complete finite set
-  of installation-admissible arrival contexts and a finite epoch sequence per
-  context. Each epoch retains stage, active domain, per-domain occupancy and
-  alignment, and phase-specific nesting allowance; exactly one body epoch joins
-  the emitted Terminal-Psi WCSU. Derive architectural arrival by applying a
-  sealed target rule to exact installed-entry facts, derive generated adapter
-  epochs from emitted stub bytes, and admit opaque adapters only through an
-  identity-bound receipt. Resolve relative `Interrupted` along each nesting
-  path and close `ProviderSelected` before composition. Compose concurrent live
-  demand with alignment and alternatives by maximum across epochs and contexts;
-  reject omitted or unknown contexts, bare numeric claims, unresolved domains,
-  unbounded depth, evidence drift, and overflow. Add no architecture-specific
-  frame vocabulary to source.
+  Target-neutral arrival-context, epoch, domain, occupancy, alignment, and
+  phase-nesting carriers now normalize into a validated, fingerprinted
+  realization. Structural validation closes phase order, body cardinality,
+  finite nesting, provider-selected domains, duplicate rows, and malformed
+  occupancy before orchestration.
+
+  Remaining: replace the scalar provider-local composer. Derive hardware
+  arrival from sealed target rules plus exact installation facts, generated
+  adapter epochs from emitted bytes, and opaque-adapter epochs only from an
+  identity-bound receipt. Prove the context set complete, resolve relative
+  `Interrupted` along each nesting path, join the sole body epoch with emitted
+  Terminal-Psi WCSU, sum aligned concurrent demand, and take maxima across
+  alternative epochs and contexts. Reject missing contexts, evidence drift,
+  unbounded depth, and overflow; add no architecture-specific frame vocabulary
+  to source.
 - **TR3-TR8:** finish whole-call-graph WCSU derivation, bind exact `StackPlan`
   evidence, reserve fixed nonmoving `StackLease`s, validate preservation and
   cancellation conformances, transfer arguments transactionally, lower
