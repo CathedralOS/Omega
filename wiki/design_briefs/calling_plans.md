@@ -757,6 +757,10 @@ bridge must remain pending without final wrapper evidence, a native-executable
 bridge must retain that evidence, and object-container fallback cannot carry a
 program-storage bridge. Missing or premature evidence therefore rejects at the
 same return boundary.
+For a native bridge, its final wrapper evidence must additionally name the same
+executable-region inventory fingerprint as the flat publication receipt.
+Evidence from another otherwise valid final image cannot accompany the
+published container.
 Final relocation replay also builds one exact owner map from every retained
 selected-instruction identity to that function symbol. A selected instruction
 retained twice, an instruction relocation naming another function, or an
