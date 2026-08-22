@@ -72,6 +72,25 @@ pub struct PreparedPostHandoffEntryWriterInvocation {
     context: ResolvedPostHandoffEntryWriterContext,
 }
 
+/// Failed binding returns the exact lowered writer evidence so callers may
+/// inspect it or retry against corrected installed/provider facts without
+/// regenerating bytes or invocation identity.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PostHandoffEntryWriterBindingError {
+    lowered: LoweredPostHandoffWriter,
+    diagnostic: Diagnostic,
+}
+
+impl PostHandoffEntryWriterBindingError {
+    pub const fn diagnostic(&self) -> &Diagnostic {
+        &self.diagnostic
+    }
+
+    pub fn into_parts(self) -> (LoweredPostHandoffWriter, Diagnostic) {
+        (self.lowered, self.diagnostic)
+    }
+}
+
 impl PreparedPostHandoffEntryWriterInvocation {
     pub const fn lowered(&self) -> &LoweredPostHandoffWriter {
         &self.lowered
@@ -93,6 +112,9 @@ pub fn lower_post_handoff_writer_fragment(
 ) -> Result<LoweredPostHandoffWriter, Diagnostic> {
     let invocation = writer
         .lower_reusable_fragment()
+        .map_err(|error| Diagnostic::error(error.0))?;
+    invocation
+        .validate_structure()
         .map_err(|error| Diagnostic::error(error.0))?;
     let normalized_plan_fingerprint = invocation.fragment().fingerprint();
     let (bytes, footprint) = match target.architecture {
@@ -143,25 +165,110 @@ pub fn bind_post_handoff_entry_writer_invocation(
     writer: &PostHandoffWriterPlan,
     destination_len: usize,
     destination_site: psi_layout_plans::PlacementSite,
-) -> Result<PreparedPostHandoffEntryWriterInvocation, Diagnostic> {
-    if installed.architecture() != lowered.fragment.target.architecture {
-        return Err(Diagnostic::error(format!(
-            "post-handoff writer target architecture {:?} does not match installed artifact architecture {:?}",
-            lowered.fragment.target.architecture,
-            installed.architecture()
-        )));
-    }
-    let context = installed
-        .populate_post_handoff_entry_writer_context(writer, destination_len, destination_site)
-        .map_err(|error| Diagnostic::error(error.0))?;
+) -> Result<PreparedPostHandoffEntryWriterInvocation, PostHandoffEntryWriterBindingError> {
+    let lowered = preflight_post_handoff_entry_writer_binding(lowered, installed.architecture())?;
+    let context = match installed.populate_post_handoff_entry_writer_context(
+        writer,
+        destination_len,
+        destination_site,
+    ) {
+        Ok(context) => context,
+        Err(error) => {
+            return Err(PostHandoffEntryWriterBindingError {
+                lowered,
+                diagnostic: Diagnostic::error(error.0),
+            });
+        }
+    };
     if !context.binds_invocation(&lowered.invocation)
         || context.normalized_fragment_fingerprint() != lowered.fragment.normalized_plan_fingerprint
     {
-        return Err(Diagnostic::error(
-            "provider context does not bind the exact lowered post-handoff writer invocation",
-        ));
+        return Err(PostHandoffEntryWriterBindingError {
+            lowered,
+            diagnostic: Diagnostic::error(
+                "provider context does not bind the exact lowered post-handoff writer invocation",
+            ),
+        });
     }
     Ok(PreparedPostHandoffEntryWriterInvocation { lowered, context })
+}
+
+fn preflight_post_handoff_entry_writer_binding(
+    lowered: LoweredPostHandoffWriter,
+    installed_architecture: Architecture,
+) -> Result<LoweredPostHandoffWriter, PostHandoffEntryWriterBindingError> {
+    let rejection = |lowered, diagnostic| PostHandoffEntryWriterBindingError {
+        lowered,
+        diagnostic: Diagnostic::error(diagnostic),
+    };
+    let target_architecture = lowered.fragment.target.architecture;
+    if installed_architecture != target_architecture {
+        return Err(rejection(
+            lowered,
+            format!(
+                "post-handoff writer target architecture {:?} does not match installed artifact architecture {installed_architecture:?}",
+                target_architecture,
+            ),
+        ));
+    }
+    if let Err(error) = lowered.invocation.validate_structure() {
+        return Err(rejection(lowered, error.0));
+    }
+    if lowered.fragment.normalized_plan_fingerprint != lowered.invocation.fragment().fingerprint() {
+        return Err(rejection(
+            lowered,
+            "lowered post-handoff writer normalized identity does not match its retained invocation"
+                .into(),
+        ));
+    }
+
+    let (expected_bytes, expected_footprint) = match lowered.fragment.target.architecture {
+        Architecture::X86_64 => (
+            omega_isa_x86_64::encode_generated_post_handoff_writer_bytes(
+                lowered.fragment.pointer_register,
+                lowered.invocation.fragment(),
+            ),
+            StateFootprintEvidence::new(
+                omega_isa_x86_64::generated_post_handoff_writer_clobbers(),
+                omega_isa_x86_64::generated_post_handoff_writer_additional_machine_state(),
+            ),
+        ),
+        Architecture::Aarch64 => (
+            omega_isa_aarch64::encode_generated_post_handoff_writer_bytes(
+                lowered.fragment.pointer_register,
+                lowered.invocation.fragment(),
+            ),
+            StateFootprintEvidence::new(
+                omega_isa_aarch64::generated_post_handoff_writer_clobbers(),
+                omega_isa_aarch64::generated_post_handoff_writer_additional_machine_state(),
+            ),
+        ),
+    };
+    let expected_bytes = match expected_bytes {
+        Ok(bytes) => bytes,
+        Err(diagnostic) => {
+            return Err(PostHandoffEntryWriterBindingError {
+                lowered,
+                diagnostic,
+            });
+        }
+    };
+    let expected_emitted_fingerprint = emitted_writer_fingerprint(
+        lowered.fragment.target.architecture,
+        lowered.fragment.normalized_plan_fingerprint,
+        &lowered.fragment.bytes,
+    );
+    if lowered.fragment.bytes != expected_bytes
+        || lowered.fragment.footprint != expected_footprint
+        || lowered.fragment.emitted_bytes_fingerprint != expected_emitted_fingerprint
+    {
+        return Err(rejection(
+            lowered,
+            "lowered post-handoff writer bytes, footprint, or emitted fingerprint fail exact replay"
+                .into(),
+        ));
+    }
+    Ok(lowered)
 }
 
 fn emitted_writer_fingerprint(
@@ -293,5 +400,39 @@ mod tests {
             x86.fragment().emitted_bytes_fingerprint(),
             arm.fragment().emitted_bytes_fingerprint()
         );
+    }
+
+    #[test]
+    fn binding_preflight_returns_exact_lowered_evidence_for_retry() {
+        let target =
+            RelocationTarget::Entry(EntryStubId::from_normalized_identity(7).expect("entry"));
+        let lowered = lower_post_handoff_writer_fragment(
+            NativeTarget::linux_x64(),
+            MachineRegister::X86Rdi,
+            &writer(target),
+        )
+        .expect("x86 fragment");
+        let expected = lowered.clone();
+
+        let rejection = preflight_post_handoff_entry_writer_binding(lowered, Architecture::Aarch64)
+            .expect_err("installed architecture drift must reject");
+        assert!(rejection.diagnostic().message.contains("architecture"));
+        let (lowered, diagnostic) = rejection.into_parts();
+        assert!(diagnostic.message.contains("architecture"));
+        assert_eq!(lowered, expected);
+
+        let lowered = preflight_post_handoff_entry_writer_binding(lowered, Architecture::X86_64)
+            .expect("the exact returned evidence remains valid for corrected retry");
+        assert_eq!(lowered, expected);
+
+        let mut corrupted = lowered;
+        corrupted.fragment.bytes[0] ^= 1;
+        let corrupted_snapshot = corrupted.clone();
+        let rejection =
+            preflight_post_handoff_entry_writer_binding(corrupted, Architecture::X86_64)
+                .expect_err("emitted byte corruption must reject");
+        assert!(rejection.diagnostic().message.contains("exact replay"));
+        let (returned, _) = rejection.into_parts();
+        assert_eq!(returned, corrupted_snapshot);
     }
 }
