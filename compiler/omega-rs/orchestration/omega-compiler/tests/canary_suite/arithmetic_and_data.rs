@@ -3000,9 +3000,12 @@ fn saturating_multiply_overflow_both_signs_canary_runs() {
 
     let scratch = std::env::temp_dir().join(format!("omega-sat-mul-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("saturating multiply canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("saturating multiply canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("saturating multiply canary should run");
     assert_eq!(
@@ -3035,9 +3038,12 @@ fn saturating_signed_divide_min_by_neg_one_canary_runs() {
 
     let scratch = std::env::temp_dir().join(format!("omega-sat-div-min-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("saturating INT_MIN/-1 canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("saturating INT_MIN/-1 canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("saturating INT_MIN/-1 canary should run");
     assert_eq!(
@@ -3071,9 +3077,12 @@ fn wrapping_signed_divide_min_by_neg_one_canary_runs() {
 
     let scratch = std::env::temp_dir().join(format!("omega-wrap-div-min-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("wrapping INT_MIN/-1 canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("wrapping INT_MIN/-1 canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("wrapping INT_MIN/-1 canary should run");
     assert_eq!(
