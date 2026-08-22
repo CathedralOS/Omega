@@ -18,6 +18,7 @@ mod proof_bundle;
 mod proof_declaration_wire;
 mod proposition_wire;
 mod provider_candidate_wire;
+mod publication;
 mod scalar_term_wire;
 mod scalar_wire;
 mod structural_field_wire;
@@ -41,6 +42,10 @@ pub use proof_bundle::{
     proof_bundle_fingerprint, render_verified_proof_synopsis,
 };
 pub use psi_terminal::{SemanticFingerprint, TerminalPsiIdentity};
+pub use publication::{
+    PublishedTerminalSemanticArtifact, TerminalSemanticArtifactPublication,
+    TerminalSemanticPublicationError,
+};
 pub use trust_graph::{
     TerminalTrustGraphIdentity, TrustAcceptingPolicy, TrustDependencyDigest, TrustDependencyKind,
     TrustDependencyNode, TrustDependencyStatus, TrustGraphError, ValidatedTerminalTrustGraph,

@@ -15,6 +15,8 @@ cd "$OMEGA_REPO_ROOT"
 
 command -v cargo >/dev/null 2>&1 || { echo "omega0 terminal emission: skipped (cargo absent)"; exit 0; }
 cargo test -q -p psi-checked-trees-to-terminal --test provider_attachment_source
+cargo build -q -p psi-terminal-codec --bin psi-terminal-publish
+TERMINAL_PUBLISHER="$OMEGA_REPO_ROOT/target/debug/psi-terminal-publish"
 
 case "$(uname -sm)" in
   "Darwin arm64") ;;
@@ -32,15 +34,6 @@ DELTA_ARCH=aarch64 "$OMEGA_PATH_DELTA_RUST/target/debug/delta" \
 python3 "$OMEGA_PATH_OMEGA0/omega0_bundle.py" pack \
   main.omg="$OMEGA_PATH_CORPUS/cli_mvp/main.omg" > "$T/canonical.bundle"
 
-set +e
-"$T/frontend" < "$T/canonical.bundle" > "$T/emitted.psi"
-FRONTEND_STATUS=$?
-set -e
-[ "$FRONTEND_STATUS" = 107 ] || {
-  echo "omega0 terminal emission: frontend exit $FRONTEND_STATUS, expected 107" >&2
-  exit 1
-}
-
 python3 - "$OMEGA_PATH_OMEGA0/fixtures/omega0-terminal-v25.hex" "$T/frozen.psi" <<'PY'
 import pathlib
 import sys
@@ -48,18 +41,40 @@ import sys
 source = pathlib.Path(sys.argv[1]).read_text(encoding="ascii")
 pathlib.Path(sys.argv[2]).write_bytes(bytes.fromhex(source))
 PY
+"$TERMINAL_PUBLISHER" --success-exit 107 --expect "$T/frozen.psi" \
+  "$T/emitted.psi" -- "$T/frontend" < "$T/canonical.bundle"
+cmp "$T/frozen.psi" "$T/emitted.psi"
+
+set +e
+"$TERMINAL_PUBLISHER" --success-exit 107 --expect "$T/frozen.psi" \
+  "$T/emitted.psi" -- python3 -c \
+  'import pathlib, sys; sys.stdout.buffer.write(pathlib.Path(sys.argv[1]).read_bytes()[:-1]); sys.exit(107)' \
+  "$T/frozen.psi"
+TRUNCATED_STATUS=$?
+set -e
+[ "$TRUNCATED_STATUS" != 0 ] || {
+  echo "omega0 terminal emission: truncated producer was published" >&2
+  exit 1
+}
+cmp "$T/frozen.psi" "$T/emitted.psi"
+
+set +e
+"$TERMINAL_PUBLISHER" --success-exit 107 --expect "$T/frozen.psi" \
+  "$T/emitted.psi" -- python3 -c \
+  'import pathlib, sys; sys.stdout.buffer.write(pathlib.Path(sys.argv[1]).read_bytes()); sys.exit(9)' \
+  "$T/frozen.psi"
+FAILED_PRODUCER_STATUS=$?
+set -e
+[ "$FAILED_PRODUCER_STATUS" != 0 ] || {
+  echo "omega0 terminal emission: failed producer was published" >&2
+  exit 1
+}
 cmp "$T/frozen.psi" "$T/emitted.psi"
 
 printf 'use omega::language::std::console; data Main{console:Console;} machine Main::main(&mut self){self.console.write_line("A\\n");self.console.exit_process(2);}' > "$T/variant.omg"
 python3 "$OMEGA_PATH_OMEGA0/omega0_bundle.py" pack main.omg="$T/variant.omg" > "$T/variant.bundle"
-set +e
-"$T/frontend" < "$T/variant.bundle" > "$T/variant.psi"
-VARIANT_STATUS=$?
-set -e
-[ "$VARIANT_STATUS" = 77 ] || {
-  echo "omega0 terminal emission: variant exit $VARIANT_STATUS, expected 77" >&2
-  exit 1
-}
+"$TERMINAL_PUBLISHER" --success-exit 77 --expect "$T/variant-shared.psi" \
+  "$T/variant.psi" -- "$T/frontend" < "$T/variant.bundle"
 if cmp -s "$T/frozen.psi" "$T/variant.psi"; then
   echo "omega0 terminal emission: literal/scalar perturbation did not change bytes" >&2
   exit 1

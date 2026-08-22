@@ -265,11 +265,15 @@ story.
     - [x] No standalone semantic-plus-proof envelope is needed for this slice.
       If a later profile needs one, add one generic length-delimited terminal
       envelope rather than an O0-only container.
-  - [ ] **Close the Delta artifact-publication sink contract.** D0 `write_byte`
+  - [x] **Close the Delta artifact-publication sink contract.** D0 `write_byte`
     returns `Unit`, so the compiler cannot observe a physical sink/short-write
-    failure. Either make that failure explicit or require atomic persistence
-    plus successful canonical decode before publication; a successful producer
-    exit alone is not artifact acceptance.
+    failure. The generic terminal-semantic publisher now gives the producer a
+    private same-directory staging sink, persists it, requires the declared
+    producer exit and successful canonical decode (plus expected semantic
+    identity when supplied), and atomically renames only after acceptance.
+    Truncation, malformed or substituted meaning, and producer failure preserve
+    the previous accepted destination; successful producer exit alone is not
+    artifact acceptance.
   - [x] Implement a genuine target `exit_process(i32)` boundary realization.
     Consume the preserved scalar argument; do not reinterpret it as a machine
     return or route it through the metadata-only port settlement.
