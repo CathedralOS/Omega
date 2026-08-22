@@ -1875,9 +1875,14 @@ Remaining:
   vtable indirect calls form a separate 549-line responsibility. Runtime
   byte/line/text-boundary replay is a separate 504-line responsibility,
   and syscall replay plus exact relocation-target derivation is a separate
-  507-line responsibility. Compiler footprint
-  derivation now has a 509-line composition/partition parent over a declarative
-  four-family registry: 249-line control/entry, 621-line storage/place,
+  507-line responsibility. The contract-entailment owner has begun a matching
+  split: its 7,124-line arithmetic, inductive, citation, and structural-law
+  parent delegates the 242-line exact quotient-congruence judgment to a focused
+  child. That child alone recognizes quotient mint equality and requires the
+  quotient's retained relation premise; it performs no ambient proof discovery
+  and cannot fall through to generic arithmetic or structural tiers. Compiler
+  footprint derivation now has a 509-line composition/partition parent over a
+  declarative four-family registry: 249-line control/entry, 621-line storage/place,
   866-line outbound-call, and 512-line buffer/wire/text responsibilities. A
   separate instruction-selection boundary-footprint owner has begun the same
   split: its 5,445-line `entry.rs` parent delegates all eleven compact-binary
