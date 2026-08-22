@@ -1808,7 +1808,12 @@ admits the complete dividend sibling: exact `divisor <= -1`,
 `MIN + 1 <= M`, `M <= K`, and `K == dividend`. The producer constructs the
 ordered conjunction, cites the divisor bound directly, and nests the two
 dividend-floor citations beneath endpoint substitution. A missing or
-disconnected middle fact rejects. A signed `i1` divisor
+disconnected middle fact rejects. The complete nested signed-`i1` family
+transports both mandatory conjuncts from two exact citations each:
+`Kd <= Md`, `Md <= -1`, `Kd == divisor`, and `0 <= Mn`, `Mn <= Kn`,
+`Kn == dividend`. The producer emits the ordered conjunction of two
+transitivity-under-substitution proofs; either missing middle relation rejects
+the whole goal. A signed `i1` divisor
 fact alone remains
 insufficient because the canonical conjunction also needs its dividend premise.
 The complete retained-bound `i1` family selects that conjunction when exact

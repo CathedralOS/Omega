@@ -391,7 +391,11 @@ joint arm has the corresponding complete dividend sibling: exact
 `divisor <= -1`, `MIN + 1 <= M`, `M <= K`, and `K == dividend`. Its ordered
 conjunction cites the divisor bound directly and nests the two dividend-floor
 citations beneath endpoint substitution. A missing or disconnected middle fact
-rejects. A signed `i1` divisor
+rejects. The complete nested signed-`i1` family transports both mandatory
+conjuncts from two exact citations each: `Kd <= Md`, `Md <= -1`,
+`Kd == divisor`, and `0 <= Mn`, `Mn <= Kn`, `Kn == dividend`. Its proof is the
+ordered conjunction of two transitivity-under-substitution nodes; either
+missing middle relation rejects the whole goal. A signed `i1` divisor
 fact alone cannot prove its two-premise conjunction. When exact prior
 `divisor <= -1` and `0 <= dividend` propositions are both independently
 retained, the complete `i1` family cites them and constructs that conjunction;
