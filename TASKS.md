@@ -5674,7 +5674,14 @@ Owners:
   valid certificate recomputed for a substituted registration/satisfaction
   realization therefore cannot pair with unchanged image evidence. This seals
   structural callback identity through image-to-certificate publication
-  without selecting the blocked private registration relocation. The
+  without selecting the blocked private registration relocation. Callback-
+  placement identity now also remains explicit through publication and
+  installation: publication evidence, installed-publication evidence, and the
+  retained compile-report receipt carry the exact summary; it participates in
+  both fingerprints, and flat/app-bundle receipt replay requires equality.
+  Callback identity drift therefore invalidates destination custody even when
+  certificate and container fields are otherwise copied consistently, without
+  choosing private registration placement. The
   remaining slices are
   resource-ceiling aggregation, multi-entry/re-entrant target instruction
   lowering, and the
