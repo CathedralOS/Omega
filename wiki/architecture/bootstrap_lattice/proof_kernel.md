@@ -395,7 +395,12 @@ rejects. The complete nested signed-`i1` family transports both mandatory
 conjuncts from two exact citations each: `Kd <= Md`, `Md <= -1`,
 `Kd == divisor`, and `0 <= Mn`, `Mn <= Kn`, `Kn == dividend`. Its proof is the
 ordered conjunction of two transitivity-under-substitution nodes; either
-missing middle relation rejects the whole goal. A signed `i1` divisor
+missing middle relation rejects the whole goal. The signed
+width-at-least-two joint arm is likewise complete when both conjuncts use
+direct two-citation chains: `divisor <= K`, `K <= -1`, and
+`MIN + 1 <= M`, `M <= dividend`. The proof introduces only arm 2 and constructs
+its ordered conjunction from those two transitivity nodes; a missing or
+disconnected citation rejects the entire arm. A signed `i1` divisor
 fact alone cannot prove its two-premise conjunction. When exact prior
 `divisor <= -1` and `0 <= dividend` propositions are both independently
 retained, the complete `i1` family cites them and constructs that conjunction;

@@ -1813,7 +1813,11 @@ transports both mandatory conjuncts from two exact citations each:
 `Kd <= Md`, `Md <= -1`, `Kd == divisor`, and `0 <= Mn`, `Mn <= Kn`,
 `Kn == dividend`. The producer emits the ordered conjunction of two
 transitivity-under-substitution proofs; either missing middle relation rejects
-the whole goal. A signed `i1` divisor
+the whole goal. The signed width-at-least-two joint arm is also complete when
+both conjuncts use direct two-citation chains: `divisor <= K`, `K <= -1`, and
+`MIN + 1 <= M`, `M <= dividend`. The producer introduces only arm 2 and
+constructs its ordered conjunction from the two transitivity proofs; a missing
+or disconnected citation rejects the entire arm. A signed `i1` divisor
 fact alone remains
 insufficient because the canonical conjunction also needs its dividend premise.
 The complete retained-bound `i1` family selects that conjunction when exact

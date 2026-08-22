@@ -1746,4 +1746,41 @@ mod tests {
             &facts[3..],
         ));
     }
+
+    #[test]
+    fn exact_division_selects_two_citation_bounds_for_both_signed_joint_conjuncts() {
+        let signed = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+        let goal = CanonicalScalarGoal::ExactDivisionDefined {
+            integer_type: signed,
+            left: value(1, signed),
+            right: value(2, signed),
+        };
+        let facts = [
+            Proposition::LessOrEqual(value(2, signed), value(3, signed)),
+            Proposition::LessOrEqual(
+                value(3, signed),
+                ScalarTerm::integer(signed, IntegerValue::Signed(-1)).expect("i8 -1"),
+            ),
+            Proposition::LessOrEqual(
+                ScalarTerm::integer(signed, IntegerValue::Signed(-127)).expect("i8 minimum + 1"),
+                value(4, signed),
+            ),
+            Proposition::LessOrEqual(value(4, signed), value(1, signed)),
+        ];
+        assert!(exact_division_has_closed_prior_certificate(
+            &goal,
+            &facts[..2],
+            &facts[2..],
+        ));
+        assert!(!exact_division_has_closed_prior_certificate(
+            &goal,
+            std::slice::from_ref(&facts[0]),
+            &facts[2..],
+        ));
+        assert!(!exact_division_has_closed_prior_certificate(
+            &goal,
+            &facts[..2],
+            std::slice::from_ref(&facts[2]),
+        ));
+    }
 }
