@@ -7069,7 +7069,13 @@ checked-result arithmetic decision listed below.
   helper-produced, and literal operands. Validated shared/mutable recasts over
   whole name/member places now publish the exact source loan too; indexed
   byte-region recasts remain conservative until their complete target footprint
-  can enter overlap facts. Remaining computed aggregate expression forms still
+  can enter overlap facts. Scalar recast representation-set normalization and
+  implication now live in a focused 377-line private owner. Exact integer two's-
+  complement bit-pattern intervals, same-carrier float intervals, domain-
+  conjunction implication, mutable bidirectional equivalence, and five focused
+  tests retain behavior and order. The recast coordinator is now 2,442 lines;
+  public APIs, diagnostics, and the exact 49-function inventory remain
+  unchanged. Remaining computed aggregate expression forms still
   need the same propagation law.
 - Materialize dynamic descriptors for pass-through, rebound, and escaping
   borrows from the retained exact conformance rows and declaring-trait symbol.
