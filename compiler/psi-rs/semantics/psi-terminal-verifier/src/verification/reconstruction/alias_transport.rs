@@ -8,9 +8,7 @@ use std::collections::BTreeMap;
 
 use psi_core::{Proposition, PropositionContext, ScalarTerm};
 
-use super::{
-    closed_integer_less_or_equal, retained_cast_bound_from_root, retained_remap_integer_literal,
-};
+use super::{cast_custody, closed_integer_less_or_equal, retained_remap_integer_literal};
 
 pub(super) fn retained_one(
     requirements: &[Proposition],
@@ -176,7 +174,7 @@ fn retained_cast_from_stronger_bound(
     } else {
         Proposition::LessOrEqual(root.clone(), source_endpoint)
     };
-    retained_cast_bound_from_root(context, goal, semantic_axioms, root, &root_bound)
+    cast_custody::retained_from_root(context, goal, semantic_axioms, root, &root_bound)
 }
 
 pub(super) fn retained_landed_literal_cast(
@@ -260,7 +258,7 @@ fn retained_cast_from_landed_literal(
             } else {
                 Proposition::LessOrEqual(root.clone(), source_endpoint)
             };
-            retained_cast_bound_from_root(context, goal, semantic_axioms, root, &root_bound)
+            cast_custody::retained_from_root(context, goal, semantic_axioms, root, &root_bound)
         })
 }
 
