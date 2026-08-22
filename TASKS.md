@@ -543,6 +543,10 @@ Owners:
   identities through Terminal Psi, installation, the interpreter, and both
   native backends without replaying source layout. Emit claim-local
   introduction, forwarding, transformation, exit, and loan rows.
+  Every Stable primitive/compound, External primitive, and Atomic
+  specialization independently replays the exact admitted effective-supply
+  row—field key/name, width, authority-relative offset/address, and
+  alignment—and returns the unchanged sealed request on drift.
 - Implement `Extent::Resident<P, T>` as the owned exact-range dormant-content
   qualification, including invariant type indices, mutual exclusion with
   `Vacant`, split/merge rejection, borrow versus owned-view continuity,
@@ -2467,7 +2471,10 @@ Owners:
   from another valid final image from accompanying the published container.
   Receipts now additionally retain the sealed compiler-text derivation and
   compiler-function evidence fingerprints; flat/bundle copies and native
-  wrapper evidence must rejoin the same pair rather than inventory alone.
+  wrapper evidence must rejoin the same pair rather than inventory alone. The
+  receipt also retains the certificate's optional boundary-contract
+  fingerprint; flat/bundle copies agree and native program-storage arrival
+  evidence must name that same concrete contract.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
@@ -2902,7 +2909,9 @@ Remaining N6/N8 work:
   certificates prove no effect, contract, or `Respects` obligation. The
   relation-plan parent now delegates the whole alias/finite-graph judgment to a
   focused 289-line child instead of accumulating hop-specific verification
-  functions.
+  functions. Its 1,850-line regression harness now lives in a test-only child,
+  leaving the production relation-plan coordinator at 449 lines without
+  changing judgment ownership.
   Every request still rejects as non-executable until all remaining obligations
   are checked and retained in checked/terminal identity.
 - Suppress every synthesized representation observer on quotient formation.
