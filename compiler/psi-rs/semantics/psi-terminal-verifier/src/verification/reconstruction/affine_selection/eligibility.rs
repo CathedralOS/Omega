@@ -2,6 +2,15 @@
 
 use psi_core::{Proposition, ScalarTerm, ScalarType};
 
+pub(super) fn ordered_value_endpoints<'a>(
+    left: &'a ScalarTerm,
+    right: &'a ScalarTerm,
+) -> impl Iterator<Item = &'a ScalarTerm> {
+    [left, right]
+        .into_iter()
+        .filter(|endpoint| matches!(endpoint, ScalarTerm::Value { .. }))
+}
+
 pub(super) fn distinct_value_alias(root: &ScalarTerm, alias: &ScalarTerm) -> bool {
     root != alias
         && matches!(root, ScalarTerm::Value { .. })
