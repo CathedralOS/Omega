@@ -636,7 +636,11 @@ Owners:
   admitted field inventory, stable member identity, accessor type/data identity,
   and unique operation machine/state targets rejoin in the same order before
   the sealed typed plan is installed; the 107-function package inventory and
-  public behavior remain unchanged, leaving a 590-line coordinator.
+  public behavior remain unchanged. Probe/exact record synthesis now also lives
+  in a focused private owner, including accessor naming, template cloning/
+  retirement, operation selection, record construction, and exact type-
+  reference rewriting. The cohesive discovery/two-pass orchestration root is
+  now 298 lines.
   Plan-laid value layouts now retain the exact synthesized data symbol and
   ordered runtime field-symbol inventory independently from their diagnostic
   name. Interpreter record views, recast/relevance validation, boundary ABI
