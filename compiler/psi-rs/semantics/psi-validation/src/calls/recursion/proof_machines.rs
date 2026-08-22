@@ -28,15 +28,16 @@ use psi_typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionT
 /// is the recorded follow-on.
 /// COMPUTED-SUBJECT strict decrease by CITATION (N4 order rung, slice a2,
 /// design-ruled 2026-07-17): a recursive proof machine whose measure
-/// argument is an application (`mod(sub(a, b), b)` at measure `a`) proves
+/// argument is an application (`mod(saturating_sub(a, b), b)` at measure `a`) proves
 /// the strict edge by citing a lemma in the SAME state whose instantiated
 /// ensures is EXACTLY the monus-order strict fact
-/// `sub(Succ(ARG), MEASURE) == Zero` (`ARG < MEASURE`). The cited lemma's
+/// `saturating_sub(Succ(ARG), MEASURE) == Zero` (`ARG < MEASURE`). The cited lemma's
 /// REQUIRES discharge syntactically at the site against (i) the citing
 /// machine's own requires and (ii) the incoming-arm case equations (every
 /// transition arm targeting this state whose guard cases subject S into
 /// constructor C contributes the fact `S == C` -- the mod shape's Zero arm
-/// over `sub(b, a)` contributes exactly `sub(b, a) == Zero`, the `b <= a`
+/// over `saturating_sub(b, a)` contributes exactly
+/// `saturating_sub(b, a) == Zero`, the `b <= a`
 /// premise). Everything is structural expression equality -- no arithmetic
 /// is re-derived here; the lemma carries the mathematics.
 fn cited_strict_decrease(
@@ -49,7 +50,7 @@ fn cited_strict_decrease(
     let Some(measure_name) = measure_name else {
         return false;
     };
-    // A let-bound edge argument (`let next = sub(a, b); .. mod(next, b)` --
+    // A let-bound edge argument (`let next = saturating_sub(a, b); .. mod(next, b)` --
     // the value-call face forces the hoist) resolves through its
     // initializer before matching.
     let argument = resolve_state_local(program, state, argument);
@@ -239,7 +240,7 @@ struct SiteFact {
 }
 
 /// The callee's ensures fact, instantiated at the citation's arguments,
-/// must be exactly `sub(Succ { prev: ARG }, MEASURE) == Nat::Zero`.
+/// must be exactly `saturating_sub(Succ { prev: ARG }, MEASURE) == Nat::Zero`.
 fn ensures_is_strict_decrease(
     program: &TypedTrees,
     fact: ExpressionHandle,
@@ -257,11 +258,11 @@ fn ensures_is_strict_decrease(
     if !expression_is_nat_zero(program, binary.right) {
         return false;
     }
-    // LHS: sub(Succ { prev: X }, M).
+    // LHS: saturating_sub(Succ { prev: X }, M).
     let ExpressionNode::Call(sub_call) = program.expression_table.expression(binary.left) else {
         return false;
     };
-    if sub_call.target.as_str() != "sub" {
+    if sub_call.target.as_str() != "saturating_sub" {
         return false;
     }
     let sub_arguments = program

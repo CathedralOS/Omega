@@ -17,9 +17,9 @@ machine cauchy_at<machine Sequence, machine Modulus>(
 where machine Sequence(index: Nat) -> Rat;
 where machine Modulus(precision: Nat) -> Nat;
 requires
-    (sub(Nat::Succ { prev: Nat::Zero }, precision)) == Nat::Zero;
-    (sub(Modulus(precision), left_index)) == Nat::Zero;
-    (sub(Modulus(precision), right_index)) == Nat::Zero
+    (saturating_sub(Nat::Succ { prev: Nat::Zero }, precision)) == Nat::Zero;
+    (saturating_sub(Modulus(precision), left_index)) == Nat::Zero;
+    (saturating_sub(Modulus(precision), right_index)) == Nat::Zero
 {
     let left: Rat = Sequence(left_index);
     let right: Rat = Sequence(right_index);
@@ -35,9 +35,9 @@ where machine Left(index: Nat) -> Rat;
 where machine Right(index: Nat) -> Rat;
 where machine Modulus(precision: Nat) -> Nat;
 requires
-    (sub(Nat::Succ { prev: Nat::Zero }, precision)) == Nat::Zero;
-    (sub(Modulus(precision), left_index)) == Nat::Zero;
-    (sub(Modulus(precision), right_index)) == Nat::Zero
+    (saturating_sub(Nat::Succ { prev: Nat::Zero }, precision)) == Nat::Zero;
+    (saturating_sub(Modulus(precision), left_index)) == Nat::Zero;
+    (saturating_sub(Modulus(precision), right_index)) == Nat::Zero
 {
     let left: Rat = Left(left_index);
     let right: Rat = Right(right_index);
@@ -51,8 +51,8 @@ machine cauchy_at_reflexive<machine Sequence, machine Modulus>(
 where machine Sequence(index: Nat) -> Rat;
 where machine Modulus(precision: Nat) -> Nat;
 requires
-    (sub(Nat::Succ { prev: Nat::Zero }, precision)) == Nat::Zero;
-    (sub(Modulus(precision), index)) == Nat::Zero
+    (saturating_sub(Nat::Succ { prev: Nat::Zero }, precision)) == Nat::Zero;
+    (saturating_sub(Modulus(precision), index)) == Nat::Zero
 ensures
     (cauchy_at<Sequence, Modulus>(precision, index, index)) == Nat::Zero
 {
@@ -73,9 +73,9 @@ where machine Left(index: Nat) -> Rat;
 where machine Right(index: Nat) -> Rat;
 where machine Modulus(precision: Nat) -> Nat;
 requires
-    (sub(Nat::Succ { prev: Nat::Zero }, precision)) == Nat::Zero;
-    (sub(Modulus(precision), left_index)) == Nat::Zero;
-    (sub(Modulus(precision), right_index)) == Nat::Zero;
+    (saturating_sub(Nat::Succ { prev: Nat::Zero }, precision)) == Nat::Zero;
+    (saturating_sub(Modulus(precision), left_index)) == Nat::Zero;
+    (saturating_sub(Modulus(precision), right_index)) == Nat::Zero;
     (converges_together_at<Left, Right, Modulus>(
         precision,
         left_index,
@@ -114,17 +114,17 @@ where machine Middle(index: Nat) -> Rat;
 where machine Right(index: Nat) -> Rat;
 where machine Modulus(precision: Nat) -> Nat;
 requires
-    (sub(Nat::Succ { prev: Nat::Zero }, precision)) == Nat::Zero;
-    (sub(
+    (saturating_sub(Nat::Succ { prev: Nat::Zero }, precision)) == Nat::Zero;
+    (saturating_sub(
         Nat::Succ { prev: Nat::Zero },
         add(precision, precision)
     )) == Nat::Zero;
-    (sub(Modulus(precision), left_index)) == Nat::Zero;
-    (sub(Modulus(precision), right_index)) == Nat::Zero;
-    (sub(Modulus(add(precision, precision)), left_index)) == Nat::Zero;
-    (sub(Modulus(add(precision, precision)), middle_index)) == Nat::Zero;
-    (sub(Modulus(add(precision, precision)), right_index)) == Nat::Zero;
-    (sub(
+    (saturating_sub(Modulus(precision), left_index)) == Nat::Zero;
+    (saturating_sub(Modulus(precision), right_index)) == Nat::Zero;
+    (saturating_sub(Modulus(add(precision, precision)), left_index)) == Nat::Zero;
+    (saturating_sub(Modulus(add(precision, precision)), middle_index)) == Nat::Zero;
+    (saturating_sub(Modulus(add(precision, precision)), right_index)) == Nat::Zero;
+    (saturating_sub(
         Nat::Succ { prev: Nat::Zero },
         (Middle(middle_index)).den
     )) == Nat::Zero;

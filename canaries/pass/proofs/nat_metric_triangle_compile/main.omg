@@ -4,7 +4,7 @@ use omega::language::core::nat_metric;
 
 machine triangle_available(a: Nat, b: Nat, c: Nat)
 ensures
-    (sub(nat_gap(a, c), add(nat_gap(a, b), nat_gap(b, c)))) == Nat::Zero
+    (saturating_sub(nat_gap(a, c), add(nat_gap(a, b), nat_gap(b, c)))) == Nat::Zero
 {
     nat_gap_triangle(a, b, c);
 }
@@ -18,19 +18,19 @@ ensures
 
 machine multiplication_preserves_order(a: Nat, b: Nat, factor: Nat)
 requires
-    (sub(a, b)) == Nat::Zero
+    (saturating_sub(a, b)) == Nat::Zero
 ensures
-    (sub(mul(a, factor), mul(b, factor))) == Nat::Zero
+    (saturating_sub(mul(a, factor), mul(b, factor))) == Nat::Zero
 {
     mul_le_mul_right(a, b, factor);
 }
 
 machine positive_multiplication_reflects_order(a: Nat, b: Nat, factor: Nat)
 requires
-    (sub(Nat::Succ { prev: Nat::Zero }, factor)) == Nat::Zero;
-    (sub(mul(a, factor), mul(b, factor))) == Nat::Zero
+    (saturating_sub(Nat::Succ { prev: Nat::Zero }, factor)) == Nat::Zero;
+    (saturating_sub(mul(a, factor), mul(b, factor))) == Nat::Zero
 ensures
-    (sub(a, b)) == Nat::Zero
+    (saturating_sub(a, b)) == Nat::Zero
 {
     mul_le_cancel_right(a, b, factor);
 }

@@ -21,17 +21,17 @@ where machine WrongMiddle(index: Nat) -> Rat;
 where machine Right(index: Nat) -> Rat;
 where machine Modulus(precision: Nat) -> Nat;
 requires
-    (sub(Nat::Succ { prev: Nat::Zero }, precision)) == Nat::Zero;
-    (sub(
+    (saturating_sub(Nat::Succ { prev: Nat::Zero }, precision)) == Nat::Zero;
+    (saturating_sub(
         Nat::Succ { prev: Nat::Zero },
         add(precision, precision)
     )) == Nat::Zero;
-    (sub(Modulus(precision), left_index)) == Nat::Zero;
-    (sub(Modulus(precision), right_index)) == Nat::Zero;
-    (sub(Modulus(add(precision, precision)), left_index)) == Nat::Zero;
-    (sub(Modulus(add(precision, precision)), middle_index)) == Nat::Zero;
-    (sub(Modulus(add(precision, precision)), right_index)) == Nat::Zero;
-    (sub(
+    (saturating_sub(Modulus(precision), left_index)) == Nat::Zero;
+    (saturating_sub(Modulus(precision), right_index)) == Nat::Zero;
+    (saturating_sub(Modulus(add(precision, precision)), left_index)) == Nat::Zero;
+    (saturating_sub(Modulus(add(precision, precision)), middle_index)) == Nat::Zero;
+    (saturating_sub(Modulus(add(precision, precision)), right_index)) == Nat::Zero;
+    (saturating_sub(
         Nat::Succ { prev: Nat::Zero },
         (WrongMiddle(middle_index)).den
     )) == Nat::Zero;

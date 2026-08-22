@@ -38,8 +38,8 @@ machine valid_convergence_point() -> Nat {
 
 machine unit_sequence_is_reflexive(precision: Nat, index: Nat)
 requires
-    (sub(Nat::Succ { prev: Nat::Zero }, precision)) == Nat::Zero;
-    (sub(immediate_modulus(precision), index)) == Nat::Zero
+    (saturating_sub(Nat::Succ { prev: Nat::Zero }, precision)) == Nat::Zero;
+    (saturating_sub(immediate_modulus(precision), index)) == Nat::Zero
 ensures
     (cauchy_at<unit_sample, immediate_modulus>(
         precision,
@@ -56,9 +56,9 @@ machine unit_sequences_are_symmetric(
     right_index: Nat
 )
 requires
-    (sub(Nat::Succ { prev: Nat::Zero }, precision)) == Nat::Zero;
-    (sub(immediate_modulus(precision), left_index)) == Nat::Zero;
-    (sub(immediate_modulus(precision), right_index)) == Nat::Zero;
+    (saturating_sub(Nat::Succ { prev: Nat::Zero }, precision)) == Nat::Zero;
+    (saturating_sub(immediate_modulus(precision), left_index)) == Nat::Zero;
+    (saturating_sub(immediate_modulus(precision), right_index)) == Nat::Zero;
     (converges_together_at<unit_sample, unit_sample, immediate_modulus>(
         precision,
         left_index,
@@ -85,17 +85,17 @@ machine unit_sequences_are_pointwise_transitive(
     right_index: Nat
 )
 requires
-    (sub(Nat::Succ { prev: Nat::Zero }, precision)) == Nat::Zero;
-    (sub(
+    (saturating_sub(Nat::Succ { prev: Nat::Zero }, precision)) == Nat::Zero;
+    (saturating_sub(
         Nat::Succ { prev: Nat::Zero },
         add(precision, precision)
     )) == Nat::Zero;
-    (sub(immediate_modulus(precision), left_index)) == Nat::Zero;
-    (sub(immediate_modulus(precision), right_index)) == Nat::Zero;
-    (sub(immediate_modulus(add(precision, precision)), left_index)) == Nat::Zero;
-    (sub(immediate_modulus(add(precision, precision)), middle_index)) == Nat::Zero;
-    (sub(immediate_modulus(add(precision, precision)), right_index)) == Nat::Zero;
-    (sub(
+    (saturating_sub(immediate_modulus(precision), left_index)) == Nat::Zero;
+    (saturating_sub(immediate_modulus(precision), right_index)) == Nat::Zero;
+    (saturating_sub(immediate_modulus(add(precision, precision)), left_index)) == Nat::Zero;
+    (saturating_sub(immediate_modulus(add(precision, precision)), middle_index)) == Nat::Zero;
+    (saturating_sub(immediate_modulus(add(precision, precision)), right_index)) == Nat::Zero;
+    (saturating_sub(
         Nat::Succ { prev: Nat::Zero },
         (unit_sample(middle_index)).den
     )) == Nat::Zero;

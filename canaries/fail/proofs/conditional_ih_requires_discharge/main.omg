@@ -12,10 +12,10 @@ machine conditional_ih_requires_all(
 ) -> Nat
 terminates by factor;
 requires
-    (sub(a, b)) == Nat::Zero;
-    (sub(witness_left, witness_right)) == Nat::Zero
+    (saturating_sub(a, b)) == Nat::Zero;
+    (saturating_sub(witness_left, witness_right)) == Nat::Zero
 ensures
-    (sub(mul(a, factor), mul(b, factor))) == Nat::Zero
+    (saturating_sub(mul(a, factor), mul(b, factor))) == Nat::Zero
 {
     transition factor {
         Nat::Zero -> cihr_zero(a, b)

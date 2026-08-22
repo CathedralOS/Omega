@@ -4,10 +4,10 @@ use omega::language::core::nat_metric;
 
 machine later_fact_is_not_available(a: Nat, b: Nat, c: Nat, d: Nat)
 requires
-    (sub(a, b)) == Nat::Zero;
-    (sub(c, d)) == Nat::Zero
+    (saturating_sub(a, b)) == Nat::Zero;
+    (saturating_sub(c, d)) == Nat::Zero
 ensures
-    (sub(add(a, c), add(b, d))) == Nat::Zero
+    (saturating_sub(add(a, c), add(b, d))) == Nat::Zero
 {
     add_le_add_right(a, b, c);
     le_trans(add(a, c), add(b, c), add(b, d));

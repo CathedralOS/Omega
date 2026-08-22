@@ -28,9 +28,9 @@ data Rat {
 // Compatibility constructor for a nonnegative numerator.
 machine mk_rat(n: Nat, d: Nat, g: Nat) -> Rat
 requires
-    (sub(Nat::Succ { prev: Nat::Zero }, d)) == Nat::Zero;
+    (saturating_sub(Nat::Succ { prev: Nat::Zero }, d)) == Nat::Zero;
     (gcd(n, d)) == (g);
-    (sub(Nat::Succ { prev: Nat::Zero }, g)) == Nat::Zero
+    (saturating_sub(Nat::Succ { prev: Nat::Zero }, g)) == Nat::Zero
 {
     transition {
         _ -> build(n, d, g)
@@ -50,12 +50,12 @@ requires
 // coordinates after cancelling the difference pair's shared offset.
 machine mk_signed_rat(n: IntPair, d: Nat, g: Nat) -> Rat
 requires
-    (sub(Nat::Succ { prev: Nat::Zero }, d)) == Nat::Zero;
-    (gcd(add(sub(n.neg, n.pos), sub(n.pos, n.neg)), d)) == (g);
-    (sub(Nat::Succ { prev: Nat::Zero }, g)) == Nat::Zero
+    (saturating_sub(Nat::Succ { prev: Nat::Zero }, d)) == Nat::Zero;
+    (gcd(add(saturating_sub(n.neg, n.pos), saturating_sub(n.pos, n.neg)), d)) == (g);
+    (saturating_sub(Nat::Succ { prev: Nat::Zero }, g)) == Nat::Zero
 {
-    let negative: Nat = sub(n.neg, n.pos);
-    let positive: Nat = sub(n.pos, n.neg);
+    let negative: Nat = saturating_sub(n.neg, n.pos);
+    let positive: Nat = saturating_sub(n.pos, n.neg);
     let reduced_negative: Nat = div(negative, g);
     let reduced_positive: Nat = div(positive, g);
     let reduced_denominator: Nat = div(d, g);
@@ -85,7 +85,7 @@ machine rat_eq(p: Rat, q: Rat) -> Nat
 {
     let positive: Nat = rat_cross_positive(p, q);
     let negative: Nat = rat_cross_negative(p, q);
-    transition (sub(positive, negative)) {
+    transition (saturating_sub(positive, negative)) {
         Nat::Zero -> check_other(p, q)
         Nat::Succ { prev as w } -> Nat::Succ { prev: Nat::Zero }
     }
@@ -93,7 +93,7 @@ machine rat_eq(p: Rat, q: Rat) -> Nat
     state check_other(p: Rat, q: Rat) -> Nat {
         let negative: Nat = rat_cross_negative(p, q);
         let positive: Nat = rat_cross_positive(p, q);
-        transition (sub(negative, positive)) {
+        transition (saturating_sub(negative, positive)) {
             Nat::Zero -> Nat::Zero
             Nat::Succ { prev as w } -> Nat::Succ { prev: Nat::Zero }
         }
@@ -114,8 +114,8 @@ machine rat_gap(p: Rat, q: Rat) -> Nat
     let q_positive: Nat = mul(q.num.pos, p.den);
     let positive: Nat = add(p_positive, q_negative);
     let negative: Nat = add(p_negative, q_positive);
-    let forward: Nat = sub(positive, negative);
-    let backward: Nat = sub(negative, positive);
+    let forward: Nat = saturating_sub(positive, negative);
+    let backward: Nat = saturating_sub(negative, positive);
     let gap: Nat = add(forward, backward);
     transition { _ -> (gap) }
 }
@@ -145,20 +145,20 @@ ensures
     add_comm(p_negative, q_positive);
     let positive: Nat = add(p_positive, q_negative);
     let negative: Nat = add(p_negative, q_positive);
-    add_comm(sub(positive, negative), sub(negative, positive));
+    add_comm(saturating_sub(positive, negative), saturating_sub(negative, positive));
     transition { _ -> (rat_gap(p, q)) }
 }
 
 // `rat_close(p, q, precision) == Zero` means |p-q| <= 1/precision, written
 // without division as precision * gap <= p.den * q.den. Nat's settled monus
-// spelling encodes `a <= b` as sub(a, b) == Zero. Precision zero is harmless
+// spelling encodes `a <= b` as saturating_sub(a, b) == Zero. Precision zero is harmless
 // (the bound is vacuous); Cauchy consumers use positive precisions.
 machine rat_close(p: Rat, q: Rat, precision: Nat) -> Nat
 {
     let gap: Nat = rat_gap(p, q);
     let scaled_gap: Nat = mul(precision, gap);
     let common_denominator: Nat = mul(p.den, q.den);
-    let residual: Nat = sub(scaled_gap, common_denominator);
+    let residual: Nat = saturating_sub(scaled_gap, common_denominator);
     transition { _ -> (residual) }
 }
 
@@ -315,7 +315,7 @@ ensures
 // only Rat-specific work is rearranging factors and applying homogeneity.
 machine rat_gap_triangle_scaled(p: Rat, q: Rat, r: Rat)
 ensures
-    (sub(
+    (saturating_sub(
         mul(q.den, rat_gap(p, r)),
         add(mul(r.den, rat_gap(p, q)), mul(p.den, rat_gap(q, r)))
     )) == Nat::Zero
@@ -406,7 +406,7 @@ machine rat_close_triangle_split(
     precision: Nat
 )
 requires
-    (sub(Nat::Succ { prev: Nat::Zero }, q.den)) == Nat::Zero;
+    (saturating_sub(Nat::Succ { prev: Nat::Zero }, q.den)) == Nat::Zero;
     (rat_close(p, q, add(precision, precision))) == Nat::Zero;
     (rat_close(q, r, add(precision, precision))) == Nat::Zero
 ensures

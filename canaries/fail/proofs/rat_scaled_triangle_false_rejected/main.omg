@@ -5,7 +5,7 @@ use omega::language::core::rat;
 
 machine false_scaled_triangle(left: Rat, middle: Rat, right: Rat)
 ensures
-    (sub(
+    (saturating_sub(
         mul(middle.den, rat_gap(left, right)),
         add(
             mul(right.den, rat_gap(left, middle)),

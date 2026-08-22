@@ -3,7 +3,7 @@
 // first premise has no site fact to discharge against, so the citation must
 // NOT serve the strict edge and the self-call refuses with the structural-
 // decrease message. (With b == Zero the recursion would NOT terminate --
-// sub(a, Zero) == a -- so admitting this shape would be unsound, not just
+// saturating_sub(a, Zero) == a -- so admitting this shape would be unsound, not just
 // lax.)
 use omega::language::core::nat;
 
@@ -13,14 +13,14 @@ data Main { console: Console; }
 machine bogus_mod(a: Nat, b: Nat) -> Nat
 terminates by a;
 {
-    transition (sub(b, a)) {
+    transition (saturating_sub(b, a)) {
         Nat::Zero -> bm_rec(a, b)
         Nat::Succ { prev as w } -> (a)
     }
 
     state bm_rec(a: Nat, b: Nat) -> Nat {
         sub_lt(a, b);
-        let next: Nat = sub(a, b);
+        let next: Nat = saturating_sub(a, b);
         transition { _ -> (bogus_mod(next, b)) }
     }
 }
