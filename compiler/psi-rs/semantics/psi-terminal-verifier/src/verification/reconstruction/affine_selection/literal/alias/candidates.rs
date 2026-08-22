@@ -1,35 +1,23 @@
 //! Source-ordered one-alias literal candidates for independent reconstruction.
 
-use std::collections::BTreeMap;
-
 use psi_core::{Proposition, ScalarTerm, ScalarType};
+
+mod landing_index;
+
+use landing_index::LandingIndex;
 
 pub(super) struct LiteralAliasCandidates<'a> {
     requirements: &'a [Proposition],
     semantic_axioms: &'a [Proposition],
-    literals_by_alias: BTreeMap<ScalarTerm, Vec<(&'a Proposition, &'a ScalarTerm)>>,
+    landings: LandingIndex<'a>,
 }
 
 impl<'a> LiteralAliasCandidates<'a> {
     pub(super) fn new(requirements: &'a [Proposition], semantic_axioms: &'a [Proposition]) -> Self {
-        let mut literals_by_alias = BTreeMap::<_, Vec<_>>::new();
-        for equality in requirements.iter().chain(semantic_axioms) {
-            let Proposition::Equal(left, right) = equality else {
-                continue;
-            };
-            for (alias, literal) in [(left, right), (right, left)] {
-                if matches!(alias, ScalarTerm::Value { .. }) && literal.integer_value().is_some() {
-                    literals_by_alias
-                        .entry(alias.clone())
-                        .or_default()
-                        .push((equality, literal));
-                }
-            }
-        }
         Self {
             requirements,
             semantic_axioms,
-            literals_by_alias,
+            landings: LandingIndex::new(requirements, semantic_axioms),
         }
     }
 
@@ -49,10 +37,7 @@ impl<'a> LiteralAliasCandidates<'a> {
                 {
                     continue;
                 }
-                let Some(landings) = self.literals_by_alias.get(alias) else {
-                    continue;
-                };
-                for &(inner_equality, literal) in landings {
+                for &(inner_equality, literal) in self.landings.candidates(alias) {
                     if std::ptr::eq(outer_equality, inner_equality) {
                         continue;
                     }

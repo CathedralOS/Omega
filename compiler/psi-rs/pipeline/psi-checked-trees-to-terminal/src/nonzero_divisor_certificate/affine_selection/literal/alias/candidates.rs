@@ -1,38 +1,26 @@
 //! Source-ordered one-alias literal candidates for certificate production.
 
-use std::collections::BTreeMap;
-
 use psi_core::{Proposition, ScalarTerm, ScalarType};
 use psi_proof_kernel::ProofNode;
 
-use super::super::super::super::integer_evidence::{Citation, cited_facts};
+use super::super::super::super::integer_evidence::cited_facts;
+
+mod landing_index;
+
+use landing_index::LandingIndex;
 
 pub(super) struct LiteralAliasCandidates<'a> {
     assumptions: &'a [Proposition],
     semantic_axioms: &'a [Proposition],
-    literals_by_alias: BTreeMap<ScalarTerm, Vec<(Citation, &'a Proposition, &'a ScalarTerm)>>,
+    landings: LandingIndex<'a>,
 }
 
 impl<'a> LiteralAliasCandidates<'a> {
     pub(super) fn new(assumptions: &'a [Proposition], semantic_axioms: &'a [Proposition]) -> Self {
-        let mut literals_by_alias = BTreeMap::<_, Vec<_>>::new();
-        for (citation, equality) in cited_facts(assumptions, semantic_axioms) {
-            let Proposition::Equal(left, right) = equality else {
-                continue;
-            };
-            for (alias, literal) in [(left, right), (right, left)] {
-                if matches!(alias, ScalarTerm::Value { .. }) && literal.integer_value().is_some() {
-                    literals_by_alias
-                        .entry(alias.clone())
-                        .or_default()
-                        .push((citation, equality, literal));
-                }
-            }
-        }
         Self {
             assumptions,
             semantic_axioms,
-            literals_by_alias,
+            landings: LandingIndex::new(assumptions, semantic_axioms),
         }
     }
 
@@ -59,10 +47,7 @@ impl<'a> LiteralAliasCandidates<'a> {
                 {
                     continue;
                 }
-                let Some(landings) = self.literals_by_alias.get(alias) else {
-                    continue;
-                };
-                for &(inner_citation, inner_equality, literal) in landings {
+                for &(inner_citation, inner_equality, literal) in self.landings.candidates(alias) {
                     if std::ptr::eq(outer_equality, inner_equality) {
                         continue;
                     }
