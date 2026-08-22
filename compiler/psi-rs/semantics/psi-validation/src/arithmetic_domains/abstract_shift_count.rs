@@ -7,6 +7,7 @@
 
 use psi_diagnostics::Diagnostic;
 use psi_numerics::arithmetic::ArithmeticDomain;
+use psi_numerics::integer_policy::{IntegerPolicyPrimitive, ShiftCountLaw, integer_policy_bridge};
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use psi_typed_trees::types::PrimitiveType;
@@ -87,10 +88,14 @@ pub(super) fn validate(
                 else {
                     return;
                 };
-                if !matches!(
-                    domain,
-                    ArithmeticDomain::Exact | ArithmeticDomain::Saturating
-                ) {
+                let shift_primitive_kind = match binary.operator {
+                    BinaryOperator::ShiftLeft => IntegerPolicyPrimitive::ShiftLeft,
+                    BinaryOperator::ShiftRight => IntegerPolicyPrimitive::ShiftRight,
+                    _ => unreachable!("non-shift operator returned above"),
+                };
+                if integer_policy_bridge(shift_primitive_kind, domain).shift_count_law
+                    != ShiftCountLaw::MustBeWithinWidth
+                {
                     return;
                 }
                 let Some(width) = integer_bit_width(primitive) else {

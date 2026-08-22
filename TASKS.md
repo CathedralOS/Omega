@@ -666,8 +666,23 @@ Owners:
   composition from concrete and symbolic artifact demand, verify one selected
   provider covers the reconstructed application set, and bind exact issuance
   occurrences at installation. Do not create a slot per monomorph.
-- Retain schema/device correspondence, runtime revision evidence, and provider
-  identity separately from storage compatibility.
+- Schema/device correspondence now has a distinct provider-issued,
+  provenance-bearing authority carrier separate from storage compatibility.
+  It binds one exact validated placement and resource-profile grant to a
+  provider identity and stable device instance; optional runtime revision
+  evidence retains its observation, predicate, observed value, and the same
+  provider/device/grant identities. Admission independently replays every
+  binding, and rejection returns the complete non-Clone grant or revision
+  evidence for corrected retry. This establishes no storage compatibility,
+  content validity, device observation, placed access, or publication.
+  Admitted schema/device correspondence can now bind transactionally to one
+  exact borrowed placement admission while remaining separate from storage
+  compatibility. The join independently replays revision/provider/device/
+  profile evidence and the admission's exact loan, placement, admitted profile,
+  and resource compatibility. Rejection returns both complete non-Clone inputs
+  for corrected retry; withdrawal returns the original loan and
+  correspondence. No placed view, content qualification, field access, or
+  device operation is established.
 
 #### L6c — symbolic materialization
 
@@ -1667,6 +1682,14 @@ Remaining:
   conjunction and accepts the first retained disjunct. Exact retained
   proposition precedence, recursive child dispatch, Truth and atomic-bound
   ownership, arm indices, proof shapes, incomplete or reordered rejection, and
+  the finite evidence frontier are unchanged. Exact whole-proposition custody
+  now lives in independent side-local `integer_selection/exact` modules.
+  Production alone resolves the first exact assumption or semantic axiom in
+  ledger order and constructs its origin-indexed citation proof;
+  reconstruction independently checks the same requirements-before-semantic-
+  axioms retained order. Exact custody remains preferred before Truth, atomic-
+  bound dispatch, and compound recursion. Citation origin/index, proposition
+  identity, precedence, proof shape, redirected or reordered rejection, and
   the finite evidence frontier are unchanged. Atomic integer-bound custody now
   lives in independent side-local `integer_selection/bound` modules.
   Production alone preserves exact/closed order, exact two-citation
@@ -1676,6 +1699,14 @@ Remaining:
   proposition citation remains preferred in each parent, while Truth and
   recursive compound coordination remain separate. Citation identities,
   endpoint orientation, proof shapes, rejection behavior, and every finite
+  evidence frontier are unchanged. Canonical proposition-kind dispatch now
+  lives in independent side-local `integer_selection/dispatch` modules. After
+  exact whole-proposition custody, production alone routes Truth, atomic bounds,
+  conjunctions, and ordered disjunctions to their existing proof owners;
+  reconstruction independently routes atomic and compound retained-evidence
+  checks. Recursive children return through each side's entry facade,
+  preserving exact-first selection at every depth. Variant order, arm and
+  conjunct order, proof shapes, unsupported-shape rejection, and every finite
   evidence frontier are unchanged. Recursive proposition
   coordination, precedence, ledger citation order, equality orientation,
   endpoint selection, proof shapes, rejection behavior, and the finite search
@@ -2262,6 +2293,16 @@ Remaining:
   stack, and regressed Stage 05 to 3.606–3.648s. Output remained byte-identical,
   but the remaining cyclic summaries need a genuinely lazy memo or SCC/fixpoint
   design; no cache code remains.
+  A fresh output-only profile of
+  `expressions/runtime_numeric_cast_exit` confirms that its 4.4s warm compile
+  is likewise semantic work rather than viewer generation: Stage 05 consumed
+  3.700s, split across typed validation (1.328s), checked-fact construction
+  (1.201s), and checked-fact replay (1.031s), while normalization,
+  specialization, overload resolution, and terminal cleanup totaled about
+  140ms. The exact canary still exits 70. This profile gives no support to a
+  shared mutable `PagedArena`; the next useful optimization boundary is an
+  indexed or worker-local/deterministically merged implementation inside those
+  three measured semantic phases.
   Corpus-level bounded parallelism is viable at the harness boundary: the
   differential runner now defaults to four independent jobs with one native
   backend worker each, retains deterministic corpus-order reporting, and
@@ -2996,6 +3037,22 @@ Owners:
   retaining literal status 70. The operator target-row regression is repaired,
   the 795 exact-owner pin remains stable, and this module no longer reconstructs
   any native executable from a build-directory/name convention.
+  All five conventional native launches in the entry/ABI canary module—entry
+  run-args, Utf16 literal delivery, case-array element writes, policy-authored
+  wire plans, and nested policy-authored wire plans—now consume exact checked-
+  report receipts while retaining literal statuses 5, 70, 36, 70, and 70. The
+  run-args fixture retains Full footprint inspection, the nested policy fixture
+  retains both cross-target checks, and the 795 exact-owner pin remains stable.
+  All three conventional native launches in the artifact-footprint canary
+  module—shared reference-parameter copy, pointee-pair copy, and record-view
+  place addressing—now consume exact checked-report receipts while retaining
+  literal statuses 42, 42, and 70. Artifact-producing cross-target tests remain
+  unchanged, and the 795 exact-owner pin remains stable.
+  The final conventional native launch in the reports/capabilities canary
+  module—the linear obligation spanning a dispatched-call continuation—now
+  consumes its exact checked-report receipt while retaining literal status 7,
+  Full backend-report emission, and the complete permission-realization/event
+  assertions. The 795 exact-owner pin remains stable.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
@@ -3525,9 +3582,18 @@ Remaining N6/N8 work:
   public nonnegative algebra. Canonical content normalization erases only that
   exact proof conversion around an otherwise admitted scalar term; signed
   runtime embeddings still reject at the closed projection boundary. Add the
-  integer-policy bridge catalog and the separate
-  `FloatMeaning` projection rules described by
+  remaining integer-policy bridge integrations and the separate `FloatMeaning`
+  projection rules described by
   [`total_specification_arithmetic.md`](wiki/design_briefs/total_specification_arithmetic.md).
+  The shared numeric-semantics layer now owns a closed integer-policy bridge
+  catalog for add, subtract, multiply, divide, and left/right shift across
+  Exact, Wrapping, Saturating, and Trapping. Each row separately names its
+  result law, formation conditions, primitive-specific trap predicates, and
+  shift-count law; division retains zero-divisor and signed-minimum/-1 as
+  distinct traps, and Trapping shifts do not collapse count failure into
+  generic overflow. Concrete and abstract specification shift-count validation
+  now consume those rows instead of duplicating the policy match. Remaining
+  arithmetic producer, Terminal, and independent-verifier consumers stay open.
 - Then migrate suffix law discovery to propositions plus explicit conformances,
   and expand the checked `Nat`/`Int`/`Rat`/Cauchy/approximation corpus. `Real`
   remains proof-only and core-level.

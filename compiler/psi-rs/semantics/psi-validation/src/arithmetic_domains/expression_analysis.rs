@@ -377,11 +377,25 @@ pub(super) fn analyze(
             // governs and a target `in Wrapping` never re-domains the count).
             // The ISA's silent count-masking under Exact is an invented number
             // and never adopted.
-            if shift_count_rhs
-                && matches!(
-                    effective_domain,
-                    ArithmeticDomain::Exact | ArithmeticDomain::Saturating
-                )
+            let shift_count_law = match operator {
+                BinaryOperator::ShiftLeft => Some(
+                    psi_numerics::integer_policy::integer_policy_bridge(
+                        psi_numerics::integer_policy::IntegerPolicyPrimitive::ShiftLeft,
+                        effective_domain,
+                    )
+                    .shift_count_law,
+                ),
+                BinaryOperator::ShiftRight => Some(
+                    psi_numerics::integer_policy::integer_policy_bridge(
+                        psi_numerics::integer_policy::IntegerPolicyPrimitive::ShiftRight,
+                        effective_domain,
+                    )
+                    .shift_count_law,
+                ),
+                _ => None,
+            };
+            if shift_count_law
+                == Some(psi_numerics::integer_policy::ShiftCountLaw::MustBeWithinWidth)
                 && let Some(shift_primitive) = left.primitive.or(target_primitive)
                 && let Some(width) = integer_bit_width(shift_primitive)
             {
