@@ -4122,6 +4122,11 @@ Owners:
   reusable `CheckedTrees` receipt; exceptional, interactive, report-bearing,
   slow float/cast/policy, numeric-conversion, rendering, coercion, and automaton
   owners remain unchanged, with exact-owner pins stable.
+  The two-entry residual scalar cohort now launches
+  `guarded_transition_dispatch` and `record_array_field_access` solely through
+  exact checked-report executable receipts while preserving literal status 0
+  and diagnostics. Exact-owner pins remain stable; exceptional and deliberately
+  fenced owners remain unchanged.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
