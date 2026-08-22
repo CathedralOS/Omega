@@ -44,6 +44,7 @@ mod provider_plan_codec;
 mod structural_argument_codec;
 mod structural_return_codec;
 mod value_placement_codec;
+mod wire_codec;
 use boundary_settlement_codec::{decode_boundary_settlements, encode_boundary_settlements};
 use fuel_attribution_codec::{decode_fuel_attributions, encode_fuel_attributions};
 use function_codec::{decode_functions, encode_functions};
@@ -54,6 +55,7 @@ use internal_unit_call_codec::{decode_internal_unit_calls, encode_internal_unit_
 use port_effect_codec::{decode_port_effects, encode_port_effects};
 use provider_plan_codec::{decode_provider_plans, encode_provider_plans};
 use structural_return_codec::{decode_structural_returns, encode_structural_returns};
+use wire_codec::{Reader, decode_boolean, push_u16, push_u32, push_u64};
 
 pub const TERMINAL_INSTALLATION_FORMAT_MARKER: u16 = 31;
 const MAGIC: &[u8; 8] = b"PSIINST\0";
@@ -2675,81 +2677,11 @@ fn hash(domain: &[u8], bytes: &[u8]) -> [u8; 32] {
     digest.finalize().into()
 }
 
-fn decode_boolean(value: u8) -> Result<bool, TerminalInstallationError> {
-    match value {
-        0 => Ok(false),
-        1 => Ok(true),
-        _ => Err(TerminalInstallationError::InvalidBoolean(value)),
-    }
-}
-
-fn push_u16(bytes: &mut Vec<u8>, value: u16) {
-    bytes.extend_from_slice(&value.to_le_bytes());
-}
-
-fn push_u32(bytes: &mut Vec<u8>, value: u32) {
-    bytes.extend_from_slice(&value.to_le_bytes());
-}
-
-fn push_u64(bytes: &mut Vec<u8>, value: u64) {
-    bytes.extend_from_slice(&value.to_le_bytes());
-}
-
 fn write_hex(formatter: &mut std::fmt::Formatter<'_>, bytes: &[u8; 32]) -> std::fmt::Result {
     for byte in bytes {
         write!(formatter, "{byte:02x}")?;
     }
     Ok(())
-}
-
-struct Reader<'bytes> {
-    bytes: &'bytes [u8],
-    offset: usize,
-}
-
-impl<'bytes> Reader<'bytes> {
-    const fn new(bytes: &'bytes [u8]) -> Self {
-        Self { bytes, offset: 0 }
-    }
-
-    fn remaining(&self) -> usize {
-        self.bytes.len() - self.offset
-    }
-
-    fn take(&mut self, len: usize) -> Result<&'bytes [u8], TerminalInstallationError> {
-        let end = self
-            .offset
-            .checked_add(len)
-            .ok_or(TerminalInstallationError::UnexpectedEnd)?;
-        let bytes = self
-            .bytes
-            .get(self.offset..end)
-            .ok_or(TerminalInstallationError::UnexpectedEnd)?;
-        self.offset = end;
-        Ok(bytes)
-    }
-
-    fn array<const N: usize>(&mut self) -> Result<[u8; N], TerminalInstallationError> {
-        self.take(N)?
-            .try_into()
-            .map_err(|_| TerminalInstallationError::UnexpectedEnd)
-    }
-
-    fn u8(&mut self) -> Result<u8, TerminalInstallationError> {
-        Ok(self.array::<1>()?[0])
-    }
-
-    fn u16(&mut self) -> Result<u16, TerminalInstallationError> {
-        Ok(u16::from_le_bytes(self.array()?))
-    }
-
-    fn u32(&mut self) -> Result<u32, TerminalInstallationError> {
-        Ok(u32::from_le_bytes(self.array()?))
-    }
-
-    fn u64(&mut self) -> Result<u64, TerminalInstallationError> {
-        Ok(u64::from_le_bytes(self.array()?))
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
