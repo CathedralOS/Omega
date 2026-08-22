@@ -11,7 +11,7 @@ use omega_terminal_target_operations::{
 };
 use psi_core::{
     BoundaryMachineId, ClaimId, EdgeId, FuelScheduleIdentity, MachineId, OperationId, PlaceId,
-    ScalarType, ServiceId, StructuralFieldId, StructuralTypeId,
+    ScalarType, ServiceId, StructuralFieldId, StructuralTypeId, ValueId,
 };
 use psi_terminal::{
     ClaimTransfer, CompletionReceipt, StructuralArgument, StructuralParameterDeclaration,
@@ -175,6 +175,13 @@ pub struct TerminalNativeFuelAttribution {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalBoundaryResultRecord {
+    pub value: ValueId,
+    pub scalar_type: ScalarType,
+    pub placement: ValuePlacement,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalBoundarySettlementRecord {
     pub psi_operation: OperationId,
     pub boundary: BoundaryMachineId,
@@ -188,10 +195,10 @@ pub struct TerminalBoundarySettlementRecord {
     /// reconstruct the exact successful-completion receipt set.
     pub completion_claim_sources: Vec<TerminalCompletionClaimSource>,
     pub completion_receipts: Vec<CompletionReceipt>,
-    /// Exact native result placement consumed by a result-bearing realization.
-    /// Metadata-only settlements retain `None` and cannot manufacture result
-    /// storage after lowering.
-    pub native_result_placement: Option<ValuePlacement>,
+    /// Exact terminal value identity, scalar type, and native placement
+    /// consumed by a result-bearing realization. Metadata-only settlements
+    /// retain `None` and cannot manufacture a result after lowering.
+    pub native_result: Option<TerminalBoundaryResultRecord>,
     /// Position in the verified Unit operation sequence. This remains the
     /// canonical tie-break when multiple metadata rows share a code offset.
     pub operation_ordinal: usize,

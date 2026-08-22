@@ -7,8 +7,9 @@ use omega_calling_conventions::{
 use omega_image::CompilerTextValidationEvidence;
 use omega_target::{Architecture, NativeTarget, ObjectFormat};
 use omega_terminal_machine_code::{
-    TerminalBoundarySettlementRecord, TerminalNativeFuelAttribution, TerminalNativeFuelSite,
-    TerminalPortEffectRecord, TerminalProviderExecutionRecord, TerminalStructuralReturnRecord,
+    TerminalBoundaryResultRecord, TerminalBoundarySettlementRecord, TerminalNativeFuelAttribution,
+    TerminalNativeFuelSite, TerminalPortEffectRecord, TerminalProviderExecutionRecord,
+    TerminalStructuralReturnRecord,
 };
 use omega_terminal_target_operations::{
     TerminalBoundaryRealization, TerminalCallSiteOwner, TerminalCompletionClaimSource,
@@ -30,12 +31,12 @@ use sha2::{Digest, Sha256};
 
 use crate::{
     TerminalExecutableImage, TerminalObjectBoundarySettlement, TerminalObjectFuelAttribution,
-    TerminalObjectPortEffect, boundary_results::boundary_result_placement_is_exact,
+    TerminalObjectPortEffect, boundary_results::boundary_result_is_exact,
     can_emit_terminal_executable_image,
     completion_receipts::completion_receipts_have_exact_custody,
 };
 
-pub const TERMINAL_INSTALLATION_FORMAT_MARKER: u16 = 27;
+pub const TERMINAL_INSTALLATION_FORMAT_MARKER: u16 = 28;
 const MAGIC: &[u8; 8] = b"PSIINST\0";
 const IMAGE_DOMAIN: &[u8] = b"omega-terminal-installed-image\0";
 const RECORD_DOMAIN: &[u8] = b"omega-terminal-installation-record\0";
@@ -821,11 +822,13 @@ pub fn encode_terminal_installation_record(
             push_u64(&mut bytes, claim.claim.get());
             push_u32(&mut bytes, claim.argument_index);
         }
-        match &settlement.native_result_placement {
-            Some(placement) => {
+        match &settlement.native_result {
+            Some(result) => {
                 bytes.push(1);
                 bytes.extend_from_slice(&[0; 3]);
-                encode_placement(&mut bytes, placement)?;
+                push_u64(&mut bytes, result.value.get());
+                encode_boundary_result_scalar_type(&mut bytes, result.scalar_type);
+                encode_placement(&mut bytes, &result.placement)?;
             }
             None => bytes.extend_from_slice(&[0; 4]),
         }
@@ -944,6 +947,51 @@ fn encode_structural_argument(
         }
     }
     Ok(())
+}
+
+fn encode_boundary_result_scalar_type(bytes: &mut Vec<u8>, scalar_type: psi_core::ScalarType) {
+    match scalar_type {
+        psi_core::ScalarType::Boolean => bytes.extend_from_slice(&[1, 0, 0, 0, 0, 0]),
+        psi_core::ScalarType::Integer(integer) => {
+            bytes.push(2);
+            bytes.push(u8::from(integer.is_address()));
+            bytes.push(u8::from(matches!(
+                integer.sign(),
+                psi_core::IntegerSign::Signed
+            )));
+            bytes.push(0);
+            push_u16(bytes, integer.bits());
+        }
+    }
+}
+
+fn decode_boundary_result_scalar_type(
+    reader: &mut Reader<'_>,
+) -> Result<psi_core::ScalarType, TerminalInstallationError> {
+    let tag = reader.u8()?;
+    let is_address = decode_boolean(reader.u8()?)?;
+    let signed = decode_boolean(reader.u8()?)?;
+    if reader.u8()? != 0 {
+        return Err(TerminalInstallationError::NonzeroReservedField);
+    }
+    let bits = reader.u16()?;
+    match tag {
+        1 if !is_address && !signed && bits == 0 => Ok(psi_core::ScalarType::Boolean),
+        2 if is_address && !signed => psi_core::IntegerType::address(bits)
+            .map(psi_core::ScalarType::Integer)
+            .map_err(|_| TerminalInstallationError::InvalidBoundaryResult),
+        2 if !is_address => psi_core::IntegerType::new(
+            if signed {
+                psi_core::IntegerSign::Signed
+            } else {
+                psi_core::IntegerSign::Unsigned
+            },
+            bits,
+        )
+        .map(psi_core::ScalarType::Integer)
+        .map_err(|_| TerminalInstallationError::InvalidBoundaryResult),
+        _ => Err(TerminalInstallationError::InvalidBoundaryResult),
+    }
 }
 
 pub fn decode_terminal_installation_record(
@@ -1367,9 +1415,16 @@ pub fn decode_terminal_installation_record(
         if reader.take(3)? != [0; 3] {
             return Err(TerminalInstallationError::NonzeroReservedField);
         }
-        let native_result_placement = native_result_present
-            .then(|| decode_placement(&mut reader))
-            .transpose()?;
+        let native_result = if native_result_present {
+            Some(TerminalBoundaryResultRecord {
+                value: psi_core::ValueId::new(reader.u64()?)
+                    .ok_or(TerminalInstallationError::InvalidBoundaryResult)?,
+                scalar_type: decode_boundary_result_scalar_type(&mut reader)?,
+                placement: decode_placement(&mut reader)?,
+            })
+        } else {
+            None
+        };
         boundary_settlements.push(TerminalObjectBoundarySettlement {
             machine,
             settlement: TerminalBoundarySettlementRecord {
@@ -1380,7 +1435,7 @@ pub fn decode_terminal_installation_record(
                 arguments,
                 completion_claim_sources,
                 completion_receipts,
-                native_result_placement,
+                native_result,
                 operation_ordinal,
                 code_offset,
                 byte_count,
@@ -2771,10 +2826,10 @@ fn validate_record_shape(
             }
         };
         if !valid_realization
-            || !boundary_result_placement_is_exact(
+            || !boundary_result_is_exact(
                 record.target,
                 installed.settlement.realization,
-                installed.settlement.native_result_placement.as_ref(),
+                installed.settlement.native_result.as_ref(),
             )
         {
             return Err(TerminalInstallationError::BoundaryRealizationMismatch {
@@ -4891,6 +4946,7 @@ pub enum TerminalInstallationError {
         operation: OperationId,
     },
     InvalidCompletionClaimSource,
+    InvalidBoundaryResult,
     BoundaryRealizationMismatch {
         machine: MachineId,
         operation: OperationId,

@@ -266,7 +266,7 @@ pub(super) fn emit_unit_body(
                     arguments: arguments.clone(),
                     completion_claim_sources: completion_claim_sources.clone(),
                     completion_receipts: completion_receipts.clone(),
-                    native_result_placement: None,
+                    native_result: None,
                     operation_ordinal,
                     code_offset: bytes.len(),
                     byte_count: 0,

@@ -770,14 +770,18 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
         direct_machine.functions[0].boundary_settlements[0].completion_claim_sources,
         completion_claim_sources.as_slice()
     );
+    let native_result = direct_machine.functions[0].boundary_settlements[0]
+        .native_result
+        .as_ref()
+        .expect("native result evidence");
+    assert_eq!(native_result.value, result.value);
+    assert_eq!(native_result.scalar_type, result.scalar_type);
     assert_eq!(
-        direct_machine.functions[0].boundary_settlements[0]
-            .native_result_placement
-            .as_ref(),
-        direct_call_plan.result.as_ref()
+        &native_result.placement,
+        direct_call_plan.result.as_ref().unwrap()
     );
     let mut missing_native_result = direct_machine.clone();
-    missing_native_result.functions[0].boundary_settlements[0].native_result_placement = None;
+    missing_native_result.functions[0].boundary_settlements[0].native_result = None;
     assert!(matches!(
         build_terminal_object_artifact(&missing_native_result),
         Err(omega_terminal_image_emission::TerminalObjectError::BoundaryRealizationMismatch { .. })
@@ -800,11 +804,10 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
         completion_claim_sources.as_slice()
     );
     assert_eq!(
-        direct_installation.boundary_settlements()[0]
+        &direct_installation.boundary_settlements()[0]
             .settlement
-            .native_result_placement
-            .as_ref(),
-        direct_call_plan.result.as_ref()
+            .native_result,
+        &direct_machine.functions[0].boundary_settlements[0].native_result
     );
     let direct_encoded =
         encode_terminal_installation_record(&direct_installation).expect("direct result encoding");
