@@ -85,6 +85,40 @@ pub(crate) fn validate_plans(program: &TypedTrees, diagnostics: &mut Vec<Diagnos
             )));
             continue;
         };
+        let Some(policy) = program
+            .data_definitions()
+            .iter()
+            .find(|definition| definition.symbol == view.policy_symbol)
+        else {
+            diagnostics.push(Diagnostic::error(format!(
+                "placed view `{}` no longer names its exact placement-policy identity",
+                view.data_name
+            )));
+            continue;
+        };
+        let Some(policy_plan_machine) = program
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == view.policy_plan_machine_symbol)
+        else {
+            diagnostics.push(Diagnostic::error(format!(
+                "placed view `{}` no longer names its exact placement-policy plan machine",
+                view.data_name
+            )));
+            continue;
+        };
+        if policy_plan_machine
+            .attached_data
+            .as_ref()
+            .is_none_or(|attached| attached.as_str() != policy.name.as_str())
+            || policy_plan_machine.name.as_str() != format!("{}::plan", policy.name.as_str())
+        {
+            diagnostics.push(Diagnostic::error(format!(
+                "placed view `{}` changed its exact placement-policy binding",
+                view.data_name
+            )));
+            continue;
+        }
         let mut field_symbols = Vec::with_capacity(view.fields.len());
         let mut accessor_data_symbols = Vec::with_capacity(view.fields.len());
         for field in &view.fields {

@@ -151,20 +151,27 @@ fn install_placed_view_plan(
     record: &PlacedViewRecord,
     placement: &ValidatedPlacementPlan,
 ) -> Result<(), Vec<Diagnostic>> {
-    let policy_symbol = typed
+    let policy_name = record
+        .policy_machine
+        .strip_suffix("::plan")
+        .unwrap_or(&record.policy_machine);
+    let policy = typed
         .data_definitions()
         .iter()
-        .find(|definition| {
-            definition.name.as_str()
-                == record
-                    .policy_machine
-                    .strip_suffix("::plan")
-                    .unwrap_or(&record.policy_machine)
-        })
-        .map(|definition| definition.symbol)
+        .find(|definition| definition.name.as_str() == policy_name)
         .ok_or_else(|| {
             vec![Diagnostic::error(format!(
                 "placed view `{}` lost nominal policy `{}` after typing",
+                record.synthetic_name, record.policy_machine
+            ))]
+        })?;
+    let policy_plan_machine = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == record.policy_machine)
+        .ok_or_else(|| {
+            vec![Diagnostic::error(format!(
+                "placed view `{}` lost exact policy machine `{}` after typing",
                 record.synthetic_name, record.policy_machine
             ))]
         })?;
@@ -209,6 +216,8 @@ fn install_placed_view_plan(
         .collect::<BTreeMap<_, _>>();
     let schema_symbol = schema.symbol;
     let data_symbol = view.symbol;
+    let policy_symbol = policy.symbol;
+    let policy_plan_machine_symbol = policy_plan_machine.symbol;
 
     let mut fields = Vec::new();
     for entry in placement.access().plan().entries() {
@@ -325,12 +334,9 @@ fn install_placed_view_plan(
         .push(psi_typed_trees::typed_trees::PlacedViewPlan {
             data_name: record.synthetic_name.clone(),
             data_symbol,
-            policy_name: record
-                .policy_machine
-                .strip_suffix("::plan")
-                .unwrap_or(&record.policy_machine)
-                .to_owned(),
+            policy_name: policy_name.to_owned(),
             policy_symbol,
+            policy_plan_machine_symbol,
             schema_name: record.schema_data.clone(),
             schema_symbol,
             placement: placement.clone(),
