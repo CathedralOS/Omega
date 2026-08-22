@@ -7146,8 +7146,11 @@ identities, and the exact 51-function inventory remain unchanged.
 Anonymous-float destination landing now lives in a focused 445-line owner.
 Destination-format discovery, exact pre-landing rational and comparison
 folding, one-time rounding, and runtime-tree stamping retain original order and
-the public re-export. The literal coordinator is now 565 lines with the exact
-16-function inventory unchanged.
+the public re-export. The documented u64-magnitude admission matrix now lives
+in a focused 352-line owner: struct/assignment/local/guard/transition/proof-fact
+blessing and exact rejection retain diagnostic and traversal order. The natural
+221-line literal root retains cohesive suffix magnitude/destination validation
+and owner re-exports, with the exact 16-function inventory unchanged.
 
 Checked-result float/integer conversion remains blocked on the separate
 checked-result arithmetic decision listed below.
