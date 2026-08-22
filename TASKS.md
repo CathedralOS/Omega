@@ -2087,7 +2087,17 @@ Remaining:
   remains preferred in each parent. Citation order, endpoint orientation,
   nested proof shape, reused, redirected, or mistyped rejection, and the
   single-intermediate-alias frontier are unchanged; no recursive alias search
-  is introduced. One-intermediate-alias affine literal completion now lives in
+  is introduced.
+  Source-ordered one-alias landed-literal affine candidate catalogs now live in
+  paired, side-local `affine_selection/literal/alias/candidates` modules.
+  Producer and reconstruction independently index only integer-literal
+  equality landings by their exact alias while retaining assumptions-before-
+  semantic-axioms outer traversal, equality orientation, inner citation order,
+  distinct same-carrier Value checks, and same-row rejection. Completion and
+  affine custody remain unchanged; this removes repeated full inner-ledger
+  scans without changing proof shape, rejection, or the fixed definition
+  frontier.
+  One-intermediate-alias affine literal completion now lives in
   independent side-local `affine_selection/literal/alias/completion` modules.
   Each parent retains its own outer-then-inner equality discovery, distinct
   citation/value custody, and typed literal filtering; production alone
@@ -3864,6 +3874,13 @@ Owners:
   deliberately retained exceptions: auxiliary-report consumers, known slow
   float/cast/policy cases, the historical-hang owner, and the automaton owner.
   Exact-owner pins remain stable.
+  Three atomic authored-root executions—fetch-and, swap, and compare-exchange—
+  plus Dutch-flag partitioning now launch natively solely through checked-
+  report receipts while preserving their literal statuses, detailed
+  diagnostics, and Linux ARM64 cross-target compilation assertions. The
+  interactive two-mode console owner and all previously fenced exceptional,
+  report, float/cast, and policy owners remain excluded; exact-owner pins
+  remain stable.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
