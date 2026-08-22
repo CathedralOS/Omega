@@ -688,6 +688,9 @@ fn build_contract_plans(
                 machine: contract.machine,
                 contract_fingerprint: contract.fingerprint,
                 effective_service_reach,
+                unresolved_installation_reaches: service_fact
+                    .unresolved_installation_reaches
+                    .clone(),
                 effective_synchronous_invocations: invocation.checked_inferred.clone(),
                 checked_may_suspend: suspension.checked_may_suspend,
                 checked_may_block: blocking.checked_may_block,
@@ -1790,6 +1793,7 @@ fn build_service_reach_facts(
                 inferred_direct: machine.inferred_direct,
                 inferred_transitive: machine.inferred_transitive,
                 effective: machine.effective,
+                unresolved_installation_reaches: machine.unresolved_installation_reaches,
                 states: remap_service_reach_span(machine.states),
             }),
         states: inferred
@@ -1798,6 +1802,7 @@ fn build_service_reach_facts(
                 state: state.state,
                 inferred_direct: state.inferred_direct,
                 inferred_transitive: state.inferred_transitive,
+                unresolved_installation_reaches: state.unresolved_installation_reaches,
                 calls: remap_service_reach_span(state.calls),
             }),
         calls: inferred
@@ -1809,6 +1814,7 @@ fn build_service_reach_facts(
                 target_machine: call.target_machine,
                 inferred_direct: call.inferred_direct,
                 inferred_transitive: call.inferred_transitive,
+                unresolved_installation_reaches: call.unresolved_installation_reaches,
             }),
     }
 }

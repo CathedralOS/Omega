@@ -68,6 +68,9 @@ pub struct MachineServiceReachRows {
     pub inferred_direct: ServiceReachRowId,
     pub inferred_transitive: ServiceReachRowId,
     pub effective: ServiceReachRowId,
+    /// Exact bounded requirement rows that final composition must resolve.
+    /// The ordinary reach rows retain their conservative upper bounds.
+    pub unresolved_installation_reaches: Vec<psi_effects::InstallationReachRequirement>,
     pub states: HandleSpan<StateServiceReachRows>,
 }
 
@@ -76,6 +79,7 @@ pub struct StateServiceReachRows {
     pub state: SymbolHandle,
     pub inferred_direct: ServiceReachRowId,
     pub inferred_transitive: ServiceReachRowId,
+    pub unresolved_installation_reaches: Vec<psi_effects::InstallationReachRequirement>,
     pub calls: HandleSpan<CallServiceReachRows>,
 }
 
@@ -87,6 +91,7 @@ pub struct CallServiceReachRows {
     pub target_machine: SymbolHandle,
     pub inferred_direct: ServiceReachRowId,
     pub inferred_transitive: ServiceReachRowId,
+    pub unresolved_installation_reaches: Vec<psi_effects::InstallationReachRequirement>,
 }
 
 #[cfg(test)]

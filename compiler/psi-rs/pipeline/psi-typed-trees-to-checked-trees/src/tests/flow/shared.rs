@@ -249,6 +249,7 @@ fn records_checked_boundary_edges_for_boundary_trait_calls() {
             return_type: Default::default(),
             invokes: Default::default(),
             service_reach_row: Default::default(),
+            service_reach_is_installation_bound: false,
             lifetime_parameters: Vec::new(),
             suspends: false,
             blocks: false,

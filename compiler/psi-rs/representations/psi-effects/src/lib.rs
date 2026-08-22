@@ -17,6 +17,6 @@ pub use operational::{
     CallOperational, MachineOperational, OperationalPlan, StateOperational, infer_operational_may,
 };
 pub use service_reach::{
-    CallServiceReachInference, MachineServiceReachInference, ServiceReachInferencePlan,
-    StateServiceReachInference, infer_service_reaches,
+    CallServiceReachInference, InstallationReachRequirement, MachineServiceReachInference,
+    ServiceReachInferencePlan, StateServiceReachInference, infer_service_reaches,
 };

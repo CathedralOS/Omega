@@ -1057,6 +1057,10 @@ pub struct RealizedMachineContractEnvelope {
     pub machine: SymbolHandle,
     pub contract_fingerprint: u64,
     pub effective_service_reach: Vec<String>,
+    /// Installation-selected reach requirements still awaiting provider-row
+    /// substitution. These are implementation evidence and therefore do not
+    /// enter the machine's published contract fingerprint.
+    pub unresolved_installation_reaches: Vec<psi_effects::InstallationReachRequirement>,
     pub effective_synchronous_invocations: Vec<String>,
     pub checked_may_suspend: bool,
     pub checked_may_block: bool,
