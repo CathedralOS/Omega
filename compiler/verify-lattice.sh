@@ -52,8 +52,14 @@ hash_inputs() {
     done; } | sort | xargs shasum 2>/dev/null | shasum | cut -d' ' -f1
 }
 
-# the build lineage everything sits on: any change here re-runs every step
-CORE=$(hash_inputs "$OMEGA_REPO_ROOT/bootstrap" alpha alpha-assembler beta beta-lang-rs)
+# The language spine and its shared path plumbing sit under every step. Assurance
+# services are deliberately excluded here: steps that consume the proof kernel
+# declare the proof-kernel role and hash it independently.
+CORE=$(hash_inputs "$OMEGA_PATH_RUNGS_ROOT" \
+  "$OMEGA_PATH_BOOTSTRAP_ROOT/paths.sh" \
+  "$OMEGA_PATH_BOOTSTRAP_ROOT/check-path-hygiene.sh" \
+  "$OMEGA_PATH_BOOTSTRAP_ROOT/test-paths.sh" \
+  beta-lang-rs)
 RAN=0; SKIPPED=0
 
 step() {  # label dir script [extra dep dirs...]

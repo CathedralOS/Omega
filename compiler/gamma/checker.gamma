@@ -1,6 +1,6 @@
 ; checker.gamma — the proof kernel's core, in Gamma.  THE PAYOFF OF THE RUNG.
 ;
-; The same checker as compiler/proof-kernel/check.beta — full intuitionistic propositional
+; The same checker as bootstrap/assurance/proof-kernel/check.beta — full intuitionistic propositional
 ; logic (-> & + bot) PLUS equality of Peano terms with the conversion rule — but
 ; where check.beta hand-encodes term/type trees as tagged 3-word memory nodes and
 ; decides everything with if-cascades on integer tags (~350 lines), here they are

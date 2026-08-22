@@ -1,7 +1,7 @@
 #!/usr/bin/env sh
 # The proof kernel, REWRITTEN IN GAMMA (checker.gamma), run on the Gamma reference
 # interpreter (interp.beta, itself compiled Rust-free by bc and run on the seed).
-# Same proofs as compiler/proof-kernel/test.sh — valid -> 1, invalid -> 0 — but the
+# Same proofs as bootstrap/assurance/proof-kernel/test.sh — valid -> 1, invalid -> 0 — but the
 # checker is now ~6 functions of ADTs + pattern matching instead of tagged memory.
 OMEGA_GATE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 if [ -z "${OMEGA_REPO_ROOT:-}" ]; then

@@ -33,7 +33,8 @@ BETA_REFERENCE = os.environ.get(
 BETA_RUST = os.environ.get(
     'OMEGA_PATH_BETA_RUST', os.path.join(REPO_ROOT, 'compiler', 'beta-lang-rs'))
 PROOF_KERNEL = os.environ.get(
-    'OMEGA_PATH_PROOF_KERNEL', os.path.join(REPO_ROOT, 'compiler', 'proof-kernel'))
+    'OMEGA_PATH_PROOF_KERNEL',
+    os.path.join(REPO_ROOT, 'bootstrap', 'assurance', 'proof-kernel'))
 sys.path.insert(0, HERE)
 sys.path.insert(0, BETA_REFERENCE)
 import alpha_symbolic as S

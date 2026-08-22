@@ -114,7 +114,7 @@ temporary wrappers where needed:
 | `compiler/gamma/` | `bootstrap/rungs/gamma/` |
 | lattice-built Delta sources/artifacts in `compiler/delta*/` | `bootstrap/rungs/delta/` |
 | `compiler/beta-rs/`, `compiler/beta-lang-rs/`, Rust portion of `compiler/delta-rs/` | `bootstrap/onramps/`, separated by produced role |
-| `compiler/proof-kernel/` + Gamma checker sources | `bootstrap/assurance/proof-kernel/` |
+| `bootstrap/assurance/proof-kernel/` (compatibility: `compiler/proof-kernel`) + transitional Gamma checker sources | `bootstrap/assurance/proof-kernel/` — owner move complete; internal role split open |
 | refinement scripts spread across `alpha/`, `omega/`, and Python tools | `bootstrap/assurance/refinement/` |
 | `compiler/omega/` bootstrap experiments | `bootstrap/omega0/` |
 | `compiler/lattice-corpus/` | `bootstrap/corpus/` |

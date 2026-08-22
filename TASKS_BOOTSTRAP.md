@@ -47,7 +47,7 @@ lattice and `compiler/` for the product implementation.
 
 | Canonical or transitional source | Role | Target owner |
 | --- | --- | --- |
-| `compiler/proof-kernel/` plus Gamma checker sources | cross-cutting derivation checking, tools, corpora, and gates | `bootstrap/assurance/proof-kernel/`, split by implementation/tool/corpus/gate |
+| `bootstrap/assurance/proof-kernel/` (compatibility: `compiler/proof-kernel`) plus transitional Gamma checker sources | cross-cutting derivation checking, tools, corpora, and gates | canonical owner moved; internal implementation/tool/corpus/gate split open |
 | refinement tooling spread across `alpha/`, `omega/`, and Python helpers | source-to-artifact obligation reconstruction and checking | `bootstrap/assurance/refinement/` |
 | `compiler/omega/` | Rust-free first-Omega meaning/refinement experiments | `bootstrap/omega0/` |
 | `compiler/lattice-corpus/` | fixtures shared across lattice seams | `bootstrap/corpus/` |
@@ -351,6 +351,12 @@ from attractive but deferrable language work.
 - [ ] **Split proof-kernel responsibilities.** Separate Beta/Gamma/reference
   checker implementations, untrusted proof tooling, corpora, and gates under
   `bootstrap/assurance/proof-kernel/`.
+  - [x] Move the generic proof-kernel tree to its assurance owner and preserve
+    `compiler/proof-kernel` only as a compatibility symlink. Canonical path
+    roles and lattice hashes no longer treat it as a compiler rung.
+  - [ ] Separate checker implementations, tools, corpora, and gates inside the
+    assurance owner; move the Gamma checker implementation from its transitional
+    language-rung path without changing Gamma's language semantics.
 - [ ] **Split `beta-lang-py` by role.** Retain the interpreter, symbolic evaluator,
   and useful fuzzing under Beta/refinement owners. Retain the optional `bc2.py`
   compiler backend only while it provides unique differential coverage.
@@ -398,7 +404,7 @@ sh bootstrap/rungs/beta/test.sh
 sh compiler/gamma/test-interp.sh
 sh compiler/gamma/test-typeck.sh
 sh compiler/gamma/test-checker.sh
-sh compiler/proof-kernel/test.sh
+sh bootstrap/assurance/proof-kernel/test.sh
 ```
 
 The current Delta-written ARM64 path additionally uses these platform-specific
