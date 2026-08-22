@@ -813,7 +813,7 @@ mod tests {
         let typed =
             psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
                 .expect("type exact adapter-dispatch fixture");
-        let plans = crate::pipeline::provider_plans::derive_satisfies_plans(&syntax, &typed, None);
+        let plans = crate::pipeline::provider_plans::derive_satisfies_plans(&typed, None);
         Fixture { typed, plans }
     }
 

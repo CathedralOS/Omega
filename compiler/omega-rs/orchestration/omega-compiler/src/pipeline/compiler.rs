@@ -601,7 +601,6 @@ impl Compiler {
             write_typed_snapshot(&self.options, &typed)?;
         }
         let provider_plans = crate::pipeline::provider_plans::derive_satisfies_plans(
-            &syntax_trees,
             &typed,
             self.options.target_name.as_deref(),
         );

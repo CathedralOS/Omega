@@ -2361,8 +2361,7 @@ mod tests {
         let typed =
             psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
                 .expect("type");
-        let provider_plans =
-            crate::pipeline::provider_plans::derive_satisfies_plans(&syntax, &typed, None);
+        let provider_plans = crate::pipeline::provider_plans::derive_satisfies_plans(&typed, None);
         assert_eq!(provider_plans.len(), 1);
         assert!(
             crate::pipeline::provider_plans::validate_provider_plan_candidates(
