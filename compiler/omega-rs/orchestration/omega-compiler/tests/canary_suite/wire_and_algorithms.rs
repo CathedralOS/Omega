@@ -1664,9 +1664,12 @@ fn runtime_2d_transpose_exit_canary_runs() {
     let scratch = std::env::temp_dir().join(format!("omega-2d-transpose-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("2d transpose canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("2d transpose canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("2d transpose canary should run");
     assert_eq!(
@@ -1689,9 +1692,12 @@ fn runtime_indexed_through_guard_chain_exit_canary_runs() {
     let scratch = std::env::temp_dir().join(format!("omega-guard-chain-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("indexed-through-guard-chain canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("indexed-through-guard-chain canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("indexed-through-guard-chain canary should run");
     assert_eq!(
@@ -1713,9 +1719,12 @@ fn runtime_binary_search_exit_canary_runs() {
     let scratch = std::env::temp_dir().join(format!("omega-binary-search-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("binary search canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("binary search canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("binary search canary should run");
     assert_eq!(
@@ -1740,9 +1749,12 @@ fn runtime_two_pointer_palindrome_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("two-pointer palindrome canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("two-pointer palindrome canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("two-pointer palindrome canary should run");
     assert_eq!(
@@ -1763,9 +1775,12 @@ fn runtime_nested_struct_array_field_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-nested-struct-array-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("nested struct-array field canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("nested struct-array field canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("nested struct-array field canary should run");
     assert_eq!(
