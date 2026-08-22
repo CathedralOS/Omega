@@ -538,7 +538,12 @@ Remaining:
   separated installed-image and installation-record SHA-256 digests, including
   length framing and canonical hexadecimal rendering. Digest domains and bytes,
   public identity types, validation comparisons, literal errors, and admission
-  replay remain unchanged. The installation parent is now 3,179
+  replay remain unchanged. One structural scalar codec now owns identity
+  strings, multiplicity tags, and qualification-domain catalogs shared across
+  function, return, completion, and structural-type rows. Exact bytes, UTF-8/
+  nonempty and identity diagnostics, domain/multiplicity error order, public
+  APIs, validation, and admission replay remain unchanged. The installation
+  parent is now 3,114
   lines. This is
   custody, not
   authorization. The remaining
@@ -3243,6 +3248,14 @@ Remaining:
   substitution completion; only production materializes citation proofs. The
   existing `alias_transport/one` facades, proof bytes, rejection order, and the
   exact one-alias frontier remain unchanged.
+  One-equality endpoint-substitution completion now lives in paired, side-local
+  `integer_selection/substitution/one/completion` modules. Producer and
+  reconstruction independently choose the matching goal endpoint, rebuild the
+  replacement relation through their bounded relation authority, and construct
+  or replay the outer substitution; only production carries proof nodes. The
+  `substitution/one` parents retain assumptions-before-semantic-axioms citation
+  order and equality orientation, so inner-relation precedence, substitution
+  proof bytes, rejection, and the fixed one-equality frontier remain unchanged.
   Fixed one-alias bound completion now lives in independent side-local
   `alias_transport/one/completion` modules. The producer parent retains origin-
   indexed equality and bound citations, same-carrier distinctness, equality
@@ -7209,6 +7222,11 @@ checked-result arithmetic decision listed below.
   public APIs, diagnostics, identities, and the exact 49-function inventory
   remain unchanged. Remaining computed aggregate expression forms still
   need the same propagation law.
+  Structural four-axis carry derivation now lives in a focused 189-line owner.
+  Generic-bound substitution, recursive transparent stored-shape traversal,
+  strict cycle/opaque fallback, and per-axis intersection remain shared by
+  declaration validation and checked carry facts; the property coordinator is
+  now 374 lines with the exact 18-function/method inventory unchanged.
 - Materialize dynamic descriptors for pass-through, rebound, and escaping
   borrows from the retained exact conformance rows and declaring-trait symbol.
   Bodyless/bare requirements do not license `dyn`; ambiguous same-carrier
