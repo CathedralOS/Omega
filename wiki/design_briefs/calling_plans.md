@@ -630,6 +630,11 @@ drifted bindings therefore reject at the final image boundary for source,
 wrapper, and callback roles alike. Object-local symbol spelling is deliberately
 not compared to the encoded source display name; callback private-symbol
 recomputation remains the stronger callback-specific check described above.
+Final replay nevertheless rederives the canonical public entry name for the
+one object entry and the canonical private name for every non-entry source or
+wrapper identity. Renaming either rejects, and a callback identity cannot own
+the process entry. This keeps authored display spelling separate from linkage
+identity without treating arbitrary object spelling as trusted.
 Final relocation replay also builds one exact owner map from every retained
 selected-instruction identity to that function symbol. A selected instruction
 retained twice, an instruction relocation naming another function, or an

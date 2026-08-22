@@ -11,8 +11,10 @@ fn bind_encoded_function_object_symbol(
     object: &mut omega_object_file::ObjectPlan,
     function: &omega_machine_bytes::EncodedMachineFunction,
 ) -> omega_object_file::ObjectSymbolHandle {
+    let name = omega_object_file::private_function_symbol_name(function.identity)
+        .unwrap_or_else(|| format!("function_{}", object.layout.symbols.len()));
     let symbol = object.layout.symbols.insert(omega_object_file::SymbolPlan {
-        name: format!("function_{}", object.layout.symbols.len()),
+        name,
         section: omega_object_file::SymbolSection::Section(omega_object_file::SectionKind::Text),
         offset: function.byte_offset,
         size: function.byte_count,
@@ -159,6 +161,70 @@ fn final_function_identity_owns_one_exact_object_text_interval() {
             .message
             .contains("does not match encoded interval")
     );
+
+    let mut callback_entry = object;
+    callback_entry.layout.entry_symbol = symbol;
+    let diagnostic = validate_compiler_function_object_binding(0, &function, &callback_entry)
+        .expect_err("callback identity cannot replace the process entry");
+    assert!(
+        diagnostic
+            .message
+            .contains("cannot own the object entry symbol")
+    );
+}
+
+#[test]
+fn final_source_wrapper_and_entry_linkage_names_are_canonical() {
+    use omega_control_flow::{MachineFunctionIdentity, StateKey};
+    use omega_machine_bytes::EncodedMachineFunction;
+    use psi_symbols::SymbolHandle;
+
+    let target = NativeTarget::linux_x64();
+    let continuation = StateKey {
+        machine: SymbolHandle::from_parts(1, 2),
+        state: SymbolHandle::from_parts(3, 4),
+        segment_index: 5,
+    };
+    let source = EncodedMachineFunction {
+        symbol: "authored_display_name".into(),
+        identity: MachineFunctionIdentity::source(continuation),
+        byte_offset: 8,
+        byte_count: 16,
+        ..EncodedMachineFunction::default()
+    };
+    let mut object = omega_object_file::ObjectPlan::with_capacities(target, 0, 1, 1);
+    let source_symbol = bind_encoded_function_object_symbol(&mut object, &source);
+    validate_compiler_function_object_binding(0, &source, &object)
+        .expect("non-entry source uses its canonical private linkage name");
+
+    let mut renamed_source = object.clone();
+    renamed_source.layout.symbols.get_mut(source_symbol).name = "renamed".into();
+    let diagnostic = validate_compiler_function_object_binding(0, &source, &renamed_source)
+        .expect_err("source linkage substitution must reject");
+    assert!(
+        diagnostic
+            .message
+            .contains("canonical identity-derived name")
+    );
+
+    let mut entry = object.clone();
+    entry.layout.entry_symbol = source_symbol;
+    entry.layout.symbols.get_mut(source_symbol).name = omega_object_file::entry_symbol_name(target);
+    validate_compiler_function_object_binding(0, &source, &entry)
+        .expect("entry linkage uses the target's canonical public name");
+    entry.layout.symbols.get_mut(source_symbol).name = "not_main".into();
+    assert!(validate_compiler_function_object_binding(0, &source, &entry).is_err());
+
+    let wrapper = EncodedMachineFunction {
+        identity: MachineFunctionIdentity::program_storage_entry_wrapper(continuation)
+            .expect("valid wrapper identity"),
+        byte_offset: 24,
+        ..source.clone()
+    };
+    let mut wrapper_object = omega_object_file::ObjectPlan::with_capacities(target, 0, 1, 1);
+    bind_encoded_function_object_symbol(&mut wrapper_object, &wrapper);
+    validate_compiler_function_object_binding(1, &wrapper, &wrapper_object)
+        .expect("non-entry wrapper uses its canonical private linkage name");
 }
 
 #[test]
