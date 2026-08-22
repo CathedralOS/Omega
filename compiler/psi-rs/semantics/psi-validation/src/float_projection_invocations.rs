@@ -9,7 +9,9 @@ use psi_numerics::float_projection::FloatProjectionOperation;
 use psi_symbols::SymbolHandle;
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::domain::ProofFact;
-use psi_typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
+use psi_typed_trees::expression::{
+    BinaryOperator, ExpressionHandle, ExpressionNode, TableCallExpression,
+};
 use psi_typed_trees::operator::{resolve_named_call, resolve_named_expression_call};
 use psi_typed_trees::types::PrimitiveType;
 
@@ -20,6 +22,14 @@ pub struct ValidatedFloatMeaningProjectionInvocation {
     pub selected_operator_symbol: SymbolHandle,
     pub source_primitive: PrimitiveType,
     pub operation: FloatProjectionOperation,
+}
+
+/// One validated proof-position equality between two exact projection calls.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ValidatedFloatMeaningEqualityProposition {
+    pub expression: ExpressionHandle,
+    pub left: ExpressionHandle,
+    pub right: ExpressionHandle,
 }
 
 fn exact_projection_operation(
@@ -107,6 +117,7 @@ fn walk_expression(
     expression: ExpressionHandle,
     visited: &mut Vec<ExpressionHandle>,
     projections: &mut Vec<ValidatedFloatMeaningProjectionInvocation>,
+    equalities: &mut Vec<ValidatedFloatMeaningEqualityProposition>,
 ) -> Result<(), Diagnostic> {
     if !expression.is_valid() || visited.contains(&expression) {
         return Ok(());
@@ -115,24 +126,38 @@ fn walk_expression(
     match program.expression_table.expression(expression) {
         ExpressionNode::ArrayLiteral(values) => {
             for value in program.expression_table.expression_handles(*values) {
-                walk_expression(program, *value, visited, projections)?;
+                walk_expression(program, *value, visited, projections, equalities)?;
             }
         }
         ExpressionNode::Atomic(atomic) => {
-            walk_expression(program, atomic.value, visited, projections)?;
-            walk_expression(program, atomic.result, visited, projections)?;
+            walk_expression(program, atomic.value, visited, projections, equalities)?;
+            walk_expression(program, atomic.result, visited, projections, equalities)?;
         }
         ExpressionNode::Binary(binary) => {
-            walk_expression(program, binary.left, visited, projections)?;
-            walk_expression(program, binary.right, visited, projections)?;
+            walk_expression(program, binary.left, visited, projections, equalities)?;
+            walk_expression(program, binary.right, visited, projections, equalities)?;
+            if binary.operator == BinaryOperator::Equal
+                && projections
+                    .iter()
+                    .any(|projection| projection.invocation == binary.left)
+                && projections
+                    .iter()
+                    .any(|projection| projection.invocation == binary.right)
+            {
+                equalities.push(ValidatedFloatMeaningEqualityProposition {
+                    expression,
+                    left: binary.left,
+                    right: binary.right,
+                });
+            }
         }
         ExpressionNode::Cast(cast) => {
-            walk_expression(program, cast.value, visited, projections)?;
+            walk_expression(program, cast.value, visited, projections, equalities)?;
         }
         ExpressionNode::Call(call) => {
-            walk_expression(program, call.receiver, visited, projections)?;
+            walk_expression(program, call.receiver, visited, projections, equalities)?;
             for argument in program.expression_table.expression_handles(call.arguments) {
-                walk_expression(program, *argument, visited, projections)?;
+                walk_expression(program, *argument, visited, projections, equalities)?;
             }
             if let Some(requested_operation) = requested_projection_operation(program, call) {
                 let Some((selected_operator_symbol, source_primitive, operation)) =
@@ -176,24 +201,32 @@ fn walk_expression(
             }
         }
         ExpressionNode::Indexed(indexed) => {
-            walk_expression(program, indexed.collection, visited, projections)?;
-            walk_expression(program, indexed.index, visited, projections)?;
+            walk_expression(
+                program,
+                indexed.collection,
+                visited,
+                projections,
+                equalities,
+            )?;
+            walk_expression(program, indexed.index, visited, projections, equalities)?;
         }
         ExpressionNode::Member(member) => {
-            walk_expression(program, member.receiver, visited, projections)?;
+            walk_expression(program, member.receiver, visited, projections, equalities)?;
         }
-        ExpressionNode::Mutable(value) => walk_expression(program, *value, visited, projections)?,
+        ExpressionNode::Mutable(value) => {
+            walk_expression(program, *value, visited, projections, equalities)?
+        }
         ExpressionNode::Range(range) => {
-            walk_expression(program, range.start, visited, projections)?;
-            walk_expression(program, range.end, visited, projections)?;
+            walk_expression(program, range.start, visited, projections, equalities)?;
+            walk_expression(program, range.end, visited, projections, equalities)?;
         }
         ExpressionNode::StructLiteral(literal) => {
             for field in program.expression_table.struct_fields(literal.fields) {
-                walk_expression(program, field.value, visited, projections)?;
+                walk_expression(program, field.value, visited, projections, equalities)?;
             }
         }
         ExpressionNode::Unary(unary) => {
-            walk_expression(program, unary.operand, visited, projections)?;
+            walk_expression(program, unary.operand, visited, projections, equalities)?;
         }
         ExpressionNode::Boolean(_)
         | ExpressionNode::Float(_)
@@ -207,9 +240,16 @@ fn walk_expression(
 
 pub(crate) fn collect_float_meaning_projection_invocations(
     program: &TypedTrees,
-) -> Result<Vec<ValidatedFloatMeaningProjectionInvocation>, Vec<Diagnostic>> {
+) -> Result<
+    (
+        Vec<ValidatedFloatMeaningProjectionInvocation>,
+        Vec<ValidatedFloatMeaningEqualityProposition>,
+    ),
+    Vec<Diagnostic>,
+> {
     let mut visited = Vec::new();
     let mut projections = Vec::new();
+    let mut equalities = Vec::new();
     for (_, fact) in program.proof_facts.iter() {
         let roots: &[ExpressionHandle] = match fact {
             ProofFact::Expression(expression) => std::slice::from_ref(expression),
@@ -219,10 +259,17 @@ pub(crate) fn collect_float_meaning_projection_invocations(
                 .expression_handles(application.arguments),
         };
         for root in roots {
-            walk_expression(program, *root, &mut visited, &mut projections)
-                .map_err(|diagnostic| vec![diagnostic])?;
+            walk_expression(
+                program,
+                *root,
+                &mut visited,
+                &mut projections,
+                &mut equalities,
+            )
+            .map_err(|diagnostic| vec![diagnostic])?;
         }
     }
     projections.sort_by_key(|projection| projection.invocation.arena_index());
-    Ok(projections)
+    equalities.sort_by_key(|proposition| proposition.expression.arena_index());
+    Ok((projections, equalities))
 }

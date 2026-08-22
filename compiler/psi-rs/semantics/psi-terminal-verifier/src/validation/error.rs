@@ -27,6 +27,19 @@ pub enum ModuleError {
         index: u32,
         error: crate::verification::FloatMeaningProjectionVerificationError,
     },
+    NonDenseFloatMeaningEquality {
+        expected: u32,
+        actual: u32,
+    },
+    NonCanonicalFloatMeaningEqualityOperands {
+        proposition: u32,
+        left: u32,
+        right: u32,
+    },
+    UnknownFloatMeaningEqualityOperand {
+        proposition: u32,
+        operand: u32,
+    },
     OperationSemanticSchema(OperationSemanticError),
     InvalidPartialAffineCleanup {
         machine: MachineId,

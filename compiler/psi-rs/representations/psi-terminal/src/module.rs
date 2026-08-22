@@ -26,7 +26,7 @@ impl VocabularyMarker {
     }
 
     pub const fn get(self) -> u16 {
-        21
+        22
     }
 }
 
@@ -97,6 +97,8 @@ pub struct TerminalModule {
     /// Source-handle-free proof-only float projections. These rows are
     /// semantic-module evidence, never executable operations or runtime values.
     pub float_meaning_projections: Vec<crate::FloatMeaningProjection>,
+    /// Proof-only propositions consuming exact float projection results.
+    pub float_meaning_equalities: Vec<crate::FloatMeaningEqualityProposition>,
     /// Nominal proof-formula vocabulary, strictly ordered by `id`.
     /// Transparent aliases never receive a declaration row.
     pub proposition_declarations: Vec<PropositionDeclaration>,

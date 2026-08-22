@@ -1,14 +1,25 @@
 //! Exact erasure of checked float-meaning projections into Terminal Psi.
 
 use psi_checked_trees::{
-    CheckedFloatMeaningProjection, CheckedFloatMeaningProjectionError, CheckedProofOnlyValueType,
-    types::PrimitiveType,
+    CheckedFloatMeaningEqualityProposition, CheckedFloatMeaningProjection,
+    CheckedFloatMeaningProjectionError, CheckedProofOnlyValueType, types::PrimitiveType,
 };
 use psi_core::IeeeFloatFormat;
 use psi_terminal::{
-    FloatMeaningProjection, FloatMeaningProjectionOperation, FloatProjectionInput,
-    FloatProjectionInputId, ProofOnlyValueType, ProofValueDeclaration, ProofValueId,
+    FloatMeaningEqualityProposition, FloatMeaningProjection, FloatMeaningProjectionOperation,
+    FloatProjectionInput, FloatProjectionInputId, ProofOnlyValueType, ProofPropositionId,
+    ProofValueDeclaration, ProofValueId,
 };
+
+pub fn lower_float_meaning_equality(
+    checked: CheckedFloatMeaningEqualityProposition,
+) -> FloatMeaningEqualityProposition {
+    FloatMeaningEqualityProposition {
+        id: ProofPropositionId(checked.id.0),
+        left: ProofValueId(checked.left.0),
+        right: ProofValueId(checked.right.0),
+    }
+}
 
 pub fn lower_float_meaning_projection(
     checked: CheckedFloatMeaningProjection,

@@ -11,6 +11,9 @@ use psi_typed_trees::types::PrimitiveType;
 pub struct CheckedProofValueId(pub u32);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct CheckedProofPropositionId(pub u32);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct CheckedFloatProjectionInputId(pub u32);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -39,6 +42,15 @@ pub struct CheckedFloatMeaningProjection {
     pub result: CheckedProofValueDeclaration,
     pub source: CheckedFloatProjectionInput,
     pub operation: FloatProjectionOperation,
+}
+
+/// One proof-only equality whose operands are exact results in the retained
+/// float-projection table. It is not a runtime Boolean or a machine operation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CheckedFloatMeaningEqualityProposition {
+    pub id: CheckedProofPropositionId,
+    pub left: CheckedProofValueId,
+    pub right: CheckedProofValueId,
 }
 
 impl CheckedFloatMeaningProjection {

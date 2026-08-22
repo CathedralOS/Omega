@@ -49,27 +49,28 @@ use psi_terminal::{
     ContentPlaceSubstitution, ContractClause, CrashCause, CrashPredicateTerm, CrashRouteBucket,
     CrashRouteGuard, EntryClaim, EvidenceContractLane, EvidenceContractLaneKind,
     EvidenceInterfaceIdentity, EvidencePackageInvocation, EvidencePackageOutputBinding,
-    EvidencePackageRuntimeCall, EvidenceTermDeclaration, FloatMeaningProjection,
-    FloatMeaningProjectionOperation, FloatProjectionInput, FloatProjectionInputId, MachineContract,
-    NominalAffineCleanup, Operation, OperationKind, OperationResult, ProofOnlyValueType,
-    ProofValueDeclaration, ProofValueId, PropositionApplicationIdentity,
-    PropositionBinderArgumentIdentity, PropositionBinderArgumentKind, PropositionBinderDeclaration,
-    PropositionBinderKind, PropositionDeclaration, PropositionEvidence,
-    ProviderCandidateConformance, ProviderParameterRefinement, ProviderSignatureParameter,
-    ProviderUnitRefinement, ProviderUnitSignature, ServiceDeclaration, StructuralAffineDiscard,
-    StructuralArgument, StructuralCaseDeclaration, StructuralDomainDeclaration,
-    StructuralDomainRequirement, StructuralFieldDeclaration, StructuralFieldType,
-    StructuralMultiplicity, StructuralParameterDeclaration, StructuralPathSegment,
-    StructuralPlaceDeclaration, StructuralResultDeclaration, StructuralTypeDeclaration,
-    StructuralTypeShape, SuccessorEdge, TerminalAffineCleanupAction, TerminalMachine,
-    TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
+    EvidencePackageRuntimeCall, EvidenceTermDeclaration, FloatMeaningEqualityProposition,
+    FloatMeaningProjection, FloatMeaningProjectionOperation, FloatProjectionInput,
+    FloatProjectionInputId, MachineContract, NominalAffineCleanup, Operation, OperationKind,
+    OperationResult, ProofOnlyValueType, ProofPropositionId, ProofValueDeclaration, ProofValueId,
+    PropositionApplicationIdentity, PropositionBinderArgumentIdentity,
+    PropositionBinderArgumentKind, PropositionBinderDeclaration, PropositionBinderKind,
+    PropositionDeclaration, PropositionEvidence, ProviderCandidateConformance,
+    ProviderParameterRefinement, ProviderSignatureParameter, ProviderUnitRefinement,
+    ProviderUnitSignature, ServiceDeclaration, StructuralAffineDiscard, StructuralArgument,
+    StructuralCaseDeclaration, StructuralDomainDeclaration, StructuralDomainRequirement,
+    StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
+    StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
+    StructuralResultDeclaration, StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge,
+    TerminalAffineCleanupAction, TerminalMachine, TerminalMachineResult, TerminalModule,
+    Terminator, ValueDeclaration, VocabularyMarker,
 };
 use psi_terminal_verifier::{ModuleError, validate_module_representation};
 use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
 
 const MAGIC: &[u8; 8] = b"PSITERM\0";
-const FORMAT_MARKER: u16 = 19;
+const FORMAT_MARKER: u16 = 20;
 const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 const MAX_PROPOSITION_DEPTH: usize = 256;
 const MAX_SCALAR_TERM_DEPTH: usize = 256;
@@ -224,6 +225,21 @@ fn validate_canonical_order(module: &TerminalModule) -> Result<(), CodecError> {
     {
         return Err(CodecError::NonCanonicalOrder(
             "service parents by ServiceId",
+        ));
+    }
+    if module
+        .float_meaning_equalities
+        .iter()
+        .enumerate()
+        .any(|(index, proposition)| {
+            let Ok(index) = u32::try_from(index) else {
+                return true;
+            };
+            proposition.id != ProofPropositionId(index) || proposition.left > proposition.right
+        })
+    {
+        return Err(CodecError::NonCanonicalOrder(
+            "float-meaning equalities by dense proposition ID and ordered operands",
         ));
     }
     if !strictly_increasing(
@@ -1593,6 +1609,15 @@ fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError> {
             FloatMeaningProjectionOperation::Meaning32 => 1,
             FloatMeaningProjectionOperation::Meaning64 => 2,
         });
+    }
+    writer.len(
+        "float-meaning equalities",
+        module.float_meaning_equalities.len(),
+    )?;
+    for proposition in &module.float_meaning_equalities {
+        writer.u32(proposition.id.0);
+        writer.u32(proposition.left.0);
+        writer.u32(proposition.right.0);
     }
     writer.len(
         "proposition declarations",
@@ -3554,6 +3579,13 @@ fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModule, CodecEr
             },
         })
     })?;
+    let float_meaning_equalities = decode_counted(reader, |reader| {
+        Ok(FloatMeaningEqualityProposition {
+            id: ProofPropositionId(reader.u32()?),
+            left: ProofValueId(reader.u32()?),
+            right: ProofValueId(reader.u32()?),
+        })
+    })?;
     let count = reader.count()?;
     let mut proposition_declarations = Vec::with_capacity(count as usize);
     for _ in 0..count {
@@ -3675,6 +3707,7 @@ fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModule, CodecEr
         boundary_machines,
         provider_candidates,
         float_meaning_projections,
+        float_meaning_equalities,
         proposition_declarations,
         proposition_applications,
         evidence_terms,

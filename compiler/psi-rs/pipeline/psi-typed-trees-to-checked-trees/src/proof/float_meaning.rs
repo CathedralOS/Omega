@@ -1,15 +1,18 @@
 //! Erase validated source float-projection invocations into checked proof rows.
 
 use psi_checked_trees::{
-    CheckedFloatMeaningProjection, CheckedFloatProjectionInput, CheckedFloatProjectionInputId,
-    CheckedProofOnlyValueType, CheckedProofValueDeclaration, CheckedProofValueId, ProofFacts,
+    CheckedFloatMeaningEqualityProposition, CheckedFloatMeaningProjection,
+    CheckedFloatProjectionInput, CheckedFloatProjectionInputId, CheckedProofOnlyValueType,
+    CheckedProofPropositionId, CheckedProofValueDeclaration, CheckedProofValueId, ProofFacts,
 };
 use psi_diagnostics::Diagnostic;
 use psi_numerics::float_projection::FloatProjectionOperation;
 use psi_typed_trees::TypedTrees;
-use psi_typed_trees::expression::ExpressionNode;
+use psi_typed_trees::expression::{BinaryOperator, ExpressionNode};
 use psi_typed_trees::operator::{resolve_named_call, resolve_named_expression_call};
-use psi_validation::ValidatedFloatMeaningProjectionInvocation;
+use psi_validation::{
+    ValidatedFloatMeaningEqualityProposition, ValidatedFloatMeaningProjectionInvocation,
+};
 
 fn replay_invocation(
     program: &TypedTrees,
@@ -112,6 +115,7 @@ pub(crate) fn bind_float_meaning_projection_facts(
     program: &TypedTrees,
     proof: &mut ProofFacts,
     facts: &[ValidatedFloatMeaningProjectionInvocation],
+    equality_facts: &[ValidatedFloatMeaningEqualityProposition],
 ) -> Result<(), Vec<Diagnostic>> {
     let mut projections = Vec::with_capacity(facts.len());
     for (index, fact) in facts.iter().copied().enumerate() {
@@ -139,7 +143,54 @@ pub(crate) fn bind_float_meaning_projection_facts(
         })?;
         projections.push(projection);
     }
+    let mut equalities = Vec::with_capacity(equality_facts.len());
+    for (index, fact) in equality_facts.iter().copied().enumerate() {
+        let ExpressionNode::Binary(expression) =
+            program.expression_table.expression(fact.expression)
+        else {
+            return Err(vec![Diagnostic::error(
+                "validated float-meaning equality is no longer a binary proposition",
+            )]);
+        };
+        if expression.operator != BinaryOperator::Equal
+            || expression.left != fact.left
+            || expression.right != fact.right
+        {
+            return Err(vec![Diagnostic::error(
+                "validated float-meaning equality identity drifted before checked binding",
+            )]);
+        }
+        let left = facts
+            .iter()
+            .position(|projection| projection.invocation == fact.left)
+            .and_then(|index| u32::try_from(index).ok())
+            .ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "validated float-meaning equality lost its left projection",
+                )]
+            })?;
+        let right = facts
+            .iter()
+            .position(|projection| projection.invocation == fact.right)
+            .and_then(|index| u32::try_from(index).ok())
+            .ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "validated float-meaning equality lost its right projection",
+                )]
+            })?;
+        let id = u32::try_from(index).map_err(|_| {
+            vec![Diagnostic::error(
+                "float-meaning equality plan exceeds its dense identity space",
+            )]
+        })?;
+        equalities.push(CheckedFloatMeaningEqualityProposition {
+            id: CheckedProofPropositionId(id),
+            left: CheckedProofValueId(left.min(right)),
+            right: CheckedProofValueId(left.max(right)),
+        });
+    }
     proof.float_meaning_projections = projections;
+    proof.float_meaning_equalities = equalities;
     Ok(())
 }
 
@@ -190,6 +241,15 @@ mod tests {
             FloatProjectionOperation::Meaning64
         );
         assert_eq!(projections[3].result.id, CheckedProofValueId(3));
+        assert_eq!(checked.facts.proof.float_meaning_equalities.len(), 2);
+        assert_eq!(
+            checked.facts.proof.float_meaning_equalities[0],
+            CheckedFloatMeaningEqualityProposition {
+                id: CheckedProofPropositionId(0),
+                left: CheckedProofValueId(0),
+                right: CheckedProofValueId(1),
+            }
+        );
     }
 
     #[test]
@@ -206,6 +266,7 @@ mod tests {
             &program,
             &mut proof,
             &validation.float_meaning_projection_invocations,
+            &validation.float_meaning_equality_propositions,
         )
         .expect_err("substituted source identity must reject");
         assert!(
@@ -229,9 +290,31 @@ mod tests {
             &program,
             &mut proof,
             &validation.float_meaning_projection_invocations,
+            &validation.float_meaning_equality_propositions,
         )
         .expect_err("cross-format operation must reject");
         assert!(diagnostics[0].message.contains("operation drifted"));
         assert!(proof.float_meaning_projections.is_empty());
+    }
+
+    #[test]
+    fn checked_binding_rejects_equality_operand_substitution_transactionally() {
+        let program = typed_projection_program();
+        let mut validation =
+            psi_validation::validate_program_after_generic_contract_entailment_with_facts(&program)
+                .expect("validate");
+        validation.float_meaning_equality_propositions[0].left =
+            validation.float_meaning_projection_invocations[2].invocation;
+        let mut proof = ProofFacts::default();
+        let diagnostics = bind_float_meaning_projection_facts(
+            &program,
+            &mut proof,
+            &validation.float_meaning_projection_invocations,
+            &validation.float_meaning_equality_propositions,
+        )
+        .expect_err("substituted equality operand must reject");
+        assert!(diagnostics[0].message.contains("identity drifted"));
+        assert!(proof.float_meaning_projections.is_empty());
+        assert!(proof.float_meaning_equalities.is_empty());
     }
 }

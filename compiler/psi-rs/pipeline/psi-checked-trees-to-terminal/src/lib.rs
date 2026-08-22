@@ -137,7 +137,8 @@ use crash_routes::{
 use debug_map::build_debug_map;
 use evidence_lowering::lower_and_install_evidence_artifacts;
 pub use float_meaning_projection::{
-    FloatMeaningProjectionLoweringError, lower_float_meaning_projection,
+    FloatMeaningProjectionLoweringError, lower_float_meaning_equality,
+    lower_float_meaning_projection,
 };
 use operation_emission::{
     emit_boolean_expression, emit_direct_expression, emit_scalar_binding,
@@ -780,6 +781,14 @@ pub fn lower_machine(
         .map(lower_float_meaning_projection)
         .collect::<Result<Vec<_>, _>>()
         .map_err(LoweringError::InvalidFloatMeaningProjection)?;
+    lowered.semantic_module.float_meaning_equalities = checked
+        .facts
+        .proof
+        .float_meaning_equalities
+        .iter()
+        .copied()
+        .map(lower_float_meaning_equality)
+        .collect();
     lower_and_install_evidence_artifacts(checked, selection.machine, &mut lowered)?;
     psi_terminal_verifier::validate_module(&lowered.semantic_module)
         .map_err(LoweringError::InvalidTerminalModule)?;
