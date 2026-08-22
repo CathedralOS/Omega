@@ -227,10 +227,13 @@ fn runtime_wire_roundtrip_primitive_exit_canary_runs() {
     let scratch = std::env::temp_dir().join(format!("omega-wire-roundtrip-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("wire roundtrip canary should compile");
 
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("wire roundtrip canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("wire roundtrip canary should run");
 
@@ -254,10 +257,13 @@ fn runtime_wire_decode_ranged_field_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-wire-ranged-decode-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("ranged wire decode canary should compile");
 
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("ranged wire decode canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("ranged wire decode canary should run");
 
@@ -283,10 +289,13 @@ fn runtime_wire_decode_ranged_repeated_exit_canary_runs() {
     ));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("ranged repeated wire decode canary should compile");
 
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("ranged repeated wire decode canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("ranged repeated wire decode canary should run");
 
@@ -312,10 +321,13 @@ fn runtime_wire_decode_rejects_noncanonical_bool_exit_canary_runs() {
     ));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("noncanonical bool wire decode canary should compile");
 
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("noncanonical bool wire decode canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("noncanonical bool wire decode canary should run");
 
@@ -341,10 +353,13 @@ fn runtime_wire_decode_rejects_noncanonical_varint_exit_canary_runs() {
     ));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("noncanonical varint wire decode canary should compile");
 
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("noncanonical varint wire decode canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("noncanonical varint wire decode canary should run");
 
