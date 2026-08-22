@@ -145,8 +145,8 @@ impl omega_terminal_installation_evidence::TerminalObjectEvidence for TerminalOb
         self.terminal_psi
     }
 
-    fn architecture(&self) -> Architecture {
-        self.target.architecture
+    fn target(&self) -> NativeTarget {
+        self.target
     }
 
     fn text_bytes(&self) -> &[u8] {
@@ -158,6 +158,32 @@ impl omega_terminal_installation_evidence::TerminalObjectEvidence for TerminalOb
             .iter()
             .find(|function| function.machine == machine)
             .map(|function| function.text_offset)
+    }
+
+    fn fuel_attribution(
+        &self,
+    ) -> Vec<omega_terminal_installation_evidence::TerminalFuelAttributionEvidence> {
+        self.fuel_attribution
+            .iter()
+            .map(|row| omega_terminal_installation_evidence::TerminalFuelAttributionEvidence {
+                machine: row.machine,
+                schedule: row.attribution.schedule,
+                site: match row.attribution.site {
+                    TerminalNativeFuelSite::Operation(operation) => {
+                        omega_terminal_installation_evidence::TerminalFuelAttributionSite::Operation(
+                            operation,
+                        )
+                    }
+                    TerminalNativeFuelSite::Edge(edge) => {
+                        omega_terminal_installation_evidence::TerminalFuelAttributionSite::Edge(edge)
+                    }
+                },
+                units: row.attribution.units,
+                operation_ordinal: row.attribution.operation_ordinal,
+                text_offset: row.text_offset,
+                byte_count: row.attribution.byte_count,
+            })
+            .collect()
     }
 }
 

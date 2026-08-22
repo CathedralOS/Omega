@@ -6,10 +6,18 @@
 //! Hosted interpretation is an explicit fallback; freestanding installation
 //! never treats unavailable native metering as executable.
 
+use std::collections::BTreeSet;
+
+use omega_executable_installation::{
+    ArtifactId, InstalledCode, InstalledCodeContext, InstalledCodeId,
+};
 use omega_target::NativeTarget;
+use omega_terminal_installation_evidence::{
+    TerminalFuelAttributionEvidence, TerminalFuelAttributionSite, TerminalObjectEvidence,
+};
 
 use super::{
-    ComposedFuelDemand, DynamicFuelMeterValidationReceiptId, ExternalRootDiagnostic,
+    ComposedFuelDemand, DynamicFuelMeterValidationReceiptId, ExternalRootDiagnostic, Fnv1a,
     FuelExhaustionTransferPlanId, FuelProvisionId, FuelSuspensionFreeEvidence,
     NativeFuelMeterPlanId, SponsorContextTransportId,
 };
@@ -144,6 +152,177 @@ impl DynamicNativeFuelMeterPlan {
     pub const fn sponsor_path(&self) -> &SuspensionFreeFixedFuelProvision {
         &self.sponsor_path
     }
+}
+
+/// A dynamic meter plan bound to the exact relocation-free terminal artifact
+/// and installed code whose charge sites it must instrument.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InstalledDynamicFuelAttributionPlan {
+    plan: DynamicNativeFuelMeterPlan,
+    terminal_psi: psi_terminal::TerminalPsiIdentity,
+    installed_code: InstalledCodeId,
+    installed_code_context: InstalledCodeContext,
+    artifact: ArtifactId,
+    attributions: Vec<TerminalFuelAttributionEvidence>,
+    fingerprint: u64,
+}
+
+impl InstalledDynamicFuelAttributionPlan {
+    pub const fn plan(&self) -> &DynamicNativeFuelMeterPlan {
+        &self.plan
+    }
+
+    pub const fn installed_code(&self) -> InstalledCodeId {
+        self.installed_code
+    }
+
+    pub fn attributions(&self) -> &[TerminalFuelAttributionEvidence] {
+        &self.attributions
+    }
+
+    pub const fn fingerprint(&self) -> u64 {
+        self.fingerprint
+    }
+}
+
+/// Bind dynamic metering to the exact already-validated attribution catalog.
+/// This emits no instructions; it closes the evidence input that later target
+/// lowering must consume without rediscovering semantic sites from bytes.
+pub fn bind_installed_dynamic_fuel_attributions<Artifact: TerminalObjectEvidence>(
+    plan: DynamicNativeFuelMeterPlan,
+    terminal_artifact: &Artifact,
+    installed_code: &InstalledCode,
+) -> Result<InstalledDynamicFuelAttributionPlan, ExternalRootDiagnostic> {
+    if plan.target != terminal_artifact.target()
+        || plan.target.architecture != installed_code.architecture()
+    {
+        return Err(ExternalRootDiagnostic(
+            "dynamic fuel meter target does not match the terminal artifact and installed code"
+                .into(),
+        ));
+    }
+    if !installed_code.binds_exact_unrelocated_artifact_bytes(terminal_artifact.text_bytes()) {
+        return Err(ExternalRootDiagnostic(
+            "dynamic fuel attribution requires the exact relocation-free installed terminal bytes"
+                .into(),
+        ));
+    }
+
+    let attributions = terminal_artifact.fuel_attribution();
+    validate_dynamic_fuel_attributions(&plan, terminal_artifact, &attributions)?;
+
+    let terminal_psi = terminal_artifact.terminal_psi();
+    let installed_code_context = installed_code.receipt_context();
+    let artifact = installed_code.artifact();
+    let fingerprint = fingerprint_installed_dynamic_fuel_attributions(
+        &plan,
+        terminal_psi,
+        installed_code.identity(),
+        artifact,
+        &attributions,
+    );
+    Ok(InstalledDynamicFuelAttributionPlan {
+        plan,
+        terminal_psi,
+        installed_code: installed_code.identity(),
+        installed_code_context,
+        artifact,
+        attributions,
+        fingerprint,
+    })
+}
+
+fn validate_dynamic_fuel_attributions<Artifact: TerminalObjectEvidence>(
+    plan: &DynamicNativeFuelMeterPlan,
+    terminal_artifact: &Artifact,
+    attributions: &[TerminalFuelAttributionEvidence],
+) -> Result<(), ExternalRootDiagnostic> {
+    if attributions.is_empty() {
+        return Err(ExternalRootDiagnostic(
+            "dynamic fuel meter requires at least one installed attribution row".into(),
+        ));
+    }
+    if attributions
+        .windows(2)
+        .any(|rows| attribution_order_key(&rows[0]) >= attribution_order_key(&rows[1]))
+    {
+        return Err(ExternalRootDiagnostic(
+            "dynamic fuel attribution rows are not in canonical machine/site order".into(),
+        ));
+    }
+    let mut sites = BTreeSet::new();
+    for row in attributions {
+        let end = row.text_offset.checked_add(row.byte_count).ok_or_else(|| {
+            ExternalRootDiagnostic("dynamic fuel attribution byte range overflowed".into())
+        })?;
+        if row.schedule != plan.schedule
+            || row.units == 0
+            || end > terminal_artifact.text_bytes().len()
+            || terminal_artifact
+                .function_text_offset(row.machine)
+                .is_none()
+        {
+            return Err(ExternalRootDiagnostic(
+                "dynamic fuel attribution row is invalid for the exact terminal artifact".into(),
+            ));
+        }
+        if !sites.insert((row.machine, row.site)) {
+            return Err(ExternalRootDiagnostic(
+                "dynamic fuel attribution repeats one semantic charge site".into(),
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn attribution_order_key(
+    row: &TerminalFuelAttributionEvidence,
+) -> (u64, usize, usize, TerminalFuelAttributionSite) {
+    (
+        row.machine.get(),
+        row.operation_ordinal,
+        row.text_offset,
+        row.site,
+    )
+}
+
+fn fingerprint_installed_dynamic_fuel_attributions(
+    plan: &DynamicNativeFuelMeterPlan,
+    terminal_psi: psi_terminal::TerminalPsiIdentity,
+    installed_code: InstalledCodeId,
+    artifact: ArtifactId,
+    rows: &[TerminalFuelAttributionEvidence],
+) -> u64 {
+    let mut hash = Fnv1a::new();
+    hash.bytes(b"omega.installed-dynamic-fuel-attribution.v1");
+    hash.u64(u64::from(terminal_psi.vocabulary_marker.get()));
+    hash.bytes(terminal_psi.program_fingerprint.as_bytes());
+    hash.u64(installed_code.normalized_identity());
+    hash.u64(artifact.normalized_identity());
+    hash.u64(u64::from(plan.schedule.marker()));
+    hash.u64(plan.meter.normalized_identity());
+    hash.u64(plan.context_transport.normalized_identity());
+    hash.u64(plan.exhaustion_transfer.normalized_identity());
+    hash.u64(plan.validation_receipt.normalized_identity());
+    hash.u64(rows.len() as u64);
+    for row in rows {
+        hash.u64(row.machine.get());
+        match row.site {
+            TerminalFuelAttributionSite::Operation(operation) => {
+                hash.u64(0);
+                hash.u64(operation.get());
+            }
+            TerminalFuelAttributionSite::Edge(edge) => {
+                hash.u64(1);
+                hash.u64(edge.get());
+            }
+        }
+        hash.u64(row.units);
+        hash.u64(row.operation_ordinal as u64);
+        hash.u64(row.text_offset as u64);
+        hash.u64(row.byte_count as u64);
+    }
+    hash.finish()
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -318,6 +497,37 @@ mod tests {
         RootProviderId, compose_fixed_fuel, derive_fuel_suspension_free,
     };
 
+    struct TestTerminalArtifact {
+        target: NativeTarget,
+        rows: Vec<TerminalFuelAttributionEvidence>,
+        bytes: Vec<u8>,
+    }
+
+    impl TerminalObjectEvidence for TestTerminalArtifact {
+        fn terminal_psi(&self) -> psi_terminal::TerminalPsiIdentity {
+            psi_terminal::TerminalPsiIdentity {
+                vocabulary_marker: psi_terminal::VocabularyMarker::CURRENT,
+                program_fingerprint: psi_terminal::SemanticFingerprint::from_bytes([7; 32]),
+            }
+        }
+
+        fn target(&self) -> NativeTarget {
+            self.target
+        }
+
+        fn text_bytes(&self) -> &[u8] {
+            &self.bytes
+        }
+
+        fn function_text_offset(&self, machine: psi_core::MachineId) -> Option<usize> {
+            (machine == psi_core::MachineId::new(1).unwrap()).then_some(0)
+        }
+
+        fn fuel_attribution(&self) -> Vec<TerminalFuelAttributionEvidence> {
+            self.rows.clone()
+        }
+    }
+
     fn id<T>(value: u64, constructor: impl FnOnce(u64) -> Result<T, ExternalRootDiagnostic>) -> T {
         constructor(value).expect("nonzero test identity")
     }
@@ -406,6 +616,42 @@ mod tests {
                 DynamicFuelMeterValidationReceiptId::from_normalized_identity,
             ),
         );
+        let machine = psi_core::MachineId::new(1).unwrap();
+        let rows = vec![
+            TerminalFuelAttributionEvidence {
+                machine,
+                schedule: schedule(),
+                site: TerminalFuelAttributionSite::Operation(
+                    psi_core::OperationId::new(1).unwrap(),
+                ),
+                units: 1,
+                operation_ordinal: 0,
+                text_offset: 0,
+                byte_count: 0,
+            },
+            TerminalFuelAttributionEvidence {
+                machine,
+                schedule: schedule(),
+                site: TerminalFuelAttributionSite::Edge(psi_core::EdgeId::new(1).unwrap()),
+                units: 1,
+                operation_ordinal: 1,
+                text_offset: 0,
+                byte_count: 4,
+            },
+        ];
+        let artifact = TestTerminalArtifact {
+            target,
+            rows: rows.clone(),
+            bytes: vec![0; 4],
+        };
+        validate_dynamic_fuel_attributions(&plan, &artifact, &rows)
+            .expect("zero-code and byte-bearing attribution sites are valid meter inputs");
+        let mut duplicate = rows.clone();
+        duplicate[1].site = duplicate[0].site;
+        let error = validate_dynamic_fuel_attributions(&plan, &artifact, &duplicate)
+            .expect_err("one semantic charge site cannot be inserted twice");
+        assert!(error.0.contains("repeats one semantic charge site"));
+
         let realized = admit_native_fuel_realization(
             &runtime_demand,
             runtime_provision,
