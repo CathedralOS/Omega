@@ -347,8 +347,8 @@ fn runtime_adapter_forwarding_exit_canary_runs() {
             row.method == method
                 && matches!(
                     &row.binding,
-                    omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic { catalog: name, .. }
-                        if name == &format!("Console::{method}")
+                    omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic { machine: name }
+                        if name.contains(&format!("::{method}"))
                 )
         }));
     }

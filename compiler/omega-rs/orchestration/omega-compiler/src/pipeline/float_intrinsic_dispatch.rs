@@ -254,7 +254,7 @@ fn resolve_float_intrinsic_call(
             plan.name,
         )));
     }
-    let expected = crate::pipeline::provider_plans::expected_float_intrinsic(
+    let expected = crate::pipeline::provider_plans::compiler_intrinsic_diagnostic_label(
         &checked.typed,
         operator,
     )
@@ -843,7 +843,6 @@ mod tests {
                 Drift::WrongIntrinsic => {
                     plan.rows[0].binding = ProviderBinding::CompilerIntrinsic {
                         machine: "F32::maximum.f32".into(),
-                        catalog: "F32::maximum.f32".into(),
                     };
                     plans = vec![plan.clone()];
                 }

@@ -746,7 +746,7 @@ fn selected_operator_provider_identity(
             plan.name, row.binding,
         )));
     };
-    expected_float_intrinsic(&checked.typed, operator).ok_or_else(|| {
+    compiler_intrinsic_diagnostic_label(&checked.typed, operator).ok_or_else(|| {
         psi_diagnostics::Diagnostic::error(format!(
             "selected boundary-operator ProviderPlan `{}` targets `{slot}`, which has no compiler-known migrated intrinsic",
             plan.name,
@@ -787,7 +787,10 @@ pub(super) fn intrinsic_realization_matches_operator(
     })
 }
 
-pub(super) fn expected_float_intrinsic(
+/// Render the compiler-known float realization selected by an exact checked
+/// operator. This label is diagnostic-only: provider identity and dispatch use
+/// the normalized realization-machine symbol retained in `ProviderBinding`.
+pub fn compiler_intrinsic_diagnostic_label(
     typed: &TypedTrees,
     operator: &psi_typed_trees::operator::OperatorDefinition,
 ) -> Option<String> {
@@ -1408,7 +1411,6 @@ pub(crate) fn derive_satisfies_plans(
                     binding,
                     &provider_type,
                     &realization_machine_identity(typed, machine.name.as_str()),
-                    &format!("{}::{}", clause.trait_name, requirement),
                 ),
             };
             let requirement_identity = satisfied_requirement_identity(
@@ -1559,8 +1561,6 @@ fn derive_boundary_operator_plans(
             ) else {
                 continue;
             };
-            let intrinsic_catalog = expected_float_intrinsic(typed, operator)
-                .unwrap_or_else(|| format!("{}::{}", clause.trait_name, requirement));
             let binding = match (&clause.via, machine.bodyless) {
                 (Some(binding), true) => external_provider_binding(
                     binding,
@@ -1573,7 +1573,6 @@ fn derive_boundary_operator_plans(
                         .normalized_machine_overload_identity(typed_machine)
                         .map(|identity| identity.identity())
                         .unwrap_or_default(),
-                    &intrinsic_catalog,
                 ),
                 (None, false) => ProviderBinding::CheckedAdapter {
                     machine: machine.name.as_str().to_owned(),
@@ -1701,7 +1700,6 @@ fn external_provider_binding(
     binding: &psi_syntax_trees::item::ExternalBinding,
     provider_type: &str,
     intrinsic_machine_identity: &str,
-    intrinsic_catalog: &str,
 ) -> ProviderBinding {
     use psi_syntax_trees::item::ExternalBinding;
 
@@ -1713,7 +1711,6 @@ fn external_provider_binding(
         },
         ExternalBinding::CompilerIntrinsic => ProviderBinding::CompilerIntrinsic {
             machine: intrinsic_machine_identity.to_owned(),
-            catalog: intrinsic_catalog.to_owned(),
         },
         ExternalBinding::VtableSlot { index } => ProviderBinding::VtableSlot { index: *index },
         ExternalBinding::VtableField { field } => ProviderBinding::VtableField {

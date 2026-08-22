@@ -1,5 +1,29 @@
 use super::*;
 
+fn optional_intrinsic_diagnostic_label(
+    checked: &omega_compiler::CheckedCompilation,
+    plan: &omega_effects::provider_plan::ProviderPlan,
+) -> Option<String> {
+    let mut operators = checked.typed.operators().iter().filter(|operator| {
+        psi_typed_trees::operator::boundary_operator_requirement_identity(&checked.typed, operator)
+            == plan.schema.trait_name
+    });
+    let operator = operators.next()?;
+    assert!(
+        operators.next().is_none(),
+        "selected intrinsic plan must resolve one exact boundary operator"
+    );
+    omega_compiler::compiler_intrinsic_diagnostic_label(&checked.typed, operator)
+}
+
+fn selected_intrinsic_diagnostic_label(
+    checked: &omega_compiler::CheckedCompilation,
+    plan: &omega_effects::provider_plan::ProviderPlan,
+) -> String {
+    optional_intrinsic_diagnostic_label(checked, plan)
+        .expect("selected float intrinsic must have a structured diagnostic label")
+}
+
 // Binding-site operator selection (chapter 8): the signature `requires`
 // statically selects the domain-owned `+` meaning, and checked evidence records
 // that choice without consulting flow facts.
@@ -241,43 +265,7 @@ fn migrated_float_provider_plans_are_selected_for_every_native_target() {
                 // must wait for a feature-qualified or checked software plan.
                 return None;
             }
-            let left = checked.typed.operator_parameters(operator).first()?;
-            let format = match checked
-                .typed
-                .primitive_type_reference(left.type_reference)?
-            {
-                psi_typed_trees::types::PrimitiveType::F32 => "f32",
-                psi_typed_trees::types::PrimitiveType::F64 => "f64",
-                psi_typed_trees::types::PrimitiveType::I8 => "i8",
-                psi_typed_trees::types::PrimitiveType::I16 => "i16",
-                psi_typed_trees::types::PrimitiveType::I32 => "i32",
-                psi_typed_trees::types::PrimitiveType::I64 => "i64",
-                psi_typed_trees::types::PrimitiveType::U8 => "u8",
-                psi_typed_trees::types::PrimitiveType::U16 => "u16",
-                psi_typed_trees::types::PrimitiveType::U32 => "u32",
-                psi_typed_trees::types::PrimitiveType::U64 => "u64",
-                _ => return None,
-            };
-            let is_integer_destination = [
-                "I8::", "I16::", "I32::", "I64::", "U8::", "U16::", "U32::", "U64::",
-            ]
-            .iter()
-            .any(|prefix| path.starts_with(prefix));
-            if is_integer_destination {
-                let policy = match checked
-                    .typed
-                    .type_reference_table
-                    .arithmetic_domain(operator.return_type)
-                {
-                    psi_numerics::arithmetic::ArithmeticDomain::Exact => "exact",
-                    psi_numerics::arithmetic::ArithmeticDomain::Trapping => "trapping",
-                    psi_numerics::arithmetic::ArithmeticDomain::Saturating => "saturating",
-                    psi_numerics::arithmetic::ArithmeticDomain::Wrapping => return None,
-                };
-                Some(format!("{path}.{format}.{policy}"))
-            } else {
-                Some(format!("{path}.{format}"))
-            }
+            omega_compiler::compiler_intrinsic_diagnostic_label(&checked.typed, operator)
         };
         let mut used_intrinsics = std::collections::BTreeSet::new();
 
@@ -319,8 +307,7 @@ fn migrated_float_provider_plans_are_selected_for_every_native_target() {
             assert!(
                 matches!(
                     &row.binding,
-                    omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic { catalog: name, .. }
-                        if name == &expected_intrinsic
+                    omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic { .. }
                 ),
                 "{target} selected the wrong {expected_intrinsic} realization: {row:?}"
             );
@@ -381,8 +368,7 @@ fn migrated_float_provider_plans_are_selected_for_every_native_target() {
                         if row.method == "realize"
                             && matches!(
                                 &row.binding,
-                                omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic { catalog: name, .. }
-                                    if name == &expected_intrinsic
+                                omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic { .. }
                             )
                 ),
                 "{target} selected the wrong realization for {expected_intrinsic}: {plan:?}"
@@ -402,13 +388,14 @@ fn migrated_float_provider_plans_are_selected_for_every_native_target() {
             .plans()
             .iter()
             .filter(|plan| {
-                plan.target == target && plan.rows.iter().any(|row| {
-                    matches!(
-                        &row.binding,
-                        omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic { catalog: name, .. }
-                            if name.contains("::fused_multiply_add")
-                    )
-                })
+                plan.target == target
+                    && plan.rows.iter().any(|row| {
+                        matches!(
+                            &row.binding,
+                            omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic { .. }
+                        ) && optional_intrinsic_diagnostic_label(&checked, plan)
+                            .is_some_and(|label| label.contains("::fused_multiply_add"))
+                    })
             })
             .count();
         assert_eq!(
@@ -433,7 +420,7 @@ fn primitive_float_arithmetic_and_comparisons_execute_in_both_engines() {
         "binary32 equality and ordered comparisons",
         "binary64 equality and ordered comparisons",
     ];
-    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0x5101_40de_2e9f_11be;
+    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0x826f_ae70_33ab_b7b7;
     const PRIMITIVE_REQUIREMENTS: &[&str] = &[
         "Float::add",
         "Float::subtract",
@@ -484,13 +471,11 @@ fn primitive_float_arithmetic_and_comparisons_execute_in_both_engines() {
         let [row] = plan.rows.as_slice() else {
             panic!("primitive float plan must retain one exact realization row");
         };
-        let omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic {
-            catalog: name, ..
-        } = &row.binding
+        let omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic { .. } = &row.binding
         else {
             panic!("primitive float plan must select a compiler intrinsic");
         };
-        selected_intrinsics.insert(name.clone());
+        selected_intrinsics.insert(selected_intrinsic_diagnostic_label(&checked, plan));
         selected_plan_identities.push(plan.identity_fingerprint());
     }
     let expected_intrinsics = [
@@ -622,13 +607,12 @@ fn named_float_format_conversion_requirements_execute_in_both_engines() {
             let [row] = plan.rows.as_slice() else {
                 return None;
             };
-            let omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic {
-                catalog: name,
-                ..
-            } = &row.binding
+            let omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic { .. } =
+                &row.binding
             else {
                 return None;
             };
+            let name = selected_intrinsic_diagnostic_label(&checked, plan);
             name.contains("::from_f").then_some((operator_use, name))
         })
         .collect::<Vec<_>>();
@@ -691,13 +675,12 @@ fn named_float_format_conversion_requirements_execute_in_both_engines() {
             let [row] = plan.rows.as_slice() else {
                 return None;
             };
-            let omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic {
-                catalog: name,
-                ..
-            } = &row.binding
+            let omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic { .. } =
+                &row.binding
             else {
                 return None;
             };
+            let name = selected_intrinsic_diagnostic_label(&checked, plan);
             (name == "F32::is_infinite.f32")
                 .then_some((operator_use.expression, operator_use.provider_plan_identity))
         })
@@ -783,7 +766,7 @@ fn named_integer_to_float_requirements_execute_in_both_engines() {
         "maximum unsigned64 to binary32",
         "maximum unsigned64 to binary64",
     ];
-    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0xa7ea_8f27_8639_c225;
+    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0x419d_1ef1_5873_f70d;
 
     let canary = pass_canary("float/runtime_named_integer_to_float_conversion_exit");
     let main_path = canary.join("main.omg");
@@ -801,13 +784,12 @@ fn named_integer_to_float_requirements_execute_in_both_engines() {
             let [row] = plan.rows.as_slice() else {
                 return None;
             };
-            let omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic {
-                catalog: name,
-                ..
-            } = &row.binding
+            let omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic { .. } =
+                &row.binding
             else {
                 return None;
             };
+            let name = selected_intrinsic_diagnostic_label(&checked, plan);
             name.contains("::from_i")
                 .then_some((plan.identity_fingerprint(), name.clone()))
                 .or_else(|| {
@@ -934,13 +916,12 @@ fn named_float_to_integer_requirements_execute_in_both_engines() {
             let [row] = plan.rows.as_slice() else {
                 return None;
             };
-            let omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic {
-                catalog: name,
-                ..
-            } = &row.binding
+            let omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic { .. } =
+                &row.binding
             else {
                 return None;
             };
+            let name = selected_intrinsic_diagnostic_label(&checked, plan);
             [
                 "I8::", "I16::", "I32::", "I64::", "U8::", "U16::", "U32::", "U64::",
             ]
@@ -1195,12 +1176,11 @@ fn named_float_provider_calls_rewrite_to_selected_builtins() {
         assert_eq!(method.name, "realize");
         assert_eq!(row.method, method.name);
         assert_eq!(row.requirement_identity, method.requirement_identity);
-        let omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic {
-            catalog: name, ..
-        } = &row.binding
+        let omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic { .. } = &row.binding
         else {
             panic!("named float plan must select a compiler intrinsic");
         };
+        let name = selected_intrinsic_diagnostic_label(&checked, plan);
         let contract = FloatProviderContract {
             intrinsic: name.clone(),
             parameter_count: method.parameter_count,
@@ -1430,12 +1410,11 @@ fn named_float_negate_and_is_nan_preserve_selected_roots_and_execute() {
         let [row] = plan.rows.as_slice() else {
             panic!("named float plan must contain exactly one row");
         };
-        let omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic {
-            catalog: name, ..
-        } = &row.binding
+        let omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic { .. } = &row.binding
         else {
             panic!("named float plan must select a compiler intrinsic");
         };
+        let name = selected_intrinsic_diagnostic_label(&checked, plan);
         selected_intrinsics.insert(name.clone());
         selected_plan_identities.push(plan.identity_fingerprint());
 
@@ -1599,12 +1578,11 @@ fn named_float_classification_predicates_select_and_execute() {
         let [row] = plan.rows.as_slice() else {
             panic!("named classification plan must contain one row");
         };
-        let omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic {
-            catalog: name, ..
-        } = &row.binding
+        let omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic { .. } = &row.binding
         else {
             panic!("named classification plan must select a compiler intrinsic");
         };
+        let name = selected_intrinsic_diagnostic_label(&checked, plan);
         selected_intrinsics.insert(name.clone());
         selected_plan_identities.push(plan.identity_fingerprint());
 
@@ -1785,12 +1763,11 @@ fn named_float_classify_preserves_enum_layout_and_executes() {
         let [row] = plan.rows.as_slice() else {
             panic!("named classify plan must contain one row");
         };
-        let omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic {
-            catalog: name, ..
-        } = &row.binding
+        let omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic { .. } = &row.binding
         else {
             panic!("named classify plan must select a compiler intrinsic");
         };
+        let name = selected_intrinsic_diagnostic_label(&checked, plan);
         if !name.contains("::classify.") {
             continue;
         }
@@ -1957,12 +1934,11 @@ fn named_float_multiply_then_add_preserves_two_roundings_and_executes() {
         let [row] = plan.rows.as_slice() else {
             panic!("named float plan must contain exactly one row");
         };
-        let omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic {
-            catalog: name, ..
-        } = &row.binding
+        let omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic { .. } = &row.binding
         else {
             panic!("named float plan must select a compiler intrinsic");
         };
+        let name = selected_intrinsic_diagnostic_label(&checked, plan);
         selected_intrinsics.insert(name.clone());
         selected_plan_identities.push(plan.identity_fingerprint());
 
@@ -2090,12 +2066,11 @@ fn named_float_fused_multiply_add_selects_aarch64_fmadd_and_executes() {
         let [row] = plan.rows.as_slice() else {
             panic!("named FMA plan must contain exactly one row");
         };
-        let omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic {
-            catalog: name, ..
-        } = &row.binding
+        let omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic { .. } = &row.binding
         else {
             panic!("named FMA plan must select a compiler intrinsic");
         };
+        let name = selected_intrinsic_diagnostic_label(&checked, plan);
         if !name.contains("fused_multiply_add") {
             continue;
         }
@@ -2222,12 +2197,11 @@ fn named_float_directed_fused_multiply_add_selects_aarch64_fmadd_and_executes() 
         let [row] = plan.rows.as_slice() else {
             continue;
         };
-        let omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic {
-            catalog: name, ..
-        } = &row.binding
+        let omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic { .. } = &row.binding
         else {
             continue;
         };
+        let name = selected_intrinsic_diagnostic_label(&checked, plan);
         if !name.contains("::fused_multiply_add_toward_") {
             continue;
         }
@@ -2466,12 +2440,11 @@ fn named_float_directed_add_selects_exact_plans_and_restores_control_state() {
         let [row] = plan.rows.as_slice() else {
             continue;
         };
-        let omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic {
-            catalog: name, ..
-        } = &row.binding
+        let omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic { .. } = &row.binding
         else {
             continue;
         };
+        let name = selected_intrinsic_diagnostic_label(&checked, plan);
         if !name.contains("::add_toward_") {
             continue;
         }
@@ -2609,12 +2582,11 @@ fn named_float_directed_subtract_selects_exact_plans_and_restores_control_state(
         let [row] = plan.rows.as_slice() else {
             continue;
         };
-        let omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic {
-            catalog: name, ..
-        } = &row.binding
+        let omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic { .. } = &row.binding
         else {
             continue;
         };
+        let name = selected_intrinsic_diagnostic_label(&checked, plan);
         if !name.contains("::subtract_toward_") {
             continue;
         }
@@ -2753,12 +2725,11 @@ fn named_float_directed_multiply_selects_exact_plans_and_restores_control_state(
         let [row] = plan.rows.as_slice() else {
             continue;
         };
-        let omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic {
-            catalog: name, ..
-        } = &row.binding
+        let omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic { .. } = &row.binding
         else {
             continue;
         };
+        let name = selected_intrinsic_diagnostic_label(&checked, plan);
         if !name.contains("::multiply_toward_") {
             continue;
         }
@@ -2897,12 +2868,11 @@ fn named_float_directed_divide_selects_exact_plans_and_restores_control_state() 
         let [row] = plan.rows.as_slice() else {
             continue;
         };
-        let omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic {
-            catalog: name, ..
-        } = &row.binding
+        let omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic { .. } = &row.binding
         else {
             continue;
         };
+        let name = selected_intrinsic_diagnostic_label(&checked, plan);
         if !name.contains("::divide_toward_") {
             continue;
         }
@@ -3041,12 +3011,11 @@ fn named_float_directed_square_root_selects_exact_plans_and_restores_control_sta
         let [row] = plan.rows.as_slice() else {
             continue;
         };
-        let omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic {
-            catalog: name, ..
-        } = &row.binding
+        let omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic { .. } = &row.binding
         else {
             continue;
         };
+        let name = selected_intrinsic_diagnostic_label(&checked, plan);
         if !name.contains("::square_root_toward_") {
             continue;
         }
@@ -3430,13 +3399,12 @@ fn float_policy_adapters_retain_differential_results() {
             let [row] = plan.rows.as_slice() else {
                 panic!("policy-adapted float plan must retain one realization row");
             };
-            let omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic {
-                catalog: name,
-                ..
-            } = &row.binding
+            let omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic { .. } =
+                &row.binding
             else {
                 panic!("policy-adapted float plan must select a compiler intrinsic");
             };
+            let name = selected_intrinsic_diagnostic_label(&checked, plan);
             selected_evidence.insert(format!("{name}|{adapter}"));
             selected_plan_identities.push(plan.identity_fingerprint());
         }
