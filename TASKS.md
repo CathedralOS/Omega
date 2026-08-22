@@ -614,6 +614,11 @@ Owners:
   closed without re-evaluating policy code or treating compact identity as
   authority; stored-integer total-write capability remains a separate exact
   semantic type fact.
+  Plan-laid validation now independently reconstructs that stored-integer
+  total-write capability from the exact current schema field type/range and
+  retained width/interpretation. Capability invention or removal rejects fail
+  closed before layout consumers; the Boolean remains semantic type evidence
+  separate from geometry and grants no new placement or mutation authority.
 - Keep alias-exclusion admission separate from access rights; `&mut` does not
   claim exclusivity against a device. Sealed primitive events now specialize
   linearly into Stable read/take/write/swap, External read/take/write, or one
