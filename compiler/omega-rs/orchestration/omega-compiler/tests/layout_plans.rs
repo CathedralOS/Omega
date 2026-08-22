@@ -457,6 +457,87 @@ machine Main::main(&mut self) { }
 }
 
 #[test]
+fn typed_owned_numbered_aggregate_rejoins_a_retained_layout_after_rename() {
+    let legacy_path = write_program(
+        "typed-owned-numbered-aggregate-legacy",
+        r#"
+use omega::language::core::layout;
+
+data RecordLayout { entries: [FieldEntry; 64]; }
+machine RecordLayout::plan(&mut self, schema: Schema) -> Plan {
+    self.entries[0] = FieldEntry {
+        key: schema.fields[0].key,
+        placement: FieldPlan::At { offset: 4 },
+    };
+    Plan { entries: self.entries, entry_count: 1,
+           size_fixed: 12, size_is_dynamic: false, align: 2 }
+}
+data Pair { low: u16; high: u16; }
+data Samples { #7 legacy_pair: Pair; }
+data Main { }
+machine Main::main(&mut self) { }
+"#,
+    );
+    let legacy =
+        compile_to_checked(&legacy_path, None).expect("legacy numbered schema should check");
+    let retained = compute_layout_plan(&legacy.typed, "RecordLayout::plan", "Samples")
+        .expect("legacy numbered aggregate layout should validate");
+    assert_eq!(retained.entries[0].field, "legacy_pair");
+    assert_eq!(retained.entries[0].member_identity, Some(7));
+
+    let renamed_path = write_program(
+        "typed-owned-numbered-aggregate-renamed",
+        r#"
+data Pair { low: u16; high: u16; }
+data Samples { #7 pair: Pair; }
+data Main { }
+machine Main::main(&mut self) { }
+"#,
+    );
+    let renamed =
+        compile_to_checked(&renamed_path, None).expect("renamed numbered schema should check");
+    let value = BuildTimeValue::Struct {
+        type_name: "Samples".to_owned(),
+        fields: vec![(
+            "pair".to_owned(),
+            BuildTimeValue::Struct {
+                type_name: "Pair".to_owned(),
+                fields: vec![
+                    ("low".to_owned(), BuildTimeValue::Int(0x0201.into())),
+                    ("high".to_owned(), BuildTimeValue::Int(0x0403.into())),
+                ],
+            },
+        )],
+    };
+    let mut bytes = [0xa5; 12];
+    materialize_typed_owned_layout_into(
+        &renamed.typed,
+        "Samples",
+        &retained,
+        &value,
+        ByteOrder::LittleEndian,
+        &mut bytes,
+    )
+    .expect("stable field identity should rejoin the retained layout after a rename");
+    assert_eq!(bytes, [0, 0, 0, 0, 1, 2, 3, 4, 0, 0, 0, 0]);
+
+    let mut drifted = retained;
+    drifted.entries[0].member_identity = Some(8);
+    let mut unchanged = [0x5a; 12];
+    let error = materialize_typed_owned_layout_into(
+        &renamed.typed,
+        "Samples",
+        &drifted,
+        &value,
+        ByteOrder::LittleEndian,
+        &mut unchanged,
+    )
+    .expect_err("retained member identity drift must reject atomically");
+    assert!(error.0.contains("same stable identity"));
+    assert_eq!(unchanged, [0x5a; 12]);
+}
+
+#[test]
 fn source_machine_owned_record_materializes_through_the_typed_bridge() {
     let main_path = write_program(
         "source-owned-fixed-record",

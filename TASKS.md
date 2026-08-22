@@ -489,7 +489,10 @@ Owners:
   through their synthesized concrete `CheckedShape` symbol and substituted
   member types, including specializations nested under fixed-array wrappers;
   spelling is never layout authority, and distinct specializations retain
-  distinct symbols and widths.
+  distinct symbols and widths. Retained layouts for numbered aggregate fields
+  now rejoin the current typed schema by stable member identity rather than
+  presentation spelling; a field rename preserves materialization, while
+  missing or drifted identities reject before destination mutation.
   Erased terms remain semantically mandatory but add no bytes, including nested
   records and fixed arrays whose entire runtime shape is erased. Scalar
   placement/access semantics remain fenced for aggregates. Continue beyond
@@ -1030,7 +1033,7 @@ Remaining:
   Unknown or redirected case/field identities reject independently. Mixed
   common-field/case shapes, nested or recursive payload expansion, address and
   erased payload equality, and runtime sum layout remain fenced. Semantic codec
-  v18, proof-bundle v16, and installation-record v24 retain the structural
+  v18, proof-bundle v17, and installation-record v24 retain the structural
   shapes, case-payload paths, and proposition. Continue with the fenced mixed,
   nested, recursive, and erased aggregate cases. Concrete machine/state
   contracts plus domain/data predicates, trait invariants and signatures,
@@ -1310,7 +1313,7 @@ Remaining:
   safe-divisor and exceptional branches; redirected goals, reordered joint
   conjunctions, or wrong operand identities reject. The operation result is not
   available as proof authority. The current
-  proof rules and proof-bundle v16 codec carry the certificates without a
+  proof rules and proof-bundle v17 codec carry the certificates without a
   vocabulary change. All remaining
   exact divide/remainder families stay on trusted sufficient reduction, so
   neither complete row changes trust status. Their exact-defined
@@ -1345,7 +1348,7 @@ Remaining:
   mapped conclusion, and records every selected definition in accepted premise
   closure. Non-order or wrong-root children, stale/reordered/malformed words,
   target/carrier drift, arithmetic overflow, or a mismatched mapped bound
-  reject. Proof-bundle v16 assigns tag 12; the registered calculus is v13 and
+  reject. Proof-bundle v17 assigns tag 12; the registered calculus is v13 and
   the Rust kernel v5, with the affine checker included in both trust-graph
   source sets. The first bounded producer family now uses the rule for one to
   four prior signed fixed affine definitions whose exact retained root bound
@@ -1459,7 +1462,7 @@ Remaining:
   reducer proposition is imported as proof
   authority and no partial exact row migrated. No schema, reducer,
   semantic-operation, or other trust status is promoted; terminal `PSITERM\0`
-  codec v18, proof-bundle v16, installation record v24, and `fully-derived
+  codec v18, proof-bundle v17, installation record v24, and `fully-derived
   false` remain unchanged.
   The bounded Gamma spike is complete. It canonical-decodes four exact current
   `PSITERM\0` v18 fixtures and audits a 54-row scalar ledger covering constants,
