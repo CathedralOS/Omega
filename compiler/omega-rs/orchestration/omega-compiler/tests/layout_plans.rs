@@ -271,6 +271,46 @@ fn plan_laid_value_types_are_placed_by_their_plan() {
     checked.typed.plan_laid_layouts[0].schema_symbol = schema_symbol;
     checked.typed.plan_laid_layouts[0].schema_field_symbols = schema_field_symbols;
 
+    let schema_identity = checked.typed.plan_laid_layouts[0]
+        .validated_layout
+        .schema_identity;
+    checked.typed.plan_laid_layouts[0]
+        .validated_layout
+        .schema_identity ^= 1;
+    let diagnostics = psi_validation::validate_program(&checked.typed)
+        .expect_err("substituted normalized schema identity must fail closed");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("changed its exact target-neutral layout report identity")
+    }));
+    checked.typed.plan_laid_layouts[0]
+        .validated_layout
+        .schema_identity = schema_identity;
+
+    let report_first_offset = checked.typed.plan_laid_layouts[0]
+        .validated_layout
+        .offsets
+        .as_ref()
+        .expect("whole-field layout retains its derived offsets")[0];
+    checked.typed.plan_laid_layouts[0]
+        .validated_layout
+        .offsets
+        .as_mut()
+        .expect("whole-field layout retains its derived offsets")[0] = report_first_offset + 1;
+    let diagnostics = psi_validation::validate_program(&checked.typed)
+        .expect_err("drifted target-neutral offsets projection must fail closed");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("changed its exact target-neutral layout report identity")
+    }));
+    checked.typed.plan_laid_layouts[0]
+        .validated_layout
+        .offsets
+        .as_mut()
+        .expect("whole-field layout retains its derived offsets")[0] = report_first_offset;
+
     let first_offset = checked.typed.plan_laid_layouts[0].offsets[0];
     checked.typed.plan_laid_layouts[0].offsets[0] = first_offset + 1;
     let diagnostics = psi_validation::validate_program(&checked.typed)
