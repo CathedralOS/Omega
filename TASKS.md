@@ -1359,8 +1359,12 @@ Owners:
   owner. Literal, declared-range, local-initializer, sequence-length, and
   capacity facts; saturating interval arithmetic; exact symbolic equality; and
   fail-closed tri-state proof replay retain diagnostic order and no-implicit-
-  check behavior. The coordinator is now 880 lines with the exact 25-function
-  inventory unchanged.
+  check behavior. Struct-literal field obligations now live in a focused 410-
+  line private owner. Exact common/payload field-type lookup, shape/class/
+  domain-weakening checks, scalar/range narrowing, and recursive fixed-array
+  length/element validation retain diagnostic order and the crate-root API. The
+  natural coordinator is now 478 lines with the exact 25-function inventory
+  unchanged.
 
 Acceptance: UART/MMIO, shared-page IPC, and ordinary RAM use one extent/layout
 foundation with different profiles. Misalignment, insufficient rights,
@@ -2541,7 +2545,11 @@ Remaining:
   root-bound citation and tries its left then right value endpoints before
   checked cast completion; reconstruction independently scans requirements
   then semantic axioms, tries the same endpoint order, and rechecks cast
-  custody. Non-order goals still reject in each parent, and direct evidence
+  custody. Direct retained-bound candidate enumeration now lives in paired,
+  side-local `cast_selection/direct/candidates` modules. Producer and
+  reconstruction independently preserve assumptions-before-semantic-axioms
+  traversal and exact `LessOrEqual` filtering before their existing completion;
+  only production carries citation proofs. Non-order goals still reject in each parent, and direct evidence
   remains preferred before landed-literal and fixed alias transport. Citation
   and endpoint order, cast proof shape, missing, redirected, or mistyped
   rejection, and every fixed cast evidence frontier are unchanged. Direct
