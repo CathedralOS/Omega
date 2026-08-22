@@ -809,7 +809,9 @@ missing, duplicated, category-drifted, or redirected facts reject. This proves
 relation-plan coordinator delegates this entire dependency partition, exact
 fact lookup, positional alpha-renaming, and bijection judgment to one focused
 precondition module; the extraction changes neither the proof language nor its
-admission order. General
+admission order. Its exact public-parameter order, mode, quotient-carrier
+matching, and representative static-substitution judgment likewise live in a
+separate runtime-correspondence module rather than the coordinator. General
 logical implication/equivalence and the selected `Respects` clauses remain
 unresolved, so this evidence still cannot admit execution.
 
