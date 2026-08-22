@@ -67,7 +67,7 @@ pub use entry::{
     derive_boundary_static_guard_footprint,
 };
 pub use generated_writer::{
-    LoweredPostHandoffWriter, LoweredPostHandoffWriterFragment,
+    LoweredPostHandoffWriter, LoweredPostHandoffWriterFragment, PostHandoffEntryWriterBindingError,
     PreparedPostHandoffEntryWriterInvocation, bind_post_handoff_entry_writer_invocation,
     lower_post_handoff_writer_fragment,
 };
