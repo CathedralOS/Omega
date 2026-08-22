@@ -862,6 +862,33 @@ Owners:
   carrier for corrected retry. This establishes no provider-operation
   authority, consumer semantics, publication, or native execution, and compact
   fingerprints remain identity rather than authority.
+  External-root symbolic writer preparation now retains the exact validated
+  requirement-bearing root evidence beside its admitted provider-execution
+  evidence throughout preparation, writing, and recovery. Each consumer
+  replays their full structural equality before accepting the terminal summary,
+  selected entry, and canonical provider-resolved source slot; a separately
+  valid root with substituted requirement identity rejects while preserving
+  the complete carrier for corrected retry. Compact normalized identities
+  remain consistency/report keys rather than authority, and this establishes
+  no provider-operation authority, consumer semantics, publication, or native
+  execution.
+  Compiler-side external-root writer binding now consumes and retains the exact
+  selected source `ServiceSchema` beside the lowered fragment and non-clonable
+  provider preparation. Binding and every later bound/written/recovery consumer
+  replay the selected provider-plan identity, unique exact requirement row,
+  boundary arity, complete parameter-identity row cardinality, calling-plan
+  identity, and admitted entry claims against the retained requirement-bearing
+  root evidence. Rejection returns the selected schema, lowered writer, and
+  prepared invocation intact for corrected retry. The schema and compact
+  fingerprints remain identity/shape evidence rather than provider-operation
+  authority; no device operation, consumer semantics, publication, or native
+  execution is established. Selected source-schema correspondence is now also
+  preflighted before provider preparation resolves any symbolic source or
+  populates the opaque writer context. The compiler borrows the exact admitted
+  provider/root evidence and replays the same provider-plan, requirement,
+  boundary, calling-plan, and entry claims; drift rejects with every input
+  unchanged and no resolver observation. AOT binding and later consumers retain
+  their independent replay.
 
 Acceptance: UART/MMIO, shared-page IPC, and ordinary RAM use one extent/layout
 foundation with different profiles. Misalignment, insufficient rights,
@@ -2704,6 +2731,16 @@ Remaining:
   to 3.93–3.98s with unchanged exit 70. The memo remains local to one demand,
   carries exact state identities and complete relative paths, and introduces no
   eager whole-program solve or shared mutable state.
+  The measured nominal affine integer-comparison reconstruction hotspot now
+  uses independent producer- and verifier-local affine-definition indexes.
+  Each immutable invocation maps an exact current Value term to source-ordered
+  semantic equality rows that can extend the fixed add/subtract/multiply
+  definition frontier; candidate prefixes and completed proofs are still
+  independently replayed by the proof kernel, so four-definition depth,
+  citation precedence, proof shapes, rejection, and the producer/verifier trust
+  boundary are unchanged. The exact mixed nominal regression fell from
+  approximately 306s to 27.50s test-body time (29.29s wall; 476,823,552-byte
+  maximum resident set), with no persistent cache or generalized search.
   Corpus-level bounded parallelism is viable at the harness boundary: the
   differential runner now defaults to four independent jobs with one native
   backend worker each, retains deterministic corpus-order reporting, and
@@ -3606,6 +3643,41 @@ Owners:
   exact checked-report receipts while retaining literal status 70 and every
   policy-specific diagnostic. Across these cohorts the 795 rooted/3 legacy
   exact-owner pins remain stable.
+  Five further authored-root operand-carrier executions—nested unsigned
+  arithmetic, local indexed call operands, machine-indexed fused call
+  arguments, saturating indexed guard operands, and nested float operands—now
+  launch only from exact checked-report receipts while retaining literal status
+  70 and every signedness, register-custody, and domain diagnostic. Five further
+  shift-policy executions—shift-count domain resolution, guarded Exact shifts,
+  at-width wrapping left and right shifts, and indexed shift targets—use the
+  same receipt-only boundary while retaining status 70 and every policy
+  assertion. Five further saturating-value executions—nested operands, unsigned
+  one-direction clamps, the signed MIN idiom, saturating left shift, and 32-bit
+  shift value overflow—likewise retain status 70 and every clamp/domain
+  assertion. Across these cohorts the 795 rooted/3 legacy exact-owner pins
+  remain stable.
+  Five further authored-root conversion/float-policy executions—subword masked
+  shifts, saturating float-to-int, unsigned/narrow saturating float-to-int,
+  saturating float overflow, and direct trapping float overflow—now launch only
+  from exact checked-report receipts while retaining every literal status,
+  abnormal-exit check, and interpreter reason assertion. The two custom-ranking
+  recursive-delivery executions and the u64-magnitude transition-delivery plus
+  proven-range Exact shift-count executions likewise use exact receipts while
+  retaining status 70 and all terminal-delivery/diagnostic assertions. Slow
+  float-policy, helper-driven trapping, platform-gated, timer, and multi-fixture
+  owners remain outside fast follow-up cohorts; the 795 rooted/3 legacy exact-
+  owner pins remain stable. Profiling one float-policy owner attributes 3.263 of
+  3.523 measured native-compile seconds (92.61%) to Stage 05 checked-tree
+  construction, with samples concentrated in checked-fact and recursive call-
+  frame write-demand summarization. The independent interpreter oracle repeats
+  that frontend work, while backend emission is only 1.5 ms and `OutputOnly`
+  already fences auxiliary reports.
+  Five further authored-root lifetime/wire executions—method-view writes after
+  last use, chained view-of-view writes, shrinking-slice recursion, primitive
+  wire encoding, and wire era discrimination—now launch only from exact checked-
+  report receipts while retaining literal status 70 and every alias, recursion,
+  and byte-level diagnostic. The 795 rooted/3 legacy exact-owner pins remain
+  stable.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
