@@ -1,6 +1,6 @@
 use omega_backend_plan::{
-    BoundNominalCallbackPlacement, CallbackThunkPlan, canonical_callback_private_symbol,
-    validate_bound_nominal_callback_placement,
+    BoundNominalCallbackPlacement, CallbackThunkPlan, callback_placement_binding_identity,
+    canonical_callback_private_symbol, validate_bound_nominal_callback_placement,
 };
 use omega_control_flow::ControlFlowPlan;
 use psi_diagnostics::Diagnostic;
@@ -36,6 +36,7 @@ pub(super) fn plan_callback_thunks(
             }
             Ok(CallbackThunkPlan {
                 placement_index,
+                placement_identity: callback_placement_binding_identity(placement),
                 entry_key,
                 function_identity: omega_control_flow::MachineFunctionIdentity::callback_thunk(
                     entry_key,
@@ -114,12 +115,14 @@ mod tests {
     #[test]
     fn callback_thunk_binds_exact_control_flow_entry_and_private_symbol() {
         let (control_flow, placement) = fixture();
+        let placement_identity = callback_placement_binding_identity(&placement);
 
         let plans = plan_callback_thunks(&control_flow, &[placement])
             .expect("selected callback entry should resolve");
 
         assert_eq!(plans.len(), 1);
         assert_eq!(plans[0].placement_index, 0);
+        assert_eq!(plans[0].placement_identity, placement_identity);
         assert_eq!(plans[0].entry_key.machine, symbol(4));
         assert_eq!(plans[0].entry_key.state, symbol(5));
         assert_eq!(
