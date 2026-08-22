@@ -7,19 +7,34 @@
 # semantics: random accumulator loops (count and sum over random lists, random starting accumulators)
 # whose expected values are computed INDEPENDENTLY in Python; the kernel must accept exactly the true
 # equations and reject off-by-one perturbations, and check_ref.py must agree verdict-for-verdict.
-cd "$(dirname "$0")"
+OMEGA_GATE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
+if [ -z "${OMEGA_REPO_ROOT:-}" ]; then
+  OMEGA_REPO_ROOT=$OMEGA_GATE_DIR
+  while [ ! -f "$OMEGA_REPO_ROOT/bootstrap/paths.sh" ]; do
+    OMEGA_PATH_PARENT=$(dirname -- "$OMEGA_REPO_ROOT")
+    if [ "$OMEGA_PATH_PARENT" = "$OMEGA_REPO_ROOT" ]; then
+      echo "bootstrap paths: cannot find repository root from $OMEGA_GATE_DIR" >&2
+      exit 2
+    fi
+    OMEGA_REPO_ROOT=$OMEGA_PATH_PARENT
+  done
+  unset OMEGA_PATH_PARENT
+fi
+. "$OMEGA_REPO_ROOT/bootstrap/paths.sh" || exit $?
+cd "$OMEGA_GATE_DIR"
 command -v python3 >/dev/null 2>&1 || { echo "recx seam: skipped (python3 absent)"; exit 0; }
-. ../alpha/seed_env.sh
-SEED=../alpha/$ALPHA_SEED
-ASM=../beta/$BETA_SEED
-( cd ../beta-lang-rs && sh build.sh ../beta-lang/bc.beta >/dev/null 2>&1 ) || { echo "recx seam FAIL — bc build"; exit 1; }
+. "${OMEGA_PATH_ALPHA}"/seed_env.sh
+SEED="${OMEGA_PATH_ALPHA}"/$ALPHA_SEED
+ASM="${OMEGA_PATH_BETA_ASSEMBLER}"/$BETA_SEED
+( cd "${OMEGA_PATH_BETA_RUST}" && sh build.sh "${OMEGA_PATH_BETA_LANGUAGE}"/bc.beta >/dev/null 2>&1 ) || { echo "recx seam FAIL — bc build"; exit 1; }
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
-b() { ../beta-lang-rs/build/bc.exe < "$1" > "$T/x.asm" 2>/dev/null && "$ASM" < "$T/x.asm" > "$T/x.tape" 2>/dev/null && stamp_seed "$T/x.tape" "$SEED" "$2" >/dev/null 2>&1; }
+b() { "${OMEGA_PATH_BETA_RUST}"/build/bc.exe < "$1" > "$T/x.asm" 2>/dev/null && "$ASM" < "$T/x.asm" > "$T/x.tape" 2>/dev/null && stamp_seed "$T/x.tape" "$SEED" "$2" >/dev/null 2>&1; }
 b check.beta        "$T/check.exe"  || { echo "recx seam FAIL — build check.beta"; exit 1; }
-b ../gamma/interp.beta "$T/interp.exe" || { echo "recx seam FAIL — build interp.beta"; exit 1; }
+b "${OMEGA_PATH_GAMMA}"/interp.beta "$T/interp.exe" || { echo "recx seam FAIL — build interp.beta"; exit 1; }
 
-python3 - "$T/check.exe" "$T/interp.exe" ../gamma/checker.gamma <<'EOF'
+python3 - "$T/check.exe" "$T/interp.exe" "${OMEGA_PATH_GAMMA}"/checker.gamma <<'EOF'
 import random
+import os
 import subprocess
 import sys
 
@@ -49,7 +64,8 @@ def verdict(cert):
     a = subprocess.run([check], input=cert, capture_output=True, text=True, timeout=60).stdout.strip()
     b = subprocess.run(['python3', 'check_ref.py'], input=cert, capture_output=True,
                        text=True, timeout=60).stdout.strip()
-    tr = subprocess.run(['python3', '../gamma/refcert_to_gamma.py'], input=cert,
+    tr = subprocess.run(['python3', os.path.join(os.environ['OMEGA_PATH_GAMMA'],
+                                                'refcert_to_gamma.py')], input=cert,
                         capture_output=True, text=True, timeout=60)
     if tr.returncode != 0:
         return a, b, 'untranslatable'

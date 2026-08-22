@@ -19,12 +19,21 @@
 # usage: meaning_cert_diamond.py <check.exe> <interp.exe> <checker.gamma> <name>=<claims-file> ...
 import io
 import importlib
+import os
 import subprocess
 import sys
 import threading
 
 sys.setrecursionlimit(400000)              # deep unary spines (12345-deep numerals) in reference parsing
 threading.stack_size(512 * 1024 * 1024)    # ...need real stack too: the work runs in a big-stack thread
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+REPO_ROOT = os.environ.get(
+    'OMEGA_REPO_ROOT', os.path.abspath(os.path.join(HERE, '..', '..')))
+GAMMA = os.environ.get(
+    'OMEGA_PATH_GAMMA', os.path.join(REPO_ROOT, 'compiler', 'gamma'))
+PROOF_KERNEL = os.environ.get(
+    'OMEGA_PATH_PROOF_KERNEL', os.path.join(REPO_ROOT, 'compiler', 'proof-kernel'))
 
 
 def ref_verdict(cert, check_ref):
@@ -42,7 +51,7 @@ def ref_verdict(cert, check_ref):
 
 
 def gamma_verdict(cert, interp_exe, defs):
-    tr = subprocess.run(['python3', '../gamma/refcert_to_gamma.py'], input=cert,
+    tr = subprocess.run(['python3', os.path.join(GAMMA, 'refcert_to_gamma.py')], input=cert,
                         capture_output=True, text=True, timeout=180)
     if tr.returncode != 0:
         return 'untranslatable'            # a translator gap is a real failure, not a resource limit
@@ -62,7 +71,7 @@ def gamma_verdict(cert, interp_exe, defs):
 def main():
     check_exe, interp_exe, defs_path = sys.argv[1], sys.argv[2], sys.argv[3]
     defs = open(defs_path).read()
-    sys.path.insert(0, '../proof-kernel')
+    sys.path.insert(0, PROOF_KERNEL)
     import check_ref
     total, bad, undec = 0, 0, 0
     for spec in sys.argv[4:]:

@@ -5,8 +5,22 @@
 # than the whole binary, so it is deterministic on macOS too (where the OS-imposed
 # code signature blob is non-reproducible — the program bytes are the guarantee).
 set -e
-cd "$(dirname "$0")"
-. ../alpha/seed_env.sh
+OMEGA_GATE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
+if [ -z "${OMEGA_REPO_ROOT:-}" ]; then
+  OMEGA_REPO_ROOT=$OMEGA_GATE_DIR
+  while [ ! -f "$OMEGA_REPO_ROOT/bootstrap/paths.sh" ]; do
+    OMEGA_PATH_PARENT=$(dirname -- "$OMEGA_REPO_ROOT")
+    if [ "$OMEGA_PATH_PARENT" = "$OMEGA_REPO_ROOT" ]; then
+      echo "bootstrap paths: cannot find repository root from $OMEGA_GATE_DIR" >&2
+      exit 2
+    fi
+    OMEGA_REPO_ROOT=$OMEGA_PATH_PARENT
+  done
+  unset OMEGA_PATH_PARENT
+fi
+. "$OMEGA_REPO_ROOT/bootstrap/paths.sh" || exit $?
+cd "$OMEGA_GATE_DIR"
+. "${OMEGA_PATH_ALPHA}"/seed_env.sh
 mkdir -p build
 
 "./$BETA_SEED" < assembler.alpha > build/assembler.tape

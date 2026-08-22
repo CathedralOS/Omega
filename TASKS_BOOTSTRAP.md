@@ -183,6 +183,23 @@ story.
   accept a small Omega source file, perform name/type checks, lower through the
   chosen terminal-Psi path, and produce a runnable artifact whose behavior
   agrees with canonical meaning.
+  - [x] Freeze the O0 console source contract and implement the Delta streaming
+    decoder for its canonical multi-source input artifact.
+  - [ ] Extend canonical terminal Psi boundary declarations and calls with exact
+    scalar parameter/argument lanes. Use ordered scalar parameter types on the
+    bodyless declaration and ordered scalar `ValueId` arguments on the call;
+    carry them through the checked-plan producer, canonical codec and vocabulary
+    bump, semantic call schema, verifier, interpreter effect, and Omega abstract
+    operation. The current producer already partitions primitive arguments and
+    can retain their checked scalar expressions; its terminal-flow carriers are
+    the missing seam. Until a real boundary realization exists, target lowering
+    must explicitly reject nonempty scalar boundary arguments rather than discard
+    them. This is bounded implementation work, not an open language ruling.
+  - [ ] Implement the Delta O0 lexer/parser, complete name/type rejection matrix,
+    terminal-Psi emission, process-exit boundary realization, and runnable
+    artifact gate after that canonical lane exists. `write_line` also needs its
+    exact string-carrier custody preserved. The current metadata-only port
+    settlement is not a realization of `exit_process(i32)`.
 - [ ] **Implement the first Omega compiler in Delta.** Grow the canary into the
   deliberately simple, spec-compliant compiler. Prefer direct and auditable
   stages over porting the production optimizer or the entire current Rust
@@ -218,13 +235,13 @@ from attractive but deferrable language work.
   - [ ] Enlarge or replace the x64 seed's current 32 KiB image extent before
     claiming cross-platform closure; the present self-hosted tape is about 48
     KiB. The arm64 seed's 256 KiB extent is sufficient for the current artifact.
-- [ ] **Make gate paths relocatable.** Replace hard-coded sibling-relative paths
+- [x] **Make gate paths relocatable.** Replace hard-coded sibling-relative paths
   with a single repository-root/path helper so ownership moves can be mechanical
   and independently reviewable.
-  - [ ] Convert all executable gates as one mechanical checkpoint; partial
+  - [x] Convert all executable gates as one mechanical checkpoint; partial
     conversion does not unlock a move. Include `verify-lattice.sh`, its stable
     cache location, and the cwd-sensitive Python refinement helpers.
-  - [ ] Add a static path-hygiene gate and verify representative gates from both
+  - [x] Add a static path-hygiene gate and verify representative gates from both
     the repository root and an unrelated working directory before moving files.
 - [ ] **Create the `bootstrap/` ownership root.** Move rungs first without
   changing behavior; retain temporary compatibility wrappers where external

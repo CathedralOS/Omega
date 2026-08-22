@@ -12,17 +12,31 @@
 # input; `prover.py --gamma` -> checker.gamma's `(check proof goal)` expr). The def/use lemma prelude has no
 # gamma analogue, so lemma-using (phase-2 arithmetic) certs report "unsupported" and are skipped here; they
 # remain check.beta-validated by prover-test.sh. Needs python3.
-cd "$(dirname "$0")"
+OMEGA_GATE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
+if [ -z "${OMEGA_REPO_ROOT:-}" ]; then
+  OMEGA_REPO_ROOT=$OMEGA_GATE_DIR
+  while [ ! -f "$OMEGA_REPO_ROOT/bootstrap/paths.sh" ]; do
+    OMEGA_PATH_PARENT=$(dirname -- "$OMEGA_REPO_ROOT")
+    if [ "$OMEGA_PATH_PARENT" = "$OMEGA_REPO_ROOT" ]; then
+      echo "bootstrap paths: cannot find repository root from $OMEGA_GATE_DIR" >&2
+      exit 2
+    fi
+    OMEGA_REPO_ROOT=$OMEGA_PATH_PARENT
+  done
+  unset OMEGA_PATH_PARENT
+fi
+. "$OMEGA_REPO_ROOT/bootstrap/paths.sh" || exit $?
+cd "$OMEGA_GATE_DIR"
 command -v python3 >/dev/null 2>&1 || { echo "prover-diamond: skipped (python3 absent)"; exit 0; }
-. ../alpha/seed_env.sh
-SEED=../alpha/$ALPHA_SEED
-ASM=../beta/$BETA_SEED
+. "${OMEGA_PATH_ALPHA}"/seed_env.sh
+SEED="${OMEGA_PATH_ALPHA}"/$ALPHA_SEED
+ASM="${OMEGA_PATH_BETA_ASSEMBLER}"/$BETA_SEED
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
-( cd ../beta-lang-rs && sh build.sh ../beta-lang/bc.beta >/dev/null ) || { echo "bc build failed"; exit 1; }
-bcc() { ../beta-lang-rs/build/bc.exe < "$1" > "$T/a.asm" && "$ASM" < "$T/a.asm" > "$T/a.tape" && stamp_seed "$T/a.tape" "$SEED" "$2" >/dev/null 2>&1; }
+( cd "${OMEGA_PATH_BETA_RUST}" && sh build.sh "${OMEGA_PATH_BETA_LANGUAGE}"/bc.beta >/dev/null ) || { echo "bc build failed"; exit 1; }
+bcc() { "${OMEGA_PATH_BETA_RUST}"/build/bc.exe < "$1" > "$T/a.asm" && "$ASM" < "$T/a.asm" > "$T/a.tape" && stamp_seed "$T/a.tape" "$SEED" "$2" >/dev/null 2>&1; }
 bcc check.beta "$T/check.exe"           || { echo "build check.beta failed"; exit 1; }
-bcc ../gamma/interp.beta "$T/interp.exe" || { echo "build interp.beta failed"; exit 1; }
-DEFS=$(cat ../gamma/checker.gamma)
+bcc "${OMEGA_PATH_GAMMA}"/interp.beta "$T/interp.exe" || { echo "build interp.beta failed"; exit 1; }
+DEFS=$(cat "${OMEGA_PATH_GAMMA}"/checker.gamma)
 
 PASS=0; FAIL=0; SKIP=0
 dia() {  # a lemma-free goal: the prover proves it, and BOTH checkers must accept the (same) proof

@@ -4,12 +4,26 @@
 # Pure alpha, no Rust: the assembler (the alpha seed with the assembler tape in
 # its hole) assembles the program to bytecode; we memcpy that into a fresh copy
 # of the alpha seed. A built program IS the seed with its tape stamped in. The
-# per-platform seed + stamping live in ../alpha/seed_env.sh.
+# per-platform seed + stamping live in ${OMEGA_PATH_ALPHA}/seed_env.sh.
 set -e
-cd "$(dirname "$0")"
-. ../alpha/seed_env.sh
+OMEGA_GATE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
+if [ -z "${OMEGA_REPO_ROOT:-}" ]; then
+  OMEGA_REPO_ROOT=$OMEGA_GATE_DIR
+  while [ ! -f "$OMEGA_REPO_ROOT/bootstrap/paths.sh" ]; do
+    OMEGA_PATH_PARENT=$(dirname -- "$OMEGA_REPO_ROOT")
+    if [ "$OMEGA_PATH_PARENT" = "$OMEGA_REPO_ROOT" ]; then
+      echo "bootstrap paths: cannot find repository root from $OMEGA_GATE_DIR" >&2
+      exit 2
+    fi
+    OMEGA_REPO_ROOT=$OMEGA_PATH_PARENT
+  done
+  unset OMEGA_PATH_PARENT
+fi
+. "$OMEGA_REPO_ROOT/bootstrap/paths.sh" || exit $?
+cd "$OMEGA_GATE_DIR"
+. "${OMEGA_PATH_ALPHA}"/seed_env.sh
 mkdir -p build
-SEED=../alpha/$ALPHA_SEED
+SEED="${OMEGA_PATH_ALPHA}"/$ALPHA_SEED
 
 SRC=${1:-examples/multiply.alpha}
 NAME=$(basename "$SRC" .alpha)

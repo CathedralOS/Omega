@@ -6,13 +6,27 @@
 # asm_ref.py is a third, independent realization (Python, from the encoding + beta/README.md, not ported).
 # This gate assembles a corpus with BOTH the real assembler and asm_ref.py and asserts the bytecode tapes
 # are byte-identical — so the assembly step is pinned by two independent implementations, closing the gap
-# the way ../beta-lang-py/bc2.py closed it for bc. asm_ref.py is UNTRUSTED and checked; runtime never runs it.
+# the way ${OMEGA_PATH_BETA_REFERENCE}/bc2.py closed it for bc. asm_ref.py is UNTRUSTED and checked; runtime never runs it.
 set -e
-cd "$(dirname "$0")"
+OMEGA_GATE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
+if [ -z "${OMEGA_REPO_ROOT:-}" ]; then
+  OMEGA_REPO_ROOT=$OMEGA_GATE_DIR
+  while [ ! -f "$OMEGA_REPO_ROOT/bootstrap/paths.sh" ]; do
+    OMEGA_PATH_PARENT=$(dirname -- "$OMEGA_REPO_ROOT")
+    if [ "$OMEGA_PATH_PARENT" = "$OMEGA_REPO_ROOT" ]; then
+      echo "bootstrap paths: cannot find repository root from $OMEGA_GATE_DIR" >&2
+      exit 2
+    fi
+    OMEGA_REPO_ROOT=$OMEGA_PATH_PARENT
+  done
+  unset OMEGA_PATH_PARENT
+fi
+. "$OMEGA_REPO_ROOT/bootstrap/paths.sh" || exit $?
+cd "$OMEGA_GATE_DIR"
 command -v python3 >/dev/null 2>&1 || { echo "asm-diamond SKIP — no python3"; exit 0; }
-. ../alpha/seed_env.sh
+. "${OMEGA_PATH_ALPHA}"/seed_env.sh
 ASM="./$BETA_SEED"
-BC=../beta-lang-rs/build/bc.exe
+BC="${OMEGA_PATH_BETA_RUST}"/build/bc.exe
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 PASS=0; FAIL=0
 
@@ -30,7 +44,7 @@ for ex in examples/*.alpha; do [ -f "$ex" ] && cmp_asm "example $(basename "$ex"
 
 # real bc-compiled programs — exercise every opcode + labels + comparisons + memory + I/O + db strings
 if command -v cargo >/dev/null 2>&1; then
-  ( cd ../beta-lang-rs && sh build.sh ../beta-lang/bc.beta >/dev/null 2>&1 ) || true
+  ( cd "${OMEGA_PATH_BETA_RUST}" && sh build.sh "${OMEGA_PATH_BETA_LANGUAGE}"/bc.beta >/dev/null 2>&1 ) || true
 fi
 if [ -x "$BC" ]; then
   gen() { printf '%s\n' "$2" | "$BC" > "$T/$1.asm" 2>/dev/null && cmp_asm "bc: $1" "$T/$1.asm"; }
@@ -40,7 +54,7 @@ if [ -x "$BC" ]; then
   gen cmps 'proc main(){ let a=5 return (a<8)*7 + (a>8) + (a==5) }'
   gen mem  'proc main(){ let b=2097152 word[b]=42 return word[b] }'
   # the big one: the checker (assemble bc''s compilation of check.beta both ways)
-  if [ -f ../proof-kernel/check.beta ] && "$BC" < ../proof-kernel/check.beta > "$T/check.asm" 2>/dev/null; then
+  if [ -f "${OMEGA_PATH_PROOF_KERNEL}"/check.beta ] && "$BC" < "${OMEGA_PATH_PROOF_KERNEL}"/check.beta > "$T/check.asm" 2>/dev/null; then
     cmp_asm "bc: check.beta (the trust anchor)" "$T/check.asm"; fi
 else
   echo "  (skipped bc-compiled cases — bc not available)"

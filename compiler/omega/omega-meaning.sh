@@ -13,22 +13,36 @@
 # compiler this meaning is one day checked against (translation validation, decision D3). The
 # subset grows exactly as omega2gamma's surface grows; samples outside it simply aren't listed.
 # Needs no cargo/clang — only bc. No `set -e`: exit codes are data here.
-cd "$(dirname "$0")"
-. ../alpha/seed_env.sh
-SEED=../alpha/$ALPHA_SEED
-ASM=../beta/$BETA_SEED
-( cd ../beta-lang-rs && sh build.sh ../beta-lang/bc.beta >/dev/null ) || { echo "omega-meaning FAIL — bc build"; exit 1; }
-b() { ../beta-lang-rs/build/bc.exe < "$1" > "$T/x.asm" 2>/dev/null && "$ASM" < "$T/x.asm" > "$T/x.tape" 2>/dev/null && stamp_seed "$T/x.tape" "$SEED" "$2" >/dev/null 2>&1; }
+OMEGA_GATE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
+if [ -z "${OMEGA_REPO_ROOT:-}" ]; then
+  OMEGA_REPO_ROOT=$OMEGA_GATE_DIR
+  while [ ! -f "$OMEGA_REPO_ROOT/bootstrap/paths.sh" ]; do
+    OMEGA_PATH_PARENT=$(dirname -- "$OMEGA_REPO_ROOT")
+    if [ "$OMEGA_PATH_PARENT" = "$OMEGA_REPO_ROOT" ]; then
+      echo "bootstrap paths: cannot find repository root from $OMEGA_GATE_DIR" >&2
+      exit 2
+    fi
+    OMEGA_REPO_ROOT=$OMEGA_PATH_PARENT
+  done
+  unset OMEGA_PATH_PARENT
+fi
+. "$OMEGA_REPO_ROOT/bootstrap/paths.sh" || exit $?
+cd "$OMEGA_GATE_DIR"
+. "${OMEGA_PATH_ALPHA}"/seed_env.sh
+SEED="${OMEGA_PATH_ALPHA}"/$ALPHA_SEED
+ASM="${OMEGA_PATH_BETA_ASSEMBLER}"/$BETA_SEED
+( cd "${OMEGA_PATH_BETA_RUST}" && sh build.sh "${OMEGA_PATH_BETA_LANGUAGE}"/bc.beta >/dev/null ) || { echo "omega-meaning FAIL — bc build"; exit 1; }
+b() { "${OMEGA_PATH_BETA_RUST}"/build/bc.exe < "$1" > "$T/x.asm" 2>/dev/null && "$ASM" < "$T/x.asm" > "$T/x.tape" 2>/dev/null && stamp_seed "$T/x.tape" "$SEED" "$2" >/dev/null 2>&1; }
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 b omega2gamma.beta          "$T/omega2gamma.exe"    || { echo "omega-meaning FAIL — build omega2gamma.beta"; exit 1; }
-b ../gamma/interp.beta      "$T/interp.exe" || { echo "omega-meaning FAIL — build interp.beta"; exit 1; }
+b "${OMEGA_PATH_GAMMA}"/interp.beta      "$T/interp.exe" || { echo "omega-meaning FAIL — build interp.beta"; exit 1; }
 
 PASS=0; FAIL=0
 # om SAMPLE : run samples/SAMPLE/main.omg down the meaning route; exit must equal the documented
 # "Expected exit: N". Most samples verify themselves internally and exit a distinguished success
 # code only when their own checks pass — so agreement is computation, not coincidence.
 om() {
-  src="../lattice-corpus/$1/main.omg"
+  src="${OMEGA_PATH_CORPUS}/$1/main.omg"
   want=$(grep -oE 'Expected exit: [0-9]+' "$src" | head -1 | grep -oE '[0-9]+')
   [ -n "$want" ] || { FAIL=$((FAIL+1)); echo "  FAIL $1 : no documented exit"; return; }
   "$T/omega2gamma.exe" < "$src" 2>/dev/null | "$T/interp.exe" > "$T/mo.out" 2>&1; got=$?

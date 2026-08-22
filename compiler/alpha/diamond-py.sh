@@ -12,7 +12,21 @@
 # (call/ret/frames/memory/IO exercised through actual generated code). The seed's own per-opcode battery is
 # conformance.sh; this gate's job is cross-implementation agreement, not re-pinning every opcode.
 set -e
-cd "$(dirname "$0")"
+OMEGA_GATE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
+if [ -z "${OMEGA_REPO_ROOT:-}" ]; then
+  OMEGA_REPO_ROOT=$OMEGA_GATE_DIR
+  while [ ! -f "$OMEGA_REPO_ROOT/bootstrap/paths.sh" ]; do
+    OMEGA_PATH_PARENT=$(dirname -- "$OMEGA_REPO_ROOT")
+    if [ "$OMEGA_PATH_PARENT" = "$OMEGA_REPO_ROOT" ]; then
+      echo "bootstrap paths: cannot find repository root from $OMEGA_GATE_DIR" >&2
+      exit 2
+    fi
+    OMEGA_REPO_ROOT=$OMEGA_PATH_PARENT
+  done
+  unset OMEGA_PATH_PARENT
+fi
+. "$OMEGA_REPO_ROOT/bootstrap/paths.sh" || exit $?
+cd "$OMEGA_GATE_DIR"
 command -v python3 >/dev/null 2>&1 || { echo "diamond-py SKIP — no python3"; exit 0; }
 . ./seed_env.sh
 SEED="$ALPHA_SEED"
@@ -42,10 +56,10 @@ hex read_eof      "11 00 00 00" ""                                              
 hex bad_opcode    "ff 00" ""                                                                     # unknown -> trap 132
 
 # --- REAL bc-compiled programs: call/ret/frames/recursion/memory/IO through actual generated code ---
-BC=../beta-lang-rs/build/bc.exe
-ASM=../beta/$BETA_SEED
+BC="${OMEGA_PATH_BETA_RUST}"/build/bc.exe
+ASM="${OMEGA_PATH_BETA_ASSEMBLER}"/$BETA_SEED
 if command -v cargo >/dev/null 2>&1 && [ -x "$ASM" ]; then
-  [ -x "$BC" ] || ( cd ../beta-lang-rs && sh build.sh ../beta-lang/bc.beta >/dev/null 2>&1 ) || true
+  [ -x "$BC" ] || ( cd "${OMEGA_PATH_BETA_RUST}" && sh build.sh "${OMEGA_PATH_BETA_LANGUAGE}"/bc.beta >/dev/null 2>&1 ) || true
 fi
 mkbeta() { "$BC" < "$1" > "$T/b.asm" 2>/dev/null && "$ASM" < "$T/b.asm" > "$T/$2.tape" 2>/dev/null; }
 if [ -x "$BC" ] && [ -x "$ASM" ]; then

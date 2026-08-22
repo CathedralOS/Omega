@@ -9,15 +9,29 @@
 # for every Peano equation. Two different routes to "is e1 = e2" — definitional vs
 # operational — agreeing is evidence the checker's equality is sound w.r.t. the
 # reference interpreter (not a proof; the theorem is the open problem).
-cd "$(dirname "$0")"
-. ../alpha/seed_env.sh
-SEED=../alpha/$ALPHA_SEED
-ASM=../beta/$BETA_SEED
+OMEGA_GATE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
+if [ -z "${OMEGA_REPO_ROOT:-}" ]; then
+  OMEGA_REPO_ROOT=$OMEGA_GATE_DIR
+  while [ ! -f "$OMEGA_REPO_ROOT/bootstrap/paths.sh" ]; do
+    OMEGA_PATH_PARENT=$(dirname -- "$OMEGA_REPO_ROOT")
+    if [ "$OMEGA_PATH_PARENT" = "$OMEGA_REPO_ROOT" ]; then
+      echo "bootstrap paths: cannot find repository root from $OMEGA_GATE_DIR" >&2
+      exit 2
+    fi
+    OMEGA_REPO_ROOT=$OMEGA_PATH_PARENT
+  done
+  unset OMEGA_PATH_PARENT
+fi
+. "$OMEGA_REPO_ROOT/bootstrap/paths.sh" || exit $?
+cd "$OMEGA_GATE_DIR"
+. "${OMEGA_PATH_ALPHA}"/seed_env.sh
+SEED="${OMEGA_PATH_ALPHA}"/$ALPHA_SEED
+ASM="${OMEGA_PATH_BETA_ASSEMBLER}"/$BETA_SEED
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
-( cd ../beta-lang-rs && sh build.sh ../beta-lang/bc.beta >/dev/null ) || { echo "bc build failed"; exit 1; }
-b() { ../beta-lang-rs/build/bc.exe < "$1" > "$T/x.asm" && "$ASM" < "$T/x.asm" > "$T/x.tape" && stamp_seed "$T/x.tape" "$SEED" "$2" >/dev/null 2>&1; }
+( cd "${OMEGA_PATH_BETA_RUST}" && sh build.sh "${OMEGA_PATH_BETA_LANGUAGE}"/bc.beta >/dev/null ) || { echo "bc build failed"; exit 1; }
+b() { "${OMEGA_PATH_BETA_RUST}"/build/bc.exe < "$1" > "$T/x.asm" && "$ASM" < "$T/x.asm" > "$T/x.tape" && stamp_seed "$T/x.tape" "$SEED" "$2" >/dev/null 2>&1; }
 b eq.beta "$T/eq.exe"           || { echo "build eq.beta failed"; exit 1; }
-b ../gamma/interp.beta "$T/interp.exe" || { echo "build interp.beta failed"; exit 1; }
+b "${OMEGA_PATH_GAMMA}"/interp.beta "$T/interp.exe" || { echo "build interp.beta failed"; exit 1; }
 # gamma operational defs: plus/mult + neq (Nat eq); append/length + leq (List eq);
 # g embeds a user-Nat (Z/S constructors) into Peano — the operational twin of eq.beta's
 # (fun 7 …) rules, so user-FUNCTION reduction is cross-checked against the interpreter.

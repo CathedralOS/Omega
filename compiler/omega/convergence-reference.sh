@@ -20,16 +20,30 @@
 # anywhere the rest of the lattice builds. Small-number certifiers only: a large certificate's unary
 # numerals exhaust interp's arena.
 # No `set -e`: interp/check exit with the alpha VM's result byte (captured inside `v=$(…)`); judge by stdout.
-cd "$(dirname "$0")"
-. ../alpha/seed_env.sh
-SEED=../alpha/$ALPHA_SEED
-ASM=../beta/$BETA_SEED
-( cd ../beta-lang-rs && sh build.sh ../beta-lang/bc.beta >/dev/null ) || { echo "convergence-reference(rust-free) FAIL — bc build"; exit 1; }
-b() { ../beta-lang-rs/build/bc.exe < "$1" > "$T/x.asm" 2>/dev/null && "$ASM" < "$T/x.asm" > "$T/x.tape" 2>/dev/null && stamp_seed "$T/x.tape" "$SEED" "$2" >/dev/null 2>&1; }
+OMEGA_GATE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
+if [ -z "${OMEGA_REPO_ROOT:-}" ]; then
+  OMEGA_REPO_ROOT=$OMEGA_GATE_DIR
+  while [ ! -f "$OMEGA_REPO_ROOT/bootstrap/paths.sh" ]; do
+    OMEGA_PATH_PARENT=$(dirname -- "$OMEGA_REPO_ROOT")
+    if [ "$OMEGA_PATH_PARENT" = "$OMEGA_REPO_ROOT" ]; then
+      echo "bootstrap paths: cannot find repository root from $OMEGA_GATE_DIR" >&2
+      exit 2
+    fi
+    OMEGA_REPO_ROOT=$OMEGA_PATH_PARENT
+  done
+  unset OMEGA_PATH_PARENT
+fi
+. "$OMEGA_REPO_ROOT/bootstrap/paths.sh" || exit $?
+cd "$OMEGA_GATE_DIR"
+. "${OMEGA_PATH_ALPHA}"/seed_env.sh
+SEED="${OMEGA_PATH_ALPHA}"/$ALPHA_SEED
+ASM="${OMEGA_PATH_BETA_ASSEMBLER}"/$BETA_SEED
+( cd "${OMEGA_PATH_BETA_RUST}" && sh build.sh "${OMEGA_PATH_BETA_LANGUAGE}"/bc.beta >/dev/null ) || { echo "convergence-reference(rust-free) FAIL — bc build"; exit 1; }
+b() { "${OMEGA_PATH_BETA_RUST}"/build/bc.exe < "$1" > "$T/x.asm" 2>/dev/null && "$ASM" < "$T/x.asm" > "$T/x.tape" 2>/dev/null && stamp_seed "$T/x.tape" "$SEED" "$2" >/dev/null 2>&1; }
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 b omega2gamma.beta      "$T/omega2gamma.exe"    || { echo "convergence-reference(rust-free) FAIL — build omega2gamma.beta"; exit 1; }
-b ../gamma/interp.beta  "$T/interp.exe" || { echo "convergence-reference(rust-free) FAIL — build interp.beta"; exit 1; }
-b ../proof-kernel/check.beta   "$T/check.exe"  || { echo "convergence-reference(rust-free) FAIL — build check.beta"; exit 1; }
+b "${OMEGA_PATH_GAMMA}"/interp.beta  "$T/interp.exe" || { echo "convergence-reference(rust-free) FAIL — build interp.beta"; exit 1; }
+b "${OMEGA_PATH_PROOF_KERNEL}"/check.beta   "$T/check.exe"  || { echo "convergence-reference(rust-free) FAIL — build check.beta"; exit 1; }
 
 PASS=0; FAIL=0
 # _emit SAMPLE "ascii-stdin" : omega2gamma translates the certifier; interp.beta runs it with that stdin
@@ -38,7 +52,7 @@ _emit() {
   bytes=$(printf '%s' "$2" | od -An -tu1 | tr ' ' '\n' | grep -vE '^$')
   rev=""; for x in $bytes; do rev="$x $rev"; done
   list="Nil"; for x in $rev; do list="(Cons $x $list)"; done
-  "$T/omega2gamma.exe" < "../delta-rs/samples/$1.alp" 2>/dev/null | sed "s/STDIN/$list/" | "$T/interp.exe" 2>/dev/null \
+  "$T/omega2gamma.exe" < "${OMEGA_PATH_DELTA_RUST}/samples/$1.alp" 2>/dev/null | sed "s/STDIN/$list/" | "$T/interp.exe" 2>/dev/null \
     | grep -oE '[0-9]+' | awk '{printf "%c",$1}'
 }
 # ref SAMPLE "ascii" EXPECT : the cert check.beta emits must be EXPECT.

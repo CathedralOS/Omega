@@ -13,8 +13,16 @@
 import sys, os, subprocess, tempfile, random
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+REPO_ROOT = os.environ.get(
+    'OMEGA_REPO_ROOT', os.path.abspath(os.path.join(HERE, '..', '..')))
+BETA_REFERENCE = os.environ.get(
+    'OMEGA_PATH_BETA_REFERENCE', os.path.join(REPO_ROOT, 'compiler', 'beta-lang-py'))
+BETA_RUST = os.environ.get(
+    'OMEGA_PATH_BETA_RUST', os.path.join(REPO_ROOT, 'compiler', 'beta-lang-rs'))
+PROOF_KERNEL = os.environ.get(
+    'OMEGA_PATH_PROOF_KERNEL', os.path.join(REPO_ROOT, 'compiler', 'proof-kernel'))
 sys.path.insert(0, HERE)
-sys.path.insert(0, os.path.join(HERE, '..', 'beta-lang-py'))
+sys.path.insert(0, BETA_REFERENCE)
 import alpha_symbolic as S
 import beta_symbolic as B                              # source-side symbolic evaluator (the auto-derived meaning)
 import beta_interp                                     # concrete Beta interpreter (pins the source meaning)
@@ -25,7 +33,7 @@ import refinement_nested_gen                            # random NESTED loops (r
 import refinement_fork_gen                              # random BRANCHING programs (conditional terms)
 from bc2 import lex, Parser
 ALPHA_REF = os.path.join(HERE, 'alpha_ref.py')
-PROVER = os.path.join(HERE, '..', 'proof-kernel', 'prover.py')
+PROVER = os.path.join(PROOF_KERNEL, 'prover.py')
 CHECK = sys.argv[1]
 BC = sys.argv[2] if len(sys.argv) > 2 else None       # bc.exe — enables the real-bc-output samples
 ASM = sys.argv[3] if len(sys.argv) > 3 else None      # the beta assembler exe
@@ -105,10 +113,10 @@ AUTO_SAMPLES = [
     ("divmod    ((a/10)*10 + a%10)", "refinement-samples/divmod.beta"),
     ("divplus   (VAR divisor a/(b+1))", "refinement-samples/divplus.beta"),
     ("divguard  (GUARDED b!=0 ? a/b : 0)", "refinement-samples/divguard.beta"),
-    ("sumto(10) (concrete LOOP)",   "../beta-lang-rs/examples/sumto.beta"),
-    ("fact(5)   (RECURSION)",       "../beta-lang-rs/examples/factorial.beta"),
-    ("answer    (6*7)",             "../beta-lang-rs/examples/answer.beta"),
-    ("double    (double(21))",      "../beta-lang-rs/examples/double.beta"),
+    ("sumto(10) (concrete LOOP)",   os.path.join(BETA_RUST, "examples", "sumto.beta")),
+    ("fact(5)   (RECURSION)",       os.path.join(BETA_RUST, "examples", "factorial.beta")),
+    ("answer    (6*7)",             os.path.join(BETA_RUST, "examples", "answer.beta")),
+    ("double    (double(21))",      os.path.join(BETA_RUST, "examples", "double.beta")),
 ]
 
 def compile_beta_text(text):

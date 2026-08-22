@@ -106,6 +106,22 @@ deterministic runnable artifact. The artifact must print the literal plus one
 newline, then exit with the requested low-byte status; those observations must
 agree with canonical meaning.
 
+The current terminal-Psi vocabulary is not yet sufficient for that lowering.
+`BoundaryMachineDeclaration` explicitly has structural parameters but no scalar
+parameters, and `OperationKind::BoundaryCall` likewise has no scalar-argument
+lane. O0 therefore waits on canonical scalar boundary arguments for
+`exit_process(i32)`; treating the exit literal as an unrelated machine return or
+introducing an Omega0-only IR would evade, not close, the intended seam. The
+string passed to `write_line` must also retain its exact structural carrier and
+custody through the same canonical call.
+
+The scalar lane itself is a bounded implementation change, not an unresolved
+language question: a bodyless declaration needs ordered scalar parameter types,
+and the operation needs ordered scalar value arguments. The canonical consumer
+must preserve and interpret them. Omega target lowering must reject them until
+O0 adds an explicit process-exit realization; its current metadata-only port
+settlement does not implement this boundary.
+
 O0 excludes build files, packages beyond the fixed `use`, arbitrary data,
 general expressions, user calls, control flow, allocation, proofs, and
 optimization. Those features enter later numbered acceptance profiles only when

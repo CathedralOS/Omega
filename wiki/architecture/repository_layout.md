@@ -41,8 +41,10 @@ current packages.
 > state, not placement intent. Within the product, `compiler/psi-rs/` owns
 > parsing and target-neutral semantics through terminal Psi, while
 > `compiler/omega-rs/` owns provider, ABI, target, artifact, and execution
-> machinery. The tree below documents the current Cargo/product structure;
-> bootstrap migration is tracked in
+> machinery. Bootstrap gates resolve these transitional locations through the
+> role manifest in `bootstrap/paths.sh`; new cross-owner sibling-relative paths
+> are rejected. The tree below documents the current Cargo/product structure;
+> physical migration is tracked in
 > [TASKS_BOOTSTRAP.md](../../TASKS_BOOTSTRAP.md).
 
 ```text

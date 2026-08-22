@@ -10,15 +10,29 @@
 # diagnostic comparison only. The real open edge is complete lower-rooted
 # refinement of the cold-started bc artifact against bc.beta.
 set -e
-cd "$(dirname "$0")"
+OMEGA_GATE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
+if [ -z "${OMEGA_REPO_ROOT:-}" ]; then
+  OMEGA_REPO_ROOT=$OMEGA_GATE_DIR
+  while [ ! -f "$OMEGA_REPO_ROOT/bootstrap/paths.sh" ]; do
+    OMEGA_PATH_PARENT=$(dirname -- "$OMEGA_REPO_ROOT")
+    if [ "$OMEGA_PATH_PARENT" = "$OMEGA_REPO_ROOT" ]; then
+      echo "bootstrap paths: cannot find repository root from $OMEGA_GATE_DIR" >&2
+      exit 2
+    fi
+    OMEGA_REPO_ROOT=$OMEGA_PATH_PARENT
+  done
+  unset OMEGA_PATH_PARENT
+fi
+. "$OMEGA_REPO_ROOT/bootstrap/paths.sh" || exit $?
+cd "$OMEGA_GATE_DIR"
 command -v python3 >/dev/null 2>&1 || { echo "diverse-double-compilation SKIP — no python3"; exit 0; }
 command -v cargo   >/dev/null 2>&1 || { echo "diverse-double-compilation SKIP — no cargo (on-ramp)"; exit 0; }
 
-. ../alpha/seed_env.sh
-SEED=../alpha/$ALPHA_SEED
-ASM=../beta/$BETA_SEED
-BCRS=../beta-lang-rs/target/debug/beta-lang
-( cd ../beta-lang-rs && cargo build -q 2>/dev/null ) || { echo "diverse-double-compilation FAIL — on-ramp build"; exit 1; }
+. "${OMEGA_PATH_ALPHA}"/seed_env.sh
+SEED="${OMEGA_PATH_ALPHA}"/$ALPHA_SEED
+ASM="${OMEGA_PATH_BETA_ASSEMBLER}"/$BETA_SEED
+BCRS="${OMEGA_PATH_BETA_RUST}"/target/debug/beta-lang
+( cd "${OMEGA_PATH_BETA_RUST}" && cargo build -q 2>/dev/null ) || { echo "diverse-double-compilation FAIL — on-ramp build"; exit 1; }
 
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 PASS=0; FAIL=0
@@ -170,9 +184,9 @@ proc main() { print_num(42)  return 0 }"
 
 # a REAL, non-trivial program: the recursive-descent calculator. bc2.py now covers everything it uses
 # (slices 1-5, no string literals). Compile it with both front-ends and check they agree on real input.
-if [ -f ../beta-lang-rs/examples/calc.beta ]; then
-  if build ../beta-lang-rs/examples/calc.beta python3 bc2.py; then cp "$T/o.exe" "$T/py.exe"
-    build ../beta-lang-rs/examples/calc.beta "$BCRS"; cp "$T/o.exe" "$T/rs.exe"
+if [ -f "${OMEGA_PATH_BETA_RUST}"/examples/calc.beta ]; then
+  if build "${OMEGA_PATH_BETA_RUST}"/examples/calc.beta python3 bc2.py; then cp "$T/o.exe" "$T/py.exe"
+    build "${OMEGA_PATH_BETA_RUST}"/examples/calc.beta "$BCRS"; cp "$T/o.exe" "$T/rs.exe"
     for expr in "2+3*4" "(2+3)*4" "100-58" "2*(3+4)*5" "7*7-7"; do
       printf '%s' "$expr" > "$T/in"
       runp "$T/py.exe" "$T/in"; pc=$code; po=$(cat "$T/out")
@@ -191,10 +205,10 @@ fi
 # Agreement here is regression information only. It does not establish compiler
 # correctness or close the lower-rooted refinement edge. (selfhost.sh separately
 # establishes the deterministic fixed point.)
-if build ../beta-lang/bc.beta "$BCRS" && cp "$T/o.exe" "$T/bc0.exe" \
-   && build ../beta-lang/bc.beta python3 bc2.py && cp "$T/o.exe" "$T/bcA.exe"; then
-  for prog in ../beta-lang/bc.beta ../proof-kernel/check.beta ../proof-kernel/eq.beta \
-              ../gamma/interp.beta ../gamma/typeck.beta ../omega/omega2gamma.beta; do
+if build "${OMEGA_PATH_BETA_LANGUAGE}"/bc.beta "$BCRS" && cp "$T/o.exe" "$T/bc0.exe" \
+   && build "${OMEGA_PATH_BETA_LANGUAGE}"/bc.beta python3 bc2.py && cp "$T/o.exe" "$T/bcA.exe"; then
+  for prog in "${OMEGA_PATH_BETA_LANGUAGE}"/bc.beta "${OMEGA_PATH_PROOF_KERNEL}"/check.beta "${OMEGA_PATH_PROOF_KERNEL}"/eq.beta \
+              "${OMEGA_PATH_GAMMA}"/interp.beta "${OMEGA_PATH_GAMMA}"/typeck.beta ${OMEGA_PATH_OMEGA0}/omega2gamma.beta; do
     [ -f "$prog" ] || continue
     if ! python3 bc2.py < "$prog" > /dev/null 2>"$T/e"; then
       FAIL=$((FAIL+1)); echo "  FAIL COMPARE $prog : bc2.py cannot compile it: $(head -1 "$T/e")"; continue; fi

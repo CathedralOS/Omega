@@ -13,18 +13,32 @@
 #
 # Skips cleanly off macOS arm64 or without the cargo/clang toolchain (the native route needs them).
 set -e
-cd "$(dirname "$0")"
+OMEGA_GATE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
+if [ -z "${OMEGA_REPO_ROOT:-}" ]; then
+  OMEGA_REPO_ROOT=$OMEGA_GATE_DIR
+  while [ ! -f "$OMEGA_REPO_ROOT/bootstrap/paths.sh" ]; do
+    OMEGA_PATH_PARENT=$(dirname -- "$OMEGA_REPO_ROOT")
+    if [ "$OMEGA_PATH_PARENT" = "$OMEGA_REPO_ROOT" ]; then
+      echo "bootstrap paths: cannot find repository root from $OMEGA_GATE_DIR" >&2
+      exit 2
+    fi
+    OMEGA_REPO_ROOT=$OMEGA_PATH_PARENT
+  done
+  unset OMEGA_PATH_PARENT
+fi
+. "$OMEGA_REPO_ROOT/bootstrap/paths.sh" || exit $?
+cd "$OMEGA_GATE_DIR"
 case "$(uname -sm)" in "Darwin arm64") ;; *) echo "delta-meaning diamond SKIP — not macOS arm64"; exit 0 ;; esac
 for t in cargo clang codesign; do command -v "$t" >/dev/null 2>&1 || { echo "delta-meaning diamond SKIP — no $t"; exit 0; }; done
 
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 
 # the gamma reference interpreter (trust-lineage: alpha seed -> beta asm -> bc -> interp.exe)
-. ../alpha/seed_env.sh
-SEED=../alpha/$ALPHA_SEED
-ASM=../beta/$BETA_SEED
-( cd ../beta-lang-rs && sh build.sh ../beta-lang/bc.beta >/dev/null ) || { echo "delta-meaning diamond FAIL — bc build"; exit 1; }
-if ../beta-lang-rs/build/bc.exe < ../gamma/interp.beta > "$T/i.asm" 2>/dev/null \
+. "${OMEGA_PATH_ALPHA}"/seed_env.sh
+SEED="${OMEGA_PATH_ALPHA}"/$ALPHA_SEED
+ASM="${OMEGA_PATH_BETA_ASSEMBLER}"/$BETA_SEED
+( cd "${OMEGA_PATH_BETA_RUST}" && sh build.sh "${OMEGA_PATH_BETA_LANGUAGE}"/bc.beta >/dev/null ) || { echo "delta-meaning diamond FAIL — bc build"; exit 1; }
+if "${OMEGA_PATH_BETA_RUST}"/build/bc.exe < "${OMEGA_PATH_GAMMA}"/interp.beta > "$T/i.asm" 2>/dev/null \
    && "$ASM" < "$T/i.asm" > "$T/i.tape" 2>/dev/null \
    && stamp_seed "$T/i.tape" "$SEED" "$T/interp.exe" >/dev/null 2>&1; then :; else
   echo "delta-meaning diamond FAIL — could not build interp.beta"; exit 1; fi

@@ -8,18 +8,32 @@
 #
 # Skips cleanly without the cargo toolchain or the seed pipeline.
 set -e
-cd "$(dirname "$0")"
+OMEGA_GATE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
+if [ -z "${OMEGA_REPO_ROOT:-}" ]; then
+  OMEGA_REPO_ROOT=$OMEGA_GATE_DIR
+  while [ ! -f "$OMEGA_REPO_ROOT/bootstrap/paths.sh" ]; do
+    OMEGA_PATH_PARENT=$(dirname -- "$OMEGA_REPO_ROOT")
+    if [ "$OMEGA_PATH_PARENT" = "$OMEGA_REPO_ROOT" ]; then
+      echo "bootstrap paths: cannot find repository root from $OMEGA_GATE_DIR" >&2
+      exit 2
+    fi
+    OMEGA_REPO_ROOT=$OMEGA_PATH_PARENT
+  done
+  unset OMEGA_PATH_PARENT
+fi
+. "$OMEGA_REPO_ROOT/bootstrap/paths.sh" || exit $?
+cd "$OMEGA_GATE_DIR"
 command -v cargo   >/dev/null 2>&1 || { echo "contracts SKIP — no cargo"; exit 0; }
 command -v python3 >/dev/null 2>&1 || { echo "contracts SKIP — no python3 (needed for the lemma library)"; exit 0; }
 
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 
 # 1. build the proof kernel (trust anchor), exactly as the lattice does
-. ../alpha/seed_env.sh
-SEED=../alpha/$ALPHA_SEED
-ASM=../beta/$BETA_SEED
-( cd ../beta-lang-rs && sh build.sh ../beta-lang/bc.beta >/dev/null ) || { echo "contracts FAIL — bc build"; exit 1; }
-if ../beta-lang-rs/build/bc.exe < ../proof-kernel/check.beta > "$T/c.asm" 2>/dev/null \
+. "${OMEGA_PATH_ALPHA}"/seed_env.sh
+SEED="${OMEGA_PATH_ALPHA}"/$ALPHA_SEED
+ASM="${OMEGA_PATH_BETA_ASSEMBLER}"/$BETA_SEED
+( cd "${OMEGA_PATH_BETA_RUST}" && sh build.sh "${OMEGA_PATH_BETA_LANGUAGE}"/bc.beta >/dev/null ) || { echo "contracts FAIL — bc build"; exit 1; }
+if "${OMEGA_PATH_BETA_RUST}"/build/bc.exe < "${OMEGA_PATH_PROOF_KERNEL}"/check.beta > "$T/c.asm" 2>/dev/null \
    && "$ASM" < "$T/c.asm" > "$T/c.tape" 2>/dev/null \
    && stamp_seed "$T/c.tape" "$SEED" "$T/check.exe" >/dev/null 2>&1; then :; else
   echo "contracts FAIL — could not build the proof kernel"; exit 1; fi
@@ -31,7 +45,7 @@ cargo build -q 2>/dev/null || { echo "contracts FAIL — cargo build"; exit 1; }
 # every certificate; self-contained (refl/witness) certs simply ignore its defs. The proofs are SEARCHED by
 # the prover (prover-contract-lib.py), not hand-written -- "automation discharges, the kernel checks": each
 # library def is validated by check.beta along with the citation below.
-python3 ../proof-kernel/prover-contract-lib.py > "$T/lib" 2>/dev/null \
+python3 "${OMEGA_PATH_PROOF_KERNEL}"/prover-contract-lib.py > "$T/lib" 2>/dev/null \
   || { echo "contracts FAIL — building the lemma library"; exit 1; }
 LIB=$(cat "$T/lib")
 
