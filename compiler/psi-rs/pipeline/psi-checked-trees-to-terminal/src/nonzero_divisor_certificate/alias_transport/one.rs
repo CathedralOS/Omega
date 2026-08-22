@@ -1,10 +1,12 @@
 //! Exactly one value-alias substitution for canonical order production.
 
 use psi_core::{Proposition, ScalarTerm};
-use psi_proof_kernel::{ProofNode, ProofRule};
+use psi_proof_kernel::ProofNode;
 
 use super::super::integer_evidence::cited_facts;
-use super::index::{distinct_same_carrier_values, indexed_bounds, substitute_bound_endpoint};
+use super::index::{distinct_same_carrier_values, indexed_bounds};
+
+mod completion;
 
 pub(super) fn prove(
     assumptions: &[Proposition],
@@ -24,15 +26,13 @@ pub(super) fn prove(
                 continue;
             };
             for &(relation_citation, relation, endpoint) in bounds {
-                let root_bound = substitute_bound_endpoint(relation, root, endpoint);
-                let proof = ProofNode {
-                    conclusion: root_bound,
-                    rule: ProofRule::IntegerLessOrEqualSubstitution {
-                        relation: Box::new(relation_citation.proof(relation)),
-                        equality: Box::new(equality_citation.proof(equality)),
-                        endpoint,
-                    },
-                };
+                let proof = completion::prove(
+                    relation,
+                    root,
+                    endpoint,
+                    relation_citation.proof(relation),
+                    equality_citation.proof(equality),
+                );
                 if let Some(proof) = complete(root, proof) {
                     return Some(proof);
                 }
