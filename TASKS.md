@@ -754,9 +754,13 @@ Owners:
   supply derivation now live in a focused 226-line child behind the unchanged
   crate-root API. It preserves exact Stable/External/Atomic supply selection,
   conservative Stable substitution, full-region reach, transfer alignment, and
-  base-congruence validation, leaving a 3,779-line coordinator. All 81 unit
-  tests, the current 440-function production inventory, diagnostics, custody,
-  retry behavior, and the public surface remain unchanged.
+  base-congruence validation. The complete normalized access-plan validation
+  judgment now lives in a focused 430-line child: retained-layout/cardinality
+  replay, policy/transfer widths, exact whole/fragmented geometry, External and
+  destructive whole-container rules, and Atomic overlap exclusion preserve
+  their ordering. These extractions leave a 3,362-line coordinator. All 81
+  unit tests, the current 440-function production inventory, diagnostics,
+  custody, retry behavior, and the public surface remain unchanged.
 - Implement `Extent::Resident<P, T>` as the owned exact-range dormant-content
   qualification, including invariant type indices, mutual exclusion with
   `Vacant`, split/merge rejection, borrow versus owned-view continuity,
