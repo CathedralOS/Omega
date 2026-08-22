@@ -89,7 +89,7 @@ fn production_check_accepts_entry_agnostic_semantic_corpus() {
     })
     .expect("check-only compilation must not require or infer a runtime entry");
 
-    assert!(!report.wrote_output);
+    assert!(!report.wrote_output());
     assert_eq!(report.program_storage_entry, None);
     assert!(build_dir.join("04_typed_trees.json").is_file());
     assert!(build_dir.join("05_machine_contracts.json").is_file());

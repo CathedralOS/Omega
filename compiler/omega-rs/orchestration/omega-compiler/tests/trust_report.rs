@@ -13,7 +13,7 @@ fn compile(
         "trust-report fixtures are entry-agnostic semantic checks"
     );
     let report = omega_compiler::compile(options)?;
-    assert!(!report.wrote_output);
+    assert!(!report.wrote_output());
     assert_eq!(report.program_storage_entry, None);
     Ok(report)
 }

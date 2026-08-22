@@ -1016,7 +1016,7 @@ fn contract_canary_visualizes_flow_contract_summaries() {
         write_output: true,
     })
     .expect("exact-root contract canary should compile with visual artifacts");
-    assert!(compilation.wrote_output);
+    assert!(compilation.wrote_output());
 
     let state_graph = fs::read_to_string(build_dir.join("06_state_graph.html"))
         .expect("state graph visualization should be written");

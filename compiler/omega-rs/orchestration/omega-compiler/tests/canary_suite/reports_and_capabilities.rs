@@ -27,7 +27,7 @@ fn output_only_checks_suppress_artifacts_without_suppressing_wire_validation() {
         ArtifactEmissionPolicy::OutputOnly,
     )
     .expect("output-only frontend check should succeed");
-    assert!(!success.wrote_output);
+    assert!(!success.wrote_output());
     assert!(
         !success_build_dir.exists(),
         "output-only frontend checks should not materialize an artifact directory"
@@ -69,7 +69,7 @@ fn output_only_backend_compile_keeps_primary_image_and_certification() {
         ArtifactEmissionPolicy::OutputOnly,
     )
     .expect("output-only backend compile should still certify and install its image");
-    assert!(report.wrote_output);
+    assert!(report.wrote_output());
     assert!(build_dir.join("omega-program.exe").is_file());
     let entries = fs::read_dir(&build_dir)
         .expect("read output-only build directory")
@@ -94,7 +94,7 @@ fn disposable_native_canary_helper_emits_only_the_primary_image() {
     })
     .expect("disposable native canary should compile through the shared helper");
 
-    assert!(report.wrote_output);
+    assert!(report.wrote_output());
     assert!(build_dir.join(executable_name()).is_file());
     let entries = fs::read_dir(&build_dir)
         .expect("read disposable native canary build directory")
@@ -184,7 +184,7 @@ fn boundary_trait_canary_reports_capability_use() {
         write_output: false,
     })
     .expect("boundary trait canary should compile with checked capability artifacts");
-    assert!(!checked_compilation.wrote_output);
+    assert!(!checked_compilation.wrote_output());
     assert_eq!(checked_compilation.program_storage_entry, None);
 
     let checked_manifest = fs::read_to_string(checked_dir.join("05_capability_manifest.json"))
@@ -211,7 +211,7 @@ fn boundary_trait_canary_reports_capability_use() {
         write_output: false,
     })
     .expect("exact-root boundary trait canary should reach lowering reports");
-    assert!(!lowered_compilation.wrote_output);
+    assert!(!lowered_compilation.wrote_output());
 
     let state_graph = fs::read_to_string(lowered_dir.join("06_state_graph.html"))
         .expect("state graph report should be written");
@@ -335,7 +335,7 @@ fn wire_cross_era_type_change_reports_requires_migration_verdict() {
         write_output: false,
     })
     .expect("cross-era type change canary should compile with a migration verdict, not an error");
-    assert!(!compilation.wrote_output);
+    assert!(!compilation.wrote_output());
     assert_eq!(compilation.program_storage_entry, None);
 
     let report = fs::read_to_string(build_dir.join("04_wire_protocols.txt"))
@@ -378,7 +378,7 @@ fn wire_compatibility_demand_reports_directional_facts_and_migration_route() {
         write_output: false,
     })
     .expect("the declared rolling-channel demand should be satisfied");
-    assert!(!compilation.wrote_output);
+    assert!(!compilation.wrote_output());
     assert_eq!(compilation.program_storage_entry, None);
 
     let report = fs::read_to_string(build_dir.join("04_wire_protocols.txt"))
@@ -1104,7 +1104,7 @@ fn capability_manifest_reports_authority_flow_verbs() {
                     .join("\n")
             )
         });
-        assert!(!compilation.wrote_output);
+        assert!(!compilation.wrote_output());
         assert_eq!(compilation.program_storage_entry, None);
 
         let manifest = fs::read_to_string(build_dir.join("05_capability_manifest.json"))
@@ -1183,7 +1183,7 @@ fn capability_flows_retain_exact_direct_and_propagated_sites() {
                     .join("\n")
             )
         });
-        assert!(!compilation.wrote_output);
+        assert!(!compilation.wrote_output());
         assert_eq!(compilation.program_storage_entry, None);
 
         let boundary = fs::read_to_string(build_dir.join("10_boundary.html"))

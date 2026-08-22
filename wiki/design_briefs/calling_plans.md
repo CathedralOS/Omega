@@ -730,6 +730,10 @@ executable requires the flat receipt, an object-container fallback forbids both
 executable receipts, and a check-only result forbids both output and receipts.
 Thus lost native custody cannot be reclassified as a valid fallback merely
 because both use the older `wrote_output` boolean.
+The validated output flag, category, flat receipt, and optional bundle receipt
+are exposed only through read-only report accessors. Callers can inspect that
+custody tuple but cannot rearrange, replace, or drop one component after the
+compiler's final consistency check.
 Final relocation replay also builds one exact owner map from every retained
 selected-instruction identity to that function symbol. A selected instruction
 retained twice, an instruction relocation naming another function, or an

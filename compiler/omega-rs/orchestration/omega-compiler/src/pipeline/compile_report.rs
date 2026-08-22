@@ -91,18 +91,18 @@ impl ExecutablePublicationReceipt {
 pub struct CompileReport {
     pub root_path: PathBuf,
     pub source_file_count: usize,
-    pub wrote_output: bool,
+    pub(crate) wrote_output: bool,
     /// Exact output category selected by orchestration. This distinguishes a
     /// native executable, which requires publication custody, from the
     /// non-executable object-container fallback.
-    pub output_kind: CompileOutputKind,
+    pub(crate) output_kind: CompileOutputKind,
     /// Exact checked publication receipt for a native executable image.
     /// Object-container fallbacks and check-only compilations retain `None`.
-    pub executable_publication: Option<ExecutablePublicationReceipt>,
+    pub(crate) executable_publication: Option<ExecutablePublicationReceipt>,
     /// Exact checked publication receipt for the executable copied into an
     /// optional macOS application bundle. Non-GUI/non-Mach-O builds retain
     /// `None`; this remains distinct from the flat executable receipt.
-    pub app_bundle_publication: Option<ExecutablePublicationReceipt>,
+    pub(crate) app_bundle_publication: Option<ExecutablePublicationReceipt>,
     /// Exact target root-slot/schema/ABI-capture binding for a program-storage
     /// entry. Hosted compatibility entries and unmigrated name discovery have
     /// no such authority-bearing artifact.
@@ -116,6 +116,22 @@ pub struct CompileReport {
 }
 
 impl CompileReport {
+    pub const fn wrote_output(&self) -> bool {
+        self.wrote_output
+    }
+
+    pub const fn output_kind(&self) -> CompileOutputKind {
+        self.output_kind
+    }
+
+    pub fn executable_publication(&self) -> Option<&ExecutablePublicationReceipt> {
+        self.executable_publication.as_ref()
+    }
+
+    pub fn app_bundle_publication(&self) -> Option<&ExecutablePublicationReceipt> {
+        self.app_bundle_publication.as_ref()
+    }
+
     /// Replays the only valid relationship between the flat executable and an
     /// optional app-bundle copy. This checks compiler-publication custody; it
     /// does not inspect or authorize runtime installation.
@@ -258,6 +274,16 @@ mod tests {
             )
             .has_consistent_executable_publication_custody()
         );
+        let retained = report(
+            true,
+            CompileOutputKind::NativeExecutable,
+            Some(flat.clone()),
+            Some(bundle.clone()),
+        );
+        assert!(retained.wrote_output());
+        assert_eq!(retained.output_kind(), CompileOutputKind::NativeExecutable);
+        assert_eq!(retained.executable_publication(), Some(&flat));
+        assert_eq!(retained.app_bundle_publication(), Some(&bundle));
         assert!(
             !report(
                 true,
