@@ -73,13 +73,13 @@ pub fn typed_trees_html(typed: &TypedTrees) -> String {
             format!("domain_{domain_index}"),
             {
                 let mut label = format!(
-                    "domain {}\ntarget: {}\nsymbol: {}\npredicate body: {}\nfacts: {}\nbody tokens: {}",
+                    "domain {}\ntarget: {}\nsymbol: {}\npredicate body: {}\nfacts: {}\nsemantic clause tokens: {}",
                     domain.name.as_str(),
                     typed.display_type_reference_with_constraints(domain.target_type),
                     symbol_label(domain.symbol),
                     domain.predicate_body.as_str(),
                     typed.proof_facts(domain).len(),
-                    domain.body_token_count
+                    domain.semantic_clause_token_count
                 );
                 for fact in proof_fact_labels(typed, domain.facts) {
                     label.push_str("\n  ");

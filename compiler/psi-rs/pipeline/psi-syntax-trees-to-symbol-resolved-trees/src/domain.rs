@@ -69,7 +69,7 @@ pub(crate) fn lower_domain_definition(
         predicate_body: domain.predicate_body,
         facts,
         operators,
-        body_token_count: domain.body_token_count,
+        semantic_clause_token_count: domain.semantic_clause_token_count,
         semantic_id,
         semantic_roles,
         establishment_routes: Vec::new(),

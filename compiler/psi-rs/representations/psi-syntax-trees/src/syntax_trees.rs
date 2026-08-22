@@ -287,7 +287,7 @@ impl SyntaxTrees {
                 predicate_body: domain.predicate_body,
                 facts: self.copy_domain_fact_span(other, domain.facts),
                 operators: self.copy_operator_definition_span(other, domain.operators),
-                body_token_count: domain.body_token_count,
+                semantic_clause_token_count: domain.semantic_clause_token_count,
             }),
             Item::Invariant(invariant) => Item::Invariant(crate::item::InvariantDefinition {
                 name: invariant.name.clone(),

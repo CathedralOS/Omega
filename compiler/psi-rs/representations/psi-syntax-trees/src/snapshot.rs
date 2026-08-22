@@ -107,7 +107,7 @@ pub enum ItemSnapshot {
         predicate_body: &'static str,
         facts: Vec<ProofFactSnapshot>,
         operators: Vec<OperatorSnapshot>,
-        body_token_count: usize,
+        semantic_clause_token_count: usize,
     },
     Invariant {
         name: IdentifierSnapshot,
@@ -901,7 +901,7 @@ fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnapshot {
                 .iter()
                 .map(|operator| snapshot_operator(syntax_trees, operator))
                 .collect(),
-            body_token_count: value.body_token_count,
+            semantic_clause_token_count: value.semantic_clause_token_count,
         },
         Item::Invariant(value) => ItemSnapshot::Invariant {
             name: snapshot_identifier(&value.name),

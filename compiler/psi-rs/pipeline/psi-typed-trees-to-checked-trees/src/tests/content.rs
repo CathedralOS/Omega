@@ -320,9 +320,8 @@ fn retained_content_custody_rejects_borrow_only_source() {
         }
 
         data PendingWrite [linear] {}
-        domain PendingWrite::Retained {
-            Writer::submit;
-        }
+        domain PendingWrite::Retained
+        established by Writer::submit;
         machine Retained::content(pending: &PendingWrite) -> CountedQuantity<ByteUnit>
         satisfies Content<CountedQuantity<ByteUnit>>::project
         {
@@ -371,9 +370,8 @@ fn retained_content_custody_accepts_consumed_owned_source() {
         }
 
         data PendingWrite [linear] {}
-        domain PendingWrite::Retained {
-            Writer::submit;
-        }
+        domain PendingWrite::Retained
+        established by Writer::submit;
         machine Retained::content(pending: &PendingWrite) -> CountedQuantity<ByteUnit>
         satisfies Content<CountedQuantity<ByteUnit>>::project
         {
@@ -407,7 +405,8 @@ fn retained_content_custody_rejects_ambiguous_owned_sources() {
         { CountedQuantity { magnitude: 1 } }
 
         data PendingWrite [linear] {}
-        domain PendingWrite::Retained { Writer::submit; }
+        domain PendingWrite::Retained
+        established by Writer::submit;
         machine Retained::content(pending: &PendingWrite) -> CountedQuantity<ByteUnit>
         satisfies Content<CountedQuantity<ByteUnit>>::project
         { CountedQuantity { magnitude: 1 } }
@@ -455,7 +454,8 @@ fn retained_content_custody_accepts_exact_authored_source_correspondence() {
         { CountedQuantity { magnitude: 1 } }
 
         data PendingWrite [linear] {}
-        domain PendingWrite::Retained { Writer::submit; }
+        domain PendingWrite::Retained
+        established by Writer::submit;
         machine Retained::content(pending: &PendingWrite) -> CountedQuantity<ByteUnit>
         satisfies Content<CountedQuantity<ByteUnit>>::project
         { CountedQuantity { magnitude: 1 } }
@@ -488,7 +488,8 @@ fn retained_content_custody_rejects_authored_borrow_correspondence() {
         { CountedQuantity { magnitude: 1 } }
 
         data PendingWrite [linear] {}
-        domain PendingWrite::Retained { Writer::submit; }
+        domain PendingWrite::Retained
+        established by Writer::submit;
         machine Retained::content(pending: &PendingWrite) -> CountedQuantity<ByteUnit>
         satisfies Content<CountedQuantity<ByteUnit>>::project
         { CountedQuantity { magnitude: 1 } }

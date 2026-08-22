@@ -672,13 +672,13 @@ pub struct DomainDefinition {
     /// predicate facts so an alias can never be mistaken for a bodyless
     /// establishment route.
     pub alias: Option<DomainAliasDefinition>,
-    /// Exact trait-requirement paths authored in the declaration body. These
+    /// Exact trait-requirement paths authored by `established by`. These
     /// are establishment alternatives, independent from predicate facts.
     pub authored_routes: Vec<Vec<Identifier>>,
     pub predicate_body: psi_language_core::DomainPredicateBody,
     pub facts: HandleSpan<ProofFact>,
     pub operators: HandleSpan<OperatorDefinition>,
-    pub body_token_count: usize,
+    pub semantic_clause_token_count: usize,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -700,7 +700,7 @@ impl Default for DomainDefinition {
             predicate_body: psi_language_core::DomainPredicateBody::Bodyless,
             facts: HandleSpan::empty(),
             operators: HandleSpan::empty(),
-            body_token_count: 0,
+            semantic_clause_token_count: 0,
         }
     }
 }

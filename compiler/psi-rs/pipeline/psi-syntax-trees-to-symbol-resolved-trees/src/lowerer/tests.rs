@@ -1398,7 +1398,7 @@ fn lowers_domain_definitions() {
         panic!("first domain fact should be membership")
     };
     assert!(membership.domain_symbol.is_valid());
-    assert!(domain.body_token_count >= 3);
+    assert!(domain.semantic_clause_token_count >= 3);
     assert_eq!(
         domain.predicate_body,
         psi_language_semantics::DomainPredicateBody::Present
@@ -1413,7 +1413,7 @@ fn lowers_domain_definitions() {
         tagged.predicate_body,
         psi_language_semantics::DomainPredicateBody::Bodyless
     );
-    assert_eq!(tagged.body_token_count, 0);
+    assert_eq!(tagged.semantic_clause_token_count, 0);
     assert!(tagged.semantic_roles.is_empty());
     assert!(
         program
@@ -1790,9 +1790,8 @@ fn boundary_requirement_route_accepts_exact_non_self_parameter_domain() {
 
     let source = r#"
     data Token { value: u64; }
-    domain Token::Pending {
-        BoundaryIngress::enter;
-    }
+    domain Token::Pending
+    established by BoundaryIngress::enter;
     boundary trait BoundaryIngress {
         machine enter(token: Token in Pending);
     }
@@ -1831,9 +1830,8 @@ fn boundary_requirement_route_accepts_exact_non_self_parameter_domain() {
 fn ordinary_requirement_route_rejects_parameter_domain_as_introduction() {
     let source = r#"
     data Token { value: u64; }
-    domain Token::Pending {
-        OrdinaryIngress::enter;
-    }
+    domain Token::Pending
+    established by OrdinaryIngress::enter;
     trait OrdinaryIngress {
         machine enter(token: Token in Pending);
     }
@@ -1854,9 +1852,8 @@ fn ordinary_requirement_route_rejects_parameter_domain_as_introduction() {
 fn rejects_unresolved_authored_domain_requirement_route() {
     let source = r#"
     data Token { value: u64; }
-    domain Token::Issued {
-        MissingIssuer::issue;
-    }
+    domain Token::Issued
+    established by MissingIssuer::issue;
     "#;
 
     let tokens = Lexer::new(source)
@@ -1875,9 +1872,8 @@ fn rejects_unresolved_authored_domain_requirement_route() {
 fn rejects_overloaded_signature_free_domain_requirement_route() {
     let source = r#"
     data Token { value: u64; }
-    domain Token::Issued {
-        Issuer::issue;
-    }
+    domain Token::Issued
+    established by Issuer::issue;
     trait Issuer {
         machine issue(value: u64) -> Token in Issued;
         machine issue(value: i64) -> Token in Issued;
@@ -1908,7 +1904,8 @@ fn rejects_overloaded_signature_free_domain_requirement_route() {
 fn signature_free_overload_reports_one_declaration_and_every_affected_use() {
     let source = r#"
         data Token { value: u64; }
-        domain Token::Issued { Issuer::issue; }
+        domain Token::Issued
+        established by Issuer::issue;
 
         trait Issuer {
             machine issue(value: u64) -> Token in Issued;
@@ -1951,12 +1948,10 @@ fn expands_alias_establishment_routes_to_atomic_domains() {
         value: u64;
     }
 
-    domain Token::Issued {
-        TokenIssuer::issue;
-    }
-    domain Token::Stamped {
-        TokenIssuer::issue;
-    }
+    domain Token::Issued
+    established by TokenIssuer::issue;
+    domain Token::Stamped
+    established by TokenIssuer::issue;
     domain Token::Ready = Token::Issued & Token::Stamped;
 
     boundary trait TokenIssuer {

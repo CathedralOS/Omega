@@ -283,11 +283,10 @@ deliberately publishes an open checked route.
 `established by` is a domain clause, not a realization clause. Omega reserves
 `satisfies Requirement via Binding` for supplying an irreducible external
 machine realization; using bare `via` after a domain conformance would attach
-to the wrong relation. The retired `{ Trait::requirement; }` domain body remains
-a temporary parser compatibility form and must not be emitted by canonical
-source, examples, or formatters; its removal is tracked as migration work.
-Domain predicates remain in `requires`, operators remain ordinary top-level
-declarations, and establishment routes remain in `established by`.
+to the wrong relation. The retired `{ Trait::requirement; }` domain body rejects
+with directed `established by` migration guidance. Domain predicates remain in
+`requires`, operators remain ordinary top-level declarations, and
+establishment routes remain in `established by`.
 
 Some compiler-owned domain classifications add closed semantic laws without
 changing representation. A progress profile is explicit:

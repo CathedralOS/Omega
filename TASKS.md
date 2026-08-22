@@ -6605,14 +6605,6 @@ compiler concept is introduced.
   schema, local receipt, or manifest-bound provider receipt and reject unknown
   correspondence. Keep nominal static-machine binder premises pinned to the
   named requirement contract and ranking witnesses outside public identity.
-- **DOMAIN-ESTABLISHED-BY-MIGRATION — retire route bodies completely.** The
-  parser and canonical core sources now accept/use
-  `established by Trait::requirement, ...;`. Migrate remaining compiler fixture
-  strings and external source producers from the compatibility
-  `{ Trait::requirement; }` form, update snapshots/visualizations to call the
-  retained count an establishment-clause count, then replace the compatibility
-  parser with a directed diagnostic. Never reinterpret bare `via`: adjacent
-  `satisfies Requirement via Binding` remains the external-realization pair.
 Acceptance: contract axes normalize independently, wrappers cannot launder
 reach or trust, and private proof improvements do not change public identity.
 

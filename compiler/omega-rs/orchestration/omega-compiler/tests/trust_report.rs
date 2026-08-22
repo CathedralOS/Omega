@@ -1238,13 +1238,10 @@ fn routed_qualification_rows_retain_exact_plan_claims_and_provenance() {
 domain Token::Granted
 requires
     self.id > 0
-{
-    StorageEntry::enter;
-}
+established by StorageEntry::enter;
 
-domain Token::Issued {
-    Issuer::issue;
-}
+domain Token::Issued
+established by Issuer::issue;
 
 boundary trait StorageEntry {
     machine enter(token: Token in Granted) -> Token;
@@ -1381,7 +1378,8 @@ machine build(b: &mut Build) {
     std::fs::write(
         project.join("main.omg"),
         r#"data Token [linear] { id: u64; }
-domain Token::Issued { Issuer::issue; }
+domain Token::Issued
+established by Issuer::issue;
 
 boundary trait Issuer {
     machine issue(id: u64) -> Token in Issued
@@ -1487,8 +1485,10 @@ fn partial_provider_reports_only_bound_requirement_qualifications() {
     std::fs::write(
         project.join("main.omg"),
         r#"data Token [linear] { id: u64; }
-domain Token::Bound { Pair::bound; }
-domain Token::Unbound { Pair::unbound; }
+domain Token::Bound
+established by Pair::bound;
+domain Token::Unbound
+established by Pair::unbound;
 
 boundary trait Pair {
     machine bound() -> Token in Bound

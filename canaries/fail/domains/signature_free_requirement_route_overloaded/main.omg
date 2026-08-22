@@ -5,9 +5,8 @@ data Token {
     value: u64;
 }
 
-domain Token::Issued {
-    Issuer::issue;
-}
+domain Token::Issued
+established by Issuer::issue;
 
 trait Issuer {
     machine issue(value: u64) -> Token in Issued;

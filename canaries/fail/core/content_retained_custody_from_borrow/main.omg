@@ -14,9 +14,8 @@ satisfies Content<CountedQuantity<ByteUnit>>::project
 
 data PendingWrite [linear] {}
 
-domain PendingWrite::Retained {
-    Writer::submit;
-}
+domain PendingWrite::Retained
+established by Writer::submit;
 
 machine Retained::content(pending: &PendingWrite) -> CountedQuantity<ByteUnit>
 satisfies Content<CountedQuantity<ByteUnit>>::project

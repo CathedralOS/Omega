@@ -8,9 +8,7 @@ data Token {
 domain Token::Positive
 requires
     self.value > 0
-{
-    TokenIssuer::issue;
-}
+established by TokenIssuer::issue;
 
 trait TokenIssuer {
     machine issue() -> Token
