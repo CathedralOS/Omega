@@ -122,7 +122,7 @@ pub fn emit_checked_executable_image(
         )?;
         let final_compiler_text_bytes =
             &emitted_output.final_text_bytes[..encoded_text_bytes.len()];
-        let compiler_function_validation = validate_compiler_function_instruction_boundaries(
+        let mut compiler_function_validation = validate_compiler_function_instruction_boundaries(
             architecture,
             encoded_machine_code,
             final_compiler_text_bytes,
@@ -130,6 +130,17 @@ pub fn emit_checked_executable_image(
             relocations,
             encoded_machine_semantics,
         )?;
+        omega_image::validate_placed_executable_region_inventory(
+            &emitted_output.executable_regions,
+            &emitted_output.final_text_bytes,
+        )?;
+        compiler_function_validation.final_region_binding_fingerprint =
+            validate_executable_region_enumeration(
+                &emitted_output.executable_regions,
+                encoded_machine_code,
+                object,
+                final_compiler_text_bytes,
+            )?;
         let (checked_instruction_validation_count, checked_instruction_validation_fingerprint) =
             validate_checked_instruction_bytes(
                 architecture,
@@ -244,19 +255,15 @@ pub fn emit_checked_executable_image(
                 .composed_footprint_fingerprint
                 .to_le_bytes(),
         );
+        fingerprint_into(
+            &mut derivation_fingerprint,
+            &compiler_function_validation
+                .final_region_binding_fingerprint
+                .to_le_bytes(),
+        );
         compiler_text_validation.derivation_fingerprint = derivation_fingerprint;
         emitted_output.compiler_text_validation = Some(compiler_text_validation);
         emitted_output.compiler_function_validation = Some(compiler_function_validation);
-        omega_image::validate_placed_executable_region_inventory(
-            &emitted_output.executable_regions,
-            &emitted_output.final_text_bytes,
-        )?;
-        validate_executable_region_enumeration(
-            &emitted_output.executable_regions,
-            encoded_machine_code,
-            object,
-            final_compiler_text_bytes,
-        )?;
         return Ok(emitted_output);
     }
 
@@ -552,6 +559,7 @@ fn validate_compiler_function_instruction_boundaries(
         body_specification_boundary_contract_fingerprint,
         body_specification_footprint_fingerprint,
         composed_footprint_fingerprint,
+        final_region_binding_fingerprint: 0,
         validation_fingerprint: fingerprint,
     })
 }
@@ -641,6 +649,14 @@ fn retain_compiler_function_identity(
         )));
     }
 
+    fingerprint_compiler_function_identity(function_index, identity, fingerprint)
+}
+
+fn fingerprint_compiler_function_identity(
+    function_index: usize,
+    identity: omega_control_flow::MachineFunctionIdentity,
+    fingerprint: &mut u64,
+) -> Result<(), Diagnostic> {
     let role_tag = if identity.source_key().is_some() {
         1u8
     } else if identity.program_storage_entry_continuation().is_some() {
@@ -834,7 +850,7 @@ fn validate_executable_region_enumeration(
     code: &omega_machine_bytes::EncodedMachineCode,
     object: &omega_object_file::ObjectPlan,
     final_compiler_text_bytes: &[u8],
-) -> Result<(), Diagnostic> {
+) -> Result<u64, Diagnostic> {
     if let Some(gap) = inventory.unclassified_gaps.first() {
         return Err(Diagnostic::error(format!(
             "final executable region enumeration left {} unclassified byte(s) at .text offset {}",
@@ -844,8 +860,9 @@ fn validate_executable_region_enumeration(
     let compiler_regions = inventory
         .regions
         .iter()
+        .enumerate()
         .filter(|region| {
-            region.origin == omega_image::FinalExecutableRegionOrigin::CompilerFunction
+            region.1.origin == omega_image::FinalExecutableRegionOrigin::CompilerFunction
         })
         .collect::<Vec<_>>();
     if compiler_regions.len() != code.functions.len() {
@@ -855,13 +872,25 @@ fn validate_executable_region_enumeration(
             code.functions.len()
         )));
     }
+    let mut binding_fingerprint = 0xcbf2_9ce4_8422_2325u64;
+    fingerprint_into(
+        &mut binding_fingerprint,
+        &inventory.inventory_fingerprint.to_le_bytes(),
+    );
+    fingerprint_into(
+        &mut binding_fingerprint,
+        &(compiler_regions.len() as u64).to_le_bytes(),
+    );
     for (function_index, (_, function)) in code.functions.iter().enumerate() {
-        let (_, symbol) = omega_object_file::object_function_symbol(object, function.identity)
-            .ok_or_else(|| {
-                Diagnostic::error(format!(
-                    "final executable inventory cannot resolve compiler function #{function_index}"
-                ))
-            })?;
+        let (symbol_handle, symbol) = omega_object_file::object_function_symbol(
+            object,
+            function.identity,
+        )
+        .ok_or_else(|| {
+            Diagnostic::error(format!(
+                "final executable inventory cannot resolve compiler function #{function_index}"
+            ))
+        })?;
         let expected_address = inventory
             .text_address
             .checked_add(function.byte_offset as u64)
@@ -880,21 +909,64 @@ fn validate_executable_region_enumeration(
         );
         let matching = compiler_regions
             .iter()
-            .filter(|region| {
+            .copied()
+            .filter(|(_, region)| {
                 region.symbol == symbol.name
                     && region.section_offset == function.byte_offset
                     && region.address == expected_address
                     && region.byte_count == function.byte_count
                     && region.byte_fingerprint == expected_fingerprint
             })
-            .count();
-        if matching != 1 {
+            .collect::<Vec<_>>();
+        let [(region_index, region)] = matching.as_slice() else {
             return Err(Diagnostic::error(format!(
                 "final executable inventory does not retain one exact region for compiler function #{function_index}"
             )));
-        }
+        };
+        let region_index = *region_index;
+        let region = *region;
+
+        fingerprint_into(
+            &mut binding_fingerprint,
+            &(function_index as u64).to_le_bytes(),
+        );
+        fingerprint_compiler_function_identity(
+            function_index,
+            function.identity,
+            &mut binding_fingerprint,
+        )?;
+        fingerprint_into(
+            &mut binding_fingerprint,
+            &u64::from(symbol_handle.arena_index()).to_le_bytes(),
+        );
+        fingerprint_into(
+            &mut binding_fingerprint,
+            &u64::from(symbol_handle.generation()).to_le_bytes(),
+        );
+        fingerprint_into(
+            &mut binding_fingerprint,
+            &(region_index as u64).to_le_bytes(),
+        );
+        fingerprint_into(
+            &mut binding_fingerprint,
+            &(region.symbol.len() as u64).to_le_bytes(),
+        );
+        fingerprint_into(&mut binding_fingerprint, region.symbol.as_bytes());
+        fingerprint_into(
+            &mut binding_fingerprint,
+            &(region.section_offset as u64).to_le_bytes(),
+        );
+        fingerprint_into(&mut binding_fingerprint, &region.address.to_le_bytes());
+        fingerprint_into(
+            &mut binding_fingerprint,
+            &(region.byte_count as u64).to_le_bytes(),
+        );
+        fingerprint_into(
+            &mut binding_fingerprint,
+            &region.byte_fingerprint.to_le_bytes(),
+        );
     }
-    Ok(())
+    Ok(binding_fingerprint)
 }
 
 fn final_region_byte_fingerprint(bytes: &[u8]) -> u64 {

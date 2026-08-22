@@ -2277,7 +2277,13 @@ Owners:
   origin/footprint metadata, and aggregate inventory identity must agree.
   Stored-summary, overlap/order, origin, address, byte, or gap drift therefore
   rejects without claiming callback-body synthesis or registration-relocation
-  placement. Final
+  placement. Compiler-function evidence now additionally retains the exact
+  ordered identity-to-object-handle-to-final-region join, including the
+  inventory identity and each region's index, symbol, address, interval, and
+  byte fingerprint. Its binding fingerprint participates in the function
+  evidence and final text derivation, preventing a validated function
+  partition from being paired with another independently valid inventory.
+  Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
   instruction identities, redirected instruction relocation origins, and
