@@ -9,7 +9,6 @@ mod completion;
 mod direct;
 mod eligibility;
 mod equalities;
-mod root_bounds;
 
 pub(super) fn retained_landed_literal_affine_bound(
     context: &PropositionContext,
