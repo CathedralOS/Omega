@@ -83,6 +83,13 @@ pub(crate) fn validate_plans(program: &TypedTrees, diagnostics: &mut Vec<Diagnos
             )));
             continue;
         }
+        if !target_neutral_report_matches(program, plan, schema, &schema_fields) {
+            diagnostics.push(Diagnostic::error(format!(
+                "plan-laid value type `{}` changed its exact target-neutral layout report identity",
+                plan.data_name
+            )));
+            continue;
+        }
         if !geometry_matches(plan, &schema_fields) {
             diagnostics.push(Diagnostic::error(format!(
                 "plan-laid value type `{}` changed its exact validated geometry projection",
@@ -132,6 +139,166 @@ pub(crate) fn validate_plans(program: &TypedTrees, diagnostics: &mut Vec<Diagnos
             )));
         }
     }
+}
+
+fn target_neutral_report_matches(
+    program: &TypedTrees,
+    plan: &psi_typed_trees::PlanLaidLayout,
+    schema: &psi_typed_trees::data::DataDefinition,
+    schema_fields: &[&psi_typed_trees::data::DataField],
+) -> bool {
+    let report = &plan.validated_layout;
+    if report.schema_identity != normalized_schema_identity(program, schema) {
+        return false;
+    }
+
+    let mut matched_entries = 0usize;
+    let mut offsets = Vec::with_capacity(schema_fields.len());
+    let mut has_only_single_at_entries = true;
+    for field in schema_fields {
+        let entries = report
+            .entries
+            .iter()
+            .filter(|entry| {
+                entry.member_identity == field.identity
+                    && (field.identity.is_some() || entry.field == field.name.as_str())
+            })
+            .collect::<Vec<_>>();
+        matched_entries += entries.len();
+        match entries.as_slice() {
+            [entry] => match entry.placement {
+                psi_layout_plans::LayoutPlacementReport::At { offset } => offsets.push(offset),
+                psi_layout_plans::LayoutPlacementReport::IntegerAt { .. }
+                | psi_layout_plans::LayoutPlacementReport::Bits { .. } => {
+                    has_only_single_at_entries = false;
+                }
+            },
+            _ => has_only_single_at_entries = false,
+        }
+    }
+    let expected_offsets = has_only_single_at_entries.then_some(offsets);
+    matched_entries == report.entries.len() && report.offsets == expected_offsets
+}
+
+fn normalized_schema_identity(
+    program: &TypedTrees,
+    data: &psi_typed_trees::data::DataDefinition,
+) -> u64 {
+    use psi_typed_trees::data::DataMember;
+
+    fn byte(hash: &mut u64, value: u8) {
+        *hash ^= u64::from(value);
+        *hash = hash.wrapping_mul(0x100000001b3);
+    }
+    fn bytes(hash: &mut u64, value: &[u8]) {
+        for value in value {
+            byte(hash, *value);
+        }
+    }
+    fn uint(hash: &mut u64, value: u64) {
+        bytes(hash, &value.to_le_bytes());
+    }
+    fn text(hash: &mut u64, value: &str) {
+        uint(hash, value.len() as u64);
+        bytes(hash, value.as_bytes());
+    }
+    fn member_name(hash: &mut u64, identity: Option<u64>, name: &str, position: usize) {
+        match identity {
+            Some(identity) => {
+                byte(hash, 1);
+                uint(hash, identity);
+            }
+            None => {
+                byte(hash, 0);
+                uint(hash, position as u64);
+                text(hash, name);
+            }
+        }
+    }
+
+    let mut hash = 0xcbf29ce484222325u64;
+    bytes(&mut hash, b"omega.schema.v2");
+    let members = program.data_members(data);
+    let mut fields = members
+        .iter()
+        .filter_map(|member| match member {
+            DataMember::Field(field) => Some(field),
+            DataMember::Variant(_) => None,
+        })
+        .collect::<Vec<_>>();
+    let mut cases = members
+        .iter()
+        .filter_map(|member| match member {
+            DataMember::Variant(variant) => Some(variant),
+            DataMember::Field(_) => None,
+        })
+        .collect::<Vec<_>>();
+    if fields.iter().all(|field| field.identity.is_some()) {
+        fields.sort_by_key(|field| field.identity);
+    }
+    if cases.iter().all(|case| case.identity.is_some()) {
+        cases.sort_by_key(|case| case.identity);
+    }
+    uint(&mut hash, fields.len() as u64);
+    for (position, field) in fields.iter().enumerate() {
+        member_name(&mut hash, field.identity, field.name.as_str(), position);
+        byte(
+            &mut hash,
+            match field.relevance {
+                psi_language_core::BindingRelevance::Relevant => 0,
+                psi_language_core::BindingRelevance::Erased => 1,
+            },
+        );
+        text(
+            &mut hash,
+            program
+                .display_type_reference(field.type_reference)
+                .as_str(),
+        );
+    }
+    uint(&mut hash, cases.len() as u64);
+    for (position, case) in cases.iter().enumerate() {
+        member_name(&mut hash, case.identity, case.name.as_str(), position);
+        let mut payload = program.data_payload_fields(case).iter().collect::<Vec<_>>();
+        if payload.iter().all(|field| field.identity.is_some()) {
+            payload.sort_by_key(|field| field.identity);
+        }
+        uint(&mut hash, payload.len() as u64);
+        for (payload_position, field) in payload.iter().enumerate() {
+            member_name(
+                &mut hash,
+                field.identity,
+                field.name.as_str(),
+                payload_position,
+            );
+            byte(
+                &mut hash,
+                match field.relevance {
+                    psi_language_core::BindingRelevance::Relevant => 0,
+                    psi_language_core::BindingRelevance::Erased => 1,
+                },
+            );
+            text(
+                &mut hash,
+                program
+                    .display_type_reference(field.type_reference)
+                    .as_str(),
+            );
+        }
+        let mut retired = case.retired_payload_identities.clone();
+        retired.sort_unstable();
+        uint(&mut hash, retired.len() as u64);
+        for identity in retired {
+            uint(&mut hash, identity);
+        }
+    }
+    let mut retired = data.retired_identities.clone();
+    retired.sort_unstable();
+    uint(&mut hash, retired.len() as u64);
+    for identity in retired {
+        uint(&mut hash, identity);
+    }
+    if hash == 0 { 1 } else { hash }
 }
 
 fn stored_integer_capabilities_match(
