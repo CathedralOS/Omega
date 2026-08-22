@@ -222,6 +222,7 @@ pub enum ModuleError {
         boundary: BoundaryMachineId,
         candidate: MachineId,
     },
+    InvalidProviderAttachmentSpecialization(MachineId),
     StructuralParameterPlaceMismatch {
         machine: MachineId,
         place: PlaceId,

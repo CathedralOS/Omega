@@ -184,10 +184,30 @@ fn validate_structural_foundation(module: &TerminalModule) -> Result<(), CodecEr
                             );
                         }
                         StructuralFieldType::Erased { type_identity }
-                            if !field.relevance.is_erased() || type_identity.is_empty() =>
+                            if type_identity.is_empty() =>
                         {
                             return malformed(
-                                "opaque structural field type must have erased relevance and a nonempty type identity",
+                                "opaque structural field type must have a nonempty type identity",
+                            );
+                        }
+                        StructuralFieldType::Erased { .. }
+                            if !field.relevance.is_erased()
+                                && !module.machines.iter().any(|machine| {
+                                    machine.structural_places.iter().any(|place| {
+                                        matches!(
+                                            place.kind,
+                                            StructuralPlaceKind::ProviderAttachment {
+                                                attachment,
+                                                field: provider_field,
+                                                ..
+                                            } if attachment == declaration.id
+                                                && provider_field == field.id
+                                        )
+                                    })
+                                }) =>
+                        {
+                            return malformed(
+                                "provider-backed attachment specialization is incomplete",
                             );
                         }
                         StructuralFieldType::Scalar(_)
@@ -346,6 +366,7 @@ fn validate_structural_foundation(module: &TerminalModule) -> Result<(), CodecEr
             return malformed("machine has an unknown attachment type");
         }
         validate_structural_parameters(module, &machine.structural_parameters)?;
+        validate_provider_attachment_foundation(module, machine)?;
         require_known_services(module, &machine.published_service_ceiling)?;
         for parameter in &machine.structural_parameters {
             let Some(place) = machine
@@ -472,6 +493,88 @@ fn validate_structural_foundation(module: &TerminalModule) -> Result<(), CodecEr
                 }
             }
         }
+    }
+    Ok(())
+}
+
+fn validate_provider_attachment_foundation(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+) -> Result<(), CodecError> {
+    let provider_roots = machine
+        .structural_places
+        .iter()
+        .filter_map(|place| match place.kind {
+            StructuralPlaceKind::ProviderAttachment {
+                attachment,
+                field,
+                boundary,
+            } => Some((attachment, field, boundary)),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let provider_fields = machine
+        .attachment
+        .and_then(|attachment| {
+            module
+                .structural_types
+                .iter()
+                .find(|declaration| declaration.id == attachment)
+        })
+        .and_then(|attachment| match &attachment.shape {
+            StructuralTypeShape::Record { fields } => Some(
+                fields
+                    .iter()
+                    .filter(|field| {
+                        !field.relevance.is_erased()
+                            && matches!(field.field_type, StructuralFieldType::Erased { .. })
+                    })
+                    .collect::<Vec<_>>(),
+            ),
+            _ => None,
+        })
+        .unwrap_or_default();
+    if provider_roots.is_empty() && provider_fields.is_empty() {
+        return Ok(());
+    }
+    let [provider_field] = provider_fields.as_slice() else {
+        return malformed("provider-backed attachment specialization is incomplete");
+    };
+    let Some(attachment) = machine.attachment else {
+        return malformed("provider-backed attachment specialization is incomplete");
+    };
+    let mut boundaries = BTreeSet::new();
+    if provider_roots.is_empty()
+        || machine
+            .structural_parameters
+            .iter()
+            .any(|parameter| parameter.is_self)
+        || provider_roots
+            .iter()
+            .any(|(root_attachment, field, boundary)| {
+                *root_attachment != attachment
+                    || *field != provider_field.id
+                    || !boundaries.insert(*boundary)
+                    || module
+                        .boundary_machines
+                        .iter()
+                        .find(|declaration| declaration.id == *boundary)
+                        .is_none_or(|declaration| declaration.attachment.is_some())
+            })
+    {
+        return malformed("provider-backed attachment specialization is incomplete");
+    }
+    let called = machine
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .filter_map(|operation| match operation.kind {
+            OperationKind::BoundaryCall { boundary, .. } => Some(boundary),
+            _ => None,
+        })
+        .collect::<BTreeSet<_>>();
+    if called != boundaries {
+        return malformed("provider-backed attachment specialization is incomplete");
     }
     Ok(())
 }
@@ -801,7 +904,9 @@ fn structural_place_type(
                     | StructuralPlaceKind::TrivialAffineLocal {
                         structural_type, ..
                     } => Some(structural_type),
-                    StructuralPlaceKind::Parameter { .. } | StructuralPlaceKind::Result => None,
+                    StructuralPlaceKind::Parameter { .. }
+                    | StructuralPlaceKind::ProviderAttachment { .. }
+                    | StructuralPlaceKind::Result => None,
                 }
             })
         })
@@ -1074,6 +1179,16 @@ fn encode_structural_place_kind(writer: &mut Writer, kind: StructuralPlaceKind) 
             writer.u32(declaration_ordinal);
             writer.id(structural_type);
         }
+        StructuralPlaceKind::ProviderAttachment {
+            attachment,
+            field,
+            boundary,
+        } => {
+            writer.u8(5);
+            writer.id(attachment);
+            writer.id(field);
+            writer.id(boundary);
+        }
         StructuralPlaceKind::TrivialAffineLocal {
             declaration_ordinal,
             structural_type,
@@ -1181,6 +1296,11 @@ fn decode_structural_place_kind(
         4 => StructuralPlaceKind::ByteSequenceLiteral {
             declaration_ordinal: reader.u32()?,
             structural_type: reader.id("StructuralTypeId")?,
+        },
+        5 => StructuralPlaceKind::ProviderAttachment {
+            attachment: reader.id("StructuralTypeId")?,
+            field: reader.id("StructuralFieldId")?,
+            boundary: reader.id("BoundaryMachineId")?,
         },
         3 => StructuralPlaceKind::TrivialAffineLocal {
             declaration_ordinal: reader.u32()?,

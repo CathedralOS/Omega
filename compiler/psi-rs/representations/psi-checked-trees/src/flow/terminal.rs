@@ -591,6 +591,13 @@ pub enum CheckedUnitStructuralFieldType {
     Structural {
         type_identity: String,
     },
+    /// An authored dynamic boundary-trait field whose runtime carrier is
+    /// eliminated only by an exact provider-installation specialization.
+    /// The enclosing machine plan must retain one requirement row for every
+    /// boundary call routed through this field.
+    ProviderBacked {
+        provider_type_identity: String,
+    },
     /// An erased semantic field does not require an executable structural
     /// carrier. Its exact normalized type identity remains independently
     /// checkable in terminal Psi.
@@ -843,6 +850,9 @@ pub struct CheckedUnitEffectMachinePlan {
     pub state: SymbolHandle,
     pub attachment_type_identity: String,
     pub structural_parameters: Vec<CheckedUnitStructuralParameterPlan>,
+    /// Exact boundary requirements replacing one authored provider-backed
+    /// attachment field. Empty means no attachment specialization occurred.
+    pub provider_attachment_requirements: Vec<CheckedProviderAttachmentRequirementPlan>,
     /// Dense source-order declarations for the bounded empty-record affine
     /// local prefix.
     pub trivial_affine_locals: Vec<CheckedTrivialAffineStructuralLocalPlan>,
@@ -853,6 +863,13 @@ pub struct CheckedUnitEffectMachinePlan {
     pub contract_service_reach: ServiceReachPlan,
     pub service_reach: ServiceReachSummary,
     pub operations: Vec<CheckedUnitEffectOperationPlan>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedProviderAttachmentRequirementPlan {
+    pub field_identity: String,
+    pub provider_type_identity: String,
+    pub boundary: SymbolHandle,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

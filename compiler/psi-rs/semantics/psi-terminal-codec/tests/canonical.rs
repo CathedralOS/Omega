@@ -42,7 +42,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     assert_eq!(identity.vocabulary_marker, VocabularyMarker::CURRENT);
     assert_eq!(
         identity.program_fingerprint.to_string(),
-        "4f5ba38ba4245c23459e2a243d164a25e2a12aba669aa54b3b2b2c55d216689b"
+        "dd88396b7d0d993c7194e2268beb93478d14c2b0575a3f7923a208bb0329285e"
     );
     assert_eq!(
         identity.program_fingerprint,
@@ -255,7 +255,7 @@ fn partial_affine_unit_return_round_trips_exact_path_and_leaf_type() {
     let module = partial_affine_fixture();
     let bytes = encode_module(&module).expect("partial affine return should encode");
     assert_eq!(&bytes[8..10], 22_u16.to_le_bytes());
-    assert_eq!(&bytes[10..12], 24_u16.to_le_bytes());
+    assert_eq!(&bytes[10..12], 25_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 }
@@ -265,7 +265,7 @@ fn nominal_affine_unit_return_round_trips_exact_root_type_and_cleanup_machine() 
     let module = nominal_affine_fixture();
     let bytes = encode_module(&module).expect("nominal affine return should encode");
     assert_eq!(&bytes[8..10], 22_u16.to_le_bytes());
-    assert_eq!(&bytes[10..12], 24_u16.to_le_bytes());
+    assert_eq!(&bytes[10..12], 25_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 }
@@ -874,7 +874,7 @@ fn structural_effect_foundation_round_trips_and_has_stable_identity() {
     let module = structural_effect_fixture();
     let bytes = encode_module(&module).expect("structural/effect foundation should encode");
 
-    assert_eq!(&bytes[10..12], 24_u16.to_le_bytes());
+    assert_eq!(&bytes[10..12], 25_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 
@@ -1182,7 +1182,7 @@ fn structural_foundation_rejects_opaque_relevant_and_nonopaque_erased_fields() {
     assert_eq!(
         encode_module(&opaque_relevant),
         Err(CodecError::MalformedStructuralFoundation(
-            "opaque structural field type must have erased relevance and a nonempty type identity"
+            "provider-backed attachment specialization is incomplete"
         ))
     );
 
@@ -1208,11 +1208,11 @@ fn structural_foundation_rejects_opaque_relevant_and_nonopaque_erased_fields() {
 #[test]
 fn decoder_rejects_the_previous_vocabulary_marker() {
     let mut bytes = encode_module(&structural_effect_fixture()).unwrap();
-    bytes[10..12].copy_from_slice(&23_u16.to_le_bytes());
+    bytes[10..12].copy_from_slice(&24_u16.to_le_bytes());
 
     assert_eq!(
         decode_module(&bytes),
-        Err(CodecError::UnsupportedVocabularyMarker(23))
+        Err(CodecError::UnsupportedVocabularyMarker(24))
     );
 }
 

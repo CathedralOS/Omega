@@ -170,6 +170,7 @@ pub(super) fn lower_nominal_structural_scalar_return_machine(
         state: plan.state,
         attachment_type_identity: plan.attachment_type_identity.clone(),
         structural_parameters: nominal_parameters,
+        provider_attachment_requirements: Vec::new(),
         trivial_affine_locals: Vec::new(),
         entry_claims: Vec::new(),
         body_qualifications: Vec::new(),

@@ -212,7 +212,13 @@ pub(super) fn build_call_operation(
                 .any(|parameter| parameter.is_self || parameter.is_const || parameter.is_mutable)
             || arguments.len() != source_parameters.len()
             || !call.has_receiver
-            || call.receiver_symbol != definition.symbol
+            || (call.receiver_symbol != definition.symbol
+                && !provider_attachment_receiver_matches(
+                    program,
+                    machine,
+                    &call_site,
+                    definition.symbol,
+                ))
             || match expected_boundary_result {
                 None => !is_unit(program, signature.return_type),
                 Some(expected) => {
@@ -361,6 +367,49 @@ pub(super) fn build_call_operation(
             claim_transfers: transfers,
         })
     }
+}
+
+fn provider_attachment_receiver_matches(
+    program: &TypedTrees,
+    machine: &psi_typed_trees::machine::Machine,
+    call_site: &crate::CallSite<'_>,
+    provider_symbol: SymbolHandle,
+) -> bool {
+    let crate::CallSite::Statement(call) = call_site else {
+        return false;
+    };
+    let [self_name, field_name] = program.statement_table.name_path_members(call.receiver) else {
+        return false;
+    };
+    if self_name.as_str() != "self" {
+        return false;
+    }
+    let Some(attached_name) = machine.attached_data.as_ref() else {
+        return false;
+    };
+    let Some(attached) = program
+        .data_definitions()
+        .iter()
+        .find(|data| data.name == *attached_name)
+    else {
+        return false;
+    };
+    program.data_members(attached).iter().any(|member| {
+        let DataMember::Field(field) = member else {
+            return false;
+        };
+        if field.name != *field_name || field.relevance.is_erased() {
+            return false;
+        }
+        matches!(
+            program
+                .type_reference_table
+                .type_reference(field.type_reference),
+            TypeReferenceNode::Named { symbol, .. }
+                | TypeReferenceNode::DynamicTrait { symbol, .. }
+                if *symbol == provider_symbol
+        )
+    })
 }
 
 fn checked_boundary_scalar_arguments(

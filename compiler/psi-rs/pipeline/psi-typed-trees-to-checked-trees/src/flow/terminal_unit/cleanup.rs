@@ -297,6 +297,7 @@ pub(super) fn build_nominal_affine_unit_cleanup_machine(
             state: state.symbol,
             attachment_type_identity,
             structural_parameters,
+            provider_attachment_requirements: Vec::new(),
             trivial_affine_locals: Vec::new(),
             entry_claims: Vec::new(),
             body_qualifications: Vec::new(),
@@ -1090,6 +1091,7 @@ pub(super) fn build_partial_affine_unit_cleanup_machine(
             state: state.symbol,
             attachment_type_identity,
             structural_parameters,
+            provider_attachment_requirements: Vec::new(),
             trivial_affine_locals: Vec::new(),
             entry_claims,
             body_qualifications: Vec::new(),
@@ -1201,6 +1203,7 @@ pub(super) fn structural_field_type_identity(
         CheckedUnitStructuralFieldType::Structural { type_identity } => Some(type_identity),
         CheckedUnitStructuralFieldType::Scalar(_)
         | CheckedUnitStructuralFieldType::ByteSequence(_)
+        | CheckedUnitStructuralFieldType::ProviderBacked { .. }
         | CheckedUnitStructuralFieldType::Erased { .. } => None,
     }
 }
