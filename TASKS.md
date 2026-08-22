@@ -2538,6 +2538,12 @@ Remaining:
   two-citation, then two-alias order without an imperative first-branch special
   case. Evidence custody, proof shapes, rejection behavior, and every fixed
   frontier remain unchanged.
+  Fixed affine frontier parents now terminate immediately when an expansion
+  layer yields no successor cursors. Producer and reconstruction independently
+  preserve every accumulated word and the exact four-layer ceiling while
+  avoiding redundant empty-layer allocation on rejected or shorter chains.
+  Source order, prefix replay, witness/proof shape, and rejection behavior
+  remain unchanged.
   One-equality transitive affine completion now lives in independent side-local
   `affine_selection/transitive/alias/completion` modules. Each parent retains
   its own ledger-ordered equality discovery, distinct root/alias custody, and
@@ -5091,6 +5097,14 @@ Owners:
   transition semantics for overflow. Exact-owner ambiguity, the 795 rooted/3
   legacy inventory, and receipt-drift fences remain green; legacy owners are
   unchanged.
+  Four authored-root arithmetic-domain cast/trapping regressions—cross-domain
+  saturating cast, in-range trapping arithmetic, field-path trapping overflow,
+  and frame-slot `let` trapping overflow—now launch `OutputOnly` native
+  execution solely through exact checked-report executable receipts while
+  preserving exit 70 for successful owners and both exact unconditional-trap
+  diagnostics plus abnormal-exit-before-transition semantics for overflow.
+  Exact-owner ambiguity, the 795 rooted/3 legacy inventory, and receipt-drift
+  fences remain green; legacy owners are unchanged.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
