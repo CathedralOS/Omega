@@ -14,3 +14,6 @@ psi-arena = { path = "../../../../psi-rs/foundation/psi-arena" }
 psi-diagnostics = { path = "../../../../psi-rs/foundation/psi-diagnostics" }
 omega-object-file = { path = "../../object/omega-object-file" }
 omega-target = { path = "../../../foundation/omega-target" }
+
+[dev-dependencies]
+omega-control-flow = { path = "../../../representations/omega-control-flow" }

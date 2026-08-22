@@ -641,6 +641,12 @@ Generation drift can therefore neither preserve linkage spelling nor collide
 with a live canonical source/wrapper name. Callback spelling remains excluded
 from this primitive because its placement and plan fingerprint are additional
 identity inputs.
+The common object-to-final-image copy is also checked before any format writer
+runs. The final carrier must retain the exact entry handle and a one-to-one,
+identity-owned copy of every function symbol's name, text classification,
+offset, size, and kind; an unowned extra function symbol or an aliased binding
+rejects. This is a carrier-retention check only and does not make symbol-table
+spelling a source-level address or synthesize a callback body.
 Final relocation replay also builds one exact owner map from every retained
 selected-instruction identity to that function symbol. A selected instruction
 retained twice, an instruction relocation naming another function, or an

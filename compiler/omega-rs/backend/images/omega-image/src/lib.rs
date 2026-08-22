@@ -1,6 +1,7 @@
 mod aarch64_relocations;
 mod builder;
 mod footprint_certificate;
+mod function_linkage;
 mod model;
 mod output;
 mod patch_bytes;
@@ -16,6 +17,7 @@ pub use footprint_certificate::{
     FINAL_FOOTPRINT_CERTIFICATE_MARKER, FinalFootprintCertificate, FinalFootprintClass,
     FinalFootprintCoverage,
 };
+pub use function_linkage::validate_final_image_function_linkage;
 pub use model::{
     FinalExecutableRegion, FinalExecutableRegionOrigin, FinalImage, FinalImageImport,
     FinalImageLayout, FinalImageMemory, FinalImageRelocation, FinalImageRelocationTable,
