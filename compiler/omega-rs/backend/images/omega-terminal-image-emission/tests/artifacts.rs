@@ -28,12 +28,12 @@ use omega_terminal_target_operations::{
     TerminalProviderPlanIdentity, TerminalPsiProvenance,
 };
 use psi_core::{
-    BoundaryMachineId, EdgeId, MachineId, OperationId, PlaceId, ProfileDecisionId, ServiceId,
-    StructuralTypeId,
+    BoundaryMachineId, ClaimId, EdgeId, MachineId, OperationId, PlaceId, ProfileDecisionId,
+    ServiceId, StructuralTypeId,
 };
 use psi_terminal::{
-    NominalAffineCleanup, SemanticFingerprint, StructuralMultiplicity, TerminalAffineCleanupAction,
-    TerminalPsiIdentity, VocabularyMarker,
+    CompletionReceipt, NominalAffineCleanup, SemanticFingerprint, StructuralArgument,
+    StructuralMultiplicity, TerminalAffineCleanupAction, TerminalPsiIdentity, VocabularyMarker,
 };
 
 #[test]
@@ -1943,6 +1943,34 @@ fn privileged_effect_and_exact_provider_execution_survive_installation() {
     assert_eq!(
         build_terminal_object_artifact(&wrong_schedule),
         Err(TerminalObjectError::InvalidFuelAttribution(machine_id(1)))
+    );
+    let mut duplicate_completion_claim = plan.clone();
+    duplicate_completion_claim.functions[0].boundary_settlements[0].arguments = vec![
+        StructuralArgument {
+            place: PlaceId::new(1).unwrap(),
+            path: Vec::new(),
+        },
+        StructuralArgument {
+            place: PlaceId::new(2).unwrap(),
+            path: Vec::new(),
+        },
+    ];
+    duplicate_completion_claim.functions[0].boundary_settlements[0].completion_receipts = vec![
+        CompletionReceipt {
+            claim: ClaimId::new(1).unwrap(),
+            argument_index: 0,
+        },
+        CompletionReceipt {
+            claim: ClaimId::new(1).unwrap(),
+            argument_index: 1,
+        },
+    ];
+    assert_eq!(
+        build_terminal_object_artifact(&duplicate_completion_claim),
+        Err(TerminalObjectError::InvalidCompletionReceiptCustody {
+            machine: machine_id(1),
+            operation: settlement_operation,
+        })
     );
     let mut wrong_realization = plan;
     wrong_realization.functions[0].boundary_settlements[0].realization =
