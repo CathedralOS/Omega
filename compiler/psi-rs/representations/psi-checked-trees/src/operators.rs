@@ -79,6 +79,16 @@ impl Default for CheckedOperatorUseFact {
 pub struct CheckedOperatorCandidateFact {
     pub operator_symbol: SymbolHandle,
     pub domain_symbol: SymbolHandle,
+    /// Exact proof-static conformance declaration selected for a trait-owned
+    /// fixed token. Invalid for root/domain meanings.
+    pub conformance_symbol: SymbolHandle,
+    /// Trait requirement whose fixed token this candidate realizes.
+    pub trait_requirement_symbol: SymbolHandle,
+    /// Exact closed requirement-map realization retained by the selected
+    /// conformance row.
+    pub realization_machine_symbol: SymbolHandle,
+    pub realization_state_symbol: SymbolHandle,
+    pub conformance_application_fingerprint: u64,
     pub receiver_type: TypeReferenceHandle,
     pub return_type: TypeReferenceHandle,
     pub contracts: HandleSpan<SignatureContract>,
@@ -93,6 +103,11 @@ impl CheckedOperatorCandidateFact {
         Self {
             operator_symbol,
             domain_symbol: SymbolHandle::invalid(),
+            conformance_symbol: SymbolHandle::invalid(),
+            trait_requirement_symbol: SymbolHandle::invalid(),
+            realization_machine_symbol: SymbolHandle::invalid(),
+            realization_state_symbol: SymbolHandle::invalid(),
+            conformance_application_fingerprint: 0,
             receiver_type: TypeReferenceHandle::invalid(),
             return_type: TypeReferenceHandle::invalid(),
             contracts: HandleSpan::empty(),
@@ -107,6 +122,11 @@ impl CheckedOperatorCandidateFact {
         Self {
             operator_symbol,
             domain_symbol,
+            conformance_symbol: SymbolHandle::invalid(),
+            trait_requirement_symbol: SymbolHandle::invalid(),
+            realization_machine_symbol: SymbolHandle::invalid(),
+            realization_state_symbol: SymbolHandle::invalid(),
+            conformance_application_fingerprint: 0,
             receiver_type: TypeReferenceHandle::invalid(),
             return_type: TypeReferenceHandle::invalid(),
             contracts: HandleSpan::empty(),
@@ -119,6 +139,35 @@ impl CheckedOperatorCandidateFact {
 
     pub const fn is_domain_owned(self) -> bool {
         self.domain_symbol.is_valid()
+    }
+
+    pub const fn trait_backed(
+        requirement_symbol: SymbolHandle,
+        conformance_symbol: SymbolHandle,
+        realization_machine_symbol: SymbolHandle,
+        realization_state_symbol: SymbolHandle,
+        conformance_application_fingerprint: u64,
+    ) -> Self {
+        Self {
+            operator_symbol: requirement_symbol,
+            domain_symbol: SymbolHandle::invalid(),
+            conformance_symbol,
+            trait_requirement_symbol: requirement_symbol,
+            realization_machine_symbol,
+            realization_state_symbol,
+            conformance_application_fingerprint,
+            receiver_type: TypeReferenceHandle::invalid(),
+            return_type: TypeReferenceHandle::invalid(),
+            contracts: HandleSpan::empty(),
+            type_parameter_count: 0,
+            parameter_count: 0,
+            contract_count: 0,
+            is_boundary: false,
+        }
+    }
+
+    pub const fn is_trait_backed(self) -> bool {
+        self.conformance_symbol.is_valid() && self.trait_requirement_symbol.is_valid()
     }
 
     pub const fn with_signature(

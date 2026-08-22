@@ -529,7 +529,7 @@ pub(crate) fn validate_binary_operand_types(
     report_invalid_text_operator(program, machine, state, operator, left, right, diagnostics);
     report_non_bool_logical_operands(program, machine, state, operator, left, right, diagnostics);
     report_array_operator_operands(program, machine, state, operator, left, right, diagnostics);
-    report_undeclared_struct_operator(program, machine, state, operator, left, diagnostics);
+    report_undeclared_struct_operator(program, machine, state, operator, left, right, diagnostics);
     report_float_bitwise_operator(program, machine, state, operator, left, right, diagnostics);
     crate::arithmetic_domains::report_out_of_range_comparison_literal(
         program,
@@ -1548,6 +1548,7 @@ fn report_undeclared_struct_operator(
     state: Option<&psi_typed_trees::state::State>,
     operator: psi_typed_trees::expression::BinaryOperator,
     left: ExpressionHandle,
+    right: ExpressionHandle,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> bool {
     let Some(spelling) = binary_operator_spelling(operator) else {
@@ -1562,6 +1563,20 @@ fn report_undeclared_struct_operator(
     };
     if !psi_typed_trees::operator::resolve_spelling(program, spelling, Some(receiver_type))
         .is_empty()
+    {
+        return false;
+    }
+    let operand_types = [
+        Some(receiver_type),
+        crate::places::declared_place_type(program, machine, state, right),
+    ];
+    if !psi_typed_trees::operator::selected_trait_operator_meanings(
+        program,
+        machine.symbol,
+        spelling,
+        &operand_types,
+    )
+    .is_empty()
     {
         return false;
     }
