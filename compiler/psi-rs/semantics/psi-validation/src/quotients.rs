@@ -68,6 +68,17 @@ pub(crate) fn validate_quotients(
                 definition.name, carrier.name,
             )));
         }
+        if let Some(forbidden) = first_noncopy_carrier_content(
+            program,
+            proof_only,
+            quotient.carrier,
+            &mut HashSet::new(),
+        ) {
+            diagnostics.push(Diagnostic::error(format!(
+                "quotient data `{}` carrier `{}` contains non-copy Type content `{forbidden}`; the initial quotient surface cannot identify affine or linear occurrences",
+                definition.name, carrier.name,
+            )));
+        }
 
         let Some(relation) = program
             .propositions()
@@ -210,6 +221,132 @@ fn reject_quotient_operation_requests(program: &TypedTrees, diagnostics: &mut Ve
             )));
         }
     }
+}
+
+/// Find the first runtime-capable Type occurrence whose multiplicity is not
+/// unrestricted inside a proof-only quotient carrier. Recursive proof-only
+/// nodes are traversed once; ordinary contained Type fields still retain their
+/// own multiplicity.
+fn first_noncopy_carrier_content(
+    program: &TypedTrees,
+    proof_only: &ProofOnlyClassification,
+    type_reference: TypeReferenceHandle,
+    visited_proof_data: &mut HashSet<u32>,
+) -> Option<String> {
+    if program
+        .type_reference_table
+        .primitive_type(type_reference)
+        .is_some()
+    {
+        return None;
+    }
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Named { symbol, name } => {
+            if let Some(definition) = program
+                .data_definitions()
+                .iter()
+                .find(|definition| definition.symbol == *symbol)
+            {
+                return first_noncopy_data_content(
+                    program,
+                    proof_only,
+                    definition,
+                    visited_proof_data,
+                );
+            }
+            let parameter = program
+                .data_definitions()
+                .iter()
+                .flat_map(|definition| program.data_type_parameters(definition))
+                .find(|parameter| parameter.symbol == *symbol)?;
+            (matches!(
+                parameter.kind,
+                psi_typed_trees::data::TypeParameterKind::Type
+            ) && (parameter.bounds.multiplicity
+                != psi_language_semantics::Multiplicity::Unrestricted
+                || parameter.bounds.carry.is_some()))
+            .then(|| name.as_str().to_owned())
+        }
+        TypeReferenceNode::Generic {
+            base_symbol,
+            arguments,
+            ..
+        } => {
+            let definition = program
+                .data_definitions()
+                .iter()
+                .find(|definition| definition.symbol == *base_symbol)?;
+            for (parameter, argument) in program.data_type_parameters(definition).iter().zip(
+                program
+                    .type_reference_table
+                    .type_reference_handles(*arguments),
+            ) {
+                if matches!(
+                    parameter.kind,
+                    psi_typed_trees::data::TypeParameterKind::Type
+                ) && let Some(forbidden) = first_noncopy_carrier_content(
+                    program,
+                    proof_only,
+                    *argument,
+                    visited_proof_data,
+                ) {
+                    return Some(forbidden);
+                }
+            }
+            first_noncopy_data_content(program, proof_only, definition, visited_proof_data)
+        }
+        TypeReferenceNode::Constrained { base_type, .. } => {
+            first_noncopy_carrier_content(program, proof_only, *base_type, visited_proof_data)
+        }
+        TypeReferenceNode::FixedArray { element_type, .. } => {
+            first_noncopy_carrier_content(program, proof_only, *element_type, visited_proof_data)
+        }
+        TypeReferenceNode::Reference { .. }
+        | TypeReferenceNode::Slice { .. }
+        | TypeReferenceNode::DynamicTrait { .. }
+        | TypeReferenceNode::ConstExpression(_) => {
+            Some(program.display_type_reference_with_constraints(type_reference))
+        }
+        TypeReferenceNode::Unit => None,
+    }
+}
+
+fn first_noncopy_data_content(
+    program: &TypedTrees,
+    proof_only: &ProofOnlyClassification,
+    definition: &psi_typed_trees::data::DataDefinition,
+    visited_proof_data: &mut HashSet<u32>,
+) -> Option<String> {
+    if proof_only.is_proof_only(definition.symbol) {
+        if !visited_proof_data.insert(definition.symbol.arena_index()) {
+            return None;
+        }
+    } else if definition.properties.multiplicity
+        != psi_language_semantics::Multiplicity::Unrestricted
+        || definition.properties.carry.is_some()
+    {
+        return Some(definition.name.as_str().to_owned());
+    }
+
+    for member in program.data_members(definition) {
+        let fields = match member {
+            psi_typed_trees::data::DataMember::Field(field) => std::slice::from_ref(field),
+            psi_typed_trees::data::DataMember::Variant(variant) => {
+                program.data_payload_fields(variant)
+            }
+        };
+        for field in fields {
+            if let Some(forbidden) = first_noncopy_carrier_content(
+                program,
+                proof_only,
+                field.type_reference,
+                visited_proof_data,
+            ) {
+                return Some(forbidden);
+            }
+        }
+    }
+    None
 }
 
 fn operation_name(kind: psi_typed_trees::expression::QuotientOperationKind) -> &'static str {
@@ -875,9 +1012,12 @@ fn quotient_for_type(
 
 #[cfg(test)]
 mod tests {
-    use super::{exact_relation_application_matches, validate_quotients};
+    use super::{
+        exact_relation_application_matches, first_noncopy_carrier_content, validate_quotients,
+    };
     use psi_symbols::SymbolHandle;
     use psi_typed_trees::TypedTrees;
+    use psi_typed_trees::data::{DataDefinition, DataField, DataMember};
     use psi_typed_trees::expression::{
         ExpressionHandle, ExpressionNode, QuotientOperationKind, QuotientOperationRequest,
         StaticMachineArgument, TableCallExpression, TableNamePath,
@@ -887,7 +1027,7 @@ mod tests {
         PropositionApplication, PropositionBinder, PropositionBinderArgument,
         PropositionBinderArgumentKind, PropositionBinderKind, PropositionDefinition,
     };
-    use psi_typed_trees::types::TypeReferenceNode;
+    use psi_typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
     fn static_argument(name: &'static str) -> StaticMachineArgument {
         StaticMachineArgument {
@@ -897,6 +1037,123 @@ mod tests {
             evidence_projection: None,
             symbol: SymbolHandle::invalid(),
         }
+    }
+
+    fn recursive_proof_carrier_with(
+        contained: Option<(
+            SymbolHandle,
+            &'static str,
+            psi_language_semantics::Multiplicity,
+        )>,
+    ) -> (TypedTrees, TypeReferenceHandle) {
+        let mut program = TypedTrees::default();
+        let carrier_symbol = SymbolHandle::from_arena_index(20);
+        let carrier_type = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
+                symbol: carrier_symbol,
+                name: Identifier::generated_static("Carrier"),
+            });
+        let mut carrier = DataDefinition {
+            symbol: carrier_symbol,
+            name: Identifier::generated_static("Carrier"),
+            ..Default::default()
+        };
+        program.push_data_member(
+            &mut carrier,
+            DataMember::Field(DataField {
+                symbol: SymbolHandle::from_arena_index(21),
+                name: Identifier::generated_static("next"),
+                type_reference: carrier_type,
+                ..Default::default()
+            }),
+        );
+        if let Some((symbol, name, multiplicity)) = contained {
+            let contained_type = program
+                .type_reference_table
+                .insert(TypeReferenceNode::Named {
+                    symbol,
+                    name: Identifier::generated_static(name),
+                });
+            program.push_data_member(
+                &mut carrier,
+                DataMember::Field(DataField {
+                    symbol: SymbolHandle::from_arena_index(22),
+                    name: Identifier::generated_static("payload"),
+                    type_reference: contained_type,
+                    ..Default::default()
+                }),
+            );
+            program.push_data_definition(DataDefinition {
+                symbol,
+                name: Identifier::generated_static(name),
+                properties: psi_typed_trees::data::DataProperties {
+                    multiplicity,
+                    carry: None,
+                },
+                ..Default::default()
+            });
+        }
+        program.push_data_definition(carrier);
+        (program, carrier_type)
+    }
+
+    #[test]
+    fn recursive_proof_carrier_without_runtime_content_passes_noncopy_fence() {
+        let (program, carrier) = recursive_proof_carrier_with(None);
+        let proof_only = psi_typed_trees::proof_only::classify(&program);
+
+        assert_eq!(
+            first_noncopy_carrier_content(
+                &program,
+                &proof_only,
+                carrier,
+                &mut std::collections::HashSet::new(),
+            ),
+            None,
+        );
+    }
+
+    #[test]
+    fn recursive_proof_carrier_rejects_contained_affine_runtime_type() {
+        let token_symbol = SymbolHandle::from_arena_index(30);
+        let (program, carrier) = recursive_proof_carrier_with(Some((
+            token_symbol,
+            "Token",
+            psi_language_semantics::Multiplicity::Affine,
+        )));
+        let proof_only = psi_typed_trees::proof_only::classify(&program);
+
+        assert_eq!(
+            first_noncopy_carrier_content(
+                &program,
+                &proof_only,
+                carrier,
+                &mut std::collections::HashSet::new(),
+            ),
+            Some("Token".to_owned()),
+        );
+    }
+
+    #[test]
+    fn recursive_proof_carrier_accepts_contained_copy_runtime_type() {
+        let token_symbol = SymbolHandle::from_arena_index(31);
+        let (program, carrier) = recursive_proof_carrier_with(Some((
+            token_symbol,
+            "CopyToken",
+            psi_language_semantics::Multiplicity::Unrestricted,
+        )));
+        let proof_only = psi_typed_trees::proof_only::classify(&program);
+
+        assert_eq!(
+            first_noncopy_carrier_content(
+                &program,
+                &proof_only,
+                carrier,
+                &mut std::collections::HashSet::new(),
+            ),
+            None,
+        );
     }
 
     #[test]
