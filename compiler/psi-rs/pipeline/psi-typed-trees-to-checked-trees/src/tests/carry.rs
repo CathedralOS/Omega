@@ -318,9 +318,8 @@ fn admitted_linear_bodyless_claim_without_permissions_is_born_strict() {
     let diagnostics = lower(
         r#"
         data Token [linear] { id: u64; }
-        domain Token::Issued {
-            TokenIssuer::issue;
-        }
+        domain Token::Issued
+        established by TokenIssuer::issue;
         boundary trait TokenIssuer {
             machine issue(id: u64) -> Token
             ensures
@@ -353,9 +352,8 @@ fn state_parameter_claim_retains_its_strict_origin_without_a_permission() {
     let diagnostics = lower(
         r#"
         data Token [linear] { id: u64; }
-        domain Token::Issued {
-            TokenIssuer::issue;
-        }
+        domain Token::Issued
+        established by TokenIssuer::issue;
         boundary trait TokenIssuer {
             machine issue(id: u64) -> Token
             ensures
@@ -392,9 +390,8 @@ fn state_parameter_claim_retains_its_exact_carry_permission() {
     lower(
         r#"
         data Token [linear] { id: u64; }
-        domain Token::Issued {
-            TokenIssuer::issue;
-        }
+        domain Token::Issued
+        established by TokenIssuer::issue;
         boundary trait TokenIssuer {
             machine issue(id: u64) -> Token
             ensures
@@ -422,9 +419,8 @@ fn checked_one_to_one_call_infers_the_claims_exact_carry_policy() {
     let checked = lower(
         r#"
         data Token [linear] { id: u64; }
-        domain Token::Issued {
-            TokenIssuer::issue;
-        }
+        domain Token::Issued
+        established by TokenIssuer::issue;
         boundary trait TokenIssuer {
             machine issue(id: u64) -> Token
             ensures
@@ -507,10 +503,10 @@ fn checked_nary_call_inherits_each_claims_exact_carry_policy() {
     let diagnostics = lower(
         r#"
         data Token [linear] { id: u64; }
-        domain Token::Issued {
-            TokenIssuer::issue_safe;
+        domain Token::Issued
+        established by
+            TokenIssuer::issue_safe,
             TokenIssuer::issue_strict;
-        }
         boundary trait TokenIssuer {
             machine issue_safe(id: u64) -> Token
             ensures
@@ -554,9 +550,8 @@ fn checked_nary_call_retains_distinct_claim_policy_facts() {
     let checked = lower(
         r#"
         data Token [linear] { id: u64; }
-        domain Token::Issued {
-            TokenIssuer::issue;
-        }
+        domain Token::Issued
+        established by TokenIssuer::issue;
         boundary trait TokenIssuer {
             machine issue(id: u64) -> Token
             ensures
@@ -621,9 +616,8 @@ fn checked_one_to_one_call_cannot_erase_a_strict_claim_origin() {
     let diagnostics = lower(
         r#"
         data Token [linear] { id: u64; }
-        domain Token::Issued {
-            TokenIssuer::issue;
-        }
+        domain Token::Issued
+        established by TokenIssuer::issue;
         boundary trait TokenIssuer {
             machine issue(id: u64) -> Token
             ensures
@@ -658,9 +652,8 @@ fn admitted_one_to_one_call_cannot_erase_a_strict_claim_origin() {
     let diagnostics = lower(
         r#"
         data Token [linear] { id: u64; }
-        domain Token::Issued {
-            TokenIssuer::issue;
-        }
+        domain Token::Issued
+        established by TokenIssuer::issue;
         boundary trait TokenIssuer {
             machine issue(id: u64) -> Token
             ensures

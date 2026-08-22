@@ -41,7 +41,7 @@ fn domain_definition_carries_independent_domain_theory_records() {
             establishment_routes: _,
             facts: _,
             operators: _,
-            body_token_count: _,
+            semantic_clause_token_count: _,
         } = definition;
     }
     let _ = witness; // compile-time witness; never called

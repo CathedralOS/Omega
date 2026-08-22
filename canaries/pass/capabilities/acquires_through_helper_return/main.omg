@@ -12,9 +12,8 @@ requires
 data Folder {
 }
 
-domain Folder::Writable {
-    Desktop::choose_folder;
-}
+domain Folder::Writable
+established by Desktop::choose_folder;
 
 boundary trait Desktop {
     machine choose_folder(prompt: &[u8] in Utf8) -> Folder

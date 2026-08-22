@@ -9,9 +9,8 @@ data ByteUnit {}
 
 data Buffer [linear] {}
 
-domain Buffer::Owned {
-    Writer::complete;
-}
+domain Buffer::Owned
+established by Writer::complete;
 
 machine Owned::content(buffer: &Buffer) -> CountedQuantity<ByteUnit>
 satisfies Content<CountedQuantity<ByteUnit>>::project
@@ -21,9 +20,8 @@ satisfies Content<CountedQuantity<ByteUnit>>::project
 
 data PendingWrite [linear] {}
 
-domain PendingWrite::Retained {
-    Writer::submit;
-}
+domain PendingWrite::Retained
+established by Writer::submit;
 
 machine Retained::content(pending: &PendingWrite) -> CountedQuantity<ByteUnit>
 satisfies Content<CountedQuantity<ByteUnit>>::project

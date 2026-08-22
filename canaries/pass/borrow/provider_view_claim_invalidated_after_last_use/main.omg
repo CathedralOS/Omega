@@ -4,10 +4,10 @@
 
 data ProviderView [linear] {}
 
-domain ProviderView::Live {
-    ForeignStorage::view;
+domain ProviderView::Live
+established by
+    ForeignStorage::view,
     ForeignStorage::invalidate;
-}
 
 boundary trait ForeignStorage {
     machine view<'claim>(

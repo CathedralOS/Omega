@@ -670,7 +670,7 @@ mod tests {
             predicate_body: psi_language_semantics::DomainPredicateBody::Bodyless,
             facts: psi_arena::HandleSpan::empty(),
             operators: HandleSpan::from_parts(operator, 1),
-            body_token_count: 3,
+            semantic_clause_token_count: 3,
         }));
 
         let report = build_type_surface_report(&syntax_trees);

@@ -81,9 +81,8 @@ data Token {
     value: u64;
 }
 
-domain Token::Issued {
-    TokenIssuer::issue;
-}
+domain Token::Issued
+established by TokenIssuer::issue;
 
 boundary trait TokenIssuer {
     machine issue(value: u64) -> Token
@@ -251,9 +250,8 @@ data Token {
     value: u64;
 }
 
-domain Token::Issued {
-    TokenIssuer::issue;
-}
+domain Token::Issued
+established by TokenIssuer::issue;
 
 trait TokenIssuer {
     machine issue(value: u64) -> Token
@@ -356,9 +354,8 @@ data Token {
     value: u64;
 }
 
-domain Token::Issued {
-    TokenIssuer::issue;
-}
+domain Token::Issued
+established by TokenIssuer::issue;
 
 trait TokenIssuer {
     machine issue(value: u64) -> Token

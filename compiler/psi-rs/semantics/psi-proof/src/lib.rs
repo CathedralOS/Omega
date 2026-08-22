@@ -51,7 +51,7 @@ pub struct DomainSurface {
     pub predicate_body: psi_language_semantics::DomainPredicateBody,
     pub fact_count: usize,
     pub membership_fact_count: usize,
-    pub body_token_count: usize,
+    pub semantic_clause_token_count: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -112,7 +112,7 @@ pub fn build_proof_surface_report(syntax_trees: &SyntaxTrees) -> ProofSurfaceRep
                         .iter()
                         .filter(|fact| matches!(fact, ProofFact::Membership(_)))
                         .count(),
-                    body_token_count: domain.body_token_count,
+                    semantic_clause_token_count: domain.semantic_clause_token_count,
                 });
                 collect_bounded_type_site(
                     &mut report,
@@ -618,7 +618,7 @@ mod tests {
             predicate_body: psi_language_semantics::DomainPredicateBody::Bodyless,
             facts: HandleSpan::empty(),
             operators: HandleSpan::empty(),
-            body_token_count: 3,
+            semantic_clause_token_count: 3,
         }));
 
         let report = build_proof_surface_report(&syntax_trees);
@@ -633,7 +633,7 @@ mod tests {
         );
         assert_eq!(domain.fact_count, 0);
         assert_eq!(domain.membership_fact_count, 0);
-        assert_eq!(domain.body_token_count, 3);
+        assert_eq!(domain.semantic_clause_token_count, 3);
     }
 
     #[test]

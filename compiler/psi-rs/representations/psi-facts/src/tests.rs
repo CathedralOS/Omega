@@ -47,7 +47,7 @@ fn builds_definition_fact_plan_for_domains_and_invariants() {
         semantic_roles: Default::default(),
         facts: HandleSpan::from_parts(fact, 2),
         operators: HandleSpan::empty(),
-        body_token_count: 2,
+        semantic_clause_token_count: 2,
         establishment_routes: Vec::new(),
     });
     program.push_domain_definition(DomainDefinition {
@@ -63,7 +63,7 @@ fn builds_definition_fact_plan_for_domains_and_invariants() {
         semantic_roles: Default::default(),
         facts: HandleSpan::empty(),
         operators: HandleSpan::empty(),
-        body_token_count: 0,
+        semantic_clause_token_count: 0,
         establishment_routes: Vec::new(),
     });
 
@@ -146,7 +146,7 @@ fn domain_membership_queries_follow_domain_imports() {
         semantic_roles: Default::default(),
         facts: HandleSpan::from_parts(membership, 1),
         operators: HandleSpan::empty(),
-        body_token_count: 1,
+        semantic_clause_token_count: 1,
         establishment_routes: Vec::new(),
     });
     program.push_domain_definition(DomainDefinition {
@@ -162,7 +162,7 @@ fn domain_membership_queries_follow_domain_imports() {
         semantic_roles: Default::default(),
         facts: HandleSpan::empty(),
         operators: HandleSpan::empty(),
-        body_token_count: 0,
+        semantic_clause_token_count: 0,
         establishment_routes: Vec::new(),
     });
 

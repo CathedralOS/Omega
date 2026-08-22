@@ -1280,7 +1280,7 @@ fn lowers_domain_definitions() {
         panic!("first domain fact should be membership")
     };
     assert!(membership.domain_symbol.is_valid());
-    assert!(domain.body_token_count >= 3);
+    assert!(domain.semantic_clause_token_count >= 3);
     assert_eq!(
         domain.predicate_body,
         psi_language_semantics::DomainPredicateBody::Present

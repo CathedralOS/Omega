@@ -3517,7 +3517,7 @@ fn parses_domain_definition_surface() {
         psi_language_core::DomainPredicateBody::Present
     );
     assert_eq!(parsed.items.proof_facts(domains[0].facts).len(), 2);
-    assert!(domains[0].body_token_count > 3);
+    assert!(domains[0].semantic_clause_token_count > 3);
 
     let facts = parsed.items.proof_facts(domains[0].facts);
     assert!(matches!(
@@ -3573,6 +3573,26 @@ fn parses_domain_requires_and_requirement_routes_independently() {
         ["Reservations::confirm", "Imported::Reservations::restore"]
     );
     assert!(domain.operators.is_empty());
+}
+
+#[test]
+fn rejects_legacy_domain_route_bodies_with_migration_guidance() {
+    let source = r#"
+        domain Reservation::Issued {
+            Reservations::issue;
+        }
+        "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let error = parse_syntax_trees(&tokens).expect_err("route bodies must be retired");
+    assert!(
+        error.message.contains("domain route bodies are retired"),
+        "got: {}",
+        error.message
+    );
+    assert!(error.message.contains("`established by Trait::requirement"));
 }
 
 #[test]
@@ -3652,14 +3672,14 @@ fn parses_equivalent_bodyless_domain_spellings_distinct_from_true_predicate() {
             psi_language_core::DomainPredicateBody::Bodyless
         );
         assert!(domain.facts.is_empty());
-        assert_eq!(domain.body_token_count, 0);
+        assert_eq!(domain.semantic_clause_token_count, 0);
     }
     assert_eq!(
         domains[2].predicate_body,
         psi_language_core::DomainPredicateBody::Present
     );
     assert_eq!(parsed.items.proof_facts(domains[2].facts).len(), 1);
-    assert!(domains[2].body_token_count > 0);
+    assert!(domains[2].semantic_clause_token_count > 0);
 }
 
 #[test]

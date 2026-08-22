@@ -44,33 +44,40 @@ pub(super) fn parse_domain_definition<'tokens, 'source>(
     } else {
         domain_name
     };
-    let (alias, authored_routes, predicate_body, facts, operators, body_token_count, input) =
-        if input.at_punctuation(PunctuationKind::Equal) {
-            let (alias, input) = parse_domain_alias(syntax_trees, input)?;
-            (
-                Some(alias),
-                Vec::new(),
-                psi_language_core::DomainPredicateBody::Bodyless,
-                HandleSpan::empty(),
-                HandleSpan::empty(),
-                0,
-                input,
-            )
-        } else {
-            let ((predicate_body, facts, requires_token_count), input) =
-                parse_domain_requires(syntax_trees, input)?;
-            let ((authored_routes, body_token_count), input) =
-                parse_domain_establishment(input, predicate_body.is_present())?;
-            (
-                None,
-                authored_routes,
-                predicate_body,
-                facts,
-                HandleSpan::empty(),
-                requires_token_count.saturating_add(body_token_count),
-                input,
-            )
-        };
+    let (
+        alias,
+        authored_routes,
+        predicate_body,
+        facts,
+        operators,
+        semantic_clause_token_count,
+        input,
+    ) = if input.at_punctuation(PunctuationKind::Equal) {
+        let (alias, input) = parse_domain_alias(syntax_trees, input)?;
+        (
+            Some(alias),
+            Vec::new(),
+            psi_language_core::DomainPredicateBody::Bodyless,
+            HandleSpan::empty(),
+            HandleSpan::empty(),
+            0,
+            input,
+        )
+    } else {
+        let ((predicate_body, facts, requires_token_count), input) =
+            parse_domain_requires(syntax_trees, input)?;
+        let ((authored_routes, semantic_clause_token_count), input) =
+            parse_domain_establishment(input, predicate_body.is_present())?;
+        (
+            None,
+            authored_routes,
+            predicate_body,
+            facts,
+            HandleSpan::empty(),
+            requires_token_count.saturating_add(semantic_clause_token_count),
+            input,
+        )
+    };
 
     Ok((
         DomainDefinition {
@@ -84,7 +91,7 @@ pub(super) fn parse_domain_definition<'tokens, 'source>(
             predicate_body,
             facts,
             operators,
-            body_token_count,
+            semantic_clause_token_count,
         },
         input,
     ))
@@ -216,7 +223,23 @@ fn parse_domain_establishment<'tokens, 'source>(
     }
 
     if input.at_punctuation(PunctuationKind::LeftBrace) {
-        return parse_legacy_domain_body(input);
+        let body = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
+        if at_legacy_authored_route(body) {
+            return Err(input.error_here(
+                "domain route bodies are retired; write \
+                 `established by Trait::requirement, ...;` after the domain predicates",
+            ));
+        }
+        if body.at_contextual("operator") || body.at_contextual("boundary") {
+            return Err(body.error_here(
+                "domain operators must be ordinary top-level declarations; write \
+                 `operator Type::Domain::operation ...` outside the domain declaration",
+            ));
+        }
+        return Err(body.error_here(
+            "domain predicates must be written in `requires`; establishment routes use \
+             `established by Trait::requirement, ...;`",
+        ));
     }
 
     let mut input = input.take_contextual("established")?;
@@ -236,42 +259,6 @@ fn parse_domain_establishment<'tokens, 'source>(
 
     input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
     let token_count = routes_start_tokens.saturating_sub(input.tokens.len());
-    Ok(((authored_routes, token_count), input))
-}
-
-// Compatibility parser for the retired `{ Trait::requirement; }` spelling.
-// Canonical source uses `established by`; this branch remains only until the
-// migration task removes old producers and turns it into a directed rejection.
-fn parse_legacy_domain_body<'tokens, 'source>(
-    mut input: Input<'tokens, 'source>,
-) -> ParseResult<'tokens, 'source, (Vec<Vec<Identifier>>, usize)> {
-    input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
-    let body_start_tokens = input.tokens.len();
-    let mut authored_routes = Vec::new();
-
-    while !input.at_punctuation(PunctuationKind::RightBrace) {
-        if at_legacy_authored_route(input) {
-            let (route, rest) = parse_authored_route(input)?;
-            authored_routes.push(route);
-            input = rest.take_punctuation(PunctuationKind::Semicolon, ";")?;
-            continue;
-        }
-
-        if input.at_contextual("operator") || input.at_contextual("boundary") {
-            return Err(input.error_here(
-                "domain operators must be ordinary top-level declarations; write \
-                 `operator Type::Domain::operation ...` outside the domain declaration",
-            ));
-        }
-
-        return Err(input.error_here(
-            "domain predicates must be written in `requires`; establishment routes use \
-             `established by Trait::requirement, ...;`",
-        ));
-    }
-
-    let token_count = body_start_tokens.saturating_sub(input.tokens.len());
-    input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
     Ok(((authored_routes, token_count), input))
 }
 

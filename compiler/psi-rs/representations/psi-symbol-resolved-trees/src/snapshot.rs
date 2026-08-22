@@ -350,7 +350,7 @@ pub struct DomainDefinitionSnapshot {
     pub establishment_routes: Vec<DomainEstablishmentRouteSnapshot>,
     pub facts: Vec<ProofFactSnapshot>,
     pub operators: Vec<OperatorDefinitionSnapshot>,
-    pub body_token_count: usize,
+    pub semantic_clause_token_count: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -954,7 +954,7 @@ fn domain_definition_snapshot(
             .iter()
             .map(|operator| operator_snapshot(program, operator))
             .collect(),
-        body_token_count: domain.body_token_count,
+        semantic_clause_token_count: domain.semantic_clause_token_count,
     }
 }
 

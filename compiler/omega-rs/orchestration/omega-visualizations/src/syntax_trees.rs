@@ -407,12 +407,12 @@ fn item_label(syntax: &SyntaxTrees, item: &Item) -> String {
         Item::Domain(value) => {
             let target = type_reference_label(syntax, value.target_type);
             let mut label = format!(
-                "domain {}\ntarget: {}\npredicate body: {}\nfacts: {}\nbody tokens: {}",
+                "domain {}\ntarget: {}\npredicate body: {}\nfacts: {}\nsemantic clause tokens: {}",
                 value.name.as_str(),
                 target,
                 value.predicate_body.as_str(),
                 syntax.items.proof_facts(value.facts).len(),
-                value.body_token_count
+                value.semantic_clause_token_count
             );
             for fact in proof_fact_labels(syntax, value.facts) {
                 label.push_str("\n  ");
