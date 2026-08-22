@@ -77,12 +77,7 @@ pub(crate) fn lower_machine_into(
             .satisfies_clauses(machine.satisfies)
             .iter()
             .find_map(|clause| clause.via.as_ref())
-            .map(|binding| {
-                (
-                    external_binding_identity(binding, machine.name.as_str()),
-                    external_binding_mechanism(binding),
-                )
-            });
+            .map(|binding| external_binding_identity(binding, machine.name.as_str()));
         if machine.bodyless && machine.boundary {
             // A bodyless boundary declaration is ACCEPTED only when it
             // actually authors a fact. Claim-free symbols such as the
@@ -103,13 +98,14 @@ pub(crate) fn lower_machine_into(
             } else {
                 psi_language_semantics::MachineSupplyMode::Boundary
             }
-        } else if let (true, Some((rendering, mechanism))) = (machine.bodyless, &via_binding) {
+        } else if let (true, Some(identity)) = (machine.bodyless, via_binding) {
+            let mechanism = identity.mechanism();
             psi_language_semantics::MachineSupplyMode::ExternalRealization {
                 binding: lowerer
                     .symbol_resolved_trees
                     .external_bindings
-                    .intern(rendering),
-                mechanism: *mechanism,
+                    .intern(identity),
+                mechanism,
             }
         } else if machine.boundary {
             psi_language_semantics::MachineSupplyMode::Boundary
@@ -151,22 +147,6 @@ pub(crate) fn lower_machine_into(
         },
     });
     Ok(())
-}
-
-fn external_binding_mechanism(
-    binding: &syntax::item::ExternalBinding,
-) -> psi_language_semantics::ExternalBindingMechanism {
-    use psi_language_semantics::ExternalBindingMechanism;
-    use syntax::item::ExternalBinding;
-
-    match binding {
-        ExternalBinding::Syscall { .. } => ExternalBindingMechanism::Syscall,
-        ExternalBinding::DllImport { .. } => ExternalBindingMechanism::Import,
-        ExternalBinding::CompilerIntrinsic => ExternalBindingMechanism::CompilerIntrinsic,
-        ExternalBinding::VtableSlot { .. } => ExternalBindingMechanism::VtableSlot,
-        ExternalBinding::VtableField { .. } => ExternalBindingMechanism::VtableField,
-        ExternalBinding::TableFunction { .. } => ExternalBindingMechanism::TableFunction,
-    }
 }
 
 pub(crate) fn lower_generic_conformance_bounds(
@@ -495,7 +475,7 @@ fn lower_machine_trait_conformances(
             lowerer
                 .symbol_resolved_trees
                 .external_bindings
-                .intern(&external_binding_identity(binding, machine_name))
+                .intern(external_binding_identity(binding, machine_name))
         });
         lowerer
             .symbol_resolved_trees
@@ -521,12 +501,37 @@ fn lower_machine_trait_conformances(
 fn external_binding_identity(
     binding: &syntax::item::ExternalBinding,
     machine_name: &str,
-) -> String {
+) -> psi_language_semantics::ExternalBindingIdentity {
+    use psi_language_semantics::ExternalBindingIdentity;
+
     match binding {
-        syntax::item::ExternalBinding::CompilerIntrinsic => {
-            format!("CompilerIntrinsic(machine:{machine_name})")
+        syntax::item::ExternalBinding::Syscall { number } => {
+            ExternalBindingIdentity::Syscall { number: *number }
         }
-        _ => binding.normalized_rendering(),
+        syntax::item::ExternalBinding::DllImport { module, symbol } => {
+            ExternalBindingIdentity::Import {
+                library: module.clone(),
+                symbol: symbol.clone(),
+            }
+        }
+        syntax::item::ExternalBinding::CompilerIntrinsic => {
+            ExternalBindingIdentity::CompilerIntrinsic {
+                machine: machine_name.to_owned(),
+            }
+        }
+        syntax::item::ExternalBinding::VtableSlot { index } => {
+            ExternalBindingIdentity::VtableSlot { index: *index }
+        }
+        syntax::item::ExternalBinding::VtableField { field } => {
+            ExternalBindingIdentity::VtableField {
+                field: field.as_str().to_owned(),
+            }
+        }
+        syntax::item::ExternalBinding::TableFunction { field } => {
+            ExternalBindingIdentity::TableFunction {
+                field: field.as_str().to_owned(),
+            }
+        }
     }
 }
 

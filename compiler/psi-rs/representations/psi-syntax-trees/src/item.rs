@@ -53,25 +53,6 @@ pub struct ConstDefinition {
     pub value: crate::expression::ExpressionHandle,
 }
 
-impl ExternalBinding {
-    /// Transitional normalized rendering used only while symbol resolution
-    /// interns the structured binding. No semantic consumer reparses this text.
-    pub fn normalized_rendering(&self) -> String {
-        match self {
-            Self::Syscall { number } => format!("Syscall({number})"),
-            Self::DllImport { module, symbol } => {
-                format!("DllImport({module},{symbol})")
-            }
-            Self::VtableSlot { index } => format!("VtableSlot({index})"),
-            Self::CompilerIntrinsic => "CompilerIntrinsic".to_owned(),
-            Self::VtableField { field } => format!("VtableField({})", field.as_str()),
-            Self::TableFunction { field } => {
-                format!("TableFunction({})", field.as_str())
-            }
-        }
-    }
-}
-
 /// The compiler-known, CLOSED external `Binding` sum: each leaf binds a
 /// boundary-trait method to ONE mechanism the compiler knows how to lower. A
 /// new mechanism = a new case + new lowering, never user-invented --
