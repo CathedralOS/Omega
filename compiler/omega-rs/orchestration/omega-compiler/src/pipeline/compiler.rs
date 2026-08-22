@@ -946,7 +946,8 @@ impl Compiler {
                         .map_err(|diagnostic| vec![Diagnostic::error(diagnostic.to_string())])
                 },
             )?;
-            let output_path = written_output.path;
+            let (output_path, output_kind, executable_publication, app_bundle_publication) =
+                written_output.into_report_parts();
             if emit_auxiliary_artifacts {
                 if let Some(bridge) = &program_storage_entry_bridge {
                     write_program_storage_entry_snapshot(&self.options, bridge)?;
@@ -959,11 +960,7 @@ impl Compiler {
                 )?;
                 write_timings(&self.options, timings.as_slice())?;
             }
-            (
-                written_output.kind,
-                written_output.executable_publication,
-                written_output.app_bundle_publication,
-            )
+            (output_kind, executable_publication, app_bundle_publication)
         } else if emit_auxiliary_artifacts {
             write_emission_plan(&self.options, &backend.plan, &emission_plan, None)?;
             (super::CompileOutputKind::CheckOnly, None, None)

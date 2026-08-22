@@ -1547,6 +1547,14 @@ machine build(builder: &mut Build) {
     })
     .expect("receiver-free UEFI entry should retain its source ABI");
     assert!(report.has_consistent_program_storage_entry_custody());
+    assert_eq!(
+        report
+            .executable_publication()
+            .expect("written bridge publication receipt")
+            .output_path()
+            .parent(),
+        Some(build_dir.as_path()),
+    );
     assert!(
         report
             .executable_publication()
