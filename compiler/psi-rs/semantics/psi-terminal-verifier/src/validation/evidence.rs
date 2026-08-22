@@ -174,15 +174,86 @@ pub(super) fn validate_evidence_contract_lanes(
                 });
             }
         }
+        for (expected_position, argument) in invocation.evidence_arguments.iter().enumerate() {
+            let Some(source) = terms.get(&argument.source) else {
+                return Err(ModuleError::UnknownEvidenceContractTerm(argument.source));
+            };
+            let Some(instantiated) = module
+                .proposition_applications
+                .iter()
+                .find(|application| application.id == argument.instantiated_proposition)
+            else {
+                return Err(ModuleError::InvalidProofOutputCall {
+                    caller: invocation.caller,
+                    ordinal: invocation.ordinal,
+                });
+            };
+            let callee_application = module
+                .proposition_applications
+                .iter()
+                .find(|application| application.id == argument.callee_proposition)
+                .ok_or(ModuleError::InvalidProofOutputCall {
+                    caller: invocation.caller,
+                    ordinal: invocation.ordinal,
+                })?;
+            if argument.input_position
+                != u32::try_from(expected_position).map_err(|_| {
+                    ModuleError::InvalidProofOutputCall {
+                        caller: invocation.caller,
+                        ordinal: invocation.ordinal,
+                    }
+                })?
+                || source.proposition != argument.instantiated_proposition
+                || callee_application.declaration != instantiated.declaration
+                || callee_application.binder_arguments != instantiated.binder_arguments
+                || callee_application.evidence_interface != instantiated.evidence_interface
+                || instantiated.evidence_interface.as_ref() != Some(&source.interface)
+            {
+                return Err(ModuleError::InvalidProofOutputCall {
+                    caller: invocation.caller,
+                    ordinal: invocation.ordinal,
+                });
+            }
+            used_terms.insert(argument.source);
+        }
         let mut fields = BTreeSet::new();
         let mut callee_terms = BTreeSet::new();
         let mut output_terms = BTreeSet::new();
         for (expected_position, binding) in invocation.outputs.iter().enumerate() {
-            let Some(callee_output) = terms.get(&binding.callee_output) else {
-                return Err(ModuleError::UnknownEvidenceContractTerm(
-                    binding.callee_output,
-                ));
+            let callee_output = binding
+                .callee_output
+                .map(|term| {
+                    terms
+                        .get(&term)
+                        .copied()
+                        .ok_or(ModuleError::UnknownEvidenceContractTerm(term))
+                })
+                .transpose()?;
+            let Some(instantiated) = module
+                .proposition_applications
+                .iter()
+                .find(|application| application.id == binding.instantiated_proposition)
+            else {
+                return Err(ModuleError::InvalidProofOutputCall {
+                    caller: invocation.caller,
+                    ordinal: invocation.ordinal,
+                });
             };
+            let callee_application = module
+                .proposition_applications
+                .iter()
+                .find(|application| application.id == binding.callee_proposition)
+                .ok_or(ModuleError::InvalidProofOutputCall {
+                    caller: invocation.caller,
+                    ordinal: invocation.ordinal,
+                })?;
+            let forwarded_source = binding.forwarded_input_position.and_then(|position| {
+                invocation
+                    .evidence_arguments
+                    .get(usize::try_from(position).ok()?)
+                    .filter(|argument| argument.input_position == position)
+                    .map(|argument| argument.source)
+            });
             if binding.output_position
                 != u32::try_from(expected_position).map_err(|_| {
                     ModuleError::InvalidProofOutputCall {
@@ -193,24 +264,38 @@ pub(super) fn validate_evidence_contract_lanes(
                 || binding.output_field.is_empty()
                 || binding.output_field == "value"
                 || !fields.insert(binding.output_field.as_str())
-                || !callee_terms.insert(binding.callee_output)
-                || output_terms.contains(&binding.callee_output)
+                || (binding.forwarded_input_position.is_some()
+                    && (binding.callee_output.is_some() || forwarded_source.is_none()))
+                || (binding.forwarded_input_position.is_none() && callee_output.is_none())
+                || binding.callee_output.is_some_and(|callee_output| {
+                    !callee_terms.insert(callee_output) || output_terms.contains(&callee_output)
+                })
+                || callee_application.declaration != instantiated.declaration
+                || callee_application.binder_arguments != instantiated.binder_arguments
+                || callee_application.evidence_interface != instantiated.evidence_interface
             {
                 return Err(ModuleError::InvalidProofOutputCall {
                     caller: invocation.caller,
                     ordinal: invocation.ordinal,
                 });
             }
-            used_terms.insert(binding.callee_output);
+            if let Some(callee_output) = binding.callee_output {
+                used_terms.insert(callee_output);
+            }
             if let Some(output_id) = binding.output {
                 let Some(output) = terms.get(&output_id) else {
                     return Err(ModuleError::UnknownEvidenceContractTerm(output_id));
                 };
-                if binding.callee_output == output_id
-                    || callee_output.proposition != output.proposition
-                    || callee_output.interface != output.interface
-                    || !output_terms.insert(output_id)
-                    || callee_terms.contains(&output_id)
+                let valid_identity = if let Some(forwarded_source) = forwarded_source {
+                    output_id == forwarded_source
+                } else {
+                    binding.callee_output != Some(output_id)
+                        && output_terms.insert(output_id)
+                        && !callee_terms.contains(&output_id)
+                };
+                if !valid_identity
+                    || binding.instantiated_proposition != output.proposition
+                    || instantiated.evidence_interface.as_ref() != Some(&output.interface)
                 {
                     return Err(ModuleError::InvalidProofOutputCall {
                         caller: invocation.caller,

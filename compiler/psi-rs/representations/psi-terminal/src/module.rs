@@ -2,8 +2,8 @@ use psi_core::{
     BlockId, BoundaryMachineId, ClaimId, ContentAlgebra, ContentConservation,
     ContentProjectionIdentity, ContentStructuralPlace, ContentTerm, ContractId, EdgeId,
     EvidenceTermId, IeeeFloatFormat, IntegerValue, MachineId, ObligationId, OperationId, PlaceId,
-    Proposition, ScalarType, ServiceId, StructuralCaseId, StructuralDomainId, StructuralFieldId,
-    StructuralPlaceKind, StructuralTypeId, ValueId,
+    Proposition, PropositionId, ScalarType, ServiceId, StructuralCaseId, StructuralDomainId,
+    StructuralFieldId, StructuralPlaceKind, StructuralTypeId, ValueId,
 };
 use psi_language_core::BindingRelevance;
 
@@ -523,8 +523,21 @@ pub struct ProofOutputCall {
     pub runtime_result: Option<ProofOutputRuntimeResult>,
     /// Exact canonical ordinary call which produced `runtime_result`.
     pub runtime_call: Option<ProofOutputRuntimeCall>,
+    /// Explicit erased inputs supplied to the callee's named `requires` lane.
+    pub evidence_arguments: Vec<ProofOutputEvidenceArgument>,
     /// Complete canonical proof-output set, ordered by callee lane.
     pub outputs: Vec<ProofOutput>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ProofOutputEvidenceArgument {
+    pub input_position: u32,
+    /// Formal proposition declared at this target lane. The lane itself is
+    /// identified by target-machine identity plus `input_position`; it is not
+    /// a produced evidence term.
+    pub callee_proposition: PropositionId,
+    pub source: EvidenceTermId,
+    pub instantiated_proposition: PropositionId,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -544,7 +557,17 @@ pub struct ProofOutput {
     pub output_position: u32,
     /// Exact public proof selector from the callee lane.
     pub output_field: String,
-    pub callee_output: EvidenceTermId,
+    /// Formal proposition declared by the target lane.
+    pub callee_proposition: PropositionId,
+    /// Distinct producer-backed witness declaration. A directly forwarded
+    /// input has no new callee term and records its input position below.
+    pub callee_output: Option<EvidenceTermId>,
+    /// Exact proposition after substituting this invocation's ordinary Type
+    /// arguments, including when the caller omits this witness.
+    pub instantiated_proposition: PropositionId,
+    /// Input lane whose exact witness this output forwards. `None` means the
+    /// callee produced a distinct witness with retained producer provenance.
+    pub forwarded_input_position: Option<u32>,
     /// Distinct caller-local copy, or `None` when omitted or discarded.
     pub output: Option<EvidenceTermId>,
 }

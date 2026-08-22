@@ -6862,23 +6862,29 @@ Remaining N6/N8 work:
   Checked and Terminal Psi retain exact call, selector, proposition/interface,
   producer provenance, and optional caller-local term identity. Pure Unit proof
   producers erase; runtime Unit and scalar producers retain exactly one linked
-  ordinary call. Terminal format 21 distinguishes all three shapes and rejects
+  ordinary call. Terminal format 22 distinguishes all three shapes and rejects
   a missing or mismatched runtime link.
+
+  Ordinary value-argument substitution and explicit erased `requires` inputs
+  are implemented through checked and Terminal Psi. Each input retains its
+  target lane, source term, and instantiated proposition. Outputs retain their
+  formal and instantiated propositions; direct input forwarding aliases the
+  exact supplied witness without inventing producer provenance, while a fresh
+  produced witness remains distinct. Codec and verifier tamper gates cover the
+  argument, source, proposition, and forwarding disposition.
 
   Implement the remaining slices in order:
 
-  1. apply ordinary value-argument contract substitution and bind explicit
-     erased `requires` inputs at the proof-output call coordinate;
-  2. accept the already-implemented closed generic application identity in this
+  1. accept the already-implemented closed generic application identity in this
      call path (all non-lifetime arguments explicit; ordinary lifetime elision);
-  3. capture outcome-guarded outputs only in their applicable arm and retain the
+  2. capture outcome-guarded outputs only in their applicable arm and retain the
      exact guard through checked and Terminal Psi.
 
   Never infer evidence from visible facts or attached state names. Runtime Type
   results retain their own multiplicity independently of the proof lane, and
   proposition, term, and provenance identities remain distinct. Acceptance:
-  substitution, evidence-input identity, generic application, and outcome-guard
-  tampering each reject independently; omitted copyable outputs add no runtime
+  generic-application and outcome-guard tampering each reject independently;
+  omitted copyable outputs add no runtime
   work, cleanup, or fuel. The complete contract is in
   [`law_bearing_relations_and_quotients.md`](wiki/design_briefs/law_bearing_relations_and_quotients.md).
 - Add `Respects` over compiler-derived positional call telescopes, deriving its
@@ -7137,7 +7143,7 @@ Remaining N6/N8 work:
   format, original binary-equality expression, and both invocation handles
   before transactionally publishing dense projection and equality-proposition
   tables; operand and cross-format substitution reject. Terminal vocabulary
-  24/module format 21 encode the exact projection rows plus dense, source-
+  24/module format 22 encode the exact projection rows plus dense, source-
   handle-free equality rows with ordered projection references. Verification
   independently resolves each operand through the projection table and
   reconstructs its format-specific catalog law, rejecting missing, reordered,

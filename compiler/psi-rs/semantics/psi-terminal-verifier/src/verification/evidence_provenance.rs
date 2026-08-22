@@ -40,7 +40,9 @@ pub(super) fn validate_evidence_producer_provenance(
     }
     for invocation in &module.proof_output_calls {
         for output in &invocation.outputs {
-            unmatched_ensures.entry(output.callee_output).or_insert(1);
+            if let Some(callee_output) = output.callee_output {
+                unmatched_ensures.entry(callee_output).or_insert(1);
+            }
         }
     }
 

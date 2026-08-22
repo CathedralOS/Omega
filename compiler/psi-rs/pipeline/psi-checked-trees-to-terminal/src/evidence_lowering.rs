@@ -30,6 +30,8 @@ pub(super) fn lower_and_install_evidence_artifacts(
         lowered.semantic_module.entry,
         &lowered.semantic_module,
         &evidence_terms.term_ids,
+        &declarations,
+        &applications,
     )?;
     let evidence_producers =
         lower_evidence_producer_provenance(checked, machine, &evidence_terms.term_ids)?;
@@ -214,6 +216,15 @@ fn lower_evidence_term_ids(
     selected_machine: psi_symbols::SymbolHandle,
 ) -> Result<LoweredEvidenceTermIds, LoweringError> {
     let mut parents = (0..checked.facts.proof.evidence_terms.len()).collect::<Vec<_>>();
+    let invocations = checked
+        .facts
+        .proof
+        .proof_output_calls
+        .iter()
+        .filter_map(|(_, invocation)| {
+            (invocation.caller_machine_symbol == selected_machine).then_some(invocation)
+        })
+        .collect::<Vec<_>>();
     for (_, forwarding) in checked.facts.proof.evidence_forwardings.iter() {
         if forwarding.machine_symbol != selected_machine {
             continue;
@@ -228,6 +239,22 @@ fn lower_evidence_term_ids(
             let output_root = evidence_term_root(&mut parents, output);
             let source_root = evidence_term_root(&mut parents, source);
             parents[output_root] = source_root;
+        }
+    }
+    for invocation in &invocations {
+        for output in &invocation.outputs {
+            let Some(source) = proof_output_forwarded_source(checked, invocation, output) else {
+                continue;
+            };
+            if let Some(output) = output.output {
+                let output = usize::try_from(output.arena_index() - 1)
+                    .expect("arena indices fit the host address space");
+                let source = usize::try_from(source.arena_index() - 1)
+                    .expect("arena indices fit the host address space");
+                let output_root = evidence_term_root(&mut parents, output);
+                let source_root = evidence_term_root(&mut parents, source);
+                parents[output_root] = source_root;
+            }
         }
     }
 
@@ -258,15 +285,25 @@ fn lower_evidence_term_ids(
             .or_insert(lane_key);
     }
     let mut package_identity_position = 0_usize;
-    for (_, invocation) in checked
-        .facts
-        .proof
-        .proof_output_calls
-        .iter()
-        .filter(|(_, invocation)| invocation.caller_machine_symbol == selected_machine)
-    {
+    for invocation in invocations {
+        for argument in &invocation.evidence_arguments {
+            let index = usize::try_from(argument.source.arena_index() - 1)
+                .expect("arena indices fit the host address space");
+            let root = evidence_term_root(&mut parents, index);
+            roots
+                .entry(root)
+                .or_insert((2_u8, package_identity_position));
+            package_identity_position = package_identity_position
+                .checked_add(1)
+                .expect("proof-output identity order fits usize");
+        }
         for output in &invocation.outputs {
-            for handle in std::iter::once(output.callee_output).chain(output.output) {
+            let forwarded = proof_output_forwarded_source(checked, invocation, output).is_some();
+            for handle in output
+                .output
+                .into_iter()
+                .chain((!forwarded).then_some(output.callee_output))
+            {
                 let index = usize::try_from(handle.arena_index() - 1)
                     .expect("arena indices fit the host address space");
                 let root = evidence_term_root(&mut parents, index);
@@ -516,6 +553,8 @@ fn lower_proof_output_calls(
     terminal_machine: MachineId,
     semantic_module: &TerminalModule,
     term_ids: &[Option<EvidenceTermId>],
+    declarations: &[PropositionDeclaration],
+    applications: &[PropositionApplicationIdentity],
 ) -> Result<Vec<ProofOutputCall>, LoweringError> {
     let mut invocations = checked
         .facts
@@ -534,27 +573,81 @@ fn lower_proof_output_calls(
                 semantic_module,
                 invocation,
             )?;
+            let evidence_arguments = invocation
+                .evidence_arguments
+                .iter()
+                .map(|argument| {
+                    Ok(psi_terminal::ProofOutputEvidenceArgument {
+                        input_position: u32::try_from(argument.input_position).map_err(|_| {
+                            LoweringError::Unsupported(
+                                "terminal proof-output input position exceeds u32",
+                            )
+                        })?,
+                        callee_proposition: terminal_proposition_application_id(
+                            checked,
+                            term_ids,
+                            declarations,
+                            applications,
+                            &checked
+                                .facts
+                                .proof
+                                .evidence_terms
+                                .get(argument.callee_input)
+                                .proposition,
+                        )?,
+                        source: terminal_evidence_term_id(
+                            term_ids,
+                            argument.source,
+                            "terminal proof-output source input has no canonical identity",
+                        )?,
+                        instantiated_proposition: terminal_proposition_application_id(
+                            checked,
+                            term_ids,
+                            declarations,
+                            applications,
+                            &argument.instantiated_proposition,
+                        )?,
+                    })
+                })
+                .collect::<Result<Vec<_>, LoweringError>>()?;
             let outputs = invocation
                 .outputs
                 .iter()
                 .map(|output| {
                     let callee_output =
                         checked.facts.proof.evidence_terms.get(output.callee_output);
+                    let forwarded_input_position =
+                        proof_output_forwarded_input_position(checked, invocation, output)?;
                     Ok(ProofOutput {
                         output_position: u32::try_from(output.output_position).map_err(|_| {
                             LoweringError::Unsupported("terminal proof-output position exceeds u32")
                         })?,
                         output_field: callee_output.name.clone(),
-                        callee_output: term_ids
-                            .get(
-                                usize::try_from(output.callee_output.arena_index() - 1)
-                                    .expect("arena indices fit the host address space"),
-                            )
-                            .copied()
-                            .flatten()
-                            .ok_or(LoweringError::Unsupported(
-                                "terminal proof-output callee term has no canonical identity",
-                            ))?,
+                        callee_proposition: terminal_proposition_application_id(
+                            checked,
+                            term_ids,
+                            declarations,
+                            applications,
+                            &callee_output.proposition,
+                        )?,
+                        callee_output: forwarded_input_position
+                            .is_none()
+                            .then(|| {
+                                terminal_evidence_term_id(
+                                    term_ids,
+                                    output.callee_output,
+                                    "terminal proof-output callee term has no canonical identity",
+                                )
+                            })
+                            .transpose()?,
+                        instantiated_proposition: terminal_proposition_application_id(
+                            checked,
+                            term_ids,
+                            declarations,
+                            applications,
+                            &output.instantiated_proposition,
+                        )?,
+                        forwarded_input_position,
                         output: output
                             .output
                             .map(|output| {
@@ -584,12 +677,162 @@ fn lower_proof_output_calls(
                 )?,
                 runtime_result,
                 runtime_call,
+                evidence_arguments,
                 outputs,
             })
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
     invocations.sort_unstable();
     Ok(invocations)
+}
+
+fn proof_output_forwarded_source(
+    checked: &CheckedTrees,
+    invocation: &psi_checked_trees::ProofOutputCallFact,
+    output: &psi_checked_trees::ProofOutputFact,
+) -> Option<psi_arena::Handle<psi_checked_trees::CheckedEvidenceTerm>> {
+    proof_output_forwarded_argument(checked, invocation, output).map(|argument| argument.source)
+}
+
+fn proof_output_forwarded_argument<'a>(
+    checked: &CheckedTrees,
+    invocation: &'a psi_checked_trees::ProofOutputCallFact,
+    output: &psi_checked_trees::ProofOutputFact,
+) -> Option<&'a psi_checked_trees::ProofOutputEvidenceArgumentFact> {
+    let source = checked
+        .facts
+        .proof
+        .evidence_forwardings
+        .iter()
+        .find_map(|(_, forwarding)| {
+            (forwarding.machine_symbol == invocation.target_machine_symbol
+                && forwarding.output == output.callee_output)
+                .then_some(&forwarding.source)
+        });
+    let Some(psi_checked_trees::EvidenceAssignmentSource::Forwarded { term }) = source else {
+        return None;
+    };
+    invocation
+        .evidence_arguments
+        .iter()
+        .find(|argument| argument.callee_input == *term)
+}
+
+fn proof_output_forwarded_input_position(
+    checked: &CheckedTrees,
+    invocation: &psi_checked_trees::ProofOutputCallFact,
+    output: &psi_checked_trees::ProofOutputFact,
+) -> Result<Option<u32>, LoweringError> {
+    let Some(argument) = proof_output_forwarded_argument(checked, invocation, output) else {
+        return Ok(None);
+    };
+    u32::try_from(argument.input_position)
+        .map(Some)
+        .map_err(|_| {
+            LoweringError::Unsupported("proof-output forwarded input position exceeds u32")
+        })
+}
+
+fn terminal_evidence_term_id(
+    term_ids: &[Option<EvidenceTermId>],
+    handle: psi_arena::Handle<psi_checked_trees::CheckedEvidenceTerm>,
+    error: &'static str,
+) -> Result<EvidenceTermId, LoweringError> {
+    term_ids
+        .get(
+            usize::try_from(handle.arena_index() - 1)
+                .expect("arena indices fit the host address space"),
+        )
+        .copied()
+        .flatten()
+        .ok_or(LoweringError::Unsupported(error))
+}
+
+fn terminal_proposition_application_id(
+    checked: &CheckedTrees,
+    term_ids: &[Option<EvidenceTermId>],
+    declarations: &[PropositionDeclaration],
+    applications: &[PropositionApplicationIdentity],
+    application: &psi_checked_trees::CheckedPropositionApplication,
+) -> Result<PropositionId, LoweringError> {
+    let declaration_name = checked
+        .facts
+        .proof
+        .proposition_vocabulary
+        .declarations
+        .iter()
+        .find_map(|declaration| {
+            (declaration.symbol == application.declaration).then_some(declaration.name.as_str())
+        })
+        .ok_or(LoweringError::Unsupported(
+            "proof-output proposition has no checked declaration",
+        ))?;
+    let declaration = declarations
+        .iter()
+        .find_map(|declaration| (declaration.name == declaration_name).then_some(declaration.id))
+        .ok_or(LoweringError::Unsupported(
+            "proof-output proposition has no terminal declaration",
+        ))?;
+    let binder_arguments = application
+        .binder_arguments
+        .iter()
+        .map(|argument| {
+            let evidence_projection = argument
+                .evidence_projection
+                .as_ref()
+                .map(|projection| {
+                    Ok(EvidenceProjectionIdentity {
+                        term: terminal_evidence_term_id(
+                            term_ids,
+                            projection.term,
+                            "proof-output proposition projects an unrelated evidence term",
+                        )?,
+                        declaring_trait_identity: checked
+                            .symbols
+                            .display_path(projection.declaring_trait, "::"),
+                        declaring_trait_arguments: projection.declaring_trait_arguments.clone(),
+                        requirement_identity: checked_evidence_requirement_identity(
+                            checked,
+                            projection.declaring_trait,
+                            projection.requirement,
+                        )?,
+                    })
+                })
+                .transpose()?;
+            Ok(PropositionBinderArgumentIdentity {
+                kind: match argument.kind {
+                    CheckedPropositionBinderArgumentKind::Type => {
+                        PropositionBinderArgumentKind::Type
+                    }
+                    CheckedPropositionBinderArgumentKind::Const => {
+                        PropositionBinderArgumentKind::Const
+                    }
+                    CheckedPropositionBinderArgumentKind::Machine => {
+                        PropositionBinderArgumentKind::Machine
+                    }
+                },
+                identity: argument.identity.clone(),
+                evidence_projection,
+            })
+        })
+        .collect::<Result<Vec<_>, LoweringError>>()?;
+    let evidence_interface = application
+        .evidence_interface
+        .as_ref()
+        .map(|interface| lower_evidence_interface(checked, interface))
+        .transpose()?;
+    applications
+        .iter()
+        .find_map(|candidate| {
+            (candidate.declaration == declaration
+                && candidate.binder_arguments == binder_arguments
+                && candidate.arguments == application.arguments
+                && candidate.evidence_interface == evidence_interface)
+                .then_some(candidate.id)
+        })
+        .ok_or(LoweringError::Unsupported(
+            "proof-output proposition has no terminal application",
+        ))
 }
 
 fn lower_proof_output_runtime_call(

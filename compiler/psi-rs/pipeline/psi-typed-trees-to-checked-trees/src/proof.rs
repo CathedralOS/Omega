@@ -235,13 +235,7 @@ pub(crate) fn bind_proof_output_call_facts(
             && target_machine.conformance_bounds.is_empty()
             && call.machine_arguments.is_empty();
         let immediate = program.machine_states(target_machine).len() == 1
-            && target_machine.supply_mode == psi_language_semantics::MachineSupplyMode::CheckedBody
-            && program.state_parameters(target_state).is_empty()
-            && program
-                .expression_table
-                .expression_handles(call.arguments)
-                .is_empty()
-            && call.evidence_arguments.is_empty();
+            && target_machine.supply_mode == psi_language_semantics::MachineSupplyMode::CheckedBody;
         let runtime_value_type = target_state
             .return_type
             .is_valid()
@@ -250,17 +244,17 @@ pub(crate) fn bind_proof_output_call_facts(
         let proof_only = !target_state.return_type.is_valid();
         if !concrete || !immediate || (!proof_only && runtime_value_type.is_none()) {
             diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
-                "proof-output call `{}` is currently limited to a concrete one-state, zero-argument Unit- or scalar-result machine",
+                "proof-output call `{}` is currently limited to a concrete one-state Unit- or scalar-result machine",
                 call.target
             )));
             continue;
         }
 
-        let requires = proof
+        let mut callee_inputs = proof
             .evidence_terms
             .iter()
-            .filter(|(_, term)| {
-                term.kind == ContractProofFactKind::Requires
+            .filter_map(|(handle, term)| {
+                (term.kind == ContractProofFactKind::Requires
                     && (term.owner
                         == ContractProofFactOwner::Machine {
                             machine_symbol: target_machine.symbol,
@@ -269,9 +263,11 @@ pub(crate) fn bind_proof_output_call_facts(
                             == (ContractProofFactOwner::MachineState {
                                 machine_symbol: target_machine.symbol,
                                 state_symbol: target_state.symbol,
-                            }))
+                            })))
+                .then_some(handle)
             })
-            .count();
+            .collect::<Vec<_>>();
+        callee_inputs.sort_by_key(|handle| proof.evidence_terms.get(*handle).lane_position);
         let mut callee_outputs = proof
             .evidence_terms
             .iter()
@@ -292,10 +288,13 @@ pub(crate) fn bind_proof_output_call_facts(
             )));
             continue;
         }
-        if requires != 0 {
+        if call.evidence_arguments.len() != callee_inputs.len() {
             diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
-                "proof-output call `{}` cannot currently require input evidence",
-                call.target
+                "proof-output call `{}` supplies {} erased evidence argument{} but its named requires lane has {}",
+                call.target,
+                call.evidence_arguments.len(),
+                if call.evidence_arguments.len() == 1 { "" } else { "s" },
+                callee_inputs.len(),
             )));
             continue;
         }
@@ -482,34 +481,110 @@ pub(crate) fn bind_proof_output_call_facts(
             continue;
         }
 
-        let outputs = callee_outputs
-            .into_iter()
-            .map(|callee_output| {
-                let declaration = proof.evidence_terms.get(callee_output).clone();
-                let binding = fields.get(declaration.name.as_str());
-                let output = binding
-                    .filter(|binding| binding.binding.as_str() != "_")
-                    .map(|binding| {
-                        proof.evidence_terms.append(CheckedEvidenceTerm {
-                            name: binding.binding.as_str().to_owned(),
-                            owner: ContractProofFactOwner::MachineState {
-                                machine_symbol: package.machine_symbol,
-                                state_symbol: package.state_symbol,
-                            },
-                            kind: ContractProofFactKind::Ensures,
-                            lane_position: declaration.lane_position,
-                            proposition: declaration.proposition,
-                            evidence_type: declaration.evidence_type,
-                            evidence_interface: declaration.evidence_interface,
-                        })
-                    });
-                psi_checked_trees::ProofOutputFact {
-                    output_position: declaration.lane_position,
+        let mut evidence_arguments = Vec::with_capacity(callee_inputs.len());
+        for (input_position, (authored, callee_input)) in call
+            .evidence_arguments
+            .iter()
+            .zip(callee_inputs)
+            .enumerate()
+        {
+            let Some(source) =
+                proof_output_source_term_by_name(proof, &invocations, package, authored.as_str())
+            else {
+                diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
+                    "unknown incoming evidence term `{}` in proof-output call `{}`",
+                    authored, call.target,
+                )));
+                invalid = true;
+                continue;
+            };
+            let Some((instantiated_proposition, instantiated_identity)) =
+                instantiate_proof_output_proposition(
+                    program,
+                    proof,
+                    package,
+                    call,
+                    target_state,
+                    callee_input,
+                )
+            else {
+                diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
+                    "proof-output call `{}` cannot instantiate erased requires position {}",
+                    call.target, input_position,
+                )));
+                invalid = true;
+                continue;
+            };
+            if proof.evidence_terms.get(source).proposition != instantiated_proposition {
+                diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
+                    "evidence term `{}` does not inhabit erased requires position {} of proof-output call `{}`",
+                    authored, input_position, call.target,
+                )));
+                invalid = true;
+                continue;
+            }
+            append_proposition_application_if_missing(proof, &instantiated_proposition);
+            evidence_arguments.push(psi_checked_trees::ProofOutputEvidenceArgumentFact {
+                input_position,
+                callee_input,
+                source,
+                instantiated_proposition,
+                instantiated_identity,
+            });
+        }
+        if invalid {
+            continue;
+        }
+
+        let mut outputs = Vec::with_capacity(callee_outputs.len());
+        for callee_output in callee_outputs {
+            let declaration = proof.evidence_terms.get(callee_output).clone();
+            let Some((instantiated_proposition, instantiated_identity)) =
+                instantiate_proof_output_proposition(
+                    program,
+                    proof,
+                    package,
+                    call,
+                    target_state,
                     callee_output,
-                    output,
-                }
-            })
-            .collect();
+                )
+            else {
+                diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
+                    "proof-output call `{}` cannot instantiate output `{}`",
+                    call.target, declaration.name,
+                )));
+                invalid = true;
+                continue;
+            };
+            append_proposition_application_if_missing(proof, &instantiated_proposition);
+            let binding = fields.get(declaration.name.as_str());
+            let output = binding
+                .filter(|binding| binding.binding.as_str() != "_")
+                .map(|binding| {
+                    proof.evidence_terms.append(CheckedEvidenceTerm {
+                        name: binding.binding.as_str().to_owned(),
+                        owner: ContractProofFactOwner::MachineState {
+                            machine_symbol: package.machine_symbol,
+                            state_symbol: package.state_symbol,
+                        },
+                        kind: ContractProofFactKind::Ensures,
+                        lane_position: declaration.lane_position,
+                        proposition: instantiated_proposition.clone(),
+                        evidence_type: declaration.evidence_type,
+                        evidence_interface: declaration.evidence_interface,
+                    })
+                });
+            outputs.push(psi_checked_trees::ProofOutputFact {
+                output_position: declaration.lane_position,
+                callee_output,
+                instantiated_proposition,
+                instantiated_identity,
+                output,
+            });
+        }
+        if invalid {
+            continue;
+        }
         invocations.append(psi_checked_trees::ProofOutputCallFact {
             caller_machine_symbol: package.machine_symbol,
             caller_state_symbol: package.state_symbol,
@@ -518,6 +593,7 @@ pub(crate) fn bind_proof_output_call_facts(
             runtime_call,
             target_machine_symbol: target_machine.symbol,
             target_state_symbol: target_state.symbol,
+            evidence_arguments,
             outputs,
         });
     }
@@ -527,6 +603,115 @@ pub(crate) fn bind_proof_output_call_facts(
         Ok(())
     } else {
         Err(diagnostics)
+    }
+}
+
+fn proof_output_source_term_by_name(
+    proof: &ProofFacts,
+    invocations: &psi_arena::Arena<psi_checked_trees::ProofOutputCallFact>,
+    package: &psi_typed_trees::typed_trees::ProofOutputCall,
+    name: &str,
+) -> Option<psi_arena::Handle<CheckedEvidenceTerm>> {
+    proof
+        .evidence_terms
+        .iter()
+        .find_map(|(handle, term)| {
+            let owner_matches = term.owner
+                == (ContractProofFactOwner::Machine {
+                    machine_symbol: package.machine_symbol,
+                })
+                || term.owner
+                    == (ContractProofFactOwner::MachineState {
+                        machine_symbol: package.machine_symbol,
+                        state_symbol: package.state_symbol,
+                    });
+            (owner_matches && term.kind == ContractProofFactKind::Requires && term.name == name)
+                .then_some(handle)
+        })
+        .or_else(|| {
+            invocations
+                .iter()
+                .filter_map(|(_, invocation)| {
+                    (invocation.caller_machine_symbol == package.machine_symbol
+                        && invocation.caller_state_symbol == package.state_symbol
+                        && invocation.source_statement_index < package.source_statement_index)
+                        .then_some(invocation.outputs.iter().filter_map(|output| output.output))
+                })
+                .flatten()
+                .find(|term| proof.evidence_terms.get(*term).name == name)
+        })
+}
+
+fn instantiate_proof_output_proposition(
+    program: &psi_typed_trees::TypedTrees,
+    proof: &ProofFacts,
+    package: &psi_typed_trees::typed_trees::ProofOutputCall,
+    call: &psi_typed_trees::expression::TableCallExpression,
+    target_state: &psi_typed_trees::state::State,
+    term: psi_arena::Handle<CheckedEvidenceTerm>,
+) -> Option<(psi_checked_trees::CheckedPropositionApplication, String)> {
+    let contract = proof
+        .contract_facts
+        .iter()
+        .map(|(_, contract)| contract)
+        .find(|contract| contract.evidence_term == Some(term))?;
+    let psi_typed_trees::domain::ProofFact::Proposition(application) =
+        program.proof_facts.get(contract.fact)
+    else {
+        return None;
+    };
+    let call_site = crate::CallSite::Expression {
+        expression: package.call,
+        call,
+    };
+    let binder_labels = application
+        .binder_arguments
+        .iter()
+        .map(|argument| argument.display_name())
+        .collect::<Vec<_>>();
+    let argument_labels = program
+        .expression_table
+        .expression_handles(application.arguments)
+        .iter()
+        .map(|argument| {
+            crate::checks::contracts::labels::instantiate_call_contract_expression_label(
+                program,
+                package.state_symbol,
+                package.statement_index,
+                &call_site,
+                target_state,
+                *argument,
+            )
+        })
+        .collect::<Vec<_>>();
+    let normalized = program.normalize_nominal_proposition_application_with_labels(
+        application,
+        &binder_labels,
+        &argument_labels,
+    )?;
+    let identity = program
+        .normalize_proposition_application_with_labels(
+            application,
+            &binder_labels,
+            &argument_labels,
+        )?
+        .identity_label();
+    Some((lower_checked_proposition_application(normalized), identity))
+}
+
+fn append_proposition_application_if_missing(
+    proof: &mut ProofFacts,
+    application: &psi_checked_trees::CheckedPropositionApplication,
+) {
+    if !proof
+        .proposition_vocabulary
+        .applications
+        .contains(application)
+    {
+        proof
+            .proposition_vocabulary
+            .applications
+            .push(application.clone());
     }
 }
 

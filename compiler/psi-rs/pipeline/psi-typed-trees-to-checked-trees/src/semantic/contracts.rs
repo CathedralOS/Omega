@@ -128,8 +128,9 @@ pub(super) fn append_contract_semantic_facts(
     // ordinary `ContractCallFact`, but the call still establishes every
     // unconditional named guarantee. Materialize one zero-runtime ensures
     // context at the binding coordinate so omitted selectors contribute facts
-    // without minting caller-local terms. The current accepted producer subset
-    // is zero-argument, so the declaration payload needs no call substitution.
+    // without minting caller-local terms. The invocation retains the exact
+    // ordinary argument substitution independently of whether an output term
+    // was selected.
     for (_, invocation) in proof.proof_output_calls.iter() {
         if invocation.runtime_call.is_some() {
             continue;
@@ -154,7 +155,15 @@ pub(super) fn append_contract_semantic_facts(
             let Some(Some(source_fact)) = semantic_handles.get(contract_index) else {
                 continue;
             };
-            let source = *facts.facts.get(*source_fact);
+            let mut source = *facts.facts.get(*source_fact);
+            if let FactPayload::ContractPropositionApplication {
+                ref mut instantiated,
+                ..
+            } = source.payload
+            {
+                *instantiated =
+                    facts.append_instantiated_expression(output.instantiated_identity.clone());
+            }
             let Some(evidence) = crate::qualification_evidence::call_contract_evidence(
                 program,
                 invocation.target_machine_symbol,

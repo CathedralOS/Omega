@@ -9,6 +9,7 @@ name = "psi_checked_trees_to_terminal"
 path = "src/lib.rs"
 
 [dependencies]
+psi-arena = { path = "../../foundation/psi-arena" }
 psi-checked-trees = { path = "../../representations/psi-checked-trees" }
 psi-core = { path = "../../foundation/psi-core" }
 psi-language-semantics = { path = "../../foundation/psi-language-semantics" }
