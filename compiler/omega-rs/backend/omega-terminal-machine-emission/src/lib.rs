@@ -155,6 +155,48 @@ fn emit_function(
         TerminalAssignedOperation::BooleanControlWithCleanup { .. } => {
             unreachable!("Boolean-control cleanup is emitted by the early carrier path")
         }
+        TerminalAssignedOperation::ReturnStructuralScalarCall {
+            psi_edge,
+            psi_operation,
+            scalar_type,
+            callee,
+            structural_types,
+            call_plan,
+            structural_parameters,
+            copies,
+            claim_transfers,
+            ..
+        } => {
+            let body = omega_terminal_assigned_target_operations::TerminalAssignedUnitBody {
+                structural_types: structural_types.clone(),
+                call_plan: call_plan.clone(),
+                parameters: structural_parameters.clone(),
+                operations: vec![
+                    omega_terminal_assigned_target_operations::TerminalAssignedUnitOperation::Call {
+                        psi_operation: *psi_operation,
+                        callee: *callee,
+                        result: Some(*scalar_type),
+                        copies: copies.clone(),
+                        claim_transfers: claim_transfers.clone(),
+                    },
+                    omega_terminal_assigned_target_operations::TerminalAssignedUnitOperation::Return {
+                        psi_edge: *psi_edge,
+                        cleanup_actions: Vec::new(),
+                    },
+                ],
+            };
+            let emitted = emit_unit_body(&body, target, functions)?;
+            internal_calls = emitted.internal_calls;
+            internal_unit_calls = emitted.internal_unit_calls;
+            fuel_attribution = emitted.fuel_attribution;
+            port_effects = emitted.port_effects;
+            boundary_settlements = emitted.boundary_settlements;
+            unit_stack = Some(emitted.stack);
+            unit_parameter_homes = emitted.parameter_homes;
+            unit_parameters = emitted.parameters;
+            unit_affine_cleanup = emitted.affine_cleanup;
+            emitted.bytes
+        }
         TerminalAssignedOperation::ReturnBoundaryPortReadU8 {
             psi_edge,
             psi_operation,

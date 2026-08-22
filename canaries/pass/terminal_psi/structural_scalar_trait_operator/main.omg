@@ -1,0 +1,22 @@
+trait Ranked {
+    operator < before(left: Self, right: Self) -> bool;
+}
+
+data Card { active: bool; }
+
+Ascending: Card satisfies Ranked {
+    machine before(left: Card, right: Card) -> bool {
+        true
+    }
+}
+
+machine choose<Element, Order: Element satisfies Ranked>(
+    left: Element,
+    right: Element
+) -> bool {
+    left < right
+}
+
+machine caller(left: Card, right: Card) -> bool {
+    choose<Card, Ascending>(left, right)
+}
