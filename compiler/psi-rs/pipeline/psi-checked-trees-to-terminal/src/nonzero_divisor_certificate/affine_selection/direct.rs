@@ -15,20 +15,15 @@ pub(super) fn prove(
     semantic_axioms: &[Proposition],
     definitions: &DefinitionIndex,
 ) -> Option<ProofNode> {
-    candidates::find(
-        assumptions,
-        semantic_axioms,
-        |root, root_bound, citation| {
-            completion::prove(
-                context,
-                goal,
-                assumptions,
-                semantic_axioms,
-                definitions,
-                root,
-                root_bound,
-                citation,
-            )
-        },
-    )
+    candidates::find(assumptions, semantic_axioms, |root, root_bound| {
+        completion::prove(
+            context,
+            goal,
+            assumptions,
+            semantic_axioms,
+            definitions,
+            root,
+            root_bound,
+        )
+    })
 }

@@ -3,10 +3,7 @@
 use psi_core::{Proposition, PropositionContext, ScalarTerm};
 use psi_proof_kernel::ProofNode;
 
-use super::super::super::{
-    affine_custody::{self, DefinitionIndex},
-    integer_evidence::Citation,
-};
+use super::super::super::affine_custody::{self, DefinitionIndex};
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn prove(
@@ -16,8 +13,7 @@ pub(super) fn prove(
     semantic_axioms: &[Proposition],
     definitions: &DefinitionIndex,
     root: &ScalarTerm,
-    root_bound: &Proposition,
-    citation: Citation,
+    root_bound: ProofNode,
 ) -> Option<ProofNode> {
     affine_custody::prove_from_root(
         context,
@@ -26,6 +22,6 @@ pub(super) fn prove(
         semantic_axioms,
         definitions,
         root,
-        citation.proof(root_bound),
+        root_bound,
     )
 }
