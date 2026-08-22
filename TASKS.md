@@ -619,6 +619,13 @@ Owners:
   retained width/interpretation. Capability invention or removal rejects fail
   closed before layout consumers; the Boolean remains semantic type evidence
   separate from geometry and grants no new placement or mutation authority.
+  Plan-laid validation now independently reconstructs the retained target-
+  neutral report identity from the exact current typed schema, derives its
+  `offsets` convenience projection from complete retained entries, and requires
+  the current field inventory to account for every entry. Schema-fingerprint,
+  derived-offset, or unmatched-entry drift rejects before host geometry or
+  layout consumers; compact identities remain non-authoritative and no policy
+  code is re-evaluated.
 - Keep alias-exclusion admission separate from access rights; `&mut` does not
   claim exclusivity against a device. Sealed primitive events now specialize
   linearly into Stable read/take/write/swap, External read/take/write, or one
@@ -1354,6 +1361,16 @@ Remaining:
   converse direction, the source affine or shift chain and cast reconstruct by
   their existing rules while every target divisor proof stays independent.
   Every source operation, cast, and target operation retains separate evidence.
+  Canonical-source integration for the affine-to-cast/divisor composition still
+  needs versioned landed-sibling custody. Real source emission represents the
+  affine sibling as a Value plus an earlier equality, while the current
+  `IntegerAffineWitness` retains only root, target, and definition axioms and
+  kernel definition replay accepts only inline typed literals. A handcrafted
+  inline-literal prototype composed, but the source artifact failed at exact-
+  divide certificate production and was fully removed. Extend canonical
+  production, codec, and independent verification together before admitting
+  that source shape; this is an engineering/schema prerequisite, not a new
+  semantic ruling.
   The corresponding direct same-carrier family now retains all four nonempty
   divide/remainder-to-affine/shift compositions without a cast. A leading
   divide/remainder chain supplies its complete verifier-owned carrier hull to
@@ -5698,7 +5715,15 @@ Owners:
   into callback admission. Add and validate the checked resource representation
   first; then bind its exact receipt through callback placement. This does not
   relax the private-placement decision or infer resources from
-  `BoundaryEntryPlan`. The
+  `BoundaryEntryPlan`. Callback thunk body lowering separately stops on multi-
+  root activation planning: instruction selection currently emits one process-
+  entry Source function over one root runtime-flow/dispatch/storage activation,
+  while internal-call operations carry no ABI bridge. Add per-entry root
+  schedules with activation-local frame/storage identity and a validated
+  boundary-to-internal argument/result recipe before emitting callback
+  functions; placeholder enter/call/return bodies are unsound. This prerequisite
+  is independent of private registration placement and checked resource
+  ceilings. The
   remaining slices are
   resource-ceiling aggregation, multi-entry/re-entrant target instruction
   lowering, and the
