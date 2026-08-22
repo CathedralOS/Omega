@@ -193,9 +193,12 @@ fn runtime_guard_divide_modulo_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("runtime_guard_divide_modulo canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("divide/modulo guard canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("runtime_guard_divide_modulo canary should run");
 
@@ -223,9 +226,12 @@ fn runtime_guard_negative_arithmetic_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("runtime_guard_negative_arithmetic canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("negative guard arithmetic canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("runtime_guard_negative_arithmetic canary should run");
 
@@ -252,9 +258,12 @@ fn runtime_guard_divide_modulo_signedness_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("runtime_guard_divide_modulo_signedness canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("signedness guard canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("runtime_guard_divide_modulo_signedness canary should run");
 
