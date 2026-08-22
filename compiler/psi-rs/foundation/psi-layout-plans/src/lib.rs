@@ -1975,15 +1975,27 @@ pub fn derive_symbolic_materialization(
         }
     }
 
+    let prepared_writes = symbolic_fields
+        .iter()
+        .map(|symbolic| {
+            let key = materialization_field_key(&symbolic.field, symbolic.member_identity);
+            planned
+                .get(&key)
+                .expect("symbolic layout membership validated above")
+                .iter()
+                .map(|entry| {
+                    let write = write_from_entry(entry, symbolic)?;
+                    validate_write(byte_len, &write)?;
+                    Ok((entry.placement, write))
+                })
+                .collect::<Result<Vec<_>, MaterializationDiagnostic>>()
+        })
+        .collect::<Result<Vec<_>, MaterializationDiagnostic>>()?;
+
     let mut actions = Vec::new();
-    for symbolic in symbolic_fields {
-        let key = materialization_field_key(&symbolic.field, symbolic.member_identity);
-        let entries = planned
-            .get(&key)
-            .expect("symbolic layout membership validated above");
+    for (symbolic, writes) in symbolic_fields.iter().zip(prepared_writes) {
         let resolved = resolve(symbolic.target);
-        for entry in entries {
-            let write = write_from_entry(entry, symbolic)?;
+        for (placement, write) in writes {
             let action = match resolved {
                 Some(source_value) => {
                     validate_write_source_value(&write, source_value, "symbolic")?;
@@ -1995,7 +2007,7 @@ pub fn derive_symbolic_materialization(
                 None if context.consumption == ConsumptionInstant::AfterOmegaHandoff => {
                     MaterializationAction::RuntimeWriter(write)
                 }
-                None => match entry.placement {
+                None => match placement {
                     LayoutPlacementReport::At { .. }
                         if context.native_pointer_relocation_bits == Some(symbolic.width_bits) =>
                     {
@@ -3409,6 +3421,53 @@ mod tests {
         .expect_err("one stable identity cannot name two supplied symbolic values");
         assert!(error.0.contains("repeats stable member identity #7"));
         assert_eq!(resolutions, 0);
+    }
+
+    #[test]
+    fn symbolic_write_geometry_rejects_before_any_resolver_invocation() {
+        let layout = LayoutPlanReport {
+            schema_identity: 1,
+            entries: vec![
+                LayoutFieldEntryReport {
+                    field: "first".into(),
+                    member_identity: None,
+                    placement: LayoutPlacementReport::At { offset: 0 },
+                },
+                LayoutFieldEntryReport {
+                    field: "second".into(),
+                    member_identity: None,
+                    placement: LayoutPlacementReport::At { offset: 16 },
+                },
+            ],
+            offsets: Some(vec![0, 16]),
+            size: Some(16),
+            align: 8,
+        };
+        let symbolic_fields = [
+            SymbolicFieldValue::new("first", 64, entry()).expect("first symbolic field"),
+            SymbolicFieldValue::new("second", 64, entry()).expect("second symbolic field"),
+        ];
+        let mut resolutions = 0;
+        let error = derive_symbolic_materialization(
+            &layout,
+            &symbolic_fields,
+            MaterializationContext {
+                consumption: ConsumptionInstant::AfterOmegaHandoff,
+                byte_order: ByteOrder::LittleEndian,
+                native_pointer_relocation_bits: None,
+                placement: PlacementConstraints::unconstrained(PlacementPhase::PostHandoff),
+            },
+            |_| {
+                resolutions += 1;
+                Some(0)
+            },
+        )
+        .expect_err("out-of-range writer geometry must reject during static preflight");
+        assert!(error.0.contains("writes outside"), "{}", error.0);
+        assert_eq!(
+            resolutions, 0,
+            "no provider/compiler resolver runs before all static writer geometry validates"
+        );
     }
 
     #[test]
