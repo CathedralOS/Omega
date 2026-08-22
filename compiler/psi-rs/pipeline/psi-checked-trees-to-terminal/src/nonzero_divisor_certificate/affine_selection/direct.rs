@@ -15,7 +15,9 @@ pub(super) fn prove(
     semantic_axioms: &[Proposition],
     definitions: &DefinitionIndex,
 ) -> Option<ProofNode> {
-    candidates::DirectAffineCandidates::new(assumptions, semantic_axioms).find(
+    candidates::find(
+        assumptions,
+        semantic_axioms,
         |root, root_bound, citation| {
             completion::prove(
                 context,
