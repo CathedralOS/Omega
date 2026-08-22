@@ -211,6 +211,33 @@ fn materialization_field_key(field: &str, member_identity: Option<u64>) -> Mater
     }
 }
 
+fn validate_materialization_field_identities(
+    layout: &LayoutPlanReport,
+) -> Result<(), MaterializationDiagnostic> {
+    let mut identity_names = std::collections::BTreeMap::new();
+    let mut name_identities = std::collections::BTreeMap::new();
+    for entry in &layout.entries {
+        let key = materialization_field_key(&entry.field, entry.member_identity);
+        if let Some(prior_name) = identity_names.insert(key.clone(), entry.field.as_str())
+            && prior_name != entry.field
+        {
+            return Err(MaterializationDiagnostic(format!(
+                "layout field identity names both `{prior_name}` and `{}`",
+                entry.field
+            )));
+        }
+        if let Some(prior_identity) = name_identities.insert(entry.field.as_str(), key.clone())
+            && prior_identity != key
+        {
+            return Err(MaterializationDiagnostic(format!(
+                "layout field `{}` fragments do not retain the same stable identity",
+                entry.field
+            )));
+        }
+    }
+    Ok(())
+}
+
 const fn stable_identity_suffix(member_identity: Option<u64>) -> &'static str {
     if member_identity.is_some() {
         " with the same stable identity"
@@ -1317,6 +1344,7 @@ pub fn materialize_scalar_layout_into(
             destination.len()
         )));
     }
+    validate_materialization_field_identities(layout)?;
 
     let mut supplied = std::collections::BTreeMap::new();
     let mut supplied_names = std::collections::BTreeSet::new();
@@ -1411,6 +1439,7 @@ pub fn materialize_aggregate_layout_into(
             destination.len()
         )));
     }
+    validate_materialization_field_identities(layout)?;
 
     let mut schemas = std::collections::BTreeMap::new();
     let mut schema_names = std::collections::BTreeSet::new();
@@ -1651,6 +1680,7 @@ pub fn decode_scalar_layout(
             source.len()
         )));
     }
+    validate_materialization_field_identities(layout)?;
 
     let mut decoded = std::collections::BTreeMap::new();
     let mut schema_names = std::collections::BTreeSet::new();
@@ -1840,6 +1870,7 @@ pub fn derive_symbolic_materialization(
     let placement = context
         .placement
         .joined_with_layout(layout.align, byte_len)?;
+    validate_materialization_field_identities(layout)?;
 
     let mut supplied = std::collections::BTreeSet::new();
     let mut names = std::collections::BTreeSet::new();
@@ -2569,6 +2600,90 @@ mod tests {
     }
 
     #[test]
+    fn materializers_reject_layout_identity_aliases_before_observable_work() {
+        let mut aliased = split_layout();
+        for entry in &mut aliased.entries {
+            entry.field = "legacy_address".into();
+            entry.member_identity = Some(7);
+        }
+        aliased.entries[1].field = "forged_alias".into();
+
+        let scalar = ScalarFieldValue::new_numbered("address", 7, 64, 0).expect("numbered scalar");
+        let mut scalar_bytes = [0xa5; 16];
+        let error = materialize_scalar_layout_into(
+            &aliased,
+            &[scalar],
+            ByteOrder::LittleEndian,
+            &mut scalar_bytes,
+        )
+        .expect_err("scalar materialization must reject one identity under two names");
+        assert!(error.0.contains("identity names both"), "{}", error.0);
+        assert_eq!(scalar_bytes, [0xa5; 16]);
+
+        let error = decode_scalar_layout(
+            &aliased,
+            &[ScalarFieldSchema::new_numbered("address", 7, 64).expect("numbered scalar schema")],
+            ByteOrder::LittleEndian,
+            &[0; 16],
+        )
+        .expect_err("scalar decode must reject one identity under two names");
+        assert!(error.0.contains("identity names both"), "{}", error.0);
+
+        let mut resolutions = 0;
+        let symbolic =
+            SymbolicFieldValue::new_numbered("address", 7, 64, entry()).expect("numbered target");
+        let error = derive_symbolic_materialization(
+            &aliased,
+            &[symbolic],
+            MaterializationContext {
+                consumption: ConsumptionInstant::AfterOmegaHandoff,
+                byte_order: ByteOrder::LittleEndian,
+                native_pointer_relocation_bits: None,
+                placement: PlacementConstraints::unconstrained(PlacementPhase::PostHandoff),
+            },
+            |_| {
+                resolutions += 1;
+                None
+            },
+        )
+        .expect_err("symbolic derivation must reject one identity under two names");
+        assert!(error.0.contains("identity names both"), "{}", error.0);
+        assert_eq!(resolutions, 0);
+
+        let aggregate_layout = LayoutPlanReport {
+            schema_identity: 1,
+            entries: vec![
+                LayoutFieldEntryReport {
+                    field: "legacy_payload".into(),
+                    member_identity: Some(9),
+                    placement: LayoutPlacementReport::At { offset: 0 },
+                },
+                LayoutFieldEntryReport {
+                    field: "forged_payload_alias".into(),
+                    member_identity: Some(9),
+                    placement: LayoutPlacementReport::At { offset: 4 },
+                },
+            ],
+            offsets: Some(vec![0, 4]),
+            size: Some(8),
+            align: 4,
+        };
+        let schema = AggregateFieldSchema::new_repeated_numbered("payload", 9, 4, 4, 2)
+            .expect("numbered repeated aggregate");
+        let value = AggregateFieldValue::new("payload", vec![0; 8]).expect("aggregate value");
+        let mut aggregate_bytes = [0xa5; 8];
+        let error = materialize_aggregate_layout_into(
+            &aggregate_layout,
+            &[schema],
+            &[value],
+            &mut aggregate_bytes,
+        )
+        .expect_err("aggregate materialization must reject one identity under two names");
+        assert!(error.0.contains("identity names both"), "{}", error.0);
+        assert_eq!(aggregate_bytes, [0xa5; 8]);
+    }
+
+    #[test]
     fn normalized_layout_identity_distinguishes_dynamic_from_full_width_size() {
         let dynamic = LayoutPlanReport {
             schema_identity: 1,
@@ -2921,7 +3036,7 @@ mod tests {
         assert_eq!(decoded["counter"], (Some(7), 0x1234));
         assert_eq!(decoded["status"], (Some(9), 0xabcd));
 
-        let mut drifted = layout;
+        let mut drifted = layout.clone();
         drifted.entries[1].member_identity = Some(8);
         let mut unchanged = [0x5a; 4];
         let error = materialize_scalar_layout_into(
@@ -2946,7 +3061,7 @@ mod tests {
         let duplicate_identity = ScalarFieldValue::new_numbered("alias", 7, 16, 0)
             .expect("second spelling with the same identity");
         let error = materialize_scalar_layout_into(
-            &drifted,
+            &layout,
             &[values[0].clone(), duplicate_identity],
             ByteOrder::LittleEndian,
             &mut unchanged,
@@ -2955,7 +3070,7 @@ mod tests {
         assert!(error.0.contains("repeats stable member identity #7"));
 
         let error = decode_scalar_layout(
-            &drifted,
+            &layout,
             &[
                 ScalarFieldSchema::new_numbered("counter", 7, 16).expect("numbered counter schema"),
                 ScalarFieldSchema::new_numbered("alias", 7, 16).expect("duplicate numbered schema"),
@@ -3183,7 +3298,7 @@ mod tests {
             "presentation spelling must not change generated writer identity"
         );
 
-        let mut drifted = layout;
+        let mut drifted = layout.clone();
         drifted.entries[1].member_identity = Some(8);
         let mut resolutions = 0;
         let error = derive_symbolic_materialization(
@@ -3196,16 +3311,12 @@ mod tests {
             },
         )
         .expect_err("fragment identity drift must reject before resolution");
-        assert!(
-            error.0.contains("one stable member identity"),
-            "{}",
-            error.0
-        );
+        assert!(error.0.contains("same stable identity"), "{}", error.0);
         assert_eq!(resolutions, 0);
 
         let alias =
             SymbolicFieldValue::new_numbered("alias", 7, 64, entry()).expect("identity alias");
-        let error = derive_symbolic_materialization(&drifted, &[symbolic, alias], context, |_| {
+        let error = derive_symbolic_materialization(&layout, &[symbolic, alias], context, |_| {
             resolutions += 1;
             None
         })

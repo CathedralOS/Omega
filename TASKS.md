@@ -2368,7 +2368,11 @@ Owners:
   retain the optional app-bundle executable receipt separately from the flat
   executable receipt; both bind the same publication/container identity but
   their exact destination paths cannot substitute for one another. Other
-  targets retain no bundle receipt.
+  targets retain no bundle receipt. Before returning the report, orchestration
+  independently validates the pair: a bundle receipt requires one flat
+  receipt, equal certificate/inventory/publication/container identities and
+  output leaf, plus distinct paths and installation identities. Missing,
+  substituted, or self-aliased pairs reject atomically.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected

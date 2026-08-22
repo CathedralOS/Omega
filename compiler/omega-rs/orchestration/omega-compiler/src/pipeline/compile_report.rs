@@ -92,6 +92,36 @@ pub struct CompileReport {
 }
 
 impl CompileReport {
+    /// Replays the only valid relationship between the flat executable and an
+    /// optional app-bundle copy. This checks compiler-publication custody; it
+    /// does not inspect or authorize runtime installation.
+    pub fn has_consistent_executable_publication_custody(&self) -> bool {
+        if !self.wrote_output
+            && (self.executable_publication.is_some() || self.app_bundle_publication.is_some())
+        {
+            return false;
+        }
+        match (
+            self.executable_publication.as_ref(),
+            self.app_bundle_publication.as_ref(),
+        ) {
+            (None, None) | (Some(_), None) => true,
+            (None, Some(_)) => false,
+            (Some(flat), Some(bundle)) => {
+                flat.output_path != bundle.output_path
+                    && flat.output_path.file_name() == bundle.output_path.file_name()
+                    && flat.certificate_fingerprint == bundle.certificate_fingerprint
+                    && flat.inventory_fingerprint == bundle.inventory_fingerprint
+                    && flat.publication_evidence_fingerprint
+                        == bundle.publication_evidence_fingerprint
+                    && flat.container_byte_count == bundle.container_byte_count
+                    && flat.container_fingerprint == bundle.container_fingerprint
+                    && flat.installation_evidence_fingerprint
+                        != bundle.installation_evidence_fingerprint
+            }
+        }
+    }
+
     pub fn summary(&self) -> String {
         format!(
             "compiled {} source file(s) from {}; write_output={}",
@@ -99,5 +129,91 @@ impl CompileReport {
             self.root_path.display(),
             self.wrote_output
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{CompileReport, ExecutablePublicationReceipt};
+
+    fn receipt(path: &str, installation: u64) -> ExecutablePublicationReceipt {
+        ExecutablePublicationReceipt::new(path.into(), 1, 2, 3, 4, 5, installation)
+    }
+
+    fn report(
+        wrote_output: bool,
+        flat: Option<ExecutablePublicationReceipt>,
+        bundle: Option<ExecutablePublicationReceipt>,
+    ) -> CompileReport {
+        CompileReport {
+            root_path: "main.omg".into(),
+            source_file_count: 1,
+            wrote_output,
+            executable_publication: flat,
+            app_bundle_publication: bundle,
+            program_storage_entry: None,
+            program_storage_entry_bridge: None,
+            build_evaluation_usage: None,
+        }
+    }
+
+    #[test]
+    fn executable_publication_pair_rejects_every_cross_copy_drift() {
+        let flat = receipt("build/main", 6);
+        let bundle = receipt("build/Main.app/Contents/MacOS/main", 7);
+        assert!(
+            report(true, Some(flat.clone()), Some(bundle.clone()))
+                .has_consistent_executable_publication_custody()
+        );
+        assert!(report(false, None, None).has_consistent_executable_publication_custody());
+        assert!(
+            !report(false, Some(flat.clone()), None)
+                .has_consistent_executable_publication_custody()
+        );
+        assert!(
+            !report(true, None, Some(bundle.clone()))
+                .has_consistent_executable_publication_custody()
+        );
+        assert!(
+            !report(true, Some(flat.clone()), Some(flat.clone()))
+                .has_consistent_executable_publication_custody()
+        );
+
+        let mut changed = bundle.clone();
+        changed.certificate_fingerprint ^= 1;
+        assert!(
+            !report(true, Some(flat.clone()), Some(changed))
+                .has_consistent_executable_publication_custody()
+        );
+        let mut changed = bundle.clone();
+        changed.inventory_fingerprint ^= 1;
+        assert!(
+            !report(true, Some(flat.clone()), Some(changed))
+                .has_consistent_executable_publication_custody()
+        );
+        let mut changed = bundle.clone();
+        changed.publication_evidence_fingerprint ^= 1;
+        assert!(
+            !report(true, Some(flat.clone()), Some(changed))
+                .has_consistent_executable_publication_custody()
+        );
+        let mut changed = bundle.clone();
+        changed.container_byte_count += 1;
+        assert!(
+            !report(true, Some(flat.clone()), Some(changed))
+                .has_consistent_executable_publication_custody()
+        );
+        let mut changed = bundle.clone();
+        changed.container_fingerprint ^= 1;
+        assert!(
+            !report(true, Some(flat.clone()), Some(changed))
+                .has_consistent_executable_publication_custody()
+        );
+        let mut changed = bundle;
+        changed.installation_evidence_fingerprint = flat.installation_evidence_fingerprint;
+        assert!(
+            !report(true, Some(flat), Some(changed))
+                .has_consistent_executable_publication_custody()
+        );
     }
 }
