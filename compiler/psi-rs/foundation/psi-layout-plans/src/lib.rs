@@ -1096,11 +1096,7 @@ impl PostHandoffWriterPlan {
     pub fn lower_reusable_fragment(
         &self,
     ) -> Result<PostHandoffWriterInvocationPlan, MaterializationDiagnostic> {
-        if self.steps.is_empty() {
-            return Err(MaterializationDiagnostic(
-                "post-handoff writer requires at least one fragment".into(),
-            ));
-        }
+        validate_post_handoff_writer_nonempty(&self.steps)?;
 
         let mut sources = Vec::<PostHandoffWriterSourceSlot>::new();
         let mut fit_constraints = Vec::new();
@@ -1174,6 +1170,7 @@ impl PostHandoffWriterPlan {
         destination_len: usize,
         site: PlacementSite,
     ) -> Result<(), MaterializationDiagnostic> {
+        validate_post_handoff_writer_nonempty(&self.steps)?;
         self.placement.validate_site(self.byte_len, site)?;
         if destination_len < self.byte_len {
             return Err(MaterializationDiagnostic(format!(
@@ -1260,6 +1257,17 @@ impl PostHandoffWriterPlan {
     }
 }
 
+fn validate_post_handoff_writer_nonempty(
+    steps: &[PostHandoffWriterStep],
+) -> Result<(), MaterializationDiagnostic> {
+    if steps.is_empty() {
+        return Err(MaterializationDiagnostic(
+            "post-handoff writer requires at least one fragment".into(),
+        ));
+    }
+    Ok(())
+}
+
 fn validate_post_handoff_writer_step(
     byte_len: usize,
     step: &PostHandoffWriterStep,
@@ -1325,6 +1333,11 @@ impl SymbolicMaterializationPlan {
     pub fn derive_post_handoff_writer(
         &self,
     ) -> Result<PostHandoffWriterPlan, MaterializationDiagnostic> {
+        if self.actions.is_empty() {
+            return Err(MaterializationDiagnostic(
+                "post-handoff writer requires at least one fragment".into(),
+            ));
+        }
         let mut steps = Vec::with_capacity(self.actions.len());
         for action in &self.actions {
             let step = match action {
@@ -3787,6 +3800,52 @@ mod tests {
             )
             .expect_err("direct execution validates the same source invariant");
         assert!(error.0.contains("inconsistent invocation values"));
+    }
+
+    #[test]
+    fn empty_post_handoff_writer_rejects_every_execution_path() {
+        let symbolic = SymbolicMaterializationPlan {
+            byte_len: 8,
+            byte_order: ByteOrder::LittleEndian,
+            placement: PlacementConstraints::unconstrained(PlacementPhase::PostHandoff),
+            actions: Vec::new(),
+        };
+        let error = symbolic
+            .derive_post_handoff_writer()
+            .expect_err("empty symbolic actions cannot claim a generated writer");
+        assert!(error.0.contains("at least one fragment"), "{}", error.0);
+
+        let writer = PostHandoffWriterPlan {
+            byte_len: 8,
+            byte_order: ByteOrder::LittleEndian,
+            placement: PlacementConstraints::unconstrained(PlacementPhase::PostHandoff),
+            steps: Vec::new(),
+        };
+        let error = writer
+            .lower_reusable_fragment()
+            .expect_err("empty direct plans cannot claim reusable lowering");
+        assert!(error.0.contains("at least one fragment"), "{}", error.0);
+
+        let mut bytes = [0xa5; 8];
+        let mut resolutions = 0;
+        let error = writer
+            .execute(
+                &mut bytes,
+                PlacementSite {
+                    base_address: 0,
+                    phase: PlacementPhase::PostHandoff,
+                    machine_regime: None,
+                    installation_scope: None,
+                },
+                |_| {
+                    resolutions += 1;
+                    Some(0)
+                },
+            )
+            .expect_err("empty direct execution cannot report writer success");
+        assert!(error.0.contains("at least one fragment"), "{}", error.0);
+        assert_eq!(resolutions, 0);
+        assert_eq!(bytes, [0xa5; 8]);
     }
 
     #[test]
