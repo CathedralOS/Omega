@@ -27,10 +27,11 @@ pub use resident_views::{BorrowedResidentRetirementError, EstablishedBorrowedRes
 pub use schema_correspondence::{
     AdmittedSchemaDeviceCorrespondence, DeviceRevisionPredicateId, RuntimeDeviceRevisionEvidence,
     RuntimeDeviceRevisionObservationId, SchemaCorrespondedPlaceEstablishmentError,
-    SchemaCorrespondedPlacedView, SchemaCorrespondedPlacementAdmission,
-    SchemaCorrespondencePlacementBindingError, SchemaCorrespondenceProviderId,
-    SchemaCorrespondenceSourceId, SchemaDeviceCorrespondenceAdmissionError,
-    SchemaDeviceCorrespondenceGrant, SchemaDeviceCorrespondenceGrantError, StableDeviceInstanceId,
+    SchemaCorrespondedPlaceRetirementError, SchemaCorrespondedPlacedView,
+    SchemaCorrespondedPlacementAdmission, SchemaCorrespondencePlacementBindingError,
+    SchemaCorrespondenceProviderId, SchemaCorrespondenceSourceId,
+    SchemaDeviceCorrespondenceAdmissionError, SchemaDeviceCorrespondenceGrant,
+    SchemaDeviceCorrespondenceGrantError, StableDeviceInstanceId,
     bind_schema_correspondence_to_placement,
 };
 
@@ -6210,6 +6211,81 @@ mod tests {
         assert_eq!(view.correspondence().provider(), provider);
         assert_eq!(view.correspondence().device(), device);
         assert_eq!(view.correspondence().placement(), plan.identity());
+    }
+
+    #[test]
+    fn corresponded_view_retirement_replays_both_authorities_and_returns_exact_inputs() {
+        let plan = uart_placement_plan();
+        let extent = uart_extent_with_lineage(0x71a8, 12, 259);
+        let origin = extent.origin();
+        let lineage = extent.lineage_root();
+        let loan = extent.loan(0, 12).expect("shared UART loan");
+        let profile = uart_resource_profile(&loan, &uart_reach());
+        let admission = admit_placement(
+            PlacementAdmissionId::from_normalized_identity(260).expect("placement admission"),
+            loan,
+            &plan,
+            &profile,
+        )
+        .expect("borrowed placement admission");
+        let provider = SchemaCorrespondenceProviderId::from_normalized_identity(261)
+            .expect("correspondence provider");
+        let device =
+            StableDeviceInstanceId::from_normalized_identity(262).expect("stable device instance");
+        let correspondence = SchemaDeviceCorrespondenceGrant::from_admitted_provider(
+            provider,
+            device,
+            SchemaCorrespondenceSourceId::from_normalized_identity(263)
+                .expect("datasheet provenance"),
+            plan.identity(),
+            profile.receipt(),
+            None,
+        )
+        .expect("provider correspondence grant")
+        .admit(&plan, &profile)
+        .expect("schema correspondence admission");
+        let mut view = bind_schema_correspondence_to_placement(admission, correspondence)
+            .expect("correspondence placement binding")
+            .establish_view()
+            .expect("corresponded view establishment");
+
+        let drifted_receipt =
+            ResourceProfileReceiptId::from_normalized_identity(264).expect("drifted receipt");
+        view.replace_view_profile_receipt_for_test(drifted_receipt);
+        view.replace_correspondence_profile_receipt_for_test(drifted_receipt);
+        let rejection = view
+            .retire()
+            .expect_err("coordinated copied receipt drift must reject retirement");
+        assert!(
+            rejection
+                .diagnostic()
+                .0
+                .contains("admitted resource-profile receipt")
+        );
+        let (mut view, _) = rejection.into_parts();
+        view.replace_view_profile_receipt_for_test(profile.receipt());
+        view.replace_correspondence_profile_receipt_for_test(profile.receipt());
+
+        view.replace_correspondence_placement_for_test(PlacementPlanId(plan.identity().0 ^ 1));
+        let rejection = view
+            .retire()
+            .expect_err("physical correspondence drift must reject retirement");
+        assert!(rejection.diagnostic().0.contains("exact placement"));
+        let (mut view, _) = rejection.into_parts();
+        view.replace_correspondence_placement_for_test(plan.identity());
+
+        let (loan, correspondence) = view
+            .retire()
+            .expect("repaired view remains valid for retirement retry");
+        assert_eq!(loan.origin(), origin);
+        assert_eq!(loan.lineage_root(), lineage);
+        assert_eq!(loan.base(), 0x71a8);
+        assert_eq!(loan.length(), 12);
+        assert_eq!(loan.polarity(), LoanPolarity::Shared);
+        assert_eq!(correspondence.provider(), provider);
+        assert_eq!(correspondence.device(), device);
+        assert_eq!(correspondence.placement(), plan.identity());
+        assert_eq!(correspondence.profile_receipt(), profile.receipt());
     }
 
     #[test]

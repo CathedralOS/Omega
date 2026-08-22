@@ -252,6 +252,14 @@ impl AdmittedSchemaDeviceCorrespondence {
     ) -> PlacementPlanId {
         std::mem::replace(&mut self.placement, placement)
     }
+
+    #[cfg(test)]
+    pub(super) fn replace_profile_receipt_for_test(
+        &mut self,
+        receipt: ResourceProfileReceiptId,
+    ) -> ResourceProfileReceiptId {
+        std::mem::replace(&mut self.profile_receipt, receipt)
+    }
 }
 
 /// Failed correspondence admission returns the exact provider grant rather
@@ -434,6 +442,30 @@ impl<'extent> SchemaCorrespondedPlacedView<'extent> {
         &self.correspondence
     }
 
+    /// End this corresponded placed view after independently replaying both
+    /// its exact borrowed placement authority and physical correspondence.
+    /// Success returns the original loan and non-Clone correspondence as
+    /// distinct values; rejection returns this complete view for repair and
+    /// retry. No content or device operation is established.
+    pub fn retire(
+        self,
+    ) -> Result<
+        (ExtentLoan<'extent>, AdmittedSchemaDeviceCorrespondence),
+        SchemaCorrespondedPlaceRetirementError<'extent>,
+    > {
+        if let Err(diagnostic) = self.validate_retirement() {
+            return Err(SchemaCorrespondedPlaceRetirementError {
+                view: self,
+                diagnostic,
+            });
+        }
+        let Self {
+            view,
+            correspondence,
+        } = self;
+        Ok((view.loan, correspondence))
+    }
+
     /// Project one field while retaining this exact admitted correspondence
     /// as part of the placement authority borrowed by the projection.
     pub fn project<'view>(
@@ -483,10 +515,36 @@ impl<'extent> SchemaCorrespondedPlacedView<'extent> {
         self.correspondence.validate_structure()?;
         if self.correspondence.placement != self.view.plan.identity()
             || self.correspondence.profile_receipt != self.view.profile_receipt
-            || self.view.profile.receipt() != self.view.profile_receipt
         {
             return Err(AccessPlanDiagnostic(
                 "corresponded placed view could not replay its exact placement and resource-profile correspondence"
+                    .into(),
+            ));
+        }
+        Ok(())
+    }
+
+    fn validate_retirement(&self) -> Result<(), AccessPlanDiagnostic> {
+        self.validate_correspondence()?;
+        if self.view.profile.receipt() != self.view.profile_receipt {
+            return Err(AccessPlanDiagnostic(
+                "corresponded placed-view retirement could not replay the exact admitted resource-profile receipt"
+                    .into(),
+            ));
+        }
+        let replayed = validate_placement_admission(
+            &self.view.loan,
+            &self.view.plan,
+            &self.view.profile,
+        )
+        .map_err(|diagnostic| {
+            AccessPlanDiagnostic(format!(
+                "corresponded placed-view retirement could not replay the retained placement authority: {diagnostic}"
+            ))
+        })?;
+        if replayed != self.view.resources {
+            return Err(AccessPlanDiagnostic(
+                "corresponded placed-view retirement replayed resource compatibility differs from the retained view"
                     .into(),
             ));
         }
@@ -499,6 +557,41 @@ impl<'extent> SchemaCorrespondedPlacedView<'extent> {
         placement: PlacementPlanId,
     ) -> PlacementPlanId {
         self.correspondence.replace_placement_for_test(placement)
+    }
+
+    #[cfg(test)]
+    pub(super) fn replace_view_profile_receipt_for_test(
+        &mut self,
+        receipt: ResourceProfileReceiptId,
+    ) -> ResourceProfileReceiptId {
+        std::mem::replace(&mut self.view.profile_receipt, receipt)
+    }
+
+    #[cfg(test)]
+    pub(super) fn replace_correspondence_profile_receipt_for_test(
+        &mut self,
+        receipt: ResourceProfileReceiptId,
+    ) -> ResourceProfileReceiptId {
+        self.correspondence
+            .replace_profile_receipt_for_test(receipt)
+    }
+}
+
+/// Failed corresponded-view retirement preserves the complete loan-bearing
+/// view and its non-Clone physical provenance for corrected retry.
+#[derive(Debug)]
+pub struct SchemaCorrespondedPlaceRetirementError<'extent> {
+    view: SchemaCorrespondedPlacedView<'extent>,
+    diagnostic: AccessPlanDiagnostic,
+}
+
+impl<'extent> SchemaCorrespondedPlaceRetirementError<'extent> {
+    pub const fn diagnostic(&self) -> &AccessPlanDiagnostic {
+        &self.diagnostic
+    }
+
+    pub fn into_parts(self) -> (SchemaCorrespondedPlacedView<'extent>, AccessPlanDiagnostic) {
+        (self.view, self.diagnostic)
     }
 }
 
