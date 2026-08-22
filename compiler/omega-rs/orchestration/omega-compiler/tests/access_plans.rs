@@ -501,7 +501,7 @@ machine Main::main(&mut self) {}
         "unexpected diagnostic: {error}"
     );
 
-    let mut positional = retained;
+    let mut positional = retained.clone();
     positional.entries[0].member_identity = None;
     let error = compute_access_plan(
         &renamed.typed,
@@ -513,6 +513,23 @@ machine Main::main(&mut self) {}
     assert!(
         error.contains("positional field `legacy_status`")
             && error.contains("outside the reflected schema"),
+        "unexpected diagnostic: {error}"
+    );
+
+    let mut aliased = retained;
+    let mut forged_alias = aliased.entries[0].clone();
+    forged_alias.field = "forged_alias".into();
+    aliased.entries.push(forged_alias);
+    let error = compute_access_plan(
+        &renamed.typed,
+        "RegisterAccess::plan",
+        "Registers",
+        &aliased,
+    )
+    .expect_err("one stable identity cannot be replayed under two presentation names");
+    assert!(
+        error.contains("not a canonical field-identity set")
+            && error.contains("identity names both `legacy_status` and `forged_alias`"),
         "unexpected diagnostic: {error}"
     );
 }

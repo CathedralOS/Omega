@@ -40,6 +40,13 @@ pub fn compute_access_plan(
             layout.schema_identity
         ));
     }
+    // Reject an aliased or malformed retained field-identity set before
+    // canonical replay can replace numbered presentation names.
+    AccessPlan::inaccessible(layout).map_err(|diagnostic| {
+        format!(
+            "layout supplied to access policy `{policy_machine}` is not a canonical field-identity set: {diagnostic}"
+        )
+    })?;
     let schema_value = build_schema_value(typed, schema_data, &schema_fields)?;
     let layout_value = build_layout_plan_value(layout, &schema_fields)?;
     let canonical_layout = validate_plan(
