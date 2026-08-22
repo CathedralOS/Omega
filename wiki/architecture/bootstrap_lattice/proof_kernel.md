@@ -485,6 +485,13 @@ upper bound places it after. Candidate mapping supplies no authority: the
 kernel rechecks the exact affine conclusion and the enclosing transitivity
 certificate. A nonclosed, mistyped, redirected, or weaker bridge rejects, and
 no variable-endpoint or cited-fact search is added.
+One exact prior value equality may also transport a completed affine bound from
+its checked target alias to the canonical goal endpoint. The producer replaces
+that one endpoint, constructs the bounded affine relation directly, and wraps
+it in `IntegerLessOrEqualSubstitution`; reconstruction repeats the same exact
+identity selection. A missing, redirected, crossed, or mistyped target equality
+rejects. The affine relation builder cannot recurse into another target alias,
+so this adds one wrapper only and no alias-chain search.
 
 The contiguous pure-cast core also has a non-serialized checked witness.
 `IntegerCastChainWitness` selects a nonempty, strictly increasing sequence of

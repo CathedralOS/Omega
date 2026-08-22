@@ -143,6 +143,9 @@ fn prove_integer_bound(
             )
             .or_else(|| {
                 prove_two_fact_transitive_integer_bound(&relation, assumptions, semantic_axioms)
+            })
+            .or_else(|| {
+                prove_bounded_affine_bound(context, &relation, assumptions, semantic_axioms)
             }) {
                 return Some(ProofNode {
                     conclusion: goal.clone(),
@@ -2482,6 +2485,106 @@ mod tests {
             )
             .is_none(),
             "a redirected landed literal cannot provide affine root custody",
+        );
+    }
+
+    #[test]
+    fn exact_division_goal_transports_affine_bound_through_target_alias() {
+        let signed = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+        let context = PropositionContext::from_value_types((1..=5).map(|id| {
+            (
+                ValueId::new(id).expect("value id"),
+                ScalarType::Integer(signed),
+            )
+        }))
+        .expect("five i8 values");
+        let divisor = value(2, signed);
+        let goal = Proposition::Disjunction(vec![
+            Proposition::LessOrEqual(divisor.clone(), integer(signed, -2)),
+            Proposition::LessOrEqual(integer(signed, 1), divisor.clone()),
+            Proposition::Conjunction(vec![
+                Proposition::LessOrEqual(divisor, integer(signed, -1)),
+                Proposition::LessOrEqual(integer(signed, -127), value(1, signed)),
+            ]),
+        ]);
+        let target_alias = Proposition::Equal(value(4, signed), value(2, signed));
+
+        let positive_root_bound = Proposition::LessOrEqual(integer(signed, 0), value(3, signed));
+        let positive_definition = Proposition::Equal(
+            value(4, signed),
+            ScalarTerm::exact_integer_add(signed, value(3, signed), integer(signed, 1))
+                .expect("exact add"),
+        );
+        let positive = prove_canonical_integer_proposition(
+            &context,
+            &goal,
+            &[positive_root_bound.clone(), target_alias.clone()],
+            std::slice::from_ref(&positive_definition),
+        )
+        .expect("one target alias transports the positive affine bound");
+        let ProofRule::DisjunctionIntroduction { disjunct, index } = positive.rule else {
+            panic!("target-aliased positive divisor selects one canonical arm")
+        };
+        assert_eq!(index, 1);
+        let ProofRule::IntegerLessOrEqualSubstitution {
+            relation,
+            equality,
+            endpoint,
+        } = disjunct.rule
+        else {
+            panic!("target-aliased positive bound uses endpoint substitution")
+        };
+        assert_eq!(endpoint, 1);
+        assert!(matches!(
+            relation.rule,
+            ProofRule::IntegerAffineBound { .. }
+        ));
+        assert!(matches!(equality.rule, ProofRule::Assumption { index: 1 }));
+
+        let negative_root_bound = Proposition::LessOrEqual(value(3, signed), integer(signed, 0));
+        let negative_definition = Proposition::Equal(
+            value(4, signed),
+            ScalarTerm::exact_integer_subtract(signed, value(3, signed), integer(signed, 2))
+                .expect("exact subtract"),
+        );
+        let negative = prove_canonical_integer_proposition(
+            &context,
+            &goal,
+            &[negative_root_bound, target_alias.clone()],
+            std::slice::from_ref(&negative_definition),
+        )
+        .expect("one target alias transports the negative affine bound");
+        let ProofRule::DisjunctionIntroduction { disjunct, index } = negative.rule else {
+            panic!("target-aliased negative divisor selects one canonical arm")
+        };
+        assert_eq!(index, 0);
+        assert!(matches!(
+            disjunct.rule,
+            ProofRule::IntegerLessOrEqualSubstitution { endpoint: 0, .. }
+        ));
+
+        assert!(
+            prove_canonical_integer_proposition(
+                &context,
+                &goal,
+                std::slice::from_ref(&positive_root_bound),
+                std::slice::from_ref(&positive_definition),
+            )
+            .is_none(),
+            "an affine alias bound without its target equality cannot prove the goal",
+        );
+        assert!(
+            prove_canonical_integer_proposition(
+                &context,
+                &goal,
+                &[
+                    positive_root_bound,
+                    Proposition::Equal(value(4, signed), value(5, signed)),
+                ],
+                &[positive_definition],
+            )
+            .is_none(),
+            "a redirected target equality cannot transport the affine bound",
         );
     }
 
