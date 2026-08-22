@@ -63,9 +63,9 @@ pub struct ConstDefinition {
 pub enum ExternalBinding {
     /// Linux's stable ABI is the number table: `Binding::Syscall(1)`.
     Syscall { number: i64 },
-    /// Bootstrap string carrier for Windows DLL exports. The destination uses
-    /// nominal `LibraryId` and `SymbolId` values; raw linker bytes remain in
-    /// sealed target metadata.
+    /// Bootstrap string carrier for Windows DLL exports. The settled model uses
+    /// one nominal `DllImportId`; OWNER Q1 and `NOMINAL-FOREIGN-BINDINGS` track
+    /// the missing declaration/metadata surface and this migration.
     DllImport { module: String, symbol: String },
     /// Compiler-known target operation. The resolved realization symbol,
     /// normalized signature, and target key the sealed lowering catalog.
