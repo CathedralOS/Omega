@@ -2039,6 +2039,24 @@ pub struct PlacementRejection<'extent> {
     diagnostic: AccessPlanDiagnostic,
 }
 
+/// Failed borrowed placed-view establishment returns the highest valid
+/// loan-bearing admission intact for corrected retry or withdrawal.
+#[derive(Debug)]
+pub struct PlaceEstablishmentError<'extent> {
+    admission: PlacementAdmission<'extent>,
+    diagnostic: AccessPlanDiagnostic,
+}
+
+impl<'extent> PlaceEstablishmentError<'extent> {
+    pub const fn diagnostic(&self) -> &AccessPlanDiagnostic {
+        &self.diagnostic
+    }
+
+    pub fn into_parts(self) -> (PlacementAdmission<'extent>, AccessPlanDiagnostic) {
+        (self.admission, self.diagnostic)
+    }
+}
+
 impl<'extent> PlacementRejection<'extent> {
     pub const fn diagnostic(&self) -> &AccessPlanDiagnostic {
         &self.diagnostic
@@ -3788,15 +3806,46 @@ fn validate_placement_admission(
     Ok(compatibility)
 }
 
-pub fn place<'extent>(admission: PlacementAdmission<'extent>) -> PlacedView<'extent> {
-    PlacedView {
+/// Establish one borrowed placed view only after independently replaying the
+/// retained placement, admitted profile, and exact resource compatibility.
+/// Rejection returns the complete loan-bearing admission unchanged.
+pub fn place<'extent>(
+    admission: PlacementAdmission<'extent>,
+) -> Result<PlacedView<'extent>, PlaceEstablishmentError<'extent>> {
+    let diagnostic = if admission.profile.receipt() != admission.profile_receipt {
+        Some(AccessPlanDiagnostic(
+            "borrowed placement profile receipt differs from its retained admitted profile".into(),
+        ))
+    } else {
+        match validate_placement_admission(
+            &admission.loan,
+            &admission.placement_plan,
+            &admission.profile,
+        ) {
+            Ok(resources) if resources == admission.resources => None,
+            Ok(_) => Some(AccessPlanDiagnostic(
+                "borrowed placement replayed resource compatibility differs from the retained admission"
+                    .into(),
+            )),
+            Err(diagnostic) => Some(AccessPlanDiagnostic(format!(
+                "borrowed placed-view establishment could not replay the admitted resource profile: {diagnostic}"
+            ))),
+        }
+    };
+    if let Some(diagnostic) = diagnostic {
+        return Err(PlaceEstablishmentError {
+            admission,
+            diagnostic,
+        });
+    }
+    Ok(PlacedView {
         loan: admission.loan,
         plan: admission.placement_plan,
         profile_receipt: admission.profile_receipt,
         profile: admission.profile,
         resources: admission.resources,
         admission: admission.identity,
-    }
+    })
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -5010,7 +5059,7 @@ mod tests {
             PlacementAdmissionId::from_normalized_identity(10).expect("atomic admission");
         let admission = admit_placement(admission_id, loan, &placement, &resources)
             .expect("admitted atomic placement");
-        let view = place(admission);
+        let view = place(admission).expect("atomic placed-view establishment");
         let head = view
             .project(field_key(placement.access(), "head"))
             .expect("pure atomic projection");
@@ -6353,7 +6402,7 @@ mod tests {
         let admission_id = PlacementAdmissionId::from_normalized_identity(177).expect("admission");
         let admission = admit_placement(admission_id, loan, &plan, &profile)
             .expect("borrowed Stable admission");
-        let view = place(admission);
+        let view = place(admission).expect("Stable placed-view establishment");
         let projection = view
             .project(field_key(plan.access(), "word"))
             .expect("shared Stable projection");
@@ -6405,7 +6454,7 @@ mod tests {
         let admission_id = PlacementAdmissionId::from_normalized_identity(187).expect("admission");
         let admission = admit_placement(admission_id, loan, &plan, &profile)
             .expect("borrowed Stable admission");
-        let view = place(admission);
+        let view = place(admission).expect("Stable placed-view establishment");
         let projection = view
             .project(field_key(plan.access(), "word"))
             .expect("shared projection over exclusive source loan");
@@ -6426,7 +6475,7 @@ mod tests {
     }
 
     #[test]
-    fn stable_primitive_specialization_replays_admitted_profile_root_facts() {
+    fn borrowed_view_establishment_replays_profile_and_returns_admission_for_retry() {
         let plan = stable_word_placement();
         let extent = uart_extent_with_lineage(0xad7c, 4, 188);
         let profile = stable_word_profile(&extent);
@@ -6446,14 +6495,44 @@ mod tests {
             resources,
             loan,
         } = admission;
-        let view = place(PlacementAdmission {
+        let corrupt = PlacementAdmission {
             identity,
             placement_plan,
             profile_receipt,
             profile: wrong_profile,
             resources,
             loan,
-        });
+        };
+        let rejection = place(corrupt)
+            .expect_err("borrowed view establishment must replay admitted profile root facts");
+        assert!(
+            rejection
+                .diagnostic()
+                .0
+                .contains("could not replay the admitted resource profile"),
+            "{}",
+            rejection.diagnostic()
+        );
+        let (returned, _) = rejection.into_parts();
+        assert_eq!(returned.identity(), admission_id);
+        assert_eq!(returned.profile_receipt(), profile.receipt());
+        let PlacementAdmission {
+            identity,
+            placement_plan,
+            profile_receipt,
+            profile: _,
+            resources,
+            loan,
+        } = returned;
+        let repaired = PlacementAdmission {
+            identity,
+            placement_plan,
+            profile_receipt,
+            profile,
+            resources,
+            loan,
+        };
+        let view = place(repaired).expect("returned admission supports corrected retry");
         let projection = view
             .project(field_key(plan.access(), "word"))
             .expect("shared Stable projection");
@@ -6461,13 +6540,12 @@ mod tests {
             .read()
             .expect("authorized Stable read")
             .into_primitive_request();
-
-        let request = expect_exact_stable_primitive_rejection(
-            request,
-            "replay the retained admitted resource profile",
-        );
+        let stable = request
+            .into_stable_primitive_access()
+            .expect("repaired view remains valid through specialization");
+        let request = stable.into_primitive_request();
         assert_eq!(request.admission(), admission_id);
-        assert_eq!(request.profile_receipt(), profile.receipt());
+        assert_eq!(request.profile_receipt(), profile_receipt);
     }
 
     #[test]
@@ -6545,7 +6623,7 @@ mod tests {
         let read_loan = read_extent.loan(0, 12).expect("shared UART loan");
         let read_admission =
             admit_uart(144, read_loan, &plan, &uart_reach()).expect("External UART admission");
-        let read_view = place(read_admission);
+        let read_view = place(read_admission).expect("External read-view establishment");
         let read_projection = read_view
             .project(field_key(plan.access(), "status"))
             .expect("External status projection");
@@ -6578,7 +6656,7 @@ mod tests {
             &stable_resources,
         )
         .expect("Stable-backed External UART admission");
-        let mut write_view = place(write_admission);
+        let mut write_view = place(write_admission).expect("External write-view establishment");
         let mut write_projection = write_view
             .project_mut(field_key(plan.access(), "transmit"))
             .expect("External transmit projection");
@@ -6612,7 +6690,7 @@ mod tests {
             &take_resources,
         )
         .expect("destructive External admission");
-        let mut take_view = place(take_admission);
+        let mut take_view = place(take_admission).expect("External take-view establishment");
         let mut take_projection = take_view
             .project_mut(field_key(take_plan.access(), "fifo"))
             .expect("destructive External projection");
@@ -6666,7 +6744,7 @@ mod tests {
         let loan = extent.loan(0, 12).expect("shared UART loan");
         let admission =
             admit_uart(154, loan, &plan, &uart_reach()).expect("External UART admission");
-        let view = place(admission);
+        let view = place(admission).expect("External placed-view establishment");
         let projection = view
             .project(field_key(plan.access(), "status"))
             .expect("External status projection");
@@ -6729,7 +6807,7 @@ mod tests {
         let admission_id = PlacementAdmissionId::from_normalized_identity(157).expect("admission");
         let admission = admit_placement(admission_id, loan, &plan, &resources)
             .expect("all-family Atomic admission");
-        let view = place(admission);
+        let view = place(admission).expect("Atomic placed-view establishment");
         let head = view
             .project(field_key(plan.access(), "head"))
             .expect("Atomic head projection");
@@ -6814,7 +6892,7 @@ mod tests {
             &resources,
         )
         .expect("all-family Atomic admission");
-        let view = place(admission);
+        let view = place(admission).expect("Atomic placed-view establishment");
         let head = view
             .project(field_key(plan.access(), "head"))
             .expect("Atomic head projection");
@@ -6863,7 +6941,7 @@ mod tests {
         let loan = extent.loan(0, 12).expect("shared UART loan");
         let admission =
             admit_uart(132, loan, &plan, &uart_reach()).expect("admitted shared UART view");
-        let view = place(admission);
+        let view = place(admission).expect("shared UART placed-view establishment");
         let projection = view
             .project(field_key(plan.access(), "status"))
             .expect("External status projection");
@@ -7034,7 +7112,7 @@ mod tests {
         let shared_loan = shared_extent.loan(0, 12).expect("shared UART loan");
         let admission =
             admit_uart(8, shared_loan, &plan, &uart_reach()).expect("admitted shared view");
-        let mut shared_view = place(admission);
+        let mut shared_view = place(admission).expect("shared placed-view establishment");
         {
             let status = shared_view
                 .project(field_key(plan.access(), "status"))
@@ -7099,7 +7177,7 @@ mod tests {
         let exclusive_loan = shared_extent.loan_mut(4, 12).expect("exclusive UART loan");
         let admission =
             admit_uart(9, exclusive_loan, &plan, &uart_reach()).expect("admitted exclusive view");
-        let mut exclusive_view = place(admission);
+        let mut exclusive_view = place(admission).expect("exclusive placed-view establishment");
         {
             let mut transmit = exclusive_view
                 .project(field_key(plan.access(), "transmit"))
@@ -7243,7 +7321,7 @@ mod tests {
             &resources,
         )
         .expect("heterogeneous placement admission");
-        let mut view = place(admission);
+        let mut view = place(admission).expect("heterogeneous placed-view establishment");
 
         {
             let mut stable = view
@@ -7721,7 +7799,7 @@ mod tests {
             )
             .expect("resource region must rebase to the subrange loan");
             assert_eq!(admission.resources().fields()[0].offset(), 0);
-            let view = place(admission);
+            let view = place(admission).expect("split placed-view establishment");
             assert_eq!(view.base(), 0x4004);
         }
 
@@ -7754,7 +7832,7 @@ mod tests {
                 &profile,
             )
             .expect("a conserved split must retain its root profile binding");
-            let view = place(admission);
+            let view = place(admission).expect("split placed-view establishment");
             assert_eq!(view.base(), 0x4004);
         }
         let restored = partition.rejoin();
