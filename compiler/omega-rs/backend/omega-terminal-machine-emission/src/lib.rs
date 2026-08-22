@@ -36,6 +36,9 @@ use psi_core::{MachineId, ValueId};
 mod unit;
 use unit::{emit_aarch64_unit_call, emit_unit_body, emit_x86_64_unit_call};
 
+mod native_fuel;
+pub use native_fuel::{NativeFuelInstrumentationError, instrument_native_fuel};
+
 mod structural_scalar;
 
 mod cleanup;

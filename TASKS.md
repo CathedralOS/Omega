@@ -4552,8 +4552,19 @@ Remaining:
   This is only the site dispatcher, not the still-missing opaque-state save,
   sponsor-stack switch, or sponsor-policy stub. Wrong transport/profile,
   zero-unit, out-of-range displacement, and branch-range inputs reject. These
-  exact bytes are not yet inserted into a terminal artifact and grant no
-  installed dynamic evidence.
+  encoders now feed a two-pass terminal-machine transform which retains the
+  original semantic plan unchanged, inserts one hot charge before every
+  attributed site (including ordinal-distinguished zero-byte sites), and
+  appends one cold dispatcher per site after the semantic function end. Exact
+  x86 relative and AArch64 PC-relative failure targets and absolute cross-
+  function `.text` retry offsets are derived with checked arithmetic. A
+  separate terminal-object owner first validates the immutable semantic object,
+  then reconstructs every hot/cold byte and charge record independently;
+  producer byte, offset, size, function-order, and record drift reject. This
+  replay-validated carrier is deliberately not yet an executable object: symbol
+  spans, internal-call relocations, all semantic metadata offsets, final-image
+  replay, and the opaque-state/sponsor-policy transfer stub still need exact
+  translation before any installed dynamic evidence can exist.
   Root admission now retains the selected native realization against the exact
   logical-fuel demand, provision, grant, installed-code context, and artifact.
   Existing fixed roots automatically produce the exact fixed realization;
