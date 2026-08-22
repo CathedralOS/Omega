@@ -3,8 +3,9 @@
 use psi_core::{Proposition, PropositionContext};
 use psi_proof_kernel::ProofNode;
 
-use super::super::{alias_transport, cast_custody};
+use super::super::alias_transport;
 
+mod one;
 mod two;
 
 pub(super) fn prove(
@@ -13,19 +14,12 @@ pub(super) fn prove(
     assumptions: &[Proposition],
     semantic_axioms: &[Proposition],
 ) -> Option<ProofNode> {
-    alias_transport::prove_one(assumptions, semantic_axioms, |root, root_bound| {
-        cast_custody::prove_from_root(
-            context,
-            goal,
-            assumptions,
-            semantic_axioms,
-            root,
-            root_bound,
-        )
-    })
-    .or_else(|| alias_transport::prove_stronger_cast(context, goal, assumptions, semantic_axioms))
-    .or_else(|| {
-        alias_transport::prove_landed_literal_cast(context, goal, assumptions, semantic_axioms)
-    })
-    .or_else(|| two::prove(context, goal, assumptions, semantic_axioms))
+    one::prove(context, goal, assumptions, semantic_axioms)
+        .or_else(|| {
+            alias_transport::prove_stronger_cast(context, goal, assumptions, semantic_axioms)
+        })
+        .or_else(|| {
+            alias_transport::prove_landed_literal_cast(context, goal, assumptions, semantic_axioms)
+        })
+        .or_else(|| two::prove(context, goal, assumptions, semantic_axioms))
 }
