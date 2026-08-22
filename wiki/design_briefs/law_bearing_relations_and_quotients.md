@@ -811,7 +811,10 @@ fact lookup, positional alpha-renaming, and bijection judgment to one focused
 precondition module; the extraction changes neither the proof language nor its
 admission order. Its exact public-parameter order, mode, quotient-carrier
 matching, and representative static-substitution judgment likewise live in a
-separate runtime-correspondence module rather than the coordinator. General
+separate runtime-correspondence module rather than the coordinator. Exact entry
+lookup, runtime telescope identity, and the shared-summary purity and
+unconditional-termination certificates live in a third representative module;
+it performs no local effect inference. General
 logical implication/equivalence and the selected `Respects` clauses remain
 unresolved, so this evidence still cannot admit execution.
 
