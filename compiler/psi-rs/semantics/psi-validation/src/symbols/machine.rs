@@ -1,4 +1,4 @@
-use super::shared::{child_symbol, top_level_symbol};
+use super::shared::child_symbol;
 use psi_diagnostics::Diagnostic;
 use psi_symbols::SymbolHandle;
 use psi_typed_trees::TypedTrees;
@@ -40,7 +40,12 @@ impl<'program> MachineSymbols<'program> {
         machine: &'program Machine,
         diagnostics: &mut Vec<Diagnostic>,
     ) -> Self {
-        let machine_symbol = top_level_symbol(program, machine.name.as_str());
+        let machine_symbol = retained_child_symbol(
+            program,
+            program.symbols.root(),
+            machine.symbol,
+            machine.name.as_str(),
+        );
         let mut symbols = Self {
             callable_fields: Vec::new(),
             member_symbols: Vec::with_capacity(program.machine_owned_data(machine).len()),
@@ -101,7 +106,12 @@ impl<'program> MachineSymbols<'program> {
                 )));
             }
 
-            let symbol = child_symbol(program, machine_symbol, owned_data.name.as_str());
+            let symbol = retained_child_symbol(
+                program,
+                machine_symbol,
+                owned_data.symbol,
+                owned_data.name.as_str(),
+            );
             symbols.member_symbols.push(MemberSymbol {
                 name: owned_data.name.as_str(),
                 symbol,
@@ -123,7 +133,12 @@ impl<'program> MachineSymbols<'program> {
             symbols.states.push(StateSymbol {
                 name: state.name.as_str(),
                 state,
-                symbol: child_symbol(program, machine_symbol, state.name.as_str()),
+                symbol: retained_child_symbol(
+                    program,
+                    machine_symbol,
+                    state.symbol,
+                    state.name.as_str(),
+                ),
             });
         }
 
@@ -179,6 +194,19 @@ impl<'program> MachineSymbols<'program> {
             .map(|symbol| symbol.symbol)
             .unwrap_or_else(SymbolHandle::invalid)
     }
+}
+
+fn retained_child_symbol(
+    program: &TypedTrees,
+    parent: SymbolHandle,
+    symbol: SymbolHandle,
+    name: &str,
+) -> SymbolHandle {
+    (symbol.is_valid()
+        && program.symbols.get(symbol).parent == parent
+        && program.symbols.name(symbol) == name)
+        .then_some(symbol)
+        .unwrap_or_else(SymbolHandle::invalid)
 }
 
 fn callable_receiver_type_name(
