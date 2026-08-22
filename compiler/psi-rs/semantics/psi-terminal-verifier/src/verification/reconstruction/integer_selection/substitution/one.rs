@@ -2,7 +2,7 @@
 
 use psi_core::{Proposition, PropositionContext};
 
-use super::relation;
+mod completion;
 
 pub(super) fn retained(
     context: Option<&PropositionContext>,
@@ -24,14 +24,15 @@ pub(super) fn retained(
         ]
         .into_iter()
         .any(|(old, replacement)| {
-            let relation = if old == goal_left {
-                Proposition::LessOrEqual(replacement.clone(), goal_right.clone())
-            } else if old == goal_right {
-                Proposition::LessOrEqual(goal_left.clone(), replacement.clone())
-            } else {
-                return false;
-            };
-            relation::retained(context, &relation, requirements, semantic_axioms)
+            completion::retained(
+                context,
+                goal_left,
+                goal_right,
+                old,
+                replacement,
+                requirements,
+                semantic_axioms,
+            )
         })
     })
 }
