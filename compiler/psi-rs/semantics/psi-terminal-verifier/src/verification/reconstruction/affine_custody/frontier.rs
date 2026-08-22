@@ -35,3 +35,13 @@ pub(super) fn definition_words(
     }
     words
 }
+
+pub(super) fn literal_axioms(
+    context: &PropositionContext,
+    semantic_axioms: &[Proposition],
+    root: &ScalarTerm,
+    definition_axioms: &[usize],
+    target: &ScalarTerm,
+) -> Option<Vec<Option<usize>>> {
+    prefix::literal_axioms(context, semantic_axioms, root, definition_axioms, target)
+}

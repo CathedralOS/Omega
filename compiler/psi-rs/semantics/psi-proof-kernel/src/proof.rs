@@ -525,11 +525,21 @@ fn check_node(
                 .map_err(ProofError::IntegerAffineWitness)?;
             check_integer_affine_bound_conversion(&form, &root_bound.conclusion, &proof.conclusion)
                 .map_err(ProofError::IntegerAffineBoundConversion)?;
-            for &index in &witness.definition_axioms {
+            for (&definition_index, &literal_index) in witness
+                .definition_axioms
+                .iter()
+                .zip(&witness.literal_axioms)
+            {
+                if let Some(index) = literal_index {
+                    let proposition = semantic_axioms
+                        .get(index)
+                        .ok_or(ProofError::UnknownSemanticAxiom(index))?;
+                    acceptance.record_semantic_axiom(index, proposition);
+                }
                 let proposition = semantic_axioms
-                    .get(index)
-                    .ok_or(ProofError::UnknownSemanticAxiom(index))?;
-                acceptance.record_semantic_axiom(index, proposition);
+                    .get(definition_index)
+                    .ok_or(ProofError::UnknownSemanticAxiom(definition_index))?;
+                acceptance.record_semantic_axiom(definition_index, proposition);
             }
             Ok(())
         }
@@ -1086,6 +1096,10 @@ mod tests {
             ValueId::new(2).expect("target"),
             ScalarType::Integer(integer),
         );
+        let sibling = ScalarTerm::value(
+            ValueId::new(3).expect("sibling"),
+            ScalarType::Integer(integer),
+        );
         let literal =
             |value| ScalarTerm::integer(integer, IntegerValue::Signed(value)).expect("i8 literal");
         let context = PropositionContext::from_value_types([
@@ -1094,35 +1108,43 @@ mod tests {
                 ValueId::new(2).expect("target"),
                 ScalarType::Integer(integer),
             ),
+            (
+                ValueId::new(3).expect("sibling"),
+                ScalarType::Integer(integer),
+            ),
         ])
         .expect("context");
         let root_bound = Proposition::LessOrEqual(literal(1), root.clone());
+        let landing = Proposition::Equal(sibling.clone(), literal(2));
         let definition = Proposition::Equal(
             target.clone(),
-            ScalarTerm::exact_integer_add(integer, root.clone(), literal(2)).expect("exact add"),
+            ScalarTerm::exact_integer_add(integer, root.clone(), sibling).expect("exact add"),
         );
+        let semantic_axioms = [landing.clone(), definition.clone()];
         let conclusion = Proposition::LessOrEqual(literal(3), target.clone());
-        let proof = |definition_axioms, conclusion: Proposition| ProofNode {
-            conclusion,
-            rule: ProofRule::IntegerAffineBound {
-                root_bound: Box::new(ProofNode {
-                    conclusion: root_bound.clone(),
-                    rule: ProofRule::Assumption { index: 0 },
-                }),
-                witness: IntegerAffineWitness {
-                    root: root.clone(),
-                    target: target.clone(),
-                    definition_axioms,
+        let proof =
+            |definition_axioms: Vec<usize>, literal_axioms, conclusion: Proposition| ProofNode {
+                conclusion,
+                rule: ProofRule::IntegerAffineBound {
+                    root_bound: Box::new(ProofNode {
+                        conclusion: root_bound.clone(),
+                        rule: ProofRule::Assumption { index: 0 },
+                    }),
+                    witness: IntegerAffineWitness {
+                        root: root.clone(),
+                        target: target.clone(),
+                        literal_axioms,
+                        definition_axioms,
+                    },
                 },
-            },
-        };
+            };
 
         let accepted = accept_certificate(
             &context,
             &conclusion,
             std::slice::from_ref(&root_bound),
-            std::slice::from_ref(&definition),
-            &proof(vec![0], conclusion.clone()),
+            &semantic_axioms,
+            &proof(vec![1], vec![Some(0)], conclusion.clone()),
         )
         .expect("root proof and exact affine definition prove the mapped bound");
         assert_eq!(
@@ -1134,21 +1156,27 @@ mod tests {
         );
         assert_eq!(
             accepted.semantic_axioms,
-            vec![AcceptedPremise {
-                index: 0,
-                proposition: definition.clone(),
-            }]
+            vec![
+                AcceptedPremise {
+                    index: 0,
+                    proposition: landing,
+                },
+                AcceptedPremise {
+                    index: 1,
+                    proposition: definition.clone(),
+                },
+            ]
         );
         assert_eq!(
             check_certificate(
                 &context,
                 &conclusion,
                 std::slice::from_ref(&root_bound),
-                std::slice::from_ref(&definition),
-                &proof(vec![1], conclusion.clone()),
+                &semantic_axioms,
+                &proof(vec![2], vec![Some(0)], conclusion.clone()),
             ),
             Err(ProofError::IntegerAffineWitness(
-                IntegerAffineWitnessError::UnknownSemanticAxiom(1),
+                IntegerAffineWitnessError::UnknownSemanticAxiom(2),
             )),
         );
         let wrong_conclusion = Proposition::LessOrEqual(literal(2), target.clone());
@@ -1157,8 +1185,8 @@ mod tests {
                 &context,
                 &wrong_conclusion,
                 std::slice::from_ref(&root_bound),
-                std::slice::from_ref(&definition),
-                &proof(vec![0], wrong_conclusion.clone()),
+                &semantic_axioms,
+                &proof(vec![1], vec![Some(0)], wrong_conclusion.clone()),
             ),
             Err(ProofError::IntegerAffineBoundConversion(
                 IntegerAffineBoundConversionError::ConclusionMismatch,
@@ -1174,7 +1202,8 @@ mod tests {
                 witness: IntegerAffineWitness {
                     root,
                     target,
-                    definition_axioms: vec![0],
+                    definition_axioms: vec![1],
+                    literal_axioms: vec![Some(0)],
                 },
             },
         };
@@ -1183,7 +1212,7 @@ mod tests {
                 &context,
                 &conclusion,
                 std::slice::from_ref(&root_bound),
-                std::slice::from_ref(&definition),
+                &semantic_axioms,
                 &non_order_proof,
             ),
             Err(ProofError::IntegerAffineBoundConversion(

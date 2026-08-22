@@ -14,6 +14,10 @@ pub struct IntegerAffineWitness {
     pub root: ScalarTerm,
     pub target: ScalarTerm,
     pub definition_axioms: Vec<usize>,
+    /// One optional, earlier equality landing the non-chain operand at each
+    /// affine definition. The vector is position-aligned with
+    /// `definition_axioms`; `None` means that definition embeds its literal.
+    pub literal_axioms: Vec<Option<usize>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -68,12 +72,19 @@ pub fn check_integer_affine_witness(
     if witness.definition_axioms.is_empty() {
         return Err(IntegerAffineWitnessError::EmptyDefinitionChain);
     }
+    if witness.literal_axioms.len() != witness.definition_axioms.len() {
+        return Err(IntegerAffineWitnessError::LiteralAxiomCountMismatch);
+    }
 
     let mut current = witness.root.clone();
     let mut coefficient = 1_i128;
     let mut offset = 0_i128;
     let mut previous = None;
-    for &index in &witness.definition_axioms {
+    for (&index, &literal_index) in witness
+        .definition_axioms
+        .iter()
+        .zip(&witness.literal_axioms)
+    {
         if previous.is_some_and(|previous| index <= previous) {
             return Err(IntegerAffineWitnessError::NonCanonicalDefinitionOrder);
         }
@@ -87,15 +98,39 @@ pub fn check_integer_affine_witness(
         let Proposition::Equal(left, right) = proposition else {
             return Err(IntegerAffineWitnessError::DefinitionNotEquality(index));
         };
-        let forward = apply_definition(left, right, &current, integer_type, coefficient, offset);
-        let reverse = apply_definition(right, left, &current, integer_type, coefficient, offset);
-        let (next, next_coefficient, next_offset) = match (forward, reverse) {
+        let landed = literal_index
+            .map(|literal_index| {
+                landed_literal(context, semantic_axioms, integer_type, index, literal_index)
+            })
+            .transpose()?;
+        let forward = apply_definition(
+            left,
+            right,
+            &current,
+            integer_type,
+            coefficient,
+            offset,
+            landed.as_ref(),
+        );
+        let reverse = apply_definition(
+            right,
+            left,
+            &current,
+            integer_type,
+            coefficient,
+            offset,
+            landed.as_ref(),
+        );
+        let (next, next_coefficient, next_offset, used_landing) = match (forward, reverse) {
             (Some(next), None) | (None, Some(next)) => next?,
             (None, None) => return Err(IntegerAffineWitnessError::DefinitionShapeMismatch(index)),
             (Some(_), Some(_)) => {
                 return Err(IntegerAffineWitnessError::AmbiguousDefinition(index));
             }
         };
+        if landed.is_some() != used_landing {
+            return Err(IntegerAffineWitnessError::UnusedLiteralAxiom(index));
+        }
         current = next;
         coefficient = next_coefficient;
         offset = next_offset;
@@ -119,7 +154,8 @@ fn apply_definition(
     integer_type: IntegerType,
     coefficient: i128,
     offset: i128,
-) -> Option<Result<(ScalarTerm, i128, i128), IntegerAffineWitnessError>> {
+    landed: Option<&(ScalarTerm, i128)>,
+) -> Option<Result<(ScalarTerm, i128, i128, bool), IntegerAffineWitnessError>> {
     if !matches!(target, ScalarTerm::Value { .. })
         || target.scalar_type() != ScalarType::Integer(integer_type)
     {
@@ -131,34 +167,35 @@ fn apply_definition(
             left,
             right,
         } if *scalar_type == integer_type && left.as_ref() == current => {
-            let literal = signed_literal(right, integer_type)?;
-            (Some(coefficient), offset.checked_add(literal))
+            let (literal, used_landing) = signed_literal(right, integer_type, landed)?;
+            (Some(coefficient), offset.checked_add(literal), used_landing)
         }
         ScalarTerm::ExactIntegerAdd {
             scalar_type,
             left,
             right,
         } if *scalar_type == integer_type && right.as_ref() == current => {
-            let literal = signed_literal(left, integer_type)?;
-            (Some(coefficient), offset.checked_add(literal))
+            let (literal, used_landing) = signed_literal(left, integer_type, landed)?;
+            (Some(coefficient), offset.checked_add(literal), used_landing)
         }
         ScalarTerm::ExactIntegerSubtract {
             scalar_type,
             left,
             right,
         } if *scalar_type == integer_type && left.as_ref() == current => {
-            let literal = signed_literal(right, integer_type)?;
-            (Some(coefficient), offset.checked_sub(literal))
+            let (literal, used_landing) = signed_literal(right, integer_type, landed)?;
+            (Some(coefficient), offset.checked_sub(literal), used_landing)
         }
         ScalarTerm::ExactIntegerMultiply {
             scalar_type,
             left,
             right,
         } if *scalar_type == integer_type && left.as_ref() == current => {
-            let literal = signed_literal(right, integer_type)?;
+            let (literal, used_landing) = signed_literal(right, integer_type, landed)?;
             (
                 coefficient.checked_mul(literal),
                 offset.checked_mul(literal),
+                used_landing,
             )
         }
         ScalarTerm::ExactIntegerMultiply {
@@ -166,25 +203,73 @@ fn apply_definition(
             left,
             right,
         } if *scalar_type == integer_type && right.as_ref() == current => {
-            let literal = signed_literal(left, integer_type)?;
+            let (literal, used_landing) = signed_literal(left, integer_type, landed)?;
             (
                 coefficient.checked_mul(literal),
                 offset.checked_mul(literal),
+                used_landing,
             )
         }
         _ => return None,
     };
     Some(match transformed {
-        (Some(coefficient), Some(offset)) => Ok((target.clone(), coefficient, offset)),
+        (Some(coefficient), Some(offset), used_landing) => {
+            Ok((target.clone(), coefficient, offset, used_landing))
+        }
         _ => Err(IntegerAffineWitnessError::CoefficientOverflow),
     })
 }
 
-fn signed_literal(term: &ScalarTerm, integer_type: IntegerType) -> Option<i128> {
-    match term.integer_value()? {
-        (actual_type, IntegerValue::Signed(value)) if actual_type == integer_type => Some(value),
-        _ => None,
+fn signed_literal(
+    term: &ScalarTerm,
+    integer_type: IntegerType,
+    landed: Option<&(ScalarTerm, i128)>,
+) -> Option<(i128, bool)> {
+    if let Some((actual_type, IntegerValue::Signed(value))) = term.integer_value()
+        && actual_type == integer_type
+    {
+        return Some((value, false));
     }
+    landed
+        .filter(|(value, _)| value == term)
+        .map(|(_, literal)| (*literal, true))
+}
+
+fn landed_literal(
+    context: &PropositionContext,
+    semantic_axioms: &[Proposition],
+    integer_type: IntegerType,
+    definition_index: usize,
+    literal_index: usize,
+) -> Result<(ScalarTerm, i128), IntegerAffineWitnessError> {
+    if literal_index >= definition_index {
+        return Err(IntegerAffineWitnessError::LiteralAxiomNotPrior {
+            definition: definition_index,
+            literal: literal_index,
+        });
+    }
+    let proposition = semantic_axioms.get(literal_index).ok_or(
+        IntegerAffineWitnessError::UnknownSemanticAxiom(literal_index),
+    )?;
+    context
+        .validate(proposition)
+        .map_err(IntegerAffineWitnessError::MalformedProposition)?;
+    let Proposition::Equal(left, right) = proposition else {
+        return Err(IntegerAffineWitnessError::LiteralAxiomNotEquality(
+            literal_index,
+        ));
+    };
+    for (value, literal) in [(left, right), (right, left)] {
+        if matches!(value, ScalarTerm::Value { .. })
+            && value.scalar_type() == ScalarType::Integer(integer_type)
+            && let Some((literal, false)) = signed_literal(literal, integer_type, None)
+        {
+            return Ok((value.clone(), literal));
+        }
+    }
+    Err(IntegerAffineWitnessError::LiteralAxiomShapeMismatch(
+        literal_index,
+    ))
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -194,10 +279,15 @@ pub enum IntegerAffineWitnessError {
     UnsupportedCarrier(IntegerType),
     TargetTypeMismatch,
     EmptyDefinitionChain,
+    LiteralAxiomCountMismatch,
     NonCanonicalDefinitionOrder,
     UnknownSemanticAxiom(usize),
     MalformedProposition(psi_core::PropositionError),
     DefinitionNotEquality(usize),
+    LiteralAxiomNotPrior { definition: usize, literal: usize },
+    LiteralAxiomNotEquality(usize),
+    LiteralAxiomShapeMismatch(usize),
+    UnusedLiteralAxiom(usize),
     DefinitionShapeMismatch(usize),
     AmbiguousDefinition(usize),
     CoefficientOverflow,
@@ -233,7 +323,7 @@ pub fn check_integer_affine_bound_conversion(
     } else {
         return Err(IntegerAffineBoundConversionError::RootBoundMismatch);
     };
-    let Some(bound) = signed_literal(bound, form.integer_type()) else {
+    let Some((bound, false)) = signed_literal(bound, form.integer_type(), None) else {
         return Err(IntegerAffineBoundConversionError::RootBoundNotTypedLiteral);
     };
     let mapped = form
@@ -340,6 +430,7 @@ mod tests {
                 root: root.clone(),
                 target: target.clone(),
                 definition_axioms: vec![0, 1, 2],
+                literal_axioms: vec![None, None, None],
             },
         )
         .expect("ordered affine witness");
@@ -347,6 +438,80 @@ mod tests {
         assert_eq!(checked.target(), &target);
         assert_eq!(checked.coefficient(), -3);
         assert_eq!(checked.offset(), -15);
+    }
+
+    #[test]
+    fn checks_landed_literal_sibling_and_rejects_stale_or_unused_custody() {
+        let integer_type = IntegerType::new(IntegerSign::Signed, 16).expect("i16");
+        let root = value(1, integer_type);
+        let sibling = value(2, integer_type);
+        let target = value(3, integer_type);
+        let context = PropositionContext::from_value_types(
+            (1..=3).map(|id| (ValueId::new(id).unwrap(), ScalarType::Integer(integer_type))),
+        )
+        .unwrap();
+        let landing = Proposition::Equal(sibling.clone(), literal(integer_type, 7));
+        let definition = Proposition::Equal(
+            target.clone(),
+            ScalarTerm::exact_integer_add(integer_type, root.clone(), sibling.clone()).unwrap(),
+        );
+        let witness = IntegerAffineWitness {
+            root: root.clone(),
+            target: target.clone(),
+            definition_axioms: vec![1],
+            literal_axioms: vec![Some(0)],
+        };
+
+        let checked = check_integer_affine_witness(
+            &context,
+            &[landing.clone(), definition.clone()],
+            &witness,
+        )
+        .expect("an earlier exact landing supplies the affine sibling literal");
+        assert_eq!(checked.coefficient(), 1);
+        assert_eq!(checked.offset(), 7);
+
+        let missing_alignment = IntegerAffineWitness {
+            literal_axioms: Vec::new(),
+            ..witness.clone()
+        };
+        assert_eq!(
+            check_integer_affine_witness(
+                &context,
+                &[landing.clone(), definition.clone()],
+                &missing_alignment,
+            ),
+            Err(IntegerAffineWitnessError::LiteralAxiomCountMismatch),
+        );
+
+        let late_landing = IntegerAffineWitness {
+            definition_axioms: vec![0],
+            literal_axioms: vec![Some(1)],
+            ..witness.clone()
+        };
+        assert_eq!(
+            check_integer_affine_witness(&context, &[definition, landing], &late_landing),
+            Err(IntegerAffineWitnessError::LiteralAxiomNotPrior {
+                definition: 0,
+                literal: 1,
+            }),
+        );
+
+        let inline_definition = Proposition::Equal(
+            target,
+            ScalarTerm::exact_integer_add(integer_type, root, literal(integer_type, 7)).unwrap(),
+        );
+        assert_eq!(
+            check_integer_affine_witness(
+                &context,
+                &[
+                    Proposition::Equal(sibling, literal(integer_type, 7)),
+                    inline_definition
+                ],
+                &witness,
+            ),
+            Err(IntegerAffineWitnessError::UnusedLiteralAxiom(1)),
+        );
     }
 
     #[test]
@@ -364,9 +529,10 @@ mod tests {
             ScalarTerm::exact_integer_add(integer_type, root.clone(), literal(integer_type, 1))
                 .unwrap(),
         );
-        let witness = |definition_axioms| IntegerAffineWitness {
+        let witness = |definition_axioms: Vec<usize>| IntegerAffineWitness {
             root: root.clone(),
             target: target.clone(),
+            literal_axioms: vec![None; definition_axioms.len()],
             definition_axioms,
         };
         assert_eq!(
@@ -412,6 +578,7 @@ mod tests {
                     root: literal(i8_type, 0),
                     target: i8_target,
                     definition_axioms: vec![0],
+                    literal_axioms: vec![None],
                 },
             ),
             Err(IntegerAffineWitnessError::RootNotValue),
@@ -433,6 +600,7 @@ mod tests {
                     root: u8_root,
                     target: u8_target,
                     definition_axioms: vec![0],
+                    literal_axioms: vec![None],
                 },
             ),
             Err(IntegerAffineWitnessError::UnsupportedCarrier(u8_type)),
@@ -470,6 +638,7 @@ mod tests {
                     root,
                     target,
                     definition_axioms: vec![0, 1],
+                    literal_axioms: vec![None, None],
                 },
             ),
             Err(IntegerAffineWitnessError::CoefficientOverflow),

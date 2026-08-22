@@ -1561,6 +1561,84 @@ fn exact_division_goal_proves_single_definition_affine_safe_divisor() {
 }
 
 #[test]
+fn exact_division_goal_proves_uniquely_landed_affine_sibling() {
+    let signed = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+    let context = PropositionContext::from_value_types((1..=5).map(|id| {
+        (
+            ValueId::new(id).expect("value id"),
+            ScalarType::Integer(signed),
+        )
+    }))
+    .expect("five i8 values");
+    let divisor = value(2, signed);
+    let goal = Proposition::Disjunction(vec![
+        Proposition::LessOrEqual(divisor.clone(), integer(signed, -2)),
+        Proposition::LessOrEqual(integer(signed, 1), divisor.clone()),
+        Proposition::Conjunction(vec![
+            Proposition::LessOrEqual(divisor, integer(signed, -1)),
+            Proposition::LessOrEqual(integer(signed, -127), value(1, signed)),
+        ]),
+    ]);
+    let root_bound = Proposition::LessOrEqual(integer(signed, 0), value(3, signed));
+    let landing = Proposition::Equal(value(4, signed), integer(signed, 1));
+    let definition = Proposition::Equal(
+        value(2, signed),
+        ScalarTerm::exact_integer_add(signed, value(3, signed), value(4, signed))
+            .expect("exact add"),
+    );
+
+    let proof = prove_canonical_integer_proposition(
+        &context,
+        &goal,
+        std::slice::from_ref(&root_bound),
+        &[landing.clone(), definition.clone()],
+    )
+    .expect("the exact earlier sibling landing completes the affine word");
+    let ProofRule::DisjunctionIntroduction { disjunct, index: 1 } = proof.rule else {
+        panic!("landed affine sibling selects the positive divisor arm")
+    };
+    let ProofRule::IntegerAffineBound { witness, .. } = disjunct.rule else {
+        panic!("landed affine sibling remains kernel-checked")
+    };
+    assert_eq!(witness.definition_axioms, [1]);
+    assert_eq!(witness.literal_axioms, [Some(0)]);
+
+    assert!(
+        prove_canonical_integer_proposition(
+            &context,
+            &goal,
+            std::slice::from_ref(&root_bound),
+            std::slice::from_ref(&definition),
+        )
+        .is_none(),
+        "a value sibling without its landing is not literal authority",
+    );
+    assert!(
+        prove_canonical_integer_proposition(
+            &context,
+            &goal,
+            std::slice::from_ref(&root_bound),
+            &[landing.clone(), landing.clone(), definition.clone()],
+        )
+        .is_none(),
+        "ambiguous sibling landings fail closed",
+    );
+    assert!(
+        prove_canonical_integer_proposition(
+            &context,
+            &goal,
+            std::slice::from_ref(&root_bound),
+            &[
+                Proposition::Equal(value(5, signed), integer(signed, 1)),
+                definition,
+            ],
+        )
+        .is_none(),
+        "a landing for another value cannot supply sibling custody",
+    );
+}
+
+#[test]
 fn exact_division_goal_relaxes_stronger_affine_endpoint_bounds() {
     let signed = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
     let context = PropositionContext::from_value_types((1..=3).map(|id| {

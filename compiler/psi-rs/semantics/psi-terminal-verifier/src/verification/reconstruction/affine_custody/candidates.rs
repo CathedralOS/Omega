@@ -22,9 +22,15 @@ pub(super) fn any(
     let definition_words = frontier::definition_words(context, semantic_axioms, definitions, root);
     std::iter::once(first_target).chain(targets).any(|target| {
         definition_words.iter().any(|definition_axioms| {
+            let Some(literal_axioms) =
+                frontier::literal_axioms(context, semantic_axioms, root, definition_axioms, target)
+            else {
+                return false;
+            };
             complete(IntegerAffineWitness {
                 root: root.clone(),
                 target: target.clone(),
+                literal_axioms,
                 definition_axioms: definition_axioms.clone(),
             })
         })

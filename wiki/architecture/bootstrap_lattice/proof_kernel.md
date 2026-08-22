@@ -417,7 +417,7 @@ recursive `LessOrEqual`/conjunction/disjunction shape rather than maintaining
 separate safe-divisor and exceptional selectors. Redirected goals, reordered
 joint conjunctions, and wrong operands reject. No result equation participates.
 The existing
-proof rules and proof-bundle v18 codec need no further vocabulary change.
+proof rules and proof-bundle v19 codec need no further vocabulary change.
 All other exact divide/remainder reconstruction remains on its trusted reducer
 until an untrusted producer can materialize kernel-checkable certificates for
 the accepted affine/correlated families without importing operation evidence.
@@ -433,9 +433,14 @@ rule. `IntegerAffineWitness` binds a signed fixed same-carrier root and target
 to a nonempty, strictly increasing list of exact prior semantic-axiom indices.
 The kernel independently validates each selected equality and replays only
 exact add, subtract, or multiply-by-same-carrier-literal steps, recomputing the
-checked `A * root + B` coefficients. The root must be an SSA value; stale or
-reordered indices, malformed equations, carrier or target drift, ambiguous
-orientation, unsupported roots, and checked-arithmetic overflow reject. This
+checked `A * root + B` coefficients. Each definition also carries one aligned
+optional literal-landing index. An absent index requires an inline typed signed
+literal; a present index must select one strictly earlier exact same-carrier
+equality between the non-chain SSA operand and its typed signed literal. The
+root must be an SSA value; stale or reordered indices, malformed equations,
+missing, late, redirected, ambiguous, or unused landings, carrier or target
+drift, ambiguous orientation, unsupported roots, and checked-arithmetic
+overflow reject. This
 normalizes the definition-chain facts shared by direct affine analysis and the
 two branches of same-root/correlated analysis without trusting an analyzer's
 coefficients. It neither derives an atomic order proposition nor crosses a cast
@@ -453,7 +458,8 @@ rechecks the ordered definition word, maps the child conclusion, and records
 every selected semantic axiom in accepted premise closure. Non-order or
 wrong-root children, stale/reordered/malformed definitions, target/carrier
 drift, arithmetic failure, and changed mapped conclusions reject. Proof-bundle
-v18 retains tag 12, the registered calculus is v15, and the Rust kernel is v7.
+v19 retains tag 12 and canonically encodes the aligned optional landing
+indices; the registered calculus is v16, and the Rust kernel is v8.
 The calculus root and kernel implementation bind both the affine- and
 cast-checker sources.
 The first bounded producer family uses this rule for one to four prior signed
@@ -609,8 +615,8 @@ into the final carrier. The kernel rechecks the complete cast witness and
 conversion and records every selected definition in accepted premise closure.
 A non-order or wrong-root child, empty, stale, reordered, discontinuous,
 total/widening-shaped, or cyclic cast definitions, target/orientation drift, or
-a changed endpoint rejects. Proof-bundle v18 retains tag 13; the registered
-calculus is v15 and the Rust kernel v7. Producer and reconstruction independently
+a changed endpoint rejects. Proof-bundle v19 retains tag 13; the registered
+calculus is v16 and the Rust kernel v8. Producer and reconstruction independently
 follow the unique exact-cast SSA definition spine backward from the goal,
 reject ambiguous target definitions, and require its source-ordered ledger
 word. They perform no recursive path or permutation search. Cast-chain custody
@@ -703,7 +709,7 @@ A certificate conversion for the checked correlated result remains producer
 work: `IntegerAffineBound` covers one affine target bound, not the correlated
 two-branch lattice conclusion. Producer selection of richer composed root-bound
 proofs also remains before either exact divide/remainder row can leave
-`TrustedJudgment`. Proof-bundle v18 retains rule tag 13 for the complete
+`TrustedJudgment`. Proof-bundle v19 retains rule tag 13 for the complete
 contiguous cast word; terminal codec v18 and installation record v24 remain
 unchanged, and no trust status is promoted.
 

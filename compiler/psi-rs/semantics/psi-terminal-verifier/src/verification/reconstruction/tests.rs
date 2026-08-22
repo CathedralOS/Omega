@@ -1066,6 +1066,67 @@ fn exact_division_selects_single_definition_affine_safe_divisor() {
 }
 
 #[test]
+fn exact_division_selects_uniquely_landed_affine_sibling() {
+    let signed = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+    let context = PropositionContext::from_value_types((1..=5).map(|id| {
+        (
+            ValueId::new(id).expect("value id"),
+            ScalarType::Integer(signed),
+        )
+    }))
+    .expect("five i8 values");
+    let goal = CanonicalScalarGoal::ExactDivisionDefined {
+        integer_type: signed,
+        left: value(1, signed),
+        right: value(2, signed),
+    };
+    let root_bound = Proposition::LessOrEqual(
+        ScalarTerm::integer(signed, IntegerValue::Signed(0)).expect("i8 zero"),
+        value(3, signed),
+    );
+    let landing = Proposition::Equal(
+        value(4, signed),
+        ScalarTerm::integer(signed, IntegerValue::Signed(1)).expect("i8 one"),
+    );
+    let definition = Proposition::Equal(
+        value(2, signed),
+        ScalarTerm::exact_integer_add(signed, value(3, signed), value(4, signed))
+            .expect("exact add"),
+    );
+
+    assert!(exact_division_has_prior_certificate(
+        &context,
+        &goal,
+        &[landing.clone(), definition.clone()],
+        std::slice::from_ref(&root_bound),
+    ));
+    assert!(!exact_division_has_prior_certificate(
+        &context,
+        &goal,
+        std::slice::from_ref(&definition),
+        std::slice::from_ref(&root_bound),
+    ));
+    assert!(!exact_division_has_prior_certificate(
+        &context,
+        &goal,
+        &[landing.clone(), landing, definition.clone()],
+        std::slice::from_ref(&root_bound),
+    ));
+    assert!(!exact_division_has_prior_certificate(
+        &context,
+        &goal,
+        &[
+            Proposition::Equal(
+                value(5, signed),
+                ScalarTerm::integer(signed, IntegerValue::Signed(1)).expect("i8 one"),
+            ),
+            definition,
+        ],
+        std::slice::from_ref(&root_bound),
+    ));
+}
+
+#[test]
 fn exact_division_selects_stronger_affine_endpoint_bounds() {
     let signed = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
     let context = PropositionContext::from_value_types((1..=3).map(|id| {

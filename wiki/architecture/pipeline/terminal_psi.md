@@ -1302,7 +1302,7 @@ verifier independently requires both resolved leaves to have byte-sequence
 carrier types, and call substitution rebases both roots. The bounded slice
 admits field-to-field whole-record equality for `&[u8] in Domain` and
 `[u8; N] in Domain`; text literals and direct text `!=` remain fenced. Semantic
-codec v18, proof-bundle v18, and installation-record v24 encode this vocabulary.
+codec v18, proof-bundle v19, and installation-record v24 encode this vocabulary.
 A
 genuinely zero-member record instead normalizes equality to the
 existing Boolean `true` term; inequality uses the existing negation, and calls,
@@ -1836,7 +1836,7 @@ recursive `LessOrEqual`/conjunction/disjunction shape as the producer instead of
 separate safe-divisor and exceptional selectors. Redirected goals, reordered
 joint conjunctions, or wrong operands reject. No operation-result equation is
 available as proof authority. The existing proof
-rules and proof-bundle v18 codec carry these certificates without a further
+rules and proof-bundle v19 codec carry these certificates without a further
 vocabulary change. All other exact divide/remainder families remain
 on their explicitly trusted sufficient reducer, and both complete rows retain
 their current trust status. Their canonical proposition is settled, and the
@@ -1870,13 +1870,19 @@ out-of-carrier endpoints reject. This conversion accepts no proof authority:
 its caller must independently establish the supplied root-bound proposition.
 `IntegerAffineBound` now composes those checks into one certificate node. Its
 recursively checked child proves the exact root bound, while its
-`IntegerAffineWitness` binds the root, target, and strictly ordered semantic
-definition indices. The kernel replays normalization, maps the child
-conclusion, and records every definition in accepted premise closure.
+`IntegerAffineWitness` binds the root, target, strictly ordered semantic
+definition indices, and one position-aligned optional literal-landing index per
+definition. An absent landing means that the affine expression embeds the
+typed signed literal. A present landing must be one strictly earlier exact
+same-carrier equality between the selected non-chain SSA operand and that
+literal. The kernel replays normalization, maps the child conclusion, and
+records each landing before its definition in accepted premise closure.
 Non-order or wrong-root children, stale/reordered/malformed words,
-target/carrier drift, arithmetic failure, or changed mapped conclusions reject.
-Proof-bundle v18 retains tag 12; the registered calculus is v15 and the Rust
-kernel v7, with the affine and cast checkers included in both trust-graph source
+missing, late, redirected, ambiguous, or unused landings, target/carrier drift,
+arithmetic failure, or changed mapped conclusions reject. Proof-bundle v19
+retains tag 12 and canonically encodes the aligned optional indices; the
+registered calculus is v16 and the Rust kernel v8, with the affine and cast
+checkers included in both trust-graph source
 sets.
 The first bounded producer family uses the rule for one to four prior signed
 fixed affine definitions whose exact retained root bound maps directly to a
@@ -2033,8 +2039,8 @@ mathematical literal endpoint into the final carrier; the kernel rechecks the
 complete cast witness and conversion and records every definition in accepted
 premise closure. A non-order or wrong-root child, empty, stale, reordered,
 discontinuous, total/widening-shaped, or cyclic cast definitions,
-target/orientation drift, or a changed endpoint rejects. Proof-bundle v18
-retains tag 13; the registered calculus is v15 and the Rust kernel v7. Producer
+target/orientation drift, or a changed endpoint rejects. Proof-bundle v19
+retains tag 13; the registered calculus is v16 and the Rust kernel v8. Producer
 and reconstruction independently follow the unique exact-cast SSA definition
 spine backward from the goal, reject ambiguous target definitions, and require
 its source-ordered ledger word. They perform no recursive path or permutation
