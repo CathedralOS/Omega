@@ -1,6 +1,6 @@
 # Design Brief: Extern Boundaries And Foreign Formats
 
-Current as of 2026-08-20. This brief defines the durable extern model. Concrete
+Current as of 2026-08-21. This brief defines the durable extern model. Concrete
 binding/layout grammar remains subject to the referenced subsystem briefs.
 
 ## Abstract API, target binding
@@ -30,7 +30,7 @@ keywords:
 
 ```omega
 data Binding {
-    case DllImport(library: LibraryId, symbol: SymbolId, plan: CallingPlanId);
+    case DllImport(import: DllImportId, plan: CallingPlanId);
     case Syscall(number: u64, plan: CallingPlanId);
     case Firmware(table: TableId, slot: u32, plan: CallingPlanId);
     case CompilerIntrinsic;
@@ -49,8 +49,7 @@ same operation with different visibility to effect and authority analysis.
 machine Kernel32::write_file(handle: WinHandle, bytes: &[u8]) -> WriteResult
     satisfies Kernel32Requirements::write_file
     via Binding::DllImport {
-        library: kernel32_lib,
-        symbol: write_file_symbol,
+        import: Windows::Kernel32::WriteFile,
         plan: MsX64,
     };
 ```
@@ -61,12 +60,14 @@ an executable body and not a self-authored trust assertion. Its identity feeds
 the derived plan. Structural validation checks the declaration; admission
 assigns the trust class and receipt.
 
-Binding identity is never reconstructed from text. For
+Binding identity is never reconstructed from text. A `DllImportId` is one
+namespace-owned nominal endpoint containing its library and export identity;
+source cannot freely pair a symbol from one library with another. For
 `Binding::CompilerIntrinsic`, the exact resolved realization-machine symbol,
 normalized signature, and selected target key the sealed compiler catalog, so
-the variant needs no duplicate name payload. `LibraryId`, `SymbolId`,
-`CallingPlanId`, `TableId`, and corresponding foreign identifiers are nominal
-resolved values. Raw library or linker spellings may appear only in sealed
+the variant needs no duplicate name payload. `DllImportId`, `CallingPlanId`,
+`TableId`, and corresponding foreign identifiers are nominal resolved values.
+Raw library or linker spellings may appear only in sealed
 target/link metadata and never serve as Omega symbols, requirement keys, or
 provider selections. That metadata is fingerprinted, so changing its foreign
 bytes changes target/artifact identity and requires fresh admission while the
@@ -373,10 +374,34 @@ supplies the complete signature and contract without structural repetition.
 Passing the selected machine chooses its explicit satisfaction row, validates
 the published and actual refining envelopes plus their `CallPlan + StatePlan`,
 and lets the compiler materialize the foreign ABI thunk and relocation inside
-that exact binding. Signature coincidence and unique visibility are not
+that exact binding. The registrar's evaluated outbound `CallPlan` carries one
+normalized callback-materialization row per nominal callback binder. Each row
+maps the registrar's binder-slot identity, not its later selected-machine
+argument, to one declared `NativePlace`: either a direct native parameter or a
+field projected through a validated native layout. The plan fingerprint is
+therefore fixed across callback selections; the per-use row separately retains
+the selected machine, satisfaction, entry plan, and private thunk identity, and
+lowering joins those identities only when emitting the private relocation.
+Signature coincidence and unique visibility are not
 selection rules. A signature-free requirement path must resolve uniquely or
 reject, consistently with domain route lists. The source surface does not need
 a general function-pointer value.
+
+A projected native callback field is a typed private-materialization demand in
+the normalized layout plan, not a field of the source-visible specification.
+Layout validation records its nominal slot identity and expected callback
+requirement; complete outbound-plan validation requires every such demand to be
+supplied exactly once by a compatible callback-materialization row. Missing,
+duplicate, overlapping, shape-incompatible, or unresolved demands reject.
+Source cannot read, write, serialize, or address the field, and neither binder
+order nor layout byte offsets are placement rules.
+
+Callback placement does not own native-argument storage lifetime. Direct
+arguments, call-scoped staging, retained pointees, snapshots, and stable roots
+remain ordinary outbound calling-plan and foreign-storage dispositions. A
+common copying registrar needs only call-scoped staging; an API that retains a
+caller-supplied native object must satisfy the general retained-storage rules
+below. The callback row records only binder slot and destination.
 
 Durable registration returns an ordinary linear package value. It owns the
 foreign registration and any code/component lease needed to keep the entry
@@ -425,6 +450,15 @@ target-supported owned stack. Preflight proves the predicted segment fits; an
 owned hard-limited stack additionally detects underestimation at its own
 boundary. Foreign calls made by a separated-stack callback return to the
 provider stack domain before entering opaque code.
+
+That selected execution stack is only one part of root provisioning. Each
+installed callback root also carries every admissible arrival context and its
+finite entry/body/exit epoch sequence. Epochs retain the active domain,
+per-domain occupancy, and phase-specific nesting allowance, so a software
+stack switch divides the sequence while an atomic hardware switch does not.
+Terminal-Psi WCSU joins only the body execution domain. Architectural arrival
+comes from a sealed target rule applied to installed facts; emitted adapters
+are derived from their bytes; opaque adapters require admitted evidence.
 
 Native protocols may synchronously re-enter application callbacks. A platform
 adapter exposes exact `invokes` ceilings, checks each ordinary Omega handler's
@@ -486,32 +520,64 @@ Foreign storage use has three outbound ownership shapes:
 1. **Call-scoped:** an ordinary `&T`, `&[T]`, `&write T`, `&write [T]`,
    `&mut T`, or `&mut [T]` permits only its exact access set before the call
    returns.
-2. **Retained after return:** storage authority moves into an ordinary linear
-   protocol value such as `PendingRead`; a terminal completion redeems it.
+2. **Retained after return:** the public requirement states the caller-visible
+   lifetime/custody contract. An ordinary linear protocol value such as
+   `PendingRead` or `Registration<Storage>` may own stable storage; a
+   lifetime-parameterized `Registration<'a>` may retain a checked borrow; or a
+   realization may hide stricter native retention behind a private stable
+   snapshot when a semantic snapshot contract permits copying. A terminal
+   completion redeems public custody and releases private backing.
 3. **Process-lifetime:** the authority moves into an already-established static
    or process-lifetime root. Omega has no general permanent-custodian spelling;
    other permanent retention remains unsupported until a concrete customer
    justifies one.
 
-Post-return retention is not a long borrow. The linear claim owns the keepalive
-and reclamation authority for its backing place, not necessarily the bytes
-inline. It may lend ordinary lexical views over rights the foreign side does
-not hold. A read-only foreign operation can therefore preserve semantic facts
-and lend Omega read views; a writing operation invalidates facts over exactly
-the writable extent and re-establishes them from terminal completion evidence.
+Post-return retention is never an untracked extension of a call-scoped borrow.
+A lifetime-parameterized protocol value may carry an explicit checked loan;
+otherwise its linear claim owns the keepalive and reclamation authority for its
+backing place, not necessarily the bytes inline. It may lend ordinary lexical
+views over rights the foreign side does not hold. A read-only foreign operation
+can therefore preserve semantic facts and lend Omega read views; a writing
+operation invalidates facts over exactly the writable extent and re-establishes
+them from terminal completion evidence.
 Separated partial release is an ordinary split in the claim-content algebra:
 the returned subextent leaves flight while the disjoint remainder stays under
 the same protocol claim.
 
-The compiler learns that use survives return from ownership conservation. A
-consumed `Buffer` may map into the content retained by `PendingWrite`;
-`submit(&buffer) -> PendingWrite` rejects because a borrow supplies no owned
-claim that can establish the result.
+The compiler learns that use survives return from the published result contract
+and ownership conservation. A consumed `Buffer` may map into the content
+retained by `PendingWrite`; `submit(&buffer) -> PendingWrite` rejects when the
+unparameterized result claims owned retention, while a result explicitly
+parameterized by the borrow lifetime may carry that checked loan.
 Unambiguous consumed-input-to-produced-claim mappings are inferred; ambiguous
 or unsupported mappings reject unless an ordinary postcondition pins the
 correspondence. A content-bearing exact qualification supplies its projection
 through its owner-unique core `Content<A>` conformance; the binding does not
 invent a separate foreign-extent algebra or projection annotation.
+
+Every pointer-valued native slot retained after return carries checked
+provenance to an exact stable root, range, access mode, lifetime, and any
+revision or lease. Unknown provenance rejects until an admitted provider route
+establishes it. Embedded nested layouts have a finite structural closure;
+recursive or dynamically sized pointer graphs instead retain one arena/extent
+root covering the graph rather than asking the compiler to traverse runtime
+pointers. A private snapshot is legal only under an explicit semantic contract
+that permits an independent value copy and requires neither identity
+preservation nor unchecked write-back. Concurrent foreign and Omega access is
+External placed backing; exclusive foreign mutation may instead move storage
+into the protocol value and return it under the requirement's declared
+preserved, invalidated, or outcome-dependent content qualification.
+
+Provider-specific backing never changes a separately compiled public result
+type. Requirements publish unavoidable caller-visible lifetimes and custody;
+realizations record and validate their concrete backing recipes. Private
+snapshot bytes count as persistent demand per live protocol occurrence. A
+static aggregate bound therefore also requires a finite live-occurrence
+capacity authority: success moves the exact authority into the registration,
+rejection returns it unchanged, and successful unregister returns the same
+occurrence. A consumable lifetime budget is a different authority. Static thunk
+code is bounded separately by distinct admitted callback identities, not by the
+number of simultaneously live registrations.
 
 The executable checker admits the unique compatible consumed input. When
 several compatible owned inputs exist, one exact authored equality may select
@@ -611,17 +677,18 @@ aggregate facts the policy consumes. Omega never performs C array decay.
 Every reclaimable installed callback/interrupt entry is also an external
 artifact root. Because no Omega call edge reaches it, the dynamic root ledger
 retains its reach, authority/trust receipts, state footprint, stack domain,
-nesting relation, and version pins until its linear registration proves
+context-indexed stack epochs, nesting relation, and version pins until its
+linear registration proves
 unregistration and required quiescence. A process-lifetime statically linked
 callback needs the same build report but no live replacement ledger. This
 reuses provider admission rather than creating an entry-specific trust system.
 
 ## Process entry
 
-Process entry is one required environment-to-program root slot in a hosted
-target profile. The program binds an exact source machine while the target
-contributes the physical arrival contract, calling policy, provider setup, and
-source-visible entry shape.
+Process entry is one required environment-to-program root slot in a target
+profile. The program binds an exact semantic source machine while the target
+fixes the separate physical arrival contract, calling policy, bootstrap
+adapter, provider setup, physical-result map, and source-visible entry shape.
 
 ```omega
 machine start() {
@@ -638,9 +705,11 @@ machine build(builder: &mut Build) {
 ```
 
 On Windows the generated stub may read native command-line/environment
-surfaces; on ELF it may read the initial stack; on firmware it may consume a
-firmware handoff. Those details stay in scoped providers and generated bridge
-code. Target selection and slot binding belong in `build.omg`, not a
+surfaces; on ELF it may read the initial stack; on firmware its exact physical
+requirement may receive a firmware handoff. Those details stay in scoped
+providers and the target-authored bootstrap behind a generated ABI shell.
+Native handles remain typed physical inputs rather than semantic storage roots.
+Target selection and semantic slot binding belong in `build.omg`, not a
 target-specific source dialect or a `main` naming convention.
 
 A hosted schema normally hides raw image and storage roots. If the bound entry
@@ -648,8 +717,10 @@ has one `&mut self` receiver, the bridge provisions exactly one ZII-valid
 instance beneath an admitted storage root and lends it only to that activation.
 A freestanding schema may deliberately expose `image: Extent in Granted` and
 `initial_storage: Extent in Granted` because provisioning is then the
-application's responsibility. The generated bridge remains the installed
-external root in both cases and contributes its complete derived contract.
+application's responsibility. A separate semantic installation edge introduces
+those exact occurrences after the bootstrap establishes their evidence. The
+combined shell and adapter remain the installed external root in both cases and
+contribute their complete derived contract.
 
 ## Engineering order
 

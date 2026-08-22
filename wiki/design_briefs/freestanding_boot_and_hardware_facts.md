@@ -1,6 +1,6 @@
 # Design Brief: Freestanding Boot And Hardware Facts
 
-Current direction as of 2026-08-07. Freestanding selection and the security
+Current direction as of 2026-08-21. Freestanding selection and the security
 model are settled. The reusable memory/hardware primitives are specified in
 [`os_memory_and_hardware_foundation.md`](os_memory_and_hardware_foundation.md);
 their source APIs and backend support remain incomplete.
@@ -26,13 +26,32 @@ deployment data, not compiler folklore.
 
 ## Typed entry handoff
 
-The target profile owns the physical arrival requirement and contributes its
-complete evaluated calling and machine-state policy. The bound source entry is
-the continuation the generated bridge calls after translating platform arrival
-into the typed parameters that the freestanding schema deliberately exposes.
-`build.omg` names that continuation; it does not manufacture or pass the entry
-arguments. Firmware, a loader, or an OS supplies the physical arrival values at
-launch, and the installed bridge validates and translates them.
+Physical arrival and semantic program arrival are distinct contracts joined by
+one target-owned entry schema. The target profile fixes the physical
+requirement and its complete evaluated calling and machine-state policy;
+`build.omg` binds only the semantic source continuation. Firmware, a loader, or
+an OS supplies the physical values at launch. A generated ABI shell invokes the
+exact target-authored bootstrap adapter, and that adapter establishes the
+semantic arrival before calling the selected continuation.
+
+For UEFI the physical contract has the platform's real two-argument ABI and
+status result, conceptually:
+
+```omega
+pub boundary trait UefiPhysicalEntry {
+    machine enter(
+        image_handle: EfiImageHandle,
+        system_table: &EfiSystemTable
+    ) -> EfiStatus;
+}
+```
+
+`EfiSystemTable` remains a validated native layout used privately by the target
+provider. Applications do not project it. The target installs lifecycle-scoped
+firmware provider realizations over that exact table occurrence instead.
+`EfiImageHandle` is an opaque provenance-bearing physical input, not storage
+authority; only admitted bootstrap operations accepting that occurrence can
+derive correspondence facts from it.
 
 ```omega
 machine Application::start(
@@ -44,51 +63,59 @@ machine Application::start(
 }
 ```
 
-The UEFI profile's `ProgramEntry` slot records schema `UefiApplication`, arrival
-requirement `ProgramStorageEntry::enter`, `Calling<UefiX86_64>` policy, and the
-two source-visible qualified parameters. The generated bridge is the installed
-implementation of that arrival requirement. At its external invocation the
-domain route introduces the two roots; the bridge then calls
-`Application::start` ordinarily with already-qualified values. The application
-does not itself impersonate the physical entry contract.
+The UEFI profile's `ProgramEntry` schema records two differently bound
+identities: target-fixed `UefiPhysicalEntry::enter` with
+`Calling<UefiX86_64>`, and build-bound `ProgramStorageEntry::enter` with the two
+source-visible qualified parameters. The physical requirement is not a
+refinement of the semantic one, and the source continuation receives no hidden
+firmware arguments. The generated shell and authored bootstrap together form
+the installed bridge: they validate physical arrival, install the selected
+scoped providers, obtain exact root geometry and correspondence evidence, and
+then cross the semantic installation edge. That edge introduces the two
+`Granted` occurrences once; the ordinary continuation call only forwards them.
 
-The bridge/provider contract states pointer provenance, alignment, lifetime,
-paging and CPU regime, stack supply, entry/exit control, and any facts the
-checker cannot derive. Firmware handles and `SystemTable` are provider-private
-arrival inputs, not target-specific parameters added to the semantic entry.
-Accepted facts appear in receipts and the boundary report. The compiler derives
-the generated bridge's crash routes, reach, writes, work, stack/state,
-introduced facts, and provenance and composes them with the application's
-portable closure. The code that first touches untrusted platform input is never
-outside the contract system. The old `boundary(<Plan>)` syntax is retired; plan
-identity belongs to the arrival requirement through `Calling<C>`.
+The bootstrap contract states pointer provenance, alignment, lifetime, paging
+and CPU regime, stack supply, entry/exit control, bounded retry work, provider
+lifecycle, and every accepted fact the checker cannot derive. Its installation
+receipt joins the physical invocation, target schema, provider realizations,
+physical-input provenance, root geometry and evidence, semantic requirement,
+and selected continuation. Failure before semantic installation calls no source
+continuation and introduces no complete semantic roots. The target package maps
+each such failure to an exact `EfiStatus`; normal return from today's Unit
+semantic continuation maps to success. A crash remains a declared crash route,
+not a synthesized status. The compiler derives and composes the generated and
+authored bridge contracts; it never interprets a firmware handle by folklore.
 
 Program storage begins from a small number of entry-provisioned content roots.
-The loader, firmware, or OS admits the image mapping and initial stack/storage
-roots as part of the typed entry handoff. The compiler derives image sections
-as subextents of the image root; later frames and task stacks are checked
-allocations from an existing root. A receiver-bound entry may request one
-ZII-valid receiver instance; the bridge provisions it as an accounted subextent
-and lends only `&mut self`. If the underlying root is also source-visible, the
-bridge forwards a conserved nonoverlapping residual rather than the original
-whole. It does not admit every object individually, and a
-compiler-known array cannot originate physical-memory content merely because
-its size is known.
+The loader, firmware, or OS supplies the physical basis and admitted evidence;
+the semantic entry introduces the program-visible image and initial-storage
+occurrences. The compiler derives image sections as subextents of the image
+root; later frames and task stacks are checked allocations from an existing
+root. Bootstrap or receiver storage is never concealed inside an extent handed
+whole to source. A parent allocation is conserved as a partition: the active
+handoff stack or provisioned receiver remains in the target execution frontier,
+and only a disjoint residual becomes source-visible `initial_storage`. The
+target chooses geometry that leaves one contiguous residual when the semantic
+carrier is one `Extent`; it may not encode an inaccessible hole in a `Granted`
+range. A receiver-bound entry lends only its one checked `&mut self` occurrence.
 
-Those roots use the core-owned stable `ProgramStorageEntry::enter` arrival
-requirement. Its two exact `Extent in Granted` parameter positions identify the
-image and initial storage roots inside the generated bridge. Target entry
-schemas such as `UefiApplication` select that requirement; `Calling<C>`, target
-policy, generated stubs, and the source-visible continuation shape refine its
-realization without replacing its identity.
+Those roots use the core-owned stable `ProgramStorageEntry::enter` semantic
+arrival requirement. Its two exact `Extent in Granted` parameter positions
+identify the image and initial-storage roots inside the generated bridge.
+Target entry schemas such as `UefiApplication` compose that requirement with a
+separate target-fixed physical requirement. Calling policy and native-result
+mapping belong to the physical side; generated stubs, target bootstrap, and the
+source-visible continuation shape join the two without replacing either
+identity.
 `Extent::Granted` authorizes the core requirement as an alternative route, and
 installation introduces the matching parameters. Core therefore never depends
 on a UEFI/Cathedral domain, and the compiler never recognizes target-friendly
 names as storage authority. The arrival requirement and qualified-position
-identity are live. Installation now requires an exact selected calling-plan
-fingerprint and generated ABI capture for each semantic position, validates
-both `Granted::no_wrap` obligations before consuming either admitted grant,
-and returns both grants intact on rejection. Compiler-derived image-section
+identity are live. Installation requires the exact physical calling-plan
+fingerprint, bootstrap/provider evidence, and generated capture for each
+semantic position, validates both `Granted::no_wrap` obligations before
+committing either semantic root, and returns every moved bootstrap input on
+rejection. Compiler-derived image-section
 ranges remain borrowed views under the installed image root. Initial-storage
 allocations that leave the pool's ownership use an explicit conserved
 partition retaining every remainder and can recompose the exact parent.
@@ -108,19 +135,44 @@ naming a type or manufacturing an integer.
 
 ## Firmware handoff and memory authority
 
-UEFI's map/exit protocol is a linear state transition:
+UEFI's map/exit protocol is a bounded linear state machine:
 
 1. obtain explicit storage for the runtime-sized map;
 2. read descriptors using firmware's reported stride/version;
 3. retain the associated `MapKey`;
 4. call `ExitBootServices`;
-5. retry with new capacity/key when firmware requests it; and
+5. on a stale key, explicitly return the live boot-services capability and
+   allocation custody to the map-acquisition state with a smaller attempt
+   measure; and
 6. on success, consume firmware authority and establish one
    `FinalMemoryMap` obligation.
 
-No destructor pretends to perform this fallible protocol. Descriptor stepping
-uses the supplied stride, not `sizeof`, and every typed projection is proven
-inside the returned byte extent.
+The attempt bound is target-authored. `remaining - 1` is formed only under the
+guard `1 <= remaining`; exhaustion returns an authored EFI error status. Every
+non-copy value is named in each arrival contract rather than ambient across the
+cycle. Success consumes the boot-services capability and final map into the
+exit receipt while transitioning allocation custody. A stale-key outcome
+retires the stale snapshot and forwards boot services and allocations unchanged
+to the next attempt. No destructor pretends to perform this fallible protocol.
+Descriptor stepping uses the supplied stride, not `sizeof`, and every typed
+projection is proven inside the returned byte extent.
+
+`ExitBootServices` has per-claim dispositions. Boot services and boot-scoped
+protocol providers end; already allocated storage preserves exact occurrence
+lineage while transferring from firmware to program custody; separately
+eligible conventional-memory descriptors may introduce new physical-memory
+claims under the final-map snapshot, successful-exit receipt, and target memory
+policy. Reserved, runtime, ACPI, device, active-bootstrap, and other excluded
+descriptors are not thereby claimable. Runtime services survive only through
+their separate post-exit contract.
+
+The target does not assume that firmware's incoming stack survives the exit. It
+switches before the final attempt to an explicitly accounted handoff stack, or
+supplies evidence that the incoming stack has the required lifetime. The active
+stack claim is threaded through the exit transition and retained by the stack
+execution frontier. When it descends from the same parent allocation as initial
+storage, the application receives only the conserved disjoint residual, never a
+range containing live inaccessible stack bytes.
 
 The final map supplies physical extents, not freely forged allocator values.
 A bounded `Arena` is allocation authority over appropriate backing extents. Device,
@@ -249,6 +301,13 @@ and version/liveness pins.
 
 Stack/preemption class is authored once and drives both the gate's concrete IST
 field and WCSU composition. Two separately-authored facts would be unsound.
+The installed gate and admitted target profile also determine the complete set
+of arrival contexts. A sealed target rule maps each context—such as same-
+privilege entry versus a privilege transition—to its hardware-atomic arrival
+epochs. The provider does not separately cite an arrival-size row. Software
+stack transitions in the emitted adapter delimit further epochs, and nesting
+resolves `Interrupted` against the active domain of the exact epoch in which it
+occurs.
 
 ## Symbolic materialization and rebasing
 

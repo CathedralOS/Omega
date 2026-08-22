@@ -450,7 +450,12 @@ Current ownership is:
   table. When the exact nominal requirement owns an evaluated boundary calling
   plan, the row also retains its nonzero fingerprint as the target-placement
   join key. Ordinary nominal selections retain no callback placement; the
-  target-owned plan and emitted thunk remain outside checked Psi.
+  target-owned plan and emitted thunk remain outside checked Psi. Registrar
+  plan identity separately binds the registration operation's exact nominal
+  static-machine slot to one native destination; it never substitutes the
+  selected machine into that plan fingerprint. Target lowering joins the fixed
+  slot/destination row to this per-use selection and rejects incomplete private
+  materialization closure.
   The row also joins the requirement capsule's normalized contract fingerprint
   to the selected machine's normalized declared contract fingerprint and
   retains an explicit admission-refinement receipt over those endpoints. The

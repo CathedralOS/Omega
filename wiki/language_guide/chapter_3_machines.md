@@ -134,13 +134,22 @@ The machine name is not special. The build binding chooses the machine, its
 source signature states whether it needs a receiver or visible arguments, and
 the target schema states how the launch environment supplies those needs.
 
+The schema keeps physical and semantic arrival separate. A UEFI physical entry,
+for example, receives `ImageHandle` and `SystemTable` and returns `EfiStatus`;
+the build-bound semantic continuation may instead receive only
+`image: Extent in Granted` and `initial_storage: Extent in Granted`. A generated
+ABI shell calls the exact target-authored bootstrap adapter, and the installed
+semantic edge introduces those root occurrences after provider validation.
+Neither firmware input is silently reinterpreted as an `Extent`, and no hidden
+platform parameter is appended to the source machine.
+
 > **Implementation gate:** explicit `Build` root binding, exact source-entry
 > selection, target-owned `ProgramEntry` profile/schema metadata, hosted
 > free/receiver source-shape checks, exact UEFI visible-root type/arity checks
-> against `ProgramStorageEntry::enter`, receiver ZII checks, and UEFI
-> source-evaluated calling-plan retention, validation, and inbound lowering are
-> live. The compile report also retains the exact target root slot, checked
-> arrival requirement, calling-plan fingerprint, and generated captures for
+> against `ProgramStorageEntry::enter`, receiver ZII checks, and the current
+> semantic UEFI source-calling-plan retention, validation, and inbound lowering
+> are live. The compile report also retains the exact target root slot, checked
+> semantic arrival requirement, calling-plan fingerprint, and generated captures for
 > both storage positions; the machine-readable program-storage artifact renders
 > their semantic roles, normalized ABI placements, frame capture ranges, strict
 > carry, and the pending two-grant installation rule. Physical bridge/grant
@@ -161,9 +170,10 @@ the target schema states how the launch environment supplies those needs.
 > of receiver-bound roots, validates the exact mapped backing, zeroes it, and
 > retains its exclusive borrow through one activation before returning the
 > conserved roots. Binding this handoff and portable evidence to the selected
-> physical provider and generated native bridge, corpus migration, and removal
-> of transitional entry-name discovery remain under `ENTRY-CONTENT-ROOTS` in
-> `TASKS.md`.
+> target-fixed physical requirement, authored bootstrap adapter and result map,
+> physical provider, and generated native shell, plus corpus migration and
+> removal of transitional entry-name discovery, remain under
+> `ENTRY-CONTENT-ROOTS` in `TASKS.md`.
 
 ## Parameters And Returns
 
@@ -251,8 +261,7 @@ requirement without pretending the binding is executable Omega code:
 machine Kernel32::write_file(handle: WinHandle, bytes: &[u8]) -> WriteResult
     satisfies Kernel32Requirements::write_file
     via Binding::DllImport {
-        library: kernel32_lib,
-        symbol: write_file_symbol,
+        import: Windows::Kernel32::WriteFile,
         plan: MsX64,
     };
 ```
@@ -265,8 +274,10 @@ public service/suspension/blocking and guarded-crash ceilings; the
 binding/provider behavior must refine each one. A `via` machine does not repeat
 those clauses.
 
-Every semantic binding input is nominal. The `library`, `symbol`, and `plan`
-expressions above resolve to typed IDs rather than strings. A compiler-intrinsic
+Every semantic binding input is nominal. The `import` and `plan` expressions
+above resolve to typed IDs rather than strings. One `DllImportId` inseparably
+owns its library and export identity, so source cannot pair unrelated values.
+A compiler-intrinsic
 binding has no name payload: its exact realization-machine symbol, normalized
 signature, and target select the sealed lowering catalog entry. Raw foreign
 linker spellings exist only in target/link metadata and never identify an Omega
@@ -358,8 +369,9 @@ Working rules:
 - **The admitted artifact's worst-case stack is a static constant.** After
   lowering, its runtime call graph is acyclic, so the maximum live activation
   storage along any call chain is computable at build time. External roots and
-  opaque providers remain responsible for their pinned stack domains; their
-  declared nesting and same-stack demands compose through the external-root
+  opaque providers remain responsible for their pinned stack domains. Their
+  complete admissible arrival contexts, per-domain entry epochs, declared
+  nesting, and checked or admitted demands compose through the external-root
   ledger. The resulting bound appears in the layout report.
 
 Proof-stratum machines (chapter 10) use the same clause and legality rule with

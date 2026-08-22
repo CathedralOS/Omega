@@ -1,6 +1,6 @@
 # Design Brief: Calling And Machine-State Plans
 
-Current as of 2026-08-20. Boundary conventions are normalized policy artifacts;
+Current as of 2026-08-21. Boundary conventions are normalized policy artifacts;
 Omega's internal calling convention remains compiler-sovereign. This brief now
 includes inbound machine-state preservation, which ordinary calls do not expose.
 Engineering is incomplete. The normalized compiler model, initial built-in
@@ -26,10 +26,25 @@ describe hardware entering while another activation is live.
 data CallPlan {
     params: [Placement];
     result: Placement;
+    callback_materializations: [CallbackMaterialization];
     ordinary_clobbers: RegisterSet;
     stack_align: count;
     shadow_bytes: count;
     entry_control: EntryControl;
+}
+
+data NativePlace {
+    case Parameter(parameter: NativeParameterId);
+    case Field(
+        parameter: NativeParameterId,
+        layout: LayoutPlanId,
+        field_path: [LayoutSlotId],
+    );
+}
+
+data CallbackMaterialization {
+    binder: StaticMachineBinderId;
+    destination: NativePlace;
 }
 
 data StatePlan {
@@ -46,7 +61,8 @@ data BoundaryEntryPlan {
 }
 ```
 
-`CallPlan` owns parameter/result placement and ordinary ABI behavior.
+`CallPlan` owns parameter/result placement, private callback materialization,
+and ordinary ABI behavior.
 `StatePlan` owns the state that already belonged to an interrupted activation,
 the state an entry stub preserves, and the state the handler and its callees may
 use. Their projections coincide for many ordinary calls; that is not a reason to
@@ -535,15 +551,53 @@ The registration operation binds its static machine parameter to the exact
 callback requirement with the nominal `where machine` form:
 
 ```omega
-boundary machine register_window_procedure<machine Selected>(
-    class_name: &[u8] in CString
-) -> Registration
-where machine Selected satisfies WindowProcedure::call;
+boundary trait WindowRegistrar {
+    machine register<machine Selected>(
+        specification: &WindowClassSpecification
+    ) -> Registration
+    where machine Selected satisfies WindowProcedure::call;
+}
 ```
+
+The concrete registrar realization supplies an ordinary evaluated calling
+plan; no callback-specific declaration keyword is added:
+
+```omega
+machine User32::register_window_procedure<machine Selected>(
+    specification: &WindowClassSpecification
+) -> Registration
+where machine Selected satisfies WindowProcedure::call
+satisfies WindowRegistrar::register
+via Binding::DllImport {
+    import: Windows::User32::RegisterClassExW,
+    plan: User32Plans::register_class,
+};
+```
+
+That plan maps the nominal binder slot to one native place, conceptually:
+
+```omega
+CallbackMaterialization {
+    binder: RegisterClassSignature::Selected,
+    destination: NativePlace::Field(
+        RegisterClassNativeParameters::class,
+        WndClassLayout,
+        [WndClassLayout::window_procedure],
+    ),
+}
+```
+
+The source name resolves to the binder slot in the registrar's normalized
+static-machine telescope, not to the machine later substituted at a call. A
+direct callback instead uses `NativePlace::Parameter`. Native parameter and
+layout-slot identities are nominal plan values; authored native ordinals,
+field byte offsets, inferred binder order, and appended hidden ABI parameters
+are not placement forms.
 
 The requirement supplies the complete callable signature, contracts,
 operational ceilings, and evaluated calling/entry plan; the binder does not
-repeat them. `register_window_procedure<ApplicationWindow::dispatch>(name)`
+repeat them.
+`WindowRegistrar::register<ApplicationWindow::dispatch>(&specification)`
 selects the authored satisfaction row for that exact requirement. A matching
 signature or uniquely visible conformance establishes nothing.
 
@@ -563,10 +617,14 @@ family, then emits source-ordered diagnostics for every affected nominal binder
 and authored domain route. Running before either consumer rewrites its authored
 path prevents the first ambiguous use from masking the rest of the breakage.
 
-Each checked callback use retains the call site, registration-operation
-identity, static-machine argument ordinal, selected machine, selected
-satisfaction row, exact canonical requirement overload, and evaluated target
-placement recipe. The callback's published requirement envelope and selected
+The normalized registrar plan retains the registration-operation identity,
+exact binder-slot identity, destination, and complete evaluated-plan
+fingerprint independently of any selected callback. Each checked callback use
+separately retains the call site, static-machine argument ordinal, selected
+machine, selected satisfaction row, exact canonical requirement overload, and
+evaluated target entry recipe. Lowering joins those rows; substituting another
+valid callback changes the per-use/thunk identity but not the registrar's ABI
+fingerprint. The callback's published requirement envelope and selected
 machine's actual envelope remain separate, with an explicit refinement proof
 from actual to published. The foreign protocol relies on the published
 envelope; installation, resource, reach, and crash reasoning may use the
@@ -601,7 +659,10 @@ or changing either fingerprint. Resource ceilings remain the unassembled
 actual-envelope axis.
 
 Lowering alone materializes the thunk relocation at the plan's exact native
-argument or nested field. Neither the static machine argument nor its address
+argument or nested field. A nested destination must name a typed private demand
+from the validated layout plan, and complete outbound-plan validation requires
+each demand and callback binder to participate in one compatible, nonoverlapping
+row. Neither the static machine argument nor its address
 becomes an Omega runtime value. Compiler-private function identity remains
 intact through assigned target operations, machine instructions, encoded
 bytes, and object planning. A callback thunk has a distinct function role
@@ -796,6 +857,23 @@ artifact or component lease. Its explicit terminal operation unregisters the
 foreign entry before releasing those obligations. Call-scoped callback
 parameters instead remain ordinary borrows and produce no durable registration.
 
+The registrar is an ordinary runtime boundary operation. `build.omg` selects
+and admits its realization and resource profile; it does not execute the
+registration. Success establishes the future external root and moves any
+finite live-registration capacity into `Registration`; rejection establishes
+no root and returns that authority unchanged. Successful unregister ends the
+root and returns the same capacity occurrence. A consumable lifetime budget is
+a different authority. Many live registrations may share one compatible
+statically emitted thunk, so capacity bounds runtime registration state rather
+than code size.
+
+Callback materialization records only binder slot and destination. Whether the
+destination is a direct argument, call-scoped temporary, or part of retained
+stable storage is the ordinary native-parameter lifetime/custody disposition
+of the outbound plan. It is not duplicated on the callback row. Foreign-owned
+internal registration tables are provider state; an API that retains
+caller-supplied storage must satisfy the general foreign-retained-storage rules.
+
 Calling plans do not describe whether a callback runs. That is ordinary machine
 behavior. A bodyful machine infers its direct synchronous boundary invocations;
 a bodyless requirement declares them with `invokes`:
@@ -846,6 +924,61 @@ stack additionally detects an underestimated WCSU at its own boundary. Opaque
 foreign frames remain in the provider stack domain; an exact separated-stack
 profile returns to that domain before making another foreign call.
 
+`EntryStack` selects the execution-stack disposition; it is not a complete
+account of external-entry storage. Root admission separately consumes a
+normalized `EntryStackRealization`. That realization contains a finite,
+validated set of admissible arrival contexts and one finite epoch sequence per
+context, conceptually:
+
+```text
+EntryStackRealization {
+    contexts: [ArrivalContextRealization]
+}
+
+ArrivalContextRealization {
+    context: ArrivalContextId
+    epochs: [EntryStackEpoch]
+}
+
+EntryStackEpoch {
+    stage: Enter | Body | Exit
+    active_domain: StackDomainRef
+    occupancy_by_domain: [StackOccupancy]
+    nesting: PhaseNestingAllowance
+}
+```
+
+An epoch is a maximal interval with one active stack-domain interpretation and
+one nesting allowance. There is exactly one `Body` epoch. A no-switch entry
+normally has one enter epoch; a hardware-atomic switch starts directly in the
+new domain; a software switch ends one epoch and begins another. Multiple or
+conditional adapter transitions therefore require no new vocabulary.
+
+For domain `d`, the composed demand is the maximum over every admissible
+context and epoch of the epoch's occupancy on `d`, plus Terminal-Psi body WCSU
+only when that epoch is `Body` and `d` is its execution domain, plus nesting
+that the epoch permits on `d`. Context alternatives take their maximum rather
+than their sum. A nested root's relative `Interrupted` domain resolves to the
+parent epoch's `active_domain`; it is not one global stack identity. Concurrent
+live use adds with alignment, sequential alternatives take their maximum, and
+declared finite nesting depth bounds repeated occurrences. For stack resource
+accounting, `Nestable(maximum_depth)` counts concurrently live occurrences on
+one root lineage, including the current occurrence; zero rejects. `Masked`
+admits no nested occurrence covered by that policy, and `ProviderDefined` must
+resolve to equivalent finite evidence before bounded admission.
+
+The complete admissible context set comes from validated installation facts,
+not provider omission. A sealed target arrival rule applied to those facts
+derives architectural arrival epochs, including privilege-conditional and
+hardware-atomic switching. Generated adapter epochs derive from exact emitted
+stub instructions. An opaque adapter instead carries admitted provider evidence
+bound to the target, exact installed entry, boundary plan, domains, contexts,
+epochs, and validation receipt. A bare byte count establishes nothing.
+`ProviderSelected` must close to the interrupted domain or one exact provisioned
+domain before final composition. Unknown arrival contexts or unresolved domains
+reject; when no narrower phase-specific nesting fact is proven, the root's
+declared nesting policy applies conservatively to every epoch.
+
 Platform packages may normalize a re-entrant native callback protocol into a
 safer Omega handler API. The package declares exact `invokes` ceilings on its
 bodyless surfaces, infers ordinary application-handler reach locally, handles
@@ -885,6 +1018,13 @@ maxima, same-stack paths add with alignment, and installed roots must agree on
 the complete composition fingerprint. Cycles, missing endpoints, unknown
 nested provider-selected stacks, overflow, and active dedicated-class re-entry
 reject.
+
+The live composer is a scalar precursor: each provider currently contributes
+one local WCSU and one `EntryStack` domain. It does not yet carry admissible
+arrival contexts, epoch transitions, per-domain occupancy, or phase-specific
+nesting. Consequently its result remains insufficient as a complete
+`StackPlan` for an installed root until the settled realization above replaces
+that local row.
 
 A sealed provider-execution binding joins the normalized selected provider
 plan, exact entry/boundary/reach, and all three resource realizations into
@@ -1015,9 +1155,9 @@ to an exact control-flow key and assigns one deterministic compiler-private
 thunk symbol; a missing selected entry rejects before instruction selection.
 Multi-entry/re-entrant instruction emission, the private registration
 relocation, and registration lifetime accounting remain the next vertical
-slice. The source binding location for that private pointer is tracked in
-`OWNER_QUESTIONS.md` Q5; it cannot be inferred from the callback's inbound
-entry plan.
+slice. The outbound registrar plan now owns the settled binder-slot-to-
+`NativePlace` row and private layout-demand closure; neither may be inferred
+from the callback's inbound entry plan.
 
 Compiler-body memory operations likewise retain their exact plan-selected place
 and relocation recipes through emission and replay validation. Current

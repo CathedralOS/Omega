@@ -223,6 +223,24 @@ feeds both derivers — the outbound call encoder and the inbound entry stub —
 so caller and callee agree by construction without confusing ABI placement with
 interrupted-state preservation.
 
+The plan's `EntryStack` member selects the execution-stack disposition. It is
+not a scalar claim that hardware arrival, adapter execution, and the machine
+body all occupy that stack. External-root installation separately validates a
+context-indexed sequence of entry epochs, with active-domain, per-domain
+occupancy/alignment, and nesting evidence. This realization is provider and
+installed-artifact evidence checked against the published `StatePlan`; it is
+not another source signature or architecture-specific language construct.
+
+An outbound registrar plan may additionally contain private callback-
+materialization rows. Each maps one nominal static-machine binder slot to an
+already-declared native parameter or to a field path through one validated
+native layout. A static-machine parameter has no ABI ordinal of its own. Nested
+callback fields are typed private layout demands absent from the semantic data
+schema; the composed call plan must supply each demand exactly once. The rows
+carry no source-visible address and do not describe whether the foreign side
+copies or retains argument storage—that remains the ordinary parameter
+lifetime/custody disposition.
+
 A boundary requirement names its convention through the ordinary generic policy
 relationship `Calling<C>`, where `C` satisfies `CallingPolicy`. The policy's
 compile-time `plan` machine receives the normalized boundary signature and
