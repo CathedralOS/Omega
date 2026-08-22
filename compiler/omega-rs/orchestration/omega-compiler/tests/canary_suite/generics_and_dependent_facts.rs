@@ -2469,9 +2469,12 @@ fn runtime_depend_mapping_exit_canary_runs() {
     let canary = pass_canary("build/runtime_depend_mapping_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-depend-map-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("depend-mapping canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("depend-mapping canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("depend-mapping canary should run");
     assert_eq!(
@@ -2491,9 +2494,12 @@ fn runtime_core_roster_ops_exit_canary_runs() {
     let canary = pass_canary("proofs/runtime_core_roster_ops_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-core-roster-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("core roster ops canary should compile from its authored root");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("core roster ops canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("core roster ops canary should run");
     assert_eq!(
