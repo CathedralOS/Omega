@@ -5401,6 +5401,11 @@ Owners:
   literal exit 70. Exact-owner ambiguity, the 795 rooted/3 legacy inventory,
   and cross-copy receipt-drift fences remain green; warm compiler/interpreter
   bodies remain 0.02s.
+  The bounded runtime-slice and derived-adjacent-array indexed-read regressions
+  now launch solely through the exact executables retained by their checked
+  compilation reports while preserving the 20/40 content and `j + 1` sorted-
+  adjacency self-checks plus literal exit 70. Exact-owner ambiguity, the 795
+  rooted/3 legacy inventory, and cross-copy receipt-drift fences remain green.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
