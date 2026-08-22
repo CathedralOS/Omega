@@ -492,7 +492,12 @@ Remaining:
   source/destination placements, fixed-array facts, emitted bytes, claim
   transfers, reserved fields, count guards, literal diagnostics, and offset
   errors preserve exact bytes and precedence; the parent retains call order,
-  stack composition, validation, and admission replay. The ordered native fuel-
+  stack composition, validation, and admission replay. These structural-return
+  and internal Unit-call codecs now also own their complete ordered collections,
+  including count bytes and decode allocation guards. The parent retains upfront
+  count conversion and global collection order; exact row bytes, literal
+  diagnostics, the internal-call minimum-row capacity guard, validation, and
+  admission replay remain unchanged. The ordered native fuel-
   attribution collection now lives in a private 110-line codec. Schedule and
   operation/edge site identities, units, ordinals, text/code spans, reserved
   fields, count/capacity guards, literal diagnostics, and offset errors preserve
@@ -516,7 +521,7 @@ Remaining:
   order, reserved bytes, count/capacity guards, literal diagnostics, and offset
   errors preserve exact bytes and precedence; the parent retains upfront count
   conversion, cross-function order, canonicality, association, and admission
-  replay. The installation parent is now 3,435
+  replay. The installation parent is now 3,424
   lines. This is
   custody, not
   authorization. The remaining
