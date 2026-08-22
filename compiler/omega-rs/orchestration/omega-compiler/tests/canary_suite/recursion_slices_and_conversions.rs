@@ -386,9 +386,12 @@ fn runtime_computed_array_fill_via_temp_exit_canary_runs() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-computed-fill-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("computed array-fill canary should compile from its authored root");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("computed array-fill canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("computed array-fill canary should run");
     assert_eq!(
