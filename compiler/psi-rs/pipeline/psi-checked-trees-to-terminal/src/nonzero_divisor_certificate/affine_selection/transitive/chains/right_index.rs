@@ -8,24 +8,27 @@ use super::super::super::super::integer_evidence::Citation;
 use super::super::super::{bounds, eligibility};
 
 pub(super) struct RightLegIndex<'a> {
-    by_left_endpoint: BTreeMap<ScalarTerm, Vec<(Citation, &'a Proposition)>>,
+    by_left_endpoint: BTreeMap<ScalarTerm, Vec<(Citation, &'a Proposition, &'a ScalarTerm)>>,
 }
 
 impl<'a> RightLegIndex<'a> {
     pub(super) fn new(assumptions: &'a [Proposition], semantic_axioms: &'a [Proposition]) -> Self {
         let mut by_left_endpoint = BTreeMap::<_, Vec<_>>::new();
-        for (citation, fact, left, _) in bounds::ordered(assumptions, semantic_axioms) {
+        for (citation, fact, left, right) in bounds::ordered(assumptions, semantic_axioms) {
             if eligibility::is_value(left) {
                 by_left_endpoint
                     .entry(left.clone())
                     .or_default()
-                    .push((citation, fact));
+                    .push((citation, fact, right));
             }
         }
         Self { by_left_endpoint }
     }
 
-    pub(super) fn candidates(&self, left_endpoint: &ScalarTerm) -> &[(Citation, &'a Proposition)] {
+    pub(super) fn candidates(
+        &self,
+        left_endpoint: &ScalarTerm,
+    ) -> &[(Citation, &'a Proposition, &'a ScalarTerm)] {
         self.by_left_endpoint
             .get(left_endpoint)
             .map(Vec::as_slice)

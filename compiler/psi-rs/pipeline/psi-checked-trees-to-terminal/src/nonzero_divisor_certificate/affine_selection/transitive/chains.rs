@@ -1,8 +1,8 @@
 //! Ordered exact two-citation chains for affine certificate production.
 
-use psi_core::Proposition;
+use psi_core::{Proposition, ScalarTerm};
+use psi_proof_kernel::ProofNode;
 
-use super::super::super::integer_evidence::Citation;
 use super::super::eligibility;
 
 mod left_legs;
@@ -27,19 +27,22 @@ impl<'a> TwoCitationChains<'a> {
 
     pub(super) fn find<T>(
         &self,
-        mut complete: impl FnMut(Citation, &'a Proposition, Citation, &'a Proposition) -> Option<T>,
+        mut complete: impl FnMut(&'a ScalarTerm, &'a ScalarTerm, ProofNode, ProofNode) -> Option<T>,
     ) -> Option<T> {
         left_legs::find(
             self.assumptions,
             self.semantic_axioms,
-            |left_citation, left_fact, middle| {
-                for &(right_citation, right_fact) in self.right_legs.candidates(middle) {
+            |left_citation, left_fact, left, middle| {
+                for &(right_citation, right_fact, right) in self.right_legs.candidates(middle) {
                     if !eligibility::distinct_facts(left_fact, right_fact) {
                         continue;
                     }
-                    if let Some(result) =
-                        complete(left_citation, left_fact, right_citation, right_fact)
-                    {
+                    if let Some(result) = complete(
+                        left,
+                        right,
+                        left_citation.proof(left_fact),
+                        right_citation.proof(right_fact),
+                    ) {
                         return Some(result);
                     }
                 }

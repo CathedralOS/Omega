@@ -26,20 +26,14 @@ pub(super) fn find<'a, T>(
         if !eligibility::distinct_value_alias(root, alias) {
             continue;
         }
-        let result = chains.find(|left_citation, left_fact, right_citation, right_fact| {
-            let Proposition::LessOrEqual(left, _) = left_fact else {
-                unreachable!("only integer chains are enumerated")
-            };
-            let Proposition::LessOrEqual(_, right) = right_fact else {
-                unreachable!("only integer chains are enumerated")
-            };
+        let result = chains.find(|left, right, left_proof, right_proof| {
             complete(
                 root,
                 alias,
                 left,
                 right,
-                left_citation.proof(left_fact),
-                right_citation.proof(right_fact),
+                left_proof,
+                right_proof,
                 equality_citation.proof(equality),
             )
         });

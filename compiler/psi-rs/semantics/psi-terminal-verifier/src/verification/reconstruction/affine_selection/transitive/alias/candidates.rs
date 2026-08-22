@@ -13,15 +13,5 @@ pub(super) fn any<'a>(
     let chains = TwoCitationChains::new(requirements, semantic_axioms);
     equalities::ordered(requirements, semantic_axioms)
         .filter(|(_, root, alias)| eligibility::distinct_value_alias(root, alias))
-        .any(|(_, root, alias)| {
-            chains.any(|left_fact, right_fact| {
-                let Proposition::LessOrEqual(left, _) = left_fact else {
-                    unreachable!("only integer chains are enumerated")
-                };
-                let Proposition::LessOrEqual(_, right) = right_fact else {
-                    unreachable!("only integer chains are enumerated")
-                };
-                complete(root, alias, left, right)
-            })
-        })
+        .any(|(_, root, alias)| chains.any(|left, right| complete(root, alias, left, right)))
 }

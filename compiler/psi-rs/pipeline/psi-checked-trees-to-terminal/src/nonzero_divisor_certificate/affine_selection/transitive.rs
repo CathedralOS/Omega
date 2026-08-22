@@ -33,13 +33,7 @@ pub(super) fn prove_transitively_reconstructed_affine_bound(
     definitions: &DefinitionIndex,
 ) -> Option<ProofNode> {
     TwoCitationChains::new(assumptions, semantic_axioms).find(
-        |left_citation, left_fact, right_citation, right_fact| {
-            let Proposition::LessOrEqual(left, _) = left_fact else {
-                unreachable!("only integer chains are enumerated")
-            };
-            let Proposition::LessOrEqual(_, right) = right_fact else {
-                unreachable!("only integer chains are enumerated")
-            };
+        |left, right, left_proof, right_proof| {
             completion::prove(
                 context,
                 goal,
@@ -48,8 +42,8 @@ pub(super) fn prove_transitively_reconstructed_affine_bound(
                 definitions,
                 left,
                 right,
-                left_citation.proof(left_fact),
-                right_citation.proof(right_fact),
+                left_proof,
+                right_proof,
             )
         },
     )

@@ -27,13 +27,7 @@ pub(super) fn retained_transitively_reconstructed_affine_bound(
     semantic_axioms: &[Proposition],
     definitions: &DefinitionIndex,
 ) -> bool {
-    TwoCitationChains::new(requirements, semantic_axioms).any(|left_fact, right_fact| {
-        let Proposition::LessOrEqual(left, _) = left_fact else {
-            unreachable!("only integer chains are enumerated")
-        };
-        let Proposition::LessOrEqual(_, right) = right_fact else {
-            unreachable!("only integer chains are enumerated")
-        };
+    TwoCitationChains::new(requirements, semantic_axioms).any(|left, right| {
         completion::retained(context, goal, semantic_axioms, definitions, left, right)
     })
 }
