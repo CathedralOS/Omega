@@ -417,9 +417,10 @@ Remaining:
   RUN rows, then
   the migration ledger subtracted 34 authored roots outside `RUN_CANARIES` as
   if they belonged to the differential corpus.
-  Continue migrating those fixtures through production entry
-  selection; replace result-as-process-exit probes with ordinary Unit entries
-  and explicit exit providers rather than preserving the legacy entry seam.
+  The non-GUI entry migration is complete. Keep exactly the four GUI exclusions
+  rootless until real platform providers exist; when they migrate, use ordinary
+  Unit entries and explicit exit providers rather than restoring the legacy
+  entry seam or inventing fake GUI authority.
 - **CONSERVATION-CONTRACT / TERMINAL-CONTENT-CLAIMS.** Take one real
   content-bearing source program through terminal Psi. Add sealed introduction
   and custody-exit frontiers, derive residual geometry at partial bodyless
