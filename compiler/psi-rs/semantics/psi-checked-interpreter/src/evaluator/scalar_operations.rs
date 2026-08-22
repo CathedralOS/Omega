@@ -61,11 +61,7 @@ impl<'program> Evaluator<'program> {
             let Value::Float(value) = self.eval_expression(*operand, frame)? else {
                 return unsupported("selected ternary float operand is not a float");
             };
-            operands.push(if format == SemanticFloatFormat::BINARY32 {
-                FloatMeaning::from_f32(value as f32)
-            } else {
-                FloatMeaning::from_f64(value)
-            });
+            operands.push(project_landed_float(format, value));
         }
         let meaning = match intrinsic {
             "float#multiply_then_add_f32" | "float#multiply_then_add_f64" => {
@@ -152,11 +148,7 @@ impl<'program> Evaluator<'program> {
             let Value::Float(value) = self.eval_expression(*operand, frame)? else {
                 return unsupported("selected directed-float operand is not a float");
             };
-            operands.push(if format == SemanticFloatFormat::BINARY32 {
-                FloatMeaning::from_f32(value as f32)
-            } else {
-                FloatMeaning::from_f64(value)
-            });
+            operands.push(project_landed_float(format, value));
         }
         let operation = intrinsic
             .strip_prefix("float#")
@@ -242,11 +234,7 @@ impl<'program> Evaluator<'program> {
         let Value::Float(value) = self.eval_expression(arguments[0], frame)? else {
             return unsupported("selected directed square-root operand is not a float");
         };
-        let operand = if format == SemanticFloatFormat::BINARY32 {
-            FloatMeaning::from_f32(value as f32)
-        } else {
-            FloatMeaning::from_f64(value)
-        };
+        let operand = project_landed_float(format, value);
         let meaning = if intrinsic.contains("toward_zero") {
             FloatSemantics::square_root_toward_zero(format, &operand)
         } else if intrinsic.contains("toward_positive") {
@@ -600,13 +588,7 @@ impl<'program> Evaluator<'program> {
         } else {
             SemanticFloatFormat::BINARY64
         };
-        let decode = |value: f64| {
-            if format == SemanticFloatFormat::BINARY32 {
-                FloatMeaning::from_f32(value as f32)
-            } else {
-                FloatMeaning::from_f64(value)
-            }
-        };
+        let decode = |value: f64| project_landed_float(format, value);
         let left = decode(l);
         let right = decode(r);
         // F7 policy adapters (float brief §8): SATURATING clamps MAGNITUDE

@@ -683,6 +683,14 @@ Owners:
   for corrected retry; withdrawal returns the original loan and
   correspondence. No placed view, content qualification, field access, or
   device operation is established.
+  Corresponded borrowed placement admission now establishes a sealed placed-
+  view carrier only after independently replaying both its physical
+  correspondence and exact loan/profile/plan/resource admission. Rejection
+  returns the complete bound carrier for corrected retry or withdrawal. The
+  established carrier retains correspondence beside the placed view but
+  deliberately exposes no projection or inner-view escape until primitive
+  requests can carry and replay that evidence; no content, field access, device
+  operation, or target lowering is established.
 
 #### L6c — symbolic materialization
 
@@ -1877,7 +1885,17 @@ Remaining:
   rejection, and the single-alias/single-bridge frontier are unchanged.
   Direct retained bounds and direct landed literals remain earlier in each
   parent. Citation orientation, endpoint order, proof shapes, rejection
-  behavior, and the finite two-alias frontier are unchanged. These slices do
+  behavior, and the finite two-alias frontier are unchanged. Alias-landed-
+  literal cast completion now lives in independent side-local
+  `alias_transport/cast/literal/completion` modules. Each parent retains its
+  own ledger-ordered discovery of distinct root-alias and alias-literal
+  equalities; production alone remaps the typed source endpoint, constructs the
+  closed relation and nested alias-then-root substitutions, then completes the
+  cast proof, while reconstruction independently replays the same carrier,
+  endpoint, closed-order, root-bound, and cast checks. Equality citation order
+  and distinctness, endpoint precedence, proof shapes, redirected, mistyped,
+  or unsafe rejection, and the fixed two-equality frontier are unchanged.
+  These slices do
   not promote either whole row: affine/cast,
   shift/cast, joins, and correlated results remain trusted-reducer work, and
   `fully-derived false` is unchanged. The root-bound child may now also come
@@ -3067,6 +3085,12 @@ Owners:
   receipts while retaining literal statuses 70, 70, 70, 70, and 75. Existing
   `linux_arm64` cross-target checks remain unchanged, and the 795 exact-owner
   pin remains stable.
+  Five authored-root host/target executions—stdin command echo, qualified-case
+  values, single-target internal filtering, target-machine gating, and ring-
+  requirement conformance—now launch only from exact checked-report receipts
+  while retaining literal statuses 0, 70, 70, 70, and 70. The stdin probe
+  retains its exact `look\n` stdout assertion, and the 795 exact-owner pin
+  remains stable.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
@@ -3596,8 +3620,8 @@ Remaining N6/N8 work:
   public nonnegative algebra. Canonical content normalization erases only that
   exact proof conversion around an otherwise admitted scalar term; signed
   runtime embeddings still reject at the closed projection boundary. Add the
-  remaining integer-policy bridge integrations and the separate `FloatMeaning`
-  projection rules described by
+  remaining integer-policy bridge integrations and the remaining compiler/
+  Terminal bindings for the `FloatMeaning` projection rules described by
   [`total_specification_arithmetic.md`](wiki/design_briefs/total_specification_arithmetic.md).
   The shared numeric-semantics layer now owns a closed integer-policy bridge
   catalog for add, subtract, multiply, divide, and left/right shift across
@@ -3608,6 +3632,15 @@ Remaining N6/N8 work:
   generic overflow. Concrete and abstract specification shift-count validation
   now consume those rows instead of duplicating the policy match. Remaining
   arithmetic producer, Terminal, and independent-verifier consumers stay open.
+  A separate shared float-projection catalog now owns the exact `meaning32`
+  and `meaning64` rows. Each row fixes its source format, exact nonzero-rational
+  finite projection, signed-zero and signed-infinity preservation, and NaN-
+  payload erasure; cross-format projection rejects. The checked interpreter's
+  central scalar float paths consume these rows rather than choosing f32/f64
+  projection ad hoc. Payload-distinct NaNs collapse while signed zeros and
+  infinities remain distinct in focused tests, and the runtime float-operation
+  canary remains green. Source-operator, Terminal, and independent-verifier
+  binding to the catalog remains open.
 - Then migrate suffix law discovery to propositions plus explicit conformances,
   and expand the checked `Nat`/`Int`/`Rat`/Cauchy/approximation corpus. `Real`
   remains proof-only and core-level.
