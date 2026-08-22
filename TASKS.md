@@ -4687,10 +4687,16 @@ Owners:
   Bare plans cannot validate nonempty catalogs, while the context-bound path
   rejects missing, duplicate, unknown, overlapping, empty-path, and
   requirement-incompatible rows. Empty ordinary plans preserve their prior
-  identities. The remaining slice is to publish these rows in the source
-  calling vocabulary, derive binder and native-layout demand context from the
-  exact registrar signature/layout, decode the evaluated catalog, and join it
-  to each checked callback use before private relocation emission.
+  identities. The closed source calling vocabulary now publishes the bounded
+  callback-materialization catalog and direct/nested `NativePlace` grammar;
+  build-time decoding preserves nonzero binder, parameter, layout, and ordered
+  field-slot identities, rejects invalid tags/counts/zero identities/empty
+  paths, and never silently drops a nonempty row. The ordinary no-context
+  validator continues to reject nonempty catalogs. The remaining slice is to
+  publish compiler-issued binder/signature and native-layout demand catalogs,
+  derive their validation context from the exact registrar signature/layout,
+  admit the evaluated catalog through the context-bound path, and join it to
+  each checked callback use before private relocation emission.
   Checked-only compilation exposes those rows and native compilation retains
   them on `BackendPlan`, so no later thunk pass may replace the recipe with a
   convention oracle or silently discard it. Native backend planning now also
