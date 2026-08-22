@@ -22,9 +22,9 @@ bug or unsupported case. None grants an artifact authority.
 
 ## Why DDC is not an architectural requirement
 
-`diverse-double-compilation.sh` was introduced to compare the Rust-cold-started
-Beta compiler with `bc2.py` and was formerly described as closing a Thompson
-gap. That ruling has been superseded by
+The removed `diverse-double-compilation.sh` compared the Rust-cold-started Beta
+compiler with `bc2.py` and was formerly described as closing a Thompson gap.
+That ruling has been superseded by
 [D5](../../wiki/architecture/bootstrap_lattice/decisions.md#d5--checked-refinement-not-ddc-closes-compiler-provenance).
 
 The lattice does not trust compiler ancestry. It requires a lower-rooted check
@@ -38,10 +38,10 @@ source. Once that check exists, a second compiler adds no soundness:
   specification.
 
 The current `bc.beta` fixed point proves dependency closure but the complete
-cold-start source-to-artifact refinement edge remains open. Until that edge is
-closed, the old compiler-comparison script may be run as an optional regression
-test. It is not a principal lattice gate and must not be described as completing
-the trust chain.
+cold-start source-to-artifact refinement edge remains open. Removing the old
+comparison does not widen that gap and closing the gap does not require another
+compiler. The remaining reference comparisons are optional bug-finding tools,
+not principal lattice gates.
 
 ## Migration
 
@@ -51,7 +51,7 @@ Retain tools by role rather than by host language:
 | --- | --- |
 | interpreter and semantic fuzzing | Beta reference meaning or Beta refinement tests |
 | symbolic evaluator and loop reconstruction | `bootstrap/assurance/refinement/beta/` |
-| reusable parser support | the narrowest reference/refinement owner that needs it |
-| `bc2.py` compiler backend and DDC-only comparison | archive/remove after the `bc` cold-start edge closes |
+| reusable parser support currently inside `bc2.py` | the narrowest reference/refinement owner that needs it |
+| optional `bc2.py` compiler backend | retain only while it provides unique differential coverage |
 
 The directory can disappear once those responsibilities have explicit owners.

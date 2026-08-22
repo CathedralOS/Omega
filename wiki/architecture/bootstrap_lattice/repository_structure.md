@@ -88,7 +88,11 @@ different destinations:
 | --- | --- | --- |
 | `beta_interp.py` and semantic fuzzing | executable Beta reference meaning | `bootstrap/rungs/beta/reference/` or `bootstrap/assurance/refinement/beta/` |
 | `beta_symbolic.py` and symbolic-loop checks | untrusted refinement reconstruction | `bootstrap/assurance/refinement/beta/` |
-| `bc2.py` and byte-comparison DDC gate | legacy compiler-comparison scaffolding | remove/archive after the `bc` cold-start refinement edge closes |
+| parser/compiler portions of `bc2.py` | shared reference parser plus optional differential backend | split parser to its consumers; retain backend only for unique diagnostics |
+
+The former byte-comparison DDC gate has been removed. It is not waiting on the
+`bc` cold-start refinement edge: that edge closes only through lower-rooted
+source-to-artifact checking.
 
 Python is an implementation detail of these tools, not their common owner.
 

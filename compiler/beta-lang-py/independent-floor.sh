@@ -4,11 +4,10 @@
 # and require the same exit code and stdout:
 #   python  : bc2.py (Beta -> asm) | asm_ref.py (asm -> tape) | alpha_ref.py (tape -> run)   [zero lineage binaries]
 #   lineage : bc (Beta -> asm)     | assembler.alpha (asm -> tape) | the seed VM (tape -> run)
-# Historical whole-floor comparison. Each stage is also covered by narrower
-# reference checks (the legacy compiler comparison, ${OMEGA_PATH_BETA_ASSEMBLER}/asm-diamond.sh,
-# ${OMEGA_PATH_ALPHA}/diamond-py.sh); this composes all three on a FRESH random corpus, so a divergence anywhere in the
-# independent floor — compiler, assembler, or VM — shows up as a disagreement. It is the end-to-end
-# This remains optional diagnostic tooling; it is not a trust or release gate.
+# Historical whole-floor differential. Each stage is covered by narrower
+# semantic or reference checks; this composes all three on a fresh random corpus
+# so a divergence anywhere in the compiler, assembler, or VM is easy to localize.
+# It remains optional diagnostic tooling, not a trust or release gate.
 OMEGA_GATE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 if [ -z "${OMEGA_REPO_ROOT:-}" ]; then
   OMEGA_REPO_ROOT=$OMEGA_GATE_DIR
