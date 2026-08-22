@@ -4279,6 +4279,50 @@ Owners:
   status 70, interpreter parity, selected-provider identity checks, and exact
   stdout. Exact-owner pins and established interactive/report/slow-owner fences
   remain unchanged.
+  Five authored-root unsigned sign-class executions—landed folding, shift and
+  divide/modulo argument delivery, and local/operand-position min/max—now
+  launch solely through exact checked-report executable receipts while
+  preserving literal statuses 70, 70, 70, 77, and 77, interpreter parity, and
+  all signedness-regression diagnostics. Exact-owner pins and established
+  exceptional/interactive/report/slow-policy fences remain unchanged.
+  Three authored-root value-delivery executions—Boolean value-call return,
+  struct-literal transition arguments, and runtime-indexed whole-element
+  writes—now launch solely through exact checked-report executable receipts
+  while preserving literal status 70, interpreter parity, and all delivery/
+  materialization diagnostics. Exact-owner pins and established numeric/
+  coercion/float/report/interactive fences remain unchanged.
+  All affine-literal equality consumers now use paired, side-local ordered
+  catalogs. Producer and reconstruction independently preserve requirements or
+  assumptions before semantic axioms and left-before-right orientation for
+  direct literal discovery, outer root-alias discovery, and the indexed inner
+  alias/literal landings; only the producer catalog carries citation custody.
+  Consumer-local carrier, distinctness, and same-row checks, per-alias landing
+  order, direct-before-alias precedence, proof shapes, rejection behavior, and
+  the fixed affine-literal frontier remain unchanged.
+  Landed-literal affine-custody completion now lives in paired, side-local
+  `affine_selection/literal/completion` modules. Reconstruction's identical
+  direct and one-alias completion paths now share one independently checked
+  root-bound replay, while production's distinct one- and two-substitution
+  bound constructors feed exactly two ordered proofs into one producer-local
+  affine-custody handoff. Producer and reconstruction remain independent
+  across the trust boundary. Direct-before-alias precedence, equality/citation
+  and endpoint order, proof shapes, rejection behavior, and the fixed affine-
+  literal frontier remain unchanged.
+  Five authored-root aggregate/ZII executions—aggregate transition arguments,
+  deep nested writes, default composites, empty-carrier host output, and empty-
+  carrier equality—now launch solely through exact checked-report executable
+  receipts while preserving literal status 70, interpreter parity, exact
+  stdout, and all placement/default-value diagnostics. Exact-owner pins and
+  established fences remain unchanged.
+  One-alias affine-literal candidate owners now consume their paired side-local
+  ordered equality catalogs directly. Producer and reconstruction
+  independently keep outer root/alias distinct-Value and same-carrier
+  eligibility beside the indexed inner landing join, eliminating the
+  redundant `candidates/root_aliases` wrappers; only the producer catalog
+  carries citation custody. Requirements or assumptions before semantic
+  axioms, left-before-right orientation, per-alias landing order, same-row
+  rejection, direct-before-alias precedence, proof shapes, and the fixed
+  affine-literal frontier remain unchanged.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
