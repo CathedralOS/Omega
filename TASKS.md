@@ -2331,6 +2331,14 @@ Remaining:
   candidates and bounded two-citation left/right indexes reuse those
   authorities without changing value eligibility, direct-before-transitive
   precedence, proof shape, same-fact rejection, or any fixed affine frontier.
+  Fixed two-citation affine-chain authorities now retain the already-validated
+  outer endpoints beside each ordered left/right fact. Certificate production
+  converts the exact two citations into proof nodes inside its own chain
+  authority, while reconstruction independently exposes the corresponding
+  retained endpoints; direct-transitive and one-alias-transitive completions no
+  longer rematch propositions downstream. Citation/source order, same-fact
+  rejection, direct-before-alias precedence, proof shapes, and the fixed two-
+  citation frontier remain unchanged.
   One-equality transitive affine completion now lives in independent side-local
   `affine_selection/transitive/alias/completion` modules. Each parent retains
   its own ledger-ordered equality discovery, distinct root/alias custody, and
@@ -3013,6 +3021,12 @@ Remaining:
   to 3.93–3.98s with unchanged exit 70. The memo remains local to one demand,
   carries exact state identities and complete relative paths, and introduces no
   eager whole-program solve or shared mutable state.
+  Default-domain validation now delegates conservative symbolic values,
+  literal/sequence measures, valuation folding, canonical symbolic equality,
+  and recursive call detection to a focused 281-line child while state walking,
+  invariant-window lifecycle, diagnostics, and crash evidence remain separate.
+  Its 2,016-line parent retains the same API, 45-function inventory, accepted
+  judgments, and diagnostic order.
   The measured nominal affine integer-comparison reconstruction hotspot now
   uses independent producer- and verifier-local affine-definition indexes.
   Each immutable invocation maps an exact current Value term to source-ordered
@@ -4561,6 +4575,12 @@ Owners:
   receipts while preserving literal status 70, interpreter parity, and all
   detailed diagnostics. Exact-owner ambiguity, the 795 rooted/3 legacy
   inventory, and receipt-drift fences remain green.
+  Five authored-root dispatched-delivery executions—transition-argument
+  results, effectful reentrant delivery, enum-case results, machine-array slice
+  arguments, and field-read terminals—now launch solely through exact checked-
+  report executable receipts while preserving literal status 70 and all
+  detailed diagnostics. Exact-owner ambiguity, the 795 rooted/3 legacy
+  inventory, and receipt-drift fences remain green.
   Five authored-root receiver-dispatch executions—nested same-type receivers,
   second-receiver dispatch, sibling dispatched value calls, repeated inline
   receiver calls, and non-entry second-receiver dispatch—now launch solely
@@ -4910,6 +4930,9 @@ Remaining N6/N8 work:
   identity, rejects missing or conflicting constraints, and checks an explicitly
   supplied region against the same call-site constraint; declaration arity alone
   never selects a lifetime.
+  The generic-instance pipeline's 1,185-line unit corpus now lives in a private
+  test child rather than sharing its 4,138-line production coordinator; all 42
+  unit tests and the public specialization surface remain unchanged.
 - Add `Respects` over compiler-derived positional call telescopes, deriving its
   dependent domain, pointwise input relations, and lifted result relation.
   Add the sealed `Quotient::lift<F, Respect>` wrapper and
