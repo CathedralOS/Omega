@@ -273,7 +273,7 @@ fn provider_module() -> TerminalModule {
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),
-        evidence_package_invocations: Vec::new(),
+        proof_output_calls: Vec::new(),
         evidence_contract_lanes: Vec::new(),
         closed_conformance_applications: Vec::new(),
         machines: vec![

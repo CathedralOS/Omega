@@ -120,11 +120,11 @@ pub enum ModuleError {
     InvalidEvidenceOutputField(MachineId),
     ReservedEvidenceOutputField(MachineId),
     DuplicateEvidenceOutputField(MachineId),
-    NonCanonicalEvidencePackageInvocation {
+    NonCanonicalProofOutputCall {
         caller: MachineId,
         ordinal: u32,
     },
-    InvalidEvidencePackageInvocation {
+    InvalidProofOutputCall {
         caller: MachineId,
         ordinal: u32,
     },

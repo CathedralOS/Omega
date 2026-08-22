@@ -92,7 +92,7 @@ fn intake_proof_output_propositions(
     statement_index: usize,
     known: &mut BTreeSet<String>,
 ) {
-    for package in &program.evidence_package_invocations {
+    for package in &program.proof_output_calls {
         if package.machine_symbol != caller.symbol
             || package.state_symbol != state_symbol
             || package.statement_index != statement_index

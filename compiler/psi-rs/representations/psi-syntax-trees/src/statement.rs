@@ -98,23 +98,23 @@ pub enum StatementNode {
     AssemblyFact(TableAssemblyFact),
     Assignment(TableAssignment),
     Call(TableCall),
-    EvidencePackageDestructure(TableEvidencePackageDestructure),
+    ProofOutputBindingStatement(TableProofOutputBindingStatement),
     Expression(crate::expression::ExpressionHandle),
     LocalData(TableLocalData),
     Transition(TableTransition),
 }
 
-/// Immediate complete binding of the erased fields of a proof-only generated
-/// output package. This is deliberately distinct from record destructuring:
-/// the receiver is evaluated once and no runtime local or member read exists.
+/// Immediate selective binding of named proof outputs from one call. This is
+/// deliberately distinct from record destructuring: the receiver is evaluated
+/// once and no proof output is represented by a runtime member read.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TableEvidencePackageDestructure {
-    pub bindings: Box<[TableEvidencePackageBinding]>,
+pub struct TableProofOutputBindingStatement {
+    pub bindings: Box<[TableProofOutputSelector]>,
     pub call: crate::expression::ExpressionHandle,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TableEvidencePackageBinding {
+pub struct TableProofOutputSelector {
     pub output_field: Identifier,
     pub binding: Identifier,
 }

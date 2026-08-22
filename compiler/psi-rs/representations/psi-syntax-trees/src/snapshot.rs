@@ -492,7 +492,7 @@ pub enum StatementSnapshot {
         acknowledges_suspend: bool,
         acknowledges_block: bool,
     },
-    EvidencePackageDestructure {
+    ProofOutputBindingStatement {
         bindings: Vec<(IdentifierSnapshot, IdentifierSnapshot)>,
         call: ExpressionSnapshot,
     },
@@ -1620,8 +1620,8 @@ fn snapshot_statement(syntax_trees: &SyntaxTrees, statement: &StatementNode) -> 
             acknowledges_suspend: call.operational_acknowledgement.acknowledges_suspend,
             acknowledges_block: call.operational_acknowledgement.acknowledges_block,
         },
-        StatementNode::EvidencePackageDestructure(binding) => {
-            StatementSnapshot::EvidencePackageDestructure {
+        StatementNode::ProofOutputBindingStatement(binding) => {
+            StatementSnapshot::ProofOutputBindingStatement {
                 bindings: binding
                     .bindings
                     .iter()

@@ -427,7 +427,7 @@ fn count_statement_node(
                 count_expression_handle(syntax_trees, *argument, counts);
             }
         }
-        crate::statement::StatementNode::EvidencePackageDestructure(binding) => {
+        crate::statement::StatementNode::ProofOutputBindingStatement(binding) => {
             for binding in &binding.bindings {
                 count_identifier(&binding.output_field, counts);
                 count_identifier(&binding.binding, counts);

@@ -8,12 +8,12 @@ use psi_core::IeeeFloatFormat;
 use psi_terminal::{
     ClosedConformanceApplication, ClosedConformanceParameterBinding,
     ClosedConformanceParameterKind, ClosedConformanceRow, EvidenceContractLane,
-    EvidenceContractLaneKind, EvidencePackageInvocation, EvidencePackageOutputBinding,
-    EvidencePackageRuntimeCall, EvidenceTermDeclaration, FloatMeaningEqualityProposition,
+    EvidenceContractLaneKind, EvidenceTermDeclaration, FloatMeaningEqualityProposition,
     FloatMeaningProjection, FloatMeaningProjectionOperation, FloatProjectionInput,
-    FloatProjectionInputId, InstallationReachDependency, ProofOnlyValueType, ProofPropositionId,
-    ProofValueDeclaration, ProofValueId, ServiceDeclaration, StructuralDomainDeclaration,
-    TerminalModule, TerminalRootServiceReach, VocabularyMarker,
+    FloatProjectionInputId, InstallationReachDependency, ProofOnlyValueType, ProofOutput,
+    ProofOutputCall, ProofOutputRuntimeCall, ProofPropositionId, ProofValueDeclaration,
+    ProofValueId, ServiceDeclaration, StructuralDomainDeclaration, TerminalModule,
+    TerminalRootServiceReach, VocabularyMarker,
 };
 
 use super::machine_wire::{decode_machine, encode_machine};
@@ -152,9 +152,9 @@ pub(super) fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError>
     }
     writer.len(
         "evidence package invocations",
-        module.evidence_package_invocations.len(),
+        module.proof_output_calls.len(),
     )?;
-    for invocation in &module.evidence_package_invocations {
+    for invocation in &module.proof_output_calls {
         writer.id(invocation.caller);
         writer.u32(invocation.ordinal);
         writer.string(
@@ -339,8 +339,8 @@ pub(super) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
                 .transpose()?,
         })
     })?;
-    let evidence_package_invocations = decode_counted(reader, |reader| {
-        Ok(EvidencePackageInvocation {
+    let proof_output_calls = decode_counted(reader, |reader| {
+        Ok(ProofOutputCall {
             caller: reader.id("MachineId")?,
             ordinal: reader.u32()?,
             target_machine_identity: reader.string("evidence package target machine identity")?,
@@ -351,14 +351,14 @@ pub(super) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
             runtime_call: reader
                 .boolean()?
                 .then(|| {
-                    Ok(EvidencePackageRuntimeCall {
+                    Ok(ProofOutputRuntimeCall {
                         operation: reader.id("OperationId")?,
                         callee: reader.id("MachineId")?,
                     })
                 })
                 .transpose()?,
             outputs: decode_counted(reader, |reader| {
-                Ok(EvidencePackageOutputBinding {
+                Ok(ProofOutput {
                     output_position: reader.u32()?,
                     output_field: reader.string("evidence package output field")?,
                     callee_output: reader.id("EvidenceTermId")?,
@@ -434,7 +434,7 @@ pub(super) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
         proposition_applications,
         evidence_terms,
         evidence_contract_lanes,
-        evidence_package_invocations,
+        proof_output_calls,
         closed_conformance_applications,
         machines,
     })

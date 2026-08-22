@@ -108,7 +108,7 @@ fn verified_integer_control_contract_slice_executes_directly() {
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),
         evidence_contract_lanes: Vec::new(),
-        evidence_package_invocations: Vec::new(),
+        proof_output_calls: Vec::new(),
         closed_conformance_applications: Vec::new(),
         machines: vec![machine],
     };
@@ -393,7 +393,7 @@ fn verified_crashes_are_stable_terminal_outcomes() {
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),
         evidence_contract_lanes: Vec::new(),
-        evidence_package_invocations: Vec::new(),
+        proof_output_calls: Vec::new(),
         closed_conformance_applications: Vec::new(),
         machines: vec![machine],
     };
@@ -497,7 +497,7 @@ fn interpreter_rejects_an_out_of_range_integer_argument() {
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),
         evidence_contract_lanes: Vec::new(),
-        evidence_package_invocations: Vec::new(),
+        proof_output_calls: Vec::new(),
         closed_conformance_applications: Vec::new(),
         machines: vec![machine],
     };

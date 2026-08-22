@@ -469,7 +469,7 @@ fn count_statement_node(
                 count_expression_handle(expressions, *argument, counts);
             }
         }
-        StatementNode::EvidencePackageDestructure(package) => {
+        StatementNode::ProofOutputBindingStatement(package) => {
             for binding in &package.bindings {
                 count_declaration_name(&binding.output_field, counts);
                 count_declaration_name(&binding.binding, counts);

@@ -51,7 +51,7 @@ fn preserves_scalar_boundary_arguments_in_authored_order() {
         proposition_declarations: Vec::new(),
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),
-        evidence_package_invocations: Vec::new(),
+        proof_output_calls: Vec::new(),
         evidence_contract_lanes: Vec::new(),
         closed_conformance_applications: Vec::new(),
         machines: vec![TerminalMachine {

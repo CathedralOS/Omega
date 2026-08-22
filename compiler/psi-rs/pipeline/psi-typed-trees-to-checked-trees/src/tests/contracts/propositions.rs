@@ -392,7 +392,7 @@ fn forwarding_named_requires_to_ensures_preserves_exact_term_identity() {
 }
 
 #[test]
-fn immediate_generated_output_package_binds_a_fresh_erased_evidence_term() {
+fn immediate_proof_output_binds_a_fresh_erased_evidence_term() {
     let source = r#"
         trait Evidence {}
         proposition ready() evidence Evidence;
@@ -413,25 +413,25 @@ fn immediate_generated_output_package_binds_a_fresh_erased_evidence_term() {
     "#;
 
     let checked = lower_typed_trees(parse_typed_trees(source))
-        .expect("the first proof-only generated package rung should check");
-    let [typed_invocation] = checked.evidence_package_invocations.as_slice() else {
-        panic!("one typed evidence-package invocation expected")
+        .expect("the first proof-only output rung should check");
+    let [typed_invocation] = checked.proof_output_calls.as_slice() else {
+        panic!("one typed proof-output invocation expected")
     };
     let [typed_binding] = typed_invocation.bindings.as_ref() else {
-        panic!("one typed evidence-package binding expected")
+        panic!("one typed proof-output binding expected")
     };
     assert_eq!(typed_binding.output_field.as_str(), "outgoing");
     assert_eq!(typed_binding.binding.as_str(), "local");
     let invocation = checked
         .facts
         .proof
-        .evidence_package_invocations
+        .proof_output_calls
         .iter()
         .next()
         .map(|(_, invocation)| invocation)
-        .expect("one checked evidence-package invocation expected");
+        .expect("one checked proof-output invocation expected");
     let [output] = invocation.outputs.as_slice() else {
-        panic!("one checked evidence-package output expected")
+        panic!("one checked proof-output output expected")
     };
     let caller_output = output.output.expect("the field is bound in the caller");
     assert_ne!(caller_output, output.callee_output);
@@ -455,13 +455,13 @@ fn immediate_generated_output_package_binds_a_fresh_erased_evidence_term() {
         })
         .expect("relay output forwarding");
     let psi_checked_trees::EvidenceAssignmentSource::Forwarded { term } = forwarding.source else {
-        panic!("the caller-local package evidence must forward by exact term identity")
+        panic!("the caller-local proof output must forward by exact term identity")
     };
     assert_eq!(term, caller_output);
 }
 
 #[test]
-fn immediate_generated_output_package_completely_binds_multiple_fresh_terms() {
+fn immediate_proof_output_completely_binds_multiple_fresh_terms() {
     let source = r#"
         trait Evidence {}
         proposition ready() evidence Evidence;
@@ -486,21 +486,21 @@ fn immediate_generated_output_package_completely_binds_multiple_fresh_terms() {
     "#;
 
     let checked = lower_typed_trees(parse_typed_trees(source))
-        .expect("a complete multi-field proof-only package should check");
-    let [typed_invocation] = checked.evidence_package_invocations.as_slice() else {
-        panic!("one typed evidence-package invocation expected")
+        .expect("a complete multi-field proof-only call should check");
+    let [typed_invocation] = checked.proof_output_calls.as_slice() else {
+        panic!("one typed proof-output invocation expected")
     };
     assert_eq!(typed_invocation.bindings.len(), 2);
     let invocation = checked
         .facts
         .proof
-        .evidence_package_invocations
+        .proof_output_calls
         .iter()
         .next()
         .map(|(_, invocation)| invocation)
-        .expect("one checked evidence-package invocation expected");
+        .expect("one checked proof-output invocation expected");
     let [first, second] = invocation.outputs.as_slice() else {
-        panic!("two checked evidence-package outputs expected")
+        panic!("two checked proof-output outputs expected")
     };
     assert_eq!((first.output_position, second.output_position), (0, 1));
     let first_output = first.output.expect("first field is bound");
@@ -575,7 +575,7 @@ fn omitted_proof_output_contributes_its_fact_without_a_local_term() {
     let invocation = checked
         .facts
         .proof
-        .evidence_package_invocations
+        .proof_output_calls
         .iter()
         .next()
         .map(|(_, invocation)| invocation)
@@ -588,7 +588,7 @@ fn omitted_proof_output_contributes_its_fact_without_a_local_term() {
 }
 
 #[test]
-fn generated_output_package_rejects_duplicate_fields_and_local_names() {
+fn proof_output_rejects_duplicate_fields_and_local_names() {
     let duplicate_field = r#"
         trait Evidence {}
         proposition ready() evidence Evidence;
@@ -607,7 +607,7 @@ fn generated_output_package_rejects_duplicate_fields_and_local_names() {
         }
     "#;
     let diagnostics = lower_typed_trees(parse_typed_trees(duplicate_field))
-        .expect_err("a generated package field cannot be repeated");
+        .expect_err("a proof-output selector cannot be repeated");
     assert!(
         diagnostics.iter().any(|diagnostic| {
             diagnostic
@@ -631,7 +631,7 @@ fn generated_output_package_rejects_duplicate_fields_and_local_names() {
 }
 
 #[test]
-fn generated_output_package_terms_are_copyable_and_have_no_use_count() {
+fn proof_output_terms_are_copyable_and_have_no_use_count() {
     let source = r#"
         trait Evidence {}
         proposition ready() evidence Evidence;
@@ -655,13 +655,13 @@ fn generated_output_package_terms_are_copyable_and_have_no_use_count() {
     let invocation = checked
         .facts
         .proof
-        .evidence_package_invocations
+        .proof_output_calls
         .iter()
         .next()
         .map(|(_, invocation)| invocation)
-        .expect("one checked package invocation");
+        .expect("one checked proof-output call");
     let [first, second] = invocation.outputs.as_slice() else {
-        panic!("two checked package outputs")
+        panic!("two checked proof outputs")
     };
     let first = first.output.expect("first output is bound");
     let second = second.output.expect("second output is bound");
@@ -694,7 +694,7 @@ fn generated_output_package_terms_are_copyable_and_have_no_use_count() {
 }
 
 #[test]
-fn generated_output_package_retains_explicit_proposition_discard() {
+fn proof_output_retains_explicit_proposition_discard() {
     let source = r#"
         trait Evidence {}
         proposition ready() evidence Evidence;
@@ -716,20 +716,20 @@ fn generated_output_package_retains_explicit_proposition_discard() {
     let invocation = checked
         .facts
         .proof
-        .evidence_package_invocations
+        .proof_output_calls
         .iter()
         .next()
         .map(|(_, invocation)| invocation)
-        .expect("one checked package invocation");
+        .expect("one checked proof-output call");
     let [first, second] = invocation.outputs.as_slice() else {
-        panic!("two checked package outputs")
+        panic!("two checked proof outputs")
     };
     assert!(first.output.is_some());
     assert_eq!(second.output, None);
 }
 
 #[test]
-fn generated_output_package_rejects_a_field_not_published_by_the_callee() {
+fn proof_output_rejects_a_field_not_published_by_the_callee() {
     let source = r#"
         trait Evidence {}
         proposition ready() evidence Evidence;
@@ -750,7 +750,7 @@ fn generated_output_package_rejects_a_field_not_published_by_the_callee() {
     "#;
 
     let diagnostics = lower_typed_trees(parse_typed_trees(source))
-        .expect_err("a generated package field cannot be forged");
+        .expect_err("a proof-output selector cannot be forged");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
@@ -759,7 +759,7 @@ fn generated_output_package_rejects_a_field_not_published_by_the_callee() {
 }
 
 #[test]
-fn immediate_generated_output_package_binds_one_runtime_scalar_call_and_proofs() {
+fn immediate_proof_output_binds_one_runtime_scalar_call_and_proofs() {
     let source = r#"
         trait Evidence {}
         proposition ready() evidence Evidence;
@@ -786,19 +786,19 @@ fn immediate_generated_output_package_binds_one_runtime_scalar_call_and_proofs()
     "#;
 
     let checked = lower_typed_trees(parse_typed_trees(source))
-        .expect("the immediate scalar value and complete proof package should check");
-    let [typed_invocation] = checked.evidence_package_invocations.as_slice() else {
-        panic!("one typed evidence-package invocation expected")
+        .expect("the immediate scalar value and complete proof output should check");
+    let [typed_invocation] = checked.proof_output_calls.as_slice() else {
+        panic!("one typed proof-output invocation expected")
     };
     assert_eq!(typed_invocation.runtime_call_statement_index, Some(0));
     let invocation = checked
         .facts
         .proof
-        .evidence_package_invocations
+        .proof_output_calls
         .iter()
         .next()
         .map(|(_, invocation)| invocation)
-        .expect("one checked evidence-package invocation expected");
+        .expect("one checked proof-output invocation expected");
     assert_eq!(invocation.outputs.len(), 2);
     let runtime_call = invocation
         .runtime_call
@@ -856,7 +856,7 @@ fn proof_output_lane_requires_a_runtime_binding_for_a_runtime_result() {
 }
 
 #[test]
-fn generated_output_package_rejects_value_on_unit_and_duplicate_or_discarded_runtime_value() {
+fn proof_output_rejects_value_on_unit_and_duplicate_or_discarded_runtime_value() {
     let unit = r#"
         trait Evidence {}
         proposition ready() evidence Evidence;
@@ -870,8 +870,8 @@ fn generated_output_package_rejects_value_on_unit_and_duplicate_or_discarded_run
     let tokens = Lexer::new(&unit).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = lower_syntax_trees(&syntax).expect("resolve");
-    let diagnostics =
-        lower_symbol_resolved_trees(&resolved).expect_err("a proof-only package has no value type");
+    let diagnostics = lower_symbol_resolved_trees(&resolved)
+        .expect_err("a proof-only proof-only call has no value type");
     assert!(
         diagnostics
             .message
@@ -925,7 +925,7 @@ fn generated_output_package_rejects_value_on_unit_and_duplicate_or_discarded_run
 }
 
 #[test]
-fn generated_output_package_rejects_a_callee_with_runtime_body_work() {
+fn proof_output_rejects_a_callee_with_runtime_body_work() {
     let source = r#"
         trait Evidence {}
         proposition ready() evidence Evidence;
@@ -949,7 +949,7 @@ fn generated_output_package_rejects_a_callee_with_runtime_body_work() {
     "#;
 
     let diagnostics = lower_typed_trees(parse_typed_trees(source))
-        .expect_err("erasing a package call must not erase runtime work");
+        .expect_err("erasing a proof-output call must not erase runtime work");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic.message.contains(
             "is currently limited to a concrete one-state, zero-argument proof-only or scalar-result machine",
@@ -958,7 +958,7 @@ fn generated_output_package_rejects_a_callee_with_runtime_body_work() {
 }
 
 #[test]
-fn generated_output_package_binding_is_not_visible_to_its_own_call() {
+fn proof_output_binding_is_not_visible_to_its_own_call() {
     let source = r#"
         trait Evidence {}
         proposition ready() evidence Evidence;
@@ -980,7 +980,7 @@ fn generated_output_package_binding_is_not_visible_to_its_own_call() {
     "#;
 
     let diagnostics = lower_typed_trees(parse_typed_trees(source))
-        .expect_err("a newly bound package term cannot feed its own invocation");
+        .expect_err("a newly bound proof-output term cannot feed its own invocation");
     assert!(
         diagnostics.iter().any(|diagnostic| {
             diagnostic.message.contains("cannot require input evidence")
@@ -997,7 +997,7 @@ fn generated_output_package_binding_is_not_visible_to_its_own_call() {
 }
 
 #[test]
-fn generated_output_package_is_not_visible_before_its_binding() {
+fn proof_output_is_not_visible_before_its_binding() {
     let source = r#"
         trait Evidence {}
         proposition ready() evidence Evidence;
@@ -1018,7 +1018,7 @@ fn generated_output_package_is_not_visible_before_its_binding() {
     "#;
 
     let diagnostics = lower_typed_trees(parse_typed_trees(source))
-        .expect_err("a future generated package output cannot flow backwards");
+        .expect_err("a future proof output cannot flow backwards");
     assert!(
         diagnostics.iter().any(|diagnostic| {
             diagnostic.message.contains("local") || diagnostic.message.contains("relayed")
@@ -1028,7 +1028,7 @@ fn generated_output_package_is_not_visible_before_its_binding() {
 }
 
 #[test]
-fn generated_output_package_bound_term_may_remain_unused() {
+fn proof_output_bound_term_may_remain_unused() {
     let unused = r#"
         trait Evidence {}
         proposition ready() evidence Evidence;
@@ -1041,7 +1041,7 @@ fn generated_output_package_bound_term_may_remain_unused() {
 }
 
 #[test]
-fn generated_output_package_runtime_value_cannot_use_proposition_discard() {
+fn proof_output_runtime_value_cannot_use_proposition_discard() {
     let source = r#"
         trait Evidence {}
         proposition ready() evidence Evidence;
@@ -1144,7 +1144,7 @@ fn incoming_evidence_binding_shadows_same_named_subjectless_conformance() {
     "#;
 
     let checked = lower_typed_trees(parse_typed_trees(source))
-        .expect("the lexical incoming evidence binding should shadow the package conformance");
+        .expect("the lexical incoming evidence binding should shadow the proof-output conformance");
     let [typed_assignment] = checked.evidence_forwardings.as_slice() else {
         panic!("one typed evidence assignment expected")
     };
@@ -1486,7 +1486,7 @@ fn named_ensures_need_not_be_assigned_on_crash_only_exit() {
         }
     "#;
     lower_typed_trees(parse_typed_trees(source))
-        .expect("a crash-only path is not an ordinary evidence-package return");
+        .expect("a crash-only path is not an ordinary proof-output return");
 }
 
 #[test]

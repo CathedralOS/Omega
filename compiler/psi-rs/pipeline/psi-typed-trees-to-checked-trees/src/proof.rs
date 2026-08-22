@@ -130,7 +130,7 @@ pub(crate) fn bind_evidence_forwarding_facts(
         )
         .or_else(|| {
             proof
-                .evidence_package_invocations
+                .proof_output_calls
                 .iter()
                 .flat_map(|(_, invocation)| {
                     (invocation.caller_machine_symbol == forwarding.machine_symbol
@@ -178,7 +178,7 @@ pub(crate) fn bind_evidence_forwarding_facts(
             source
         } else {
             diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
-                "evidence forwarding source `{}` is not a named requires binding of this machine or an explicit subjectless conformance, and is not an available generated package output",
+                "evidence forwarding source `{}` is not a named requires binding of this machine, an explicit subjectless conformance, or an available proof-output term",
                 forwarding.source
             )));
             continue;
@@ -200,7 +200,7 @@ pub(crate) fn bind_evidence_forwarding_facts(
     }
 }
 
-pub(crate) fn bind_evidence_package_invocation_facts(
+pub(crate) fn bind_proof_output_call_facts(
     program: &psi_typed_trees::TypedTrees,
     proof: &mut ProofFacts,
 ) -> Result<(), Vec<psi_diagnostics::Diagnostic>> {
@@ -209,7 +209,7 @@ pub(crate) fn bind_evidence_package_invocation_facts(
     let mut diagnostics = Vec::new();
     let mut invocations = psi_arena::Arena::default();
 
-    for package in &program.evidence_package_invocations {
+    for package in &program.proof_output_calls {
         let ExpressionNode::Call(call) = program.expression_table.expression(package.call) else {
             diagnostics.push(psi_diagnostics::Diagnostic::error(
                 "proof-output binding requires a direct call",
@@ -429,7 +429,7 @@ pub(crate) fn bind_evidence_package_invocation_facts(
                 ));
                 continue;
             }
-            Some(psi_checked_trees::EvidencePackageRuntimeCallFact {
+            Some(psi_checked_trees::ProofOutputRuntimeCallFact {
                 statement_index,
                 call_ordinal: 0,
             })
@@ -458,7 +458,7 @@ pub(crate) fn bind_evidence_package_invocation_facts(
                                 state_symbol: package.state_symbol,
                             }))
             }) || invocations.iter().any(
-                |(_, invocation): (_, &psi_checked_trees::EvidencePackageInvocationFact)| {
+                |(_, invocation): (_, &psi_checked_trees::ProofOutputCallFact)| {
                     invocation.caller_machine_symbol == package.machine_symbol
                         && invocation.caller_state_symbol == package.state_symbol
                         && invocation.outputs.iter().any(|output| {
@@ -501,14 +501,14 @@ pub(crate) fn bind_evidence_package_invocation_facts(
                             evidence_interface: declaration.evidence_interface,
                         })
                     });
-                psi_checked_trees::EvidencePackageOutputFact {
+                psi_checked_trees::ProofOutputFact {
                     output_position: declaration.lane_position,
                     callee_output,
                     output,
                 }
             })
             .collect();
-        invocations.append(psi_checked_trees::EvidencePackageInvocationFact {
+        invocations.append(psi_checked_trees::ProofOutputCallFact {
             caller_machine_symbol: package.machine_symbol,
             caller_state_symbol: package.state_symbol,
             statement_index: package.statement_index,
@@ -521,7 +521,7 @@ pub(crate) fn bind_evidence_package_invocation_facts(
     }
 
     if diagnostics.is_empty() {
-        proof.evidence_package_invocations = invocations;
+        proof.proof_output_calls = invocations;
         Ok(())
     } else {
         Err(diagnostics)

@@ -291,7 +291,7 @@ fn route_statement_span(
                     call.target_symbol = target;
                 }
             }
-            psi_symbol_resolved_trees::statement::StatementNode::EvidencePackageDestructure(
+            psi_symbol_resolved_trees::statement::StatementNode::ProofOutputBindingStatement(
                 package,
             ) => {
                 expressions.push(package.call);

@@ -264,7 +264,7 @@ pub fn count_identity_storage(typed_trees: &TypedTrees) -> IdentityStorageCounts
         count_operator(typed_trees, operator, &mut counts);
     }
 
-    for package in &typed_trees.evidence_package_invocations {
+    for package in &typed_trees.proof_output_calls {
         for binding in &package.bindings {
             count_declaration_name(&binding.output_field, &mut counts);
             count_declaration_name(&binding.binding, &mut counts);

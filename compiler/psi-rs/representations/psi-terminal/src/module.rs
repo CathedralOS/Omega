@@ -118,7 +118,7 @@ pub struct TerminalModule {
     /// Canonical immediate invocations that introduce fresh caller-local
     /// evidence from a proof-output lane. Runtime-value bindings retain
     /// their exact ordinary scalar call operation.
-    pub evidence_package_invocations: Vec<EvidencePackageInvocation>,
+    pub proof_output_calls: Vec<ProofOutputCall>,
     /// Exact source-handle-free generic conformance applications used by the
     /// retained machine closure. Rows are owned by the concrete terminal
     /// machine whose specialization selected the application.
@@ -502,13 +502,13 @@ pub struct EvidenceContractLane {
     pub kind: EvidenceContractLaneKind,
     pub position: u32,
     pub term: EvidenceTermId,
-    /// Public compiler-generated result-package field. Present exactly on an
+    /// Public named proof output. Present exactly on an
     /// `ensures` lane; `requires` names remain local input aliases.
     pub output_field: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct EvidencePackageInvocation {
+pub struct ProofOutputCall {
     pub caller: MachineId,
     /// Dense canonical order within the caller; source coordinates erase.
     pub ordinal: u32,
@@ -518,24 +518,24 @@ pub struct EvidencePackageInvocation {
     /// missing or spurious link is verifier-visible. `None` is proof-only.
     pub runtime_value: Option<ScalarType>,
     /// Exact canonical ordinary call which produced `runtime_value`.
-    pub runtime_call: Option<EvidencePackageRuntimeCall>,
-    /// Complete canonical generated-package field set, ordered by callee lane.
-    pub outputs: Vec<EvidencePackageOutputBinding>,
+    pub runtime_call: Option<ProofOutputRuntimeCall>,
+    /// Complete canonical proof-output set, ordered by callee lane.
+    pub outputs: Vec<ProofOutput>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct EvidencePackageRuntimeCall {
+pub struct ProofOutputRuntimeCall {
     pub operation: OperationId,
     pub callee: MachineId,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct EvidencePackageOutputBinding {
+pub struct ProofOutput {
     pub output_position: u32,
-    /// Exact public generated-package field selected from the callee lane.
+    /// Exact public proof selector from the callee lane.
     pub output_field: String,
     pub callee_output: EvidenceTermId,
-    /// Distinct caller-local copy, or `None` for an explicit source `_`.
+    /// Distinct caller-local copy, or `None` when omitted or discarded.
     pub output: Option<EvidenceTermId>,
 }
 

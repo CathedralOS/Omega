@@ -6854,32 +6854,22 @@ Remaining N6/N8 work:
   after `;` and projected as `term.member`. Never infer evidence from visible
   facts or attached state names.
 
-  The accepted front half carries exact erased terms through resolved, typed,
-  checked, call/transition, and finite-state definite-assignment paths. It
-  supports positional input lanes, forwarding, concrete subjectless producer
-  selection, normalized direct/inherited requirement rows, and exact generic
-  evidence interfaces. Terminal Psi retains canonical term declarations,
-  requires/ensures lanes, public proof-output selectors, opaque member projections,
-  and separate producer provenance; codec and verification reject identity,
-  interface, lane, field-name, row, producer, and orphan drift. The detailed
-  accepted carrier is stated in
-  [`law_bearing_relations_and_quotients.md`](wiki/design_briefs/law_bearing_relations_and_quotients.md).
-
   The settled source surface is live:
   `let (value; public_slot: local_term) = call()` separates the ordinary Type
   result from selectively captured Prop outputs, and `let (; ...)` keeps an
   empty Type lane. Omitted selectors contribute facts without minting local
   terms. The retired `let { slot: term } = call()` package spelling rejects
-  with directed migration guidance. Proposition terms remain copyable and add
-  no runtime work, cleanup, or fuel.
+  with directed migration guidance. Resolved through Terminal Psi now uses
+  proof-output binding/call rows retaining the exact call, callee lane, public
+  selector, optional caller-local term, proposition/interface, and producer
+  provenance. Proposition terms remain copyable and add no runtime work,
+  cleanup, or fuel; no generated package identity or aggregate semantics exist.
 
-  Remaining: replace the internal `EvidencePackage*` migration carriers with
-  proof-output call rows carrying the exact call, callee lane, public selector,
-  caller-local term, proposition/interface, outcome guard, and producer
-  provenance. Remove the current concrete one-state, zero-argument producer
-  restriction and support outcome-guarded capture in the applicable arm. No
-  generated package identity, projection, lifetime, or partial-move rule may
-  survive in checked or Terminal Psi.
+  Remaining: remove the current concrete one-state, zero-argument producer
+  restriction and support outcome-guarded capture in the applicable arm while
+  retaining the outcome guard in checked and Terminal Psi. The full accepted
+  identity and verification contract is in
+  [`law_bearing_relations_and_quotients.md`](wiki/design_briefs/law_bearing_relations_and_quotients.md).
 
   Generic producer conformances use the same nested static application form as
   other name-owned telescopes. Type, const, and static-machine arguments are

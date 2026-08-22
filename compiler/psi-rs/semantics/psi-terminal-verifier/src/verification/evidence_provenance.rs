@@ -26,7 +26,7 @@ pub(super) fn validate_evidence_producer_provenance(
         .collect::<BTreeSet<_>>();
     let mut unmatched_ensures = BTreeMap::<_, usize>::new();
     let package_outputs = module
-        .evidence_package_invocations
+        .proof_output_calls
         .iter()
         .flat_map(|invocation| invocation.outputs.iter().filter_map(|output| output.output))
         .collect::<BTreeSet<_>>();
@@ -38,7 +38,7 @@ pub(super) fn validate_evidence_producer_provenance(
             *unmatched_ensures.entry(lane.term).or_default() += 1;
         }
     }
-    for invocation in &module.evidence_package_invocations {
+    for invocation in &module.proof_output_calls {
         for output in &invocation.outputs {
             unmatched_ensures.entry(output.callee_output).or_insert(1);
         }

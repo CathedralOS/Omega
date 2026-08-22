@@ -748,7 +748,7 @@ fn trivial_affine_local_declaration_and_establishment_round_trip_canonically() {
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),
         evidence_contract_lanes: Vec::new(),
-        evidence_package_invocations: Vec::new(),
+        proof_output_calls: Vec::new(),
         closed_conformance_applications: Vec::new(),
         machines: vec![machine],
     };
@@ -1913,7 +1913,7 @@ fn partial_affine_fixture() -> TerminalModule {
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),
         evidence_contract_lanes: Vec::new(),
-        evidence_package_invocations: Vec::new(),
+        proof_output_calls: Vec::new(),
         closed_conformance_applications: Vec::new(),
         machines: vec![
             TerminalMachine {
@@ -2130,7 +2130,7 @@ fn nominal_affine_fixture() -> TerminalModule {
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),
         evidence_contract_lanes: Vec::new(),
-        evidence_package_invocations: Vec::new(),
+        proof_output_calls: Vec::new(),
         closed_conformance_applications: Vec::new(),
         machines: vec![
             TerminalMachine {
@@ -2297,7 +2297,7 @@ fn structural_effect_fixture() -> TerminalModule {
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),
         evidence_contract_lanes: Vec::new(),
-        evidence_package_invocations: Vec::new(),
+        proof_output_calls: Vec::new(),
         closed_conformance_applications: Vec::new(),
         machines: vec![
             TerminalMachine {
@@ -2591,7 +2591,7 @@ fn unit_fixture() -> TerminalModule {
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),
         evidence_contract_lanes: Vec::new(),
-        evidence_package_invocations: Vec::new(),
+        proof_output_calls: Vec::new(),
         closed_conformance_applications: Vec::new(),
         machines: vec![TerminalMachine {
             id: machine_id(900),
@@ -2648,7 +2648,7 @@ fn fixture() -> TerminalModule {
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),
         evidence_contract_lanes: Vec::new(),
-        evidence_package_invocations: Vec::new(),
+        proof_output_calls: Vec::new(),
         closed_conformance_applications: Vec::new(),
         machines: vec![TerminalMachine {
             id: machine_id(1),
@@ -2790,7 +2790,7 @@ fn content_conservation_fixture(vocabulary_marker: VocabularyMarker) -> Terminal
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),
         evidence_contract_lanes: Vec::new(),
-        evidence_package_invocations: Vec::new(),
+        proof_output_calls: Vec::new(),
         closed_conformance_applications: Vec::new(),
         machines: vec![TerminalMachine {
             id: machine_id(80),
@@ -3010,7 +3010,7 @@ fn call_fixture() -> TerminalModule {
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),
         evidence_contract_lanes: Vec::new(),
-        evidence_package_invocations: Vec::new(),
+        proof_output_calls: Vec::new(),
         closed_conformance_applications: Vec::new(),
         machines: vec![
             TerminalMachine {

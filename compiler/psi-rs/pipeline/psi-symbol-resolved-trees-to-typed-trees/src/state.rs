@@ -108,7 +108,8 @@ pub(crate) fn lower_state(
         .statements
         .statements(state.statement_nodes)
     {
-        if let resolved::statement::StatementNode::EvidencePackageDestructure(package) = statement {
+        if let resolved::statement::StatementNode::ProofOutputBindingStatement(package) = statement
+        {
             let call = crate::expression::lower_expression_handle(lowerer, package.call)?;
             let runtime_call_statement_index = package
                 .bindings
@@ -122,8 +123,10 @@ pub(crate) fn lower_state(
                         .checked_sub(1)
                         .expect("a runtime package value has its synthesized local first")
                 });
-            lowerer.typed_trees.evidence_package_invocations.push(
-                typed::typed_trees::EvidencePackageInvocation {
+            lowerer
+                .typed_trees
+                .proof_output_calls
+                .push(typed::typed_trees::ProofOutputCall {
                     machine_symbol: package.machine_symbol,
                     state_symbol: package.state_symbol,
                     statement_index: typed_state.statement_nodes.count() as usize,
@@ -132,15 +135,14 @@ pub(crate) fn lower_state(
                     bindings: package
                         .bindings
                         .iter()
-                        .map(|binding| typed::typed_trees::EvidencePackageBinding {
+                        .map(|binding| typed::typed_trees::ProofOutputSelector {
                             output_field: crate::name::lower_name(&binding.output_field),
                             binding: crate::name::lower_name(&binding.binding),
                         })
                         .collect::<Vec<_>>()
                         .into_boxed_slice(),
                     call,
-                },
-            );
+                });
             continue;
         }
         let statement = lower_statement_node(lowerer, attached_data, state, statement)?;

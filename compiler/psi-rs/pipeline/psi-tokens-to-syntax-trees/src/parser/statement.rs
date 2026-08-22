@@ -1319,9 +1319,9 @@ pub(super) fn try_parse_destructure_let<'tokens, 'source>(
 /// The semicolon mirrors the call-site universe boundary: the optional Type
 /// result is left of it and selectively retained Prop outputs are right of it.
 /// This remains a dedicated call-only statement so the call is evaluated once.
-/// The existing internal carrier still groups the binding metadata during the
-/// migration, but no generated package exists in source semantics.
-pub(super) fn try_parse_evidence_package_destructure<'tokens, 'source>(
+/// The statement groups one call with its requested bindings; it does not
+/// construct an aggregate value.
+pub(super) fn try_parse_proof_output_binding<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> Option<(
@@ -1329,9 +1329,7 @@ pub(super) fn try_parse_evidence_package_destructure<'tokens, 'source>(
     Input<'tokens, 'source>,
 )> {
     use psi_syntax_trees::expression::ExpressionNode;
-    use psi_syntax_trees::statement::{
-        TableEvidencePackageBinding, TableEvidencePackageDestructure,
-    };
+    use psi_syntax_trees::statement::{TableProofOutputBindingStatement, TableProofOutputSelector};
 
     let mut rest = input.take_keyword(KeywordKind::Let, "let").ok()?;
     rest = rest
@@ -1341,7 +1339,7 @@ pub(super) fn try_parse_evidence_package_destructure<'tokens, 'source>(
 
     if !rest.at_punctuation(PunctuationKind::Semicolon) {
         let (binding, next) = rest.take_identifier().ok()?;
-        bindings.push(TableEvidencePackageBinding {
+        bindings.push(TableProofOutputSelector {
             output_field: Identifier::generated("value"),
             binding,
         });
@@ -1355,7 +1353,7 @@ pub(super) fn try_parse_evidence_package_destructure<'tokens, 'source>(
         let (output_field, next) = rest.take_identifier().ok()?;
         rest = next.take_punctuation(PunctuationKind::Colon, ":").ok()?;
         let (binding, next) = rest.take_identifier().ok()?;
-        bindings.push(TableEvidencePackageBinding {
+        bindings.push(TableProofOutputSelector {
             output_field,
             binding,
         });
@@ -1385,8 +1383,8 @@ pub(super) fn try_parse_evidence_package_destructure<'tokens, 'source>(
         .take_punctuation(PunctuationKind::Semicolon, ";")
         .ok()?;
     let statement = syntax_trees.statements.insert(
-        psi_syntax_trees::statement::StatementNode::EvidencePackageDestructure(
-            TableEvidencePackageDestructure {
+        psi_syntax_trees::statement::StatementNode::ProofOutputBindingStatement(
+            TableProofOutputBindingStatement {
                 bindings: bindings.into_boxed_slice(),
                 call,
             },
@@ -1398,9 +1396,7 @@ pub(super) fn try_parse_evidence_package_destructure<'tokens, 'source>(
 
 /// Reject the retired aggregate-looking proof-output spelling without
 /// intercepting ordinary record destructuring (`let { field as local } = ...`).
-pub(super) fn reject_retired_evidence_package_destructure(
-    input: Input<'_, '_>,
-) -> Result<(), ParseError> {
+pub(super) fn reject_retired_proof_output_binding(input: Input<'_, '_>) -> Result<(), ParseError> {
     let Ok(rest) = input.take_keyword(KeywordKind::Let, "let") else {
         return Ok(());
     };
