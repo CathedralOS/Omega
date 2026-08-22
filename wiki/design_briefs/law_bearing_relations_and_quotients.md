@@ -789,14 +789,18 @@ rather than being classified as ambient. Exact side/owner/contract/fact
 coordinates are retained, but proposition substitution, `Q <-> P` checking,
 and the selected `Respects` clauses remain later obligations.
 
-The direct planning boundary now recognizes a result root only when the sealed
-request is the call at the exact root of the state's last expression statement.
-That records one unchanged fallthrough result edge. A request in an earlier
-expression statement, nested under another expression, or returned through a
-transition value remains outside this boundary and is rejected by the global
-non-executable fence. The retained fallthrough edge does not prove that every
-normal exit returns it unchanged: transition exits, aliases, forwarding states,
-and multi-state result flow still require the normalized result-flow judgment.
+The direct planning boundary recognizes a result root when the sealed request
+is the call at the exact root of the state's last expression statement. It also
+recognizes the same single edge through a complete straight-line chain of exact
+immutable, result-typed local aliases: the request must be the first local
+initializer, every intervening statement must directly name the preceding
+local, and the state's final expression must directly name the last local.
+Mutable or type-drifted locals, symbol reuse, nesting, unrelated statements,
+assignments, transitions, and adapted expressions fail closed. Either accepted
+shape records only one unchanged fallthrough result edge. It does not prove
+that every normal exit returns the value unchanged: transition exits,
+forwarding states, and multi-state result flow still require the normalized
+result-flow judgment and remain behind the global non-executable fence.
 
 Acceptance requires:
 
