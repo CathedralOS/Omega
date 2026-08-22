@@ -1,6 +1,6 @@
 # Tasks
 
-Last pruned: 2026-08-17.
+Last pruned: 2026-08-22.
 
 This file is the current execution queue, not a changelog. Git retains completed
 implementation history; architecture pages and design briefs describe the
