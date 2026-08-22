@@ -562,9 +562,12 @@ fn runtime_transition_arg_guard_narrowing_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-transition-arg-guard-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("guarded transition-arg decrement should compile (guard narrows n-1 to Exact)");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("guarded transition-arg canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("transition-arg guard narrowing canary should run");
     assert_eq!(
@@ -588,9 +591,12 @@ fn runtime_requires_one_sided_bound_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-requires-one-sided-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("one-sided requires x<100 should prove x+1 Exact (env interval ∩ type range)");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("one-sided requires canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("requires one-sided bound canary should run");
     assert_eq!(
@@ -615,9 +621,12 @@ fn runtime_transition_value_guard_narrowing_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("guarded transition-value decrement should compile (guard narrows n-1 to Exact)");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("guarded transition-value canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("transition-value guard narrowing canary should run");
     assert_eq!(
@@ -640,10 +649,13 @@ fn runtime_transition_arg_false_arm_narrowing_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone()).expect(
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone()).expect(
         "false-arm transition-arg increment should compile (negated guard narrows n+1 to Exact)",
     );
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("false-arm transition-arg canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("transition-arg false-arm narrowing canary should run");
     assert_eq!(
