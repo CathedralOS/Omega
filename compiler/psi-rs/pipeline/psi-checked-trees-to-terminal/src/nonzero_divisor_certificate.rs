@@ -392,14 +392,54 @@ fn prove_alias_substituted_cast_bound(
     assumptions: &[Proposition],
     semantic_axioms: &[Proposition],
 ) -> Option<ProofNode> {
-    for (equality_citation, equality) in cited_facts(assumptions, semantic_axioms) {
-        let Proposition::Equal(equality_left, equality_right) = equality else {
+    prove_one_alias_substituted_bound(assumptions, semantic_axioms, |root, root_bound| {
+        prove_cast_bound_from_root(
+            context,
+            goal,
+            assumptions,
+            semantic_axioms,
+            root,
+            root_bound,
+        )
+    })
+    .or_else(|| {
+        prove_stronger_alias_substituted_cast_bound(context, goal, assumptions, semantic_axioms)
+    })
+    .or_else(|| {
+        prove_landed_literal_via_alias_cast_bound(context, goal, assumptions, semantic_axioms)
+    })
+    .or_else(|| prove_two_alias_substituted_cast_bound(context, goal, assumptions, semantic_axioms))
+}
+
+fn prove_one_alias_substituted_bound(
+    assumptions: &[Proposition],
+    semantic_axioms: &[Proposition],
+    mut complete: impl FnMut(&psi_core::ScalarTerm, ProofNode) -> Option<ProofNode>,
+) -> Option<ProofNode> {
+    let mut bounds_by_endpoint = BTreeMap::<_, Vec<_>>::new();
+    for (citation, fact) in cited_facts(assumptions, semantic_axioms) {
+        let Proposition::LessOrEqual(left, right) = fact else {
             continue;
         };
-        for (root, alias) in [
-            (equality_left, equality_right),
-            (equality_right, equality_left),
-        ] {
+        if matches!(left, psi_core::ScalarTerm::Value { .. }) {
+            bounds_by_endpoint
+                .entry(left.clone())
+                .or_default()
+                .push((citation, fact, 0));
+        }
+        if right != left && matches!(right, psi_core::ScalarTerm::Value { .. }) {
+            bounds_by_endpoint
+                .entry(right.clone())
+                .or_default()
+                .push((citation, fact, 1));
+        }
+    }
+
+    for (equality_citation, equality) in cited_facts(assumptions, semantic_axioms) {
+        let Proposition::Equal(left, right) = equality else {
+            continue;
+        };
+        for (root, alias) in [(left, right), (right, left)] {
             if root == alias
                 || !matches!(root, psi_core::ScalarTerm::Value { .. })
                 || !matches!(alias, psi_core::ScalarTerm::Value { .. })
@@ -407,59 +447,33 @@ fn prove_alias_substituted_cast_bound(
             {
                 continue;
             }
-            for (bound_citation, bound) in cited_facts(assumptions, semantic_axioms) {
-                let Proposition::LessOrEqual(bound_left, bound_right) = bound else {
-                    continue;
+            let Some(bounds) = bounds_by_endpoint.get(alias) else {
+                continue;
+            };
+            for &(relation_citation, relation, endpoint) in bounds {
+                let Proposition::LessOrEqual(relation_left, relation_right) = relation else {
+                    unreachable!("only order bounds are indexed")
                 };
-                let (root_bound, endpoint, literal) = if bound_left == alias {
-                    (
-                        Proposition::LessOrEqual(root.clone(), bound_right.clone()),
-                        0,
-                        bound_right,
-                    )
-                } else if bound_right == alias {
-                    (
-                        Proposition::LessOrEqual(bound_left.clone(), root.clone()),
-                        1,
-                        bound_left,
-                    )
+                let conclusion = if endpoint == 0 {
+                    Proposition::LessOrEqual(root.clone(), relation_right.clone())
                 } else {
-                    continue;
+                    Proposition::LessOrEqual(relation_left.clone(), root.clone())
                 };
-                let Some((integer_type, _)) = literal.integer_value() else {
-                    continue;
-                };
-                if root.scalar_type() != psi_core::ScalarType::Integer(integer_type) {
-                    continue;
-                }
                 let root_bound = ProofNode {
-                    conclusion: root_bound,
+                    conclusion,
                     rule: ProofRule::IntegerLessOrEqualSubstitution {
-                        relation: Box::new(bound_citation.proof(bound)),
+                        relation: Box::new(relation_citation.proof(relation)),
                         equality: Box::new(equality_citation.proof(equality)),
                         endpoint,
                     },
                 };
-                if let Some(proof) = prove_cast_bound_from_root(
-                    context,
-                    goal,
-                    assumptions,
-                    semantic_axioms,
-                    root,
-                    root_bound,
-                ) {
+                if let Some(proof) = complete(root, root_bound) {
                     return Some(proof);
                 }
             }
         }
     }
-    prove_stronger_alias_substituted_cast_bound(context, goal, assumptions, semantic_axioms)
-        .or_else(|| {
-            prove_landed_literal_via_alias_cast_bound(context, goal, assumptions, semantic_axioms)
-        })
-        .or_else(|| {
-            prove_two_alias_substituted_cast_bound(context, goal, assumptions, semantic_axioms)
-        })
+    None
 }
 
 fn prove_two_alias_substituted_cast_bound(
@@ -1102,70 +1116,16 @@ fn prove_alias_substituted_affine_bound(
     assumptions: &[Proposition],
     semantic_axioms: &[Proposition],
 ) -> Option<ProofNode> {
-    let mut bounds_by_endpoint = BTreeMap::<_, Vec<_>>::new();
-    for (citation, fact) in cited_facts(assumptions, semantic_axioms) {
-        let Proposition::LessOrEqual(left, right) = fact else {
-            continue;
-        };
-        if matches!(left, psi_core::ScalarTerm::Value { .. }) {
-            bounds_by_endpoint
-                .entry(left.clone())
-                .or_default()
-                .push((citation, fact, 0));
-        }
-        if right != left && matches!(right, psi_core::ScalarTerm::Value { .. }) {
-            bounds_by_endpoint
-                .entry(right.clone())
-                .or_default()
-                .push((citation, fact, 1));
-        }
-    }
-
-    for (equality_citation, equality) in cited_facts(assumptions, semantic_axioms) {
-        let Proposition::Equal(left, right) = equality else {
-            continue;
-        };
-        for (root, alias) in [(left, right), (right, left)] {
-            if root == alias
-                || !matches!(root, psi_core::ScalarTerm::Value { .. })
-                || !matches!(alias, psi_core::ScalarTerm::Value { .. })
-            {
-                continue;
-            }
-            let Some(bounds) = bounds_by_endpoint.get(alias) else {
-                continue;
-            };
-            for &(relation_citation, relation, endpoint) in bounds {
-                let Proposition::LessOrEqual(relation_left, relation_right) = relation else {
-                    unreachable!("only integer bounds are indexed")
-                };
-                let conclusion = if endpoint == 0 {
-                    Proposition::LessOrEqual(root.clone(), relation_right.clone())
-                } else {
-                    Proposition::LessOrEqual(relation_left.clone(), root.clone())
-                };
-                let root_bound = ProofNode {
-                    conclusion,
-                    rule: ProofRule::IntegerLessOrEqualSubstitution {
-                        relation: Box::new(relation_citation.proof(relation)),
-                        equality: Box::new(equality_citation.proof(equality)),
-                        endpoint,
-                    },
-                };
-                if let Some(proof) = prove_affine_bound_from_root(
-                    context,
-                    goal,
-                    assumptions,
-                    semantic_axioms,
-                    root,
-                    root_bound,
-                ) {
-                    return Some(proof);
-                }
-            }
-        }
-    }
-    None
+    prove_one_alias_substituted_bound(assumptions, semantic_axioms, |root, root_bound| {
+        prove_affine_bound_from_root(
+            context,
+            goal,
+            assumptions,
+            semantic_axioms,
+            root,
+            root_bound,
+        )
+    })
 }
 
 /// Transport one exact retained bound through exactly two distinct value

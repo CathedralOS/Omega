@@ -1994,8 +1994,11 @@ same-carrier `root == alias` citation may instead transport one directly cited
 canonical bound at that alias. Its fixed proof nests one
 `IntegerLessOrEqualSubstitution` under `IntegerCastBound`; verification repeats
 the same exact equality/bound selection. Missing, redirected, cross-carrier, or
-weaker bounds reject. One closed source-carrier endpoint bridge may also
-strengthen the cited alias bound. Its fixed proof nests
+weaker bounds reject. Production routes this one-alias order transport for both
+cast and affine completion through one indexed constructor; verification
+independently mirrors that constructor, so the family is no longer
+re-enumerated per completion rule. One closed source-carrier endpoint bridge
+may also strengthen the cited alias bound. Its fixed proof nests
 `IntegerLessOrEqualTransitivity` under the one substitution; exact alias bounds
 remain preferred. Production and verification recheck the same bound, bridge,
 and equality. They do not search alternate bounds or aliases, and a weaker
