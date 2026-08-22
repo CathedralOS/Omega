@@ -1363,8 +1363,10 @@ Owners:
   line private owner. Exact common/payload field-type lookup, shape/class/
   domain-weakening checks, scalar/range narrowing, and recursive fixed-array
   length/element validation retain diagnostic order and the crate-root API. The
-  natural coordinator is now 478 lines with the exact 25-function inventory
-  unchanged.
+  construction-proof owner also owns default-domain valuation, exact membership
+  replay, and fail-closed diagnostics, leaving a one-way coordinator dependency.
+  The natural root is now 364 lines while diagnostic order, crate APIs, and the
+  exact 25-function inventory remain unchanged.
 
 Acceptance: UART/MMIO, shared-page IPC, and ordinary RAM use one extent/layout
 foundation with different profiles. Misalignment, insufficient rights,
