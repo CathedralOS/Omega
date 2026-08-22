@@ -561,10 +561,13 @@ fn runtime_slice_indexed_read_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("runtime slice indexed read canary should compile");
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("runtime slice indexed read canary should retain its executable receipt");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(executable)
         .output()
         .expect("runtime slice indexed read canary should run");
 
@@ -588,10 +591,13 @@ fn runtime_array_adjacent_index_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("runtime adjacent-index canary should compile");
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("runtime adjacent-index canary should retain its executable receipt");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(executable)
         .output()
         .expect("runtime adjacent-index canary should run");
 
