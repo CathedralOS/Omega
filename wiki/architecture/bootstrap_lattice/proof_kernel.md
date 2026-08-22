@@ -432,6 +432,14 @@ constructs the same inner-then-outer substitution bytes; verification
 independently checks the final-alias affine relation. Endpoint identity,
 rejection order, and the exact two-equality frontier remain unchanged.
 
+The fixed one-alias order transport keeps its established
+`alias_transport/one` API as a facade over independent side-local
+`one/candidates` owners. Both retain assumptions before semantic axioms,
+equality orientation, and indexed relation order before endpoint-substitution
+completion. Production alone materializes citation proofs; verification
+rebuilds the transported proposition independently. Proof bytes, rejection
+order, and the exact one-alias frontier remain unchanged.
+
 The existing
 proof rules and proof-bundle v19 codec need no further vocabulary change.
 All other exact divide/remainder reconstruction remains on its trusted reducer

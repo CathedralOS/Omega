@@ -1838,6 +1838,14 @@ bytes; reconstruction independently checks the final-alias affine relation.
 Endpoint identity, rejection order, and the exact two-equality frontier are
 unchanged.
 
+The fixed one-alias order transport likewise keeps its established
+`alias_transport/one` API as a facade over independent side-local
+`one/candidates` owners. Each side retains assumptions before semantic axioms,
+equality orientation, and indexed relation order before delegating endpoint
+substitution completion. The producer alone materializes citation proofs;
+reconstruction independently rebuilds the transported proposition. Proof
+bytes, rejection order, and the exact one-alias frontier are unchanged.
+
 The complete retained-bound `i1` family selects that conjunction when exact
 prior `divisor <= -1` and `0 <= dividend` propositions are both present; the
 untrusted producer cites both through conjunction introduction. A missing
