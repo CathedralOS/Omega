@@ -468,7 +468,13 @@ Remaining:
   in a private 164-line stack-facts codec. The parent retains function order
   and admission validation; the child preserves exact owner tags, target
   identities, offsets, stack-byte facts, count guards, reserved bytes, and
-  established decode errors. The installation parent is now 5,055 lines. This is
+  established decode errors. Canonical value shapes, machine-register tags,
+  structural single-location placements, and direct multi-location/indirect
+  placements now live in a private 310-line codec. Function-home, internal-
+  call, structural-return, and boundary-result rows retain their exact order;
+  canonical bytes, reserved fields, representability guards, error precedence,
+  and admission replay are unchanged. The installation parent is now 4,766
+  lines. This is
   custody, not
   authorization. The remaining
   work is real
@@ -3029,6 +3035,13 @@ Remaining:
   bridge, root-bound, and cast checks. Equality/bound citation order,
   orientation precedence, proof shapes, redirected, mistyped, or nonclosed
   rejection, and the single-alias/single-bridge frontier are unchanged.
+  Closed-strengthened cast-alias transport now separates ledger-ordered fact
+  discovery from completion in independent side-local
+  `alias_transport/cast/stronger/candidates` modules. Equality-first,
+  orientation-second, bound-third order, exact citation identity,
+  carrier/endpoint eligibility, closed bridge and substitution proof bytes,
+  rejection, family precedence, and the single-alias/single-bridge frontier
+  are unchanged.
   Closed stronger alias-bound transport for exact casts now lives in
   independent side-local
   `alias_transport/cast/stronger/completion/bound` modules. Each completion
@@ -7034,6 +7047,13 @@ checked-result arithmetic decision listed below.
 - Complete hermetic evaluation with crash refinement, target capsule, separate
   result/usage identities, deterministic progress, and runtime equivalence.
   Publish `Hermetic | Receipted | Volatile` ceilings and realized provenance.
+  Recursive build-time call-closure admission now lives in a focused 299-line
+  private owner. Ordinary termination traversal, authored-precondition
+  rejection, linear runtime-carrier exclusion, callable-contract validation,
+  exact call paths, and diagnostic order remain unchanged. The 282-line parent
+  retains operational-axis projection, common-floor aggregation, and
+  evaluation; public APIs and the 107-function production inventory are
+  unchanged.
 - Finish member reflection (`Self::fields` and field/case splices), constant
   positions, and proof checking of generator-expanded bodies.
 - Complete the ordinary `Build` API/executor with exact dependency aliases,
