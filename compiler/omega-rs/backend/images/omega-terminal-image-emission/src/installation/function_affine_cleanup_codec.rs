@@ -8,10 +8,13 @@ use psi_core::{EdgeId, MachineId, OperationId, PlaceId, StructuralTypeId};
 use psi_terminal::{StructuralAffineDiscard, StructuralArgument, TerminalAffineCleanupAction};
 
 use super::{
-    Reader, TerminalInstallationError, decode_structural_types, decode_trivial_affine_local,
-    decode_trivial_affine_local_type, encode_structural_types, encode_trivial_affine_local,
-    encode_trivial_affine_local_type, push_u32, push_u64,
+    Reader, TerminalInstallationError, decode_structural_types, encode_structural_types, push_u32,
+    push_u64,
     structural_argument_codec::{decode_structural_argument, encode_structural_argument},
+    trivial_affine_local_codec::{
+        decode_trivial_affine_local, decode_trivial_affine_local_type, encode_trivial_affine_local,
+        encode_trivial_affine_local_type,
+    },
 };
 
 pub(super) fn encode_unit_affine_cleanup(
