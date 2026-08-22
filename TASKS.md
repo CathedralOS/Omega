@@ -4343,6 +4343,22 @@ Owners:
   checked-report executable receipts while preserving literal status 70,
   interpreter parity, and all equality, call-result, and delivery-role
   diagnostics. Exact-owner pins and established fences remain unchanged.
+  Producer-local affine-literal root-bound construction now lives in one
+  `affine_selection/literal/root_bounds` authority. It retains separate fixed
+  direct and one-alias entry points while sharing only the closed-order
+  substitution constructor: direct emits one substitution, and one-alias emits
+  the exact inner-then-outer pair. Reconstruction remains independently
+  implemented. Root-bound orientation and endpoint order, equality citation
+  order, proof shapes, rejection behavior, direct-before-alias precedence, and
+  the fixed non-recursive affine-literal frontier remain unchanged.
+  Five authored-root guarded/generic executions—guard-proven counters, guard-
+  narrowed transition arguments, agreeing and monomorphic generic value calls,
+  and nominal generic-bound static dispatch—now launch solely through exact
+  checked-report executable receipts while preserving literal statuses 70,
+  70, 70, 70, and 1, interpreter parity, and all range, materialization,
+  specialization, and conformance diagnostics. Exact-owner pins and
+  established trapping/GUI/platform/float/cast/coercion/report/interactive
+  fences remain unchanged.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
@@ -4964,7 +4980,15 @@ boundary without its corresponding checked law.
   fixed tokens directly through the retained realization machine/state symbols,
   including exact selected-conformance precedence over an unrelated visible
   conformance; it performs no name or ambient-conformance lookup. Terminal and
-  native lowering of the retained realization row remain open.
+  native lowering of the retained realization row remain open. The first
+  execution prerequisite is now explicit: checked plans retain a direct
+  structural-scalar fixed-token return only when its whole nominal operands
+  are an exact parameter permutation, and bind that site to the selected
+  conformance declaration, closed-application fingerprint, requirement, and
+  realization machine/state. The plan contains no expression handle and never
+  reopens visible conformances. Terminal still needs a structural-argument,
+  scalar-result call operation and closure before native lowering can execute
+  the row.
   A concrete direct wrapper may crown only one token meaning per normalized
   operand signature; alternative conformances remain named explicit calls.
 
