@@ -7196,8 +7196,13 @@ checked-result arithmetic decision listed below.
   binder setup, parameter/return shape matching, service and invocation
   ceilings, suspension/blocking/termination refinement, nested machine-contract
   recursion, trait reverse checks, contract-fact handoff, APIs, diagnostic
-  order, and the 26-function inventory remain unchanged; the 588-line parent
-  retains selection and nominal-admission orchestration.
+  order, and the 26-function inventory remain unchanged. Nominal static-machine
+  admission now lives in a focused 120-line private owner. Exact forwarded-
+  binder authority, concrete entry ownership, unique authored satisfaction
+  rows, canonical requirement-overload identity, rejection diagnostics/order,
+  crate APIs, and that same inventory remain unchanged; the natural 475-line
+  parent retains traversal, operational inference, call/data selection
+  transactions, and recursive contract lookup.
 - Materialize dynamic descriptors for pass-through, rebound, and escaping
   borrows from the retained exact conformance rows and declaring-trait symbol.
   Bodyless/bare requirements do not license `dyn`; ambiguous same-carrier
