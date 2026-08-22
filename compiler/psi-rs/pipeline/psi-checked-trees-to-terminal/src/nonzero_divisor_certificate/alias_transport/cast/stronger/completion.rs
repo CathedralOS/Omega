@@ -1,10 +1,11 @@
 //! Typed stronger alias-bound completion for exact integer casts.
 
 use psi_core::{Proposition, PropositionContext, ScalarTerm};
-use psi_proof_kernel::{ProofNode, ProofRule};
+use psi_proof_kernel::ProofNode;
 
 use super::super::super::super::cast_custody;
-use super::super::super::super::integer_evidence::closed_integer_relation;
+
+mod bound;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn prove(
@@ -34,47 +35,15 @@ pub(super) fn prove(
         return None;
     }
     let source_endpoint = cast_custody::remap_integer_literal(target_endpoint, root_type)?;
-    let closed_bridge = if endpoint == 1 {
-        closed_integer_relation(Proposition::LessOrEqual(
-            source_endpoint.clone(),
-            retained_literal.clone(),
-        ))?
-    } else {
-        closed_integer_relation(Proposition::LessOrEqual(
-            retained_literal.clone(),
-            source_endpoint.clone(),
-        ))?
-    };
-    let alias_bound = ProofNode {
-        conclusion: if endpoint == 1 {
-            Proposition::LessOrEqual(source_endpoint.clone(), alias.clone())
-        } else {
-            Proposition::LessOrEqual(alias.clone(), source_endpoint.clone())
-        },
-        rule: if endpoint == 1 {
-            ProofRule::IntegerLessOrEqualTransitivity {
-                left_less_or_equal_middle: Box::new(closed_bridge),
-                middle_less_or_equal_right: Box::new(retained_bound),
-            }
-        } else {
-            ProofRule::IntegerLessOrEqualTransitivity {
-                left_less_or_equal_middle: Box::new(retained_bound),
-                middle_less_or_equal_right: Box::new(closed_bridge),
-            }
-        },
-    };
-    let root_bound = ProofNode {
-        conclusion: if endpoint == 1 {
-            Proposition::LessOrEqual(source_endpoint, root.clone())
-        } else {
-            Proposition::LessOrEqual(root.clone(), source_endpoint)
-        },
-        rule: ProofRule::IntegerLessOrEqualSubstitution {
-            relation: Box::new(alias_bound),
-            equality: Box::new(equality),
-            endpoint,
-        },
-    };
+    let root_bound = bound::prove(
+        root,
+        alias,
+        retained_literal,
+        source_endpoint,
+        endpoint,
+        retained_bound,
+        equality,
+    )?;
     cast_custody::prove_from_root(
         context,
         goal,
