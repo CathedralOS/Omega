@@ -57,6 +57,8 @@ pub struct ExecutablePublicationReceipt {
     output_path: PathBuf,
     certificate_fingerprint: u64,
     inventory_fingerprint: u64,
+    compiler_text_validation_fingerprint: u64,
+    compiler_function_validation_fingerprint: u64,
     publication_evidence_fingerprint: u64,
     container_byte_count: usize,
     container_fingerprint: u64,
@@ -69,6 +71,8 @@ impl ExecutablePublicationReceipt {
         output_path: PathBuf,
         certificate_fingerprint: u64,
         inventory_fingerprint: u64,
+        compiler_text_validation_fingerprint: u64,
+        compiler_function_validation_fingerprint: u64,
         publication_evidence_fingerprint: u64,
         container_byte_count: usize,
         container_fingerprint: u64,
@@ -79,6 +83,8 @@ impl ExecutablePublicationReceipt {
             output_path,
             certificate_fingerprint,
             inventory_fingerprint,
+            compiler_text_validation_fingerprint,
+            compiler_function_validation_fingerprint,
             publication_evidence_fingerprint,
             container_byte_count,
             container_fingerprint,
@@ -100,6 +106,14 @@ impl ExecutablePublicationReceipt {
 
     pub const fn inventory_fingerprint(&self) -> u64 {
         self.inventory_fingerprint
+    }
+
+    pub const fn compiler_text_validation_fingerprint(&self) -> u64 {
+        self.compiler_text_validation_fingerprint
+    }
+
+    pub const fn compiler_function_validation_fingerprint(&self) -> u64 {
+        self.compiler_function_validation_fingerprint
     }
 
     pub const fn publication_evidence_fingerprint(&self) -> u64 {
@@ -231,6 +245,24 @@ impl CompileReport {
                 .as_ref()
                 .and_then(super::ProgramStorageEntryNativeBridgePlan::emitted_wrapper_evidence)
                 .map(|evidence| evidence.executable_inventory_fingerprint()),
+        ) && emitted_validation_matches_publication(
+            self.executable_publication.as_ref().map(|receipt| {
+                (
+                    receipt.compiler_text_validation_fingerprint,
+                    receipt.compiler_function_validation_fingerprint,
+                )
+            }),
+            self.program_storage_entry_bridge
+                .as_ref()
+                .and_then(super::ProgramStorageEntryNativeBridgePlan::emitted_wrapper_evidence)
+                .map(|evidence| {
+                    (
+                        evidence.compiler_text_validation().derivation_fingerprint,
+                        evidence
+                            .compiler_function_validation()
+                            .evidence_fingerprint(),
+                    )
+                }),
         )
     }
 
@@ -272,6 +304,10 @@ impl CompileReport {
                         == Some(bundle.output_path.as_path())
                     && flat.certificate_fingerprint == bundle.certificate_fingerprint
                     && flat.inventory_fingerprint == bundle.inventory_fingerprint
+                    && flat.compiler_text_validation_fingerprint
+                        == bundle.compiler_text_validation_fingerprint
+                    && flat.compiler_function_validation_fingerprint
+                        == bundle.compiler_function_validation_fingerprint
                     && flat.publication_evidence_fingerprint
                         == bundle.publication_evidence_fingerprint
                     && flat.container_byte_count == bundle.container_byte_count
@@ -322,6 +358,14 @@ fn emitted_inventory_matches_publication(
         .is_none_or(|emitted| publication_inventory_fingerprint == Some(emitted))
 }
 
+fn emitted_validation_matches_publication(
+    publication_validation_fingerprints: Option<(u64, u64)>,
+    emitted_validation_fingerprints: Option<(u64, u64)>,
+) -> bool {
+    emitted_validation_fingerprints
+        .is_none_or(|emitted| publication_validation_fingerprints == Some(emitted))
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
@@ -334,7 +378,18 @@ mod tests {
         path: &str,
         installation: u64,
     ) -> ExecutablePublicationReceipt {
-        ExecutablePublicationReceipt::new(destination, path.into(), 1, 2, 3, 4, 5, installation)
+        ExecutablePublicationReceipt::new(
+            destination,
+            path.into(),
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            installation,
+        )
     }
 
     fn report(
@@ -407,6 +462,27 @@ mod tests {
         assert!(!super::emitted_inventory_matches_publication(
             Some(1),
             Some(2),
+        ));
+        assert!(super::emitted_validation_matches_publication(None, None));
+        assert!(super::emitted_validation_matches_publication(
+            Some((1, 2)),
+            None,
+        ));
+        assert!(super::emitted_validation_matches_publication(
+            Some((1, 2)),
+            Some((1, 2)),
+        ));
+        assert!(!super::emitted_validation_matches_publication(
+            None,
+            Some((1, 2)),
+        ));
+        assert!(!super::emitted_validation_matches_publication(
+            Some((1, 2)),
+            Some((1, 3)),
+        ));
+        assert!(!super::emitted_validation_matches_publication(
+            Some((1, 2)),
+            Some((3, 2)),
         ));
 
         let flat = receipt(
@@ -535,6 +611,28 @@ mod tests {
         );
         let mut changed = bundle.clone();
         changed.inventory_fingerprint ^= 1;
+        assert!(
+            !report(
+                true,
+                CompileOutputKind::NativeExecutable,
+                Some(flat.clone()),
+                Some(changed),
+            )
+            .has_consistent_executable_publication_custody()
+        );
+        let mut changed = bundle.clone();
+        changed.compiler_text_validation_fingerprint ^= 1;
+        assert!(
+            !report(
+                true,
+                CompileOutputKind::NativeExecutable,
+                Some(flat.clone()),
+                Some(changed),
+            )
+            .has_consistent_executable_publication_custody()
+        );
+        let mut changed = bundle.clone();
+        changed.compiler_function_validation_fingerprint ^= 1;
         assert!(
             !report(
                 true,
