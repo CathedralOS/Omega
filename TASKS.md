@@ -3389,6 +3389,11 @@ Remaining:
   with one backend worker each. On the current 215-compile umbrella this
   reduced exact test time from 51.60s at outer eight to 46.15s at outer twelve;
   the explicit overrides remain available for host-specific profiling.
+  Re-profiling the broad float Checked phase after bounded helper expansion put
+  both representative fixtures near a 1.60s median. A sampled source-ordered
+  operator-signature key catalog was rejected and fully removed: compare/cast
+  moved only -0.75% while float operations were flat at +0.10%. The remaining
+  validation profile is diffuse, so no speculative cache was retained.
   Default-domain validation now delegates conservative symbolic values,
   literal/sequence measures, valuation folding, canonical symbolic equality,
   and recursive call detection to a focused 281-line child while state walking,
