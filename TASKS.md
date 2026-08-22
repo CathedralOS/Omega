@@ -445,7 +445,11 @@ Remaining:
   admitted provider execution. Machine emission derives the ordered catalog,
   object and installation validation independently rederive it, and canonical
   installation format 31 preserves it; source, receipt, or provider substitution
-  rejects. This is custody, not authorization. The remaining
+  rejects. One private completion-custody facade now owns argument-path
+  canonicality, receipt bounds, exact source/receipt replay, and provider-
+  custody replay in their load-bearing order; object and installation callers
+  only map its closed failures to unchanged public errors. This is custody, not
+  authorization. The remaining
   work is real
   authorized introduction, custody exit, residual geometry, and provider binding—not
   another passthrough representation.
