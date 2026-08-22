@@ -587,7 +587,10 @@ Owners:
   write, and does not observe unrelated targets after rejection. Fully resolved
   materialization then independently replays every write's geometry and
   stored-integer fit before staging any byte; tampered or out-of-range values
-  reject without truncation or destination mutation.
+  reject without truncation or destination mutation. Static writer validation
+  and reusable-fragment lowering consume the same known-value validator, so
+  invalid pre-resolved fit evidence rejects before any dynamic resolver
+  observation or destination mutation.
 
 Acceptance: UART/MMIO, shared-page IPC, and ordinary RAM use one extent/layout
 foundation with different profiles. Misalignment, insufficient rights,
@@ -2432,7 +2435,10 @@ Owners:
   cannot rearrange or drop one component after the compiler's final consistency
   check. Both early check-only and backend reports now use one checked
   constructor, which rejects an inconsistent output/category/receipt tuple
-  before it can cross the orchestration return boundary.
+  before it can cross the orchestration return boundary. The constructor also
+  rejoins the optional program-storage entry binding to its native bridge: both
+  are absent together or the retained binding must equal the bridge's exact
+  binding, while a dropped, unpaired, or redirected row rejects before return.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
@@ -2839,7 +2845,10 @@ Remaining N6/N8 work:
   general entailment or any `Respects` clause. The relation-plan coordinator
   now delegates `Q`/`P` dependency partitioning, exact fact lookup, positional
   alpha-renaming, and bijection matching to a focused 416-line precondition
-  judgment child; it does not duplicate or broaden the proof language. The
+  judgment child. Exact public-parameter order, mode, quotient-carrier matching,
+  and representative static substitution now form a separate 212-line runtime-
+  correspondence child. Neither extraction duplicates or broadens the proof
+  language. The
   exact final-expression call
   additionally retains one unchanged state-fallthrough result edge. The same
   single edge may
