@@ -36,3 +36,24 @@ pub(super) fn any(
         })
     })
 }
+
+pub(super) fn find_target<T>(
+    context: &PropositionContext,
+    semantic_axioms: &[Proposition],
+    definitions: &DefinitionIndex,
+    root: &ScalarTerm,
+    target: &ScalarTerm,
+    mut complete: impl FnMut(IntegerAffineWitness) -> Option<T>,
+) -> Option<T> {
+    let definition_words = frontier::definition_words(context, semantic_axioms, definitions, root);
+    definition_words.iter().find_map(|definition_axioms| {
+        let literal_axioms =
+            frontier::literal_axioms(context, semantic_axioms, root, definition_axioms, target)?;
+        complete(IntegerAffineWitness {
+            root: root.clone(),
+            target: target.clone(),
+            literal_axioms,
+            definition_axioms: definition_axioms.clone(),
+        })
+    })
+}

@@ -654,6 +654,24 @@ before the last cast reject. Its proof is exactly
 field. Shift/cast, joins, correlated results, and all other affine/cast shapes
 remain trusted-reducer work; `fully-derived false` is unchanged.
 
+One exact forward affine/cast/affine sibling composes those two checked
+boundaries without adding proof vocabulary. Starting from one direct
+same-carrier root-bound citation, production maps the exact endpoint through a
+finite pre-cast affine word, the unique nonempty partial-cast spine, and a
+finite post-cast affine word. The pre-cast definitions and literal landings
+must all precede the first cast; the post-cast definitions and landings must all
+follow the final cast. Its proof is exactly
+`IntegerAffineBound(IntegerCastBound(IntegerAffineBound(Assumption)))`.
+Reconstruction independently enumerates the same fixed affine frontiers and
+rechecks both affine conversions, cast conversion, boundaries, and source
+custody. Forward endpoint calculation selects candidates but grants no
+authority because each existing kernel node rechecks the exact proposition.
+Missing direct custody, ambiguous cast custody, an unrepresentable endpoint, or
+boundary drift rejects. One-sided families retain precedence; no inverse
+mapping, alias recursion, rule, or v19 field is added. Broader affine/cast
+families and both exact rows remain trusted, and `fully-derived false` is
+unchanged.
+
 The root-bound child may also come from exactly one retained same-carrier
 `root == literal` fact when that literal equals or strengthens the canonical
 bound endpoint. The producer remaps the endpoint into the source carrier,

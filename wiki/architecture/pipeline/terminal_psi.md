@@ -2079,6 +2079,23 @@ final cast rejects. The proof is exactly
 is added. Shift/cast, joins, correlated results, and all other affine/cast
 shapes remain trusted-reducer work, and `fully-derived false` is unchanged.
 
+One exact forward affine/cast/affine sibling may now compose both bounded sides.
+It starts from one directly cited same-carrier root bound, maps that exact
+endpoint through one finite affine word strictly before the first partial cast,
+replays the unique nonempty cast spine, and maps the same endpoint through one
+finite affine word strictly after the final cast. Production enumerates only
+the established fixed affine witness frontier and constructs
+`IntegerAffineBound(IntegerCastBound(IntegerAffineBound(Assumption)))`;
+verification independently repeats both affine witnesses, both strict source
+boundaries, the cast word, and every endpoint conversion. The forward mapped
+propositions are candidates only: each existing proof rule rechecks its exact
+child and conclusion. Missing direct root custody, ambiguous cast custody,
+unrepresentable mapped endpoints, or any affine definition or literal landing
+on the wrong side of the cast rejects. Existing one-sided families retain
+precedence. No inverse arithmetic, alias walk, proof rule, or v19 field is
+added; broader affine/cast shapes and the complete exact rows retain their
+trusted status and `fully-derived false` remains unchanged.
+
 The cast root-bound child may also be reconstructed from exactly one retained
 same-carrier `root == literal` fact when that literal equals or strengthens the
 canonical bound endpoint. Production remaps the endpoint into the source

@@ -6,7 +6,7 @@ use psi_proof_kernel::{CheckedIntegerAffineForm, IntegerAffineWitness, ProofNode
 mod completion;
 mod mapping;
 
-use mapping::mapped_bound;
+pub(super) use mapping::mapped_bound;
 
 pub(super) fn prove(
     goal: &Proposition,

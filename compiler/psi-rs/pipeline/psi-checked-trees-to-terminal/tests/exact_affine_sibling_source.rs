@@ -60,6 +60,25 @@ const CAST_AFFINE_SOURCE: &str = r#"
     }
 "#;
 
+const AFFINE_CAST_AFFINE_SOURCE: &str = r#"
+    data Helper {}
+    machine Helper::touch() {}
+    data Token {}
+    machine Token::drop(&mut self) { Helper::touch(); }
+    data Root {}
+    machine Root::divide_across_cast(token: Token, root: i16) -> bool
+    requires root <= 32766i16, -129i16 <= root, root <= 126i16,
+        root <= 125i16, -1i16 <= root
+    {
+        let before: i16 = root + 1i16;
+        let casted: i8 = before as i8;
+        let divisor: i8 = casted + 1i8;
+        let quotient: i8 = 6i8 / divisor;
+        let remainder: i8 = 6i8 % divisor;
+        quotient == 2i8 && remainder == 0i8
+    }
+"#;
+
 #[test]
 fn landed_affine_sibling_custody_crosses_source_codec_and_independent_verification() {
     let tokens = Lexer::new(SOURCE).tokenize().expect("tokenize");
@@ -432,4 +451,185 @@ fn partial_cast_to_affine_exact_division_and_remainder_cross_source_codec_verifi
         TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(true)),
     );
     assert!(execution.effects().is_empty());
+}
+
+#[test]
+fn affine_cast_affine_exact_division_and_remainder_cross_source_codec_verification_and_interpretation()
+ {
+    let tokens = Lexer::new(AFFINE_CAST_AFFINE_SOURCE)
+        .tokenize()
+        .expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("check");
+    let lowered =
+        psi_checked_trees_to_terminal::lower_machine(&checked, "Root::divide_across_cast")
+            .expect("affine-cast-affine divisor lowers from real source");
+    let entry = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == lowered.semantic_module.entry)
+        .expect("entry machine");
+    let exact_obligations = entry
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .filter_map(|operation| match operation.kind {
+            OperationKind::ExactIntegerDivide { obligation, .. }
+            | OperationKind::ExactIntegerRemainder { obligation, .. } => Some(obligation),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(exact_obligations.len(), 2, "one divide and one remainder");
+    for obligation in &exact_obligations {
+        let evidence = lowered
+            .proof_bundle
+            .evidence
+            .iter()
+            .find(|evidence| evidence.obligation == *obligation)
+            .expect("exact divide/remainder has evidence");
+        let EvidenceRoute::CertificateDerived(certificate) = &evidence.route else {
+            panic!("affine-cast-affine exact operation is certificate-derived")
+        };
+        let ProofRule::DisjunctionIntroduction { disjunct, index: 1 } = &certificate.proof.rule
+        else {
+            panic!("signed positive-divisor arm is selected")
+        };
+        let ProofRule::IntegerAffineBound {
+            root_bound: cast_bound,
+            witness: after_witness,
+        } = &disjunct.rule
+        else {
+            panic!("post-cast affine custody is outermost")
+        };
+        let ProofRule::IntegerCastBound {
+            root_bound: before_bound,
+            witness: cast_witness,
+        } = &cast_bound.rule
+        else {
+            panic!("partial-cast custody is nested between affine proofs")
+        };
+        let ProofRule::IntegerAffineBound {
+            witness: before_witness,
+            ..
+        } = &before_bound.rule
+        else {
+            panic!("pre-cast affine custody is innermost")
+        };
+        assert_eq!(before_witness.definition_axioms.len(), 1);
+        assert_eq!(cast_witness.definition_axioms.len(), 1);
+        assert_eq!(after_witness.definition_axioms.len(), 1);
+        assert!(before_witness.definition_axioms[0] < cast_witness.definition_axioms[0]);
+        assert!(cast_witness.definition_axioms[0] < after_witness.definition_axioms[0]);
+    }
+
+    psi_terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("independent verifier reconstructs affine-cast-affine custody");
+    let module_bytes = encode_module(&lowered.semantic_module).expect("encode module");
+    let proof_bytes = encode_proof_bundle(&lowered.proof_bundle).expect("encode proof bundle");
+    assert_eq!(
+        decode_module(&module_bytes).expect("decode module"),
+        lowered.semantic_module,
+    );
+    assert_eq!(
+        decode_proof_bundle(&proof_bytes).expect("decode proof bundle"),
+        lowered.proof_bundle,
+    );
+
+    let mut stale = decode_proof_bundle(&proof_bytes).expect("decode proof for mutation");
+    let stale_evidence = stale
+        .evidence
+        .iter_mut()
+        .find(|evidence| evidence.obligation == exact_obligations[0])
+        .expect("decoded exact evidence");
+    let EvidenceRoute::CertificateDerived(certificate) = &mut stale_evidence.route else {
+        unreachable!("selected certificate-derived evidence")
+    };
+    let ProofRule::DisjunctionIntroduction { disjunct, .. } = &mut certificate.proof.rule else {
+        unreachable!("selected signed disjunction proof")
+    };
+    let ProofRule::IntegerAffineBound {
+        root_bound: cast_bound,
+        witness: after_witness,
+    } = &mut disjunct.rule
+    else {
+        unreachable!("selected post-cast affine proof")
+    };
+    let ProofRule::IntegerCastBound {
+        root_bound: before_bound,
+        witness: cast_witness,
+    } = &mut cast_bound.rule
+    else {
+        unreachable!("selected cast child")
+    };
+    let ProofRule::IntegerAffineBound {
+        witness: before_witness,
+        ..
+    } = &mut before_bound.rule
+    else {
+        unreachable!("selected pre-cast affine child")
+    };
+    after_witness.definition_axioms[0] = before_witness.definition_axioms[0];
+    assert_ne!(
+        after_witness.definition_axioms[0],
+        cast_witness.definition_axioms[0],
+    );
+    assert!(
+        psi_terminal_verifier::verify_module(
+            &lowered.semantic_module,
+            &stale,
+            &AdmissionProfile::default(),
+        )
+        .is_err(),
+        "redirecting the post-cast witness before the cast rejects",
+    );
+
+    let [token] = entry.structural_parameters.as_slice() else {
+        panic!("entry retains the Token cleanup root")
+    };
+    let structural_arguments = [TerminalStructuralValue {
+        opaque_identity: token.place.get(),
+        structural_type: token.structural_type,
+        qualifications: Vec::new(),
+        path: Vec::new(),
+    }];
+    let scalar_arguments = [TerminalScalarValue::Integer {
+        scalar_type: IntegerType::new(IntegerSign::Signed, 16).expect("i16"),
+        value: IntegerValue::Signed(1),
+    }];
+    let mut handler = AcceptTerminalEffects;
+    let execution = interpret_terminal_artifact_with_effect_handler_measured(
+        &module_bytes,
+        &proof_bytes,
+        &AdmissionProfile::default(),
+        &scalar_arguments,
+        &structural_arguments,
+        &mut handler,
+    )
+    .expect("verified affine-cast-affine artifact interprets");
+    assert_eq!(
+        execution.value(),
+        TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(true)),
+    );
+    assert!(execution.effects().is_empty());
+
+    let missing_root_bound =
+        AFFINE_CAST_AFFINE_SOURCE.replace("root <= 125i16, -1i16 <= root", "root <= 125i16");
+    let tokens = Lexer::new(&missing_root_bound)
+        .tokenize()
+        .expect("tokenize near-miss source");
+    let syntax = parse_syntax_trees(&tokens).expect("parse near-miss source");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve near-miss source");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type near-miss source");
+    let checked = lower_typed_trees(typed).expect("check near-miss source");
+    assert!(
+        psi_checked_trees_to_terminal::lower_machine(&checked, "Root::divide_across_cast").is_err(),
+        "the sandwich cannot manufacture its missing source-root lower bound",
+    );
 }
