@@ -5,7 +5,7 @@ use psi_proof_kernel::ProofNode;
 
 mod landing_index;
 
-use super::super::{eligibility, equalities::OrientedEqualities};
+use super::super::{eligibility, equalities};
 use landing_index::LandingIndex;
 
 pub(super) fn find<'a, T>(
@@ -19,11 +19,9 @@ pub(super) fn find<'a, T>(
         ProofNode,
     ) -> Option<T>,
 ) -> Option<T> {
-    let root_equalities = OrientedEqualities::new(assumptions, semantic_axioms);
     let landings = LandingIndex::new(assumptions, semantic_axioms);
-    root_equalities
-        .iter()
-        .find_map(|(outer_citation, outer_equality, root, alias)| {
+    equalities::ordered(assumptions, semantic_axioms).find_map(
+        |(outer_citation, outer_equality, root, alias)| {
             if root == alias
                 || !matches!(root, ScalarTerm::Value { .. })
                 || !matches!(alias, ScalarTerm::Value { .. })
@@ -46,5 +44,6 @@ pub(super) fn find<'a, T>(
                 }
             }
             None
-        })
+        },
+    )
 }
