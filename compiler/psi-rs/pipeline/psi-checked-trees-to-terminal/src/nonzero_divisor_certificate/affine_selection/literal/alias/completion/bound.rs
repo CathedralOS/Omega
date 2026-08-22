@@ -3,6 +3,8 @@
 use psi_core::{Proposition, ScalarTerm};
 use psi_proof_kernel::{PrimitiveJudgment, ProofNode, ProofRule};
 
+use super::super::super::root_bounds;
+
 pub(super) fn prove(
     root: &ScalarTerm,
     alias: &ScalarTerm,
@@ -10,22 +12,24 @@ pub(super) fn prove(
     outer_equality: &ProofNode,
     inner_equality: &ProofNode,
 ) -> [ProofNode; 2] {
+    let alias_bounds = root_bounds::ordered(alias, literal);
+    let root_bounds = root_bounds::ordered(root, literal);
     [
         substitution_bound(
-            Proposition::LessOrEqual(literal.clone(), alias.clone()),
-            Proposition::LessOrEqual(literal.clone(), root.clone()),
+            alias_bounds[0].proposition.clone(),
+            root_bounds[0].proposition.clone(),
             literal,
             outer_equality,
             inner_equality,
-            1,
+            root_bounds[0].substitution_endpoint,
         ),
         substitution_bound(
-            Proposition::LessOrEqual(alias.clone(), literal.clone()),
-            Proposition::LessOrEqual(root.clone(), literal.clone()),
+            alias_bounds[1].proposition.clone(),
+            root_bounds[1].proposition.clone(),
             literal,
             outer_equality,
             inner_equality,
-            0,
+            root_bounds[1].substitution_endpoint,
         ),
     ]
 }

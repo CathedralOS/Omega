@@ -3,25 +3,21 @@
 use psi_core::{Proposition, ScalarTerm};
 use psi_proof_kernel::{PrimitiveJudgment, ProofNode, ProofRule};
 
+use super::super::super::root_bounds;
+
 pub(super) fn prove(
     root: &ScalarTerm,
     literal: &ScalarTerm,
     equality: &ProofNode,
 ) -> [ProofNode; 2] {
-    [
+    root_bounds::ordered(root, literal).map(|bound| {
         substitution_bound(
-            Proposition::LessOrEqual(literal.clone(), root.clone()),
+            bound.proposition,
             literal,
             equality,
-            1,
-        ),
-        substitution_bound(
-            Proposition::LessOrEqual(root.clone(), literal.clone()),
-            literal,
-            equality,
-            0,
-        ),
-    ]
+            bound.substitution_endpoint,
+        )
+    })
 }
 
 fn substitution_bound(
