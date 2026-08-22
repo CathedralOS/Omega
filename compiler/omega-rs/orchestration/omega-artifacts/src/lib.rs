@@ -506,12 +506,29 @@ pub struct TrustProviderRequirementRow {
     pub may_suspend: bool,
     pub may_block: bool,
     /// Exact existing public `terminates;` guarantee on the bodyless
-    /// requirement. This carries no progress-profile or private witness data.
+    /// requirement. Private ranking witnesses remain excluded.
     pub terminates_guarantee: bool,
+    /// Exact public progress-premise schemas retained by the requirement.
+    /// Provider-receiver subjects remain visibly build-bound rather than being
+    /// rendered as caller parameters or silently dropped.
+    pub termination_premises: Vec<TrustProgressPremiseRow>,
     pub realization: TrustProviderRealization,
     pub provenance: String,
     pub grant_selectors: Vec<String>,
     pub standing_warning: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TrustProgressPremiseRow {
+    pub profile: String,
+    pub subject: TrustProgressPremiseSubject,
+    pub subject_projections: Vec<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TrustProgressPremiseSubject {
+    ProviderReceiver,
+    Parameter(usize),
 }
 
 /// Exact normalized realization selected by one provider-plan row.

@@ -6637,16 +6637,24 @@ compiler concept is introduced.
   premise. Pre-check build-time admission already rejects authored premises
   anywhere in the reachable call closure before interpretation.
 
-  Remaining: export build-bound provider subjects as unresolved manifest
-  premises and discharge them against the selected provider occurrence at
-  composition. Add authored qualification-preserving correspondence beyond
-  direct parameter/field identity; unknown, indexed, and local correspondence
-  remains fail closed. `QualificationEvidence` currently retains the evidence
-  kind and source declaration but no source-place relation; add an exact
-  contract/flow correspondence rather than treating every
-  `CheckedTransformation` as identity. Keep nominal static-machine binder
-  premises pinned to the named requirement contract and ranking witnesses
-  outside public identity.
+  Provider requirement trust artifacts retain every public premise schema as
+  structured profile identity, exact provider-receiver or caller-parameter
+  subject, and field projections. Provider-receiver subjects remain explicitly
+  build-bound in the report; artifact generation neither drops them nor
+  pretends they are caller arguments.
+
+  Remaining: carry the retained build-bound provider schemas into the canonical
+  component manifest for the exact reachable requirement closure, then
+  discharge each against the exact selected provider occurrence and admitted
+  establishment receipt at composition. The trust-report row is durable audit
+  preservation, not that discharge. Add authored qualification-preserving
+  correspondence beyond direct parameter/field identity; unknown, indexed,
+  and local correspondence remains fail closed. `QualificationEvidence`
+  currently retains the evidence kind and source declaration but no
+  source-place relation; add an exact contract/flow correspondence rather than
+  treating every `CheckedTransformation` as identity. Keep nominal
+  static-machine binder premises pinned to the named requirement contract and
+  ranking witnesses outside public identity.
 Acceptance: contract axes normalize independently, wrappers cannot launder
 reach or trust, and private proof improvements do not change public identity.
 

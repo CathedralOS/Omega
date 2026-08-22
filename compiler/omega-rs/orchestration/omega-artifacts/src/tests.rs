@@ -49,9 +49,9 @@ use psi_symbols::SymbolHandle;
 use super::external_root_report::external_root_records_manifest_json;
 use super::{
     ArtifactWriter, TrustCrashCause, TrustCrashRouteBucket, TrustCrashRouteGuard,
-    TrustGenericAcceptedInstanceRow, TrustProviderRealization, TrustProviderRequirementRow,
-    TrustQualificationRow, TrustReport, TrustReportRow, build_backend_surface_report,
-    value_placement_json,
+    TrustGenericAcceptedInstanceRow, TrustProgressPremiseRow, TrustProgressPremiseSubject,
+    TrustProviderRealization, TrustProviderRequirementRow, TrustQualificationRow, TrustReport,
+    TrustReportRow, build_backend_surface_report, value_placement_json,
 };
 
 #[test]
@@ -271,6 +271,18 @@ fn trust_report_keeps_claim_free_provider_requirement_blast_radius_exact() {
             may_suspend: true,
             may_block: false,
             terminates_guarantee: true,
+            termination_premises: vec![
+                TrustProgressPremiseRow {
+                    profile: "SchedulerHandle::WeakFair".to_owned(),
+                    subject: TrustProgressPremiseSubject::ProviderReceiver,
+                    subject_projections: vec!["Scheduler::handle".to_owned()],
+                },
+                TrustProgressPremiseRow {
+                    profile: "Buffer::EventuallyReady".to_owned(),
+                    subject: TrustProgressPremiseSubject::Parameter(0),
+                    subject_projections: Vec::new(),
+                },
+            ],
             realization: TrustProviderRealization::VtableSlot { index: 4 },
             provenance: "root grant (build.omg)".to_owned(),
             grant_selectors: vec!["Root".to_owned()],
@@ -304,6 +316,9 @@ fn trust_report_keeps_claim_free_provider_requirement_blast_radius_exact() {
     assert!(output.contains("may suspend: yes"));
     assert!(output.contains("may block: no"));
     assert!(output.contains("termination guarantee: yes"));
+    assert!(output.contains(
+        "progress premises: SchedulerHandle::WeakFair(provider-receiver(build-bound).Scheduler::handle), Buffer::EventuallyReady(parameter:0)"
+    ));
     assert!(output.contains("realization: vtable slot 4"));
     assert!(output.contains("root grant (build.omg)"));
     assert!(output.contains("grant selectors: Root"));

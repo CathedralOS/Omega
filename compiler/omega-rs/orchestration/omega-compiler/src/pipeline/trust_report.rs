@@ -8,8 +8,9 @@
 use crate::pipeline::compile_options::CompileOptions;
 use omega_artifacts::{
     ArtifactWriter, TrustCrashCause, TrustCrashRouteBucket, TrustCrashRouteGuard,
-    TrustGenericAcceptedInstanceRow, TrustProviderRealization, TrustProviderRequirementRow,
-    TrustQualificationRow, TrustReport, TrustReportRow,
+    TrustGenericAcceptedInstanceRow, TrustProgressPremiseRow, TrustProgressPremiseSubject,
+    TrustProviderRealization, TrustProviderRequirementRow, TrustQualificationRow, TrustReport,
+    TrustReportRow,
 };
 use psi_diagnostics::Diagnostic;
 
@@ -192,6 +193,22 @@ pub(super) fn write_trust_report(
                     may_suspend: method.may_suspend,
                     may_block: method.may_block,
                     terminates_guarantee: method.terminates_guarantee,
+                    termination_premises: method
+                        .termination_premises
+                        .iter()
+                        .map(|premise| TrustProgressPremiseRow {
+                            profile: premise.profile.clone(),
+                            subject: match premise.subject {
+                                omega_effects::provider_plan::ServiceProgressSubject::ProviderReceiver => {
+                                    TrustProgressPremiseSubject::ProviderReceiver
+                                }
+                                omega_effects::provider_plan::ServiceProgressSubject::Parameter(index) => {
+                                    TrustProgressPremiseSubject::Parameter(index)
+                                }
+                            },
+                            subject_projections: premise.subject_projections.clone(),
+                        })
+                        .collect(),
                     realization: trust_provider_realization(&row.binding),
                     provenance: provenance.to_owned(),
                     grant_selectors: grant_selectors.clone(),
