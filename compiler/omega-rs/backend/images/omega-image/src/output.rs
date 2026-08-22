@@ -18,6 +18,7 @@ pub struct ExecutableImageOutput {
 pub struct EmittedImageOutput {
     pub bytes: Vec<u8>,
     pub final_text_bytes: Vec<u8>,
+    pub callback_placement_identity_fingerprint: u64,
     pub file_name: String,
     pub format: String,
     pub kind: ImageOutputKind,
@@ -244,6 +245,7 @@ pub fn emitted_direct_executable_output(output: ExecutableImageOutput) -> Emitte
     EmittedImageOutput {
         bytes: output.bytes,
         final_text_bytes: output.final_text_bytes,
+        callback_placement_identity_fingerprint: 0,
         file_name: output.file_name,
         format: output.format,
         kind: ImageOutputKind::DirectExecutable,
