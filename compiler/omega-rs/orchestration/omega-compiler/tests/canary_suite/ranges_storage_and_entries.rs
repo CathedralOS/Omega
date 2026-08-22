@@ -144,20 +144,13 @@ fn runtime_guarded_copy_narrowing_exit_canary_runs() {
     let scratch = std::env::temp_dir().join(format!("omega-guarded-copy-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("guarded copy narrowing canary should compile");
-
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("guarded copy narrowing canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(7),
-        "expected the edge-guarded copy `self.y = self.yv` (guard establishes \
-         [0..=9]) to prove and exit 7, got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        7,
+        "guarded copy-narrowing canary",
+        "the incoming guard should establish the copied value's target range",
     );
 
     let _ = fs::remove_dir_all(&scratch);
@@ -172,20 +165,13 @@ fn runtime_ranged_divide_modulo_chain_exit_canary_runs() {
     let scratch = std::env::temp_dir().join(format!("omega-ranged-divmod-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("ranged divide/modulo chain canary should compile");
-
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("ranged divide/modulo chain canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(4),
-        "expected `(self.c / 26) % 5` (c=259, ranged [0..=259]) to prove into \
-         y: [0..=4] and exit 4, got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        4,
+        "ranged divide/modulo-chain canary",
+        "the ranged divide then modulo chain should prove into [0..=4]",
     );
 
     let _ = fs::remove_dir_all(&scratch);
@@ -199,20 +185,13 @@ fn runtime_ranged_bitwise_and_mask_exit_canary_runs() {
     let scratch = std::env::temp_dir().join(format!("omega-ranged-andmask-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("ranged bitwise-and mask canary should compile");
-
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("ranged bitwise-and mask canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(3),
-        "expected `self.c & 15` (c=259, ranged) to prove into y: [0..=15] and \
-         exit 259 & 15 = 3, got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        3,
+        "ranged bitwise-and-mask canary",
+        "the nonnegative ranged mask should prove into [0..=15]",
     );
 
     let _ = fs::remove_dir_all(&scratch);
@@ -227,20 +206,13 @@ fn runtime_declared_range_index_read_exit_canary_runs() {
     let scratch = std::env::temp_dir().join(format!("omega-range-idx-read-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("declared range index read canary should compile");
-
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("declared range index read canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(30),
-        "expected `self.arr[self.i]` (i: usize [0..=4], no guard) to prove and read \
-         arr[0]=30 -> exit 30, got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        30,
+        "declared-range index-read canary",
+        "the declared index range should prove an unguarded array read",
     );
 
     let _ = fs::remove_dir_all(&scratch);
@@ -255,20 +227,13 @@ fn runtime_declared_range_index_write_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-range-idx-write-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("declared range index write canary should compile");
-
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("declared range index write canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(30),
-        "expected `self.arr[self.i] = 30` (i: usize [0..=4], no guard) to prove, \
-         write arr[0], and read back 30 -> exit 30, got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        30,
+        "declared-range index-write canary",
+        "the declared index range should prove an unguarded array write and readback",
     );
 
     let _ = fs::remove_dir_all(&scratch);
