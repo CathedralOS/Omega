@@ -1,9 +1,11 @@
 use std::collections::BTreeSet;
 
 use omega_calling_conventions::{
-    CallSignature, CallingPolicy, EntryStack, MachineRegister, MachineState, MachineStateSet,
-    ProviderExitRealization, RegisterSet, StateFootprintEvidence, ValueShape,
-    evaluate_ordinary_boundary_entry_plan,
+    ArrivalContextId, ArrivalContextRealization, CallSignature, CallingPolicy, EntryStack,
+    EntryStackEpoch, EntryStackRealization, EntryStackStage, MachineRegister, MachineState,
+    MachineStateSet, Preemption, ProviderExitRealization, RegisterSet, StackDomainRef,
+    StateFootprintEvidence, ValueShape, evaluate_ordinary_boundary_entry_plan,
+    validate_entry_stack_realization,
 };
 use omega_compiler::{
     SelectedExternalRootProviderPlan, bind_external_root_post_handoff_writer_invocation,
@@ -80,6 +82,7 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
     let provider = root_id(2, RootProviderId::from_normalized_identity);
     let relation = root_id(6, NestingRelationId::from_normalized_identity);
     let entry = EntryStubId::from_normalized_identity(12).expect("entry stub");
+    let installed_code = install_entry_artifact(entry);
     let stack_summary = ProviderStackSummary::from_admitted_provider(
         root,
         provider,
@@ -88,17 +91,39 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
         16,
         root_id(49, StackValidationReceiptId::from_normalized_identity),
     );
-    let stack = compose_artifact_stacks(
-        &StackNestingRelation {
-            identity: relation,
-            edges: BTreeSet::new(),
-        },
-        [&stack_summary],
-    )
-    .expect("stack composition")
-    .demand(root)
-    .expect("root stack demand")
-    .clone();
+    let stack_for = |boundary: &omega_calling_conventions::ValidatedBoundaryEntryPlan| {
+        let realization = validate_entry_stack_realization(EntryStackRealization {
+            contexts: vec![ArrivalContextRealization {
+                context: ArrivalContextId::new(1).expect("arrival context"),
+                epochs: vec![EntryStackEpoch {
+                    stage: EntryStackStage::Body,
+                    active_domain: StackDomainRef::Interrupted,
+                    occupancy_by_domain: Vec::new(),
+                    nesting: Preemption::NotApplicable,
+                }],
+            }],
+        })
+        .expect("entry stack realization");
+        let bound = bind_opaque_adapter_stack_realization(
+            &stack_summary,
+            boundary,
+            &installed_code,
+            entry,
+            EntryStack::Interrupted,
+            realization,
+            root_id(48, StackValidationReceiptId::from_normalized_identity),
+        )
+        .expect("bound stack realization");
+        compose_bound_entry_stack_epochs(
+            &StackNestingRelation {
+                identity: relation,
+                edges: BTreeSet::new(),
+            },
+            [&bound],
+        )
+        .expect("stack composition")
+    };
+    let stack = stack_for(&boundary_plan);
     let fuel_summary = FixedFuelProviderSummary::from_admitted_provider(
         root_id(30, ProviderFuelSummaryId::from_normalized_identity),
         provider,
@@ -166,7 +191,9 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
         },
     )
     .expect("result boundary plan");
-    let result_validated = validate_external_root(candidate.clone(), &result_boundary_plan)
+    let mut result_candidate = candidate.clone();
+    result_candidate.stack.realization = stack_for(&result_boundary_plan);
+    let result_validated = validate_external_root(result_candidate, &result_boundary_plan)
         .expect("result root validation");
     let result_execution = ProviderExecution::from_admitted_provider(
         root_id(57, ProviderExecutionId::from_normalized_identity),
@@ -194,7 +221,6 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
     )
     .expect("provider execution admission");
 
-    let installed_code = install_entry_artifact(entry);
     let mut selected_provider = SelectedExternalRootProviderPlan {
         identity: execution.provider_plan(),
         schema: Default::default(),

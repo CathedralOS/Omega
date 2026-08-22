@@ -166,6 +166,7 @@ dependencies = [
  "psi-arena",
  "psi-checked-trees",
  "psi-diagnostics",
+ "psi-extents",
  "psi-layout-plans",
  "psi-symbols",
  "serde_json",

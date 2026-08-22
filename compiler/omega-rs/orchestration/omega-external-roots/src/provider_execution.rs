@@ -803,13 +803,8 @@ fn fingerprint_provider_execution(
     hash.u64(candidate.provider.normalized_identity());
     hash.u64(candidate.entry.normalized_identity());
     hash.u64(root.boundary_contract_fingerprint());
-    hash.u64(
-        candidate
-            .stack
-            .realization
-            .artifact_composition_fingerprint(),
-    );
-    hash.u64(candidate.stack.realization.composition_fingerprint());
+    hash.u64(candidate.stack.realization.composition().fingerprint());
+    hash.u64(candidate.stack.realization.fingerprint());
     hash.u64(candidate.logical_fuel.realization.composition_fingerprint());
     hash.u64(
         candidate
@@ -856,8 +851,9 @@ impl ProviderExecution {
             stack_artifact_composition_fingerprint: candidate
                 .stack
                 .realization
-                .artifact_composition_fingerprint(),
-            stack_demand_fingerprint: candidate.stack.realization.composition_fingerprint(),
+                .composition()
+                .fingerprint(),
+            stack_demand_fingerprint: candidate.stack.realization.fingerprint(),
             logical_fuel_fingerprint: candidate.logical_fuel.realization.composition_fingerprint(),
             machine_state_validation_receipt: candidate.machine_state.validation_receipt,
             exit_assurance,
@@ -1010,12 +1006,8 @@ impl ProviderExecution {
             && self.entry == candidate.entry
             && self.boundary_contract_fingerprint == root.boundary_contract_fingerprint()
             && self.stack_artifact_composition_fingerprint
-                == candidate
-                    .stack
-                    .realization
-                    .artifact_composition_fingerprint()
-            && self.stack_demand_fingerprint
-                == candidate.stack.realization.composition_fingerprint()
+                == candidate.stack.realization.composition().fingerprint()
+            && self.stack_demand_fingerprint == candidate.stack.realization.fingerprint()
             && self.logical_fuel_fingerprint
                 == candidate.logical_fuel.realization.composition_fingerprint()
             && self.machine_state_validation_receipt == candidate.machine_state.validation_receipt
@@ -1036,11 +1028,18 @@ impl ProviderExecution {
             .candidate
             .stack
             .realization
-            .composition_evidence
-            .summaries
-            .get(&self.root_evidence.candidate.stack.realization.root())
-            .expect("stack composition retains its root summary");
-        if let StackLocalEvidence::TerminalEntry(binding) = &root_stack_summary.local_evidence {
+            .input(self.root_evidence.candidate.identity)
+            .expect("stack composition retains its root input");
+        if !root_stack_summary
+            .realization_evidence()
+            .matches_installed_code_entry(installed_code, self.entry)
+        {
+            return Err(ExternalRootDiagnostic(
+                "entry stack realization is not bound to the exact installed code and selected entry"
+                    .into(),
+            ));
+        }
+        if let StackLocalEvidence::TerminalEntry(binding) = root_stack_summary.body_evidence() {
             validate_installed_terminal_entry_stack(binding, installed_code, self.entry).map_err(
                 |_| {
                     ExternalRootDiagnostic(

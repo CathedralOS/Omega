@@ -227,34 +227,62 @@ fn stack_demand(
     root: ExternalRootId,
     provider: RootProviderId,
     relation: NestingRelationId,
-    stack: EntryStack,
+    boundary: &ValidatedBoundaryEntryPlan,
+    code: &InstalledCode,
+    entry: EntryStubId,
+    resolved_stack: EntryStack,
     local_wcsu_bytes: u64,
-) -> ComposedStackDemand {
+) -> BoundEpochStackComposition {
+    let active_domain = StackDomainRef::from(resolved_stack);
+    let realization = validate_entry_stack_realization(EntryStackRealization {
+        contexts: vec![ArrivalContextRealization {
+            context: ArrivalContextId::new(1).expect("arrival context"),
+            epochs: vec![EntryStackEpoch {
+                stage: EntryStackStage::Body,
+                active_domain,
+                occupancy_by_domain: Vec::new(),
+                nesting: boundary.plan().state.preemption,
+            }],
+        }],
+    })
+    .expect("test epoch realization");
     let summary = ProviderStackSummary::from_admitted_provider(
         root,
         provider,
-        stack,
+        boundary.plan().state.stack,
         local_wcsu_bytes,
         16,
         root_id(49, StackValidationReceiptId::from_normalized_identity),
     );
-    compose_artifact_stacks(
+    let bound = bind_opaque_adapter_stack_realization(
+        &summary,
+        boundary,
+        code,
+        entry,
+        resolved_stack,
+        realization,
+        root_id(48, StackValidationReceiptId::from_normalized_identity),
+    )
+    .expect("test epoch evidence binding");
+    compose_bound_entry_stack_epochs(
         &StackNestingRelation {
             identity: relation,
             edges: BTreeSet::new(),
         },
-        [&summary],
+        [&bound],
     )
-    .expect("stack composition")
-    .demand(root)
-    .expect("root stack demand")
-    .clone()
+    .expect("bound epoch stack composition")
 }
 
 fn candidate(entry: EntryStubId) -> ExternalRootCandidate {
+    candidate_for_code(entry, &installed_code(1, entry))
+}
+
+fn candidate_for_code(entry: EntryStubId, code: &InstalledCode) -> ExternalRootCandidate {
     let root = root_id(1, ExternalRootId::from_normalized_identity);
     let provider = root_id(2, RootProviderId::from_normalized_identity);
     let nesting_relation = root_id(6, NestingRelationId::from_normalized_identity);
+    let boundary = boundary();
     ExternalRootCandidate {
         identity: root,
         entry,
@@ -287,7 +315,10 @@ fn candidate(entry: EntryStubId) -> ExternalRootCandidate {
                 root,
                 provider,
                 nesting_relation,
-                EntryStack::ProviderSelected,
+                &boundary,
+                code,
+                entry,
+                EntryStack::Interrupted,
                 2048,
             ),
             validation_receipt: root_id(50, StackValidationReceiptId::from_normalized_identity),
@@ -721,7 +752,11 @@ fn interrupt_boundary() -> ValidatedBoundaryEntryPlan {
 }
 
 fn interrupt_candidate(entry: EntryStubId) -> ExternalRootCandidate {
-    let mut candidate = candidate(entry);
+    interrupt_candidate_for_code(entry, &installed_code(1, entry))
+}
+
+fn interrupt_candidate_for_code(entry: EntryStubId, code: &InstalledCode) -> ExternalRootCandidate {
+    let mut candidate = candidate_for_code(entry, code);
     candidate.requirement_identity = "TimerRoot::tick".into();
     candidate.entry_claims = vec![ExternalRootEntryClaim {
         parameter_index: 0,
@@ -735,10 +770,14 @@ fn interrupt_candidate(entry: EntryStubId) -> ExternalRootCandidate {
         domain: "InterruptMaskGuard::Active".into(),
         effective_carry: psi_language_semantics::CarryPolicy::STRICT,
     });
+    let boundary = interrupt_boundary();
     candidate.stack.realization = stack_demand(
         candidate.identity,
         candidate.provider,
         candidate.nesting_relation,
+        &boundary,
+        code,
+        entry,
         EntryStack::Dedicated { class: 1 },
         2048,
     );
@@ -1212,9 +1251,12 @@ fn interrupt_entry_receipt_cannot_substitute_colliding_installed_root() {
     let first_code = installed_code_with_fill(1, entry, 0x90);
     let second_code = installed_code_with_fill(1, entry, 0xcc);
     let boundary = interrupt_boundary();
-    let first_root = validate_external_root(interrupt_candidate(entry), &boundary)
-        .expect("first interrupt root");
-    let second_root = first_root.clone();
+    let first_root =
+        validate_external_root(interrupt_candidate_for_code(entry, &first_code), &boundary)
+            .expect("first interrupt root");
+    let second_root =
+        validate_external_root(interrupt_candidate_for_code(entry, &second_code), &boundary)
+            .expect("second interrupt root");
     let first_execution = provider_execution(&first_root);
     let second_execution = provider_execution(&second_root);
     let first_slot = slot();
@@ -1260,9 +1302,12 @@ fn interrupt_obligation_receipts_retain_exact_invocation_evidence() {
     let first_code = installed_code_with_fill(1, entry, 0x90);
     let second_code = installed_code_with_fill(1, entry, 0xcc);
     let boundary = interrupt_boundary();
-    let first_root = validate_external_root(interrupt_candidate(entry), &boundary)
-        .expect("first interrupt root");
-    let second_root = first_root.clone();
+    let first_root =
+        validate_external_root(interrupt_candidate_for_code(entry, &first_code), &boundary)
+            .expect("first interrupt root");
+    let second_root =
+        validate_external_root(interrupt_candidate_for_code(entry, &second_code), &boundary)
+            .expect("second interrupt root");
     let first_execution = provider_execution(&first_root);
     let second_execution = provider_execution(&second_root);
     let first_slot = slot();
@@ -1415,7 +1460,8 @@ fn opaque_provider_exit_admission_fails_closed_and_rejects_plan_drift() {
 fn provider_execution_prepares_only_its_selected_entry_writer_and_exact_placement() {
     let entry = entry_id(1001);
     let code = installed_code(1, entry);
-    let validated = validate_external_root(candidate(entry), &boundary()).expect("root plan");
+    let validated =
+        validate_external_root(candidate_for_code(entry, &code), &boundary()).expect("root plan");
     let mut execution = provider_execution(&validated);
     let writer = entry_writer(entry);
     let selected_plan = execution.provider_plan();
@@ -1489,7 +1535,8 @@ fn provider_execution_prepares_only_its_selected_entry_writer_and_exact_placemen
 fn prepared_writer_execution_replays_structure_before_destination_consumption() {
     let entry = entry_id(1001);
     let code = installed_code(1, entry);
-    let validated = validate_external_root(candidate(entry), &boundary()).expect("root plan");
+    let validated =
+        validate_external_root(candidate_for_code(entry, &code), &boundary()).expect("root plan");
     let execution = provider_execution(&validated);
     let writer = entry_writer(entry);
     let mut prepared = execution
@@ -1610,7 +1657,17 @@ fn installation_records_the_complete_external_root_and_pins_code_liveness() {
     );
     assert_eq!(record.effects.len(), 1);
     assert_eq!(record.trust_receipts.len(), 1);
-    assert_eq!(record.stack.realization.composed_wcsu_bytes(), 2048);
+    assert_eq!(
+        record
+            .stack
+            .realization
+            .demand(record.root)
+            .expect("installed root stack demand")
+            .domain(StackDomain::Interrupted)
+            .expect("resolved interrupted stack domain")
+            .bytes,
+        2048
+    );
     assert_eq!(record.logical_fuel.realization.units(), 7);
     assert_eq!(
         record.machine_state.realization.registers().as_slice(),
@@ -1828,7 +1885,8 @@ fn root_admission_cannot_substitute_colliding_installed_code() {
     assert_eq!(admitted_code.identity(), substituted_code.identity());
     assert_eq!(admitted_code.artifact(), substituted_code.artifact());
 
-    let validated = validate_external_root(candidate(entry), &boundary()).expect("root plan");
+    let validated = validate_external_root(candidate_for_code(entry, &admitted_code), &boundary())
+        .expect("root plan");
     let authority = slot();
     let execution = provider_execution(&validated);
     let admission = RootAdmission::from_admitted_provider(
@@ -1844,7 +1902,12 @@ fn root_admission_cannot_substitute_colliding_installed_code() {
     let error = InstalledRootLedger::default()
         .install(&substituted_code, validated, authority, admission)
         .expect_err("compact installed/artifact IDs cannot substitute exact code");
-    assert!(error.diagnostic().0.contains("exact root, code"));
+    assert!(
+        error
+            .diagnostic()
+            .0
+            .contains("entry stack realization is not bound to the exact installed code")
+    );
 }
 
 #[test]
@@ -1852,9 +1915,10 @@ fn root_removal_receipt_cannot_substitute_colliding_installed_code() {
     let entry = entry_id(1001);
     let first_code = installed_code_with_fill(1, entry, 0x90);
     let second_code = installed_code_with_fill(1, entry, 0xcc);
-    let first_root =
-        validate_external_root(candidate(entry), &boundary()).expect("first root plan");
-    let second_root = first_root.clone();
+    let first_root = validate_external_root(candidate_for_code(entry, &first_code), &boundary())
+        .expect("first root plan");
+    let second_root = validate_external_root(candidate_for_code(entry, &second_code), &boundary())
+        .expect("second root plan");
     let first_execution = provider_execution(&first_root);
     let second_execution = provider_execution(&second_root);
     let first_slot = slot();
@@ -2140,7 +2204,10 @@ fn independent_resource_columns_are_validated_before_ledger_entry() {
         root_id(99, ExternalRootId::from_normalized_identity),
         root_id(2, RootProviderId::from_normalized_identity),
         root_id(6, NestingRelationId::from_normalized_identity),
-        EntryStack::ProviderSelected,
+        &boundary(),
+        &installed_code(1, entry_id(1001)),
+        entry_id(1001),
+        EntryStack::Interrupted,
         2048,
     );
     let error = validate_external_root(wrong_root, &boundary()).expect_err("wrong stack root");

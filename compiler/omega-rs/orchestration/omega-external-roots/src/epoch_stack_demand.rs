@@ -64,6 +64,22 @@ impl OpaqueAdapterStackRealizationEvidence {
         self.provider
     }
 
+    pub const fn architecture(&self) -> omega_target::Architecture {
+        self.architecture
+    }
+
+    pub const fn installed_code(&self) -> InstalledCodeId {
+        self.installed_code
+    }
+
+    pub const fn artifact(&self) -> ArtifactId {
+        self.artifact
+    }
+
+    pub const fn entry(&self) -> EntryStubId {
+        self.entry
+    }
+
     pub const fn realization(&self) -> &ValidatedEntryStackRealization {
         &self.realization
     }
@@ -72,17 +88,33 @@ impl OpaqueAdapterStackRealizationEvidence {
         self.validation_receipt
     }
 
-    fn matches_installed_entry(
+    pub const fn boundary_contract_fingerprint(&self) -> u64 {
+        self.boundary_contract_fingerprint
+    }
+
+    pub const fn resolved_stack(&self) -> EntryStack {
+        self.resolved_stack
+    }
+
+    pub(super) fn matches_installed_code_entry(
         &self,
         installed_code: &InstalledCode,
         entry: EntryStubId,
-        boundary: &ValidatedBoundaryEntryPlan,
     ) -> bool {
         self.architecture == installed_code.architecture()
             && self.installed_code == installed_code.identity()
             && self.installed_code_context == installed_code.receipt_context()
             && self.artifact == installed_code.artifact()
             && self.entry == entry
+    }
+
+    fn matches_installed_entry(
+        &self,
+        installed_code: &InstalledCode,
+        entry: EntryStubId,
+        boundary: &ValidatedBoundaryEntryPlan,
+    ) -> bool {
+        self.matches_installed_code_entry(installed_code, entry)
             && self.boundary_contract_fingerprint == boundary.contract_fingerprint()
     }
 }
@@ -269,6 +301,12 @@ impl ComposedEpochStackDemand {
         self.by_domain.get(&domain).copied()
     }
 
+    pub fn domains(&self) -> impl Iterator<Item = (StackDomain, DomainStackDemand)> + '_ {
+        self.by_domain
+            .iter()
+            .map(|(domain, demand)| (*domain, *demand))
+    }
+
     pub const fn contributing_roots(&self) -> &BTreeSet<ExternalRootId> {
         &self.contributing_roots
     }
@@ -286,6 +324,10 @@ pub struct EpochStackComposition {
 }
 
 impl EpochStackComposition {
+    pub const fn relation(&self) -> &StackNestingRelation {
+        &self.relation
+    }
+
     pub fn demand(&self, root: ExternalRootId) -> Option<&ComposedEpochStackDemand> {
         self.demands.get(&root)
     }
@@ -315,6 +357,24 @@ impl BoundEpochStackComposition {
 
     pub fn input(&self, root: ExternalRootId) -> Option<&BoundEpochStackCompositionInput> {
         self.inputs.get(&root)
+    }
+
+    pub fn inputs(
+        &self,
+    ) -> impl Iterator<Item = (&ExternalRootId, &BoundEpochStackCompositionInput)> {
+        self.inputs.iter()
+    }
+
+    pub fn demand(&self, root: ExternalRootId) -> Option<&ComposedEpochStackDemand> {
+        self.composition.demand(root)
+    }
+
+    pub fn domain(&self, domain: StackDomain) -> Option<DomainStackDemand> {
+        self.composition.domain(domain)
+    }
+
+    pub const fn relation(&self) -> &StackNestingRelation {
+        self.composition.relation()
     }
 
     pub const fn fingerprint(&self) -> u64 {

@@ -1024,18 +1024,19 @@ The target-neutral realization carriers and pure epoch composer are live. They
 validate and fingerprint the finite context/epoch shape, resolve relative
 `Interrupted` per path, join body WCSU only at the body epoch, compose aligned
 concurrent demand, maximize sequential epochs and contexts, and close repeated
-nesting through the declared finite depth. The admitted installation path is
-still a scalar precursor, but opaque adapters now have the first
-evidence-bound path: orchestration binds the validated realization and body
-demand to the exact installed entry, installed-code context, artifact,
+nesting through the declared finite depth. Opaque adapters have an
+evidence-bound admission path: orchestration binds the validated realization
+and body demand to the exact installed entry, installed-code context, artifact,
 boundary-plan fingerprint, target architecture, resolved stack domain, public
-preemption ceiling, and provider receipt. Bound composition retains those exact
-inputs behind its compact fingerprint. Hardware arrival still needs derivation
-from sealed target facts, generated adapter epochs still need derivation from
-emitted bytes, and admitted context sets still need a completeness proof and
-ledger/report retention. Until those pieces land and the bound epoch path
-replaces the scalar local row, its result remains insufficient as a complete
-`StackPlan`.
+preemption ceiling, and provider receipt. The external-root resource column,
+provider execution, installation ledger, and canonical artifact report consume
+that bound epoch composition directly and retain its exact inputs behind the
+compact fingerprint; the earlier scalar admitted composer is no longer an
+admission path. The report includes per-domain demand and the complete
+normalized context/epoch rows without exposing code addresses. Hardware arrival
+still needs derivation from sealed target facts, generated adapter epochs still
+need derivation from emitted bytes, and admitted context sets still need a
+completeness proof before this is a complete `StackPlan` for every entry origin.
 
 A sealed provider-execution binding joins the normalized selected provider
 plan, exact entry/boundary/reach, and all three resource realizations into

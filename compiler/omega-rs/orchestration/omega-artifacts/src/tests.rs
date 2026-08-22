@@ -3,15 +3,21 @@
 use std::collections::BTreeSet;
 
 use omega_calling_conventions::{
-    CallSignature, CallingPolicy, EntryStack, MachineRegister, MachineState, MachineStateSet,
-    ProviderExitRealization, RegisterSet, StateFootprintEvidence, ValueShape,
-    evaluate_ordinary_boundary_entry_plan,
+    ArrivalContextId, ArrivalContextRealization, CallSignature, CallingPolicy, EntryStack,
+    EntryStackEpoch, EntryStackRealization, EntryStackStage, MachineRegister, MachineState,
+    MachineStateSet, Preemption, ProviderExitRealization, RegisterSet, StackDomainRef,
+    StateFootprintEvidence, ValueShape, evaluate_ordinary_boundary_entry_plan,
+    validate_entry_stack_realization,
 };
 use omega_executable_installation::{
-    Artifact, ArtifactContentId, ArtifactEntry, ArtifactId, ContainerLimits,
-    DecodedArtifactContainer, EntrySetId, InstallationDiagnostic, InstalledCodeId,
-    MachineContractSetId, MachineFootprintId, PlacementPlanId, RelocationSetId,
-    decode_executable_container, normalized_decoded_content_identity,
+    AdmissionReceiptId, Artifact, ArtifactAdmissionEvidence, ArtifactContentId, ArtifactEntry,
+    ArtifactId, CodePlacementAuthority, CodePlacementId, ContainerLimits, DecodedArtifactContainer,
+    EntrySetId, FinalValidationCertificate, FinalValidationId, InstallAuthority,
+    InstallationAudience, InstallationDiagnostic, InstallationReceipt, InstallationScopeId,
+    InstalledCode, InstalledCodeId, MachineContractSetId, MachineFootprintId,
+    MaterializationReceipt, PlacementPlanId, RelocationSetId, WxEnforcement, admit_executable,
+    decode_executable_container, install_validated, materialize_admitted_artifact,
+    materialize_and_freeze, normalized_decoded_content_identity, validate_final_placement,
 };
 use omega_external_roots::{
     AcknowledgementPolicyId, ComponentArtifactId, ComponentContractId, ComponentProviderId,
@@ -23,14 +29,21 @@ use omega_external_roots::{
     ProviderFuelValidationReceiptId, ProviderPlanId, ProviderStackSummary, RootAdmissionId,
     RootEffectId, RootProviderId, RootSlotId, RootSlotOwnerId, StackNestingRelation,
     StackResourceColumn, StackValidationReceiptId, StateValidationReceiptId, TrustReceiptId,
-    compose_artifact_stacks, compose_fixed_fuel,
+    bind_opaque_adapter_stack_realization, compose_bound_entry_stack_epochs, compose_fixed_fuel,
 };
 use omega_target::Architecture;
 use psi_checked_trees::CheckedTrees;
 use psi_checked_trees::machine::Machine;
 use psi_checked_trees::name::Identifier;
 use psi_checked_trees::state::State;
-use psi_layout_plans::{EntryStubId, PlacementConstraints, PlacementPhase};
+use psi_extents::{
+    AddressSpaceId, ExtentDiagnostic, ExtentLineageId, ExtentProvenanceId, ExtentRightId,
+    ExtentRights, ExtentRootGrant, MappingEraId,
+};
+use psi_layout_plans::{
+    ArtifactInstallationScopeId, EntryStubId, PlacementAddressRange, PlacementConstraints,
+    PlacementPhase, PlacementSite,
+};
 use psi_symbols::SymbolHandle;
 
 use super::external_root_report::external_root_records_manifest_json;
@@ -343,6 +356,124 @@ fn install_id<T>(identity: u64, constructor: fn(u64) -> Result<T, InstallationDi
     constructor(identity).expect("normalized installation identity")
 }
 
+fn extent_id<T>(identity: u64, constructor: fn(u64) -> Result<T, ExtentDiagnostic>) -> T {
+    constructor(identity).expect("normalized extent identity")
+}
+
+fn extent_provider_issuance(seed: u64) -> psi_extents::ExtentProviderIssuance {
+    let base = seed * 16;
+    psi_extents::ExtentProviderIssuance::from_normalized_identities([
+        base + 1,
+        base + 2,
+        base + 3,
+        base + 4,
+        base + 5,
+        base + 6,
+        base + 7,
+        base + 8,
+        base + 9,
+        base + 10,
+        base + 11,
+        base + 12,
+        base + 13,
+    ])
+    .expect("normalized provider issuance")
+}
+
+fn installed_code_fixture(entry: EntryStubId) -> InstalledCode {
+    let scope =
+        ArtifactInstallationScopeId::from_normalized_identity(61).expect("installation scope");
+    let constraints = PlacementConstraints::new(
+        Some(PlacementAddressRange::new(0x1000, 0x1_0000).expect("placement range")),
+        4096,
+        PlacementPhase::PostHandoff,
+        None,
+        Some(scope),
+    )
+    .expect("placement constraints");
+    let artifact = Artifact::from_canonical_decode(
+        install_id(3, ArtifactId::from_normalized_identity),
+        install_id(13, ArtifactContentId::from_normalized_identity),
+        Architecture::X86_64,
+        vec![0; 64],
+        install_id(30, MachineContractSetId::from_normalized_identity),
+        install_id(31, MachineFootprintId::from_normalized_identity),
+        install_id(32, PlacementPlanId::from_normalized_identity),
+        constraints.clone(),
+        install_id(33, EntrySetId::from_normalized_identity),
+        vec![ArtifactEntry::from_canonical_decode(entry, 16)],
+        install_id(34, RelocationSetId::from_normalized_identity),
+        Vec::new(),
+    )
+    .expect("artifact");
+    let admitted = admit_executable(
+        &artifact,
+        ArtifactAdmissionEvidence::from_validator(
+            install_id(40, AdmissionReceiptId::from_normalized_identity),
+            &artifact,
+            true,
+        ),
+    )
+    .expect("admitted artifact");
+    let rights = ExtentRights::from_normalized_identities([extent_id(
+        51,
+        ExtentRightId::from_normalized_identity,
+    )]);
+    let extent = ExtentRootGrant::from_admitted_provider(
+        extent_provider_issuance(100),
+        extent_id(100, ExtentLineageId::from_normalized_identity),
+        extent_id(50, AddressSpaceId::from_normalized_identity),
+        rights.clone(),
+        extent_id(52, ExtentProvenanceId::from_normalized_identity),
+        extent_id(53, MappingEraId::from_normalized_identity),
+    )
+    .mint(0x1000, 4096)
+    .expect("placement extent");
+    let placement = CodePlacementAuthority::from_admitted_provider(
+        install_id(100, CodePlacementId::from_normalized_identity),
+        install_id(61, InstallationScopeId::from_normalized_identity),
+        InstallationAudience::FutureFetcher,
+        &extent,
+        rights,
+        constraints,
+        PlacementSite {
+            base_address: 0x1000,
+            phase: PlacementPhase::PostHandoff,
+            machine_regime: None,
+            installation_scope: Some(scope),
+        },
+    )
+    .claim(extent)
+    .expect("placement");
+    let materialized = materialize_admitted_artifact(&admitted, &placement, |_| None)
+        .expect("artifact without relocations materializes");
+    let frozen = materialize_and_freeze(
+        &admitted,
+        placement,
+        materialized.clone(),
+        MaterializationReceipt::from_materialized(
+            &materialized,
+            install_id(71, MachineFootprintId::from_normalized_identity),
+            true,
+        ),
+    )
+    .expect("frozen placement");
+    let certificate = FinalValidationCertificate::from_validator(
+        install_id(180, FinalValidationId::from_normalized_identity),
+        &frozen,
+        true,
+    );
+    let validated = validate_final_placement(frozen, &certificate).expect("validated placement");
+    let install_authority = InstallAuthority::from_admitted_provider(&validated);
+    let receipt = InstallationReceipt::from_provider(
+        install_id(300, InstalledCodeId::from_normalized_identity),
+        &validated,
+        true,
+        WxEnforcement::HardwareEnforced,
+    );
+    install_validated(validated, install_authority, receipt).expect("installed code")
+}
+
 fn entry_id(identity: u64) -> EntryStubId {
     EntryStubId::from_normalized_identity(identity).expect("normalized entry identity")
 }
@@ -618,6 +749,8 @@ fn external_root_manifest_is_complete_normalized_and_address_free() {
         compose_fixed_fuel(work_root.identity, [&work_root, &leaf]).expect("fixed fuel");
     let root_identity = root_id(1, ExternalRootId::from_normalized_identity);
     let nesting_identity = root_id(11, NestingRelationId::from_normalized_identity);
+    let entry = entry_id(2);
+    let installed_code = installed_code_fixture(entry);
     let stack_summary = ProviderStackSummary::from_admitted_provider(
         root_identity,
         root_id(8, RootProviderId::from_normalized_identity),
@@ -626,23 +759,42 @@ fn external_root_manifest_is_complete_normalized_and_address_free() {
         16,
         root_id(29, StackValidationReceiptId::from_normalized_identity),
     );
-    let composed_stack = compose_artifact_stacks(
+    let stack_realization = validate_entry_stack_realization(EntryStackRealization {
+        contexts: vec![ArrivalContextRealization {
+            context: ArrivalContextId::new(1).expect("arrival context"),
+            epochs: vec![EntryStackEpoch {
+                stage: EntryStackStage::Body,
+                active_domain: StackDomainRef::Interrupted,
+                occupancy_by_domain: Vec::new(),
+                nesting: Preemption::NotApplicable,
+            }],
+        }],
+    })
+    .expect("entry stack realization");
+    let bound_stack = bind_opaque_adapter_stack_realization(
+        &stack_summary,
+        &boundary,
+        &installed_code,
+        entry,
+        EntryStack::Interrupted,
+        stack_realization,
+        root_id(30, StackValidationReceiptId::from_normalized_identity),
+    )
+    .expect("bound stack realization");
+    let composed_stack = compose_bound_entry_stack_epochs(
         &StackNestingRelation {
             identity: nesting_identity,
             edges: BTreeSet::new(),
         },
-        [&stack_summary],
+        [&bound_stack],
     )
-    .expect("stack composition")
-    .demand(root_identity)
-    .expect("root stack demand")
-    .clone();
+    .expect("stack composition");
     let record = InstalledRootRecord {
         root: root_identity,
         normalized_root_identity: 0x101,
-        entry: entry_id(2),
-        installed_code: install_id(3, InstalledCodeId::from_normalized_identity),
-        artifact: install_id(4, ArtifactId::from_normalized_identity),
+        entry,
+        installed_code: installed_code.identity(),
+        artifact: installed_code.artifact(),
         slot: root_id(5, RootSlotId::from_normalized_identity),
         owner: root_id(6, RootSlotOwnerId::from_normalized_identity),
         admission: root_id(7, RootAdmissionId::from_normalized_identity),
@@ -739,6 +891,19 @@ fn external_root_manifest_is_complete_normalized_and_address_free() {
     assert_eq!(
         parsed["roots"][0]["resources"]["stack"]["summary_evidence"][0]["origin"],
         "admitted_provider"
+    );
+    assert_eq!(
+        parsed["roots"][0]["resources"]["stack"]["composed_domains"][0]["domain"]["kind"],
+        "interrupted"
+    );
+    assert_eq!(
+        parsed["roots"][0]["resources"]["stack"]["summary_evidence"][0]["arrival_contexts"][0]["epochs"]
+            [0]["stage"],
+        "body"
+    );
+    assert_eq!(
+        parsed["roots"][0]["resources"]["stack"]["summary_evidence"][0]["adapter_installed_code"],
+        "0x000000000000012c"
     );
     assert_eq!(
         parsed["roots"][0]["resources"]["logical_fuel"]["composed_units"],
