@@ -1503,9 +1503,12 @@ fn runtime_fnv1a_hash_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_fnv1a_hash_exit");
     let scratch = std::env::temp_dir().join(format!("omega-fnv1a-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("FNV-1a hash canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("FNV-1a hash canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("FNV-1a hash canary should run");
     assert_eq!(
@@ -1526,9 +1529,12 @@ fn runtime_min_max_clamp_narrowing_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("min/max clamp narrowing canary should compile (narrowing proves the bound)");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("min/max clamp canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("min/max clamp narrowing canary should run");
     assert_eq!(
@@ -1553,9 +1559,12 @@ fn runtime_modulo_div_narrowing_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-modulo-div-narrowing-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("modulo/div narrowing canary should compile (narrowing proves the bound)");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("modulo/div narrowing canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("modulo/div narrowing canary should run");
     assert_eq!(
