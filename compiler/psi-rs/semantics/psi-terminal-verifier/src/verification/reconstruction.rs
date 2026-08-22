@@ -1707,4 +1707,43 @@ mod tests {
             ],
         ));
     }
+
+    #[test]
+    fn i1_exact_division_selects_two_citation_transport_for_both_endpoints() {
+        let i1 = IntegerType::new(IntegerSign::Signed, 1).expect("i1");
+        let goal = CanonicalScalarGoal::ExactDivisionDefined {
+            integer_type: i1,
+            left: value(1, i1),
+            right: value(2, i1),
+        };
+        let facts = [
+            Proposition::LessOrEqual(value(3, i1), value(4, i1)),
+            Proposition::LessOrEqual(
+                value(4, i1),
+                ScalarTerm::integer(i1, IntegerValue::Signed(-1)).expect("i1 -1"),
+            ),
+            Proposition::Equal(value(3, i1), value(2, i1)),
+            Proposition::LessOrEqual(
+                ScalarTerm::integer(i1, IntegerValue::Signed(0)).expect("i1 zero"),
+                value(6, i1),
+            ),
+            Proposition::LessOrEqual(value(6, i1), value(5, i1)),
+            Proposition::Equal(value(5, i1), value(1, i1)),
+        ];
+        assert!(exact_division_has_closed_prior_certificate(
+            &goal,
+            &facts[..3],
+            &facts[3..],
+        ));
+        assert!(!exact_division_has_closed_prior_certificate(
+            &goal,
+            &facts[..3],
+            &[facts[3].clone(), facts[5].clone()],
+        ));
+        assert!(!exact_division_has_closed_prior_certificate(
+            &goal,
+            &[facts[0].clone(), facts[2].clone()],
+            &facts[3..],
+        ));
+    }
 }
