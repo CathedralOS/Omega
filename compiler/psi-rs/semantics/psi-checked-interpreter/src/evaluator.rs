@@ -59,6 +59,7 @@ use crate::value::{Cell, Value};
 use psi_checked_trees::{CheckedOperatorFacts, CheckedTrees};
 use psi_numerics::arithmetic::ArithmeticDomain;
 use psi_numerics::bignum::BigInt;
+use psi_numerics::float_projection::FloatProjectionOperation;
 use psi_numerics::float_semantics::{
     FloatClass as SemanticFloatClass, FloatFormat as SemanticFloatFormat, FloatMeaning,
     FloatPolicyTrap, FloatSemantics, FloatToIntegerError, IntegerFormat as SemanticIntegerFormat,
@@ -82,6 +83,18 @@ use std::collections::{BTreeMap, HashSet};
 use std::rc::Rc;
 
 const STEP_BUDGET: u64 = 10_000_000;
+
+fn project_landed_float(format: SemanticFloatFormat, value: f64) -> FloatMeaning {
+    if format == SemanticFloatFormat::BINARY32 {
+        FloatProjectionOperation::Meaning32
+            .project_f32(value as f32)
+            .expect("binary32 projection row accepts f32")
+    } else {
+        FloatProjectionOperation::Meaning64
+            .project_f64(value)
+            .expect("binary64 projection row accepts f64")
+    }
+}
 /// Fuel cap for CONST EVALUATION (comptime stage 1). The language's
 /// termination discipline (no general recursion, loops carry decreases) is the
 /// real guarantee; this cap is defense-in-depth against checker gaps. Exceeding
