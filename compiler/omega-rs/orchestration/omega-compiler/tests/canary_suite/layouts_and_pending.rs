@@ -337,9 +337,12 @@ fn plan_laid_compact_bits_exit_canary_runs_and_cross_compiles() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-plan-laid-bits-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("compact-bit plan-laid canary should compile natively");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("compact-bit plan-laid canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("compact-bit plan-laid canary should run");
     assert_eq!(
@@ -379,9 +382,12 @@ fn plan_laid_integer_at_projection_exit_canary_runs_and_cross_compiles() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-plan-laid-integer-at-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("IntegerAt projection canary should compile natively");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("IntegerAt projection canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("IntegerAt projection canary should run");
     assert_eq!(
@@ -415,9 +421,12 @@ fn plan_laid_integer_at_total_write_exit_canary_runs_and_cross_compiles() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("total IntegerAt mutation canary should compile natively");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("total IntegerAt mutation canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("total IntegerAt mutation canary should run");
     assert_eq!(output.status.code(), Some(70));
@@ -455,9 +464,12 @@ fn plan_laid_integer_at_proved_write_exit_canary_runs_and_cross_compiles() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("proved-fit IntegerAt mutation canary should compile natively");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("proved-fit IntegerAt mutation canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("proved-fit IntegerAt mutation canary should run");
     assert_eq!(output.status.code(), Some(72));
