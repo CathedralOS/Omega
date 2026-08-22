@@ -921,6 +921,16 @@ Owners:
   same-geometry destination substitution after resolution. This establishes no
   provider-operation authority, consumer semantics, publication, or native
   execution.
+  External-root writer preparation now retains the exact borrowed installed-
+  code realization beside the selected schema, AOT lowering, activated
+  unpublished destination, and provider-populated context before symbolic-
+  source resolution. Binding independently replays the context against that
+  exact installation and destination; execution, outward validation, and
+  written recovery reuse the same retained installation rather than accepting
+  a substitutable resolver parameter. A colliding installed artifact rejects
+  during preparation while returning the selected schema, lowering, and
+  destination intact for corrected retry. This establishes no provider-
+  operation authority, consumer semantics, publication, or native execution.
 
 Acceptance: UART/MMIO, shared-page IPC, and ordinary RAM use one extent/layout
 foundation with different profiles. Misalignment, insufficient rights,
