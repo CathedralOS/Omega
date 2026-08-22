@@ -1679,10 +1679,13 @@ fn runtime_value_call_nested_entry_call_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-nested-entry-call-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("nested-entry-call canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("nested-entry-call canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("nested-entry-call canary should run");
 
@@ -1724,10 +1727,13 @@ fn runtime_value_call_shared_payload_name_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-shared-payload-name-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("shared-payload-name canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("shared-payload-name canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("shared-payload-name canary should run");
 
@@ -1768,10 +1774,13 @@ fn runtime_value_call_struct_payload_cast_field_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("value-call cast-field payload canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("value-call cast-field payload canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("value-call cast-field payload canary should run");
 
@@ -1796,10 +1805,13 @@ fn runtime_branch_leaf_multiple_named_conversion_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("branch-leaf multiple named-conversion canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("branch-leaf named-conversion canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("branch-leaf multiple named-conversion canary should run");
 
