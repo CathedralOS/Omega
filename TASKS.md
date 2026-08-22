@@ -3505,6 +3505,11 @@ Remaining:
   behind unchanged crate-root re-exports. The 2,416-line parent retains report
   carriers and non-native orchestration; public APIs, exact output, and the 79-
   function inventory are unchanged.
+  Exact Build-selected source/backend audit-surface construction now lives in a
+  focused 51-line `backend_surface` child, including machine containment and
+  explicit entry-point selection. The 2,371-line parent retains report carriers
+  and presentation; the crate-root API, selected-entry behavior, and the 79-
+  function inventory are unchanged.
   Development and test profiles now both omit full DWARF by default, with an
   explicit `CARGO_PROFILE_{DEV,TEST}_DEBUG=2` escape hatch for debugger
   sessions. On the same macOS host, rebuilding the development CLI after the
@@ -5316,6 +5321,14 @@ Owners:
   ambiguity, the 795 rooted/3 legacy inventory, and receipt-drift fences remain
   green; indexed-carrier, cyclic/loop-heavy, report-bearing, slow-float, crash-
   specific, timer, and explicit legacy owners remain untouched.
+  Four authored-root integer coercion regressions—struct-literal field width,
+  array-element width plus Saturating domain, transition-argument width
+  wrapping, and const-fold cast signedness—now launch `OutputOnly` native
+  execution solely through exact checked-report executable receipts while
+  preserving interpreter parity, literal exit 70, and the existing 71/72/73
+  diagnostics. Exact-owner ambiguity, the 795 rooted/3 legacy inventory, and
+  receipt-drift fences remain green; cyclic/loop-heavy, report-bearing, slow-
+  float, crash-specific, timer, and explicit legacy owners remain untouched.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
