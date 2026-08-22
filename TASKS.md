@@ -734,7 +734,12 @@ Owners:
   members must have identical cardinality, and the synthesized view must remain
   a record. Missing retained rows, extra synthesized members, or case-bearing
   drift reject fail closed before field lookup; no new placement or access
-  authority is established.
+  authority is established. Post-typing nominal replay now lives in a focused
+  305-line validation owner. Exact view/schema/policy-plan identities,
+  accessible-field cardinality, stable member/layout/access correspondence,
+  accessor type/data symbols, and unique operation targets retain fail-closed
+  diagnostic order; the statement-use coordinator is now 378 lines with the
+  exact 17-function inventory unchanged.
   Post-typing placed-view plan replay and installation now live in a focused
   208-line build-time owner. Policy data/machine, schema/view data, complete
   admitted field inventory, stable member identity, accessor type/data identity,
@@ -2378,7 +2383,10 @@ Remaining:
   modules. Production alone adapts the existing origin-indexed one- and two-
   alias substitution proofs into affine completion; reconstruction
   independently adapts its reconstructed root bounds and rechecks affine
-  custody. Direct, landed-literal, one-alias, direct-transitive, alias-
+  custody. The common handoff after the distinct bounded one-/two-alias
+  selectors now lives in paired, side-local
+  `affine_selection/alias/completion` modules; only production carries proof
+  nodes into its own affine custody. Direct, landed-literal, one-alias, direct-transitive, alias-
   transitive, then two-alias precedence is unchanged. Equality/citation order
   and distinctness, nested substitution shapes, missing, reused, cyclic, or
   mistyped rejection, and the explicit one-/two-alias frontier remain
