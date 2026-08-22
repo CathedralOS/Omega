@@ -299,11 +299,20 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
     let colliding_code = install_entry_artifact(
         EntryStubId::from_normalized_identity(13).expect("colliding artifact entry"),
     );
+    let bound_lowered = bound_writer.lowered().clone();
+    let bound_provider = bound_writer.prepared().provider_execution();
+    let bound_context_fingerprint = bound_writer.prepared().context().fingerprint();
     let error = bound_writer
         .execute(&colliding_code, destination)
         .expect_err("exact installed entry evidence outranks colliding report identities");
     assert!(error.diagnostic().0.contains("exact installed artifact"));
     let (bound_writer, destination) = (*error).into_parts();
+    assert_eq!(bound_writer.lowered(), &bound_lowered);
+    assert_eq!(bound_writer.prepared().provider_execution(), bound_provider);
+    assert_eq!(
+        bound_writer.prepared().context().fingerprint(),
+        bound_context_fingerprint
+    );
     assert_eq!(destination.site(), writer_site(0x8000));
     assert_eq!(destination.len(), 16);
     let written = bound_writer
