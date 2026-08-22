@@ -4323,6 +4323,12 @@ Owners:
   axioms, left-before-right orientation, per-alias landing order, same-row
   rejection, direct-before-alias precedence, proof shapes, and the fixed
   affine-literal frontier remain unchanged.
+  Five authored-root content/equality executions—owned-string byte views, tag-
+  aware sum equality, text inequality, Boolean-position text equality, and
+  terminal payload text equality—now launch solely through exact checked-report
+  executable receipts while preserving literal status 70, interpreter parity,
+  and all content, tag, and delivery diagnostics. Exact-owner pins and
+  established fences remain unchanged.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
