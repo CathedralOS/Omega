@@ -434,7 +434,14 @@ Remaining:
   structural result/return carrier with claim transfer, exit-time content
   replay, interpretation, and fuel. Omega preserves that carrier through the
   exact one-fragment native ABI path and all artifact/install layers, with claim
-  identity retained as zero-runtime metadata. The remaining work is real
+  identity retained as zero-runtime metadata. Bodyless boundary completion
+  sources now also retain one canonical combined whole-claim/content row: exact
+  claim, optional structural entry path, full entry-version content subject,
+  and owner-unique projection/algebra identity. Omega preserves and replays the
+  catalog beside exact provider execution through native evidence and canonical
+  installation format 30; missing, duplicate, malformed, or whole/content-
+  mismatched custody rejects. This is custody, not authorization. The remaining
+  work is real
   authorized introduction, custody exit, residual geometry, and provider binding—not
   another passthrough representation.
 - **INSTALLED-PROGRAM-LOCAL-ROOT-INTRODUCTION.** Implement the settled
