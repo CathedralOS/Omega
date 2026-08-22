@@ -1947,10 +1947,13 @@ fn runtime_nested_struct_construction_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("nested struct construction canary should compile from its authored root");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("nested struct construction canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("nested struct construction canary should run");
 
@@ -1976,9 +1979,12 @@ fn runtime_cross_machine_substate_name_exit_canary_runs() {
         "omega-cross-machine-substate-{}",
         std::process::id()
     ));
-    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("cross-machine substate-name canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("cross-machine substate-name canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("cross-machine substate-name canary should run");
     assert_eq!(
@@ -1998,9 +2004,12 @@ fn runtime_value_call_to_array_element_exit_canary_runs() {
     // write-side contrast to the value-call dispatch-position drop and the multi-call shared slot.
     let canary = pass_canary("calls/runtime_value_call_to_array_element_exit");
     let scratch = std::env::temp_dir().join(format!("omega-vc-array-{}", std::process::id()));
-    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("value-call to array element canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("value-call to array element canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("value-call to array element canary should run");
     assert_eq!(
@@ -2020,9 +2029,12 @@ fn runtime_computed_transition_args_exit_canary_runs() {
     // -> exit 70. The working contrast to the value-call-as-transition-arg silent drop.
     let canary = pass_canary("calls/runtime_computed_transition_args_exit");
     let scratch = std::env::temp_dir().join(format!("omega-computed-args-{}", std::process::id()));
-    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("computed transition args canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("computed transition args canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("computed transition args canary should run");
     assert_eq!(
@@ -2043,9 +2055,12 @@ fn runtime_struct_by_value_param_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_struct_by_value_param_exit");
     let scratch =
         std::env::temp_dir().join(format!("omega-struct-by-value-{}", std::process::id()));
-    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("struct by-value param canary should compile");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("struct by-value param canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("struct by-value param canary should run");
     assert_eq!(
