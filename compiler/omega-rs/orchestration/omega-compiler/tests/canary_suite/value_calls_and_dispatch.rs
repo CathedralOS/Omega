@@ -265,19 +265,13 @@ fn runtime_value_call_struct_result_to_target_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("value-call struct-result-to-target canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
-        .output()
-        .expect("value-call struct-result-to-target canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected value-call struct-result delivery (working cases + the local workaround) to self-check (exit 70), got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        70,
+        "value-call struct-result-to-target canary",
+        "value-call struct-result delivery and its local workaround should self-check",
     );
 
     let _ = fs::remove_dir_all(&build_dir);
@@ -296,19 +290,13 @@ fn runtime_value_call_self_field_enum_match_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("value-call self-field-enum-match canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
-        .output()
-        .expect("value-call self-field-enum-match canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected a value-call dispatching on a self enum field to self-check (exit 70), got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        70,
+        "value-call self-field enum-match canary",
+        "a value call dispatching on a self enum field should self-check",
     );
 
     let _ = fs::remove_dir_all(&build_dir);
@@ -328,19 +316,13 @@ fn runtime_value_call_struct_literal_arms_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("value-call struct-literal-arms canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
-        .output()
-        .expect("value-call struct-literal-arms canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected a value-call returning struct/case literals from its arms to self-check (exit 70), got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        70,
+        "value-call struct-literal-arms canary",
+        "a value call returning struct and case literals from its arms should self-check",
     );
 
     let _ = fs::remove_dir_all(&build_dir);
@@ -356,19 +338,13 @@ fn runtime_contained_machine_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-contained-machine-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("contained-machine canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
-        .output()
-        .expect("contained-machine canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected contained-machine method calls (increment/add_to/get) to self-check (exit 70), got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        70,
+        "contained-machine canary",
+        "contained-machine increment, add_to, and get calls should self-check",
     );
 
     let _ = fs::remove_dir_all(&build_dir);
@@ -383,23 +359,13 @@ fn runtime_call_result_after_splice_mutation_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("call-result-after-splice-mutation canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
-        .output()
-        .expect("call-result-after-splice-mutation canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected `let seed = self.next_seed(&mut rng)` followed by a consumer \
-         `let` to deliver the POST-mutation value (exit 70 = interpreter \
-         semantics; exit 71 = the consumer made the storage plan elide seed's \
-         LocalStorage slot, the deferral had no landing op, and the call-result \
-         copy emitted before the splice's mutation writes), got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        70,
+        "call-result-after-splice-mutation canary",
+        "a consumer of the call result should receive the post-mutation value",
     );
 
     let _ = fs::remove_dir_all(&build_dir);

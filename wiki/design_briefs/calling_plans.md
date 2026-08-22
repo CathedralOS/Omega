@@ -1104,3 +1104,8 @@ The next five authored-root dispatch executions, through the mixed return-type
 value-call probe, also consume only the checked flat receipt. Literal exit
 status and exact source ownership stay unchanged, while boundary-contract drift
 between flat and bundle receipts is pinned to suppress native execution.
+
+The following five value-call consumers, ending at the post-splice mutation
+result probe, now share that receipt-only launch boundary as well. Their exact
+status/owner rows remain stable, and flat/bundle executable-inventory drift is
+pinned to expose no native path.
