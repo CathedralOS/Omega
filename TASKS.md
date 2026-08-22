@@ -957,6 +957,15 @@ Owners:
   unpublished carrier exposes bytes, parts, and recovery. This establishes no
   provider-operation authority, consumer semantics, publication, device event,
   or native execution.
+  The external-root written destination now requires its own consuming outward
+  replay before bytes or decomposed installation-written state are observable.
+  Its sealed non-clonable validated carrier retains exact provider/root,
+  invocation, installed realization, mapping, context, and destination
+  evidence; rejection returns the complete raw carrier unchanged. Compiler-
+  bound validation retains this lower validated carrier instead of downgrading
+  it after replay, so observation and recovery remain gated through both
+  custody layers. Bytes remain unpublished and this establishes no provider-
+  operation authority, consumer semantics, device event, or native execution.
 
 Acceptance: UART/MMIO, shared-page IPC, and ordinary RAM use one extent/layout
 foundation with different profiles. Misalignment, insufficient rights,
