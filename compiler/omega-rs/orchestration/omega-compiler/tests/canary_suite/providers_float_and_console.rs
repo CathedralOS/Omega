@@ -891,10 +891,13 @@ fn suffix_boundary_magnitudes_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-suffix-boundary-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("suffix boundary canary should compile");
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("suffix boundary canary should retain its executable receipt");
 
-    let output = Command::new(scratch.join(executable_name()))
+    let output = Command::new(executable)
         .output()
         .expect("suffix boundary canary should run");
 
@@ -1252,10 +1255,13 @@ fn suffix_landed_operand_position_canary_runs() {
 
     let scratch = std::env::temp_dir().join(format!("omega-suffix-landed-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("suffix-landed canary should compile");
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("suffix-landed canary should retain its executable receipt");
 
-    let output = Command::new(scratch.join(executable_name()))
+    let output = Command::new(executable)
         .output()
         .expect("suffix-landed canary should run");
 
