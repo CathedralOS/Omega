@@ -2878,11 +2878,14 @@ fn runtime_mutable_struct_string_field_copy_concat_write_line_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
         "runtime mutable struct carrier field copy concat write_line canary should compile from its authored root",
     );
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation.checked_native_executable_path().expect(
+        "runtime mutable struct carrier field copy concat write_line canary should retain its executable receipt",
+    );
+    let output = Command::new(executable)
         .output()
         .expect("runtime mutable struct carrier field copy concat write_line canary should run");
 
@@ -2908,11 +2911,14 @@ fn runtime_machine_owned_indexed_integer_write_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
         "runtime machine-owned indexed integer write canary should compile from its authored root",
     );
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation.checked_native_executable_path().expect(
+        "runtime machine-owned indexed integer write canary should retain its executable receipt",
+    );
+    let output = Command::new(executable)
         .output()
         .expect("runtime machine-owned indexed integer write canary should run");
 
@@ -2936,11 +2942,14 @@ fn runtime_machine_owned_fixed_indexed_struct_copy_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
         "runtime machine-owned fixed indexed struct copy canary should compile from its authored root",
     );
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation.checked_native_executable_path().expect(
+        "runtime machine-owned fixed indexed struct copy canary should retain its executable receipt",
+    );
+    let output = Command::new(executable)
         .output()
         .expect("runtime machine-owned fixed indexed struct copy canary should run");
 
@@ -2964,11 +2973,14 @@ fn runtime_machine_owned_indexed_struct_copy_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
         "runtime machine-owned indexed struct copy canary should compile from its authored root",
     );
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation.checked_native_executable_path().expect(
+        "runtime machine-owned indexed struct copy canary should retain its executable receipt",
+    );
+    let output = Command::new(executable)
         .output()
         .expect("runtime machine-owned indexed struct copy canary should run");
 
@@ -2992,11 +3004,14 @@ fn runtime_machine_owned_indexed_nested_exit_write_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
         "runtime machine-owned indexed nested exit write canary should compile from its authored root",
     );
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation.checked_native_executable_path().expect(
+        "runtime machine-owned indexed nested exit write canary should retain its executable receipt",
+    );
+    let output = Command::new(executable)
         .output()
         .expect("runtime machine-owned indexed nested exit write canary should run");
 
