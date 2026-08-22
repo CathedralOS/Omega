@@ -52,6 +52,9 @@ pub struct CompilerFunctionValidationEvidence {
     pub body_specification_boundary_contract_fingerprint: u64,
     pub body_specification_footprint_fingerprint: u64,
     pub composed_footprint_fingerprint: u64,
+    /// Exact join from every compiler-private function identity through its
+    /// object symbol to one placed final executable-region row.
+    pub final_region_binding_fingerprint: u64,
     pub validation_fingerprint: u64,
 }
 
@@ -75,6 +78,7 @@ impl CompilerFunctionValidationEvidence {
                 .to_le_bytes(),
             self.body_specification_footprint_fingerprint.to_le_bytes(),
             self.composed_footprint_fingerprint.to_le_bytes(),
+            self.final_region_binding_fingerprint.to_le_bytes(),
         ] {
             for byte in bytes {
                 hash ^= u64::from(byte);

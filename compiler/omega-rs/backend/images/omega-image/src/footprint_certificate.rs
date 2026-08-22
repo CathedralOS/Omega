@@ -440,6 +440,7 @@ mod tests {
                 body_specification_boundary_contract_fingerprint: 1,
                 body_specification_footprint_fingerprint: 16,
                 composed_footprint_fingerprint: 18,
+                final_region_binding_fingerprint: 19,
                 validation_fingerprint: 11,
             },
             PlacedExecutableRegionInventory {
@@ -491,6 +492,13 @@ mod tests {
             {
                 let mut value = certificate.clone();
                 value.compiler_function_validation.instruction_count = 99;
+                value
+            },
+            {
+                let mut value = certificate.clone();
+                value
+                    .compiler_function_validation
+                    .final_region_binding_fingerprint = 99;
                 value
             },
             {
@@ -574,6 +582,7 @@ mod tests {
                     body_specification_boundary_contract_fingerprint: 0,
                     body_specification_footprint_fingerprint: 0,
                     composed_footprint_fingerprint: 0,
+                    final_region_binding_fingerprint: 0,
                     validation_fingerprint: 0,
                 },
                 inventory,

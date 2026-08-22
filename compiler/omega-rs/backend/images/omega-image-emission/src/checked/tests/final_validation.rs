@@ -335,8 +335,21 @@ fn final_executable_regions_retain_exact_compiler_function_identity_and_bytes() 
         unclassified_gaps: Vec::new(),
     };
 
-    validate_executable_region_enumeration(&inventory, &plan.code, &object, &final_bytes)
-        .expect("exact compiler-function region should rejoin");
+    let exact_binding =
+        validate_executable_region_enumeration(&inventory, &plan.code, &object, &final_bytes)
+            .expect("exact compiler-function region should rejoin");
+    assert_ne!(exact_binding, 0);
+
+    let mut changed_inventory_identity = inventory.clone();
+    changed_inventory_identity.inventory_fingerprint ^= 1;
+    let changed_binding = validate_executable_region_enumeration(
+        &changed_inventory_identity,
+        &plan.code,
+        &object,
+        &final_bytes,
+    )
+    .expect("the row join should retain the supplied inventory identity");
+    assert_ne!(changed_binding, exact_binding);
 
     for mutate in [
         |region: &mut PlacedExecutableRegion| region.symbol.push_str("_drift"),

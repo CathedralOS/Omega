@@ -660,7 +660,14 @@ partition, origin/footprint-bearing rows, and aggregate inventory fingerprint
 must agree. Thus a forged summary, reordered or overlapping span, altered
 origin, or missing/changed gap rejects rather than becoming final placement
 authority. This replay retains identity only; it neither synthesizes callback
-bytes nor chooses registration-relocation placement.
+bytes nor chooses registration-relocation placement. The checked compiler-
+function evidence then retains the exact ordered join from each private
+function identity through its object-symbol handle to that final region,
+including the inventory identity and the region's symbol, index, address,
+interval, and byte fingerprint. That binding fingerprint is part of both the
+function evidence and final text derivation, so later certificates cannot mix
+a validated function partition with a different, individually valid placed
+inventory.
 Final relocation replay also builds one exact owner map from every retained
 selected-instruction identity to that function symbol. A selected instruction
 retained twice, an instruction relocation naming another function, or an
