@@ -122,53 +122,90 @@ fn push_external_root_json(output: &mut String, record: &InstalledRootRecord) {
     output.push_str(&record.stack.ceiling_bytes.to_string());
     output.push_str(", \"domain\": ");
     calling_plan_json::push_entry_stack_json(output, record.boundary.state.stack);
+    let root_input = record
+        .stack
+        .realization
+        .input(record.root)
+        .expect("installed stack composition retains its root input");
+    let root_demand = record
+        .stack
+        .realization
+        .demand(record.root)
+        .expect("installed stack composition retains its root demand");
     output.push_str(", \"local_wcsu_bytes\": ");
-    output.push_str(&record.stack.realization.local_wcsu_bytes().to_string());
+    output.push_str(&root_input.pure().body_wcsu_bytes.to_string());
     output.push_str(", \"composed_wcsu_bytes\": ");
-    output.push_str(&record.stack.realization.composed_wcsu_bytes().to_string());
-    output.push_str(", \"alignment\": ");
-    output.push_str(&record.stack.realization.wcsu_alignment().to_string());
-    output.push_str(", \"composition_fingerprint\": ");
-    push_hex_identity(output, record.stack.realization.composition_fingerprint());
-    output.push_str(", \"artifact_composition_fingerprint\": ");
-    push_hex_identity(
-        output,
-        record.stack.realization.artifact_composition_fingerprint(),
+    output.push_str(
+        &root_demand
+            .domains()
+            .map(|(_, demand)| demand.bytes)
+            .max()
+            .unwrap_or_default()
+            .to_string(),
     );
+    output.push_str(", \"alignment\": ");
+    output.push_str(
+        &root_demand
+            .domains()
+            .map(|(_, demand)| demand.alignment)
+            .max()
+            .unwrap_or_default()
+            .to_string(),
+    );
+    output.push_str(", \"composed_domains\": [");
+    for (index, (domain, demand)) in root_demand.domains().enumerate() {
+        if index != 0 {
+            output.push_str(", ");
+        }
+        output.push_str("{\"domain\": ");
+        push_stack_domain_json(output, domain);
+        output.push_str(", \"bytes\": ");
+        output.push_str(&demand.bytes.to_string());
+        output.push_str(", \"alignment\": ");
+        output.push_str(&demand.alignment.to_string());
+        output.push('}');
+    }
+    output.push(']');
+    output.push_str(", \"composition_fingerprint\": ");
+    push_hex_identity(output, record.stack.realization.fingerprint());
+    output.push_str(", \"artifact_composition_fingerprint\": ");
+    push_hex_identity(output, record.stack.realization.composition().fingerprint());
     output.push_str(", \"contributing_roots\": [");
     push_identity_set(
         output,
-        record
-            .stack
-            .realization
+        root_demand
             .contributing_roots()
             .iter()
             .map(|identity| identity.normalized_identity()),
     );
     output.push_str("], \"provider_validation_receipts\": [");
+    let mut stack_receipts = std::collections::BTreeSet::new();
+    for (_, input) in record.stack.realization.inputs() {
+        if let Some(receipt) = input.body_evidence().provider_validation_receipt() {
+            stack_receipts.insert(receipt);
+        }
+        stack_receipts.insert(input.realization_evidence().validation_receipt());
+    }
     push_identity_set(
         output,
-        record
-            .stack
-            .realization
-            .validation_receipts()
+        stack_receipts
             .iter()
             .map(|identity| identity.normalized_identity()),
     );
     output.push_str("], \"summary_evidence\": [");
-    for (index, (root, summary)) in record.stack.realization.summary_evidence().enumerate() {
+    for (index, (root, input)) in record.stack.realization.inputs().enumerate() {
         if index != 0 {
             output.push_str(", ");
         }
         output.push_str("{\"root\": ");
         push_hex_identity(output, root.normalized_identity());
         output.push_str(", \"provider\": ");
-        push_hex_identity(output, summary.provider.normalized_identity());
+        push_hex_identity(output, input.provider().normalized_identity());
         output.push_str(", \"local_wcsu_bytes\": ");
-        output.push_str(&summary.local_wcsu_bytes().to_string());
+        output.push_str(&input.pure().body_wcsu_bytes.to_string());
         output.push_str(", \"alignment\": ");
-        output.push_str(&summary.wcsu_alignment().to_string());
-        match &summary.local_evidence {
+        output.push_str(&input.pure().body_wcsu_alignment.to_string());
+        match input.body_evidence() {
             omega_external_roots::StackLocalEvidence::TerminalEntry(binding) => {
                 output
                     .push_str(", \"origin\": \"terminal_entry\", \"terminal_vocabulary_marker\": ");
@@ -203,6 +240,28 @@ fn push_external_root_json(output: &mut String, record: &InstalledRootRecord) {
                 push_hex_identity(output, validation_receipt.normalized_identity());
             }
         }
+        let adapter = input.realization_evidence();
+        output.push_str(", \"adapter_target\": \"");
+        output.push_str(match adapter.architecture() {
+            omega_target::Architecture::X86_64 => "x86_64",
+            omega_target::Architecture::Aarch64 => "aarch64",
+        });
+        output.push_str("\", \"adapter_installed_code\": ");
+        push_hex_identity(output, adapter.installed_code().normalized_identity());
+        output.push_str(", \"adapter_artifact\": ");
+        push_hex_identity(output, adapter.artifact().normalized_identity());
+        output.push_str(", \"adapter_entry\": ");
+        push_hex_identity(output, adapter.entry().normalized_identity());
+        output.push_str(", \"adapter_boundary_contract\": ");
+        push_hex_identity(output, adapter.boundary_contract_fingerprint());
+        output.push_str(", \"adapter_resolved_stack\": ");
+        calling_plan_json::push_entry_stack_json(output, adapter.resolved_stack());
+        output.push_str(", \"adapter_realization_fingerprint\": ");
+        push_hex_identity(output, adapter.realization().fingerprint());
+        output.push_str(", \"adapter_validation_receipt\": ");
+        push_hex_identity(output, adapter.validation_receipt().normalized_identity());
+        output.push_str(", \"arrival_contexts\": ");
+        push_entry_stack_realization_json(output, adapter.realization());
         output.push('}');
     }
     output.push(']');
@@ -374,6 +433,104 @@ fn push_external_root_json(output: &mut String, record: &InstalledRootRecord) {
         output.push('}');
     }
     output.push_str("]}");
+}
+
+fn push_entry_stack_realization_json(
+    output: &mut String,
+    realization: &omega_calling_conventions::ValidatedEntryStackRealization,
+) {
+    output.push('[');
+    for (context_index, context) in realization.realization().contexts.iter().enumerate() {
+        if context_index != 0 {
+            output.push_str(", ");
+        }
+        output.push_str("{\"context\": ");
+        push_hex_identity(output, context.context.get());
+        output.push_str(", \"epochs\": [");
+        for (epoch_index, epoch) in context.epochs.iter().enumerate() {
+            if epoch_index != 0 {
+                output.push_str(", ");
+            }
+            output.push_str("{\"stage\": \"");
+            output.push_str(match epoch.stage {
+                omega_calling_conventions::EntryStackStage::Enter => "enter",
+                omega_calling_conventions::EntryStackStage::Body => "body",
+                omega_calling_conventions::EntryStackStage::Exit => "exit",
+            });
+            output.push_str("\", \"active_domain\": ");
+            push_stack_domain_ref_json(output, epoch.active_domain);
+            output.push_str(", \"occupancy\": [");
+            for (occupancy_index, occupancy) in epoch.occupancy_by_domain.iter().enumerate() {
+                if occupancy_index != 0 {
+                    output.push_str(", ");
+                }
+                output.push_str("{\"domain\": ");
+                push_stack_domain_ref_json(output, occupancy.domain);
+                output.push_str(", \"bytes\": ");
+                output.push_str(&occupancy.bytes.to_string());
+                output.push_str(", \"alignment\": ");
+                output.push_str(&occupancy.alignment.to_string());
+                output.push('}');
+            }
+            output.push_str("], \"nesting\": ");
+            push_preemption_json(output, epoch.nesting);
+            output.push('}');
+        }
+        output.push_str("]}");
+    }
+    output.push(']');
+}
+
+fn push_stack_domain_ref_json(
+    output: &mut String,
+    domain: omega_calling_conventions::StackDomainRef,
+) {
+    match domain {
+        omega_calling_conventions::StackDomainRef::Interrupted => {
+            output.push_str("{\"kind\": \"interrupted\"}")
+        }
+        omega_calling_conventions::StackDomainRef::Dedicated { class } => {
+            output.push_str("{\"kind\": \"dedicated\", \"class\": ");
+            output.push_str(&class.to_string());
+            output.push('}');
+        }
+        omega_calling_conventions::StackDomainRef::ProviderSelected => {
+            output.push_str("{\"kind\": \"provider_selected\"}")
+        }
+    }
+}
+
+fn push_stack_domain_json(output: &mut String, domain: omega_external_roots::StackDomain) {
+    match domain {
+        omega_external_roots::StackDomain::Interrupted => {
+            output.push_str("{\"kind\": \"interrupted\"}")
+        }
+        omega_external_roots::StackDomain::Dedicated { class } => {
+            output.push_str("{\"kind\": \"dedicated\", \"class\": ");
+            output.push_str(&class.to_string());
+            output.push('}');
+        }
+        omega_external_roots::StackDomain::ProviderSelected => {
+            output.push_str("{\"kind\": \"provider_selected\"}")
+        }
+    }
+}
+
+fn push_preemption_json(output: &mut String, preemption: omega_calling_conventions::Preemption) {
+    match preemption {
+        omega_calling_conventions::Preemption::NotApplicable => {
+            output.push_str("{\"kind\": \"not_applicable\"}")
+        }
+        omega_calling_conventions::Preemption::Masked => output.push_str("{\"kind\": \"masked\"}"),
+        omega_calling_conventions::Preemption::Nestable { maximum_depth } => {
+            output.push_str("{\"kind\": \"nestable\", \"maximum_depth\": ");
+            output.push_str(&maximum_depth.to_string());
+            output.push('}');
+        }
+        omega_calling_conventions::Preemption::ProviderDefined => {
+            output.push_str("{\"kind\": \"provider_defined\"}")
+        }
+    }
 }
 
 fn push_identity_set(output: &mut String, identities: impl IntoIterator<Item = u64>) {

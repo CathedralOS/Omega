@@ -1218,17 +1218,7 @@ impl InstalledRootLedger {
         }
         if let Some(existing) = self.roots.values().next()
             && (existing.nesting_relation != root.candidate.nesting_relation
-                || existing.stack.realization.composition_evidence
-                    != root.candidate.stack.realization.composition_evidence
-                || existing
-                    .stack
-                    .realization
-                    .artifact_composition_fingerprint()
-                    != root
-                        .candidate
-                        .stack
-                        .realization
-                        .artifact_composition_fingerprint())
+                || existing.stack.realization != root.candidate.stack.realization)
         {
             return reject(
                 ExternalRootDiagnostic(

@@ -15,8 +15,8 @@ use omega_terminal_installation_evidence::{TerminalObjectEvidence, TerminalStack
 use psi_layout_plans::EntryStubId;
 
 use super::{
-    ExternalRootDiagnostic, ExternalRootId, Fnv1a, NestingRelationId, RootProviderId,
-    StackValidationReceiptId, bind_terminal_function,
+    BoundEpochStackComposition, ExternalRootDiagnostic, ExternalRootId, Fnv1a, NestingRelationId,
+    RootProviderId, StackValidationReceiptId, bind_terminal_function,
 };
 
 /// A terminal-Psi stack closure bound to the exact installed bytes and entry
@@ -384,7 +384,7 @@ impl ArtifactStackComposition {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StackResourceColumn {
     pub ceiling_bytes: u64,
-    pub realization: ComposedStackDemand,
+    pub realization: BoundEpochStackComposition,
     pub validation_receipt: StackValidationReceiptId,
 }
 

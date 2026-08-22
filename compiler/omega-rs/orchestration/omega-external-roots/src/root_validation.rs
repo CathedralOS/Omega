@@ -8,7 +8,6 @@ use omega_effects::{InstallationReachResolution, SelectedProviderPlanFacts};
 use psi_layout_plans::EntryStubId;
 use psi_terminal::{ServiceDeclaration, TerminalModule, TerminalRootServiceReach};
 
-use super::stack_demand::fingerprint_entry_stack;
 use super::{
     AcknowledgementPolicyId, ComponentArtifactId, ComponentContractId, ComponentProviderId,
     ComponentVersionPinId, ExternalRootDiagnostic, ExternalRootId, Fnv1a,
@@ -342,27 +341,39 @@ pub fn validate_external_root(
             "external-root stack ceiling must be nonzero".into(),
         ));
     }
-    if candidate.stack.realization.root() != candidate.identity {
+    let Some(stack_input) = candidate.stack.realization.input(candidate.identity) else {
         return Err(ExternalRootDiagnostic(
             "external-root stack realization does not name the candidate root".into(),
         ));
-    }
-    if candidate.stack.realization.root_provider() != candidate.provider {
+    };
+    if stack_input.provider() != candidate.provider {
         return Err(ExternalRootDiagnostic(
             "external-root stack realization provider does not match the selected provider".into(),
         ));
     }
-    if candidate.stack.realization.relation() != candidate.nesting_relation {
+    if candidate.stack.realization.relation().identity != candidate.nesting_relation {
         return Err(ExternalRootDiagnostic(
             "external-root stack realization does not use the selected nesting relation".into(),
         ));
     }
-    if candidate.stack.realization.stack() != boundary.plan().state.stack {
+    if stack_input
+        .realization_evidence()
+        .boundary_contract_fingerprint()
+        != boundary.contract_fingerprint()
+    {
         return Err(ExternalRootDiagnostic(
-            "external-root stack realization does not match the boundary StatePlan stack".into(),
+            "external-root stack realization does not match the validated boundary contract".into(),
         ));
     }
-    if candidate.stack.realization.composed_wcsu_bytes() > candidate.stack.ceiling_bytes {
+    let stack_demand = candidate
+        .stack
+        .realization
+        .demand(candidate.identity)
+        .expect("bound stack input has a composed demand");
+    if stack_demand
+        .domains()
+        .any(|(_, demand)| demand.bytes > candidate.stack.ceiling_bytes)
+    {
         return Err(ExternalRootDiagnostic(
             "external-root composed WCSU exceeds the admitted stack ceiling".into(),
         ));
@@ -476,26 +487,7 @@ fn fingerprint_root(candidate: &ExternalRootCandidate, boundary: u64) -> u64 {
             .unwrap_or_default(),
     );
     hash.u64(candidate.stack.ceiling_bytes);
-    hash.u64(candidate.stack.realization.root().normalized_identity());
-    hash.u64(
-        candidate
-            .stack
-            .realization
-            .root_provider()
-            .normalized_identity(),
-    );
-    hash.u64(candidate.stack.realization.relation().normalized_identity());
-    fingerprint_entry_stack(&mut hash, candidate.stack.realization.stack());
-    hash.u64(candidate.stack.realization.local_wcsu_bytes());
-    hash.u64(candidate.stack.realization.composed_wcsu_bytes());
-    hash.u64(candidate.stack.realization.wcsu_alignment());
-    hash.u64(
-        candidate
-            .stack
-            .realization
-            .artifact_composition_fingerprint(),
-    );
-    hash.u64(candidate.stack.realization.composition_fingerprint());
+    hash.u64(candidate.stack.realization.fingerprint());
     hash.u64(candidate.stack.validation_receipt.normalized_identity());
     hash.u64(u64::from(candidate.logical_fuel.schedule.marker()));
     hash.u64(candidate.logical_fuel.provision.normalized_identity());

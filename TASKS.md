@@ -6683,14 +6683,16 @@ reach or trust, and private proof improvements do not change public identity.
   public preemption ceiling. Bound composition retains those exact inputs
   behind the compact arithmetic fingerprint and rejects duplicate roots,
   unresolved provider-selected stacks, body-domain drift, entry drift, and
-  nesting-ceiling widening.
+  nesting-ceiling widening. The external-root resource column, provider
+  execution, installation ledger, and canonical artifact report now consume
+  that bound epoch composition directly; the scalar admitted stack composer is
+  no longer an admission path. Per-domain demand and the complete normalized
+  arrival contexts/epochs remain reportable alongside compact fingerprints.
 
-  Remaining: replace the scalar admitted composer with the bound epoch path.
-  Derive hardware arrival from sealed target rules plus exact installation
-  facts and generated adapter epochs from emitted bytes. Prove each admitted
-  arrival-context set complete, retain bound realization evidence through the
-  ledger/artifact report, and reject downstream evidence drift and overflow.
-  Add no architecture-specific frame vocabulary to source.
+  Remaining: derive hardware arrival from sealed target rules plus exact
+  installation facts and generated adapter epochs from emitted bytes. Prove
+  each admitted arrival-context set complete. Add no architecture-specific
+  frame vocabulary to source.
 - **TR3-TR8:** finish whole-call-graph WCSU derivation, bind exact `StackPlan`
   evidence, reserve fixed nonmoving `StackLease`s, validate preservation and
   cancellation conformances, transfer arguments transactionally, lower

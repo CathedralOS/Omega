@@ -23,4 +23,5 @@ omega-target = { path = "../../foundation/omega-target" }
 
 [dev-dependencies]
 psi-layout-plans = { path = "../../../psi-rs/foundation/psi-layout-plans" }
+psi-extents = { path = "../../../psi-rs/foundation/psi-extents" }
 serde_json = "1.0"
