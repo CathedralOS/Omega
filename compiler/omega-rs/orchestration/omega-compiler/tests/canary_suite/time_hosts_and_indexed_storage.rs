@@ -1264,10 +1264,13 @@ fn runtime_inplace_reverse_local_temp_exit_canary_runs() {
     let build_dir = std::env::temp_dir().join(format!("omega-reverse-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("in-place reverse canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("in-place reverse canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("in-place reverse canary should run");
 
@@ -1292,10 +1295,13 @@ fn runtime_indexed_local_copy_chain_exit_canary_runs() {
     let build_dir = std::env::temp_dir().join(format!("omega-copychain-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("copy-chain canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("copy-chain canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("copy-chain canary should run");
 
@@ -1320,10 +1326,13 @@ fn runtime_indexed_write_frame_local_source_exit_canary_runs() {
     let build_dir = std::env::temp_dir().join(format!("omega-frame-src-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("frame-local-source indexed write canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("frame-local-source canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("frame-local-source indexed write canary should run");
 
@@ -1348,10 +1357,13 @@ fn runtime_captured_local_swap_exit_canary_runs() {
     let build_dir = std::env::temp_dir().join(format!("omega-gcd-swap-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("captured-local swap canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("captured-local swap canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("captured-local swap canary should run");
 
@@ -1379,10 +1391,13 @@ fn runtime_dual_indexed_copy_in_loop_exit_canary_runs() {
     let build_dir = std::env::temp_dir().join(format!("omega-dual-loop-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("in-loop dual-indexed copy canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("in-loop dual-indexed copy canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("in-loop dual-indexed copy canary should run");
 
