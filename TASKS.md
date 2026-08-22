@@ -3282,6 +3282,17 @@ Remaining:
   fell from 2.449s/2.481s to 1.899s/1.906s, while allocation-enabled phases fell
   17.1%/19.9% with counts and bytes exactly unchanged. Stale, redirected, or
   mismatched handles remain fail-closed.
+  Complete acyclic state-write summaries now persist across every query in one
+  immutable `CallFrameResolver` invocation rather than only one mutation-
+  machine batch. The cache retains exact state identities and source-ordered
+  relative paths; opaque results and permuted-cycle fallbacks remain one-shot,
+  and poisoned cache access recomputes locally. A fresh sample reduced
+  aggregate `summarize_state_written_paths` samples from 353 to 179.
+  Allocation-enabled checked phases fell from 2.020s/1.949s to 1.910s/1.884s,
+  removing exactly 54,008 allocation calls and 1.91 MiB in each broad float
+  canary; warm no-allocation phases fell from 1.899s/1.906s to 1.848s/1.846s.
+  Raw full-run wall remained noisy, so the claim is limited to phase timing and
+  allocation evidence.
   Default-domain validation now delegates conservative symbolic values,
   literal/sequence measures, valuation folding, canonical symbolic equality,
   and recursive call detection to a focused 281-line child while state walking,
@@ -5412,6 +5423,13 @@ Owners:
   70. Exact-owner ambiguity, the 795 rooted/3 legacy inventory, and cross-copy
   receipt-drift fences remain green; rebuild/lock waits remain distinct from
   their 0.02–0.03s compiler/interpreter bodies.
+  The bounded two-pointer reverse and transitive branched-index-bound
+  regressions now launch solely through the exact executables retained by their
+  checked compilation reports while preserving in-place `[1..5]` to `[5..1]`
+  mutation, the branch-bound re-read of 99, and literal exit 70. Exact-owner
+  ambiguity, the 795 rooted/3 legacy inventory, and cross-copy receipt-drift
+  fences remain green; their compiler/interpreter bodies remain 0.03–0.04s
+  while observed 1.4–3s walls were relink or rebuild work.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
