@@ -7,14 +7,28 @@
 # A disagreement means bc miscompiled the program (or the interpreter is wrong — either way, a loud signal
 # worth investigating, never a silent pass). Both are UNTRUSTED and checked against each other.
 # Deterministic (fixed base seed). Needs python3 + the bc/assembler build; skips cleanly otherwise.
-cd "$(dirname "$0")"
+OMEGA_GATE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
+if [ -z "${OMEGA_REPO_ROOT:-}" ]; then
+  OMEGA_REPO_ROOT=$OMEGA_GATE_DIR
+  while [ ! -f "$OMEGA_REPO_ROOT/bootstrap/paths.sh" ]; do
+    OMEGA_PATH_PARENT=$(dirname -- "$OMEGA_REPO_ROOT")
+    if [ "$OMEGA_PATH_PARENT" = "$OMEGA_REPO_ROOT" ]; then
+      echo "bootstrap paths: cannot find repository root from $OMEGA_GATE_DIR" >&2
+      exit 2
+    fi
+    OMEGA_REPO_ROOT=$OMEGA_PATH_PARENT
+  done
+  unset OMEGA_PATH_PARENT
+fi
+. "$OMEGA_REPO_ROOT/bootstrap/paths.sh" || exit $?
+cd "$OMEGA_GATE_DIR"
 command -v python3 >/dev/null 2>&1 || { echo "beta correctness fuzz: skipped (python3 absent)"; exit 0; }
 command -v cargo   >/dev/null 2>&1 || { echo "beta correctness fuzz: skipped (no cargo for the on-ramp)"; exit 0; }
-. ../alpha/seed_env.sh
-SEED=../alpha/$ALPHA_SEED
-ASM=../beta/$BETA_SEED
-BC=../beta-lang-rs/build/bc.exe
-( cd ../beta-lang-rs && sh build.sh ../beta-lang/bc.beta >/dev/null 2>&1 ) || { echo "beta correctness fuzz: bc build failed"; exit 1; }
+. "${OMEGA_PATH_ALPHA}"/seed_env.sh
+SEED="${OMEGA_PATH_ALPHA}"/$ALPHA_SEED
+ASM="${OMEGA_PATH_BETA_ASSEMBLER}"/$BETA_SEED
+BC="${OMEGA_PATH_BETA_RUST}"/build/bc.exe
+( cd "${OMEGA_PATH_BETA_RUST}" && sh build.sh "${OMEGA_PATH_BETA_LANGUAGE}"/bc.beta >/dev/null 2>&1 ) || { echo "beta correctness fuzz: bc build failed"; exit 1; }
 [ -x "$BC" ] && [ -x "$ASM" ] || { echo "beta correctness fuzz: skipped (bc/assembler missing)"; exit 0; }
 
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT

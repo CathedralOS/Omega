@@ -18,28 +18,42 @@
 #
 # Skips cleanly off macOS arm64 or without the cargo/clang toolchain (the native route needs them).
 set -e
-cd "$(dirname "$0")"
+OMEGA_GATE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
+if [ -z "${OMEGA_REPO_ROOT:-}" ]; then
+  OMEGA_REPO_ROOT=$OMEGA_GATE_DIR
+  while [ ! -f "$OMEGA_REPO_ROOT/bootstrap/paths.sh" ]; do
+    OMEGA_PATH_PARENT=$(dirname -- "$OMEGA_REPO_ROOT")
+    if [ "$OMEGA_PATH_PARENT" = "$OMEGA_REPO_ROOT" ]; then
+      echo "bootstrap paths: cannot find repository root from $OMEGA_GATE_DIR" >&2
+      exit 2
+    fi
+    OMEGA_REPO_ROOT=$OMEGA_PATH_PARENT
+  done
+  unset OMEGA_PATH_PARENT
+fi
+. "$OMEGA_REPO_ROOT/bootstrap/paths.sh" || exit $?
+cd "$OMEGA_GATE_DIR"
 case "$(uname -sm)" in "Darwin arm64") ;; *) echo "omega kernel diamond SKIP — not macOS arm64"; exit 0 ;; esac
 for t in cargo clang codesign; do command -v "$t" >/dev/null 2>&1 || { echo "omega kernel diamond SKIP — no $t"; exit 0; }; done
 
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 
 # Rust-free steady execution: alpha seed -> beta assembler -> bc -> {interp.exe, omega2gamma.exe}
-. ../alpha/seed_env.sh
-SEED=../alpha/$ALPHA_SEED
-ASM=../beta/$BETA_SEED
-( cd ../beta-lang-rs && sh build.sh ../beta-lang/bc.beta >/dev/null ) || { echo "omega kernel diamond FAIL — bc build"; exit 1; }
-BC=../beta-lang-rs/build/bc.exe
+. "${OMEGA_PATH_ALPHA}"/seed_env.sh
+SEED="${OMEGA_PATH_ALPHA}"/$ALPHA_SEED
+ASM="${OMEGA_PATH_BETA_ASSEMBLER}"/$BETA_SEED
+( cd "${OMEGA_PATH_BETA_RUST}" && sh build.sh "${OMEGA_PATH_BETA_LANGUAGE}"/bc.beta >/dev/null ) || { echo "omega kernel diamond FAIL — bc build"; exit 1; }
+BC="${OMEGA_PATH_BETA_RUST}"/build/bc.exe
 build_beta() { # src.beta  ->  out.exe   (bc -> assemble -> stamp)
   "$BC" < "$1" > "$T/b.asm" 2>/dev/null && "$ASM" < "$T/b.asm" > "$T/b.tape" 2>/dev/null \
     && stamp_seed "$T/b.tape" "$SEED" "$2" >/dev/null 2>&1
 }
-build_beta ../gamma/interp.beta "$T/interp.exe" || { echo "omega kernel diamond FAIL — build interp.beta"; exit 1; }
+build_beta "${OMEGA_PATH_GAMMA}"/interp.beta "$T/interp.exe" || { echo "omega kernel diamond FAIL — build interp.beta"; exit 1; }
 build_beta omega2gamma.beta      "$T/omega2gamma.exe"    || { echo "omega kernel diamond FAIL — build omega2gamma.beta"; exit 1; }
 
 # native reference backend (Rust on-ramp — this is the thing being CHECKED, not trusted)
-( cd ../delta-rs && cargo build -q 2>/dev/null ) || { echo "omega kernel diamond FAIL — cargo build"; exit 1; }
-BE=../delta-rs/target/debug/delta
+( cd "${OMEGA_PATH_DELTA_RUST}" && cargo build -q 2>/dev/null ) || { echo "omega kernel diamond FAIL — cargo build"; exit 1; }
+BE="${OMEGA_PATH_DELTA_RUST}"/target/debug/delta
 
 PASS=0; FAIL=0
 # _check DESC EXPECT : assumes $T/p.alp is written; native exit, Rust-free omega2gamma-route exit, the Rust

@@ -39,6 +39,21 @@ Parsing therefore belongs to Psi. “Omega files” is the language and product
 branding; Psi is the frontend, semantic verifier input, and portable execution
 representation.
 
+### Current boundary-argument fence
+
+Ordinary in-module calls already carry positional scalar arguments. Bodyless
+boundary calls do not: the current `BoundaryMachineDeclaration` declares only
+structural parameters, and `BoundaryCall` carries only structural arguments.
+Its optional primitive scalar is a result lane, not an input lane. A scalar
+boundary-input slice must add exact declared parameter types and positional
+value arguments through canonical encoding, validation, interpretation, fuel,
+and Omega abstract lowering together. The target lowering must reject a scalar
+boundary call until its selected boundary has a real realization; preserving
+the value in an abstract operation is not permission to discard it in a
+metadata-only backend path. Producers must not encode an effect input as an
+ordinary machine return or introduce a private pre-terminal IR to evade this
+fence.
+
 ## Checked-adapter provider installation
 
 A static bodyless boundary call keeps its boundary-machine ID in terminal Psi;

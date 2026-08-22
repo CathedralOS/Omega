@@ -14,17 +14,31 @@
 #   badcase  the case proves the WRONG proposition (con_case mismatch)                     -> all three reject
 # A checker that drifted on the guard (e.g. dropped it, licensing an unsound ∀ over a sum type) breaks the
 # agreement here. No corpus proof emits prodrec yet (that arrives with the ℤ signed-sum fold, step 4).
-cd "$(dirname "$0")"
+OMEGA_GATE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
+if [ -z "${OMEGA_REPO_ROOT:-}" ]; then
+  OMEGA_REPO_ROOT=$OMEGA_GATE_DIR
+  while [ ! -f "$OMEGA_REPO_ROOT/bootstrap/paths.sh" ]; do
+    OMEGA_PATH_PARENT=$(dirname -- "$OMEGA_REPO_ROOT")
+    if [ "$OMEGA_PATH_PARENT" = "$OMEGA_REPO_ROOT" ]; then
+      echo "bootstrap paths: cannot find repository root from $OMEGA_GATE_DIR" >&2
+      exit 2
+    fi
+    OMEGA_REPO_ROOT=$OMEGA_PATH_PARENT
+  done
+  unset OMEGA_PATH_PARENT
+fi
+. "$OMEGA_REPO_ROOT/bootstrap/paths.sh" || exit $?
+cd "$OMEGA_GATE_DIR"
 command -v python3 >/dev/null 2>&1 || { echo "prodrec-seam: skipped (python3 absent)"; exit 0; }
-. ../alpha/seed_env.sh
-SEED=../alpha/$ALPHA_SEED
-ASM=../beta/$BETA_SEED
-( cd ../beta-lang-rs && sh build.sh ../beta-lang/bc.beta >/dev/null 2>&1 ) || { echo "prodrec-seam FAIL — bc build"; exit 1; }
+. "${OMEGA_PATH_ALPHA}"/seed_env.sh
+SEED="${OMEGA_PATH_ALPHA}"/$ALPHA_SEED
+ASM="${OMEGA_PATH_BETA_ASSEMBLER}"/$BETA_SEED
+( cd "${OMEGA_PATH_BETA_RUST}" && sh build.sh "${OMEGA_PATH_BETA_LANGUAGE}"/bc.beta >/dev/null 2>&1 ) || { echo "prodrec-seam FAIL — bc build"; exit 1; }
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
-b() { ../beta-lang-rs/build/bc.exe < "$1" > "$T/x.asm" 2>/dev/null && "$ASM" < "$T/x.asm" > "$T/x.tape" 2>/dev/null && stamp_seed "$T/x.tape" "$SEED" "$2" >/dev/null 2>&1; }
+b() { "${OMEGA_PATH_BETA_RUST}"/build/bc.exe < "$1" > "$T/x.asm" 2>/dev/null && "$ASM" < "$T/x.asm" > "$T/x.tape" 2>/dev/null && stamp_seed "$T/x.tape" "$SEED" "$2" >/dev/null 2>&1; }
 b check.beta           "$T/check.exe"  || { echo "prodrec-seam FAIL — build check.beta"; exit 1; }
-b ../gamma/interp.beta "$T/interp.exe" || { echo "prodrec-seam FAIL — build interp.beta"; exit 1; }
-DEFS=$(cat ../gamma/checker.gamma)
+b "${OMEGA_PATH_GAMMA}"/interp.beta "$T/interp.exe" || { echo "prodrec-seam FAIL — build interp.beta"; exit 1; }
+DEFS=$(cat "${OMEGA_PATH_GAMMA}"/checker.gamma)
 
 GOAL='(All (= (v 0) (v 0)))'
 GOODCASE='(gen (gen (refl (k 70 (v 1) (v 0)))))'
@@ -37,7 +51,7 @@ ok=1
 seam() {  # LABEL CERT EXPECTED
   vb=$(printf '%s' "$2" | perl -e 'alarm 30; exec @ARGV' "$T/check.exe" 2>/dev/null)
   vr=$(printf '%s' "$2" | python3 check_ref.py 2>/dev/null)
-  g=$(printf '%s' "$2" | python3 ../gamma/refcert_to_gamma.py 2>/dev/null)
+  g=$(printf '%s' "$2" | python3 "${OMEGA_PATH_GAMMA}"/refcert_to_gamma.py 2>/dev/null)
   printf '%s\n%s\n' "$DEFS" "$g" | perl -e 'alarm 40; exec @ARGV' "$T/interp.exe" >/dev/null 2>&1
   r=$?; vg=undecided; [ "$r" = 1 ] && vg=accept; [ "$r" = 0 ] && vg=reject
   agree=no; { [ "$vb" = "$vr" ] && [ "$vr" = "$vg" ]; } && agree=yes

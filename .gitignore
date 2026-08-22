@@ -2,6 +2,7 @@
 /target/
 /dist/
 /build/
+/.lattice-cache/
 /samples/*/build/
 /samples/*/build_win/
 /canaries/*/*/build/

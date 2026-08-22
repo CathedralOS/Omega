@@ -10,18 +10,32 @@
 #
 # Skips cleanly off macOS arm64 or without the cargo/clang toolchain.
 set -e
-cd "$(dirname "$0")"
+OMEGA_GATE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
+if [ -z "${OMEGA_REPO_ROOT:-}" ]; then
+  OMEGA_REPO_ROOT=$OMEGA_GATE_DIR
+  while [ ! -f "$OMEGA_REPO_ROOT/bootstrap/paths.sh" ]; do
+    OMEGA_PATH_PARENT=$(dirname -- "$OMEGA_REPO_ROOT")
+    if [ "$OMEGA_PATH_PARENT" = "$OMEGA_REPO_ROOT" ]; then
+      echo "bootstrap paths: cannot find repository root from $OMEGA_GATE_DIR" >&2
+      exit 2
+    fi
+    OMEGA_REPO_ROOT=$OMEGA_PATH_PARENT
+  done
+  unset OMEGA_PATH_PARENT
+fi
+. "$OMEGA_REPO_ROOT/bootstrap/paths.sh" || exit $?
+cd "$OMEGA_GATE_DIR"
 case "$(uname -sm)" in "Darwin arm64") ;; *) echo "convergence SKIP — not macOS arm64"; exit 0 ;; esac
 for t in cargo clang codesign; do command -v "$t" >/dev/null 2>&1 || { echo "convergence SKIP — no $t"; exit 0; }; done
 
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 
 # 1. build the proof kernel (trust anchor), exactly as the lattice does
-. ../alpha/seed_env.sh
-SEED=../alpha/$ALPHA_SEED
-ASM=../beta/$BETA_SEED
-( cd ../beta-lang-rs && sh build.sh ../beta-lang/bc.beta >/dev/null ) || { echo "convergence FAIL — bc build"; exit 1; }
-if ../beta-lang-rs/build/bc.exe < ../proof-kernel/check.beta > "$T/c.asm" 2>/dev/null \
+. "${OMEGA_PATH_ALPHA}"/seed_env.sh
+SEED="${OMEGA_PATH_ALPHA}"/$ALPHA_SEED
+ASM="${OMEGA_PATH_BETA_ASSEMBLER}"/$BETA_SEED
+( cd "${OMEGA_PATH_BETA_RUST}" && sh build.sh "${OMEGA_PATH_BETA_LANGUAGE}"/bc.beta >/dev/null ) || { echo "convergence FAIL — bc build"; exit 1; }
+if "${OMEGA_PATH_BETA_RUST}"/build/bc.exe < "${OMEGA_PATH_PROOF_KERNEL}"/check.beta > "$T/c.asm" 2>/dev/null \
    && "$ASM" < "$T/c.asm" > "$T/c.tape" 2>/dev/null \
    && stamp_seed "$T/c.tape" "$SEED" "$T/check.exe" >/dev/null 2>&1; then :; else
   echo "convergence FAIL — could not build the proof kernel"; exit 1; fi
@@ -90,7 +104,7 @@ DELTA_ARCH=aarch64 ./target/debug/delta samples/certify-perm.alp "$T/cperm" >/de
   || { echo "convergence FAIL — compiling certify-perm"; exit 1; }
 # proof library: bounds-2d as a referenceable def, regenerated from the banked theorem
 HAVE_LIB=0
-if command -v python3 >/dev/null 2>&1 && python3 ../proof-kernel/gen-lib2d.py > "$T/lib2d.proof" 2>/dev/null; then HAVE_LIB=1; fi
+if command -v python3 >/dev/null 2>&1 && python3 "${OMEGA_PATH_PROOF_KERNEL}"/gen-lib2d.py > "$T/lib2d.proof" 2>/dev/null; then HAVE_LIB=1; fi
 
 # the checker prints accept/reject to stdout but exits non-zero (the alpha VM's halt
 # code), so judge by the stdout string, not the exit status -- and drop `set -e`.

@@ -6,13 +6,27 @@
 # Two real divergences motivated this gate: write_line with a non-literal argument, and a bare
 # terminal expression (`{ 0 }`), both of which spun unguarded scans at end-of-input (one cost an
 # 8h45m hung job). Every sample runs under a hard alarm; a timeout is a FAIL naming the sample.
-cd "$(dirname "$0")"
-. ../alpha/seed_env.sh
-SEED=../alpha/$ALPHA_SEED
-ASM=../beta/$BETA_SEED
-( cd ../beta-lang-rs && sh build.sh ../beta-lang/bc.beta >/dev/null 2>&1 ) || { echo "omega2gamma-termination FAIL — bc build"; exit 1; }
+OMEGA_GATE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
+if [ -z "${OMEGA_REPO_ROOT:-}" ]; then
+  OMEGA_REPO_ROOT=$OMEGA_GATE_DIR
+  while [ ! -f "$OMEGA_REPO_ROOT/bootstrap/paths.sh" ]; do
+    OMEGA_PATH_PARENT=$(dirname -- "$OMEGA_REPO_ROOT")
+    if [ "$OMEGA_PATH_PARENT" = "$OMEGA_REPO_ROOT" ]; then
+      echo "bootstrap paths: cannot find repository root from $OMEGA_GATE_DIR" >&2
+      exit 2
+    fi
+    OMEGA_REPO_ROOT=$OMEGA_PATH_PARENT
+  done
+  unset OMEGA_PATH_PARENT
+fi
+. "$OMEGA_REPO_ROOT/bootstrap/paths.sh" || exit $?
+cd "$OMEGA_GATE_DIR"
+. "${OMEGA_PATH_ALPHA}"/seed_env.sh
+SEED="${OMEGA_PATH_ALPHA}"/$ALPHA_SEED
+ASM="${OMEGA_PATH_BETA_ASSEMBLER}"/$BETA_SEED
+( cd "${OMEGA_PATH_BETA_RUST}" && sh build.sh "${OMEGA_PATH_BETA_LANGUAGE}"/bc.beta >/dev/null 2>&1 ) || { echo "omega2gamma-termination FAIL — bc build"; exit 1; }
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
-../beta-lang-rs/build/bc.exe < omega2gamma.beta > "$T/e.asm" 2>/dev/null \
+"${OMEGA_PATH_BETA_RUST}"/build/bc.exe < omega2gamma.beta > "$T/e.asm" 2>/dev/null \
   && "$ASM" < "$T/e.asm" > "$T/e.tape" 2>/dev/null \
   && stamp_seed "$T/e.tape" "$SEED" "$T/omega2gamma.exe" >/dev/null 2>&1 \
   || { echo "omega2gamma-termination FAIL — build omega2gamma.beta"; exit 1; }
@@ -34,7 +48,7 @@ case "$retired" in
     FAIL=$((FAIL+1)); echo "  FAIL retired terminates block : no explicit refusal";;
 esac
 
-for d in ../lattice-corpus/*/; do
+for d in "${OMEGA_PATH_CORPUS}"/*/; do
   s=$(basename "$d")
   [ -f "$d/main.omg" ] || continue
   perl -e 'alarm 20; exec @ARGV' "$T/omega2gamma.exe" < "$d/main.omg" > /dev/null 2>&1

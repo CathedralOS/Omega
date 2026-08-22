@@ -94,8 +94,12 @@ Python is an implementation detail of these tools, not their common owner.
 
 ## Migration map
 
-No broad path move should happen until gate scripts stop hard-coding sibling
-relative paths. Migrate by ownership, keeping temporary wrappers where needed:
+Gate scripts now resolve cross-owner dependencies through
+[`bootstrap/paths.sh`](../../../bootstrap/paths.sh), and
+[`bootstrap/check-path-hygiene.sh`](../../../bootstrap/check-path-hygiene.sh)
+rejects new named sibling-relative references. Broad moves may therefore update
+one role manifest instead of rewriting every gate. Migrate by ownership, keeping
+temporary wrappers where needed:
 
 | Current path | Target role |
 | --- | --- |

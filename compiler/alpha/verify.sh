@@ -4,9 +4,23 @@
 #                 (where a forge exists; modulo the OS-imposed code signature);
 #   behavior    - it realizes SEMANTICS.md (conformance.sh, every opcode + edge);
 #   diamond     - the VM reproduces the canonical assembler bytecode the OTHER
-#                 platform's seed produced (../beta/selfhost.sh).
+#                 platform's seed produced (${OMEGA_PATH_BETA_ASSEMBLER}/selfhost.sh).
 # Run after touching a seed; this is the per-platform acceptance gate.
-cd "$(dirname "$0")"
+OMEGA_GATE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
+if [ -z "${OMEGA_REPO_ROOT:-}" ]; then
+  OMEGA_REPO_ROOT=$OMEGA_GATE_DIR
+  while [ ! -f "$OMEGA_REPO_ROOT/bootstrap/paths.sh" ]; do
+    OMEGA_PATH_PARENT=$(dirname -- "$OMEGA_REPO_ROOT")
+    if [ "$OMEGA_PATH_PARENT" = "$OMEGA_REPO_ROOT" ]; then
+      echo "bootstrap paths: cannot find repository root from $OMEGA_GATE_DIR" >&2
+      exit 2
+    fi
+    OMEGA_REPO_ROOT=$OMEGA_PATH_PARENT
+  done
+  unset OMEGA_PATH_PARENT
+fi
+. "$OMEGA_REPO_ROOT/bootstrap/paths.sh" || exit $?
+cd "$OMEGA_GATE_DIR"
 . ./seed_env.sh
 rc=0
 
@@ -40,10 +54,10 @@ echo "--- behavior (conformance) ---"
 if sh conformance.sh; then :; else rc=1; fi
 
 echo "--- diamond (self-host) ---"
-if [ -f ../beta/selfhost.sh ]; then
-  if sh ../beta/selfhost.sh; then :; else rc=1; fi
+if [ -f "${OMEGA_PATH_BETA_ASSEMBLER}"/selfhost.sh ]; then
+  if sh "${OMEGA_PATH_BETA_ASSEMBLER}"/selfhost.sh; then :; else rc=1; fi
 else
-  echo "diamond SKIP — ../beta/selfhost.sh not found"
+  echo "diamond SKIP — ${OMEGA_PATH_BETA_ASSEMBLER}/selfhost.sh not found"
 fi
 
 echo ""

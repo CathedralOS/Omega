@@ -5,16 +5,30 @@
 # the bounded semantic ledger, and is evaluated by both the canonical
 # Beta-written interpreter and the independent Python oracle.
 set -eu
-cd "$(dirname "$0")"
-. ../alpha/seed_env.sh
+OMEGA_GATE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
+if [ -z "${OMEGA_REPO_ROOT:-}" ]; then
+  OMEGA_REPO_ROOT=$OMEGA_GATE_DIR
+  while [ ! -f "$OMEGA_REPO_ROOT/bootstrap/paths.sh" ]; do
+    OMEGA_PATH_PARENT=$(dirname -- "$OMEGA_REPO_ROOT")
+    if [ "$OMEGA_PATH_PARENT" = "$OMEGA_REPO_ROOT" ]; then
+      echo "bootstrap paths: cannot find repository root from $OMEGA_GATE_DIR" >&2
+      exit 2
+    fi
+    OMEGA_REPO_ROOT=$OMEGA_PATH_PARENT
+  done
+  unset OMEGA_PATH_PARENT
+fi
+. "$OMEGA_REPO_ROOT/bootstrap/paths.sh" || exit $?
+cd "$OMEGA_GATE_DIR"
+. "${OMEGA_PATH_ALPHA}"/seed_env.sh
 
-SEED=../alpha/$ALPHA_SEED
-ASM=../beta/$BETA_SEED
-FIXTURES=../psi-rs/semantics/psi-terminal-codec/tests/fixtures
+SEED="${OMEGA_PATH_ALPHA}"/$ALPHA_SEED
+ASM="${OMEGA_PATH_BETA_ASSEMBLER}"/$BETA_SEED
+FIXTURES="${OMEGA_PATH_PSI_PRODUCT}"/semantics/psi-terminal-codec/tests/fixtures
 T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT
 
-( cd ../beta-lang-rs && sh build.sh ../beta-lang/bc.beta >/dev/null ) || {
+( cd "${OMEGA_PATH_BETA_RUST}" && sh build.sh "${OMEGA_PATH_BETA_LANGUAGE}"/bc.beta >/dev/null ) || {
   echo "terminal ledger spike: bc build failed" >&2
   exit 1
 }
@@ -22,7 +36,7 @@ trap 'rm -rf "$T"' EXIT
 build_beta_program() {
   source=$1
   output=$2
-  ../beta-lang-rs/build/bc.exe < "$source" > "$T/program.asm"
+  "${OMEGA_PATH_BETA_RUST}"/build/bc.exe < "$source" > "$T/program.asm"
   "$ASM" < "$T/program.asm" > "$T/program.tape"
   stamp_seed "$T/program.tape" "$SEED" "$output" >/dev/null 2>&1
 }

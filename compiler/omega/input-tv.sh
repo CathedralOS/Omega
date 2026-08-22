@@ -8,21 +8,35 @@
 # documented exit, and proof-kernel/check.beta must accept the encoder's claim with the perturbed control
 # rejected. The grid rides in the sample header as `//   "VEC" -> EXIT` lines under INPUT-GRID.
 # This is per-vector proof — the stepping stone toward symbolic (for-all-inputs) summit refinement.
-cd "$(dirname "$0")"
+OMEGA_GATE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
+if [ -z "${OMEGA_REPO_ROOT:-}" ]; then
+  OMEGA_REPO_ROOT=$OMEGA_GATE_DIR
+  while [ ! -f "$OMEGA_REPO_ROOT/bootstrap/paths.sh" ]; do
+    OMEGA_PATH_PARENT=$(dirname -- "$OMEGA_REPO_ROOT")
+    if [ "$OMEGA_PATH_PARENT" = "$OMEGA_REPO_ROOT" ]; then
+      echo "bootstrap paths: cannot find repository root from $OMEGA_GATE_DIR" >&2
+      exit 2
+    fi
+    OMEGA_REPO_ROOT=$OMEGA_PATH_PARENT
+  done
+  unset OMEGA_PATH_PARENT
+fi
+. "$OMEGA_REPO_ROOT/bootstrap/paths.sh" || exit $?
+cd "$OMEGA_GATE_DIR"
 command -v python3 >/dev/null 2>&1 || { echo "input-tv: skipped (python3 absent)"; exit 0; }
-. ../alpha/seed_env.sh
-SEED=../alpha/$ALPHA_SEED
-ASM=../beta/$BETA_SEED
-( cd ../beta-lang-rs && sh build.sh ../beta-lang/bc.beta >/dev/null 2>&1 ) || { echo "input-tv FAIL — bc build"; exit 1; }
-b() { ../beta-lang-rs/build/bc.exe < "$1" > "$T/x.asm" 2>/dev/null && "$ASM" < "$T/x.asm" > "$T/x.tape" 2>/dev/null && stamp_seed "$T/x.tape" "$SEED" "$2" >/dev/null 2>&1; }
+. "${OMEGA_PATH_ALPHA}"/seed_env.sh
+SEED="${OMEGA_PATH_ALPHA}"/$ALPHA_SEED
+ASM="${OMEGA_PATH_BETA_ASSEMBLER}"/$BETA_SEED
+( cd "${OMEGA_PATH_BETA_RUST}" && sh build.sh "${OMEGA_PATH_BETA_LANGUAGE}"/bc.beta >/dev/null 2>&1 ) || { echo "input-tv FAIL — bc build"; exit 1; }
+b() { "${OMEGA_PATH_BETA_RUST}"/build/bc.exe < "$1" > "$T/x.asm" 2>/dev/null && "$ASM" < "$T/x.asm" > "$T/x.tape" 2>/dev/null && stamp_seed "$T/x.tape" "$SEED" "$2" >/dev/null 2>&1; }
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 b omega2gamma.beta     "$T/omega2gamma.exe"    || { echo "input-tv FAIL — build omega2gamma.beta"; exit 1; }
-b ../gamma/interp.beta "$T/interp.exe" || { echo "input-tv FAIL — build interp.beta"; exit 1; }
-b ../proof-kernel/check.beta  "$T/check.exe"  || { echo "input-tv FAIL — build check.beta"; exit 1; }
+b "${OMEGA_PATH_GAMMA}"/interp.beta "$T/interp.exe" || { echo "input-tv FAIL — build interp.beta"; exit 1; }
+b "${OMEGA_PATH_PROOF_KERNEL}"/check.beta  "$T/check.exe"  || { echo "input-tv FAIL — build check.beta"; exit 1; }
 
 PASS=0; FAIL=0
 tv() {
-  src="../lattice-corpus/$1/main.omg"
+  src="${OMEGA_PATH_CORPUS}/$1/main.omg"
   "$T/omega2gamma.exe" < "$src" > "$T/g" 2>/dev/null
   grep -q 'STDIN' "$T/g" || { FAIL=$((FAIL+1)); echo "  FAIL $1 : no STDIN placeholder (not input-taking?)"; return; }
   grep -A100 'INPUT-GRID:' "$src" | grep -oE '"[^"]*" -> [0-9]+' | while IFS= read -r row; do

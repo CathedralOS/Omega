@@ -2,14 +2,28 @@
 # Gate for the Gamma reference interpreter (interp.beta, stage 1). Compiles it
 # with bc (the self-hosting Rust-free Beta compiler), then evaluates Gamma
 # programs and checks the integer result (the process exit code).
-cd "$(dirname "$0")"
-. ../alpha/seed_env.sh
-SEED=../alpha/$ALPHA_SEED
-ASM=../beta/$BETA_SEED
+OMEGA_GATE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
+if [ -z "${OMEGA_REPO_ROOT:-}" ]; then
+  OMEGA_REPO_ROOT=$OMEGA_GATE_DIR
+  while [ ! -f "$OMEGA_REPO_ROOT/bootstrap/paths.sh" ]; do
+    OMEGA_PATH_PARENT=$(dirname -- "$OMEGA_REPO_ROOT")
+    if [ "$OMEGA_PATH_PARENT" = "$OMEGA_REPO_ROOT" ]; then
+      echo "bootstrap paths: cannot find repository root from $OMEGA_GATE_DIR" >&2
+      exit 2
+    fi
+    OMEGA_REPO_ROOT=$OMEGA_PATH_PARENT
+  done
+  unset OMEGA_PATH_PARENT
+fi
+. "$OMEGA_REPO_ROOT/bootstrap/paths.sh" || exit $?
+cd "$OMEGA_GATE_DIR"
+. "${OMEGA_PATH_ALPHA}"/seed_env.sh
+SEED="${OMEGA_PATH_ALPHA}"/$ALPHA_SEED
+ASM="${OMEGA_PATH_BETA_ASSEMBLER}"/$BETA_SEED
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 
-( cd ../beta-lang-rs && sh build.sh ../beta-lang/bc.beta >/dev/null ) || { echo "bc build failed"; exit 1; }
-../beta-lang-rs/build/bc.exe < interp.beta > "$T/g.asm" || { echo "bc(interp.beta) failed"; exit 1; }
+( cd "${OMEGA_PATH_BETA_RUST}" && sh build.sh "${OMEGA_PATH_BETA_LANGUAGE}"/bc.beta >/dev/null ) || { echo "bc build failed"; exit 1; }
+"${OMEGA_PATH_BETA_RUST}"/build/bc.exe < interp.beta > "$T/g.asm" || { echo "bc(interp.beta) failed"; exit 1; }
 "$ASM" < "$T/g.asm" > "$T/g.tape" || { echo "assemble failed"; exit 1; }
 stamp_seed "$T/g.tape" "$SEED" "$T/g.exe" >/dev/null 2>&1
 echo "interp tape: $(wc -c < "$T/g.tape" | tr -d ' ') B (compiled by bc)"

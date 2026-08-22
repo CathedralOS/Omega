@@ -18,14 +18,31 @@
 # reach, not the 843-case prover battery. LATTICE_FULL=1 forces everything.
 # The cache holds only *hashes of inputs of passing runs* — deleting it is
 # always safe and merely makes the next run full.
-cd "$(dirname "$0")"
+OMEGA_GATE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
+if [ -z "${OMEGA_REPO_ROOT:-}" ]; then
+  OMEGA_REPO_ROOT=$OMEGA_GATE_DIR
+  while [ ! -f "$OMEGA_REPO_ROOT/bootstrap/paths.sh" ]; do
+    OMEGA_PATH_PARENT=$(dirname -- "$OMEGA_REPO_ROOT")
+    if [ "$OMEGA_PATH_PARENT" = "$OMEGA_REPO_ROOT" ]; then
+      echo "bootstrap paths: cannot find repository root from $OMEGA_GATE_DIR" >&2
+      exit 2
+    fi
+    OMEGA_REPO_ROOT=$OMEGA_PATH_PARENT
+  done
+  unset OMEGA_PATH_PARENT
+fi
+. "$OMEGA_REPO_ROOT/bootstrap/paths.sh" || exit $?
+cd "$OMEGA_GATE_DIR"
 fail=0
-CACHE=.lattice-cache
+CACHE="$OMEGA_REPO_ROOT/.lattice-cache"
 mkdir -p "$CACHE"
+
+sh "$OMEGA_REPO_ROOT/bootstrap/check-path-hygiene.sh" || exit $?
 
 # content hash of the given dirs/files (source + scripts only; build outputs excluded)
 hash_inputs() {
   { for d in "$@"; do
+      d=$(omega_bootstrap_path "$d") || exit $?
       find "$d" -type f \
         -not -path '*/target/*' -not -path '*/build/*' -not -path '*/.git/*' \
         \( -name '*.beta' -o -name '*.alpha' -o -name '*.gamma' -o -name '*.alp' \
@@ -36,13 +53,14 @@ hash_inputs() {
 }
 
 # the build lineage everything sits on: any change here re-runs every step
-CORE=$(hash_inputs alpha beta beta-lang beta-lang-rs)
+CORE=$(hash_inputs "$OMEGA_REPO_ROOT/bootstrap" alpha beta beta-lang beta-lang-rs)
 RAN=0; SKIPPED=0
 
 step() {  # label dir script [extra dep dirs...]
-  s_label="$1"; s_dir="$2"; s_script="$3"; shift 3
-  s_key=$(printf '%s_%s' "$s_dir" "$s_script" | tr '/ .' '___')
-  s_hash="$CORE:$(hash_inputs "$s_dir" "$@")"
+  s_label="$1"; s_role="$2"; s_script="$3"; shift 3
+  s_dir=$(omega_bootstrap_path "$s_role") || exit $?
+  s_key=$(printf '%s_%s' "$s_role" "$s_script" | tr '/ .' '___')
+  s_hash="$CORE:$(hash_inputs "$s_role" "$@")"
   if [ "${LATTICE_FULL:-0}" != "1" ] && [ -f "$CACHE/$s_key" ] \
      && [ "$(cat "$CACHE/$s_key")" = "$s_hash" ]; then
     printf '\n=== %s === (cached: inputs unchanged since last green run)\n' "$s_label"
@@ -75,7 +93,7 @@ step "gamma — reference interpreter (ADTs + match)"   gamma       test-interp.
 step "gamma — MEANING CROSS-CHECK: gamma_ref.py agrees with interp.beta (fuzz)" gamma gamma-diamond-py.sh beta-lang-rs beta
 step "gamma — static type checker"                    gamma       test-typeck.sh
 step "gamma — shared typed canonical-byte decoder" gamma test-canonical-bytes.sh
-step "gamma — canonical terminal ledger + closed leaf/call schemas" gamma test-terminal-ledger-spike.sh psi-rs/semantics/psi-terminal-codec
+step "gamma — canonical terminal ledger + closed leaf/call schemas" gamma test-terminal-ledger-spike.sh psi/semantics/psi-terminal-codec
 step "gamma — the proof kernel, written IN gamma"    gamma       test-checker.sh
 step "cross-check — checkers agree (Beta, Gamma, type-erased typed)" proof-kernel  checker-diamond.sh gamma
 step "seam — definitional eq vs operational eval"  proof-kernel       semantics-diamond.sh gamma
@@ -86,28 +104,28 @@ step "seam — corpus theorems: proved AND operationally true" proof-kernel soun
 step "seam — FUZZ: random +/* defeq vs operational eval" proof-kernel     seam-fuzz.sh gamma
 step "seam — recx accumulator recursion vs independent evaluation (check.beta + check_ref + checker.gamma agree)" proof-kernel recx-soundness.sh gamma beta beta-lang beta-lang-rs
 step "seam — prodrec product eliminator cross-check: check.beta + check_ref + checker.gamma decide identically (guard + soundness controls rejected by all three)" proof-kernel prodrec-seam.sh gamma beta beta-lang beta-lang-rs
-step "contract discharge (omega source) — math_proofs requires/ensures translated to kernel propositions and proven by check.beta + check_ref + checker.gamma (perturbation rejected)" proof-kernel math-contracts.sh gamma beta beta-lang beta-lang-rs ../lattice-corpus
-step "termination discharge (omega source) — 'terminates by s -> Slice::Length' tail-recursion tied to a 3-checker measure-decrease lemma (reversed measure rejected)" proof-kernel termination-obligations.sh gamma beta beta-lang beta-lang-rs ../lattice-corpus
+step "contract discharge (omega source) — math_proofs requires/ensures translated to kernel propositions and proven by check.beta + check_ref + checker.gamma (perturbation rejected)" proof-kernel math-contracts.sh gamma beta beta-lang beta-lang-rs corpus
+step "termination discharge (omega source) — 'terminates by s -> Slice::Length' tail-recursion tied to a 3-checker measure-decrease lemma (reversed measure rejected)" proof-kernel termination-obligations.sh gamma beta beta-lang beta-lang-rs corpus
 step "forall-input theorem — count(xs,n)=len(xs)+n proven for ALL inputs by induction (check.beta + check_ref + checker.gamma; perturbation rejected)" proof-kernel forall-input.sh gamma beta beta-lang beta-lang-rs
-step "forall-input SAMPLE connection — a real sample's count loop tied to the ∀-input theorem: proven = len(s)+acc for EVERY input (not just documented vectors)" proof-kernel forall-sample.sh gamma beta beta-lang beta-lang-rs ../lattice-corpus
+step "forall-input SAMPLE connection — a real sample's count loop tied to the ∀-input theorem: proven = len(s)+acc for EVERY input (not just documented vectors)" proof-kernel forall-sample.sh gamma beta beta-lang beta-lang-rs corpus
 step "checker cross-check — FUZZ: random props, check.beta vs checker.gamma" proof-kernel checker-diamond-fuzz.sh gamma
 step "logic cross-check — FUZZ: random propositional proofs, all 3 checkers" proof-kernel logic-diamond-fuzz.sh gamma
 step "predicate cross-check — FUZZ: random Mem/ProdIs/Perm proofs, all 3 checkers" proof-kernel predicate-diamond-fuzz.sh gamma
 step "predicate soundness — FUZZ: random predicates, kernel vs operational decision" proof-kernel predicate-soundness-fuzz.sh gamma
 step "delta — on-ramp compiles + RUNS its corpus"   delta-rs  test_aarch64.sh
 step "delta meaning — native exec vs gamma reference interpreter" delta-rs delta-meaning-diamond.sh gamma
-step "delta D0 storage meaning (RUST-FREE) — omega2gamma.beta -> interp.beta" delta-rs delta-storage-meaning.sh ../omega ../gamma
+step "delta D0 storage meaning (RUST-FREE) — omega2gamma.beta -> interp.beta" delta-rs delta-storage-meaning.sh omega0 gamma
 step "omega kernel cross-check (RUST-FREE) — native vs omega2gamma.beta->interp.beta" omega kernel-diamond.sh delta-rs gamma
 step "convergence — Delta emits a proof; the proof kernel checks it" delta-rs convergence.sh proof-kernel
 step "convergence (self-hosted) — the self-hosted compiler's certifiers, checked by the proof kernel" delta-rs convergence-selfhost.sh proof-kernel
 step "convergence (reference route) — certifier RUN on interp.beta; cert checked by check.beta" delta-rs convergence-reference.sh proof-kernel gamma
 step "convergence (RUST-FREE) — omega2gamma.beta->interp.beta; cert checked by check.beta" omega convergence-reference.sh delta-rs proof-kernel gamma
-step "omega2gamma termination canary — translator halts on every sample, supported or refused (no silent scan-forever)" omega omega2gamma-termination.sh beta beta-lang beta-lang-rs ../lattice-corpus
+step "omega2gamma termination canary — translator halts on every sample, supported or refused (no silent scan-forever)" omega omega2gamma-termination.sh beta beta-lang beta-lang-rs corpus
 step "omega0 source bundle — canonical deterministic multi-file input" omega omega0-bundle-test.sh
-step "omega meaning — real Omega samples run Rust-free; exits match documented intent" omega omega-meaning.sh gamma ../lattice-corpus
-step "omega meaning-TV — the kernel re-computes each covered sample's arithmetic (proof, not comparison)" omega meaning-tv.sh gamma proof-kernel beta beta-lang beta-lang-rs ../lattice-corpus
-step "input-grid meaning TV — input-taking samples proven per documented input vector (substitution closes the program; the whole proof pipe applies per vector)" omega input-tv.sh gamma proof-kernel beta beta-lang beta-lang-rs ../lattice-corpus
-step "meaning-cert cross-check — meaning-TV certs replayed through check.beta AND check_ref.py" omega meaning-cert-diamond.sh proof-kernel beta beta-lang beta-lang-rs ../lattice-corpus
+step "omega meaning — real Omega samples run Rust-free; exits match documented intent" omega omega-meaning.sh gamma corpus
+step "omega meaning-TV — the kernel re-computes each covered sample's arithmetic (proof, not comparison)" omega meaning-tv.sh gamma proof-kernel beta beta-lang beta-lang-rs corpus
+step "input-grid meaning TV — input-taking samples proven per documented input vector (substitution closes the program; the whole proof pipe applies per vector)" omega input-tv.sh gamma proof-kernel beta beta-lang beta-lang-rs corpus
+step "meaning-cert cross-check — meaning-TV certs replayed through check.beta AND check_ref.py" omega meaning-cert-diamond.sh proof-kernel beta beta-lang beta-lang-rs corpus
 step "translation validation — the proof kernel re-evaluates each compilation's result (+ - * < == / %, loops, gcd, cross-machine)" omega translation-validation.sh delta-rs proof-kernel gamma
 step "symbolic loops — beta_symbolic's data-dependent loop summaries (symbolic trip count -> closed form) pinned to the interpreter across an input grid" beta-lang-py symbolic-loops.sh
 step "refinement — bc's machine code proved to compute its Beta source meaning (instruction-level TV: both meanings auto-derived, equivalence kernel-checked, never run)" alpha refinement.sh proof-kernel beta beta-lang beta-lang-rs beta-lang-py
