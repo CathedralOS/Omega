@@ -7082,8 +7082,11 @@ diagnostics retain exact behavior and order across all consumers. Expression
 operator type validation now lives in a focused 483-line private owner. Binary
 check order, float/integer fences, cross-class/text/logical/struct/array
 diagnostics, unary checks, and shared shape classifiers retain exact behavior.
-The expression-type root is now 656 lines; crate-facing APIs, identities, and
-the exact 51-function inventory remain unchanged.
+Expression store-shape validation now lives in a focused 120-line private
+owner. Array-versus-scalar and scalar-versus-data classification, text-carrier
+exceptions, and exact diagnostics retain behavior and order across every store
+surface. The natural expression-type root is now 548 lines; crate-facing APIs,
+identities, and the exact 51-function inventory remain unchanged.
 
 Checked-result float/integer conversion remains blocked on the separate
 checked-result arithmetic decision listed below.
