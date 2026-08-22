@@ -151,7 +151,7 @@ MaskProviderInterruptMaskControl: MaskProvider satisfies InterruptMaskControl;
 
 machine MaskProvider::save_and_mask(&mut self) -> InterruptMaskGuard in Active
     satisfies InterruptMaskControl::save_and_mask
-    via Binding::CompilerIntrinsic("InterruptMaskControl::save_and_mask");
+    via Binding::CompilerIntrinsic;
 
 boundary trait LookalikeMaskControl {
     machine save(&mut self) -> InterruptMaskGuard in Active;
@@ -162,7 +162,7 @@ LookalikeMaskProviderLookalikeMaskControl: LookalikeMaskProvider satisfies Looka
 
 machine LookalikeMaskProvider::save(&mut self) -> InterruptMaskGuard in Active
     satisfies LookalikeMaskControl::save
-    via Binding::CompilerIntrinsic("LookalikeMaskControl::save");
+    via Binding::CompilerIntrinsic;
 
 boundary trait TimerRoot: InterruptEntry + Calling<X86InterruptPolicy> {
 }

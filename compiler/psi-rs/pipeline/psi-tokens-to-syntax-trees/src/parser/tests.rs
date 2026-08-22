@@ -256,7 +256,7 @@ fn parses_compiler_intrinsic_external_binding_as_a_closed_binding_case() {
 
         machine console_write_byte(byte: i32)
         satisfies Console::write_byte
-        via Binding::CompilerIntrinsic("Console::write_byte");
+        via Binding::CompilerIntrinsic;
     "#;
     let tokens = Lexer::new(source)
         .tokenize()
@@ -280,9 +280,31 @@ fn parses_compiler_intrinsic_external_binding_as_a_closed_binding_case() {
         .expect("satisfies clause");
     assert!(matches!(
         clause.via.as_ref(),
-        Some(psi_syntax_trees::item::ExternalBinding::CompilerIntrinsic { name })
-            if name == "Console::write_byte"
+        Some(psi_syntax_trees::item::ExternalBinding::CompilerIntrinsic)
     ));
+}
+
+#[test]
+fn rejects_legacy_named_compiler_intrinsic_payload() {
+    let source = r#"
+        boundary trait Console {
+            machine write_byte(byte: i32);
+        }
+
+        machine console_write_byte(byte: i32)
+        satisfies Console::write_byte
+        via Binding::CompilerIntrinsic("Console::write_byte");
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let error = parse_syntax_trees(&tokens)
+        .expect_err("compiler intrinsic identity is derived, never authored");
+    assert!(
+        error.message.contains("found punctuation `(`"),
+        "{}",
+        error.message
+    );
 }
 
 #[test]

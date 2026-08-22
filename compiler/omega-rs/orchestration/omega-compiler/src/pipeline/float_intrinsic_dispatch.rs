@@ -887,10 +887,10 @@ mod tests {
         data FloatProvider {}
         machine FloatProvider::minimum(left: f32, right: f32) -> f32
         satisfies F32::minimum
-        via Binding::CompilerIntrinsic("F32::minimum.f32");
+        via Binding::CompilerIntrinsic;
         machine FloatProvider::maximum(left: f32, right: f32) -> f32
         satisfies F32::maximum
-        via Binding::CompilerIntrinsic("F32::maximum.f32");
+        via Binding::CompilerIntrinsic;
 
         machine run() -> f32 {
             transition { _ -> (F32::minimum(1.0f32, 2.0f32)) }

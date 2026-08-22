@@ -1297,7 +1297,7 @@ fn retains_external_realization_mechanism_without_rendering_classification() {
 
         machine write_leaf(value: u8)
         satisfies Console::write
-        via Binding::CompilerIntrinsic("Console::write");
+        via Binding::CompilerIntrinsic;
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax_trees = parse_syntax_trees(&tokens).expect("parse");

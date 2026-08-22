@@ -2586,18 +2586,22 @@ conformance cannot change token meaning; and no accepted source contains a
   rather than classifying a `Binding::Case(...)` prefix. Resolved and typed
   conformance rows retain the exact `ExternalBindingId` instead of a copied
   rendering; their consumers distinguish external from checked satisfiers by
-  identity presence, and the interner exposes no rendering lookup. Delete the
-  remaining intrinsic-catalog lookup by display name.
+  identity presence, and the interner exposes no rendering lookup. The source
+  binding case is now payloadless, the core/std/canary corpus uses that form,
+  and the seven obsolete authored-name mismatch canaries are deleted in favor
+  of one parser regression for the retired payload. Transitional provider rows
+  derive their catalog label from the selected satisfied requirement rather than
+  accepting author text. Replace that transitional label with the resolved
+  realization-machine overload identity plus a structured target catalog key.
 - Replace string-backed foreign binding identity with nominal `LibraryId`,
   `SymbolId`, `CallingPlanId`, firmware/table, vtable, and mechanism-specific
   values. Raw object-format library/symbol bytes may exist only in sealed
   target/link metadata and must never serve as an Omega symbol, requirement key,
   provider selection, or checked-artifact identity.
-- Migrate the current console and target float `CompilerIntrinsic("...")`
-  corpus mechanically after the nominal carrier lands. Compatibility parsing,
-  if temporarily retained, must lower immediately to exact symbols and reject
-  unknown, ambiguous, or signature-mismatched text; no string survives semantic
-  lowering.
+- The console and target-float corpus has migrated mechanically to payloadless
+  `CompilerIntrinsic`; legacy payload syntax rejects and is not compatibility
+  parsed. Complete the nominal provider/catalog carrier described above; no
+  authored intrinsic string may reappear in semantic lowering.
 
 Acceptance: the same boundary requirement can select a checked test provider or
 a target intrinsic without editing its declaration; final artifacts contain no

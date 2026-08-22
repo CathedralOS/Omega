@@ -12,7 +12,7 @@ machine NarrowTaskRuntime::start<T, Arguments, machine Target>(
 ) -> Task<T>
 where machine Target(arguments: Arguments) -> T suspends;
 satisfies TaskRuntime::start
-via Binding::CompilerIntrinsic("TaskRuntime::start");
+via Binding::CompilerIntrinsic;
 
 machine NarrowTaskRuntime::try_start<T, Arguments, machine Target>(
     &self,
@@ -20,7 +20,7 @@ machine NarrowTaskRuntime::try_start<T, Arguments, machine Target>(
 ) -> StartOutcome<T, Arguments>
 where machine Target(arguments: Arguments) -> T suspends; blocks;
 satisfies TaskRuntime::try_start
-via Binding::CompilerIntrinsic("TaskRuntime::try_start");
+via Binding::CompilerIntrinsic;
 
 data Main { }
 machine Main::main(&mut self) { }

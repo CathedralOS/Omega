@@ -11,7 +11,7 @@ machine CanaryTaskRuntime::start<T, Arguments, machine Target>(
 ) -> Task<T>
 where machine Target(arguments: Arguments) -> T suspends; blocks;
 satisfies TaskRuntime::start
-via Binding::CompilerIntrinsic("TaskRuntime::start");
+via Binding::CompilerIntrinsic;
 
 machine CanaryTaskRuntime::try_start<T, Arguments, machine Target>(
     &self,
@@ -19,7 +19,7 @@ machine CanaryTaskRuntime::try_start<T, Arguments, machine Target>(
 ) -> StartOutcome<T, Arguments>
 where machine Target(arguments: Arguments) -> T suspends; blocks;
 satisfies TaskRuntime::try_start
-via Binding::CompilerIntrinsic("TaskRuntime::try_start");
+via Binding::CompilerIntrinsic;
 
 boundary data Sleeper;
 boundary machine Sleeper::park(token: i32) suspends;
