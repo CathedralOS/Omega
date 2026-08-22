@@ -124,6 +124,20 @@ pub(crate) fn validate_quotients(
 /// deriving `RA`/`RR` here does not admit execution or create a checked-tree
 /// operation.
 fn reject_quotient_operation_requests(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>) {
+    if !program
+        .expression_table
+        .iter_expressions()
+        .any(|(_, expression)| {
+            matches!(expression, ExpressionNode::Call(call) if call.quotient_operation.is_some())
+        })
+    {
+        return;
+    }
+    // Reuse the shared whole-call-graph inference. Quotient requests still
+    // reject before checked lowering, so this is the one authoritative effect
+    // computation on that path rather than a local expression walk.
+    let operational = psi_effects::infer_operational_may(program);
+    let service_reaches = psi_effects::infer_service_reaches(program, &operational);
     let mut planned_requests = Vec::new();
     for machine in program.machines() {
         for state in program.machine_states(machine) {
@@ -145,6 +159,11 @@ fn reject_quotient_operation_requests(program: &TypedTrees, diagnostics: &mut Ve
                 program, machine, state, call, request,
             ) {
                 Ok(plan) => {
+                    let representative_purity = relation_plan::pure_representative_effect(
+                        &plan.representative,
+                        &operational,
+                        &service_reaches,
+                    );
                     let complete_result_flow = relation_plan::complete_single_state_result_flow(
                         program,
                         machine,
@@ -179,6 +198,9 @@ fn reject_quotient_operation_requests(program: &TypedTrees, diagnostics: &mut Ve
                         .render_representative_termination()
                         .map(|value| format!(" plus checked {value}"))
                         .unwrap_or_default();
+                    let purity = representative_purity
+                        .map(|_| " plus checked pure representative effect summary")
+                        .unwrap_or_default();
                     let result_path = if result_root.alias_count == 0 {
                         "the exact result root".to_owned()
                     } else {
@@ -204,23 +226,25 @@ fn reject_quotient_operation_requests(program: &TypedTrees, diagnostics: &mut Ve
                     } else {
                         "immutable-alias fallthrough"
                     };
-                    let remaining_result_fence = if complete_result_flow.is_some()
-                        || complete_forwarded_result_flow.is_some()
-                    {
-                        ""
-                    } else {
-                        ", and all normalized result exits"
-                    };
-                    let remaining_behavior_fence = if termination.is_empty() {
-                        "effect/termination fences"
-                    } else {
-                        "the effect fence"
-                    };
+                    let mut remaining = vec![
+                        "complete operation/static correspondence",
+                        "the selected `Respects` contract",
+                    ];
+                    if representative_purity.is_none() {
+                        remaining.push("the effect fence");
+                    }
+                    if termination.is_empty() {
+                        remaining.push("the termination fence");
+                    }
+                    if complete_result_flow.is_none() && complete_forwarded_result_flow.is_none() {
+                        remaining.push("all normalized result exits");
+                    }
                     diagnostics.push(Diagnostic::error(format!(
-                        "`Quotient::{operation}` has compiler-derived {plan_kind} relations {} and {} plus exact representative telescope {}{termination}{correspondence}{public_precondition}{precondition}{precondition_correspondence} and {result_flow}, but executable quotient operations are not admitted until complete operation/static correspondence, the selected `Respects` contract, {remaining_behavior_fence}{remaining_result_fence} are independently checked",
+                        "`Quotient::{operation}` has compiler-derived {plan_kind} relations {} and {} plus exact representative telescope {}{termination}{purity}{correspondence}{public_precondition}{precondition}{precondition_correspondence} and {result_flow}, but executable quotient operations are not admitted until {} are independently checked",
                         plan.render_ra(program),
                         plan.render_rr(program),
                         plan.render_representative_telescope(program),
+                        remaining.join(", "),
                     )))
                 }
                 Err(reason) => diagnostics.push(Diagnostic::error(format!(
