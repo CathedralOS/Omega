@@ -2261,6 +2261,14 @@ Remaining:
   retains citation proofs. Equality distinctness, exact shared-middle chain
   order, citation/proof shape, alias completion, rejection behavior, and the
   fixed one-alias/two-citation frontier remain unchanged.
+  Two-citation affine chain catalogs now retain only their reusable side-local
+  right-leg indexes and source slices; their non-indexed left-leg scans are
+  paired stateless functions rather than one-shot slice-holder structs.
+  Production independently preserves citation-bearing assumptions-before-
+  semantic-axioms traversal, while reconstruction independently preserves
+  requirements-before-semantic-axioms traversal. Exact shared-middle lookup,
+  same-fact rejection, chain reuse across alias candidates, completion order,
+  proof shapes, and the fixed two-citation frontier remain unchanged.
   One-equality transitive affine completion now lives in independent side-local
   `affine_selection/transitive/alias/completion` modules. Each parent retains
   its own ledger-ordered equality discovery, distinct root/alias custody, and
@@ -4456,6 +4464,21 @@ Owners:
   indexed-read, and reduction diagnostics. Existing `OutputOnly` policy, the
   795 rooted/3 legacy exact-owner pins, and all established fences remain
   unchanged.
+  Five authored-root indexed-storage/control executions—indexed read-modify-
+  write loops, computed indexed writes, nested const-product indexing,
+  hoisted-index writes, and mutable-local reassignment—now launch solely
+  through exact checked-report executable receipts while preserving literal
+  statuses 70, 70, 70, 7, and 2 and all index-width, neighboring-field,
+  placement, stale-fold, and reassignment diagnostics. Existing `OutputOnly`
+  policy, the 795 rooted/3 legacy exact-owner pins, and all established fences
+  remain unchanged.
+  Five authored-root tuple/dependent executions—Boolean tuple-matrix dispatch,
+  finite sum-tuple matrix dispatch, tuple-case payload destructuring, dependent
+  parameter ranges, and dependent product indexing—now launch solely through
+  exact checked-report executable receipts while preserving literal status 70
+  and all exhaustiveness, payload-binding, substituted-range, overflow, and
+  indexed-element diagnostics. Existing `OutputOnly` policy, the 795 rooted/3
+  legacy exact-owner pins, and all established fences remain unchanged.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
@@ -5040,6 +5063,10 @@ Remaining N6/N8 work:
   A ruling must choose the core/kernel proof-term carrier and accepted
   FloatMeaning equality rule, plus exact source-coordinate identity/coalescing
   (or an alternative owner/contract binding), before this row can advance.
+  Terminal semantic coding now keeps its canonical little-endian byte cursor,
+  bounded UTF-8/count handling, and nonzero semantic-ID primitives in a focused
+  private `wire` child; the public codec API, exact bytes, format marker, and
+  144-function inventory remain unchanged.
 - Then migrate suffix law discovery to propositions plus explicit conformances,
   and expand the checked `Nat`/`Int`/`Rat`/Cauchy/approximation corpus. `Real`
   remains proof-only and core-level.
@@ -5115,7 +5142,10 @@ boundary without its corresponding checked law.
   validation and installation round trips replay the result-bearing call plan,
   and a checked trait-operator source canary reaches that complete native
   artifact boundary. General mixed scalar/effect structural-call bodies remain
-  outside this fixed two-operation closure.
+  outside this fixed two-operation closure. The bounded target selector now
+  lives in its own `structural_scalar` lowering child rather than another large
+  branch in the central target-selection function; ABI checks and behavior are
+  unchanged.
   A concrete direct wrapper may crown only one token meaning per normalized
   operand signature; alternative conformances remain named explicit calls.
 
