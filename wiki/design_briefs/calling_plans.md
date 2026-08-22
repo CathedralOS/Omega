@@ -692,6 +692,12 @@ byte identity. Both the flat executable and optional app-bundle copy consume
 that same validated view. This is non-serialized orchestration custody, not a
 new semantic footprint class: it prevents a valid certificate from being
 paired with another container or output identity before publication.
+Executable installation writes that sealed container to a temporary file,
+reads it back, and compares every byte before the atomic rename. The resulting
+non-serialized receipt binds the publication identity, exact output path, byte
+count, and container identity. A redirected output leaf or changed/partial
+staged file rejects and is removed before it can become visible. The ordinary
+object-container fallback remains outside this executable-footprint custody.
 Final relocation replay also builds one exact owner map from every retained
 selected-instruction identity to that function symbol. A selected instruction
 retained twice, an instruction relocation naming another function, or an

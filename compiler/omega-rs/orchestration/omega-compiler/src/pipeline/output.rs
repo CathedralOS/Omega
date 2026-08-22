@@ -127,6 +127,69 @@ impl<'a> ValidatedExecutablePublication<'a> {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct InstalledExecutablePublicationEvidence {
+    publication_evidence_fingerprint: u64,
+    output_path: std::path::PathBuf,
+    container_byte_count: usize,
+    container_fingerprint: u64,
+    evidence_fingerprint: u64,
+}
+
+impl InstalledExecutablePublicationEvidence {
+    fn current(
+        publication: &ValidatedExecutablePublication<'_>,
+        output_path: &std::path::Path,
+    ) -> Result<Self, Diagnostic> {
+        publication.validate_identity()?;
+        if output_path.file_name() != Some(std::ffi::OsStr::new(publication.file_name())) {
+            return Err(Diagnostic::error(
+                "executable installation path does not retain the sealed output name",
+            ));
+        }
+        let mut evidence = Self {
+            publication_evidence_fingerprint: publication.evidence.evidence_fingerprint,
+            output_path: output_path.to_path_buf(),
+            container_byte_count: publication.bytes().len(),
+            container_fingerprint: byte_fingerprint(publication.bytes()),
+            evidence_fingerprint: 0,
+        };
+        evidence.evidence_fingerprint = evidence.recomputed_fingerprint();
+        Ok(evidence)
+    }
+
+    fn validate(
+        &self,
+        publication: &ValidatedExecutablePublication<'_>,
+        output_path: &std::path::Path,
+    ) -> Result<(), Diagnostic> {
+        if *self != Self::current(publication, output_path)? {
+            return Err(Diagnostic::error(
+                "installed executable receipt does not match the sealed publication",
+            ));
+        }
+        Ok(())
+    }
+
+    fn recomputed_fingerprint(&self) -> u64 {
+        let mut hash = FNV_OFFSET;
+        fingerprint_into(
+            &mut hash,
+            b"omega.installed-executable-publication-evidence.v1",
+        );
+        fingerprint_into(
+            &mut hash,
+            &self.publication_evidence_fingerprint.to_le_bytes(),
+        );
+        let path = self.output_path.as_os_str().as_encoded_bytes();
+        fingerprint_into(&mut hash, &(path.len() as u64).to_le_bytes());
+        fingerprint_into(&mut hash, path);
+        fingerprint_into(&mut hash, &(self.container_byte_count as u64).to_le_bytes());
+        fingerprint_into(&mut hash, &self.container_fingerprint.to_le_bytes());
+        hash
+    }
+}
+
 const FNV_OFFSET: u64 = 0xcbf2_9ce4_8422_2325;
 
 fn byte_fingerprint(bytes: &[u8]) -> u64 {
@@ -227,7 +290,10 @@ pub(super) fn write_output(
             .validate_identity()
             .map_err(|diagnostic| vec![diagnostic])?;
         let output_path = build_dir.join(publication.file_name());
-        write_output_file(&output_path, publication.bytes(), true)
+        let installation = write_validated_executable_output_file(&output_path, &publication)
+            .map_err(|diagnostic| vec![diagnostic])?;
+        installation
+            .validate(&publication, &output_path)
             .map_err(|diagnostic| vec![diagnostic])?;
         write_executable_region_inventory(
             options,
@@ -248,12 +314,7 @@ pub(super) fn write_output(
             publication
                 .validate_identity()
                 .map_err(|diagnostic| vec![diagnostic])?;
-            write_macos_app_bundle(
-                options,
-                &build_dir,
-                publication.file_name(),
-                publication.bytes(),
-            )?;
+            write_macos_app_bundle(options, &build_dir, &publication)?;
         }
         return Ok(output_path);
     }
@@ -536,9 +597,9 @@ const GUI_SUBSYSTEM: u16 = 2;
 fn write_macos_app_bundle(
     options: &CompileOptions,
     build_dir: &std::path::Path,
-    executable_name: &str,
-    executable_bytes: &[u8],
+    publication: &ValidatedExecutablePublication<'_>,
 ) -> Result<(), Vec<Diagnostic>> {
+    let executable_name = publication.file_name();
     let app_name: String = options
         .root_path
         .parent()
@@ -594,8 +655,45 @@ fn write_macos_app_bundle(
     );
     std::fs::write(contents_dir.join("Info.plist"), info_plist).map_err(io_diagnostic)?;
     std::fs::write(contents_dir.join("PkgInfo"), b"APPL????").map_err(io_diagnostic)?;
-    write_output_file(&macos_dir.join(executable_name), executable_bytes, true)
+    let executable_path = macos_dir.join(executable_name);
+    let installation = write_validated_executable_output_file(&executable_path, publication)
         .map_err(|diagnostic| vec![diagnostic])?;
+    installation
+        .validate(publication, &executable_path)
+        .map_err(|diagnostic| vec![diagnostic])?;
+    Ok(())
+}
+
+fn write_validated_executable_output_file(
+    output_path: &std::path::Path,
+    publication: &ValidatedExecutablePublication<'_>,
+) -> Result<InstalledExecutablePublicationEvidence, Diagnostic> {
+    let expected = InstalledExecutablePublicationEvidence::current(publication, output_path)?;
+    write_output_file_with_staged_validation(
+        output_path,
+        publication.bytes(),
+        true,
+        |staged_path| validate_staged_executable_bytes(staged_path, publication.bytes()),
+    )?;
+    expected.validate(publication, output_path)?;
+    Ok(expected)
+}
+
+fn validate_staged_executable_bytes(
+    staged_path: &std::path::Path,
+    expected_bytes: &[u8],
+) -> Result<(), Diagnostic> {
+    let staged_bytes = std::fs::read(staged_path).map_err(|error| {
+        Diagnostic::error(format!(
+            "failed to replay staged executable {}: {error}",
+            staged_path.display()
+        ))
+    })?;
+    if staged_bytes != expected_bytes {
+        return Err(Diagnostic::error(
+            "staged executable bytes do not match the sealed publication",
+        ));
+    }
     Ok(())
 }
 
@@ -603,6 +701,15 @@ fn write_output_file(
     output_path: &std::path::Path,
     bytes: &[u8],
     executable: bool,
+) -> Result<(), Diagnostic> {
+    write_output_file_with_staged_validation(output_path, bytes, executable, |_| Ok(()))
+}
+
+fn write_output_file_with_staged_validation(
+    output_path: &std::path::Path,
+    bytes: &[u8],
+    executable: bool,
+    validate_staged: impl FnOnce(&std::path::Path) -> Result<(), Diagnostic>,
 ) -> Result<(), Diagnostic> {
     let temp_path = output_path.with_file_name(format!(
         ".{}.{}.tmp",
@@ -616,6 +723,11 @@ fn write_output_file(
     std::fs::write(&temp_path, bytes).map_err(|error| {
         Diagnostic::error(format!("failed to write {}: {error}", temp_path.display()))
     })?;
+
+    if let Err(diagnostic) = validate_staged(&temp_path) {
+        let _ = std::fs::remove_file(&temp_path);
+        return Err(diagnostic);
+    }
 
     if executable {
         mark_executable_if_needed(&temp_path)?;
@@ -657,8 +769,9 @@ fn mark_executable_if_needed(_path: &std::path::Path) -> Result<(), Diagnostic> 
 #[cfg(test)]
 mod tests {
     use super::{
-        ExecutablePublicationEvidence, FNV_OFFSET, build_final_footprint_certificate,
-        fingerprint_into,
+        ExecutablePublicationEvidence, FNV_OFFSET, ValidatedExecutablePublication,
+        build_final_footprint_certificate, fingerprint_into, validate_staged_executable_bytes,
+        write_validated_executable_output_file,
     };
 
     fn compiler_text_validation() -> omega_image::CompilerTextValidationEvidence {
@@ -789,5 +902,48 @@ mod tests {
         let mut changed_format = image;
         changed_format.format = "redirected".into();
         assert!(evidence.validate(&changed_format, &certificate).is_err());
+    }
+
+    #[test]
+    fn executable_installation_replays_exact_staged_bytes_before_publication() {
+        let image = image();
+        let certificate = build_final_footprint_certificate(
+            &omega_target_operations::BoundaryFootprintPlan::default(),
+            compiler_text_validation(),
+            compiler_function_validation(),
+            None,
+            &image.executable_regions,
+        )
+        .expect("certificate");
+        let publication =
+            ValidatedExecutablePublication::new(&image, &certificate).expect("publication");
+        let directory = std::env::temp_dir().join(format!(
+            "omega-executable-publication-test-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&directory);
+        std::fs::create_dir_all(&directory).expect("test directory");
+
+        let staged = directory.join("staged");
+        std::fs::write(&staged, [0x7f, b'O', b'M', b'F']).expect("drifted candidate");
+        assert!(validate_staged_executable_bytes(&staged, publication.bytes()).is_err());
+
+        let output = directory.join(publication.file_name());
+        let receipt = write_validated_executable_output_file(&output, &publication)
+            .expect("validated installation");
+        receipt
+            .validate(&publication, &output)
+            .expect("exact receipt");
+        assert_eq!(
+            std::fs::read(&output).expect("installed bytes"),
+            image.bytes
+        );
+        assert!(
+            receipt
+                .validate(&publication, &directory.join("redirected"))
+                .is_err()
+        );
+
+        std::fs::remove_dir_all(&directory).expect("remove test directory");
     }
 }
