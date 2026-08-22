@@ -3347,6 +3347,15 @@ Remaining:
   1.732s/1.711s to 1.679s/1.672s, with allocation counts and bytes exactly
   unchanged. Lower-sample effects-owner and machine-parameter parent-lookup
   prototypes were removed after failing to establish a benefit.
+  Backend state-value helper expansion now spends at most ten model builds per
+  top-level expression instead of 20,000. Exhaustion is the existing semantic
+  no-fold path: the unsimplified call remains for downstream lowering, while
+  the pinned nested guarded-helper fold establishes the compatibility floor.
+  State-value/backend package tests, four helper-dependent reverse canaries,
+  exact total-order interpreter/native parity, the GUI compile-only path, and
+  the complete pass umbrella remain green. The exact pass umbrella fell from
+  125.09s to 51.84s; auxiliary viewers were already disabled and were not the
+  source of the exponential work.
   Default-domain validation now delegates conservative symbolic values,
   literal/sequence measures, valuation folding, canonical symbolic equality,
   and recursive call detection to a focused 281-line child while state walking,
@@ -4319,7 +4328,7 @@ Owners:
   runtime-local and constant self-array indexing, and a deep post-entry chain—
   now launch only from exact checked-report receipts while retaining literal
   statuses 70, 24, 99, 99, and 30. Existing interpreter assertions remain
-  unchanged, and the 795 rooted/3 legacy exact-owner pins remain stable. Five
+  unchanged, and the 795 rooted/4 legacy exact-owner pins remain stable. Five
   further authored-root ABI/value-call executions—chained post-entry lets,
   cross-callee division, same-named cross-callee lets, nested value-call guards,
   and two-site struct results—now launch only from exact checked-report
@@ -4332,7 +4341,7 @@ Owners:
   and self-terminal delivery, and guarded effectful transition arguments—also
   launch only from exact receipts while retaining literal status 70. Existing
   interpreter and diagnostic-status assertions remain unchanged, and the 795
-  rooted/3 legacy exact-owner pins remain stable. Four further authored-root
+  rooted/4 legacy exact-owner pins remain stable. Four further authored-root
   ABI/value-call executions—nested-entry value calls, shared-name variant
   payload delivery, struct-payload cast fields, and branch-leaf multiple named
   conversions—now launch only from exact checked-report receipts while
@@ -4341,7 +4350,7 @@ Owners:
   buffering, Full artifact-backed text storage, and stderr writing—use the same
   receipt-only launch boundary while retaining literal statuses 70/75, 0, 0,
   0, and 70. All interpreter, stdin/stdout/stderr, and backend-report assertions
-  remain unchanged, and the 795 rooted/3 legacy exact-owner pins remain stable.
+  remain unchanged, and the 795 rooted/4 legacy exact-owner pins remain stable.
   Fifteen further authored-root ABI text executions now use exact checked-
   report receipts: LF/CRLF line reads and indexed slice-string guards retain
   statuses 0, 0, 77, 70, and 72; string places across machine fields, local
@@ -4350,7 +4359,7 @@ Owners:
   188. Five more string-assembly rows—stored suffix, lookup/large-frame/room
   lookup concatenation, and a call-argument slice alias—retain 193, 190, 192,
   200, and 77. Exact interpreter, stdout, and content-comparison assertions
-  remain unchanged, and the 795 rooted/3 legacy exact-owner pins remain stable.
+  remain unchanged, and the 795 rooted/4 legacy exact-owner pins remain stable.
   Five further authored-root ABI/string-storage executions—mutable struct
   string-field copy/concat/write-line, machine-owned indexed integer writes,
   fixed- and runtime-indexed struct copies, and nested indexed exit writes—now
@@ -4360,7 +4369,7 @@ Owners:
   dispatch plus guarded inline leaf-arm skipping—now use the same receipt-only
   boundary while retaining literal statuses 73, 83, 93, 103, and 70. Exact
   interpreter/stdout and existing diagnostic assertions remain unchanged, and
-  the 795 rooted/3 legacy exact-owner pins remain stable.
+  the 795 rooted/4 legacy exact-owner pins remain stable.
   Four further ABI/dungeon executions—ordered-room dispatch and real-show-state
   stdin loops, the threaded mutable-argument interrupt soak, and nested value-
   call caller-local guarding—now launch only from exact checked-report receipts
@@ -4369,19 +4378,19 @@ Owners:
   chained bounded-text append, descriptor append-in-place, and two-field
   bounded-text concatenation—use the same receipt-only boundary while retaining
   literal status 70. Existing stdin, interpreter, and diagnostic assertions
-  remain unchanged, and the 795 rooted/3 legacy exact-owner pins remain stable.
+  remain unchanged, and the 795 rooted/4 legacy exact-owner pins remain stable.
   Five further authored-root domain/control executions—machine bounded-text
   append, local string-field copying through mutable parameters, bounded-
   carrier call returns, min-call result arithmetic, and direct Boolean
   conjunction dispatch—now launch only from exact checked-report receipts while
   retaining literal statuses 70, 70, 70, 70, and 21. Existing interpreter
-  assertions remain unchanged, and the 795 rooted/3 legacy exact-owner pins
+  assertions remain unchanged, and the 795 rooted/4 legacy exact-owner pins
   remain stable.
   Five further authored-root executable-domain executions—local and imported
   membership expressions, imported membership guarding, and imported
   intersection/union guards—now launch only from exact checked-report receipts
   while retaining literal statuses 81, 91, 81, 219, and 217. Existing
-  diagnostic assertions remain unchanged, and the 795 rooted/3 legacy exact-
+  diagnostic assertions remain unchanged, and the 795 rooted/4 legacy exact-
   owner pins remain stable.
   Ten further authored-root executable-domain executions now use exact checked-
   report receipts: local intersection/union guards, local union/intersection
@@ -4389,7 +4398,7 @@ Owners:
   215; imported intersection values, local Boolean-or values, straight-line
   terminal local and field readback, and negated Boolean-place guards retain
   217, 251, 70, 70, and 73. Existing diagnostic assertions remain unchanged,
-  and the 795 rooted/3 legacy exact-owner pins remain stable.
+  and the 795 rooted/4 legacy exact-owner pins remain stable.
   Ten further authored-root control executions now use exact checked-report
   receipts. Local Boolean conjunction, scalar comparison, string comparison,
   Boolean-or guarding, and direct Boolean transition arguments retain statuses
@@ -4408,13 +4417,13 @@ Owners:
   String fields, immutable parameter-domain forwarding, case-payload domain
   forwarding, tuple transitions, and room-use reentry retain statuses 70, 70,
   70, 22, and 41; both independent interpreter oracles remain unchanged. The
-  795 rooted/3 legacy exact-owner pins remain stable.
+  795 rooted/4 legacy exact-owner pins remain stable.
   Five further authored-root dungeon/storage executions—enemy-clear reentry,
   clear/carve/render String fields, full-level wrapper String lookup, multi-room
   reentry, and mutable-slice element writes—now launch only from exact checked-
   report receipts while retaining literal statuses 51, 198, 202, 63, and 21.
   Both dungeon interpreter oracles and all diagnostics remain unchanged, and
-  the 795 rooted/3 legacy exact-owner pins remain stable. Five further authored-
+  the 795 rooted/4 legacy exact-owner pins remain stable. Five further authored-
   root indexed-storage executions—straight-line and dispatched mutable-slice
   writes, runtime array indexed reads, indexed struct-field writes, and
   particle integration—now launch only from exact checked-report receipts
@@ -4425,7 +4434,7 @@ Owners:
   machine substate-name resolution, value-call array-element writes, computed
   transition arguments, and by-value struct parameters—now launch only from
   exact checked-report receipts while retaining literal status 70 and every
-  regression-specific diagnostic. The 795 rooted/3 legacy exact-owner pins
+  regression-specific diagnostic. The 795 rooted/4 legacy exact-owner pins
   remain stable.
   Five further authored-root value/result executions—value-call composition,
   struct-returning calls, Option-returning calls, Result matching, and entity-
@@ -4449,7 +4458,7 @@ Owners:
   boundaries, saturating parameter carry, saturating expression operands,
   wrapping guard operands, and signed MIN/-1 divide guards—now launch only from
   exact checked-report receipts while retaining literal status 70 and every
-  policy-specific diagnostic. Across these cohorts the 795 rooted/3 legacy
+  policy-specific diagnostic. Across these cohorts the 795 rooted/4 legacy
   exact-owner pins remain stable.
   Five further authored-root operand-carrier executions—nested unsigned
   arithmetic, local indexed call operands, machine-indexed fused call
@@ -4462,7 +4471,7 @@ Owners:
   assertion. Five further saturating-value executions—nested operands, unsigned
   one-direction clamps, the signed MIN idiom, saturating left shift, and 32-bit
   shift value overflow—likewise retain status 70 and every clamp/domain
-  assertion. Across these cohorts the 795 rooted/3 legacy exact-owner pins
+  assertion. Across these cohorts the 795 rooted/4 legacy exact-owner pins
   remain stable.
   Five further authored-root conversion/float-policy executions—subword masked
   shifts, saturating float-to-int, unsigned/narrow saturating float-to-int,
@@ -4473,7 +4482,7 @@ Owners:
   proven-range Exact shift-count executions likewise use exact receipts while
   retaining status 70 and all terminal-delivery/diagnostic assertions. Slow
   float-policy, helper-driven trapping, platform-gated, timer, and multi-fixture
-  owners remain outside fast follow-up cohorts; the 795 rooted/3 legacy exact-
+  owners remain outside fast follow-up cohorts; the 795 rooted/4 legacy exact-
   owner pins remain stable. Profiling one float-policy owner attributes 3.263 of
   3.523 measured native-compile seconds (92.61%) to Stage 05 checked-tree
   construction, with samples concentrated in checked-fact and recursive call-
@@ -4504,13 +4513,13 @@ Owners:
   last use, chained view-of-view writes, shrinking-slice recursion, primitive
   wire encoding, and wire era discrimination—now launch only from exact checked-
   report receipts while retaining literal status 70 and every alias, recursion,
-  and byte-level diagnostic. The 795 rooted/3 legacy exact-owner pins remain
+  and byte-level diagnostic. The 795 rooted/4 legacy exact-owner pins remain
   stable.
   Five further authored-root wire-decoder executions—primitive roundtrip,
   ranged scalar and repeated fields, canonical Boolean enforcement, and
   canonical varint enforcement—now launch only from exact checked-report
   receipts while retaining literal status 70 and every hostile-input
-  preservation/byte-canonicality diagnostic. The 795 rooted/3 legacy exact-
+  preservation/byte-canonicality diagnostic. The 795 rooted/4 legacy exact-
   owner pins remain stable.
   Five additional authored-root wire executions—scalar-width overflow
   rejection, nested-message roundtrip and malformed-length rejection, plus
@@ -4886,7 +4895,7 @@ Owners:
   solely through exact checked-report executable receipts while preserving
   literal statuses 70, 14, 70, 70, and 70, interpreter parity where present,
   the exact two-specialization count, and all materialization and layout
-  diagnostics. The 795 rooted/3 legacy exact-owner pins and all established
+  diagnostics. The 795 rooted/4 legacy exact-owner pins and all established
   fences remain unchanged.
   Affine-literal equality catalogs now use paired, side-local stateless ordered
   iterators rather than one-shot wrapper structs. Producer and reconstruction
@@ -4901,14 +4910,14 @@ Owners:
   expressions, and symbolic expressions—now launch solely through exact
   checked-report executable receipts while preserving literal status 70 and
   all nested-extent, distinct-layout, named-value, and expression-
-  specialization diagnostics. The 795 rooted/3 legacy exact-owner pins and all
+  specialization diagnostics. The 795 rooted/4 legacy exact-owner pins and all
   established fences remain unchanged.
   Five authored-root const-fact and dispatch executions—const-evaluated machine
   calls, const-only where-fact discharge, machine-backed const-domain facts,
   signed const-data specialization, and trait-default dispatch—now launch
   solely through exact checked-report executable receipts while preserving
   literal status 70 and all specialization, fact-discharge, and written-
-  override diagnostics. The 795 rooted/3 legacy exact-owner pins and all
+  override diagnostics. The 795 rooted/4 legacy exact-owner pins and all
   established fences remain unchanged.
   Five authored-root generic/default executions—inherited and generic trait
   defaults, const-specialized container methods, coexisting concrete generic
@@ -4916,7 +4925,7 @@ Owners:
   exact checked-report executable receipts while preserving literal statuses
   70, 70, 70, 30, and 70 and all inheritance, specialization, layout, and
   guard-discrimination diagnostics. Existing `OutputOnly` policy, the 795
-  rooted/3 legacy exact-owner pins, and all established fences remain
+  rooted/4 legacy exact-owner pins, and all established fences remain
   unchanged.
   Five authored-root indexed/control executions—indexed true/false guard
   pairing, indexed-field local operands, indexed-local bitwise and comparison
@@ -4931,7 +4940,7 @@ Owners:
   checked-report executable receipts while preserving literal statuses 30,
   30, 42, 70, and 70 and all fixed-point monomorphization, domain-layout,
   indexed-read, and reduction diagnostics. Existing `OutputOnly` policy, the
-  795 rooted/3 legacy exact-owner pins, and all established fences remain
+  795 rooted/4 legacy exact-owner pins, and all established fences remain
   unchanged.
   Five authored-root indexed-storage/control executions—indexed read-modify-
   write loops, computed indexed writes, nested const-product indexing,
@@ -4939,7 +4948,7 @@ Owners:
   through exact checked-report executable receipts while preserving literal
   statuses 70, 70, 70, 7, and 2 and all index-width, neighboring-field,
   placement, stale-fold, and reassignment diagnostics. Existing `OutputOnly`
-  policy, the 795 rooted/3 legacy exact-owner pins, and all established fences
+  policy, the 795 rooted/4 legacy exact-owner pins, and all established fences
   remain unchanged.
   Five authored-root tuple/dependent executions—Boolean tuple-matrix dispatch,
   finite sum-tuple matrix dispatch, tuple-case payload destructuring, dependent
@@ -4953,97 +4962,97 @@ Owners:
   calls, and sibling-length indexing—now launch solely through exact checked-
   report executable receipts while preserving literal statuses 2, 7, 0, 6,
   and 7 and all established diagnostics. Exact-owner ambiguity, the 795
-  rooted/3 legacy inventory, and receipt-drift fences remain green.
+  rooted/4 legacy inventory, and receipt-drift fences remain green.
   Five authored-root alias/call-expansion executions—guarded-transition alias
   writes, loop-forwarded reference parameters, dispatched value calls through
   aliases, nested value calls in substates, and calls in inlined substates—now
   launch solely through exact checked-report executable receipts while
   preserving literal status 70 and all detailed diagnostics. Exact-owner
-  ambiguity, the 795 rooted/3 legacy inventory, and receipt-drift fences remain
+  ambiguity, the 795 rooted/4 legacy inventory, and receipt-drift fences remain
   green.
   Five authored-root transition/result-flow executions—alias-indexed reads
   through transitions, dispatched binary call arguments, dispatched result-
   field binding, trailing-state mutable-parameter phases, and same-type second-
   receiver mutation—now launch solely through exact checked-report executable
   receipts while preserving literal status 70, interpreter parity, and all
-  detailed diagnostics. Exact-owner ambiguity, the 795 rooted/3 legacy
+  detailed diagnostics. Exact-owner ambiguity, the 795 rooted/4 legacy
   inventory, and receipt-drift fences remain green.
   Five authored-root dispatched-delivery executions—transition-argument
   results, effectful reentrant delivery, enum-case results, machine-array slice
   arguments, and field-read terminals—now launch solely through exact checked-
   report executable receipts while preserving literal status 70 and all
-  detailed diagnostics. Exact-owner ambiguity, the 795 rooted/3 legacy
+  detailed diagnostics. Exact-owner ambiguity, the 795 rooted/4 legacy
   inventory, and receipt-drift fences remain green.
   Five authored-root receiver-dispatch executions—nested same-type receivers,
   second-receiver dispatch, sibling dispatched value calls, repeated inline
   receiver calls, and non-entry second-receiver dispatch—now launch solely
   through exact checked-report executable receipts while preserving literal
   status 70 and all detailed diagnostics. Exact-owner ambiguity, the 795
-  rooted/3 legacy inventory, and receipt-drift fences remain green; the
+  rooted/4 legacy inventory, and receipt-drift fences remain green; the
   adjacent timer owner stays explicitly fenced.
   Five authored-root nested/non-entry receiver-flow executions—self-call-chain
   second receivers, nested inline-chain results, non-entry inline second
   receivers, and nested local/field terminals through second instances—now
   launch solely through exact checked-report executable receipts while
   preserving literal status 70 and all detailed diagnostics. Exact-owner
-  ambiguity, the 795 rooted/3 legacy inventory, and receipt-drift fences remain
+  ambiguity, the 795 rooted/4 legacy inventory, and receipt-drift fences remain
   green; adjacent float and timer owners stay explicitly fenced.
   Four authored-root multi-arm/text-scope executions—same-named arm locals,
   per-arm text-equality locals, pre-guard text-equality guard reads, and pre-
   guard argument forwarding—now launch solely through exact checked-report
   executable receipts while preserving literal status 70, interpreter parity,
-  and all detailed diagnostics. Exact-owner ambiguity, the 795 rooted/3 legacy
+  and all detailed diagnostics. Exact-owner ambiguity, the 795 rooted/4 legacy
   inventory, and receipt-drift fences remain green.
   Three authored-root parameter-receiver identity executions—second-instance
   binding, forwarded/reborrowed receiver chains, and the single-instance
   control—now launch solely through exact checked-report executable receipts
   while preserving literal status 70 and all detailed diagnostics. Exact-owner
-  ambiguity, the 795 rooted/3 legacy inventory, and receipt-drift fences remain
+  ambiguity, the 795 rooted/4 legacy inventory, and receipt-drift fences remain
   green; intervening timer/control-flow owners remain untouched.
   Five authored-root dispatched-result delivery executions—alias-read
   terminals, slice-element terminals, binary terminals, multi-arm results, and
   guard-subject results—now launch solely through exact checked-report
   executable receipts while preserving literal status 70 and all detailed
-  result-shape diagnostics. Exact-owner ambiguity, the 795 rooted/3 legacy
+  result-shape diagnostics. Exact-owner ambiguity, the 795 rooted/4 legacy
   inventory, and receipt-drift fences remain green.
   Four authored-root call-result-through-reference-field executions—scalar,
   string, paired-string, and offset-string delivery—now launch solely through
   exact checked-report executable receipts while preserving literal exits 183,
   186, 194, and 196 and all detailed pointer/descriptor diagnostics. Exact-
-  owner ambiguity, the 795 rooted/3 legacy inventory, and receipt-drift fences
+  owner ambiguity, the 795 rooted/4 legacy inventory, and receipt-drift fences
   remain green; loop and reference-returned-slice owners stay separate.
   Five authored-root reference-returned/indexed-write executions—direct and
   parameter-forwarded slice-element references, nested guarded returned
   references, mutable local indexed parameters, and machine-owned indexed
   parameters—now launch solely through exact checked-report executable
   receipts while preserving literal exits 181, 70, 184, 171, and 173 and all
-  detailed diagnostics. Exact-owner ambiguity, the 795 rooted/3 legacy
+  detailed diagnostics. Exact-owner ambiguity, the 795 rooted/4 legacy
   inventory, and receipt-drift fences remain green.
   Five authored-root indexed-mutation executions—dynamic machine-owned indexed
   parameters, caller-local binary writes, helper-local alias addition, slice-
   alias field writes, and descriptor-indexed binary read-modify-write—now
   launch solely through exact checked-report executable receipts while
   preserving literal exits 175, 191, 181, 201, and 70, interpreter parity, and
-  all detailed diagnostics. Exact-owner ambiguity, the 795 rooted/3 legacy
+  all detailed diagnostics. Exact-owner ambiguity, the 795 rooted/4 legacy
   inventory, and receipt-drift fences remain green.
   Two authored-root reference-forwarding executions—bare-name mutable-
   reference forwarding and frame-local slice descriptor forwarding—now launch
   solely through exact checked-report executable receipts while preserving
   literal status 70, interpreter parity, and all detailed diagnostics. Exact-
-  owner ambiguity, the 795 rooted/3 legacy inventory, and receipt-drift fences
+  owner ambiguity, the 795 rooted/4 legacy inventory, and receipt-drift fences
   remain green; adjacent `f32` owners stay fenced.
   Five authored-root direct indexed-access executions—slice reads, indexed
   reads used as operands, direct and dispatched element copies, and frame-array
   slice-parameter aliases—now launch solely through exact checked-report
   executable receipts while preserving literal exits 41, 70, 51, 61, and 72
-  and all detailed diagnostics. Exact-owner ambiguity, the 795 rooted/3 legacy
+  and all detailed diagnostics. Exact-owner ambiguity, the 795 rooted/4 legacy
   inventory, and receipt-drift fences remain green; loop/automaton and numeric-
   conversion owners stay fenced.
   Five authored-root subslice-boundary executions—length folding, bounded and
   end-only parameter ranges, local parameter subslices, and runtime-start
   ranges—now launch solely through exact checked-report executable receipts
   while preserving literal status 70 and all detailed descriptor diagnostics.
-  Exact-owner ambiguity, the 795 rooted/3 legacy inventory, and receipt-drift
+  Exact-owner ambiguity, the 795 rooted/4 legacy inventory, and receipt-drift
   fences remain green; loop/automaton and numeric-conversion owners stay
   fenced.
   Five authored-root subslice-range executions—runtime-end ranges, nested
@@ -5051,13 +5060,13 @@ Owners:
   ranges, and range-length materialization—now launch solely through exact
   checked-report executable receipts while preserving literal exits 70 and 203
   and all detailed descriptor diagnostics. Exact-owner ambiguity, the 795
-  rooted/3 legacy inventory, and receipt-drift fences remain green; loop/
+  rooted/4 legacy inventory, and receipt-drift fences remain green; loop/
   automaton and numeric-conversion owners stay fenced.
   Five authored-root subslice-index regressions—dynamic, bounded-dynamic, end-
   bounded dynamic, nested-dynamic, and nested-fixed indexing—now launch solely
   through exact checked-report executable receipts while preserving literal
   exits 207, 209, 211, 213, and 215 and detailed descriptor diagnostics. Exact-
-  owner ambiguity, the 795 rooted/3 legacy inventory, and receipt-drift fences
+  owner ambiguity, the 795 rooted/4 legacy inventory, and receipt-drift fences
   remain green; loop/automaton, numeric-conversion, and transition/iteration
   owners stay fenced.
   Four authored-root slice-materialization regressions—bounded range length,
@@ -5065,32 +5074,32 @@ Owners:
   field-array elements used as value operands—now launch `OutputOnly` native
   execution solely through exact checked-report executable receipts while
   preserving literal exits 215, 205, and 70 and detailed diagnostics. Exact-
-  owner ambiguity, the 795 rooted/3 legacy inventory, and receipt-drift fences
+  owner ambiguity, the 795 rooted/4 legacy inventory, and receipt-drift fences
   remain green.
   Three authored-root mutable-parameter regressions—machine-owned writes,
   local writes, and aliased read-modify-write—now launch `OutputOnly` native
   execution solely through exact checked-report executable receipts while
   preserving literal exits 141, 171, and 191 and detailed diagnostics. Exact-
-  owner ambiguity, the 795 rooted/3 legacy inventory, and receipt-drift fences
+  owner ambiguity, the 795 rooted/4 legacy inventory, and receipt-drift fences
   remain green.
   Two authored-root package/root-resolution regressions—build dependency alias
   mapping and core roster operation resolution—now launch `OutputOnly` native
   execution solely through exact checked-report executable receipts while
   preserving literal status 70 and diagnostics. Exact-owner ambiguity, the 795
-  rooted/3 legacy inventory, and receipt-drift fences remain green; the
+  rooted/4 legacy inventory, and receipt-drift fences remain green; the
   adjacent product-index proof/loop owner remains untouched.
   Three authored-root fixed-integer arithmetic regressions—i16 signed
   arithmetic, u16 field arithmetic, and i64 signed arithmetic—now launch
   `OutputOnly` native execution solely through exact checked-report executable
   receipts while preserving literal status 70 and signed/unsigned width
-  diagnostics. Exact-owner ambiguity, the 795 rooted/3 legacy inventory, and
+  diagnostics. Exact-owner ambiguity, the 795 rooted/4 legacy inventory, and
   receipt-drift fences remain green; address algebra and explicit conversion
   owners remain separate.
   Three authored-root address regressions—field round-trip, first-class
   parameter/return/local value flow, and legal address algebra—now launch
   `OutputOnly` native execution solely through exact checked-report executable
   receipts while preserving literal statuses 88, 70, and 70 and their address-
-  specific diagnostics. Exact-owner ambiguity, the 795 rooted/3 legacy
+  specific diagnostics. Exact-owner ambiguity, the 795 rooted/4 legacy
   inventory, and receipt-drift fences remain green; explicit conversion and
   dispatch owners remain separate.
   Two authored-root statically typed receiver-dispatch regressions—method
@@ -5098,7 +5107,7 @@ Owners:
   on two concrete receiver types—now launch `OutputOnly` native execution
   solely through exact checked-report executable receipts while preserving
   literal status 70 and their detailed receiver-resolution diagnostics. Exact-
-  owner ambiguity, the 795 rooted/3 legacy inventory, and receipt-drift fences
+  owner ambiguity, the 795 rooted/4 legacy inventory, and receipt-drift fences
   remain green; dynamic coercion and single-/multi-implementation dynamic
   dispatch owners remain separate.
   Two authored-root devirtualized dynamic-receiver regressions—the closed
@@ -5106,21 +5115,21 @@ Owners:
   its exact selected row—now launch `OutputOnly` native execution solely
   through exact checked-report executable receipts while preserving literal
   status 70 and their detailed unresolved-call/exact-row diagnostics. Exact-
-  owner ambiguity, the 795 rooted/3 legacy inventory, and receipt-drift fences
+  owner ambiguity, the 795 rooted/4 legacy inventory, and receipt-drift fences
   remain green; the two-implementation runtime-dispatch pair remains separate.
   The paired authored-root two-implementation dynamic-dispatch regressions—
   Circle then Square and the swapped Square then Circle order—now launch
   `OutputOnly` native execution solely through exact checked-report executable
   receipts while preserving literal status 70 and the complementary 94/49
   diagnostics that reject lexically fixed implementation selection. Exact-
-  owner ambiguity, the 795 rooted/3 legacy inventory, and receipt-drift fences
+  owner ambiguity, the 795 rooted/4 legacy inventory, and receipt-drift fences
   remain green.
   Two authored-root runtime-boundary regressions—a `build`-named machine
   authored in main source remaining an ordinary runtime machine, and natural
   termination returning the oracle's zero status—now launch `OutputOnly`
   native execution solely through exact checked-report executable receipts
   while preserving literal statuses 70 and 0 and their diagnostics. Exact-
-  owner ambiguity, the 795 rooted/3 legacy inventory, and receipt-drift fences
+  owner ambiguity, the 795 rooted/4 legacy inventory, and receipt-drift fences
   remain green; deep-state collision and u64 guard owners remain separate.
   Two authored-root state/guard regressions—deep-arm delivery past a live same-
   named entry local and exact `u64::MAX` round-trip through a let initializer
@@ -5134,7 +5143,7 @@ Owners:
   by an explicit cast target—now launch `OutputOnly` native execution solely
   through exact checked-report executable receipts while preserving literal
   statuses 88, 70, and 70 and their detailed signedness diagnostics. Exact-
-  owner ambiguity, the 795 rooted/3 legacy inventory, and receipt-drift fences
+  owner ambiguity, the 795 rooted/4 legacy inventory, and receipt-drift fences
   remain green; the nested named-conversion alias remains on its explicit
   legacy compile boundary.
   Three authored-root integer arithmetic-policy regressions—wrapping addition,
@@ -5142,21 +5151,21 @@ Owners:
   `MIN / -1` corner—now launch `OutputOnly` native execution solely through
   exact checked-report executable receipts while preserving literal status 70
   and their exact wrap/clamp diagnostics. Exact-owner ambiguity, the 795
-  rooted/3 legacy inventory, and receipt-drift fences remain green; trapping,
+  rooted/4 legacy inventory, and receipt-drift fences remain green; trapping,
   float, and legacy-conversion owners remain separate.
   Three authored-root integer guard-arithmetic regressions—divide/modulo guard
   subjects, negative-i32 computed guard values, and mixed signed/unsigned
   divide-modulo signedness—now launch `OutputOnly` native execution solely
   through exact checked-report executable receipts while preserving literal
   status 70 and the detailed 71–74 wrong-arm diagnostics. Exact-owner
-  ambiguity, the 795 rooted/3 legacy inventory, and receipt-drift fences remain
+  ambiguity, the 795 rooted/4 legacy inventory, and receipt-drift fences remain
   green; loop, float, trapping, and legacy owners remain separate.
   Three authored-root payload-layout regressions—multi-field case arithmetic,
   same-named fields across case payloads, and sum tag/payload field-storage
   round-trip—now launch `OutputOnly` native execution solely through exact
   checked-report executable receipts while preserving literal status 70,
   interpreter parity where present, and detailed wrong-field/tag/payload
-  diagnostics. Exact-owner ambiguity, the 795 rooted/3 legacy inventory, and
+  diagnostics. Exact-owner ambiguity, the 795 rooted/4 legacy inventory, and
   receipt-drift fences remain green; nested-loop and mixed-width payload owners
   remain separate.
   The authored-root mixed-width sum-payload layout regression now launches
@@ -5169,20 +5178,20 @@ Owners:
   to 255 and signed overflow clamping to +127/-128—now launch `OutputOnly`
   native execution solely through exact checked-report executable receipts
   while preserving literal status 70 and exact clamp diagnostics. Exact-owner
-  ambiguity, the 795 rooted/3 legacy inventory, and receipt-drift fences remain
+  ambiguity, the 795 rooted/4 legacy inventory, and receipt-drift fences remain
   green; trapping owners remain separate.
   Two authored-root in-range trapping-policy regressions—division `140 / 2`
   and multiplication `10 × 10`—now launch `OutputOnly` native execution solely
   through exact checked-report executable receipts while preserving literal
   status 70 and exact diagnostics; crash-process semantics are unchanged.
-  Exact-owner ambiguity, the 795 rooted/3 legacy inventory, and receipt-drift
+  Exact-owner ambiguity, the 795 rooted/4 legacy inventory, and receipt-drift
   fences remain green.
   Four authored-root exact-narrowing regressions—guarded transition-argument
   decrement, one-sided `requires` range intersection, guarded transition-value
   decrement, and negated false-arm increment—now launch `OutputOnly` native
   execution solely through exact checked-report executable receipts while
   preserving literal statuses 70, 42, 42, and 70 and their Exact-proof
-  diagnostics. Exact-owner ambiguity, the 795 rooted/3 legacy inventory, and
+  diagnostics. Exact-owner ambiguity, the 795 rooted/4 legacy inventory, and
   receipt-drift fences remain green; saturating-transition, cast-accumulator,
   crash, and legacy owners remain separate.
   Three authored-root arithmetic-boundary regressions—a saturating transition-
@@ -5190,28 +5199,28 @@ Owners:
   accumulator, and signed/unsigned Saturating/Wrapping boundary behavior—now
   launch `OutputOnly` native execution solely through exact checked-report
   executable receipts while preserving literal status 70 and their exact
-  policy/source diagnostics. Exact-owner ambiguity, the 795 rooted/3 legacy
+  policy/source diagnostics. Exact-owner ambiguity, the 795 rooted/4 legacy
   inventory, and receipt-drift fences remain green.
   Three authored-root integer signedness regressions—cross-width signed/
   unsigned comparisons, arithmetic versus logical right shifts, and signed,
   unsigned, and left shifts evaluated directly in guard subjects—now launch
   `OutputOnly` native execution solely through exact checked-report executable
   receipts while preserving literal status 70 and detailed wrong-branch/`sar`-
-  versus-`shr` diagnostics. Exact-owner ambiguity, the 795 rooted/3 legacy
+  versus-`shr` diagnostics. Exact-owner ambiguity, the 795 rooted/4 legacy
   inventory, and receipt-drift fences remain green.
   Five authored-root guard-expression regressions—numeric casts, parenthesized
   subjects, And-of-Or DNF lowering, De Morgan negation, and the combined
   feature-composition case—now launch `OutputOnly` native execution solely
   through exact checked-report executable receipts while preserving literal
   status 70 and exact cast-width, parser, DNF, and negation diagnostics. Exact-
-  owner ambiguity, the 795 rooted/3 legacy inventory, and receipt-drift fences
+  owner ambiguity, the 795 rooted/4 legacy inventory, and receipt-drift fences
   remain green.
   Three authored-root narrow-integer regressions—saturating i8/u8/i16 add/
   subtract clamps, high-bit unsigned u32 divide/modulo/shift/compare, and signed
   i8/i16 two's-complement wrapping boundaries—now launch `OutputOnly` native
   execution solely through exact checked-report executable receipts while
   preserving literal status 70 and detailed width/policy diagnostics. Exact-
-  owner ambiguity, the 795 rooted/3 legacy inventory, and receipt-drift fences
+  owner ambiguity, the 795 rooted/4 legacy inventory, and receipt-drift fences
   remain green.
   Three authored-root narrow signed guard/division regressions—negative i8
   compare/subtract/multiply guard subjects, i8/i16 signed divide/modulo guard
@@ -5232,7 +5241,7 @@ Owners:
   f32 arithmetic/cast/local-field coverage—now launch `OutputOnly` native
   execution solely through exact checked-report executable receipts while
   preserving literal status 70 and detailed diagnostics. Exact-owner ambiguity,
-  the 795 rooted/3 legacy inventory, and receipt-drift fences remain green;
+  the 795 rooted/4 legacy inventory, and receipt-drift fences remain green;
   trapping/crash semantics are unchanged. Both owners retain a measured 4.0–
   4.2s warm compiler-body cost for later phase-level profiling.
   Four authored-root range-inference regressions—multipath return-union
@@ -5240,7 +5249,7 @@ Owners:
   field from a provable non-literal value, and plain struct-field fact
   narrowing—now launch `OutputOnly` native execution solely through exact
   checked-report executable receipts while preserving literal status 70 and
-  Exact-proof diagnostics. Exact-owner ambiguity, the 795 rooted/3 legacy
+  Exact-proof diagnostics. Exact-owner ambiguity, the 795 rooted/4 legacy
   inventory, and receipt-drift fences remain green; payload-range owners remain
   separate.
   Four authored-root payload/range regressions—constrained case-payload
@@ -5255,7 +5264,7 @@ Owners:
   min/max clamp narrowing, and modulo/division interval narrowing—now launch
   `OutputOnly` native execution solely through exact checked-report executable
   receipts while preserving literal exit 70 and the existing Exact-bound
-  diagnostics. Exact-owner ambiguity, the 795 rooted/3 legacy inventory, and
+  diagnostics. Exact-owner ambiguity, the 795 rooted/4 legacy inventory, and
   receipt-drift fences remain green; crash semantics and legacy owners are
   unchanged.
   Four authored-root arithmetic-domain regressions—trapping multiply overflow,
@@ -5272,7 +5281,7 @@ Owners:
   execution solely through exact checked-report executable receipts while
   preserving exit 70 for successful owners and both exact unconditional-trap
   diagnostics plus abnormal-exit-before-transition semantics for overflow.
-  Exact-owner ambiguity, the 795 rooted/3 legacy inventory, and receipt-drift
+  Exact-owner ambiguity, the 795 rooted/4 legacy inventory, and receipt-drift
   fences remain green; legacy owners are unchanged.
   Four authored-root arithmetic-boundary regressions—return-range-proven Exact
   propagation, trapping constant-fold overflow, constant trapping shift
@@ -5280,14 +5289,14 @@ Owners:
   execution solely through exact checked-report executable receipts, including
   their exact nested `out/` publications. Exit 70, all exact unconditional-trap
   diagnostics, and abnormal-exit semantics remain unchanged; exact-owner
-  ambiguity, the 795 rooted/3 legacy inventory, and receipt-drift fences remain
+  ambiguity, the 795 rooted/4 legacy inventory, and receipt-drift fences remain
   green.
   Four authored-root data/control-flow regressions—bare no-payload case-tag
   dispatch, transition arguments sourced from embedded calls, embedded value-
   call result-slot identity, and sequential self-field read/modify/write—now
   launch `OutputOnly` native execution solely through exact checked-report
   executable receipts while preserving literal exit 70 and each distinct
-  failure-status diagnostic. Exact-owner ambiguity, the 795 rooted/3 legacy
+  failure-status diagnostic. Exact-owner ambiguity, the 795 rooted/4 legacy
   inventory, and receipt-drift fences remain green; crash semantics and legacy
   owners are unchanged.
   Three authored-root expression-selection regressions—value-position match,
@@ -5295,7 +5304,7 @@ Owners:
   now launch `OutputOnly` native execution solely through exact checked-report
   executable receipts, including the exact nested `out/` publication. Literal
   exit 70 and existing mismatch diagnostics remain unchanged; exact-owner
-  ambiguity, the 795 rooted/3 legacy inventory, and receipt-drift fences remain
+  ambiguity, the 795 rooted/4 legacy inventory, and receipt-drift fences remain
   green.
   Four authored-root trait/structural-equality regressions—written conformance
   validation and synthesized equality for record, payload-sum, and mixed
@@ -5309,7 +5318,7 @@ Owners:
   simplification, and structural equality directly in guard position—now
   launch `OutputOnly` native execution solely through exact checked-report
   executable receipts while preserving literal exit 70 and text-content-plus-
-  scalar diagnostics. Exact-owner ambiguity, the 795 rooted/3 legacy inventory,
+  scalar diagnostics. Exact-owner ambiguity, the 795 rooted/4 legacy inventory,
   and receipt-drift fences remain green; crash semantics and legacy owners are
   unchanged.
   Four authored-root data-layout/copy regressions—deep nested-field access,
@@ -5317,45 +5326,45 @@ Owners:
   parity, and data-property declarations—now launch `OutputOnly` native
   execution solely through exact checked-report executable receipts, including
   exact nested `out/` publications. Literal exit 70 and all copy/layout
-  diagnostics remain unchanged; exact-owner ambiguity, the 795 rooted/3 legacy
+  diagnostics remain unchanged; exact-owner ambiguity, the 795 rooted/4 legacy
   inventory, and receipt-drift fences remain green.
   Four authored-root operator regressions—compound assignment chaining,
   chained field mutation, guard comparison signedness, and value-position
   comparison signedness—now launch `OutputOnly` native execution solely through
   exact checked-report executable receipts while preserving literal exit 70
   and every mutation/signedness diagnostic. Exact-owner ambiguity, the 795
-  rooted/3 legacy inventory, and receipt-drift fences remain green; interpreter/
+  rooted/4 legacy inventory, and receipt-drift fences remain green; interpreter/
   crash semantics and legacy owners are unchanged.
   Four authored-root signedness regressions—min/max, unsigned division/
   remainder/logical shift, signed division/remainder, and runtime right-shift
   with interpreter parity—now launch `OutputOnly` native execution solely
   through exact checked-report executable receipts while preserving literal
   exit 70 and every signedness diagnostic. The explicit named-conversion legacy
-  owner remains untouched; exact-owner ambiguity, the 795 rooted/3 legacy
+  owner remains untouched; exact-owner ambiguity, the 795 rooted/4 legacy
   inventory, and receipt-drift fences remain green.
   Three authored-root signed overflow/division regressions—sign-correct
   saturating multiply, saturating `INT_MIN / -1` divide/modulo, and wrapping
   `INT_MIN / -1` divide/modulo—now launch `OutputOnly` native execution solely
   through exact checked-report executable receipts while preserving interpreter
   parity, literal exit 70, 72/73 diagnostics, and the no-#DE crash guard. Exact-
-  owner ambiguity, the 795 rooted/3 legacy inventory, and receipt-drift fences
+  owner ambiguity, the 795 rooted/4 legacy inventory, and receipt-drift fences
   remain green; explicit legacy owners are unchanged.
   Two authored-root narrow const-fold regressions—saturating clamps at i8/u8
   widths and wrapping-to-width folds at i8/u16—now launch `OutputOnly` native
   execution solely through exact checked-report executable receipts while
   preserving interpreter parity, literal exit 70, and width-regression exit-71
-  diagnostics. Exact-owner ambiguity, the 795 rooted/3 legacy inventory, and
+  diagnostics. Exact-owner ambiguity, the 795 rooted/4 legacy inventory, and
   receipt-drift fences remain green; explicit legacy owners are unchanged.
   The authored-root nested-loop grid regression now launches `OutputOnly`
   native execution solely through its exact checked-report executable receipt
   while preserving literal exit 70 and the nested counter/reset diagnostic.
-  Exact-owner ambiguity, the 795 rooted/3 legacy inventory, and receipt-drift
+  Exact-owner ambiguity, the 795 rooted/4 legacy inventory, and receipt-drift
   fences remain green; slow-float and explicit legacy owners remain untouched.
   Two authored-root proof/arithmetic regressions—`u64` termination measures and
   nested wrapping operand truncation—now launch `OutputOnly` native execution
   solely through exact checked-report executable receipts while preserving
   literal exit 70 and their measure/width diagnostics. Exact-owner ambiguity,
-  the 795 rooted/3 legacy inventory, and receipt-drift fences remain green;
+  the 795 rooted/4 legacy inventory, and receipt-drift fences remain green;
   slow-float, crash-specific, and explicit legacy owners remain untouched.
   Two authored-root dependent-data regressions—sum-payload construction with an
   integer cast operand and bounded-product dependent indexing with interpreter
@@ -5369,21 +5378,21 @@ Owners:
   launch `OutputOnly` native execution solely through exact checked-report
   executable receipts while preserving literal exit 70, the trailing-local
   71/72/73 diagnostics, and exact receiver result flow. Exact-owner ambiguity,
-  the 795 rooted/3 legacy inventory, and receipt-drift fences remain green;
+  the 795 rooted/4 legacy inventory, and receipt-drift fences remain green;
   slow-float, crash-specific, timer/loop, and explicit legacy owners remain
   untouched.
   Three authored-root integer policy/width regressions—saturating bounds, cast
   sign/zero extension, and signed modulo plus arithmetic/logical/runtime
   shifts—now launch `OutputOnly` native execution solely through exact checked-
   report executable receipts while preserving literal exit 70 and every clamp/
-  extension/shift diagnostic. Exact-owner ambiguity, the 795 rooted/3 legacy
+  extension/shift diagnostic. Exact-owner ambiguity, the 795 rooted/4 legacy
   inventory, and receipt-drift fences remain green; slow-float, loop-heavy,
   crash-specific, timer, and explicit legacy owners remain untouched.
   Three authored-root declaration/resolution regressions—bundled core Rat use,
   free-floating constant substitution, and result-domain machine overload
   selection—now launch `OutputOnly` native execution solely through exact
   checked-report executable receipts while preserving literal exit 70 and
-  every resolution diagnostic. Exact-owner ambiguity, the 795 rooted/3 legacy
+  every resolution diagnostic. Exact-owner ambiguity, the 795 rooted/4 legacy
   inventory, and receipt-drift fences remain green; cyclic/loop-heavy, slow-
   float, crash-specific, timer, and explicit legacy owners remain untouched.
   Three authored-root proof/index regressions—computed-index enum match
@@ -5391,27 +5400,27 @@ Owners:
   proof-only data—now launch `OutputOnly` native execution solely through exact
   checked-report executable receipts while preserving literal exit 70 and
   every match/range/declaration diagnostic. Exact-owner ambiguity, the 795
-  rooted/3 legacy inventory, and receipt-drift fences remain green; cyclic/
+  rooted/4 legacy inventory, and receipt-drift fences remain green; cyclic/
   loop-heavy, report-bearing, slow-float, crash-specific, timer, and explicit
   legacy owners remain untouched.
   The authored-root integer-only narrow/widen conversion regression now
   launches `OutputOnly` native execution solely through its exact checked-
   report executable receipt while preserving literal exit 70 and the named-
   conversion/policy-qualified `u8` zero-extension plus `i8` sign-extension
-  diagnostic. Exact-owner ambiguity, the 795 rooted/3 legacy inventory, and
+  diagnostic. Exact-owner ambiguity, the 795 rooted/4 legacy inventory, and
   receipt-drift fences remain green; cyclic/loop-heavy, report-bearing, slow-
   float, crash-specific, timer, and explicit legacy owners remain untouched.
   The authored-root `u8 in Saturating` constant-fold regression now launches
   `OutputOnly` native execution solely through its exact checked-report
   executable receipt while preserving literal exit 70 and the exit-71 domain-
-  drop diagnostic. Exact-owner ambiguity, the 795 rooted/3 legacy inventory,
+  drop diagnostic. Exact-owner ambiguity, the 795 rooted/4 legacy inventory,
   and receipt-drift fences remain green; profiled multi-compile, cyclic/loop-
   heavy, report-bearing, slow-float, crash-specific, timer, and explicit legacy
   owners remain untouched.
   The authored-root guarded dynamic `i64 -> u64` Exact-conversion regression now
   launches `OutputOnly` native execution solely through its exact checked-
   report executable receipt while preserving literal exit 70 and the value-
-  preservation diagnostic. Exact-owner ambiguity, the 795 rooted/3 legacy
+  preservation diagnostic. Exact-owner ambiguity, the 795 rooted/4 legacy
   inventory, and receipt-drift fences remain green; raw legacy conversion
   surfaces, trapping conversions, cyclic/loop-heavy, report-bearing, slow-
   float, crash-specific, and timer owners remain untouched.
@@ -5419,7 +5428,7 @@ Owners:
   string-field concat—now launch `OutputOnly` native execution solely through
   exact checked-report executable receipts while preserving literal exits 71
   and 73 plus their concat-result and nested-write diagnostics. Exact-owner
-  ambiguity, the 795 rooted/3 legacy inventory, and receipt-drift fences remain
+  ambiguity, the 795 rooted/4 legacy inventory, and receipt-drift fences remain
   green; indexed-carrier, cyclic/loop-heavy, report-bearing, slow-float, crash-
   specific, timer, and explicit legacy owners remain untouched.
   Four authored-root integer coercion regressions—struct-literal field width,
@@ -5427,43 +5436,43 @@ Owners:
   wrapping, and const-fold cast signedness—now launch `OutputOnly` native
   execution solely through exact checked-report executable receipts while
   preserving interpreter parity, literal exit 70, and the existing 71/72/73
-  diagnostics. Exact-owner ambiguity, the 795 rooted/3 legacy inventory, and
+  diagnostics. Exact-owner ambiguity, the 795 rooted/4 legacy inventory, and
   receipt-drift fences remain green; cyclic/loop-heavy, report-bearing, slow-
   float, crash-specific, timer, and explicit legacy owners remain untouched.
   The authored-root integer suffix boundary-magnitude and suffix-landed
   operand-position regressions now launch solely through their exact checked-
   report executable receipts while preserving interpreter parity and literal
-  exits 70/77. Exact-owner ambiguity, the 795 rooted/3 legacy inventory, and
+  exits 70/77. Exact-owner ambiguity, the 795 rooted/4 legacy inventory, and
   cross-copy receipt-drift fences remain green; rebuild/lock wall-time spikes
   remain distinct from their 0.04–0.05s compiler/interpreter bodies.
   The finite Darwin authored-import argument regression now launches solely
   through the exact macOS ARM64 executable retained by its checked compilation
   report while preserving the selected free-DllImport provider-plan identity,
   literal exit 70, and its documented no-interpreter-custom-capability
-  boundary. Exact-owner ambiguity, the 795 rooted/3 legacy inventory, and
+  boundary. Exact-owner ambiguity, the 795 rooted/4 legacy inventory, and
   cross-copy receipt-drift fences remain green.
   The bundled proof-only core-Nat declaration regression now launches solely
   through the exact executable retained by its checked compilation report while
   preserving literal exit 70 and the proof/runtime boundary. Exact-owner
-  ambiguity, the 795 rooted/3 legacy inventory, and cross-copy receipt-drift
+  ambiguity, the 795 rooted/4 legacy inventory, and cross-copy receipt-drift
   fences remain green; structural-recursion/cyclic and accepted-axiom trust-
   report owners remain untouched.
   The finite computed-array-fill-via-field-temp regression now launches solely
   through the exact executable retained by its checked compilation report while
   preserving its five-element indexed-copy self-check and literal exit 70.
-  Exact-owner ambiguity, the 795 rooted/3 legacy inventory, and cross-copy
+  Exact-owner ambiguity, the 795 rooted/4 legacy inventory, and cross-copy
   receipt-drift fences remain green; structural/nested/recursion-heavy owners
   remain untouched.
   The finite init-hoisted-counter and write-first back-edge loop-invariant
   regressions now launch solely through the exact executables retained by their
   checked compilation reports while preserving bounded indexed-fill self-
-  checks and literal exit 70. Exact-owner ambiguity, the 795 rooted/3 legacy
+  checks and literal exit 70. Exact-owner ambiguity, the 795 rooted/4 legacy
   inventory, and cross-copy receipt-drift fences remain green; their warm
   compiler/interpreter bodies remain 0.02s.
   The machine-owned single- and double-runtime-indexed bounded-carrier literal
   regressions now launch solely through the exact executables retained by their
   checked compilation reports while preserving inline-byte assignment/append
-  and literal exits 85/87. Exact-owner ambiguity, the 795 rooted/3 legacy
+  and literal exits 85/87. Exact-owner ambiguity, the 795 rooted/4 legacy
   inventory, and cross-copy receipt-drift fences remain green. The remaining
   filename-derived launches in this canary module are deliberately fenced
   recursive/cyclic, structural, report-bearing, slow-float, nested-loop,
@@ -5472,42 +5481,48 @@ Owners:
   The finite decimal-text-to-integer parser regression now launches solely
   through the exact executable retained by its checked compilation report while
   preserving the `"12345"` to 12345 self-check and literal exit 70. Exact-owner
-  ambiguity, the 795 rooted/3 legacy inventory, and cross-copy receipt-drift
+  ambiguity, the 795 rooted/4 legacy inventory, and cross-copy receipt-drift
   fences remain green; its warm compiler/interpreter body is 0.28s.
   The computed carrier-byte width-coercion regression now launches solely
   through the exact executable retained by its checked compilation report while
   preserving interpreter/native parity for computed 300 to `u8` low byte 44
-  and literal exit 70. Exact-owner ambiguity, the 795 rooted/3 legacy
+  and literal exit 70. Exact-owner ambiguity, the 795 rooted/4 legacy
   inventory, and cross-copy receipt-drift fences remain green; its warm body is
   0.04s.
+  The dedicated f32/f64 total-order satisfier owner now launches its host
+  executable solely from the exact checked-report publication receipt while
+  retaining checked-interpreter parity, raw NaN and signed-zero exit 70, and
+  both Linux x64 and Linux ARM64 native compilations. The pass umbrella elides
+  its duplicate host compile; the exact-owner inventory is 795 rooted and 4
+  explicit legacy owners.
   The finite forward-array and decreasing-index loop regressions now launch
   solely through the exact executables retained by their checked compilation
   reports while preserving sum-to-100/backward-sum-to-10 self-checks and
-  literal exit 70. Exact-owner ambiguity, the 795 rooted/3 legacy inventory,
+  literal exit 70. Exact-owner ambiguity, the 795 rooted/4 legacy inventory,
   and cross-copy receipt-drift fences remain green; warm compiler/interpreter
   bodies remain 0.02s.
   The bounded runtime-slice and derived-adjacent-array indexed-read regressions
   now launch solely through the exact executables retained by their checked
   compilation reports while preserving the 20/40 content and `j + 1` sorted-
   adjacency self-checks plus literal exit 70. Exact-owner ambiguity, the 795
-  rooted/3 legacy inventory, and cross-copy receipt-drift fences remain green.
+  rooted/4 legacy inventory, and cross-copy receipt-drift fences remain green.
   The guarded signed-index and relational two-pointer-sum regressions now
   launch solely through the exact executables retained by their checked
   compilation reports while preserving bounded sums 10/210 and literal exit
-  70. Exact-owner ambiguity, the 795 rooted/3 legacy inventory, and cross-copy
+  70. Exact-owner ambiguity, the 795 rooted/4 legacy inventory, and cross-copy
   receipt-drift fences remain green; rebuild/lock waits remain distinct from
   their 0.02–0.03s compiler/interpreter bodies.
   The bounded two-pointer reverse and transitive branched-index-bound
   regressions now launch solely through the exact executables retained by their
   checked compilation reports while preserving in-place `[1..5]` to `[5..1]`
   mutation, the branch-bound re-read of 99, and literal exit 70. Exact-owner
-  ambiguity, the 795 rooted/3 legacy inventory, and cross-copy receipt-drift
+  ambiguity, the 795 rooted/4 legacy inventory, and cross-copy receipt-drift
   fences remain green; their compiler/interpreter bodies remain 0.03–0.04s
   while observed 1.4–3s walls were relink or rebuild work.
   The bounded runtime-indexed array-write regression now launches solely
   through the exact executable retained by its checked compilation report while
   preserving `nums[i] = i + 100`, the read-back of 103 at index 3, and literal
-  exit 70. Exact-owner ambiguity, the 795 rooted/3 legacy inventory, and cross-
+  exit 70. Exact-owner ambiguity, the 795 rooted/4 legacy inventory, and cross-
   copy receipt-drift fences remain green; its warm compiler/interpreter body is
   0.03s.
   The finite runtime-subslice parameter and bare machine-field subslice-
@@ -5519,25 +5534,25 @@ Owners:
   The dispatch-path slice-index read and cross-transition slice-length
   regressions now launch solely through the exact executables retained by their
   checked compilation reports while preserving descriptor/read self-checks and
-  literal exits 43/101. Exact-owner ambiguity, the 795 rooted/3 legacy
+  literal exits 43/101. Exact-owner ambiguity, the 795 rooted/4 legacy
   inventory, and cross-copy receipt-drift fences remain green; Cargo-lock and
   concurrent-rebuild waits remain distinct from their 0.02–0.04s bodies.
   The transitioned fixed-index slice guard and local slice-length comparison
   regressions now launch solely through the exact executables retained by their
   checked compilation reports while preserving literal exits 121/191. Exact-
-  owner ambiguity, the 795 rooted/3 legacy inventory, and cross-copy receipt-
+  owner ambiguity, the 795 rooted/4 legacy inventory, and cross-copy receipt-
   drift fences remain green; their warm compiler/interpreter bodies remain
   0.02s.
   The cross-transition slice-index and bounded slice-iteration regressions now
   launch solely through the exact executables retained by their checked
   compilation reports while preserving whole-element transition-copy exit 111
   and transitioned indexed-read iteration exit 91. Exact-owner ambiguity, the
-  795 rooted/3 legacy inventory, and cross-copy receipt-drift fences remain
+  795 rooted/4 legacy inventory, and cross-copy receipt-drift fences remain
   green; both warm compiler/interpreter bodies are 0.02s.
   The machine-owned single- and double-runtime-indexed String-field concat
   regressions now launch solely through the exact executables retained by their
   checked compilation reports while preserving direct/double indexed writes
-  and literal exits 81/83. Exact-owner ambiguity, the 795 rooted/3 legacy
+  and literal exits 81/83. Exact-owner ambiguity, the 795 rooted/4 legacy
   inventory, and cross-copy receipt-drift fences remain green; their warm
   compiler/interpreter bodies remain 0.02s.
   Final
