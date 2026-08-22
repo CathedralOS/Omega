@@ -673,8 +673,10 @@ The current concrete foundation carrier implements the provider-issued owned
 cycle directly: provider transfer seals one nonzero resident claim into dormant
 Stable content, each explicit owned view supplies a fresh nonzero placed-
 occurrence identity, primitive access retains both, and resident-preserving
-retirement returns the unchanged claim and provider receipts. This does not yet
-make the generic domain source-visible or implement borrowed resident loans,
+retirement returns the unchanged claim and provider receipts. Borrowed resident
+views retain that same lender-owned claim and receipts, a fresh occurrence, and
+one exact whole-range shared or exclusive loan; ending them releases only the
+loan. This does not yet make the generic domain source-visible or implement
 `Vacant` transitions, partial moves, or Terminal and installation propagation.
 
 The instantiated operation derives its requirements from `P`, `T`, and the

@@ -639,9 +639,11 @@ Stable carrier. Activating the carrier requires a fresh nonzero placed-
 occurrence identity; every derived field and primitive-access request retains
 both. Resident-preserving retirement ends that occurrence and returns the same
 claim and provider receipts to the dormant carrier. A later view uses a new
-occurrence without reminting custody. Ordinary borrowed views carry neither
-identity, and the dormant carrier exposes neither field access nor a route to a
-bare `Extent`.
+occurrence without reminting custody. Borrowed resident views retain the
+lender's exact claim and receipts, a fresh placed occurrence, and one
+whole-range shared or exclusive `ExtentLoan`; ending the view releases only
+that loan. Ordinary non-resident borrowed views carry neither identity, and the
+dormant carrier exposes neither field access nor a route to a bare `Extent`.
 
 Known plan, supply, rights, and geometry incompatibility rejects compilation or
 installation. Genuinely dynamic geometry, validation, or establishment-time

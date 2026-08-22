@@ -19,6 +19,10 @@ use psi_layout_plans::{
     LayoutPlacementReport, LayoutPlanReport, normalized_layout_plan_fingerprint,
 };
 
+mod resident_views;
+
+pub use resident_views::EstablishedBorrowedResidentPlacement;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct BoundaryServiceReachId(u64);
 
@@ -2339,6 +2343,7 @@ impl<'extent> PlacedView<'extent> {
 #[derive(Debug, Clone, Copy)]
 enum PlacementAuthorityRef<'view, 'extent> {
     Borrowed(&'view ExtentLoan<'extent>),
+    BorrowedResident(&'view EstablishedBorrowedResidentPlacement<'extent>),
     EstablishedOwned(&'view EstablishedOwnedPlacement),
 }
 
@@ -2346,6 +2351,7 @@ impl PlacementAuthorityRef<'_, '_> {
     const fn resident_claim(self) -> Option<ResidentClaimId> {
         match self {
             Self::Borrowed(_) => None,
+            Self::BorrowedResident(established) => Some(established.resident_claim()),
             Self::EstablishedOwned(established) => Some(established.resident_claim),
         }
     }
@@ -2353,6 +2359,7 @@ impl PlacementAuthorityRef<'_, '_> {
     const fn placed_occurrence(self) -> Option<PlacedOccurrenceId> {
         match self {
             Self::Borrowed(_) => None,
+            Self::BorrowedResident(established) => Some(established.occurrence()),
             Self::EstablishedOwned(established) => Some(established.occurrence),
         }
     }
@@ -5106,6 +5113,10 @@ mod tests {
             PlacementAuthorityRef::Borrowed(loan) => {
                 ("borrowed", std::ptr::from_ref(loan).cast::<()>())
             }
+            PlacementAuthorityRef::BorrowedResident(established) => (
+                "borrowed-resident",
+                std::ptr::from_ref(established).cast::<()>(),
+            ),
             PlacementAuthorityRef::EstablishedOwned(established) => (
                 "established-owned",
                 std::ptr::from_ref(established).cast::<()>(),
@@ -5503,6 +5514,97 @@ mod tests {
         assert_eq!(second.resident_claim(), claim);
         assert_eq!(second.occurrence(), second_occurrence);
         assert_ne!(second.occurrence(), first_occurrence);
+    }
+
+    #[test]
+    fn borrowed_resident_views_retain_claim_receipts_and_exact_loan_polarity() {
+        let plan = stable_word_placement();
+        let (extent, content) = provider_existing_content(&plan, 0xa100, 4, 104, 105);
+        let profile = stable_word_profile(&extent);
+        let admission = admit_owned_placement(
+            PlacementAdmissionId::from_normalized_identity(108).expect("admission"),
+            extent,
+            &plan,
+            &profile,
+        )
+        .expect("owned Stable admission");
+        let mut dormant =
+            adopt_owned_stable(admission, content).expect("provider resident adoption");
+        let claim = dormant.resident_claim();
+        let validity = dormant.validity_receipt();
+        let custody = dormant.custody_receipt();
+
+        let shared_occurrence =
+            PlacedOccurrenceId::from_normalized_identity(109).expect("shared occurrence");
+        {
+            let mut borrowed = dormant
+                .borrow_view(shared_occurrence)
+                .expect("shared resident loan");
+            assert_eq!(borrowed.base(), 0xa100);
+            assert_eq!(borrowed.length(), 4);
+            assert_eq!(borrowed.loan_polarity(), LoanPolarity::Shared);
+            assert_eq!(borrowed.resident_claim(), claim);
+            assert_eq!(borrowed.occurrence(), shared_occurrence);
+            assert_eq!(borrowed.validity_receipt(), validity);
+            assert_eq!(borrowed.custody_receipt(), custody);
+
+            let projection = borrowed
+                .project(field_key(plan.access(), "word"))
+                .expect("shared resident field projection");
+            let request = projection
+                .read()
+                .expect("shared resident read")
+                .into_primitive_request();
+            assert_eq!(request.source_loan(), BorrowPolarity::Shared);
+            assert_eq!(request.resident_claim(), Some(claim));
+            assert_eq!(request.placed_occurrence(), Some(shared_occurrence));
+            assert_eq!(
+                primitive_request_snapshot(&request).authority_kind,
+                "borrowed-resident"
+            );
+            drop(request);
+
+            let mut projection = borrowed
+                .project_mut(field_key(plan.access(), "word"))
+                .expect("exclusive projection borrow over shared resident loan");
+            let diagnostic = projection
+                .write()
+                .expect_err("shared resident loan cannot authorize a write");
+            assert!(diagnostic.0.contains("Shared source loan"));
+            borrowed.retire();
+        }
+        assert_eq!(dormant.resident_claim(), claim);
+        assert_eq!(dormant.validity_receipt(), validity);
+        assert_eq!(dormant.custody_receipt(), custody);
+
+        let exclusive_occurrence =
+            PlacedOccurrenceId::from_normalized_identity(110).expect("exclusive occurrence");
+        {
+            let mut borrowed = dormant
+                .borrow_view_mut(exclusive_occurrence)
+                .expect("exclusive resident loan");
+            assert_eq!(borrowed.loan_polarity(), LoanPolarity::Exclusive);
+            let mut projection = borrowed
+                .project_mut(field_key(plan.access(), "word"))
+                .expect("exclusive resident field projection");
+            let request = projection
+                .write()
+                .expect("exclusive resident write")
+                .into_primitive_request();
+            assert_eq!(request.source_loan(), BorrowPolarity::Exclusive);
+            assert_eq!(request.resident_claim(), Some(claim));
+            assert_eq!(request.placed_occurrence(), Some(exclusive_occurrence));
+            drop(request);
+            borrowed.retire();
+        }
+
+        assert_eq!(dormant.resident_claim(), claim);
+        assert_eq!(dormant.extent().base(), 0xa100);
+        let owned_occurrence =
+            PlacedOccurrenceId::from_normalized_identity(111).expect("owned occurrence");
+        let owned = dormant.view(owned_occurrence);
+        assert_eq!(owned.resident_claim(), claim);
+        assert_eq!(owned.occurrence(), owned_occurrence);
     }
 
     #[test]
