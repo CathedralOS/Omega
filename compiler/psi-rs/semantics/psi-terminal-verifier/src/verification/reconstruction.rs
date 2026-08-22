@@ -2,9 +2,11 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use psi_core::{Proposition, PropositionContext, ScalarTerm, ValueId};
+use psi_core::Proposition;
+#[cfg(test)]
+use psi_core::{PropositionContext, ScalarTerm, ValueId};
 use psi_proof_kernel::Obligation;
-use psi_terminal::{OperationKind, TerminalMachine, TerminalModule, Terminator};
+use psi_terminal::{TerminalMachine, TerminalModule, Terminator};
 #[cfg(test)]
 use psi_terminal_semantics::CanonicalScalarGoal;
 
@@ -18,6 +20,7 @@ mod cast_selection;
 mod certificate_entry;
 mod integer_evidence;
 mod integer_selection;
+mod machine_context;
 mod operation_facts;
 mod path_facts;
 mod terminator_facts;
@@ -60,74 +63,7 @@ pub(super) fn reconstruct_machine_semantics(
     module: &TerminalModule,
     machine: &TerminalMachine,
 ) -> Result<ReconstructedMachineSemantics, ModuleError> {
-    let reconstruct_path_facts = machine.blocks.iter().any(|block| {
-        block.operations.iter().any(|operation| {
-            matches!(
-                &operation.kind,
-                OperationKind::Call { .. }
-                    | OperationKind::CallUnit { .. }
-                    | OperationKind::IntegerExactCast { .. }
-                    | OperationKind::ExactIntegerShiftLeft { .. }
-                    | OperationKind::ExactIntegerShiftRight { .. }
-                    | OperationKind::ExactIntegerAdd { .. }
-                    | OperationKind::ExactIntegerSubtract { .. }
-                    | OperationKind::ExactIntegerMultiply { .. }
-                    | OperationKind::ExactIntegerDivide { .. }
-                    | OperationKind::ExactIntegerRemainder { .. }
-                    | OperationKind::WrappingIntegerDivide { .. }
-                    | OperationKind::WrappingIntegerRemainder { .. }
-                    | OperationKind::SaturatingIntegerDivide { .. }
-                    | OperationKind::SaturatingIntegerRemainder { .. }
-            )
-        })
-    });
-    let value_types = machine
-        .parameters
-        .iter()
-        .chain(machine.result.scalar_ref())
-        .chain(
-            machine
-                .blocks
-                .iter()
-                .flat_map(|block| block.parameters.iter()),
-        )
-        .chain(machine.blocks.iter().flat_map(|block| {
-            block
-                .operations
-                .iter()
-                .filter_map(|operation| operation.result.scalar_ref())
-        }))
-        .map(|declaration| (declaration.id, declaration.scalar_type))
-        .collect::<BTreeMap<_, _>>();
-    let proposition_context = PropositionContext::from_value_types(
-        value_types
-            .iter()
-            .map(|(&id, &scalar_type)| (id, scalar_type)),
-    )
-    .map_err(ModuleError::MalformedProposition)?;
-    let machine_parameter_values = machine
-        .parameters
-        .iter()
-        .map(|parameter| parameter.id)
-        .collect::<BTreeSet<_>>();
-    let blocks = machine
-        .blocks
-        .iter()
-        .map(|block| (block.id, block))
-        .collect::<BTreeMap<_, _>>();
-    let machines = module
-        .machines
-        .iter()
-        .map(|machine| (machine.id, machine))
-        .collect::<BTreeMap<_, _>>();
-    let value_term = |id: ValueId| {
-        ScalarTerm::value(
-            id,
-            *value_types
-                .get(&id)
-                .expect("validated module contains every referenced value"),
-        )
-    };
+    let context = machine_context::MachineReconstructionContext::new(module, machine)?;
 
     // Result-content equalities become true only when an exact structural
     // return edge transfers the corresponding live claims.
@@ -183,7 +119,8 @@ pub(super) fn reconstruct_machine_semantics(
     let mut exits = Vec::<Vec<Proposition>>::new();
     let mut operation_obligations = Vec::new();
     for current in order {
-        let block = blocks
+        let block = context
+            .blocks
             .get(&current)
             .expect("validated module contains every reached block");
         let paths = incoming
@@ -199,10 +136,10 @@ pub(super) fn reconstruct_machine_semantics(
                 module,
                 machine,
                 operation,
-                &machines,
-                &value_types,
-                &proposition_context,
-                &machine_parameter_values,
+                &context.machines,
+                &context.value_types,
+                &context.proposition_context,
+                &context.machine_parameter_values,
                 &mut axioms,
                 &mut operation_obligations,
             )?;
@@ -210,10 +147,10 @@ pub(super) fn reconstruct_machine_semantics(
         terminator_facts::append_terminator(
             &block.terminator,
             machine,
-            &blocks,
-            &machines,
-            &value_term,
-            reconstruct_path_facts,
+            &context.blocks,
+            &context.machines,
+            &|id| context.value_term(id),
+            context.reconstruct_path_facts,
             axioms,
             &mut incoming,
             &mut exits,

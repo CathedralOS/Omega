@@ -1956,6 +1956,12 @@ scalar-result equality, nominal-cleanup obligations, structural-return facts,
 and the rule that Crash contributes no normal exit. CFG scheduling and final
 all-return intersection remain in the parent; cleanup order, axiom snapshots,
 and noncanonical cleanup status are unchanged.
+Immutable machine reconstruction context now lives in a side-local
+`machine_context` module. It alone derives the existing path-fact enablement
+predicate, exact value-type proposition context, machine-parameter custody set,
+and block/machine identity indexes. Traversal consumes that read-only context;
+operation and terminator modules retain their independent decision authority,
+and no dispatch, fact, proof, or search order changes.
 One exact prior value equality may also transport a completed affine bound from
 its checked target alias to the canonical goal endpoint. The producer replaces
 that one endpoint, constructs the bounded affine relation directly, and wraps
