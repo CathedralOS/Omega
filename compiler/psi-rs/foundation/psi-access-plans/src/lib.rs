@@ -2731,12 +2731,7 @@ impl<'view, 'extent> PlacedFieldAccess<'view, 'extent> {
     /// static service reach that produced it. It contains no author-supplied
     /// offset.
     pub fn into_primitive_request(self) -> PrimitiveAccessRequest<'view, 'extent> {
-        let AuthorizedFieldAccess {
-            descriptor,
-            current_borrow,
-            source_loan,
-            operation,
-        } = self.access;
+        let descriptor = self.access.descriptor.clone();
         PrimitiveAccessRequest {
             plan: self.plan,
             profile_receipt: self.profile_receipt,
@@ -2752,13 +2747,14 @@ impl<'view, 'extent> PlacedFieldAccess<'view, 'extent> {
                 length_bytes: descriptor.effect_footprint.length_bytes,
             },
             observation: descriptor.observation,
-            current_borrow,
-            source_loan,
-            operation,
+            current_borrow: self.access.current_borrow,
+            source_loan: self.access.source_loan,
+            operation: self.access.operation,
             reach: self.reach,
             resident_claim: self.resident_claim,
             placed_occurrence: self.placed_occurrence,
             descriptor,
+            authorization: self.access,
             _authority: self._authority,
         }
     }
@@ -2789,6 +2785,7 @@ pub struct PrimitiveAccessRequest<'view, 'extent> {
     resident_claim: Option<ResidentClaimId>,
     placed_occurrence: Option<PlacedOccurrenceId>,
     descriptor: FieldAccessDescriptor,
+    authorization: AuthorizedFieldAccess,
     _authority: PlacementAuthorityRef<'view, 'extent>,
 }
 
@@ -2987,6 +2984,25 @@ impl PrimitiveAccessRequest<'_, '_> {
         }
         Ok(())
     }
+
+    fn validate_authorization_binding(&self) -> Result<(), AccessPlanDiagnostic> {
+        if self.authorization.descriptor != self.descriptor
+            || self.authorization.current_borrow != self.current_borrow
+            || self.authorization.source_loan != self.source_loan
+            || self.authorization.operation != self.operation
+        {
+            return Err(AccessPlanDiagnostic(
+                "primitive lowering requires copied operation and borrow facts to match the retained field authorization"
+                    .into(),
+            ));
+        }
+        authorize_descriptor(
+            &self.authorization.descriptor,
+            self.authorization.current_borrow,
+            self.authorization.source_loan,
+            self.authorization.operation,
+        )
+    }
 }
 
 /// Operation subset accepted by ordinary Stable primitive lowering.
@@ -3112,6 +3128,12 @@ impl<'view, 'extent> PrimitiveAccessRequest<'view, 'extent> {
                 diagnostic,
             });
         }
+        if let Err(diagnostic) = self.validate_authorization_binding() {
+            return Err(StablePrimitiveAccessRejection {
+                request: self,
+                diagnostic,
+            });
+        }
         Ok(StablePrimitiveAccessRequest {
             request: self,
             operation,
@@ -3227,6 +3249,12 @@ impl<'view, 'extent> PrimitiveAccessRequest<'view, 'extent> {
             });
         }
         if let Err(diagnostic) = self.validate_authority_binding() {
+            return Err(StableCompoundMutationAccessRejection {
+                request: self,
+                diagnostic,
+            });
+        }
+        if let Err(diagnostic) = self.validate_authorization_binding() {
             return Err(StableCompoundMutationAccessRejection {
                 request: self,
                 diagnostic,
@@ -3375,6 +3403,12 @@ impl<'view, 'extent> PrimitiveAccessRequest<'view, 'extent> {
                 diagnostic,
             });
         }
+        if let Err(diagnostic) = self.validate_authorization_binding() {
+            return Err(ExternalPrimitiveAccessRejection {
+                request: self,
+                diagnostic,
+            });
+        }
         Ok(ExternalPrimitiveAccessRequest {
             request: self,
             operation,
@@ -3494,6 +3528,12 @@ impl<'view, 'extent> PrimitiveAccessRequest<'view, 'extent> {
             });
         }
         if let Err(diagnostic) = self.validate_authority_binding() {
+            return Err(AtomicPrimitiveAccessRejection {
+                request: self,
+                diagnostic,
+            });
+        }
+        if let Err(diagnostic) = self.validate_authorization_binding() {
             return Err(AtomicPrimitiveAccessRejection {
                 request: self,
                 diagnostic,
@@ -5419,6 +5459,7 @@ mod tests {
         resident_claim: Option<ResidentClaimId>,
         placed_occurrence: Option<PlacedOccurrenceId>,
         descriptor: FieldAccessDescriptor,
+        authorization: AuthorizedFieldAccess,
         authority_kind: &'static str,
         authority_identity: *const (),
     }
@@ -5458,6 +5499,7 @@ mod tests {
             resident_claim: request.resident_claim,
             placed_occurrence: request.placed_occurrence,
             descriptor: request.descriptor.clone(),
+            authorization: request.authorization.clone(),
             authority_kind,
             authority_identity,
         }
@@ -6207,6 +6249,35 @@ mod tests {
         request.effective_supply.field.push_str("_drift");
         let request = expect_exact_stable_primitive_rejection(request, "resource row");
         assert_eq!(request.admission(), admission_id);
+    }
+
+    #[test]
+    fn stable_primitive_specialization_rejects_coherent_authorization_rewrite() {
+        let plan = stable_word_placement();
+        let mut extent = uart_extent_with_lineage(0xad74, 4, 186);
+        let profile = stable_word_profile(&extent);
+        let loan = extent.loan_mut(0, 4).expect("exclusive Stable loan");
+        let admission_id = PlacementAdmissionId::from_normalized_identity(187).expect("admission");
+        let admission = admit_placement(admission_id, loan, &plan, &profile)
+            .expect("borrowed Stable admission");
+        let view = place(admission);
+        let projection = view
+            .project(field_key(plan.access(), "word"))
+            .expect("shared projection over exclusive source loan");
+        let mut request = projection
+            .read()
+            .expect("authorized Stable read")
+            .into_primitive_request();
+
+        request.current_borrow = BorrowPolarity::Exclusive;
+        request.operation = AccessOperation::Write;
+        let request = expect_exact_stable_primitive_rejection(request, "field authorization");
+        assert_eq!(request.admission(), admission_id);
+        assert_eq!(
+            request.authorization.current_borrow(),
+            BorrowPolarity::Shared
+        );
+        assert_eq!(request.authorization.operation(), AccessOperation::Read);
     }
 
     #[test]
