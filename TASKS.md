@@ -4856,6 +4856,14 @@ Owners:
   and their detailed diagnostics. Exact-owner ambiguity, the 795 rooted/3
   legacy inventory, and receipt-drift fences remain green; saturating-time,
   float, and loop owners remain separate.
+  Three authored-root unsigned-arithmetic regressions—high-bit min/max, modulo
+  passed inline as a call argument, and modulo whose operand signedness is fixed
+  by an explicit cast target—now launch `OutputOnly` native execution solely
+  through exact checked-report executable receipts while preserving literal
+  statuses 88, 70, and 70 and their detailed signedness diagnostics. Exact-
+  owner ambiguity, the 795 rooted/3 legacy inventory, and receipt-drift fences
+  remain green; the nested named-conversion alias remains on its explicit
+  legacy compile boundary.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
