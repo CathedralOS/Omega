@@ -336,6 +336,14 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                         "zero-value type lowering requires the enclosing resolved program",
                     )
                 })?;
+                if let Some(quotient) = quotient_zero_value_target(
+                    program,
+                    program.child_type_reference(*type_reference),
+                ) {
+                    return Err(Diagnostic::error(format!(
+                        "`zero_value<{quotient}>()` cannot observe or choose a retained quotient representative: quotient values are opaque and have no compiler-verified canonical representative; use a named lifted operation with its role-correctness contract"
+                    )));
+                }
                 let type_reference = crate::type_reference::lower_type_reference_into_trees(
                     program,
                     self.target_trees,
@@ -630,15 +638,25 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
     }
 }
 
+fn quotient_zero_value_target(
+    program: &resolved::SymbolResolvedTrees,
+    type_reference: &resolved::types::TypeReference,
+) -> Option<String> {
+    resolved_data_definition_for_type(program, type_reference)
+        .filter(|definition| definition.quotient.is_some())
+        .map(|definition| definition.name.as_str().to_owned())
+}
+
 fn resolved_data_definition_for_type<'program>(
     program: &'program resolved::SymbolResolvedTrees,
     type_reference: &'program resolved::types::TypeReference,
 ) -> Option<&'program resolved::data::DataDefinition> {
     let (symbol, name) = match type_reference {
-        resolved::types::TypeReference::Named { symbol, name } => (*symbol, name),
+        resolved::types::TypeReference::Named { symbol, name } => (*symbol, Some(name)),
         resolved::types::TypeReference::Generic(reference) => {
-            (reference.base_symbol, &reference.base_name)
+            (reference.base_symbol, Some(&reference.base_name))
         }
+        resolved::types::TypeReference::SelfType { symbol } => (*symbol, None),
         resolved::types::TypeReference::Constrained(reference) => {
             return resolved_data_definition_for_type(
                 program,
@@ -651,7 +669,7 @@ fn resolved_data_definition_for_type<'program>(
         if symbol.is_valid() {
             definition.symbol == symbol
         } else {
-            definition.name == *name
+            name.is_some_and(|name| definition.name == *name)
         }
     })
 }
