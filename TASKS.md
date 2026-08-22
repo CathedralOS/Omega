@@ -4036,9 +4036,12 @@ Owners:
   Final object construction and decoded installation replay now also require
   canonical receipt order and reject duplicate acknowledgment of one claim
   across foreign arguments; argument bounds remain independently fail-closed.
-  Independent claim-membership replay still requires retaining the caller's
-  entry/content-claim catalog in the native artifact; the current machine row
-  retains receipt IDs and arguments but not that source catalog.
+  Boundary completion now also retains the exact caller entry/content-claim
+  source catalog through abstract planning, target assignment, machine
+  settlement evidence, final images, and canonical installation records.
+  Object and installation replay independently reject missing, extra,
+  reordered, duplicated, or source-mismatched receipts after terminal source
+  state is discarded.
   The checker accepts only one compatible consumed input
   for inferred post-return custody and rejects borrow-only sources. Ambiguous
   multiple-owned sources are accepted only when an exact authored equality
