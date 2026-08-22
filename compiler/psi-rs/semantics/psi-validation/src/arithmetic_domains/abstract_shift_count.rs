@@ -11,10 +11,11 @@ use psi_typed_trees::TypedTrees;
 use psi_typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use psi_typed_trees::types::PrimitiveType;
 
-use super::{
-    AbstractSpecificationBindings, ValueEnv, abstract_specification_interval,
-    abstract_specification_place_type, integer_bit_width, primitive_name,
+use super::total_specification::{
+    AbstractSpecificationBindings, abstract_specification_interval,
+    abstract_specification_place_type,
 };
+use super::{ValueEnv, integer_bit_width, primitive_name};
 
 fn direct_shifted_operand(
     program: &TypedTrees,

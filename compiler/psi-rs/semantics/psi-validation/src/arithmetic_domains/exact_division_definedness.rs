@@ -13,10 +13,11 @@ use psi_typed_trees::machine::Machine;
 use psi_typed_trees::state::State;
 use psi_typed_trees::types::PrimitiveType;
 
-use super::{
-    AbstractSpecificationBindings, Interval, ValueEnv, abstract_specification_interval,
-    abstract_specification_place_type, analyze,
+use super::total_specification::{
+    AbstractSpecificationBindings, abstract_specification_interval,
+    abstract_specification_place_type,
 };
+use super::{Interval, ValueEnv, analyze};
 
 fn signed_minimum(primitive: PrimitiveType) -> Option<i64> {
     match primitive {
