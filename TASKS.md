@@ -5206,6 +5206,19 @@ Owners:
   while preserving literal exit 70 and the nested counter/reset diagnostic.
   Exact-owner ambiguity, the 795 rooted/3 legacy inventory, and receipt-drift
   fences remain green; slow-float and explicit legacy owners remain untouched.
+  Two authored-root proof/arithmetic regressions—`u64` termination measures and
+  nested wrapping operand truncation—now launch `OutputOnly` native execution
+  solely through exact checked-report executable receipts while preserving
+  literal exit 70 and their measure/width diagnostics. Exact-owner ambiguity,
+  the 795 rooted/3 legacy inventory, and receipt-drift fences remain green;
+  slow-float, crash-specific, and explicit legacy owners remain untouched.
+  Two authored-root dependent-data regressions—sum-payload construction with an
+  integer cast operand and bounded-product dependent indexing with interpreter
+  parity—now launch `OutputOnly` native execution solely through exact checked-
+  report executable receipts while preserving literal exits 70 and 7 plus
+  their construction/index diagnostics. Exact-owner ambiguity, the 795 rooted/
+  3 legacy inventory, and receipt-drift fences remain green; slow-float, crash-
+  specific, and explicit legacy owners remain untouched.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
@@ -5466,6 +5479,11 @@ reach or trust, and private proof improvements do not change public identity.
   `scalar_cleanup_preservation` child. Higher conditional cleanup accounting
   remains in the 4,307-line parent, with APIs, bytes, errors, order, and function
   inventory unchanged.
+  Conditional-tree/division-region partitioning and exact x86-64/AArch64
+  conditional-edge replay now live in a focused 189-line
+  `scalar_conditional_regions` child. Higher scalar-control and image
+  orchestration remain in the 4,137-line parent, with APIs, native bytes,
+  validation order, and the 69-function inventory unchanged.
   The installed-cleanup ordinal-tamper regression now locates the authoritative
   internal-call custody row by its complete machine/text-offset/owner/target
   header before mutating the ordinal, rather than accidentally changing an
