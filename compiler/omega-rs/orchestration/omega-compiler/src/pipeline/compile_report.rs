@@ -172,7 +172,11 @@ impl CompileReport {
             build_evaluation_usage,
         };
         if report.has_consistent_executable_publication_custody() {
-            Ok(report)
+            if report.has_consistent_program_storage_entry_custody() {
+                Ok(report)
+            } else {
+                Err("compiler report retained inconsistent program-storage entry custody")
+            }
         } else {
             Err("compiler report retained inconsistent executable publication receipts")
         }
@@ -196,6 +200,17 @@ impl CompileReport {
 
     pub fn app_bundle_publication(&self) -> Option<&ExecutablePublicationReceipt> {
         self.app_bundle_publication.as_ref()
+    }
+
+    pub fn has_consistent_program_storage_entry_custody(&self) -> bool {
+        match (
+            self.program_storage_entry.as_ref(),
+            self.program_storage_entry_bridge.as_ref(),
+        ) {
+            (None, None) => true,
+            (Some(binding), Some(bridge)) => binding == bridge.binding(),
+            (None, Some(_)) | (Some(_), None) => false,
+        }
     }
 
     /// Replays the only valid relationship between the flat executable and an

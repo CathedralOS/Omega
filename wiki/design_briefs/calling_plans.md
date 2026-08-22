@@ -745,6 +745,10 @@ Production orchestration now constructs both early check-only and backend
 reports through the same checked constructor. The constructor rejects an
 inconsistent output/category/receipt tuple before it can cross the return
 boundary; raw custody-field construction remains confined to its unit tests.
+That constructor also rejoins the optional program-storage entry binding to its
+native bridge. Both must be absent together or the retained binding must equal
+the bridge's exact binding; a dropped, unpaired, or redirected binding rejects
+before report return.
 Final relocation replay also builds one exact owner map from every retained
 selected-instruction identity to that function symbol. A selected instruction
 retained twice, an instruction relocation naming another function, or an
