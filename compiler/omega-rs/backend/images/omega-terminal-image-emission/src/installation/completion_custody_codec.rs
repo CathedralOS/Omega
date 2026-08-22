@@ -12,8 +12,8 @@ use psi_core::{
 use psi_terminal::{ClaimContentProjection, ContentEntryClaim, EntryClaim, StructuralArgument};
 
 use super::{
-    Reader, TerminalInstallationError, decode_identity, decode_structural_argument,
-    encode_identity, encode_structural_argument, push_u32, push_u64,
+    Reader, TerminalInstallationError, decode_identity, encode_identity, push_u32, push_u64,
+    structural_argument_codec::{decode_structural_argument, encode_structural_argument},
 };
 
 pub(super) fn encode_completion_claim_source(
