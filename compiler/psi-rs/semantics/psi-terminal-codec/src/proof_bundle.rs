@@ -8,7 +8,8 @@ use psi_core::{
 };
 use psi_proof_kernel::{
     AcceptedFactRoute, AdmissionEvidence, AdmissionKind, CertificateEnvelope, EvidenceRoute,
-    IntegerAffineWitness, PrimitiveJudgment, ProofNode, ProofRule, ProofSystemMarker,
+    IntegerAffineWitness, IntegerCastChainWitness, PrimitiveJudgment, ProofNode, ProofRule,
+    ProofSystemMarker,
 };
 use psi_terminal_verifier::{
     EvidenceProducerProvenance, EvidenceProducerRealization, EvidenceProducerRowSource,
@@ -18,7 +19,7 @@ use sha2::{Digest, Sha256};
 
 const MAGIC: &[u8; 8] = b"PSIPRF\0\0";
 /// Single current pre-release proof vocabulary marker.
-const FORMAT_MARKER: u16 = 16;
+const FORMAT_MARKER: u16 = 17;
 const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-proof-bundle-fingerprint\0";
 const MAX_PROPOSITION_DEPTH: usize = 256;
 const MAX_SCALAR_TERM_DEPTH: usize = 256;
@@ -298,6 +299,14 @@ fn validate_proof_node(node: &ProofNode, depth: usize) -> Result<(), ProofCodecE
             validate_proof_node(middle_equals_right, depth + 1)
         }
         ProofRule::IntegerAffineBound {
+            root_bound,
+            witness,
+        } => {
+            validate_proof_node(root_bound, depth + 1)?;
+            validate_scalar_term_depth(&witness.root, 0)?;
+            validate_scalar_term_depth(&witness.target, 0)
+        }
+        ProofRule::IntegerCastBound {
             root_bound,
             witness,
         } => {
@@ -632,6 +641,22 @@ fn encode_proof_node(
             )?;
             for &index in &witness.definition_axioms {
                 writer.index("integer affine definition axiom", index)?;
+            }
+        }
+        ProofRule::IntegerCastBound {
+            root_bound,
+            witness,
+        } => {
+            writer.u8(13);
+            encode_proof_node(writer, root_bound, depth + 1, format_marker)?;
+            encode_scalar_term(writer, &witness.root, 0, format_marker)?;
+            encode_scalar_term(writer, &witness.target, 0, format_marker)?;
+            writer.len(
+                "integer cast definition axioms",
+                witness.definition_axioms.len(),
+            )?;
+            for &index in &witness.definition_axioms {
+                writer.index("integer cast definition axiom", index)?;
             }
         }
     }
@@ -1420,6 +1445,24 @@ fn decode_proof_node(
             ProofRule::IntegerAffineBound {
                 root_bound,
                 witness: IntegerAffineWitness {
+                    root,
+                    target,
+                    definition_axioms,
+                },
+            }
+        }
+        13 => {
+            let root_bound = Box::new(decode_proof_node(reader, depth + 1, format_marker)?);
+            let root = decode_scalar_term(reader, 0, format_marker)?;
+            let target = decode_scalar_term(reader, 0, format_marker)?;
+            let definition_count = reader.count()?;
+            let mut definition_axioms = Vec::new();
+            for _ in 0..definition_count {
+                definition_axioms.push(reader.index()?);
+            }
+            ProofRule::IntegerCastBound {
+                root_bound,
+                witness: IntegerCastChainWitness {
                     root,
                     target,
                     definition_axioms,
