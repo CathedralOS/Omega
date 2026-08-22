@@ -4374,6 +4374,14 @@ Owners:
   materializes citations. Construction and source order, direct-before-alias
   precedence, equality/citation and endpoint order, proof shapes, rejection
   behavior, and the fixed affine-literal frontier remain unchanged.
+  Five authored-root generic specialization/layout executions—borrowed-place
+  parameter inference, multiple specialization tuples, generic enum payloads,
+  generic record instances, and literal const-data array extents—now launch
+  solely through exact checked-report executable receipts while preserving
+  literal statuses 70, 14, 70, 70, and 70, interpreter parity where present,
+  the exact two-specialization count, and all materialization and layout
+  diagnostics. The 795 rooted/3 legacy exact-owner pins and all established
+  fences remain unchanged.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
