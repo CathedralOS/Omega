@@ -4524,10 +4524,17 @@ Remaining:
   independently provisioned exhaustion sponsor path with both fixed provision
   and `FuelSuspensionFree`; unavailable realization falls back only to an
   explicitly interpreter-enabled hosted environment and rejects for hosted
-  native-only or freestanding installation. The remaining native slice is to
-  retain that validated realization on the installed resource column, bind a
-  dynamic plan to the exact installed attribution rows, and implement/admit the
-  target context transports and exhaustion-transfer stubs before inserting
+  native-only or freestanding installation. Terminal object evidence now also
+  exposes a normalized read-only projection of its already byte-validated fuel
+  attribution rows and complete target. Dynamic plan binding requires the exact
+  relocation-free installed bytes and matching target, then retains the
+  terminal identity, installed-code context, artifact, and ordered rows. Empty,
+  noncanonical, wrong-schedule, zero-unit, out-of-range, unknown-function, or
+  duplicate semantic sites reject; zero-byte semantic sites remain valid
+  insertion points. The compact binding fingerprint is summary identity only.
+  The remaining native slice is to retain that validated realization and
+  attribution binding on the installed resource column, and implement/admit
+  the target context transports and exhaustion-transfer stubs before inserting
   compare-before-subtract charge sequences.
 - **PROOF-RELEVANCE-MIGRATION.** Finish binding-level `[erased]`, checked
   noninterference, erased-stripped layout, and obligation preservation across
