@@ -2562,9 +2562,12 @@ fn runtime_deep_nested_field_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-deep-nested-field-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("deep nested field canary should compile from its authored root");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("deep nested field canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("deep nested field canary should run");
     assert_eq!(
@@ -2585,9 +2588,12 @@ fn runtime_struct_value_copy_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-struct-value-copy-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("struct value copy canary should compile from its authored root");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("struct value copy canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("struct value copy canary should run");
     assert_eq!(
@@ -2619,10 +2625,13 @@ fn runtime_whole_struct_mutation_copy_canary_runs() {
 
     let scratch = std::env::temp_dir().join(format!("omega-copy-places-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("whole-struct mutation copy canary should compile");
 
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("whole-struct mutation copy canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("whole-struct mutation copy canary should run");
 
@@ -2647,10 +2656,13 @@ fn runtime_data_properties_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("data properties canary should compile");
 
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("data properties canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("data properties canary should run");
 
