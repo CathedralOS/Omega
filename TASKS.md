@@ -3488,10 +3488,11 @@ Remaining:
   The 2,751-line parent retains artifact carriers and general report
   orchestration; public methods, exact output, and the 79-function inventory
   are unchanged.
-  Source-load totals/file tables and syntax-tree identity/file presentation now
-  live in a focused 106-line `frontend_reports` child. The 2,656-line parent
-  retains artifact carriers and later-stage orchestration; public methods,
-  exact HTML output, and the 79-function inventory are unchanged.
+  Source-load totals/file tables and syntax-tree identity/file presentation,
+  including their source/AST row formatting, now live in a focused 157-line
+  `frontend_reports` child. The 2,477-line parent retains artifact carriers and
+  later-stage orchestration; public methods, exact HTML output, and the 79-
+  function inventory are unchanged.
   Emission-plan text, native image installation/reporting, stale-output cleanup,
   and executable-finalization presentation now live in a focused 139-line
   `native_output_reports` child. The 2,528-line parent retains report carriers
@@ -5301,6 +5302,13 @@ Owners:
   inventory, and receipt-drift fences remain green; raw legacy conversion
   surfaces, trapping conversions, cyclic/loop-heavy, report-bearing, slow-
   float, crash-specific, and timer owners remain untouched.
+  Two authored-root finite String regressions—concat membership and nested
+  string-field concat—now launch `OutputOnly` native execution solely through
+  exact checked-report executable receipts while preserving literal exits 71
+  and 73 plus their concat-result and nested-write diagnostics. Exact-owner
+  ambiguity, the 795 rooted/3 legacy inventory, and receipt-drift fences remain
+  green; indexed-carrier, cyclic/loop-heavy, report-bearing, slow-float, crash-
+  specific, timer, and explicit legacy owners remain untouched.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
@@ -5584,6 +5592,11 @@ reach or trust, and private proof improvements do not change public identity.
   `image_output` child behind unchanged crate-root re-exports. The 3,754-line
   parent retains terminal image construction and validation, with native bytes,
   error order, and the 69-function inventory unchanged.
+  Exact partial-affine cleanup partition reconstruction now lives in a focused
+  103-line `partial_cleanup_partition` child. The 3,647-line parent retains
+  terminal construction and higher cleanup orchestration, with crate-root
+  linkage, native behavior, validation order, and the 69-function inventory
+  unchanged.
   The installed-cleanup ordinal-tamper regression now locates the authoritative
   internal-call custody row by its complete machine/text-offset/owner/target
   header before mutating the ordinal, rather than accidentally changing an
