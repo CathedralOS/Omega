@@ -498,7 +498,13 @@ Remaining:
   fields, count/capacity guards, literal diagnostics, and offset errors preserve
   exact bytes and precedence; the parent retains upfront count conversion,
   canonicality, function association, schedule validation, and admission
-  replay. The installation parent is now 3,879
+  replay. The ordered privileged port-effect collection now lives in a private
+  98-line codec. Machine/operation/service identities, port/value facts,
+  ordinals, text/code spans, reserved bytes, count/capacity guards, literal
+  diagnostics, and offset errors preserve exact bytes and precedence; the
+  parent retains upfront count conversion, effect/settlement order, byte
+  validation, function association, and admission replay. The installation
+  parent is now 3,810
   lines. This is
   custody, not
   authorization. The remaining
@@ -7062,8 +7068,12 @@ Proof-only Exact float-to-integer cast admission now lives in a focused 399-
 line private owner. Finite expression intervals, declared range projection,
 all-incoming guard meets, strict next-float bounds, comparison polarity, and
 exact target-range checks retain fail-closed behavior and diagnostic order. The
-expression-type coordinator is now 1,409 lines; public APIs and the exact 51-
-function inventory remain unchanged.
+source-value classifier and store-conflict diagnostics now live in a focused
+299-line private owner. Scalar class inference, named-operator representation-
+change refusal, concrete data identity resolution, and cross-class/nominal
+diagnostics retain exact behavior and order across all consumers. The
+expression-type coordinator is now 1,123 lines; crate-facing APIs and the exact
+51-function inventory remain unchanged.
 
 Checked-result float/integer conversion remains blocked on the separate
 checked-result arithmetic decision listed below.
