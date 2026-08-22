@@ -353,29 +353,31 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
     let written = bound_writer
         .execute()
         .expect("bound writer and its exact destination remain usable");
-    written
-        .validate_for_consumer()
+    let substitute_installed_code = install_entry_artifact(entry);
+    let error = written
+        .into_validated_for_consumer(&substitute_installed_code)
+        .expect_err("an equal-looking installed realization cannot replace the retained borrow");
+    assert!(error.diagnostic().0.contains("exact installed realization"));
+    let written = error.into_written();
+    let validated_written = written
+        .into_validated_for_consumer(&installed_code)
         .expect("written bound carrier replays its retained installed realization");
     assert_eq!(
-        written.installed_code().identity(),
+        validated_written.written().installed_code().identity(),
         installed_code.identity()
     );
-    assert_eq!(written.written().provider_execution(), bound_provider);
-    assert_eq!(written.written().selected_entry(), entry);
-    assert_eq!(written.written().selected_entry_source_slot(), 0);
+    assert_eq!(validated_written.provider_execution(), bound_provider);
+    assert_eq!(validated_written.selected_entry(), entry);
+    assert_eq!(validated_written.selected_entry_source_slot(), 0);
     assert_eq!(
-        written.written().selected_requirement_identity(),
+        validated_written.selected_requirement_identity(),
         "TimerRoot::tick"
     );
     assert_eq!(
-        written.written().written().installed_code(),
-        installed_code.identity()
-    );
-    assert_eq!(
-        u64::from_le_bytes(written.bytes()[..8].try_into().unwrap()),
+        u64::from_le_bytes(validated_written.bytes()[..8].try_into().unwrap()),
         0x1010
     );
-    let bound_writer = written
+    let bound_writer = validated_written
         .recover_for_retry()
         .expect("exact written carrier returns to its sealed retry state");
     assert_eq!(bound_writer.lowered(), &bound_lowered);
@@ -385,6 +387,9 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
     let written = bound_writer
         .execute()
         .expect("recovered writer and destination execute again");
+    let written = written
+        .into_validated_for_consumer(&installed_code)
+        .expect("recovered execution validates before its bytes or parts are exposed");
     let (retained_selected_provider, retained_lowered, retained_installed, written) =
         written.into_parts();
     assert_eq!(

@@ -141,6 +141,8 @@ pub use provider_plans::{
     ExternalRootPostHandoffWriterBindingError, SelectedExternalRootEntryFactBinding,
     SelectedExternalRootPostHandoffWriterPreparation, SelectedExternalRootProviderPlan,
     SelectedExternalRootWriterPreparationError,
+    ValidatedWrittenBoundExternalRootPostHandoffWriterDestination,
+    WrittenBoundExternalRootConsumerValidationError,
     WrittenBoundExternalRootPostHandoffWriterDestination,
     WrittenBoundExternalRootWriterRecoveryError, bind_external_root_post_handoff_writer_invocation,
     compiler_intrinsic_diagnostic_label, selected_external_root_entry_fact_bindings,
