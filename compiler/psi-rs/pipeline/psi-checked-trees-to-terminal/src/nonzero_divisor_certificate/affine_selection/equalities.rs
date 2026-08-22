@@ -35,3 +35,14 @@ pub(super) fn exact_value_bindings<'a>(
     ordered(assumptions, semantic_axioms)
         .filter(|(_, _, root, literal)| exact_value_binding(root, literal))
 }
+
+pub(super) fn value_aliases<'a>(
+    assumptions: &'a [Proposition],
+    semantic_axioms: &'a [Proposition],
+) -> impl Iterator<Item = (Citation, &'a Proposition, &'a ScalarTerm, &'a ScalarTerm)> + 'a {
+    ordered(assumptions, semantic_axioms).filter(|(_, _, root, alias)| {
+        root != alias
+            && matches!(root, ScalarTerm::Value { .. })
+            && matches!(alias, ScalarTerm::Value { .. })
+    })
+}
