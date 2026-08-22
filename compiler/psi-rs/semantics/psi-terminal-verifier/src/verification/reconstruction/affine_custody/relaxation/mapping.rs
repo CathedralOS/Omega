@@ -7,7 +7,7 @@ mod endpoint;
 mod orientation;
 mod value;
 
-pub(super) fn mapped_bound(
+pub(in super::super) fn mapped_bound(
     form: &CheckedIntegerAffineForm,
     root_bound: &Proposition,
 ) -> Option<Proposition> {

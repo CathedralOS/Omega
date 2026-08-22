@@ -6,7 +6,7 @@ use psi_proof_kernel::{CheckedIntegerAffineForm, check_integer_affine_bound_conv
 mod completion;
 mod mapping;
 
-use mapping::mapped_bound;
+pub(super) use mapping::mapped_bound;
 
 pub(super) fn retained(
     form: &CheckedIntegerAffineForm,
