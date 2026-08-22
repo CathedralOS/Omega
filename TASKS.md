@@ -2245,7 +2245,12 @@ Owners:
   format emission: the entry handle and every identity-owned function name,
   text classification, interval, and kind must match exactly, while unowned or
   multiply owned function symbols reject. This does not expose an address or
-  synthesize a body. Final replay now also retains an exact
+  synthesize a body. After format placement, checked emission also rejoins each
+  encoded identity/object symbol to exactly one compiler-function region with
+  the same symbol, section offset, address, byte count, and final-byte
+  fingerprint. Missing, duplicate, renamed, reclassified, or byte-drifted
+  regions reject; import thunks remain a separate region namespace. Final
+  replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
   instruction identities, redirected instruction relocation origins, and
   instruction-origin rows without a retained owner reject, while semantic and

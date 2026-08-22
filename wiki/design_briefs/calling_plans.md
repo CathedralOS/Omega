@@ -647,6 +647,12 @@ identity-owned copy of every function symbol's name, text classification,
 offset, size, and kind; an unowned extra function symbol or an aliased binding
 rejects. This is a carrier-retention check only and does not make symbol-table
 spelling a source-level address or synthesize a callback body.
+After format-specific placement, checked emission rejoins each encoded function
+and exact object symbol to one compiler-function region. Symbol, section
+offset, placed address, byte count, and final-byte fingerprint must all match;
+missing, duplicated, renamed, reclassified, redirected, or byte-drifted
+regions reject. Import thunks remain in their separate executable-region
+namespace and cannot satisfy a compiler-function row.
 Final relocation replay also builds one exact owner map from every retained
 selected-instruction identity to that function symbol. A selected instruction
 retained twice, an instruction relocation naming another function, or an

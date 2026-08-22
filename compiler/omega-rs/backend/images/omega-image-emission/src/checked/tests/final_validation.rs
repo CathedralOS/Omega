@@ -2,8 +2,8 @@
 
 use super::*;
 use crate::checked::{
-    retain_compiler_function_identity, validate_compiler_function_object_binding,
-    validate_compiler_instruction_relocation_origins,
+    final_region_byte_fingerprint, retain_compiler_function_identity,
+    validate_compiler_function_object_binding, validate_compiler_instruction_relocation_origins,
 };
 use std::collections::{HashMap, HashSet};
 
@@ -280,6 +280,96 @@ fn final_instruction_relocations_retain_the_exact_function_owner() {
     }
     assert!(
         validate_compiler_instruction_relocation_origins(&instruction_owners, &unknown).is_err()
+    );
+}
+
+#[test]
+fn final_executable_regions_retain_exact_compiler_function_identity_and_bytes() {
+    use omega_control_flow::{MachineFunctionIdentity, StateKey};
+    use omega_image::{
+        FinalExecutableRegionOrigin, PlacedExecutableRegion, PlacedExecutableRegionInventory,
+    };
+    use omega_machine_bytes::EncodedMachineFunction;
+
+    let target = NativeTarget::linux_x64();
+    let final_bytes = [1, 2, 3, 4, 5, 6, 7, 8];
+    let identity = MachineFunctionIdentity::source(StateKey {
+        machine: psi_arena::Handle::from_parts(1, 2),
+        state: psi_arena::Handle::from_parts(3, 4),
+        segment_index: 5,
+    });
+    let mut plan =
+        omega_machine_bytes::EncodedMachinePlan::with_capacity(target, 1, 0, final_bytes.len());
+    plan.code.bytes.insert_many(final_bytes);
+    plan.code.functions.insert(EncodedMachineFunction {
+        symbol: "display".into(),
+        identity,
+        byte_offset: 0,
+        byte_count: final_bytes.len(),
+        ..EncodedMachineFunction::default()
+    });
+    plan.code.byte_count = final_bytes.len();
+    let mut object = omega_object_file::ObjectPlan::with_capacities(target, 0, 1, 1);
+    let function = plan.code.functions.iter().next().unwrap().1;
+    bind_encoded_function_object_symbol(&mut object, function);
+    let symbol = omega_object_file::object_function_symbol(&object, identity)
+        .expect("exact object function")
+        .1
+        .name
+        .clone();
+    let region = PlacedExecutableRegion {
+        origin: FinalExecutableRegionOrigin::CompilerFunction,
+        section_offset: 0,
+        address: 0x1000,
+        byte_count: final_bytes.len(),
+        byte_fingerprint: final_region_byte_fingerprint(&final_bytes),
+        symbol,
+        footprint: None,
+    };
+    let inventory = PlacedExecutableRegionInventory {
+        text_address: 0x1000,
+        text_byte_count: final_bytes.len(),
+        text_fingerprint: final_region_byte_fingerprint(&final_bytes),
+        inventory_fingerprint: 1,
+        regions: vec![region],
+        unclassified_gaps: Vec::new(),
+    };
+
+    validate_executable_region_enumeration(&inventory, &plan.code, &object, &final_bytes)
+        .expect("exact compiler-function region should rejoin");
+
+    for mutate in [
+        |region: &mut PlacedExecutableRegion| region.symbol.push_str("_drift"),
+        |region: &mut PlacedExecutableRegion| region.section_offset += 1,
+        |region: &mut PlacedExecutableRegion| region.address += 1,
+        |region: &mut PlacedExecutableRegion| region.byte_count -= 1,
+        |region: &mut PlacedExecutableRegion| region.byte_fingerprint ^= 1,
+    ] {
+        let mut drifted = inventory.clone();
+        mutate(&mut drifted.regions[0]);
+        assert!(
+            validate_executable_region_enumeration(&drifted, &plan.code, &object, &final_bytes,)
+                .is_err()
+        );
+    }
+
+    let mut wrong_namespace = inventory.clone();
+    wrong_namespace.regions[0].origin = FinalExecutableRegionOrigin::ImportThunk;
+    assert!(
+        validate_executable_region_enumeration(
+            &wrong_namespace,
+            &plan.code,
+            &object,
+            &final_bytes,
+        )
+        .is_err()
+    );
+
+    let mut duplicate = inventory.clone();
+    duplicate.regions.push(duplicate.regions[0].clone());
+    assert!(
+        validate_executable_region_enumeration(&duplicate, &plan.code, &object, &final_bytes,)
+            .is_err()
     );
 }
 

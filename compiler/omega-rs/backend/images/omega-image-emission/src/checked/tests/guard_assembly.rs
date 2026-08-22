@@ -178,7 +178,10 @@ fn checked_emission_rejects_unclassified_executable_bytes() {
         }],
     };
 
-    let diagnostic = validate_executable_region_enumeration(&inventory)
+    let target = NativeTarget::linux_x64();
+    let code = omega_machine_bytes::EncodedMachinePlan::with_capacity(target, 0, 0, 0).code;
+    let object = ObjectPlan::with_capacity(target, 0, 0);
+    let diagnostic = validate_executable_region_enumeration(&inventory, &code, &object, &[])
         .expect_err("checked images must classify every executable byte");
     assert!(diagnostic.message.contains("4 unclassified byte(s)"));
 }
