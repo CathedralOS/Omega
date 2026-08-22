@@ -643,6 +643,9 @@ Owners:
   whole-range loan. Coordinated copied claim/occurrence rewrites cannot
   substitute unrelated custody; rejection borrows the carrier or returns the
   unchanged sealed request for corrected retry.
+  The access-plan foundation's 5,346-line unit corpus now lives in a private
+  test child rather than sharing its 4,563-line production root; all 81 unit
+  tests and the public production surface remain unchanged.
 - Implement `Extent::Resident<P, T>` as the owned exact-range dormant-content
   qualification, including invariant type indices, mutual exclusion with
   `Vacant`, split/merge rejection, borrow versus owned-view continuity,
@@ -4516,6 +4519,13 @@ Owners:
   preserving literal status 70 and all detailed diagnostics. Exact-owner
   ambiguity, the 795 rooted/3 legacy inventory, and receipt-drift fences remain
   green.
+  Five authored-root transition/result-flow executions—alias-indexed reads
+  through transitions, dispatched binary call arguments, dispatched result-
+  field binding, trailing-state mutable-parameter phases, and same-type second-
+  receiver mutation—now launch solely through exact checked-report executable
+  receipts while preserving literal status 70, interpreter parity, and all
+  detailed diagnostics. Exact-owner ambiguity, the 795 rooted/3 legacy
+  inventory, and receipt-drift fences remain green.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
