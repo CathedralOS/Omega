@@ -7,9 +7,12 @@ fn runtime_decreases_u64_measure_exit_canary_runs() {
     let canary = pass_canary("proofs/runtime_decreases_u64_measure_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-decu64-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("u64 decreases canary should compile (termination must accept u64 measures)");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("u64 decreases canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("u64 decreases canary should run");
     assert_eq!(
@@ -28,9 +31,12 @@ fn runtime_wrapping_operand_truncation_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_wrapping_operand_truncation_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-wraptrunc-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("wrapping operand truncation canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("wrapping operand truncation canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("wrapping operand truncation canary should run");
     assert_eq!(
