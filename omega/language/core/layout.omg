@@ -159,6 +159,9 @@ data AtomicOperations [copy] {
     fetch_and: bool;
     swap: bool;
     compare_exchange: bool;
+    compare_exchange_once: bool;
+    try_exchange: bool;
+    try_exchange_once: bool;
 }
 
 // Transfer width and alignment are byte-count facts. Access authors do not

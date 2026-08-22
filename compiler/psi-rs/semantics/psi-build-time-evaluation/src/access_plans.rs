@@ -358,6 +358,9 @@ fn parse_atomic_permissions(value: &BuildTimeValue) -> Result<AtomicPermissions,
         fetch_and: bool_named_field(fields, "fetch_and")?,
         swap: bool_named_field(fields, "swap")?,
         compare_exchange: bool_named_field(fields, "compare_exchange")?,
+        compare_exchange_once: bool_named_field(fields, "compare_exchange_once")?,
+        try_exchange: bool_named_field(fields, "try_exchange")?,
+        try_exchange_once: bool_named_field(fields, "try_exchange_once")?,
     })
 }
 
