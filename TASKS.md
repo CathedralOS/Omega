@@ -2112,8 +2112,13 @@ Owners:
   encoded function with that key and exactly one matching private text symbol
   with the same interval. Missing, duplicate, redirected, or interval-drifted
   identities reject, so a plan row cannot be mistaken for emitted thunk
-  evidence. The remaining slices are resource-ceiling aggregation,
-  multi-entry/re-entrant target instruction lowering, and the
+  evidence. Final emission now also rejoins every validated placement row to
+  exactly one private thunk plan. Missing, duplicate, or out-of-range placement
+  indices, selected-entry drift, and repeated private thunk identities reject
+  before encoded-function/object evidence is accepted. This does not
+  materialize the registration relocation. The remaining slices are
+  resource-ceiling aggregation, multi-entry/re-entrant target instruction
+  lowering, and the
   private registration relocation (whose binding placement is design-blocked
   on `OWNER_QUESTIONS.md` Q5),
   registration leases/unregister,

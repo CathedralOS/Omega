@@ -606,9 +606,13 @@ becomes an Omega runtime value. Compiler-private function identity remains
 intact through assigned target operations, machine instructions, encoded
 bytes, and object planning. Native image emission rejects a planned callback
 unless that identity names one exact encoded function for the selected entry
-and one matching private text symbol; retaining a thunk plan is not itself
-emission evidence. A retained `Registration` keeps the exact
-selected identity in occurrence provenance and owns the code/component lease,
+and one matching private text symbol. Emission also rejoins every validated
+placement row to exactly one thunk plan and rejects a missing, duplicate, or
+out-of-range placement index, selected-entry drift, and repeated private thunk
+identity. Retaining a thunk plan is not itself emission evidence, and these
+checks do not materialize a registration relocation. A retained `Registration`
+keeps the exact selected identity in occurrence provenance and owns the
+code/component lease,
 but ownership does not automatically import that narrower envelope into a
 caller's proof context. A public API that exposes those facts forwards them in
 its own contract.

@@ -23,6 +23,7 @@ use psi_diagnostics::Diagnostic;
 use psi_symbol_resolved_trees::SymbolResolvedTrees;
 use psi_syntax_trees::SyntaxTrees;
 use psi_typed_trees::TypedTrees;
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -543,6 +544,7 @@ fn plan_emission(plan: &omega_backend_plan::BackendPlan) -> omega_artifacts::Emi
     });
     retain_callback_thunk_emission_blockers(
         &mut emission,
+        &plan.callback_placements,
         &plan.callback_thunks,
         &plan.encoded_machine,
         &plan.object,
@@ -555,11 +557,72 @@ fn plan_emission(plan: &omega_backend_plan::BackendPlan) -> omega_artifacts::Emi
 /// encoded function and one matching private text symbol.
 fn retain_callback_thunk_emission_blockers(
     emission: &mut omega_artifacts::EmissionPlan,
+    callback_placements: &[omega_backend_plan::BoundNominalCallbackPlacement],
     callback_thunks: &[omega_backend_plan::CallbackThunkPlan],
     encoded_machine: &omega_machine_bytes::EncodedMachinePlan,
     object: &omega_object_file::ObjectPlan,
 ) {
+    let mut placement_thunk_counts = vec![0usize; callback_placements.len()];
+    let mut private_identity_counts = HashMap::<&str, usize>::new();
     for thunk in callback_thunks {
+        if let Some(count) = placement_thunk_counts.get_mut(thunk.placement_index) {
+            *count += 1;
+        }
+        *private_identity_counts
+            .entry(thunk.private_symbol.as_ref())
+            .or_default() += 1;
+    }
+    for (placement_index, placement) in callback_placements.iter().enumerate() {
+        let thunk_count = placement_thunk_counts[placement_index];
+        if thunk_count != 1 {
+            emission.blockers.insert(omega_artifacts::emission_blocker(
+                "callback thunk emission",
+                &format!(
+                    "validated callback placement {placement_index} for `{}` resolves to {thunk_count} private thunk plans; exactly one is required",
+                    placement.canonical_requirement_overload
+                ),
+            ));
+        }
+    }
+
+    for thunk in callback_thunks {
+        let Some(placement) = callback_placements.get(thunk.placement_index) else {
+            emission.blockers.insert(omega_artifacts::emission_blocker(
+                "callback thunk emission",
+                &format!(
+                    "planned private callback `{}` cites missing placement row {}",
+                    thunk.private_symbol, thunk.placement_index
+                ),
+            ));
+            continue;
+        };
+        if thunk.entry_key.machine != placement.selected_machine
+            || thunk.entry_key.state != placement.selected_entry
+        {
+            emission.blockers.insert(omega_artifacts::emission_blocker(
+                "callback thunk emission",
+                &format!(
+                    "planned private callback `{}` targets {:?}, not placement row {} selected machine/entry ({:?}, {:?})",
+                    thunk.private_symbol,
+                    thunk.entry_key,
+                    thunk.placement_index,
+                    placement.selected_machine,
+                    placement.selected_entry
+                ),
+            ));
+            continue;
+        }
+        let thunk_identity_count = private_identity_counts[thunk.private_symbol.as_ref()];
+        if thunk_identity_count != 1 {
+            emission.blockers.insert(omega_artifacts::emission_blocker(
+                "callback thunk emission",
+                &format!(
+                    "planned private callback identity `{}` occurs {thunk_identity_count} times; exactly one is required",
+                    thunk.private_symbol
+                ),
+            ));
+            continue;
+        }
         if !thunk.entry_key.is_valid() {
             emission.blockers.insert(omega_artifacts::emission_blocker(
                 "callback thunk emission",
@@ -714,6 +777,7 @@ fn record_backend_phase_as_stage(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use omega_calling_conventions::{CallSignature, CallingPolicy};
     use omega_control_flow::StateKey;
     use psi_symbols::SymbolHandle;
     use std::sync::Arc;
@@ -751,6 +815,28 @@ mod tests {
             placement_index: 0,
             entry_key,
             private_symbol: Arc::from(CALLBACK_SYMBOL),
+        }
+    }
+
+    fn placement(entry_key: StateKey) -> omega_backend_plan::BoundNominalCallbackPlacement {
+        let validated = omega_calling_conventions::evaluate_ordinary_boundary_entry_plan(
+            CallingPolicy::MicrosoftX64,
+            &CallSignature::default(),
+        )
+        .expect("empty callback entry plan");
+        omega_backend_plan::BoundNominalCallbackPlacement {
+            site: psi_checked_trees::NominalMachineUseSite::Expression(
+                psi_checked_trees::expression::ExpressionHandle::from_arena_index(9),
+            ),
+            registration_operation: SymbolHandle::from_arena_index(3),
+            static_machine_ordinal: 0,
+            selected_machine: entry_key.machine,
+            selected_entry: entry_key.state,
+            satisfaction_trait: SymbolHandle::from_arena_index(4),
+            satisfaction_requirement: SymbolHandle::from_arena_index(5),
+            canonical_requirement_overload: "Handler::call".to_owned(),
+            boundary_calling_plan_fingerprint: validated.contract_fingerprint(),
+            boundary_entry_plan: validated.plan().clone(),
         }
     }
 
@@ -796,17 +882,13 @@ mod tests {
     }
 
     fn callback_blockers(
-        thunk: &omega_backend_plan::CallbackThunkPlan,
+        placements: &[omega_backend_plan::BoundNominalCallbackPlacement],
+        thunks: &[omega_backend_plan::CallbackThunkPlan],
         encoded: &omega_machine_bytes::EncodedMachinePlan,
         object: &omega_object_file::ObjectPlan,
     ) -> Vec<String> {
         let mut emission = empty_emission(encoded.target);
-        retain_callback_thunk_emission_blockers(
-            &mut emission,
-            std::slice::from_ref(thunk),
-            encoded,
-            object,
-        );
+        retain_callback_thunk_emission_blockers(&mut emission, placements, thunks, encoded, object);
         emission
             .blockers
             .iter()
@@ -819,7 +901,8 @@ mod tests {
         let target = NativeTarget::host();
         let key = state_key(2);
         let blockers = callback_blockers(
-            &thunk(key),
+            &[placement(key)],
+            &[thunk(key)],
             &encoded_machine(target, &[key]),
             &object_with_symbols(target, &[(7, 11)]),
         );
@@ -830,7 +913,8 @@ mod tests {
     fn callback_thunk_emission_rejects_invalid_or_redirected_entry_keys() {
         let target = NativeTarget::host();
         let invalid = callback_blockers(
-            &thunk(StateKey::default()),
+            &[placement(StateKey::default())],
+            &[thunk(StateKey::default())],
             &encoded_machine(target, &[state_key(2)]),
             &object_with_symbols(target, &[(7, 11)]),
         );
@@ -838,7 +922,8 @@ mod tests {
         assert!(invalid[0].contains("invalid selected-entry key"));
 
         let redirected = callback_blockers(
-            &thunk(state_key(2)),
+            &[placement(state_key(2))],
+            &[thunk(state_key(2))],
             &encoded_machine(target, &[state_key(3)]),
             &object_with_symbols(target, &[(7, 11)]),
         );
@@ -852,13 +937,19 @@ mod tests {
         let key = state_key(2);
         let object = object_with_symbols(target, &[(7, 11)]);
 
-        let missing = callback_blockers(&thunk(key), &encoded_machine(target, &[]), &object);
+        let missing = callback_blockers(
+            &[placement(key)],
+            &[thunk(key)],
+            &encoded_machine(target, &[]),
+            &object,
+        );
         assert_eq!(missing.len(), 1);
         assert!(missing[0].contains("resolves to 0 encoded functions"));
 
         for duplicate_keys in [[key, key], [key, state_key(3)]] {
             let duplicate = callback_blockers(
-                &thunk(key),
+                &[placement(key)],
+                &[thunk(key)],
                 &encoded_machine(target, &duplicate_keys),
                 &object,
             );
@@ -875,7 +966,8 @@ mod tests {
 
         for symbols in [Vec::new(), vec![(7, 11), (7, 11)]] {
             let blockers = callback_blockers(
-                &thunk(key),
+                &[placement(key)],
+                &[thunk(key)],
                 &encoded,
                 &object_with_symbols(target, &symbols),
             );
@@ -884,11 +976,67 @@ mod tests {
         }
 
         let drifted = callback_blockers(
-            &thunk(key),
+            &[placement(key)],
+            &[thunk(key)],
             &encoded,
             &object_with_symbols(target, &[(7, 10)]),
         );
         assert_eq!(drifted.len(), 1);
         assert!(drifted[0].contains("does not match its encoded function interval"));
+    }
+
+    #[test]
+    fn callback_thunk_emission_rejects_missing_duplicate_or_unknown_placement_joins() {
+        let target = NativeTarget::host();
+        let key = state_key(2);
+        let encoded = encoded_machine(target, &[key]);
+        let object = object_with_symbols(target, &[(7, 11)]);
+
+        let missing = callback_blockers(&[placement(key)], &[], &encoded, &object);
+        assert_eq!(missing.len(), 1);
+        assert!(missing[0].contains("resolves to 0 private thunk plans"));
+
+        let duplicate = callback_blockers(
+            &[placement(key)],
+            &[thunk(key), thunk(key)],
+            &encoded,
+            &object,
+        );
+        assert!(
+            duplicate
+                .iter()
+                .any(|blocker| blocker.contains("resolves to 2 private thunk plans"))
+        );
+        assert!(
+            duplicate
+                .iter()
+                .any(|blocker| blocker.contains("occurs 2 times"))
+        );
+
+        let mut unknown = thunk(key);
+        unknown.placement_index = 1;
+        let unknown = callback_blockers(&[placement(key)], &[unknown], &encoded, &object);
+        assert!(
+            unknown
+                .iter()
+                .any(|blocker| blocker.contains("cites missing placement row 1"))
+        );
+    }
+
+    #[test]
+    fn callback_thunk_emission_rejects_entry_drift_from_placement_row() {
+        let target = NativeTarget::host();
+        let selected = state_key(2);
+        let drifted = state_key(3);
+
+        let blockers = callback_blockers(
+            &[placement(selected)],
+            &[thunk(drifted)],
+            &encoded_machine(target, &[drifted]),
+            &object_with_symbols(target, &[(7, 11)]),
+        );
+
+        assert_eq!(blockers.len(), 1);
+        assert!(blockers[0].contains("not placement row 0 selected machine/entry"));
     }
 }
