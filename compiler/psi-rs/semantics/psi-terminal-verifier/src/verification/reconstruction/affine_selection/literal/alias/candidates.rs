@@ -14,9 +14,8 @@ pub(super) fn any<'a>(
 ) -> bool {
     let landings = LandingIndex::new(requirements, semantic_axioms);
     equalities::value_aliases(requirements, semantic_axioms).any(|(outer_equality, root, alias)| {
-        if root.scalar_type() != alias.scalar_type() {
-            return false;
-        }
-        landings.any(alias, outer_equality, |literal| complete(root, literal))
+        landings.any(root, alias, outer_equality, |literal| {
+            complete(root, literal)
+        })
     })
 }
