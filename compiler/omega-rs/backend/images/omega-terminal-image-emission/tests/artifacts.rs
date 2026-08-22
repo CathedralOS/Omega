@@ -1,15 +1,20 @@
 use omega_object_file::{
     RelocationKind, RelocationOrigin, SectionKind, SymbolKind, object_symbol_name,
 };
-use omega_target::NativeTarget;
+use omega_target::{NativeTarget, TargetProfile};
 use omega_terminal_image_emission::{
     TERMINAL_INSTALLATION_FORMAT_MARKER, TerminalInstallationError, TerminalObjectError,
     build_terminal_installation_record, build_terminal_object_artifact,
     can_emit_terminal_executable_image, decode_terminal_installation_record,
     derive_terminal_installation_stack_demand, derive_terminal_stack_demand,
     derive_terminal_unit_stack_demand, emit_terminal_executable_image,
+    emit_terminal_native_fuel_executable_image, emit_terminal_native_fuel_object_container,
     emit_terminal_object_container, encode_terminal_installation_record,
     terminal_installation_fingerprint, validate_terminal_installation_record,
+    validate_terminal_native_fuel_plan,
+};
+use omega_terminal_installation_evidence::{
+    NativeFuelContextLayout, NativeFuelTargetPlanProjection, SponsorContextTransport,
 };
 use omega_terminal_machine_code::{
     TerminalAarch64ReturnLinkEvidence, TerminalBoundarySettlementRecord,
@@ -187,6 +192,76 @@ fn x86_internal_call_is_a_typed_relocation_and_the_only_final_text_mutation() {
     let record = build_terminal_installation_record(&image, ProfileDecisionId::new(1).unwrap())
         .expect("installation record");
     validate_terminal_installation_record(&record, &image).expect("image binding");
+}
+
+#[test]
+fn native_fuel_object_translation_rebases_the_typed_call_and_function_symbols() {
+    let profile = TargetProfile::LinuxX64;
+    let mut plan = internal_call_plan(profile.native_target());
+    account_x86_unit_call(&mut plan);
+    let instrumented =
+        omega_terminal_machine_emission::instrument_native_fuel(plan, native_fuel_policy(profile))
+            .expect("native fuel instrumentation");
+    let validated =
+        validate_terminal_native_fuel_plan(&instrumented).expect("native fuel object replay");
+
+    let semantic = validated.semantic_artifact();
+    let (_, source_relocation) = semantic.relocations().records().next().unwrap();
+    let (_, metered_relocation) = validated.relocations().records().next().unwrap();
+    let source_caller = &instrumented.source.functions[1];
+    let semantic_caller = &semantic.functions()[1];
+    let metered_caller = &validated.functions()[1];
+    let source_local_offset = source_relocation.offset - semantic_caller.text_offset;
+    let preceding_charges = source_caller
+        .fuel_attribution
+        .partition_point(|row| row.code_offset <= source_local_offset);
+    assert_eq!(
+        metered_relocation.offset,
+        metered_caller.text_offset
+            + source_local_offset
+            + preceding_charges * omega_isa_x86_64::X86_NATIVE_FUEL_CHARGE_BYTE_COUNT
+    );
+    assert_eq!(metered_relocation.origin, source_relocation.origin);
+    assert_eq!(
+        metered_relocation.symbol_handle,
+        source_relocation.symbol_handle
+    );
+
+    for (semantic_function, metered_function) in
+        semantic.functions().iter().zip(validated.functions())
+    {
+        let symbol = validated
+            .object()
+            .layout
+            .symbols
+            .get(semantic_function.symbol);
+        assert_eq!(symbol.offset, metered_function.text_offset);
+        assert_eq!(symbol.size, metered_function.byte_count);
+    }
+
+    let container = emit_terminal_native_fuel_object_container(&validated);
+    assert_eq!(container.output.text_bytes, validated.text_bytes().len());
+    assert_eq!(container.output.relocations, 1);
+
+    let relocation_offset = metered_relocation.offset;
+    let unrelocated_field = &validated.text_bytes()[relocation_offset..relocation_offset + 4];
+    let image = emit_terminal_native_fuel_executable_image(&validated, 3)
+        .expect("metered Linux x86-64 image");
+    assert_eq!(image.target_policy(), native_fuel_policy(profile));
+    assert_eq!(image.functions(), validated.functions());
+    assert_ne!(
+        &image.output().final_text_bytes[relocation_offset..relocation_offset + 4],
+        unrelocated_field
+    );
+    assert_eq!(image.output().final_image_relocations, 1);
+    assert_eq!(
+        image
+            .output()
+            .compiler_text_validation
+            .expect("metered relocation envelope")
+            .text_relocation_count,
+        1
+    );
 }
 
 #[test]
@@ -3470,6 +3545,34 @@ fn add_empty_unit_cleanup(function: &mut TerminalMachineCodeFunction) {
                 code_offset,
                 byte_count,
             });
+    }
+}
+
+fn native_fuel_policy(profile: TargetProfile) -> NativeFuelTargetPlanProjection {
+    let register = match profile.native_target().architecture {
+        omega_target::Architecture::X86_64 => omega_calling_conventions::MachineRegister::X86Rbx,
+        omega_target::Architecture::Aarch64 => {
+            omega_calling_conventions::MachineRegister::Aarch64X(28)
+        }
+    };
+    NativeFuelTargetPlanProjection {
+        profile,
+        target: profile.native_target(),
+        transport: SponsorContextTransport::ReservedNonvolatileRegister { register },
+        context: NativeFuelContextLayout {
+            byte_size: 256,
+            alignment: 16,
+            remaining_units_offset: 24,
+            unpaid_site_kind_offset: 32,
+            unpaid_site_identity_offset: 40,
+            required_units_offset: 48,
+            transfer_entry_offset: 56,
+            retry_code_offset_offset: 64,
+            sponsor_stack_top_offset: 72,
+            activation_state_offset: 80,
+            activation_state_byte_count: 176,
+        },
+        transfer_plan_identity: 10,
     }
 }
 
