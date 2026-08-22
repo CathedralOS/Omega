@@ -25,13 +25,21 @@ That compiler then builds the full optimizing Omega compiler from Omega source.
 - `compiler/delta-rs/` is the current Rust on-ramp and executable specification.
 - `compiler/delta-rs/samples/lowermachine.alp` is the self-hosting compiler
   written in the language.
-- `DELTA_EMIT=gamma` exposes the reference meaning path. The
-  `delta-meaning-diamond.sh` gate compares that path with native execution.
+- `DELTA_EMIT=gamma` exposes the Rust reference elaborator. The
+  `delta-meaning-diamond.sh` gate compares it with native execution; it is useful
+  regression evidence, not the final authority.
+- `compiler/omega/omega2gamma.beta` is the lower-rung, Rust-free elaborator for
+  the shared Delta/Omega machine surface. Gamma's `interp.beta` executes its
+  result. Exact coverage of the Delta source eventually used by Omega0 remains
+  the closure criterion.
 - `compiler/delta/` contains the checked-in bootstrap binaries produced by this
   work.
 - `compiler/delta-rs/samples/bootstrap-storage.alp` is the first fixed-backing
   storage profile canary. It uses checked integer-offset reservations and bulk
   reset without adding pointers or a general heap to Delta.
+- `compiler/delta-rs/delta-storage-meaning.sh` evaluates that canary and a
+  perturbation through `omega2gamma.beta` and Gamma's `interp.beta`, without the
+  Rust Gamma emitter defining the result.
 - `compiler/omega/BOOTSTRAP_PROFILES.md` freezes the Delta D0 implementation
   profile and Omega O0 vertical-canary input profile in their transitional home.
 

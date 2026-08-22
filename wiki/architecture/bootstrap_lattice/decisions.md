@@ -23,7 +23,7 @@ The overview's "Two roles for Rust" is the ordering law. Made concrete, per arti
 | `check.beta` / `checker.gamma` (the proof kernel) | **trusted base** | **DEAD** — Beta + Gamma implementations, cross-checked against shared seams. |
 | cold-started `bc` artifact vs `bc.beta` | **trusted compilation edge** | **OPEN** — fixed point exists; complete lower-rooted source-to-artifact refinement does not. |
 | `interp.beta` / `typeck.beta` (γ meaning) | **trusted base** | **DEAD** — Beta, on the seed lineage. |
-| Delta's **meaning** (`gamma_emit.rs`) | **trusted base** | **DYING** — replaced by the Rust-free Delta-to-Gamma route, slice by slice. *This is the current urgent kill.* |
+| Delta's **meaning** (`gamma_emit.rs`) | **trusted base** | **DYING** — the broad Beta-written `omega2gamma` route and Gamma execution path exist, including checked D0 storage and real byte-I/O certifiers; exact coverage of the eventual Omega0 Delta source remains open. |
 | Psi/Omega's **meaning** | **trusted base** | Follows the same elaboration discipline through the Delta-built bootstrap compiler and the Omega self-build edge. |
 | `beta-lang-rs`, `delta-rs`, `omega-rs` (producers) | **untrusted producer** | **DEFERRABLE** — killed for self-sufficiency, not soundness. `omega-rs` stays untouched as the reference producer. |
 
@@ -253,9 +253,11 @@ does not close it.
    complete `bc` artifact against `bc.beta` with authority rooted below `bc`, or
    build it through the preceding audited rung. The Python comparison path is
    not the closure criterion. *(D3/D5)*
-2. **Finish Delta's Rust-free meaning route** — the Delta-to-Gamma slices: state
-   machines → self fields → cross-machine calls → arrays → read_byte. *(D1 urgent
-   kill; slices 0–1 done.)*
+2. **Finish Delta's Rust-free meaning route** — retain the existing
+   `omega2gamma.beta` → `interp.beta` coverage for state machines, self fields and
+   calls, arrays, byte I/O, and D0 storage; close every construct used by the
+   eventual Omega0 source and demote `gamma_emit.rs` to a reference producer.
+   *(D1 urgent kill.)*
 3. **Grow the proof kernel and its seams in lockstep** — no capability without its paired seam. *(D4)*
 4. **Translation-validation backend** — per-compile refinement certs. *(D3 north star, later.)*
 5. **Build bootstrap Omega from Delta** — host the minimal spec-compliant
