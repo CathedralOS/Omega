@@ -587,8 +587,14 @@ Owners:
   lives in a focused 213-line private owner, including policy/schema indexing,
   application validation, synthetic checked-record construction, and exact
   type-reference rewriting. Public APIs, diagnostic order, synthesized
-  identities, and the 107-function production inventory remain unchanged; its
-  post-typing layout coordinator is now 418 lines. The 316-line layout-plan
+  identities, and the 107-function production inventory remain unchanged.
+  Post-typing plan-laid
+  layout installation now lives in a focused 376-line private owner, including
+  policy evaluation, exact producer/schema/data identity capture, host-sized
+  geometry projection, stored-integer total-write derivation, and transactional
+  typed-layout publication. Public APIs, diagnostic order, identity custody,
+  and the 107-function production inventory remain unchanged; the 45-line root
+  is now the natural public two-phase facade. The 316-line layout-plan
   root has reached its natural
   orchestration/public-materialization-entry boundary.
   Erased terms remain semantically mandatory but add no bytes, including nested
