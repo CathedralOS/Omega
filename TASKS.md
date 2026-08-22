@@ -1019,6 +1019,9 @@ Owners:
   realization substitution remain distinct checks. Bytes remain unpublished,
   and this establishes no provider-operation authority, consumer semantics,
   device event, or native execution.
+  The external-root foundation's 2,299-line unit corpus now lives in a private
+  test child rather than sharing its 4,186-line production coordinator; all 28
+  unit tests and the public external-root surface remain unchanged.
 
 Acceptance: UART/MMIO, shared-page IPC, and ordinary RAM use one extent/layout
 foundation with different profiles. Misalignment, insufficient rights,
@@ -2300,6 +2303,23 @@ Remaining:
   order, root-bound construction, proof cloning and shapes, completion
   precedence, rejection behavior, and the fixed affine frontier remain
   unchanged.
+  Exact affine `Value`-term eligibility now lives in paired side-local affine-
+  selection authorities and is reused by ordered root endpoints, distinct
+  root/alias checks, direct literal binding, literal landing indexes, and two-
+  citation left/right-leg admission. Production and reconstruction retain
+  independent citation-bearing versus proposition-only indexes and scans.
+  Requirements/assumptions-before-semantic-axioms order, left-before-right
+  orientation, literal/type checks, same-fact rejection, proof shapes,
+  completion precedence, rejection behavior, and all fixed affine frontiers
+  remain unchanged.
+  Landed-integer type recognition and distinct retained-fact identity now live
+  in paired side-local affine-selection eligibility authorities. Literal
+  landing indexes reuse the exact integer-literal classifier, while one-alias
+  literal joins and two-citation chains reuse the exact nonidentity predicate;
+  producer retains citation proof custody and reconstruction independently
+  retains propositions. Ledger/orientation order, carrier checks, same-fact
+  rejection, proof shapes, completion precedence, and all fixed affine
+  frontiers remain unchanged.
   One-equality transitive affine completion now lives in independent side-local
   `affine_selection/transitive/alias/completion` modules. Each parent retains
   its own ledger-ordered equality discovery, distinct root/alias custody, and
@@ -4537,6 +4557,13 @@ Owners:
   status 70 and all detailed diagnostics. Exact-owner ambiguity, the 795
   rooted/3 legacy inventory, and receipt-drift fences remain green; the
   adjacent timer owner stays explicitly fenced.
+  Five authored-root nested/non-entry receiver-flow executions—self-call-chain
+  second receivers, nested inline-chain results, non-entry inline second
+  receivers, and nested local/field terminals through second instances—now
+  launch solely through exact checked-report executable receipts while
+  preserving literal status 70 and all detailed diagnostics. Exact-owner
+  ambiguity, the 795 rooted/3 legacy inventory, and receipt-drift fences remain
+  green; adjacent float and timer owners stay explicitly fenced.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
@@ -5143,6 +5170,17 @@ Remaining N6/N8 work:
   proof-synopsis child. Its 1,645-line parent retains the same public rendering
   API, `PSIPRF` bytes and identities, error order, and 43-function production
   inventory.
+  Terminal trust-graph custody now delegates canonical node/dependency
+  admission, root policy/status checks, closure traversal, and unknown, cycle,
+  and reachability rejection to a focused 161-line validator while source-
+  bound node construction and digests remain separate. Its 1,289-line parent
+  retains the same public API, graph identities, error order, and 52-function
+  inventory.
+  Exact NUL-domain-separated node and whole-graph SHA-256 encodings, including
+  canonical string, byte, and length framing, now live in an 81-line trust-
+  identity child shared by construction and validation. Its 1,220-line parent
+  retains the same public API, graph/node identities, validation order, errors,
+  and 48-function inventory.
 - Then migrate suffix law discovery to propositions plus explicit conformances,
   and expand the checked `Nat`/`Int`/`Rat`/Cauchy/approximation corpus. `Real`
   remains proof-only and core-level.
