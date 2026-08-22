@@ -1908,9 +1908,12 @@ fn runtime_nested_generic_instantiations_exit_canary_runs() {
     let canary = pass_canary("generics/runtime_nested_generic_instantiations_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-gennest-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("nested generic instantiations canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("nested generic instances should retain their executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("nested generic instantiations canary should run");
     assert_eq!(
@@ -1932,9 +1935,12 @@ fn runtime_generic_let_local_instantiations_exit_canary_runs() {
     let canary = pass_canary("generics/runtime_generic_let_local_instantiations_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-genlet-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("generic let-local instantiations canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("generic let-local instances should retain their executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("generic let-local instantiations canary should run");
     assert_eq!(
@@ -1958,9 +1964,12 @@ fn runtime_generic_domain_instantiations_exit_canary_runs() {
     let canary = pass_canary("generics/runtime_generic_domain_instantiations_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-gen-domain-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("domain-arg generic canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("domain-arg generic instances should retain their executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("domain-arg generic canary should run");
     assert_eq!(
@@ -1981,9 +1990,12 @@ fn runtime_array_max_and_sum_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_array_max_and_sum_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-max-sum-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("array max-and-sum canary should compile from its authored root");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("array max-and-sum canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("array max-and-sum canary should run");
     assert_eq!(
@@ -2005,9 +2017,12 @@ fn runtime_indexed_reduction_loop_exit_canary_runs() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-indexed-reduce-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("indexed reduction loop canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("indexed reduction canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("indexed reduction loop canary should run");
     assert_eq!(
