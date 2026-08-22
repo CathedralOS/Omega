@@ -7063,9 +7063,13 @@ checked-result arithmetic decision listed below.
   normalization now lives in a focused 370-line private owner. Exact record/
   array geometry, plan-laid stored-width and repeated-field normalization,
   stable leaf order, exact tiling, shared implication, and mutable
-  bidirectional equivalence retain behavior and identity. The recast
-  coordinator is now 2,088 lines; public APIs, diagnostic order, and the exact
-  49-function inventory remain unchanged. Remaining computed aggregate expression forms still
+  bidirectional equivalence retain behavior and identity. Interior-byte recast
+  offset proof now lives in a focused 622-line private owner. Per-edge upper/
+  lower meets, constant and self-forwarding routes, guard/equality symbolic
+  composition, declared ranges, boundary `ensures`, and write-frame
+  invalidation retain fail-closed order and exact results. The recast
+  coordinator is now 1,472 lines; public APIs, diagnostics, identities, and the
+  exact 49-function inventory remain unchanged. Remaining computed aggregate expression forms still
   need the same propagation law.
 - Materialize dynamic descriptors for pass-through, rebound, and escaping
   borrows from the retained exact conformance rows and declaring-trait symbol.
