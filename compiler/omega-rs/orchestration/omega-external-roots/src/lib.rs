@@ -1803,17 +1803,54 @@ impl PreparedExternalRootPostHandoffWriterInvocation {
                 diagnostic,
             }));
         }
-        match installed_code.write_prepared_post_handoff_destination(
-            &self.context,
-            &self.writer,
-            destination,
+        if let Err(diagnostic) = self.context.validate_for_destination(
+            installed_code,
+            destination.site(),
+            destination.len(),
         ) {
-            Ok(written) => Ok(written),
+            return Err(Box::new(PreparedExternalRootWriterExecutionError {
+                prepared: self,
+                destination,
+                diagnostic: psi_layout_plans::MaterializationDiagnostic(diagnostic.0),
+            }));
+        }
+        let Self {
+            provider_execution,
+            architecture,
+            invocation,
+            writer,
+            context,
+        } = self;
+        match installed_code.write_prepared_post_handoff_destination(context, &writer, destination)
+        {
+            Ok(written) => {
+                if let Err(diagnostic) = written.validate_for_consumer(installed_code) {
+                    let (context, destination) = written.into_prepared_parts();
+                    return Err(Box::new(PreparedExternalRootWriterExecutionError {
+                        prepared: Self {
+                            provider_execution,
+                            architecture,
+                            invocation,
+                            writer,
+                            context,
+                        },
+                        destination,
+                        diagnostic: psi_layout_plans::MaterializationDiagnostic(diagnostic.0),
+                    }));
+                }
+                Ok(written)
+            }
             Err(destination_error) => {
                 let diagnostic = destination_error.diagnostic().clone();
-                let destination = (*destination_error).into_destination();
+                let (context, destination) = (*destination_error).into_parts();
                 Err(Box::new(PreparedExternalRootWriterExecutionError {
-                    prepared: self,
+                    prepared: Self {
+                        provider_execution,
+                        architecture,
+                        invocation,
+                        writer,
+                        context,
+                    },
                     destination,
                     diagnostic,
                 }))
@@ -4863,6 +4900,17 @@ mod tests {
         prepared
             .validate_execution(&code)
             .expect("corrected retained invocation supports retry");
+
+        let colliding_code = installed_code(2, entry);
+        let diagnostic = prepared
+            .context
+            .validate_for_destination(&colliding_code, writer_site(0x8000), 16)
+            .expect_err("outward consumer must replay the exact installed realization");
+        assert!(diagnostic.0.contains("exact installed context"));
+        prepared
+            .context
+            .validate_for_destination(&code, writer_site(0x8000), 16)
+            .expect("repaired opaque context supports outward replay");
     }
 
     #[test]

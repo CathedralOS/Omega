@@ -896,32 +896,15 @@ impl<'mapping, 'bytes> PreparedPostHandoffWriterDestination<'mapping, 'bytes> {
         site: PlacementSite,
         bytes: &'bytes mut [u8],
     ) -> Result<Self, Box<DestinationClaimError<'mapping, 'bytes>>> {
-        let mismatch = if receipt.mapping != mapping.receipt_context() {
-            Some("destination preparation receipt does not bind the exact activated mapping")
-        } else if !receipt.pinned {
-            Some("destination preparation receipt does not establish pinning")
-        } else if !receipt.unpublished {
-            Some("destination preparation receipt does not establish an unpublished destination")
-        } else if receipt.required_write_rights.identities().next().is_none() {
-            Some("destination preparation receipt names no writer right")
-        } else if !mapping.rights().contains(&receipt.required_write_rights) {
-            Some("activated destination mapping lacks required writer rights")
-        } else if site.phase != psi_layout_plans::PlacementPhase::PostHandoff {
-            Some("prepared writer destination is not in the post-handoff placement phase")
-        } else if site.base_address != mapping.base() {
-            Some("prepared writer destination base does not match the activated mapping")
-        } else if usize::try_from(mapping.length()).ok() != Some(bytes.len()) {
-            Some("prepared writer byte view does not cover the exact activated mapping")
-        } else {
-            None
-        };
-        if let Some(message) = mismatch {
+        if let Err(diagnostic) =
+            validate_post_handoff_destination_binding(&mapping, &receipt, site, bytes.len())
+        {
             return Err(Box::new(DestinationClaimError {
                 mapping,
                 receipt,
                 site,
                 bytes,
-                diagnostic: InstallationDiagnostic(message.into()),
+                diagnostic,
             }));
         }
         Ok(Self {
@@ -943,6 +926,36 @@ impl<'mapping, 'bytes> PreparedPostHandoffWriterDestination<'mapping, 'bytes> {
     pub const fn is_empty(&self) -> bool {
         self.bytes.is_empty()
     }
+}
+
+fn validate_post_handoff_destination_binding(
+    mapping: &MappedExtent<'_>,
+    receipt: &DestinationPreparationReceipt,
+    site: PlacementSite,
+    byte_len: usize,
+) -> Result<(), InstallationDiagnostic> {
+    let mismatch = if receipt.mapping != mapping.receipt_context() {
+        Some("destination preparation receipt does not bind the exact activated mapping")
+    } else if !receipt.pinned {
+        Some("destination preparation receipt does not establish pinning")
+    } else if !receipt.unpublished {
+        Some("destination preparation receipt does not establish an unpublished destination")
+    } else if receipt.required_write_rights.identities().next().is_none() {
+        Some("destination preparation receipt names no writer right")
+    } else if !mapping.rights().contains(&receipt.required_write_rights) {
+        Some("activated destination mapping lacks required writer rights")
+    } else if site.phase != psi_layout_plans::PlacementPhase::PostHandoff {
+        Some("prepared writer destination is not in the post-handoff placement phase")
+    } else if site.base_address != mapping.base() {
+        Some("prepared writer destination base does not match the activated mapping")
+    } else if usize::try_from(mapping.length()).ok() != Some(byte_len) {
+        Some("prepared writer byte view does not cover the exact activated mapping")
+    } else {
+        None
+    };
+    mismatch.map_or(Ok(()), |message| {
+        Err(InstallationDiagnostic(message.into()))
+    })
 }
 
 #[derive(Debug)]
@@ -980,18 +993,16 @@ pub struct WrittenPostHandoffWriterDestination<'mapping, 'bytes> {
     receipt: DestinationPreparationReceipt,
     site: PlacementSite,
     bytes: &'bytes mut [u8],
-    installed_code: InstalledCodeId,
-    artifact: ArtifactId,
-    writer_context_fingerprint: u64,
+    context: ResolvedPostHandoffEntryWriterContext,
 }
 
 impl<'mapping, 'bytes> WrittenPostHandoffWriterDestination<'mapping, 'bytes> {
     pub const fn installed_code(&self) -> InstalledCodeId {
-        self.installed_code
+        self.context.installed_code()
     }
 
     pub const fn artifact(&self) -> ArtifactId {
-        self.artifact
+        self.context.artifact()
     }
 
     pub const fn site(&self) -> PlacementSite {
@@ -999,11 +1010,63 @@ impl<'mapping, 'bytes> WrittenPostHandoffWriterDestination<'mapping, 'bytes> {
     }
 
     pub const fn writer_context_fingerprint(&self) -> u64 {
-        self.writer_context_fingerprint
+        self.context.fingerprint()
+    }
+
+    pub const fn context(&self) -> &ResolvedPostHandoffEntryWriterContext {
+        &self.context
     }
 
     pub fn bytes(&self) -> &[u8] {
         self.bytes
+    }
+
+    /// Independently replay the exact non-clonable writer context and
+    /// destination preparation before an owning consumer validates semantic
+    /// contents or publishes the mapping. This establishes no consumer value
+    /// and performs no publication.
+    pub fn validate_for_consumer(
+        &self,
+        installed_code: &InstalledCode,
+    ) -> Result<(), InstallationDiagnostic> {
+        installed_code.validate_written_post_handoff_context(
+            &self.context,
+            self.site,
+            self.bytes.len(),
+        )?;
+        validate_post_handoff_destination_binding(
+            &self.mapping,
+            &self.receipt,
+            self.site,
+            self.bytes.len(),
+        )
+    }
+
+    /// Recover the exact non-clonable context and still-unpublished prepared
+    /// destination when a later consumer rejects validation. No byte or
+    /// authority is reconstructed by this transition.
+    pub fn into_prepared_parts(
+        self,
+    ) -> (
+        ResolvedPostHandoffEntryWriterContext,
+        PreparedPostHandoffWriterDestination<'mapping, 'bytes>,
+    ) {
+        let Self {
+            mapping,
+            receipt,
+            site,
+            bytes,
+            context,
+        } = self;
+        (
+            context,
+            PreparedPostHandoffWriterDestination {
+                mapping,
+                receipt,
+                site,
+                bytes,
+            },
+        )
     }
 
     pub fn into_parts(
@@ -1020,6 +1083,7 @@ impl<'mapping, 'bytes> WrittenPostHandoffWriterDestination<'mapping, 'bytes> {
 
 #[derive(Debug)]
 pub struct DestinationWriteError<'mapping, 'bytes> {
+    context: ResolvedPostHandoffEntryWriterContext,
     destination: PreparedPostHandoffWriterDestination<'mapping, 'bytes>,
     diagnostic: MaterializationDiagnostic,
 }
@@ -1029,8 +1093,13 @@ impl<'mapping, 'bytes> DestinationWriteError<'mapping, 'bytes> {
         &self.diagnostic
     }
 
-    pub fn into_destination(self) -> PreparedPostHandoffWriterDestination<'mapping, 'bytes> {
-        self.destination
+    pub fn into_parts(
+        self,
+    ) -> (
+        ResolvedPostHandoffEntryWriterContext,
+        PreparedPostHandoffWriterDestination<'mapping, 'bytes>,
+    ) {
+        (self.context, self.destination)
     }
 }
 
@@ -1085,6 +1154,21 @@ impl ResolvedPostHandoffEntryWriterContext {
     /// inaccessible.
     pub fn binds_invocation(&self, invocation: &PostHandoffWriterInvocationPlan) -> bool {
         self.invocation == *invocation
+    }
+
+    /// Replay this sealed context against the exact installed realization and
+    /// destination geometry without resolving or exposing its numeric words.
+    pub fn validate_for_destination(
+        &self,
+        installed_code: &InstalledCode,
+        destination_site: PlacementSite,
+        destination_len: usize,
+    ) -> Result<(), InstallationDiagnostic> {
+        installed_code.validate_written_post_handoff_context(
+            self,
+            destination_site,
+            destination_len,
+        )
     }
 }
 
@@ -1301,13 +1385,76 @@ impl InstalledCode {
         })
     }
 
-    /// Consume one exact activated, pinned, writable, unpublished destination
-    /// and execute the once-resolved writer into it. Failure returns the whole
-    /// linear destination state; success remains unpublished for the
-    /// consumer-specific semantic validator and publication transition.
-    pub fn write_prepared_post_handoff_destination<'mapping, 'bytes>(
+    fn validate_written_post_handoff_context(
         &self,
         context: &ResolvedPostHandoffEntryWriterContext,
+        destination_site: PlacementSite,
+        destination_len: usize,
+    ) -> Result<(), InstallationDiagnostic> {
+        context
+            .invocation
+            .validate_structure()
+            .map_err(|diagnostic| InstallationDiagnostic(diagnostic.0))?;
+        if context.installed_code != self.identity
+            || context.artifact != self.artifact()
+            || context.destination_site != destination_site
+            || context.destination_len != destination_len
+            || context.context_abi() != POST_HANDOFF_WRITER_CONTEXT_ABI_V1
+            || context.packed_words.first().copied() != Some(destination_site.base_address)
+            || context.packed_words.len() != context.invocation.sources().len() + 1
+        {
+            return Err(InstallationDiagnostic(
+                "written post-handoff destination does not retain its exact installed context, invocation, and destination geometry"
+                    .into(),
+            ));
+        }
+        let source_values = &context.packed_words[1..];
+        context
+            .invocation
+            .validate_source_values(source_values)
+            .map_err(|diagnostic| InstallationDiagnostic(diagnostic.0))?;
+        for (slot, value) in context.invocation.sources().iter().zip(source_values) {
+            let (exact, mismatch) = match slot.source {
+                PostHandoffWriterSource::Resolve(target) => (
+                    target == slot.target && self.resolve_entry_target(target) == Some(*value),
+                    "is not an admitted entry in the exact installed artifact",
+                ),
+                PostHandoffWriterSource::Resolved(expected) => (
+                    expected == *value && self.resolve_entry_target(slot.target) == Some(expected),
+                    "does not match the exact installed realization",
+                ),
+            };
+            if !exact {
+                return Err(InstallationDiagnostic(format!(
+                    "written post-handoff destination source slot for {:?} {mismatch}",
+                    slot.target
+                )));
+            }
+        }
+        let replayed_fingerprint = fingerprint_post_handoff_entry_writer_context(
+            context.installed_code,
+            context.artifact,
+            context.destination_site,
+            context.destination_len,
+            &context.invocation,
+            &context.packed_words,
+        );
+        if replayed_fingerprint != context.fingerprint {
+            return Err(InstallationDiagnostic(
+                "written post-handoff destination context fingerprint fails exact replay".into(),
+            ));
+        }
+        Ok(())
+    }
+
+    /// Consume one exact activated, pinned, writable, unpublished destination
+    /// and its non-clonable once-resolved context, then execute the writer into
+    /// it. Failure returns both linear inputs; success retains the exact
+    /// context with the still-unpublished destination for independent consumer
+    /// replay before semantic validation and publication.
+    pub fn write_prepared_post_handoff_destination<'mapping, 'bytes>(
+        &self,
+        context: ResolvedPostHandoffEntryWriterContext,
         plan: &PostHandoffWriterPlan,
         destination: PreparedPostHandoffWriterDestination<'mapping, 'bytes>,
     ) -> Result<
@@ -1315,12 +1462,13 @@ impl InstalledCode {
         Box<DestinationWriteError<'mapping, 'bytes>>,
     > {
         if let Err(diagnostic) = self.execute_populated_post_handoff_entry_writer(
-            context,
+            &context,
             plan,
             destination.bytes,
             destination.site,
         ) {
             return Err(Box::new(DestinationWriteError {
+                context,
                 destination,
                 diagnostic,
             }));
@@ -1336,9 +1484,7 @@ impl InstalledCode {
             receipt,
             site,
             bytes,
-            installed_code: self.identity,
-            artifact: self.artifact(),
-            writer_context_fingerprint: context.fingerprint(),
+            context,
         })
     }
 
@@ -2396,23 +2542,40 @@ mod tests {
         let context = installed
             .populate_post_handoff_entry_writer_context(&writer, 8, site)
             .expect("exact installed writer context");
+        let context_fingerprint = context.fingerprint();
+        let invocation = writer
+            .lower_reusable_fragment()
+            .expect("exact retained invocation");
         let mapping = activated_writer_mapping(site.base_address, 8);
         let receipt = prepared_destination_receipt(&mapping, 170);
         let mut bytes = [0u8; 8];
         let destination =
             PreparedPostHandoffWriterDestination::claim(mapping, receipt, site, &mut bytes)
                 .expect("activated pinned writable unpublished destination");
-        let written = installed
-            .write_prepared_post_handoff_destination(&context, &writer, destination)
+        let mut written = installed
+            .write_prepared_post_handoff_destination(context, &writer, destination)
             .expect("prepared writer consumes destination");
         assert_eq!(written.installed_code(), installed.identity());
         assert_eq!(written.artifact(), installed.artifact());
         assert_eq!(written.site(), site);
-        assert_eq!(written.writer_context_fingerprint(), context.fingerprint());
+        assert_eq!(written.writer_context_fingerprint(), context_fingerprint);
+        assert!(written.context().binds_invocation(&invocation));
+        written
+            .validate_for_consumer(&installed)
+            .expect("written destination independently replays exact context");
         assert_eq!(
             u64::from_le_bytes(written.bytes().try_into().unwrap()),
             0x8010
         );
+        written.context.fingerprint ^= 1;
+        let diagnostic = written
+            .validate_for_consumer(&installed)
+            .expect_err("consumer replay must reject context corruption");
+        assert!(diagnostic.0.contains("fingerprint fails exact replay"));
+        written.context.fingerprint ^= 1;
+        written
+            .validate_for_consumer(&installed)
+            .expect("repaired exact context supports consumer retry");
         let (_mapping, receipt, returned_site, returned_bytes) = written.into_parts();
         assert_eq!(receipt.identity().normalized_identity(), 170);
         assert_eq!(returned_site, site);
@@ -2473,7 +2636,7 @@ mod tests {
         let mut drifted_writer = writer.clone();
         drifted_writer.byte_order = ByteOrder::BigEndian;
         let error = installed
-            .write_prepared_post_handoff_destination(&context, &drifted_writer, destination)
+            .write_prepared_post_handoff_destination(context, &drifted_writer, destination)
             .expect_err("writer/context drift must reject before mutation");
         assert!(
             error
@@ -2481,9 +2644,18 @@ mod tests {
                 .0
                 .contains("exact installed code, plan, destination")
         );
-        let destination = (*error).into_destination();
+        let (context, destination) = (*error).into_parts();
+        assert_eq!(context.installed_code(), installed.identity());
         assert_eq!(destination.site(), site);
         assert_eq!(destination.len(), 8);
+        assert_eq!(destination.bytes, &[0xa5; 8]);
+        let written = installed
+            .write_prepared_post_handoff_destination(context, &writer, destination)
+            .expect("returned context and destination support corrected retry");
+        assert_eq!(
+            u64::from_le_bytes(written.bytes().try_into().unwrap()),
+            0x8010
+        );
     }
 
     #[test]
