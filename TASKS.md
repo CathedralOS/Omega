@@ -2277,6 +2277,14 @@ Remaining:
   axioms and left-before-right orientation. Literal landing indexes, equality
   distinctness, direct-before-alias precedence, two-citation chain order, proof
   shapes, rejection behavior, and every fixed affine frontier remain unchanged.
+  Exact affine root/alias eligibility now lives at paired side-local affine-
+  selection boundaries and is reused by direct/one-alias landed-literal
+  selection and one-alias transitive selection. Producer and reconstruction
+  independently require distinct exact `Value` roots/aliases; literal
+  selection retains its additional exact carrier and landed-integer checks.
+  Equality/citation order, same-fact rejection, direct-before-alias precedence,
+  proof shapes, completion rejection, and every fixed affine frontier remain
+  unchanged.
   One-equality transitive affine completion now lives in independent side-local
   `affine_selection/transitive/alias/completion` modules. Each parent retains
   its own ledger-ordered equality discovery, distinct root/alias custody, and
