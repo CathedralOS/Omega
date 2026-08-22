@@ -768,6 +768,10 @@ impl AdmittedTerminalProviderExecution {
 }
 
 impl omega_terminal_installation_evidence::TerminalProviderExecutionEvidence for ProviderExecution {
+    fn requirement_identity(&self) -> &str {
+        self.selected_requirement_identity()
+    }
+
     fn provider_plan(&self) -> u64 {
         self.provider_plan.normalized_identity()
     }

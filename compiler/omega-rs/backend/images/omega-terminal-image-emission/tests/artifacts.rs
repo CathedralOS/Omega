@@ -110,6 +110,10 @@ fn linux_exit_group_object_validation_replays_exact_scalar_and_trap_bytes() {
     #[derive(Debug)]
     struct ExitProvider;
     impl TerminalProviderExecutionEvidence for ExitProvider {
+        fn requirement_identity(&self) -> &str {
+            "Console::exit_process"
+        }
+
         fn provider_plan(&self) -> u64 {
             91
         }
@@ -287,6 +291,14 @@ fn linux_write_line_then_exit_survives_object_image_and_installation_replay() {
     #[derive(Debug)]
     struct Provider(u64);
     impl TerminalProviderExecutionEvidence for Provider {
+        fn requirement_identity(&self) -> &str {
+            match self.0 {
+                970 => "Console::write_line",
+                980 => "Console::exit_process",
+                _ => "unexpected provider",
+            }
+        }
+
         fn provider_plan(&self) -> u64 {
             self.0
         }
@@ -2240,7 +2252,7 @@ fn installation_record_is_canonical_and_binds_exact_image_and_target_facts() {
         terminal_installation_fingerprint(&record)
             .expect("installation fingerprint")
             .to_string(),
-        "ee0582367af8ac79f9da781ee12682cba7bfefe0c761ae6117973afaa62049d4"
+        "2a5fc94452e5cd29289bebe83e63c5b3d740b4f6c21800981a8caec4fe0a9099"
     );
 
     let mut changed_plan = plan;

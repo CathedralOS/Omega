@@ -35,13 +35,14 @@ moves to `bootstrap/omega0/compiler/`.
   and conformance tools for that format.
 
 These are seed pieces for the first Omega compiler, not that compiler itself.
-The first Delta-written frontend slice now lives at
+The first Delta-written vertical slice now lives at
 `../delta-rs/samples/omega0-frontend.alp`: it decodes the canonical bundle,
 lexes, parses, resolves, and type/count-checks the frozen O0 console program
-while retaining its two boundary operands. General Omega checking,
-terminal-Psi emission, and a Delta-written native artifact backend do not exist
-yet. The frontend's lower-rung Delta-to-Gamma meaning coverage also remains
-open and is tracked explicitly rather than inferred from native agreement.
+while retaining its two boundary operands, then directly emits the canonical
+terminal-Psi bytes. The emitted fixture is gated through lower-rung meaning,
+shared decode/verification, deterministic native images, and runnable Linux
+behavior. General Omega checking and a Delta-written native artifact backend do
+not exist yet.
 
 ## Coverage boundary
 

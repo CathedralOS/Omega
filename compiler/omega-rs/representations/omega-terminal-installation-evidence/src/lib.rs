@@ -63,6 +63,10 @@ pub trait TerminalNativeFuelImageEvidence {
 /// Exact admitted provider-execution identity projected into terminal
 /// lowering and installation records.
 pub trait TerminalProviderExecutionEvidence: std::fmt::Debug {
+    /// Canonical terminal requirement identity selected by this admitted
+    /// execution. Lowering compares this value with the exact bodyless
+    /// boundary declaration before it projects the numeric execution record.
+    fn requirement_identity(&self) -> &str;
     fn provider_plan(&self) -> u64;
     fn provider_execution_identity(&self) -> u64;
     fn provider_execution_fingerprint(&self) -> u64;

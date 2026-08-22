@@ -83,9 +83,11 @@ lattice and `compiler/` for the product implementation.
 
 ## Delta → first Omega readiness
 
-**Present status: compiler-capable, not Omega-bootstrap-ready.** Delta has proved
-that it can host a substantial compiler, but it has not yet proved that it can
-host the Omega compiler. `compiler/delta-rs/samples/lowermachine.alp` is a real
+**Present status: compiler-capable with the first O0 vertical canary closed, but
+not Omega-bootstrap-ready.** Delta has proved that it can host a substantial
+compiler and carry one frozen Omega source shape through canonical meaning to a
+runnable artifact, but it has not yet implemented the Omega compiler.
+`compiler/delta-rs/samples/lowermachine.alp` is a real
 Delta-written Delta-to-ARM64 compiler: it self-compiles to a fixed point and its
 output is swept against the Rust reference over the sample corpus. This proves
 the basic compiler-host vocabulary—mutable arenas, parsing, recursive calls,
@@ -93,9 +95,10 @@ sum types, state-machine control flow, byte I/O, and code emission.
 
 That evidence is necessary but is not the first Omega compiler:
 
-- The Delta-written O0 slice implements its frozen lexer, parser, and exact
-  name/type/count checks. It is not yet a full Omega frontend, and no Delta
-  source yet implements terminal-Psi lowering or a complete Omega backend.
+- The Delta-written O0 slice implements its frozen lexer, parser, exact
+  name/type/count checks, and direct canonical terminal-Psi emission for one
+  console shape. It is not yet a general Omega frontend or a complete
+  Delta-written Omega backend.
 - The Delta-written native path emits ARM64 assembly and still uses external
   `clang` and `codesign` to obtain a runnable image.
 - `lowermachine.alp` is a large, effectively single-source compiler. Its source
@@ -194,7 +197,7 @@ story.
       preserves semantic rejection at 251. The focused gate pins multi-slot
       void/value method-state threading, bounded per-machine capacity, and the
       private chunked carrier used only for compiler-sized scalar arrays.
-- [ ] **Build a vertical Omega canary in Delta.** A Delta-written program must
+- [x] **Build a vertical Omega canary in Delta.** A Delta-written program must
   accept a small Omega source file, perform name/type checks, lower through the
   chosen terminal-Psi path, and produce a runnable artifact whose behavior
   agrees with canonical meaning.
@@ -286,8 +289,14 @@ story.
       independently validate the required external import and relocation
       evidence. Their hosted `_exit`/`ExitProcess` paths are not aliases for the
       import-free Linux realization.
-  - [ ] Gate the runnable O0 artifact: exact output plus newline, requested
+  - [x] Gate the runnable O0 artifact: exact output plus newline, requested
     low-byte exit status, deterministic bytes, and canonical-meaning agreement.
+    The published vocabulary-25 fixture is decoded and verified with the empty
+    proof bundle, executed by canonical terminal meaning, and lowered with
+    exact requirement-matched provider executions to deterministic Linux x86-64
+    and AArch64 images plus replayed installation records. Matching Linux hosts
+    execute the image and compare stdout/status; other hosts validate both
+    complete image formats without pretending to execute them.
 - [ ] **Implement the first Omega compiler in Delta.** Grow the canary into the
   deliberately simple, spec-compliant compiler. Prefer direct and auditable
   stages over porting the production optimizer or the entire current Rust
@@ -300,9 +309,11 @@ story.
   edge against canonical meaning. The Delta-built compiler remains a supported
   slow, unoptimized endpoint.
 
-The first vertical canary—not a wholesale Delta redesign—is the next evidence
-boundary. It will distinguish facilities the Omega bootstrap actually needs
-from attractive but deferrable language work.
+The first vertical canary is closed. The next evidence boundary is to grow that
+frozen slice into the deliberately simple Omega compiler while separately
+closing the lattice-built object/image path and the used-Delta meaning profile.
+Those requirements, rather than a wholesale Delta redesign, determine which
+additional facilities the bootstrap actually needs.
 
 ## Repository-structure work packages
 
