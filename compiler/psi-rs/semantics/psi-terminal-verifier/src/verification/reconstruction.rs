@@ -23,6 +23,8 @@ use super::substitution::{
 };
 use super::sufficient_reduction::reduce_proof_bearing_scalar_goal;
 
+mod alias_transport;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReconstructedOperationObligation {
     pub obligation: Obligation,
@@ -628,7 +630,7 @@ fn retained_alias_substituted_cast_bound(
     requirements: &[Proposition],
     semantic_axioms: &[Proposition],
 ) -> bool {
-    if retained_one_alias_substituted_bound(requirements, semantic_axioms, |root, root_bound| {
+    if alias_transport::retained_one(requirements, semantic_axioms, |root, root_bound| {
         retained_cast_bound_from_root(context, goal, semantic_axioms, root, root_bound)
     }) {
         return true;
@@ -643,163 +645,15 @@ fn retained_alias_substituted_cast_bound(
         || retained_two_alias_substituted_cast_bound(context, goal, requirements, semantic_axioms)
 }
 
-fn retained_one_alias_substituted_bound(
-    requirements: &[Proposition],
-    semantic_axioms: &[Proposition],
-    mut complete: impl FnMut(&ScalarTerm, &Proposition) -> bool,
-) -> bool {
-    let facts = || requirements.iter().chain(semantic_axioms);
-    let mut bounds_by_endpoint = BTreeMap::<_, Vec<_>>::new();
-    for fact in facts() {
-        let Proposition::LessOrEqual(left, right) = fact else {
-            continue;
-        };
-        if matches!(left, ScalarTerm::Value { .. }) {
-            bounds_by_endpoint
-                .entry(left.clone())
-                .or_default()
-                .push((fact, 0));
-        }
-        if right != left && matches!(right, ScalarTerm::Value { .. }) {
-            bounds_by_endpoint
-                .entry(right.clone())
-                .or_default()
-                .push((fact, 1));
-        }
-    }
-
-    facts()
-        .filter_map(|equality| match equality {
-            Proposition::Equal(left, right) => Some((left, right)),
-            _ => None,
-        })
-        .any(|(left, right)| {
-            [(left, right), (right, left)]
-                .into_iter()
-                .filter(|(root, alias)| {
-                    root != alias
-                        && matches!(root, ScalarTerm::Value { .. })
-                        && matches!(alias, ScalarTerm::Value { .. })
-                        && root.scalar_type() == alias.scalar_type()
-                })
-                .any(|(root, alias)| {
-                    bounds_by_endpoint.get(alias).is_some_and(|bounds| {
-                        bounds.iter().any(|(relation, endpoint)| {
-                            let Proposition::LessOrEqual(relation_left, relation_right) = relation
-                            else {
-                                unreachable!("only order bounds are indexed")
-                            };
-                            let root_bound = if *endpoint == 0 {
-                                Proposition::LessOrEqual(root.clone(), relation_right.clone())
-                            } else {
-                                Proposition::LessOrEqual(relation_left.clone(), root.clone())
-                            };
-                            complete(root, &root_bound)
-                        })
-                    })
-                })
-        })
-}
-
 fn retained_two_alias_substituted_cast_bound(
     context: &PropositionContext,
     goal: &Proposition,
     requirements: &[Proposition],
     semantic_axioms: &[Proposition],
 ) -> bool {
-    retained_two_alias_substituted_bound(requirements, semantic_axioms, |root, root_bound| {
+    alias_transport::retained_two(requirements, semantic_axioms, |root, root_bound| {
         retained_cast_bound_from_root(context, goal, semantic_axioms, root, root_bound)
     })
-}
-
-/// Independently select one retained order bound transported through exactly
-/// two distinct, same-carrier value equalities. The depth is structural and
-/// fixed; this helper exposes no recursive or parameterized alias search.
-fn retained_two_alias_substituted_bound(
-    requirements: &[Proposition],
-    semantic_axioms: &[Proposition],
-    mut complete: impl FnMut(&ScalarTerm, &Proposition) -> bool,
-) -> bool {
-    let facts = || requirements.iter().chain(semantic_axioms);
-    let mut bounds_by_endpoint = BTreeMap::<_, Vec<_>>::new();
-    for fact in facts() {
-        let Proposition::LessOrEqual(left, right) = fact else {
-            continue;
-        };
-        if matches!(left, ScalarTerm::Value { .. }) {
-            bounds_by_endpoint
-                .entry(left.clone())
-                .or_default()
-                .push((fact, 0));
-        }
-        if right != left && matches!(right, ScalarTerm::Value { .. }) {
-            bounds_by_endpoint
-                .entry(right.clone())
-                .or_default()
-                .push((fact, 1));
-        }
-    }
-
-    facts()
-        .filter_map(|outer_equality| match outer_equality {
-            Proposition::Equal(left, right) => Some((outer_equality, left, right)),
-            _ => None,
-        })
-        .any(|(outer_equality, outer_left, outer_right)| {
-            [(outer_left, outer_right), (outer_right, outer_left)]
-                .into_iter()
-                .filter(|(root, middle_alias)| {
-                    root != middle_alias
-                        && matches!(root, ScalarTerm::Value { .. })
-                        && matches!(middle_alias, ScalarTerm::Value { .. })
-                        && root.scalar_type() == middle_alias.scalar_type()
-                })
-                .any(|(root, middle_alias)| {
-                    facts()
-                        .filter(|inner_equality| !std::ptr::eq(outer_equality, *inner_equality))
-                        .filter_map(|inner_equality| match inner_equality {
-                            Proposition::Equal(left, right) => Some((left, right)),
-                            _ => None,
-                        })
-                        .any(|(inner_left, inner_right)| {
-                            let bound_alias = if inner_left == middle_alias {
-                                inner_right
-                            } else if inner_right == middle_alias {
-                                inner_left
-                            } else {
-                                return false;
-                            };
-                            if bound_alias == root
-                                || bound_alias == middle_alias
-                                || !matches!(bound_alias, ScalarTerm::Value { .. })
-                                || bound_alias.scalar_type() != root.scalar_type()
-                            {
-                                return false;
-                            }
-                            bounds_by_endpoint.get(bound_alias).is_some_and(|bounds| {
-                                bounds.iter().any(|(relation, endpoint)| {
-                                    let Proposition::LessOrEqual(relation_left, relation_right) =
-                                        relation
-                                    else {
-                                        unreachable!("only order bounds are indexed")
-                                    };
-                                    let root_bound = if *endpoint == 0 {
-                                        Proposition::LessOrEqual(
-                                            root.clone(),
-                                            relation_right.clone(),
-                                        )
-                                    } else {
-                                        Proposition::LessOrEqual(
-                                            relation_left.clone(),
-                                            root.clone(),
-                                        )
-                                    };
-                                    complete(root, &root_bound)
-                                })
-                            })
-                        })
-                })
-        })
 }
 
 fn retained_stronger_alias_substituted_cast_bound(
@@ -1262,7 +1116,7 @@ fn retained_alias_substituted_affine_bound(
     requirements: &[Proposition],
     semantic_axioms: &[Proposition],
 ) -> bool {
-    retained_one_alias_substituted_bound(requirements, semantic_axioms, |root, root_bound| {
+    alias_transport::retained_one(requirements, semantic_axioms, |root, root_bound| {
         retained_affine_bound_from_root(context, goal, semantic_axioms, root, root_bound)
     })
 }
@@ -1273,7 +1127,7 @@ fn retained_two_alias_substituted_affine_bound(
     requirements: &[Proposition],
     semantic_axioms: &[Proposition],
 ) -> bool {
-    retained_two_alias_substituted_bound(requirements, semantic_axioms, |root, root_bound| {
+    alias_transport::retained_two(requirements, semantic_axioms, |root, root_bound| {
         retained_affine_bound_from_root(context, goal, semantic_axioms, root, root_bound)
     })
 }

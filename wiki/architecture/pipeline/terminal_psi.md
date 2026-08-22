@@ -2014,8 +2014,10 @@ canonical bound through exactly two distinct same-carrier value equalities. It
 nests two `IntegerLessOrEqualSubstitution` nodes under `IntegerCastBound`;
 production and verification independently enumerate that exact three-citation
 shape through their own local indexed constructor shared by cast and affine
-completion. They prefer every one-alias family and perform no recursive or
-parameterized alias walk.
+completion. Those fixed one-/two-alias constructors now live in dedicated,
+side-local `alias_transport` modules rather than the broader certificate and
+reconstruction engines. They prefer every one-alias family and perform no
+recursive or parameterized alias walk.
 Missing, reused, redirected, crossed, cyclic, mistyped, or weaker facts reject.
 A third alias and literal landing through two aliases remain outside. Neither
 complete exact row changes trust and `fully-derived false` remains.
