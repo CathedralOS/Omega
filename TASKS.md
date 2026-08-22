@@ -548,7 +548,11 @@ Remaining:
   including place/type identities, multiplicity, reserved fields, and
   qualification catalogs. Structural-return order, row bytes, literal
   diagnostics and precedence, public APIs, validation, and admission replay
-  remain unchanged. The installation parent is now 3,043
+  remain unchanged. One trivial-affine-local codec now owns local-place rows and
+  their paired empty-record type declarations across structural returns and
+  affine cleanup. Exact bytes, reserved fields, shape/identity diagnostics and
+  precedence, public APIs, validation, and admission replay remain unchanged.
+  The installation parent is now 2,958
   lines. This is
   custody, not
   authorization. The remaining
@@ -678,6 +682,12 @@ Owners:
   is now the natural public two-phase facade. The 316-line layout-plan
   root has reached its natural
   orchestration/public-materialization-entry boundary.
+  Type-reference indexed-domain admission and open-index normalization now live
+  in a focused 550-line private owner. Exact const-binder/range diagnostics,
+  recursive expression validation order, selected public operator/provider/
+  algebra identities, normalizer bytes, crate APIs, and the exact 33-function
+  inventory remain unchanged; the 1,563-line parent retains core type-reference
+  dispatch and constraint orchestration.
   Erased terms remain semantically mandatory but add no bytes, including nested
   records and fixed arrays whose entire runtime shape is erased. Scalar
   placement/access semantics remain fenced for aggregates. Continue beyond
