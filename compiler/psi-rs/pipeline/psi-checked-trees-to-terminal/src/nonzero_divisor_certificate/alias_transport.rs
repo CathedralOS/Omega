@@ -8,7 +8,8 @@ use std::collections::BTreeMap;
 use psi_core::{Proposition, PropositionContext, ScalarTerm};
 use psi_proof_kernel::{ProofNode, ProofRule};
 
-use super::{cast_custody, cited_facts, closed_integer_relation};
+use super::cast_custody;
+use super::integer_evidence::{Citation, cited_facts, closed_integer_relation};
 
 pub(super) fn prove_one(
     assumptions: &[Proposition],
@@ -370,7 +371,7 @@ fn prove_cast_from_landed_literal(
 fn indexed_bounds<'a>(
     assumptions: &'a [Proposition],
     semantic_axioms: &'a [Proposition],
-) -> BTreeMap<ScalarTerm, Vec<(super::Citation, &'a Proposition, usize)>> {
+) -> BTreeMap<ScalarTerm, Vec<(Citation, &'a Proposition, usize)>> {
     let mut bounds_by_endpoint = BTreeMap::<_, Vec<_>>::new();
     for (citation, fact) in cited_facts(assumptions, semantic_axioms) {
         let Proposition::LessOrEqual(left, right) = fact else {

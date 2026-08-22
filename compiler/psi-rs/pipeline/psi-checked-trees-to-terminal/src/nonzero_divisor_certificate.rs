@@ -13,12 +13,9 @@ mod affine_selection;
 mod alias_transport;
 mod cast_custody;
 mod cast_selection;
+mod integer_evidence;
 
-#[derive(Clone, Copy)]
-enum Citation {
-    Assumption(usize),
-    SemanticAxiom(usize),
-}
+use integer_evidence::{cited_facts, closed_integer_relation};
 
 /// Build the recursive certificate shape shared by canonical integer goals.
 ///
@@ -326,50 +323,6 @@ fn prove_exact_or_closed_transitive_integer_bound(
         }
     }
     None
-}
-
-fn cited_facts<'a>(
-    assumptions: &'a [Proposition],
-    semantic_axioms: &'a [Proposition],
-) -> impl Iterator<Item = (Citation, &'a Proposition)> {
-    assumptions
-        .iter()
-        .enumerate()
-        .map(|(index, fact)| (Citation::Assumption(index), fact))
-        .chain(
-            semantic_axioms
-                .iter()
-                .enumerate()
-                .map(|(index, fact)| (Citation::SemanticAxiom(index), fact)),
-        )
-}
-
-fn closed_integer_relation(conclusion: Proposition) -> Option<ProofNode> {
-    let Proposition::LessOrEqual(left, right) = &conclusion else {
-        return None;
-    };
-    let (left_type, left) = left.integer_value()?;
-    let (right_type, right) = right.integer_value()?;
-    (left_type == right_type
-        && left_type
-            .compare(left, right)
-            .is_some_and(|order| !order.is_gt()))
-    .then_some(ProofNode {
-        conclusion,
-        rule: ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation),
-    })
-}
-
-impl Citation {
-    fn proof(self, conclusion: &Proposition) -> ProofNode {
-        ProofNode {
-            conclusion: conclusion.clone(),
-            rule: match self {
-                Self::Assumption(index) => ProofRule::Assumption { index },
-                Self::SemanticAxiom(index) => ProofRule::SemanticAxiom { index },
-            },
-        }
-    }
 }
 
 #[cfg(test)]

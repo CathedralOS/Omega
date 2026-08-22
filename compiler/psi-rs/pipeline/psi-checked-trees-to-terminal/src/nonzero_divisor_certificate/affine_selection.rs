@@ -5,7 +5,8 @@ use std::collections::BTreeMap;
 use psi_core::{Proposition, PropositionContext};
 use psi_proof_kernel::{PrimitiveJudgment, ProofNode, ProofRule};
 
-use super::{affine_custody, alias_transport, cited_facts};
+use super::integer_evidence::cited_facts;
+use super::{affine_custody, alias_transport};
 
 pub(super) fn prove(
     context: &PropositionContext,

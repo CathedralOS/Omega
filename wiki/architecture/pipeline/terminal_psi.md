@@ -1916,6 +1916,11 @@ Affine evidence selection now lives in dedicated, side-local
 the exact preference order across direct, literal-landed, fixed one-/two-alias,
 and exactly-two-leg transitive custody before invoking affine completion; no
 generic path search or additional evidence shape is introduced.
+Prior-evidence primitives now live in dedicated, side-local
+`integer_evidence` modules. Production alone owns citation indices and proof
+nodes; verification independently resolves retained integer literals and
+replays closed order. Selectors depend on these leaf helpers without sharing
+authority, changing precedence, or expanding the search frontier.
 One exact prior value equality may also transport a completed affine bound from
 its checked target alias to the canonical goal endpoint. The producer replaces
 that one endpoint, constructs the bounded affine relation directly, and wraps

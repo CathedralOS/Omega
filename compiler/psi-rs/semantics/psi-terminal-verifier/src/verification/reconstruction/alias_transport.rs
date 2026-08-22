@@ -8,7 +8,8 @@ use std::collections::BTreeMap;
 
 use psi_core::{Proposition, PropositionContext, ScalarTerm};
 
-use super::{cast_custody, closed_integer_less_or_equal};
+use super::cast_custody;
+use super::integer_evidence::closed_integer_less_or_equal;
 
 pub(super) fn retained_one(
     requirements: &[Proposition],
