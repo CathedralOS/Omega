@@ -1026,7 +1026,7 @@ Remaining:
   Unknown or redirected case/field identities reject independently. Mixed
   common-field/case shapes, nested or recursive payload expansion, address and
   erased payload equality, and runtime sum layout remain fenced. Semantic codec
-  v18, proof-bundle v15, and installation-record v24 retain the structural
+  v18, proof-bundle v16, and installation-record v24 retain the structural
   shapes, case-payload paths, and proposition. Continue with the fenced mixed,
   nested, recursive, and erased aggregate cases. Concrete machine/state
   contracts plus domain/data predicates, trait invariants and signatures,
@@ -1306,7 +1306,7 @@ Remaining:
   safe-divisor and exceptional branches; redirected goals, reordered joint
   conjunctions, or wrong operand identities reject. The operation result is not
   available as proof authority. The current
-  proof rules and proof-bundle v15 codec carry the certificates without a
+  proof rules and proof-bundle v16 codec carry the certificates without a
   vocabulary change. All remaining
   exact divide/remainder families stay on trusted sufficient reduction, so
   neither complete row changes trust status. Their exact-defined
@@ -1334,9 +1334,19 @@ Remaining:
   checked affine form. It preserves order for positive coefficients, reverses
   it for negative coefficients, deterministically maps zero coefficients to
   the constant offset, and rejects wrong shapes, checked-arithmetic overflow,
-  or an out-of-carrier endpoint. This API accepts no proof authority and is not
-  a certificate rule. The remaining work is an intentional versioned proof
-  integration that binds the root citation and normalization equalities. A
+  or an out-of-carrier endpoint. Proof rule `IntegerAffineBound` now performs
+  the intentional integration. One recursively checked root-bound child and
+  one `IntegerAffineWitness` bind the exact root, target, and strictly ordered
+  semantic-axiom definition indices; the kernel rechecks normalization and the
+  mapped conclusion, and records every selected definition in accepted premise
+  closure. Non-order or wrong-root children, stale/reordered/malformed words,
+  target/carrier drift, arithmetic overflow, or a mismatched mapped bound
+  reject. Proof-bundle v16 assigns tag 12; the registered calculus is v13 and
+  the Rust kernel v5, with the affine checker included in both trust-graph
+  source sets. This is certificate capability only: no producer emits the rule
+  yet, no exact divide/remainder row or reducer changes trust, and
+  `fully-derived false` remains. The remaining affine work is producer-side
+  selection of complete root-bound proofs and normalization words. A
   second non-serialized common checker now normalizes the contiguous pure
   fixed-integer cast spine used by the accepted one-cast and multi-cast
   sandwiches. It binds strictly ordered canonical semantic equalities to exact
@@ -1376,12 +1386,13 @@ Remaining:
   Stale definition, literal, or bound identity; correlation/order/type/root
   drift; constant collapse; one-sided bounds; and checked arithmetic failure
   reject. The result remains custody only: it accepts no proof authority and
-  neither its bounds nor conclusion are certificate premises. Proof integration
-  and a certificate conversion for this checked result remain; no trusted
+  neither its bounds nor conclusion are certificate premises. The general
+  affine-bound rule does not certify this two-branch lattice result; a dedicated
+  certificate conversion for the checked correlated result remains. No trusted
   reducer proposition is imported as proof
   authority and no partial exact row migrated. No schema, reducer,
   semantic-operation, or other trust status is promoted; terminal `PSITERM\0`
-  codec v18, proof-bundle v15, installation record v24, and `fully-derived
+  codec v18, proof-bundle v16, installation record v24, and `fully-derived
   false` remain unchanged.
   The bounded Gamma spike is complete. It canonical-decodes four exact current
   `PSITERM\0` v18 fixtures and audits a 54-row scalar ledger covering constants,
