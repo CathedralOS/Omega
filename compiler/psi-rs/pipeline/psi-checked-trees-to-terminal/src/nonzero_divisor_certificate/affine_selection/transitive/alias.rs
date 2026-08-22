@@ -1,11 +1,12 @@
 //! One exact alias substitution around a fixed two-citation affine root bound.
 
 use psi_core::{Proposition, PropositionContext};
-use psi_proof_kernel::{ProofNode, ProofRule};
+use psi_proof_kernel::ProofNode;
 
-use super::super::super::affine_custody;
 use super::super::super::integer_evidence::cited_facts;
 use super::TwoCitationChains;
+
+mod completion;
 
 pub(super) fn prove(
     context: &PropositionContext,
@@ -36,35 +37,18 @@ pub(super) fn prove(
                 let Proposition::LessOrEqual(_, right) = right_fact else {
                     unreachable!("only integer chains are enumerated")
                 };
-                let (endpoint, conclusion) = if alias == left {
-                    (0, Proposition::LessOrEqual(root.clone(), right.clone()))
-                } else if alias == right {
-                    (1, Proposition::LessOrEqual(left.clone(), root.clone()))
-                } else {
-                    return None;
-                };
-                let transitive = ProofNode {
-                    conclusion: Proposition::LessOrEqual(left.clone(), right.clone()),
-                    rule: ProofRule::IntegerLessOrEqualTransitivity {
-                        left_less_or_equal_middle: Box::new(left_citation.proof(left_fact)),
-                        middle_less_or_equal_right: Box::new(right_citation.proof(right_fact)),
-                    },
-                };
-                let root_bound = ProofNode {
-                    conclusion,
-                    rule: ProofRule::IntegerLessOrEqualSubstitution {
-                        relation: Box::new(transitive),
-                        equality: Box::new(equality_citation.proof(equality)),
-                        endpoint,
-                    },
-                };
-                affine_custody::prove_from_root(
+                completion::prove(
                     context,
                     goal,
                     assumptions,
                     semantic_axioms,
                     root,
-                    root_bound,
+                    alias,
+                    left,
+                    right,
+                    left_citation.proof(left_fact),
+                    right_citation.proof(right_fact),
+                    equality_citation.proof(equality),
                 )
             });
             if proof.is_some() {
