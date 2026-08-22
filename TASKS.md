@@ -1389,16 +1389,15 @@ Remaining:
   converse direction, the source affine or shift chain and cast reconstruct by
   their existing rules while every target divisor proof stays independent.
   Every source operation, cast, and target operation retains separate evidence.
-  Canonical-source integration for the affine-to-cast/divisor composition still
-  needs versioned landed-sibling custody. Real source emission represents the
-  affine sibling as a Value plus an earlier equality, while the current
-  `IntegerAffineWitness` retains only root, target, and definition axioms and
-  kernel definition replay accepts only inline typed literals. A handcrafted
-  inline-literal prototype composed, but the source artifact failed at exact-
-  divide certificate production and was fully removed. Extend canonical
-  production, codec, and independent verification together before admitting
-  that source shape; this is an engineering/schema prerequisite, not a new
-  semantic ruling.
+  Landed affine-sibling custody is now canonical: `IntegerAffineWitness`
+  carries one position-aligned optional earlier semantic-equality index per
+  definition, proof-bundle v19 encodes it, and independent producer/verifier
+  selection accepts only one exact same-carrier Value-to-signed-literal landing
+  before the affine definition. Kernel replay records landing then definition
+  and rejects missing, late, redirected, ambiguous, mistyped, or unused
+  custody. A source-to-Terminal/verifier/codec mutation regression is green.
+  This completes the prerequisite only; affine-to-partial-cast exact divide/
+  remainder composition remains a separate unpromoted family.
   The corresponding direct same-carrier family now retains all four nonempty
   divide/remainder-to-affine/shift compositions without a cast. A leading
   divide/remainder chain supplies its complete verifier-owned carrier hull to
