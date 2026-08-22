@@ -5,7 +5,7 @@ use psi_proof_kernel::ProofNode;
 
 mod landing_index;
 
-use super::super::super::{eligibility, equalities};
+use super::super::super::equalities;
 use landing_index::LandingIndex;
 
 pub(super) fn find<'a, T>(
@@ -25,21 +25,15 @@ pub(super) fn find<'a, T>(
             if root.scalar_type() != alias.scalar_type() {
                 return None;
             }
-            for &(inner_citation, inner_equality, literal) in landings.candidates(alias) {
-                if !eligibility::distinct_facts(outer_equality, inner_equality) {
-                    continue;
-                }
-                if let Some(result) = complete(
+            landings.find(alias, outer_equality, |literal, inner_proof| {
+                complete(
                     root,
                     alias,
                     literal,
                     outer_citation.proof(outer_equality),
-                    inner_citation.proof(inner_equality),
-                ) {
-                    return Some(result);
-                }
-            }
-            None
+                    inner_proof,
+                )
+            })
         },
     )
 }
