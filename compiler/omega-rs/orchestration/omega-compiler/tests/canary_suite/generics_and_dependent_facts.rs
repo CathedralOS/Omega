@@ -1541,9 +1541,12 @@ fn runtime_const_data_machine_call_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("const-evaluated machine calls should specialize generic data");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("const-data machine-call canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("const data machine-call canary should run");
     assert_eq!(output.status.code(), Some(70));
@@ -1558,9 +1561,12 @@ fn runtime_const_data_where_fact_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("const-only generic facts should discharge at instantiation");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("const-data where-fact canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("const-fact generic canary should run");
     assert_eq!(output.status.code(), Some(70));
@@ -1581,9 +1587,12 @@ fn runtime_const_data_machine_fact_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("machine-backed const domain facts should discharge");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("const-data machine-fact canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("machine-backed const domain fact canary should run");
     assert_eq!(output.status.code(), Some(70));
@@ -1596,9 +1605,12 @@ fn runtime_signed_const_data_exit_canary_runs() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-signed-const-data-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("signed const data arguments should specialize");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("signed const-data canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("signed const data canary should run");
     assert_eq!(output.status.code(), Some(70));
@@ -1613,9 +1625,12 @@ fn runtime_trait_default_dispatch_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("trait defaults and written overrides should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("trait-default dispatch canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("trait default dispatch canary should run");
     assert_eq!(output.status.code(), Some(70));
