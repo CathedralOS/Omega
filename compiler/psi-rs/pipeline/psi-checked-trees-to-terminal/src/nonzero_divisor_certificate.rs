@@ -8,6 +8,7 @@
 use psi_core::{Proposition, PropositionContext};
 use psi_proof_kernel::{
     IntegerAffineWitness, PrimitiveJudgment, ProofNode, ProofRule, check_certificate,
+    check_integer_affine_witness,
 };
 
 #[derive(Clone, Copy)]
@@ -189,7 +190,7 @@ fn prove_bounded_affine_bound(
                 .into_iter()
                 .filter(|target| matches!(target, psi_core::ScalarTerm::Value { .. }))
             {
-                for definition_axioms in affine_definition_words(semantic_axioms.len()) {
+                for definition_axioms in affine_definition_words(context, semantic_axioms, root) {
                     let proof = ProofNode {
                         conclusion: goal.clone(),
                         rule: ProofRule::IntegerAffineBound {
@@ -213,11 +214,51 @@ fn prove_bounded_affine_bound(
     None
 }
 
-fn affine_definition_words(count: usize) -> impl Iterator<Item = Vec<usize>> {
-    (0..count).map(|index| vec![index]).chain(
-        (0..count)
-            .flat_map(move |first| ((first + 1)..count).map(move |second| vec![first, second])),
-    )
+fn affine_definition_words(
+    context: &PropositionContext,
+    semantic_axioms: &[Proposition],
+    root: &psi_core::ScalarTerm,
+) -> Vec<Vec<usize>> {
+    const MAX_DEFINITIONS: usize = 3;
+
+    // This is candidate pruning, not proof authority: only prefixes replayed
+    // successfully by the kernel advance, and the completed proof is checked
+    // again before it leaves this module.
+    let mut words = Vec::new();
+    let mut frontier = vec![(Vec::new(), 0)];
+    for _ in 0..MAX_DEFINITIONS {
+        let mut next = Vec::new();
+        for (prefix, start) in frontier {
+            for index in start..semantic_axioms.len() {
+                let Proposition::Equal(left, right) = &semantic_axioms[index] else {
+                    continue;
+                };
+                let mut word = prefix.clone();
+                word.push(index);
+                let continues = [left, right]
+                    .into_iter()
+                    .filter(|target| matches!(target, psi_core::ScalarTerm::Value { .. }))
+                    .any(|target| {
+                        check_integer_affine_witness(
+                            context,
+                            semantic_axioms,
+                            &IntegerAffineWitness {
+                                root: root.clone(),
+                                target: target.clone(),
+                                definition_axioms: word.clone(),
+                            },
+                        )
+                        .is_ok()
+                    });
+                if continues {
+                    words.push(word.clone());
+                    next.push((word, index + 1));
+                }
+            }
+        }
+        frontier = next;
+    }
+    words
 }
 
 fn prove_two_fact_transitive_integer_bound(
@@ -1994,6 +2035,87 @@ mod tests {
             )
             .is_none(),
             "a reversed definition word cannot claim canonical custody",
+        );
+    }
+
+    #[test]
+    fn exact_division_goal_proves_three_definition_affine_safe_divisor() {
+        let signed = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+        let context = PropositionContext::from_value_types((1..=5).map(|id| {
+            (
+                ValueId::new(id).expect("value id"),
+                ScalarType::Integer(signed),
+            )
+        }))
+        .expect("five i8 values");
+        let divisor = value(2, signed);
+        let goal = Proposition::Disjunction(vec![
+            Proposition::LessOrEqual(divisor.clone(), integer(signed, -2)),
+            Proposition::LessOrEqual(integer(signed, 1), divisor.clone()),
+            Proposition::Conjunction(vec![
+                Proposition::LessOrEqual(divisor, integer(signed, -1)),
+                Proposition::LessOrEqual(integer(signed, -127), value(1, signed)),
+            ]),
+        ]);
+        let root_bound = Proposition::LessOrEqual(integer(signed, -2), value(3, signed));
+        let definitions = [
+            Proposition::Equal(
+                value(4, signed),
+                ScalarTerm::exact_integer_add(signed, value(3, signed), integer(signed, 1))
+                    .expect("first exact add"),
+            ),
+            Proposition::Equal(
+                value(5, signed),
+                ScalarTerm::exact_integer_add(signed, value(4, signed), integer(signed, 1))
+                    .expect("second exact add"),
+            ),
+            Proposition::Equal(
+                value(2, signed),
+                ScalarTerm::exact_integer_add(signed, value(5, signed), integer(signed, 1))
+                    .expect("third exact add"),
+            ),
+        ];
+        let proof = prove_canonical_integer_proposition(
+            &context,
+            &goal,
+            std::slice::from_ref(&root_bound),
+            &definitions,
+        )
+        .expect("three-definition affine word proves the positive divisor arm");
+        let ProofRule::DisjunctionIntroduction { disjunct, index } = proof.rule else {
+            panic!("three-definition affine divisor selects one canonical arm")
+        };
+        assert_eq!(index, 1);
+        let ProofRule::IntegerAffineBound { witness, .. } = disjunct.rule else {
+            panic!("three-definition affine divisor uses the affine-bound rule")
+        };
+        assert_eq!(witness.root, value(3, signed));
+        assert_eq!(witness.target, value(2, signed));
+        assert_eq!(witness.definition_axioms, vec![0, 1, 2]);
+
+        assert!(
+            prove_canonical_integer_proposition(
+                &context,
+                &goal,
+                std::slice::from_ref(&root_bound),
+                &definitions[..2],
+            )
+            .is_none(),
+            "an incomplete three-definition word cannot prove divisor safety",
+        );
+        assert!(
+            prove_canonical_integer_proposition(
+                &context,
+                &goal,
+                &[root_bound],
+                &[
+                    definitions[2].clone(),
+                    definitions[1].clone(),
+                    definitions[0].clone(),
+                ],
+            )
+            .is_none(),
+            "a reversed three-definition word cannot claim canonical custody",
         );
     }
 }
