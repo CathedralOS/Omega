@@ -416,6 +416,108 @@ fn source_access_policy_evaluates_against_validated_layout() {
 }
 
 #[test]
+fn numbered_access_policy_rejoins_a_retained_layout_after_field_rename() {
+    let legacy = write_program(
+        "numbered-access-legacy-layout",
+        r#"
+use omega::language::core::layout;
+
+data RetainedLayout { entries: [FieldEntry; 64]; }
+machine RetainedLayout::plan(&mut self, schema: Schema) -> Plan {
+    self.entries[0] = FieldEntry {
+        key: schema.fields[0].key,
+        placement: FieldPlan::At { offset: 0 },
+    };
+    Plan { entries: self.entries, entry_count: 1,
+           size_fixed: 4, size_is_dynamic: false, align: 4 }
+}
+
+data Registers { #7 legacy_status: u32; }
+data Main {}
+machine Main::main(&mut self) {}
+"#,
+    );
+    let legacy = compile_to_checked(&legacy, None).expect("legacy numbered schema should check");
+    let retained = compute_layout_plan(&legacy.typed, "RetainedLayout::plan", "Registers")
+        .expect("legacy numbered layout should validate");
+    assert_eq!(retained.entries[0].field, "legacy_status");
+    assert_eq!(retained.entries[0].member_identity, Some(7));
+
+    let renamed = write_program(
+        "numbered-access-renamed-schema",
+        r#"
+use omega::language::core::layout;
+
+data Registers { #7 status: u32; }
+data RegisterAccess {}
+machine RegisterAccess::plan(schema: Schema, layout: Plan) -> AccessPlan
+satisfies Access::plan
+{
+    let plan: AccessPlan = AccessPlan::inaccessible(schema);
+    transition layout.entry_count == 1 && layout.size_fixed == 4 {
+        true -> (plan.with(
+            schema.fields[0].key,
+            FieldAccess::Stable {
+                read: true,
+                write: false,
+                exposure: Exposure::Exported,
+            },
+        ))
+        _ -> (plan)
+    }
+}
+
+data Main {}
+machine Main::main(&mut self) {}
+"#,
+    );
+    let renamed = compile_to_checked(&renamed, None).expect("renamed numbered schema should check");
+    let access = compute_access_plan(
+        &renamed.typed,
+        "RegisterAccess::plan",
+        "Registers",
+        &retained,
+    )
+    .expect("stable identity should rejoin the retained layout for access evaluation");
+    let [descriptor] = access.field_descriptors() else {
+        panic!("one accessible field should produce one descriptor")
+    };
+    assert_eq!(descriptor.field(), "status");
+    assert_eq!(descriptor.container_byte_offset(), 0);
+    assert_eq!(descriptor.transfer_width_bits(), 32);
+    assert_eq!(descriptor.observation(), ObservationModel::Stable);
+
+    let mut drifted = retained.clone();
+    drifted.entries[0].member_identity = Some(8);
+    let error = compute_access_plan(
+        &renamed.typed,
+        "RegisterAccess::plan",
+        "Registers",
+        &drifted,
+    )
+    .expect_err("retained layout identity drift must reject before sealing access");
+    assert!(
+        error.contains("stable identity #8") && error.contains("outside the reflected schema"),
+        "unexpected diagnostic: {error}"
+    );
+
+    let mut positional = retained;
+    positional.entries[0].member_identity = None;
+    let error = compute_access_plan(
+        &renamed.typed,
+        "RegisterAccess::plan",
+        "Registers",
+        &positional,
+    )
+    .expect_err("an unnumbered spelling cannot claim the numbered field identity");
+    assert!(
+        error.contains("positional field `legacy_status`")
+            && error.contains("outside the reflected schema"),
+        "unexpected diagnostic: {error}"
+    );
+}
+
+#[test]
 fn source_placement_policy_normalizes_layout_access_and_reach_together() {
     let main = write_program("source-placement", POLICY_SOURCE);
     let checked = compile_to_checked(&main, None).expect("source policy should compile");

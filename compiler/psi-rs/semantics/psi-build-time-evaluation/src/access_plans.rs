@@ -13,7 +13,10 @@ use psi_access_plans::{
     validate_access_plan, validate_placement_plan,
 };
 use psi_checked_interpreter::BuildTimeValue;
-use psi_layout_plans::{IntegerInterpretation, LayoutPlacementReport, LayoutPlanReport};
+use psi_layout_plans::{
+    IntegerInterpretation, LayoutPlacementReport, LayoutPlanReport,
+    normalized_layout_plan_fingerprint,
+};
 use psi_typed_trees::TypedTrees;
 
 use crate::BuildTimeAdmissionPlan;
@@ -45,7 +48,12 @@ pub fn compute_access_plan(
         schema_identity,
         policy_machine,
     )?;
-    if canonical_layout != *layout {
+    // Numbered source names are presentation, but the derived offsets
+    // projection remains part of the exact retained report replay.
+    if normalized_layout_plan_fingerprint(&canonical_layout)
+        != normalized_layout_plan_fingerprint(layout)
+        || canonical_layout.offsets != layout.offsets
+    {
         return Err(format!(
             "layout supplied to access policy `{policy_machine}` is not the canonical validated layout for schema `{schema_data}`"
         ));
@@ -414,15 +422,24 @@ fn build_layout_plan_value(
 ) -> Result<BuildTimeValue, String> {
     let mut entries = Vec::with_capacity(64);
     for entry in &layout.entries {
-        let schema_field = schema_fields
-            .iter()
-            .find(|field| field.name == entry.field)
-            .ok_or_else(|| {
-                format!(
-                    "validated layout refers to field `{}` outside the reflected schema",
-                    entry.field
-                )
-            })?;
+        let schema_field = match entry.member_identity {
+            Some(identity) => schema_fields
+                .iter()
+                .find(|field| field.identity == Some(identity)),
+            None => schema_fields
+                .iter()
+                .find(|field| field.identity.is_none() && field.name == entry.field),
+        }
+        .ok_or_else(|| match entry.member_identity {
+            Some(identity) => format!(
+                "validated layout refers to numbered field `{}` with stable identity #{identity} outside the reflected schema",
+                entry.field
+            ),
+            None => format!(
+                "validated layout refers to positional field `{}` outside the reflected schema",
+                entry.field
+            ),
+        })?;
         entries.push(BuildTimeValue::Struct {
             type_name: "FieldEntry".into(),
             fields: vec![
