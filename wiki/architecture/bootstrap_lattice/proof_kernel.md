@@ -466,12 +466,16 @@ redirected, or stale words, wrong targets, and noncanonical mapped bounds
 reject. Root custody may now also use one exact prior value-alias transport:
 one directly cited integer bound at the alias endpoint and one independently
 cited value equality form a checked endpoint-substitution child before the
-affine node. Direct roots remain preferred; alias equalities stay in ledger
-order and bounds are indexed by exact endpoint. A missing bound or equality,
-identity, non-value, redirected, or mistyped alias rejects. Multi-alias or
-transitively reconstructed root bounds, words of five or more definitions,
-joins, cast/shift compositions, and correlated results remain producer work,
-so neither complete exact row changes trust.
+affine node. One exact two-citation order chain may instead reconstruct the
+root bound through one shared SSA middle under a checked transitivity child.
+Direct roots remain preferred, then alias transport, then transitivity; alias
+equalities stay in ledger order, while second order legs are indexed by their
+exact left endpoint. A missing bound, equality, or order leg, identity,
+non-value, disconnected, redirected, mistyped, or same-citation join rejects.
+Multi-alias, mixed alias/transitive, or three-or-more-leg root reconstruction,
+words of five or more definitions, joins, cast/shift compositions, and
+correlated results remain producer work, so neither complete exact row changes
+trust.
 
 The contiguous pure-cast core also has a non-serialized checked witness.
 `IntegerCastChainWitness` selects a nonempty, strictly increasing sequence of
