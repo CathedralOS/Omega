@@ -4,8 +4,8 @@ use psi_core::{Proposition, PropositionContext};
 use psi_proof_kernel::{PrimitiveJudgment, ProofNode, ProofRule};
 
 use super::integer_evidence::cited_facts;
-use super::{affine_selection, cast_selection};
 
+mod bound;
 mod logical;
 mod order;
 mod substitution;
@@ -26,9 +26,7 @@ pub(super) fn build(
             conclusion: Proposition::Truth,
             rule: ProofRule::Primitive(PrimitiveJudgment::Truth),
         }),
-        Proposition::LessOrEqual(_, _) => {
-            prove_integer_bound(context, goal, assumptions, semantic_axioms)
-        }
+        Proposition::LessOrEqual(_, _) => bound::prove(context, goal, assumptions, semantic_axioms),
         Proposition::Conjunction(conjuncts) => {
             logical::prove_conjunction(goal, conjuncts, |part| {
                 build(context, part, assumptions, semantic_axioms)
@@ -41,30 +39,4 @@ pub(super) fn build(
         }
         _ => None,
     }
-}
-
-fn prove_integer_bound(
-    context: &PropositionContext,
-    goal: &Proposition,
-    assumptions: &[Proposition],
-    semantic_axioms: &[Proposition],
-) -> Option<ProofNode> {
-    if let Some(proof) =
-        order::prove_exact_or_closed_transitive_integer_bound(goal, assumptions, semantic_axioms)
-    {
-        return Some(proof);
-    }
-
-    if let Some(proof) =
-        order::prove_two_fact_transitive_integer_bound(goal, assumptions, semantic_axioms)
-    {
-        return Some(proof);
-    }
-
-    if let Some(proof) = substitution::prove(context, goal, assumptions, semantic_axioms) {
-        return Some(proof);
-    }
-
-    cast_selection::prove(context, goal, assumptions, semantic_axioms)
-        .or_else(|| affine_selection::prove(context, goal, assumptions, semantic_axioms))
 }
