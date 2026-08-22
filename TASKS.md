@@ -662,6 +662,16 @@ Owners:
   and weak forms require copyable residents; new non-observing strong and weak
   forms return the proposal on failure and may transfer affine or linear
   custody using one copyable comparison key and exact selected encoding law.
+  The atomic access-policy vocabulary now retains that 2x2 permission family as
+  four distinct authored and admitted rows: observing decisive
+  `compare_exchange`, observing single-attempt `compare_exchange_once`, non-
+  observing decisive `try_exchange`, and non-observing single-attempt
+  `try_exchange_once`. Build-time evaluation, permission containment,
+  resource/access identity, and checked placed-field plans preserve those rows
+  without cross-axis substitution. Only the existing observing-decisive call is
+  currently derivable; the other three remain unavailable until their
+  comparison-key/selected-encoding-law, result-custody, operation-carrier, and
+  lowering slices land.
 - Close generic `ResidentContentTransfer<P, T>` applications at final
   composition from concrete and symbolic artifact demand, verify one selected
   provider covers the reconstructed application set, and bind exact issuance
@@ -4251,6 +4261,24 @@ Owners:
   same-carrier eligibility, the indexed inner literal landings, direct-before-
   alias precedence, proof shapes, rejection behavior, and the fixed affine-
   literal frontier remain unchanged.
+  The residual authored-root `i64::MIN` execution now launches solely through
+  its exact checked-report executable receipt while preserving literal status
+  70 and the signed-boundary comparison diagnostic. The time/indexed-storage
+  module has no remaining ordinary fast filename-derived launches; time-host
+  owners and all other established fences remain unchanged, with exact-owner
+  pins stable.
+  Four authored-root provider executions—adapter dispatch, checked boundary-
+  operator dispatch, result-domain requirement-overload dispatch, and exact
+  selected-provider dispatch—now launch solely through checked-report
+  executable receipts while preserving literal status 70, interpreter parity,
+  and all selection-identity assertions. Exact-owner pins and established
+  exceptional/report/interactive/slow-owner fences remain unchanged.
+  Three authored-root boundary-forwarding executions—adapter text forwarding,
+  capability-state forwarding, and literal-byte output—now launch solely
+  through exact checked-report executable receipts while preserving literal
+  status 70, interpreter parity, selected-provider identity checks, and exact
+  stdout. Exact-owner pins and established interactive/report/slow-owner fences
+  remain unchanged.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
@@ -4865,8 +4893,11 @@ boundary without its corresponding checked law.
   fingerprint, trait requirement, and selected realization row, and an explicit
   proof-static meaning takes precedence over root/domain resolution. Focused
   selection, ambiguity, non-ambient lookup, full checked-pipeline, validation,
-  and reverse-consumer gates are green. Rewriting/executing the retained
-  realization row remains open.
+  and reverse-consumer gates are green. The checked interpreter now dispatches
+  fixed tokens directly through the retained realization machine/state symbols,
+  including exact selected-conformance precedence over an unrelated visible
+  conformance; it performs no name or ambient-conformance lookup. Terminal and
+  native lowering of the retained realization row remain open.
   A concrete direct wrapper may crown only one token meaning per normalized
   operand signature; alternative conformances remain named explicit calls.
 
