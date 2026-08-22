@@ -24,6 +24,7 @@ pub use model::{
     FinalImageSection, FinalImageSymbol, FinalImageSymbolHandle, FinalImageSymbolTable,
     PlacedExecutableGap, PlacedExecutableRegion, PlacedExecutableRegionInventory,
     bind_compiler_entry_footprint, place_executable_regions,
+    validate_placed_executable_region_inventory,
 };
 pub use output::{
     CompilerFunctionValidationEvidence, CompilerTextValidationEvidence, EmittedImageOutput,

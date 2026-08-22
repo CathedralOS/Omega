@@ -2260,7 +2260,14 @@ Owners:
   encoded identity/object symbol to exactly one compiler-function region with
   the same symbol, section offset, address, byte count, and final-byte
   fingerprint. Missing, duplicate, renamed, reclassified, or byte-drifted
-  regions reject; import thunks remain a separate region namespace. Final
+  regions reject; import thunks remain a separate region namespace. Before
+  consuming those rows, checked emission independently replays the complete
+  placed inventory from final text: exact text identity, ordered region spans,
+  derived addresses, per-span bytes, complementary gap partition, retained
+  origin/footprint metadata, and aggregate inventory identity must agree.
+  Stored-summary, overlap/order, origin, address, byte, or gap drift therefore
+  rejects without claiming callback-body synthesis or registration-relocation
+  placement. Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
   instruction identities, redirected instruction relocation origins, and
