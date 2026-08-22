@@ -2,10 +2,9 @@
 
 use psi_core::{Proposition, ScalarTerm};
 
-mod join;
 mod landing_index;
 
-use super::super::equalities::OrientedEqualities;
+use super::super::{eligibility, equalities::OrientedEqualities};
 use landing_index::LandingIndex;
 
 pub(super) struct LiteralAliasCandidates<'a> {
@@ -36,7 +35,7 @@ impl<'a> LiteralAliasCandidates<'a> {
                     return false;
                 }
                 for &(inner_equality, literal) in self.landings.candidates(alias) {
-                    if join::eligible(outer_equality, root, inner_equality, literal)
+                    if eligibility::one_alias_join(outer_equality, root, inner_equality, literal)
                         && complete(root, literal)
                     {
                         return true;

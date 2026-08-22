@@ -3,10 +3,9 @@
 use psi_core::{Proposition, ScalarTerm};
 use psi_proof_kernel::ProofNode;
 
-mod join;
 mod landing_index;
 
-use super::super::equalities::OrientedEqualities;
+use super::super::{eligibility, equalities::OrientedEqualities};
 use landing_index::LandingIndex;
 
 pub(super) struct LiteralAliasCandidates<'a> {
@@ -43,7 +42,7 @@ impl<'a> LiteralAliasCandidates<'a> {
                     return None;
                 }
                 for &(inner_citation, inner_equality, literal) in self.landings.candidates(alias) {
-                    if !join::eligible(outer_equality, root, inner_equality, literal) {
+                    if !eligibility::one_alias_join(outer_equality, root, inner_equality, literal) {
                         continue;
                     }
                     if let Some(result) = complete(
