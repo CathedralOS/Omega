@@ -3279,6 +3279,22 @@ impl<'view, 'extent> StablePrimitiveAccessRequest<'view, 'extent> {
         self.request.effect_footprint
     }
 
+    /// Independently replay the complete placed authority and Stable
+    /// operation specialization before an outward lowering consumer accepts
+    /// this request. Rejection only borrows the carrier, so its exact loan,
+    /// resident content, and authorization remain available for corrected
+    /// retry.
+    pub fn validate_for_lowering(&self) -> Result<(), AccessPlanDiagnostic> {
+        let operation = validate_stable_primitive_request(&self.request)?;
+        if operation != self.operation {
+            return Err(AccessPlanDiagnostic(
+                "Stable primitive lowering operation differs from its retained specialization"
+                    .into(),
+            ));
+        }
+        Ok(())
+    }
+
     pub fn into_primitive_request(self) -> PrimitiveAccessRequest<'view, 'extent> {
         self.request
     }
@@ -3311,64 +3327,49 @@ impl<'view, 'extent> PrimitiveAccessRequest<'view, 'extent> {
         StablePrimitiveAccessRequest<'view, 'extent>,
         StablePrimitiveAccessRejection<'view, 'extent>,
     > {
-        let operation = if self.observation != ObservationModel::Stable {
-            return Err(StablePrimitiveAccessRejection {
-                request: self,
-                diagnostic: AccessPlanDiagnostic(
-                    "ordinary Stable lowering requires a Stable observation".into(),
-                ),
-            });
-        } else if self.effective_supply.kind() != EffectiveSupplyKind::Stable {
-            return Err(StablePrimitiveAccessRejection {
-                request: self,
-                diagnostic: AccessPlanDiagnostic(
-                    "ordinary Stable lowering requires admitted Stable supply".into(),
-                ),
-            });
-        } else {
-            match self.operation {
-                AccessOperation::Read => StablePrimitiveOperation::Read,
-                AccessOperation::Write => StablePrimitiveOperation::Write,
-                _ => {
-                    return Err(StablePrimitiveAccessRejection {
-                        request: self,
-                        diagnostic: AccessPlanDiagnostic(
-                            "ordinary Stable lowering accepts only one sealed Read or Write event"
-                                .into(),
-                        ),
-                    });
-                }
+        let operation = match validate_stable_primitive_request(&self) {
+            Ok(operation) => operation,
+            Err(diagnostic) => {
+                return Err(StablePrimitiveAccessRejection {
+                    request: self,
+                    diagnostic,
+                });
             }
         };
-        if let Err(diagnostic) = self.validate_effective_supply_binding() {
-            return Err(StablePrimitiveAccessRejection {
-                request: self,
-                diagnostic,
-            });
-        }
-        if let Err(diagnostic) = self.validate_descriptor_binding() {
-            return Err(StablePrimitiveAccessRejection {
-                request: self,
-                diagnostic,
-            });
-        }
-        if let Err(diagnostic) = self.validate_authority_binding() {
-            return Err(StablePrimitiveAccessRejection {
-                request: self,
-                diagnostic,
-            });
-        }
-        if let Err(diagnostic) = self.validate_authorization_binding() {
-            return Err(StablePrimitiveAccessRejection {
-                request: self,
-                diagnostic,
-            });
-        }
         Ok(StablePrimitiveAccessRequest {
             request: self,
             operation,
         })
     }
+}
+
+fn validate_stable_primitive_request(
+    request: &PrimitiveAccessRequest<'_, '_>,
+) -> Result<StablePrimitiveOperation, AccessPlanDiagnostic> {
+    if request.observation != ObservationModel::Stable {
+        return Err(AccessPlanDiagnostic(
+            "ordinary Stable lowering requires a Stable observation".into(),
+        ));
+    }
+    if request.effective_supply.kind() != EffectiveSupplyKind::Stable {
+        return Err(AccessPlanDiagnostic(
+            "ordinary Stable lowering requires admitted Stable supply".into(),
+        ));
+    }
+    let operation = match request.operation {
+        AccessOperation::Read => StablePrimitiveOperation::Read,
+        AccessOperation::Write => StablePrimitiveOperation::Write,
+        _ => {
+            return Err(AccessPlanDiagnostic(
+                "ordinary Stable lowering accepts only one sealed Read or Write event".into(),
+            ));
+        }
+    };
+    request.validate_effective_supply_binding()?;
+    request.validate_descriptor_binding()?;
+    request.validate_authority_binding()?;
+    request.validate_authorization_binding()?;
+    Ok(operation)
 }
 
 /// Stable-only consumer contract for one bounded compound mutation.
@@ -6657,6 +6658,44 @@ mod tests {
         assert_eq!(request.admission().normalized_identity(), 127);
         assert_eq!(request.profile_receipt().normalized_identity(), 91);
         assert_eq!(request.source_loan(), BorrowPolarity::Exclusive);
+    }
+
+    #[test]
+    fn stable_primitive_lowering_replays_authority_without_consuming_retry() {
+        let (plan, established) = established_stable_word(0xa740, 224, 225, 227);
+        let projection = established
+            .project(field_key(plan.access(), "word"))
+            .expect("shared Stable projection");
+        let request = projection
+            .read()
+            .expect("Stable read")
+            .into_primitive_request();
+        let mut stable = request
+            .into_stable_primitive_access()
+            .expect("Stable read specialization");
+        let expected = primitive_request_snapshot(&stable.request);
+
+        stable.request.profile_receipt =
+            ResourceProfileReceiptId::from_normalized_identity(999).expect("drifted receipt");
+        let diagnostic = stable
+            .validate_for_lowering()
+            .expect_err("outward preflight must reject copied receipt drift");
+        assert!(diagnostic.0.contains("retained placement authority"));
+        stable.request.profile_receipt =
+            ResourceProfileReceiptId::from_normalized_identity(91).expect("profile receipt");
+
+        stable.operation = StablePrimitiveOperation::Write;
+        let diagnostic = stable
+            .validate_for_lowering()
+            .expect_err("outward preflight must reject specialization drift");
+        assert!(diagnostic.0.contains("retained specialization"));
+        stable.operation = StablePrimitiveOperation::Read;
+
+        stable
+            .validate_for_lowering()
+            .expect("corrected carrier must remain valid for retry");
+        assert_eq!(primitive_request_snapshot(&stable.request), expected);
+        assert_eq!(stable.operation(), StablePrimitiveOperation::Read);
     }
 
     #[test]
