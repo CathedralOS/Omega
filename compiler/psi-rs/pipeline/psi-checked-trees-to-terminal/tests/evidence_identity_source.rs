@@ -93,6 +93,29 @@ const PROOF_OUTPUT_SOURCE: &str = r#"
     }
 "#;
 
+const RUNTIME_UNIT_PROOF_OUTPUT_SOURCE: &str = r#"
+    trait Evidence {}
+    proposition ready() evidence Evidence;
+    ConcreteEvidence: satisfies Evidence {}
+
+    data Root {}
+    machine Root::touch() {}
+
+    machine Root::produce()
+    ensures outgoing: ready()
+    {
+        Root::touch();
+        outgoing = ConcreteEvidence;
+    }
+
+    machine Root::relay()
+    ensures relayed: ready()
+    {
+        let (; outgoing: local) = Root::produce();
+        relayed = local;
+    }
+"#;
+
 const COPY_AND_DISCARD_PROOF_OUTPUT_SOURCE: &str = r#"
     trait Evidence {}
     proposition ready() evidence Evidence;
@@ -952,6 +975,75 @@ fn proof_output_is_canonical_verified_and_runtime_erased() {
 }
 
 #[test]
+fn runtime_unit_proof_output_links_and_executes_its_ordinary_call() {
+    let checked = check(RUNTIME_UNIT_PROOF_OUTPUT_SOURCE);
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::relay")
+        .expect("runtime Unit proof output should cross terminal Psi");
+    let [invocation] = lowered.semantic_module.proof_output_calls.as_slice() else {
+        panic!("one runtime Unit proof-output invocation expected")
+    };
+    assert_eq!(
+        invocation.runtime_result,
+        Some(psi_terminal::ProofOutputRuntimeResult::Unit)
+    );
+    let runtime_call = invocation
+        .runtime_call
+        .expect("the proof-output row links its ordinary Unit call");
+    let caller = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == invocation.caller)
+        .expect("proof-output caller machine");
+    let operation = caller
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find(|operation| operation.id == runtime_call.operation)
+        .expect("linked Unit call operation");
+    assert!(matches!(
+        operation.kind,
+        OperationKind::CallUnit { callee, .. } if callee == runtime_call.callee
+    ));
+
+    let bytes = encode_module(&lowered.semantic_module).expect("runtime Unit module encodes");
+    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("runtime Unit proof encodes");
+    let verified = psi_terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("the Unit operation and proof-output row verify together");
+    assert!(
+        derive_fixed_entry_fuel(&verified, lowered.semantic_module.entry)
+            .expect("the retained Unit call has fixed fuel")
+            .ceiling_units()
+            > 0
+    );
+    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+        &bytes,
+        &proof,
+        &AdmissionProfile::default(),
+        &[],
+        &[],
+    )
+    .expect("runtime Unit proof-output artifact starts");
+    assert_eq!(
+        execution
+            .resume(&mut TerminalFuelMeter::unbounded())
+            .expect("execute runtime Unit proof output"),
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+    );
+
+    let mut missing_link = lowered.semantic_module.clone();
+    missing_link.proof_output_calls[0].runtime_call = None;
+    assert!(matches!(
+        psi_terminal_verifier::validate_module_representation(&missing_link),
+        Err(psi_terminal_verifier::ModuleError::InvalidProofOutputCall { .. })
+    ));
+}
+
+#[test]
 fn proof_output_retains_copy_and_explicit_discard() {
     let checked = check(COPY_AND_DISCARD_PROOF_OUTPUT_SOURCE);
     let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::relay")
@@ -998,9 +1090,11 @@ fn runtime_value_proof_output_links_one_scalar_call_and_executes_once() {
     let [invocation] = lowered.semantic_module.proof_output_calls.as_slice() else {
         panic!("one terminal runtime-value proof output expected")
     };
-    let runtime_type = invocation
-        .runtime_value
-        .expect("runtime proof output retains its scalar payload type");
+    let Some(psi_terminal::ProofOutputRuntimeResult::Scalar(runtime_type)) =
+        invocation.runtime_result
+    else {
+        panic!("runtime proof output retains its scalar payload type")
+    };
     let runtime_call = invocation
         .runtime_call
         .expect("runtime proof output retains its exact ordinary call operation");

@@ -848,11 +848,14 @@ fn proof_output_lane_requires_a_runtime_binding_for_a_runtime_result() {
 
     let diagnostics = lower_typed_trees(parse_typed_trees(source))
         .expect_err("a runtime proof-output binding must bind its Type result");
-    assert!(diagnostics.iter().any(|diagnostic| {
-        diagnostic
-            .message
-            .contains("missing its runtime Type result")
-    }));
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("missing its runtime Type result")
+        }),
+        "unexpected diagnostics: {diagnostics:#?}"
+    );
 }
 
 #[test]
@@ -917,15 +920,18 @@ fn proof_output_rejects_value_on_unit_and_duplicate_or_discarded_runtime_value()
     "#;
     let diagnostics = lower_typed_trees(parse_typed_trees(discarded))
         .expect_err("runtime Type values are not proposition evidence");
-    assert!(diagnostics.iter().any(|diagnostic| {
-        diagnostic
-            .message
-            .contains("cannot discard its runtime Type result")
-    }));
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("cannot discard its runtime Type result")
+        }),
+        "unexpected diagnostics: {diagnostics:#?}"
+    );
 }
 
 #[test]
-fn proof_output_rejects_a_callee_with_runtime_body_work() {
+fn proof_output_preserves_a_callee_with_runtime_body_work() {
     let source = r#"
         trait Evidence {}
         proposition ready() evidence Evidence;
@@ -948,13 +954,35 @@ fn proof_output_rejects_a_callee_with_runtime_body_work() {
         }
     "#;
 
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
-        .expect_err("erasing a proof-output call must not erase runtime work");
-    assert!(diagnostics.iter().any(|diagnostic| {
-        diagnostic.message.contains(
-            "is currently limited to a concrete one-state, zero-argument proof-only or scalar-result machine",
-        )
-    }));
+    let checked = lower_typed_trees(parse_typed_trees(source))
+        .expect("a Unit proof-output call must retain its runtime body work");
+    let invocation = checked
+        .facts
+        .proof
+        .proof_output_calls
+        .iter()
+        .next()
+        .map(|(_, invocation)| invocation)
+        .expect("one checked proof-output invocation");
+    let runtime_call = invocation
+        .runtime_call
+        .expect("the Unit proof-output invocation retains an ordinary call");
+    assert_eq!(
+        (runtime_call.statement_index, runtime_call.call_ordinal),
+        (0, 0)
+    );
+    let relay = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "relay")
+        .expect("relay machine");
+    let [psi_typed_trees::statement::StatementNode::Call(call)] = checked
+        .statement_table
+        .statements(checked.machine_states(relay)[0].statement_nodes)
+    else {
+        panic!("the proof-output call must remain in the ordinary runtime stream")
+    };
+    assert_eq!(call.target.as_str(), "produce");
 }
 
 #[test]
@@ -991,6 +1019,7 @@ fn proof_output_binding_is_not_visible_to_its_own_call() {
                 || diagnostic
                     .message
                     .contains("proof-only or scalar-result machine")
+                || diagnostic.message.contains("zero-argument")
         }),
         "unexpected diagnostics: {diagnostics:?}"
     );
@@ -1052,11 +1081,14 @@ fn proof_output_runtime_value_cannot_use_proposition_discard() {
     "#;
     let diagnostics = lower_typed_trees(parse_typed_trees(source))
         .expect_err("the ordinary runtime Type field is not proposition evidence");
-    assert!(diagnostics.iter().any(|diagnostic| {
-        diagnostic
-            .message
-            .contains("cannot discard its runtime Type result")
-    }));
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("cannot discard its runtime Type result")
+        }),
+        "unexpected diagnostics: {diagnostics:#?}"
+    );
 }
 
 #[test]

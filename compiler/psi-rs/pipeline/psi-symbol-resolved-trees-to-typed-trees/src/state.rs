@@ -121,8 +121,22 @@ pub(crate) fn lower_state(
                     usize::try_from(typed_state.statement_nodes.count())
                         .expect("typed statement count fits usize")
                         .checked_sub(1)
-                        .expect("a runtime package value has its synthesized local first")
+                        .expect("a proof-output Type value has its synthesized local first")
                 });
+            let runtime_call_statement_index = if runtime_call_statement_index.is_some() {
+                runtime_call_statement_index
+            } else if proof_output_call_requires_execution(lowerer, call) {
+                let statement_index = usize::try_from(typed_state.statement_nodes.count())
+                    .expect("typed statement count fits usize");
+                let call = proof_output_runtime_call(lowerer, call)?;
+                lowerer.typed_trees.statement_table.push_statement(
+                    &mut typed_state.statement_nodes,
+                    typed::statement::StatementNode::Call(call),
+                );
+                Some(statement_index)
+            } else {
+                None
+            };
             lowerer
                 .typed_trees
                 .proof_output_calls
@@ -153,6 +167,101 @@ pub(crate) fn lower_state(
     }
 
     Ok(typed_state)
+}
+
+fn proof_output_call_requires_execution(
+    lowerer: &Lowerer,
+    call: typed::expression::ExpressionHandle,
+) -> bool {
+    let typed::expression::ExpressionNode::Call(call) =
+        lowerer.typed_trees.expression_table.expression(call)
+    else {
+        return true;
+    };
+    let Some((machine, state)) = lowerer.source_trees.machines.iter().find_map(|machine| {
+        lowerer
+            .source_trees
+            .machine_state_handles(machine.states)
+            .iter()
+            .map(|state| lowerer.source_trees.machine_state(*state))
+            .find(|state| state.symbol == call.target_symbol)
+            .map(|state| (machine, state))
+    }) else {
+        return true;
+    };
+
+    state.return_type.is_none()
+        && (machine.supply_mode != psi_language_semantics::MachineSupplyMode::CheckedBody
+            || lowerer
+                .source_trees
+                .machine_state_handles(machine.states)
+                .len()
+                != 1
+            || !state.statement_nodes.is_empty())
+}
+
+fn proof_output_runtime_call(
+    lowerer: &mut Lowerer,
+    call: typed::expression::ExpressionHandle,
+) -> Result<typed::statement::TableCall, Diagnostic> {
+    let typed::expression::ExpressionNode::Call(call) = lowerer
+        .typed_trees
+        .expression_table
+        .expression(call)
+        .clone()
+    else {
+        return Err(Diagnostic::error(
+            "proof-output binding requires a direct call",
+        ));
+    };
+    let (receiver_symbol, receiver_members) =
+        proof_output_receiver_parts(&lowerer.typed_trees, call.receiver)
+            .ok_or_else(|| Diagnostic::error("proof-output call receiver must be a name path"))?;
+    let mut receiver = psi_arena::HandleSpan::empty();
+    for member in receiver_members {
+        lowerer
+            .typed_trees
+            .statement_table
+            .push_name_path_member(&mut receiver, member);
+    }
+    Ok(typed::statement::TableCall {
+        receiver_symbol,
+        target_symbol: call.target_symbol,
+        receiver,
+        target: call.target,
+        machine_arguments: call.machine_arguments,
+        arguments: call.arguments,
+        evidence_arguments: call.evidence_arguments,
+        operational_acknowledgement: call.operational_acknowledgement,
+        discards_result: false,
+    })
+}
+
+fn proof_output_receiver_parts(
+    program: &typed::TypedTrees,
+    expression: typed::expression::ExpressionHandle,
+) -> Option<(psi_symbols::SymbolHandle, Vec<typed::name::Identifier>)> {
+    if !expression.is_valid() {
+        return Some((psi_symbols::SymbolHandle::invalid(), Vec::new()));
+    }
+    match program.expression_table.expression(expression) {
+        typed::expression::ExpressionNode::Mutable(inner) => {
+            proof_output_receiver_parts(program, *inner)
+        }
+        typed::expression::ExpressionNode::Name(path) => Some((
+            path.symbol,
+            program
+                .expression_table
+                .name_path_members(path.members)
+                .to_vec(),
+        )),
+        typed::expression::ExpressionNode::Member(member) => {
+            let (_, mut members) = proof_output_receiver_parts(program, member.receiver)?;
+            members.push(member.member.clone());
+            Some((member.member_symbol, members))
+        }
+        _ => None,
+    }
 }
 
 pub(crate) fn lower_state_signature(

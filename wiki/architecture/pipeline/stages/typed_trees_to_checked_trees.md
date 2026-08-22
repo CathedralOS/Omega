@@ -525,7 +525,10 @@ Current ownership is:
   conformance, evidence trait, and normalized realization rows without source
   handles. The verifier admits an ensures-only term exactly through that row;
   provenance affects proof identity, never terminal semantic identity or
-  execution. Each ensured terminal lane retains the public proof-output
+  execution. A pure Unit proof producer erases; if that producer contains
+  runtime body work, typed lowering retains one ordinary Unit call and checked
+  proof facts bind the output row to its exact call coordinate. Each ensured
+  terminal lane retains the public proof-output
   selector beside its exact term ID; required lanes have no output selector. A
   proof-static `term.member` binder argument resolves in its named-contract
   scope to the exact checked evidence-term handle and one unambiguous direct or

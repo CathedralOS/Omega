@@ -239,13 +239,14 @@ caller-local term with the same proposition and interface. Omitted selectors
 mint no term but their propositions still enter the caller's fact catalog.
 Repeated calls share callee terms and producers while minting fresh caller
 terms for captured lanes. Source coordinates and caller-local display names
-erase. A proof-only row adds no runtime operation or fuel. A scalar-runtime row
-separately retains its scalar result type and the exact canonical ordinary
-`Call` operation ID and callee. The verifier requires that operation to occur
-in the declared caller, produce the declared scalar type, and call the linked
-callee; a missing, spurious, unknown, wrong-kind, wrong-caller, or
-mismatched-callee link rejects. The proof row adds no operation or fuel beyond
-that ordinary call. Outcome guards expose selectors only in applicable arms.
+erase. The execution shape is explicit: an erased proof-only row has no
+runtime operation or fuel; a Unit-runtime row links one canonical `CallUnit`;
+a scalar-runtime row retains its scalar result type and links one canonical
+`Call`. The verifier requires each linked operation to occur in the declared
+caller, have the declared result shape, and call the linked callee; a missing,
+spurious, unknown, wrong-kind, wrong-caller, or mismatched-callee link rejects.
+The proof row adds no operation or fuel beyond that ordinary call. Outcome
+guards expose selectors only in applicable arms.
 A selected generic conformance is already closed before Terminal Psi: its
 identity retains the declared package-scoped name, complete normalized
 telescope including any resolved elided lifetimes, instantiated subject and

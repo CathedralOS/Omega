@@ -1,6 +1,7 @@
 //! Proposition and evidence artifact lowering.
 
 use super::*;
+use psi_terminal::ProofOutputRuntimeResult;
 
 pub(super) fn lower_and_install_evidence_artifacts(
     checked: &CheckedTrees,
@@ -274,7 +275,7 @@ fn lower_evidence_term_ids(
                     .or_insert((2_u8, package_identity_position));
                 package_identity_position = package_identity_position
                     .checked_add(1)
-                    .expect("evidence package identity order fits usize");
+                    .expect("proof-output identity order fits usize");
             }
         }
     }
@@ -526,7 +527,7 @@ fn lower_proof_output_calls(
         })
         .enumerate()
         .map(|(ordinal, invocation)| {
-            let (runtime_value, runtime_call) = lower_proof_output_runtime_call(
+            let (runtime_result, runtime_call) = lower_proof_output_runtime_call(
                 checked,
                 selected_machine,
                 terminal_machine,
@@ -541,9 +542,7 @@ fn lower_proof_output_calls(
                         checked.facts.proof.evidence_terms.get(output.callee_output);
                     Ok(ProofOutput {
                         output_position: u32::try_from(output.output_position).map_err(|_| {
-                            LoweringError::Unsupported(
-                                "terminal evidence package output position exceeds u32",
-                            )
+                            LoweringError::Unsupported("terminal proof-output position exceeds u32")
                         })?,
                         output_field: callee_output.name.clone(),
                         callee_output: term_ids
@@ -554,7 +553,7 @@ fn lower_proof_output_calls(
                             .copied()
                             .flatten()
                             .ok_or(LoweringError::Unsupported(
-                                "terminal evidence package callee term has no canonical identity",
+                                "terminal proof-output callee term has no canonical identity",
                             ))?,
                         output: output
                             .output
@@ -567,7 +566,7 @@ fn lower_proof_output_calls(
                                     .copied()
                                     .flatten()
                                     .ok_or(LoweringError::Unsupported(
-                                        "terminal evidence package output term has no canonical identity",
+                                        "terminal proof-output term has no canonical identity",
                                     ))
                             })
                             .transpose()?,
@@ -577,15 +576,13 @@ fn lower_proof_output_calls(
             Ok(ProofOutputCall {
                 caller: terminal_machine,
                 ordinal: u32::try_from(ordinal).map_err(|_| {
-                    LoweringError::Unsupported(
-                        "terminal evidence package invocation count exceeds u32",
-                    )
+                    LoweringError::Unsupported("terminal proof-output invocation count exceeds u32")
                 })?,
                 target_machine_identity: checked_evidence_machine_identity(
                     checked,
                     invocation.target_machine_symbol,
                 )?,
-                runtime_value,
+                runtime_result,
                 runtime_call,
                 outputs,
             })
@@ -601,7 +598,13 @@ fn lower_proof_output_runtime_call(
     terminal_machine: MachineId,
     semantic_module: &TerminalModule,
     invocation: &psi_checked_trees::ProofOutputCallFact,
-) -> Result<(Option<ScalarType>, Option<ProofOutputRuntimeCall>), LoweringError> {
+) -> Result<
+    (
+        Option<ProofOutputRuntimeResult>,
+        Option<ProofOutputRuntimeCall>,
+    ),
+    LoweringError,
+> {
     let Some(runtime_call) = invocation.runtime_call else {
         return Ok((None, None));
     };
@@ -612,15 +615,25 @@ fn lower_proof_output_runtime_call(
         .flat_map(|machine| checked.typed.machine_states(machine))
         .find(|state| state.symbol == invocation.target_state_symbol)
         .ok_or(LoweringError::Unsupported(
-            "runtime evidence package target state is absent",
+            "runtime proof-output target state is absent",
         ))?;
+    if !target_state.return_type.is_valid() {
+        return lower_unit_proof_output_runtime_call(
+            checked,
+            selected_machine,
+            terminal_machine,
+            semantic_module,
+            invocation,
+            runtime_call,
+        );
+    }
     let runtime_value = checked
         .typed
         .primitive_type_reference(target_state.return_type)
         .map(terminal_scalar_type)
         .transpose()?
         .ok_or(LoweringError::Unsupported(
-            "runtime evidence package target is not scalar-result",
+            "runtime proof-output target is not scalar-result",
         ))?;
     let graph = checked
         .facts
@@ -628,7 +641,7 @@ fn lower_proof_output_runtime_call(
         .terminal_scalar_graphs
         .for_machine(selected_machine)
         .ok_or(LoweringError::Unsupported(
-            "runtime evidence package caller has no checked scalar graph",
+            "runtime proof-output caller has no checked scalar graph",
         ))?;
     let mut direct_call_position = None;
     let mut next_position = 0usize;
@@ -652,12 +665,12 @@ fn lower_proof_output_runtime_call(
                     || *target_state != invocation.target_state_symbol
                 {
                     return unsupported(
-                        "runtime evidence package target disagrees with its scalar call plan",
+                        "runtime proof-output target disagrees with its scalar call plan",
                     );
                 }
                 if direct_call_position.replace(next_position).is_some() {
                     return unsupported(
-                        "runtime evidence package scalar call coordinate is not unique",
+                        "runtime proof-output scalar call coordinate is not unique",
                     );
                 }
             }
@@ -667,14 +680,14 @@ fn lower_proof_output_runtime_call(
         }
     }
     let direct_call_position = direct_call_position.ok_or(LoweringError::Unsupported(
-        "runtime evidence package scalar call coordinate is absent",
+        "runtime proof-output scalar call coordinate is absent",
     ))?;
     let caller = semantic_module
         .machines
         .iter()
         .find(|machine| machine.id == terminal_machine)
         .ok_or(LoweringError::Unsupported(
-            "runtime evidence package caller is absent from terminal Psi",
+            "runtime proof-output caller is absent from terminal Psi",
         ))?;
     let mut calls = caller
         .blocks
@@ -687,18 +700,107 @@ fn lower_proof_output_runtime_call(
         .get(direct_call_position)
         .copied()
         .ok_or(LoweringError::Unsupported(
-            "runtime evidence package call has no emitted terminal operation",
+            "runtime proof-output call has no emitted terminal operation",
         ))?;
     let (Some(result), OperationKind::Call { callee, .. }) =
         (operation.result.scalar(), &operation.kind)
     else {
-        return unsupported("runtime evidence package operation is not an ordinary scalar call");
+        return unsupported("runtime proof-output operation is not an ordinary scalar call");
     };
     if result.scalar_type != runtime_value {
-        return unsupported("runtime evidence package operation result type disagrees");
+        return unsupported("runtime proof-output operation result type disagrees");
     }
     Ok((
-        Some(runtime_value),
+        Some(ProofOutputRuntimeResult::Scalar(runtime_value)),
+        Some(ProofOutputRuntimeCall {
+            operation: operation.id,
+            callee: *callee,
+        }),
+    ))
+}
+
+fn lower_unit_proof_output_runtime_call(
+    checked: &CheckedTrees,
+    selected_machine: psi_symbols::SymbolHandle,
+    terminal_machine: MachineId,
+    semantic_module: &TerminalModule,
+    invocation: &psi_checked_trees::ProofOutputCallFact,
+    runtime_call: psi_checked_trees::ProofOutputRuntimeCallFact,
+) -> Result<
+    (
+        Option<ProofOutputRuntimeResult>,
+        Option<ProofOutputRuntimeCall>,
+    ),
+    LoweringError,
+> {
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(selected_machine)
+        .ok_or(LoweringError::Unsupported(
+            "runtime Unit proof-output caller has no checked Unit plan",
+        ))?;
+    let mut call_position = 0usize;
+    let mut matching_position = None;
+    for operation in &plan.operations {
+        let psi_checked_trees::CheckedUnitEffectOperationPlan::CallUnit {
+            coordinate,
+            target_machine,
+            target_state,
+            ..
+        } = operation
+        else {
+            continue;
+        };
+        if usize::try_from(coordinate.statement_index).ok() == Some(runtime_call.statement_index)
+            && usize::try_from(coordinate.call_ordinal).ok() == Some(runtime_call.call_ordinal)
+        {
+            if *target_machine != invocation.target_machine_symbol
+                || *target_state != invocation.target_state_symbol
+            {
+                return unsupported(
+                    "runtime Unit proof-output target disagrees with its checked call plan",
+                );
+            }
+            if matching_position.replace(call_position).is_some() {
+                return unsupported("runtime Unit proof-output call coordinate is not unique");
+            }
+        }
+        call_position = call_position
+            .checked_add(1)
+            .expect("checked Unit call count advances");
+    }
+    let matching_position = matching_position.ok_or(LoweringError::Unsupported(
+        "runtime Unit proof-output call coordinate is absent",
+    ))?;
+    let caller = semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == terminal_machine)
+        .ok_or(LoweringError::Unsupported(
+            "runtime Unit proof-output caller is absent from terminal Psi",
+        ))?;
+    let mut calls = caller
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .filter(|operation| matches!(operation.kind, OperationKind::CallUnit { .. }))
+        .collect::<Vec<_>>();
+    calls.sort_unstable_by_key(|operation| operation.id);
+    let operation = calls
+        .get(matching_position)
+        .copied()
+        .ok_or(LoweringError::Unsupported(
+            "runtime Unit proof-output call has no emitted terminal operation",
+        ))?;
+    let (psi_terminal::OperationResult::Unit, OperationKind::CallUnit { callee, .. }) =
+        (&operation.result, &operation.kind)
+    else {
+        return unsupported("runtime Unit proof-output operation is not an ordinary Unit call");
+    };
+    Ok((
+        Some(ProofOutputRuntimeResult::Unit),
         Some(ProofOutputRuntimeCall {
             operation: operation.id,
             callee: *callee,
