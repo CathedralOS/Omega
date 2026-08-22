@@ -247,21 +247,20 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
         &entry_writer(EntryStubId::from_normalized_identity(13).unwrap()),
     )
     .expect("same reusable geometry with a different symbolic entry");
+    let drifted_lowering_snapshot = drifted_lowering.clone();
+    let prepared_provider = drifted_preparation.provider_execution();
+    let error =
+        bind_external_root_post_handoff_writer_invocation(drifted_lowering, drifted_preparation)
+            .expect_err("lowered writer invocation drift must reject");
     assert!(
-        bind_external_root_post_handoff_writer_invocation(drifted_lowering, drifted_preparation,)
-            .expect_err("lowered writer invocation drift must reject")
+        error
+            .diagnostic()
             .message
             .contains("exact lowered post-handoff writer invocation")
     );
-    let prepared_writer = selected_provider
-        .prepare_post_handoff_entry_writer(
-            &execution,
-            &installed_code,
-            &writer,
-            16,
-            writer_site(0x8000),
-        )
-        .expect("exact writer preparation remains reusable after drift rejection");
+    let (returned_lowering, prepared_writer) = error.into_parts();
+    assert_eq!(returned_lowering, drifted_lowering_snapshot);
+    assert_eq!(prepared_writer.provider_execution(), prepared_provider);
     let lowered_writer = lower_post_handoff_writer_fragment(
         NativeTarget::linux_x64(),
         MachineRegister::X86Rdi,

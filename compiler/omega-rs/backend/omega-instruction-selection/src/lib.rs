@@ -69,7 +69,7 @@ pub use entry::{
 pub use generated_writer::{
     LoweredPostHandoffWriter, LoweredPostHandoffWriterFragment, PostHandoffEntryWriterBindingError,
     PreparedPostHandoffEntryWriterInvocation, bind_post_handoff_entry_writer_invocation,
-    lower_post_handoff_writer_fragment,
+    lower_post_handoff_writer_fragment, validate_lowered_post_handoff_writer,
 };
 pub use operands::*;
 pub use selection::build_instruction_plan;

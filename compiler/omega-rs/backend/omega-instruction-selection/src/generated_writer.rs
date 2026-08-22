@@ -211,14 +211,28 @@ fn preflight_post_handoff_entry_writer_binding(
             ),
         ));
     }
-    if let Err(error) = lowered.invocation.validate_structure() {
-        return Err(rejection(lowered, error.0));
-    }
-    if lowered.fragment.normalized_plan_fingerprint != lowered.invocation.fragment().fingerprint() {
-        return Err(rejection(
+    if let Err(diagnostic) = validate_lowered_post_handoff_writer(&lowered) {
+        return Err(PostHandoffEntryWriterBindingError {
             lowered,
-            "lowered post-handoff writer normalized identity does not match its retained invocation"
-                .into(),
+            diagnostic,
+        });
+    }
+    Ok(lowered)
+}
+
+/// Independently replay one lowered reusable writer without consuming it.
+/// This is the final-artifact/orchestration consumer check for the exact
+/// invocation, canonical target bytes, footprint, and emitted identity.
+pub fn validate_lowered_post_handoff_writer(
+    lowered: &LoweredPostHandoffWriter,
+) -> Result<(), Diagnostic> {
+    lowered
+        .invocation
+        .validate_structure()
+        .map_err(|error| Diagnostic::error(error.0))?;
+    if lowered.fragment.normalized_plan_fingerprint != lowered.invocation.fragment().fingerprint() {
+        return Err(Diagnostic::error(
+            "lowered post-handoff writer normalized identity does not match its retained invocation",
         ));
     }
 
@@ -244,15 +258,7 @@ fn preflight_post_handoff_entry_writer_binding(
             ),
         ),
     };
-    let expected_bytes = match expected_bytes {
-        Ok(bytes) => bytes,
-        Err(diagnostic) => {
-            return Err(PostHandoffEntryWriterBindingError {
-                lowered,
-                diagnostic,
-            });
-        }
-    };
+    let expected_bytes = expected_bytes?;
     let expected_emitted_fingerprint = emitted_writer_fingerprint(
         lowered.fragment.target.architecture,
         lowered.fragment.normalized_plan_fingerprint,
@@ -262,13 +268,11 @@ fn preflight_post_handoff_entry_writer_binding(
         || lowered.fragment.footprint != expected_footprint
         || lowered.fragment.emitted_bytes_fingerprint != expected_emitted_fingerprint
     {
-        return Err(rejection(
-            lowered,
-            "lowered post-handoff writer bytes, footprint, or emitted fingerprint fail exact replay"
-                .into(),
+        return Err(Diagnostic::error(
+            "lowered post-handoff writer bytes, footprint, or emitted fingerprint fail exact replay",
         ));
     }
-    Ok(lowered)
+    Ok(())
 }
 
 fn emitted_writer_fingerprint(
