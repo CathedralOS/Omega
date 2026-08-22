@@ -2154,11 +2154,19 @@ and the fixed direct-literal frontier are unchanged.
 Closed-strengthened alias transport now separates fact discovery from its
 existing cast completion. Independent producer and verifier
 `alias_transport/cast/stronger/candidates` modules retain equality-first,
-orientation-second, then bound-order enumeration and exact carrier/endpoint
-eligibility. Their parents still invoke side-local completion with the same
+orientation-second, then bound-order enumeration. Their parents still invoke
+side-local completion with the same
 cited proof nodes or retained facts. Citation identity, closed bridge and
 substitution bytes, rejection order, single-alias/single-bridge frontier, and
 cast-family precedence are unchanged.
+
+Stronger alias-bound endpoint eligibility now lives in independent producer
+and verifier `alias_transport/cast/stronger/candidates/bound` modules. Each
+requires the selected alias at the left endpoint before the right fallback,
+decodes the opposite endpoint as a fixed integer literal, and requires its
+carrier to match the root. Candidate parents retain equality, orientation, and
+bound citation order. Completion inputs, proof bytes, rejection, and the fixed
+single-alias/single-bridge frontier are unchanged.
 
 Alias-landed-literal transport uses the same ownership split. Independent
 producer and verifier `alias_transport/cast/literal/candidates` modules retain
