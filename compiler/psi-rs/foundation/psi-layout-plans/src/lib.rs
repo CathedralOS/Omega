@@ -1042,10 +1042,129 @@ impl PostHandoffWriterInvocationPlan {
         &self.fit_constraints
     }
 
+    /// Independently replay the sealed invocation before a consumer accepts
+    /// provider-supplied words. Rejection only borrows this carrier, so the
+    /// exact invocation remains available for inspection or corrected retry.
+    pub fn validate_structure(&self) -> Result<(), MaterializationDiagnostic> {
+        let fragment = &self.fragment;
+        if fragment.context_abi != POST_HANDOFF_WRITER_CONTEXT_ABI_V1 {
+            return Err(MaterializationDiagnostic(
+                "post-handoff writer invocation uses an unsupported context ABI".into(),
+            ));
+        }
+        if fragment.byte_len == 0 || fragment.steps.is_empty() || self.sources.is_empty() {
+            return Err(MaterializationDiagnostic(
+                "post-handoff writer invocation requires nonempty bytes, sources, and fragments"
+                    .into(),
+            ));
+        }
+        if self.placement.alignment == 0 {
+            return Err(MaterializationDiagnostic(
+                "post-handoff writer invocation placement alignment must be nonzero".into(),
+            ));
+        }
+        if fragment.source_slot_count != self.sources.len()
+            || post_handoff_writer_context_byte_len(self.sources.len()).is_none()
+        {
+            return Err(MaterializationDiagnostic(
+                "post-handoff writer invocation source-slot geometry is inconsistent".into(),
+            ));
+        }
+
+        let mut distinct_targets = std::collections::BTreeSet::new();
+        for slot in &self.sources {
+            if !distinct_targets.insert(slot.target) {
+                return Err(MaterializationDiagnostic(
+                    "post-handoff writer invocation repeats one relocation target in multiple source slots"
+                        .into(),
+                ));
+            }
+            if let PostHandoffWriterSource::Resolve(target) = slot.source
+                && target != slot.target
+            {
+                return Err(MaterializationDiagnostic(
+                    "post-handoff writer invocation resolver source does not match its source-slot target"
+                        .into(),
+                ));
+            }
+        }
+
+        let mut used_slots = vec![false; self.sources.len()];
+        let mut next_first_slot = 0;
+        for step in &fragment.steps {
+            validate_fragment(
+                fragment.byte_len,
+                "generated post-handoff writer fragment",
+                step.container_byte_offset,
+                step.container_width_bits,
+                step.destination_lsb,
+                step.source_lsb,
+                step.width,
+            )?;
+            let used = used_slots.get_mut(step.source_slot).ok_or_else(|| {
+                MaterializationDiagnostic(format!(
+                    "post-handoff writer fragment names missing source slot {}",
+                    step.source_slot
+                ))
+            })?;
+            if !*used {
+                if step.source_slot != next_first_slot {
+                    return Err(MaterializationDiagnostic(
+                        "post-handoff writer fragment source slots are not in canonical first-occurrence order"
+                            .into(),
+                    ));
+                }
+                *used = true;
+                next_first_slot += 1;
+            }
+        }
+        if used_slots.iter().any(|used| !used) {
+            return Err(MaterializationDiagnostic(
+                "post-handoff writer invocation retains an unused source slot".into(),
+            ));
+        }
+
+        for constraint in &self.fit_constraints {
+            validate_stored_integer_fit_shape(
+                &constraint.field,
+                constraint.fit,
+                "post-handoff invocation",
+            )?;
+            if constraint.source_slot >= self.sources.len()
+                || !fragment.steps.iter().any(|step| {
+                    step.source_slot == constraint.source_slot
+                        && step.container_width_bits == constraint.fit.stored_width_bits
+                        && step.width == constraint.fit.stored_width_bits
+                        && step.destination_lsb == 0
+                        && step.source_lsb == 0
+                })
+            {
+                return Err(MaterializationDiagnostic(format!(
+                    "post-handoff stored-integer constraint for `{}` does not bind one exact generated fragment",
+                    constraint.field
+                )));
+            }
+        }
+
+        let expected_fingerprint = generated_post_handoff_writer_fingerprint(
+            fragment.byte_len,
+            fragment.byte_order,
+            fragment.source_slot_count,
+            &fragment.steps,
+        );
+        if fragment.fingerprint != expected_fingerprint {
+            return Err(MaterializationDiagnostic(
+                "post-handoff writer fragment fingerprint does not match its exact geometry".into(),
+            ));
+        }
+        Ok(())
+    }
+
     pub fn validate_source_values(
         &self,
         source_values: &[u64],
     ) -> Result<(), MaterializationDiagnostic> {
+        self.validate_structure()?;
         if source_values.len() != self.sources.len() {
             return Err(MaterializationDiagnostic(format!(
                 "post-handoff writer has {} source values for {} source slots",
@@ -2415,25 +2534,13 @@ fn validate_stored_integer_fit(
     source_value: u64,
     value_kind: &str,
 ) -> Result<(), MaterializationDiagnostic> {
+    validate_stored_integer_fit_shape(field, fit, value_kind)?;
     let StoredIntegerFit {
         source_width_bits,
         stored_width_bits,
         interpretation,
     } = fit;
-    if source_width_bits == 0 || source_width_bits > 64 {
-        return Err(MaterializationDiagnostic(format!(
-            "{value_kind} field `{field}` has an invalid {source_width_bits}-bit source width"
-        )));
-    }
-    if stored_width_bits == 0
-        || stored_width_bits > 64
-        || !stored_width_bits.is_multiple_of(8)
-        || source_width_bits < stored_width_bits
-    {
-        return Err(MaterializationDiagnostic(format!(
-            "{value_kind} field `{field}` has an invalid {stored_width_bits}-bit stored-integer fit constraint"
-        )));
-    }
+
     let fits = match interpretation {
         IntegerInterpretation::Signed => {
             let semantic = signed_bits(source_value, source_width_bits);
@@ -2449,6 +2556,33 @@ fn validate_stored_integer_fit(
                 IntegerInterpretation::Signed => "signed",
                 IntegerInterpretation::Unsigned => "unsigned",
             }
+        )));
+    }
+    Ok(())
+}
+
+fn validate_stored_integer_fit_shape(
+    field: &str,
+    fit: StoredIntegerFit,
+    value_kind: &str,
+) -> Result<(), MaterializationDiagnostic> {
+    let StoredIntegerFit {
+        source_width_bits,
+        stored_width_bits,
+        interpretation: _,
+    } = fit;
+    if source_width_bits == 0 || source_width_bits > 64 {
+        return Err(MaterializationDiagnostic(format!(
+            "{value_kind} field `{field}` has an invalid {source_width_bits}-bit source width"
+        )));
+    }
+    if stored_width_bits == 0
+        || stored_width_bits > 64
+        || !stored_width_bits.is_multiple_of(8)
+        || source_width_bits < stored_width_bits
+    {
+        return Err(MaterializationDiagnostic(format!(
+            "{value_kind} field `{field}` has an invalid {stored_width_bits}-bit stored-integer fit constraint"
         )));
     }
     Ok(())
@@ -3849,6 +3983,79 @@ mod tests {
     }
 
     #[test]
+    fn invocation_structure_replay_rejects_tamper_and_preserves_retry() {
+        let target = entry();
+        let writer = PostHandoffWriterPlan {
+            byte_len: 8,
+            byte_order: ByteOrder::LittleEndian,
+            placement: PlacementConstraints::unconstrained(PlacementPhase::PostHandoff),
+            steps: vec![PostHandoffWriterStep {
+                write: MaterializationWrite {
+                    field: "address".into(),
+                    target,
+                    container_byte_offset: 0,
+                    container_width_bits: 64,
+                    destination_lsb: 0,
+                    source_lsb: 0,
+                    width: 64,
+                    stored_integer_fit: None,
+                },
+                source: PostHandoffWriterSource::Resolve(target),
+            }],
+        };
+        let invocation = writer
+            .lower_reusable_fragment()
+            .expect("valid reusable invocation");
+        invocation
+            .validate_structure()
+            .expect("lowering produces canonical structure");
+
+        let mut wrong_abi = invocation.clone();
+        wrong_abi.fragment.context_abi ^= 1;
+        assert!(
+            wrong_abi
+                .validate_structure()
+                .expect_err("context ABI drift must reject")
+                .0
+                .contains("context ABI")
+        );
+
+        let mut missing_slot = invocation.clone();
+        missing_slot.fragment.steps[0].source_slot = 1;
+        assert!(
+            missing_slot
+                .validate_structure()
+                .expect_err("missing source slot must reject")
+                .0
+                .contains("missing source slot")
+        );
+
+        let mut zero_alignment = invocation.clone();
+        zero_alignment.placement.alignment = 0;
+        assert!(
+            zero_alignment
+                .validate_structure()
+                .expect_err("zero alignment must reject")
+                .0
+                .contains("alignment")
+        );
+
+        let mut wrong_fingerprint = invocation.clone();
+        wrong_fingerprint.fragment.fingerprint ^= 1;
+        assert!(
+            wrong_fingerprint
+                .validate_structure()
+                .expect_err("fragment fingerprint drift must reject")
+                .0
+                .contains("fingerprint")
+        );
+
+        invocation
+            .validate_source_values(&[0x1234])
+            .expect("the untouched invocation remains valid for retry");
+    }
+
+    #[test]
     fn empty_post_handoff_writer_rejects_every_execution_path() {
         let symbolic = SymbolicMaterializationPlan {
             byte_len: 8,
@@ -4227,6 +4434,18 @@ mod tests {
             .lower_reusable_fragment()
             .expect("stored-integer fit remains invocation evidence");
         assert_eq!(invocation.fit_constraints().len(), 1);
+        invocation
+            .validate_structure()
+            .expect("stored-integer fit binds exact generated geometry");
+        let mut drifted_fit = invocation.clone();
+        drifted_fit.fit_constraints[0].source_slot = 1;
+        let error = drifted_fit
+            .validate_structure()
+            .expect_err("fit evidence cannot move to a missing source slot");
+        assert!(error.0.contains("does not bind"), "{}", error.0);
+        invocation
+            .validate_structure()
+            .expect("fit rejection leaves the original invocation reusable");
 
         let site = PlacementSite {
             base_address: 0,
