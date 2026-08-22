@@ -4222,6 +4222,35 @@ Owners:
   checked-report executable receipts while preserving literal status 1 and all
   placement, specialization, and stale-fold diagnostics. Exact-owner pins
   remain stable; all existing fenced owners remain unchanged.
+  Exact affine root/integer-literal carrier eligibility now lives in paired,
+  side-local `affine_selection/literal/eligibility` modules. Producer and
+  reconstruction independently require an exact Value root whose integer
+  carrier matches the landed literal; direct candidates and the fixed one-
+  alias join consume that shared side-local judgment, while alias same-row
+  rejection remains with the join. Direct-before-alias precedence, source and
+  citation order, proof shapes, rejection behavior, and the fixed affine-
+  literal frontier remain unchanged.
+  Five authored-root indexed/reference executions—indexed transition
+  arguments, shared-reference guards, distinct nested receivers, double-
+  indexed member access, and double-indexed operands—now launch solely through
+  exact checked-report executable receipts while preserving literal statuses
+  1, 1, 9, 1, and 1 and all delivery, alias, receiver, and index diagnostics.
+  Exact-owner pins and all existing ownership fences remain unchanged.
+  Five authored-root indexed/local-storage executions—in-place reversal,
+  transitive local copying, indexed frame-source writes, captured-local
+  swapping, and looped dual-index copying—now launch solely through exact
+  checked-report executable receipts while preserving literal status 70 and
+  all stale-fold, capture, and copy-placement diagnostics. Exact-owner pins and
+  all existing ownership fences remain unchanged.
+  Source-ordered affine-literal equality traversal now lives in paired, side-
+  local `affine_selection/literal/equalities` modules. Producer and
+  reconstruction independently enumerate requirements or assumptions before
+  semantic axioms and preserve left-before-right equality orientation for both
+  direct literal discovery and outer root-alias discovery; only the producer
+  retains citation custody. Direct carrier eligibility, root-alias distinct
+  same-carrier eligibility, the indexed inner literal landings, direct-before-
+  alias precedence, proof shapes, rejection behavior, and the fixed affine-
+  literal frontier remain unchanged.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
@@ -4825,9 +4854,19 @@ boundary without its corresponding checked law.
   preserves the explicit parameter order; use-site matching, top-level overlap
   identity, and trait-owned overlap identity consume that same key. A trait
   rejects a second binding of one token over the same alpha-normalized operand
-  telescope while distinct operand telescopes remain legal. A trait-backed token
-  use still needs to consume one exact conformance already selected by a proof-static
-  binder, rejects with none or several, and never searches visible conformances.
+  telescope while distinct operand telescopes remain legal. Trait-backed fixed-
+  token selection now consumes only the exact closed conformance applications
+  already attached to the specialized caller; one matching application
+  resolves, several selected applications are ambiguous, and an unselected
+  visible conformance supplies no authority. One shared typed resolver matches
+  the recoverable operand telescope across `Self`, trait, and requirement
+  binders without accepting a visible-conformance collection. Checked
+  candidates retain the exact conformance declaration, closed-application
+  fingerprint, trait requirement, and selected realization row, and an explicit
+  proof-static meaning takes precedence over root/domain resolution. Focused
+  selection, ambiguity, non-ambient lookup, full checked-pipeline, validation,
+  and reverse-consumer gates are green. Rewriting/executing the retained
+  realization row remains open.
   A concrete direct wrapper may crown only one token meaning per normalized
   operand signature; alternative conformances remain named explicit calls.
 
