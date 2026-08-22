@@ -2132,6 +2132,15 @@ mapped propositions, proof shapes, rejection behavior, and the fixed
 four-definition frontier are unchanged; reconstruction still derives and
 checks its mapped proposition independently.
 
+Affine-witness candidate coordination now separates goal-target enumeration
+from exact fixed-target completion. Independent producer and verifier
+`affine_custody/candidates/fixed` modules align literal landings and construct
+their own witness candidates for one requested target. Each parent computes
+the bounded definition-word frontier once, then retains target-first and
+definition-word-second order. Literal alignment, completion callbacks,
+rejection, and the fixed frontier are unchanged; neither side shares a witness
+or enumeration authority.
+
 The cast root-bound child may also be reconstructed from exactly one retained
 same-carrier `root == literal` fact when that literal equals or strengthens the
 canonical bound endpoint. Production remaps the endpoint into the source
