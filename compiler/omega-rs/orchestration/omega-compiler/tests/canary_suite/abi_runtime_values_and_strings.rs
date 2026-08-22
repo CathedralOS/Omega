@@ -2304,10 +2304,13 @@ fn runtime_string_field_literal_guard_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("runtime string field literal guard canary should compile from its authored root");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("runtime string field literal guard canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("runtime string field literal guard canary should run");
 
@@ -2336,11 +2339,14 @@ fn runtime_local_array_indexed_string_guard_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
         "runtime local array indexed string guard canary should compile from its authored root",
     );
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation.checked_native_executable_path().expect(
+        "runtime local array indexed string guard canary should retain its executable receipt",
+    );
+    let output = Command::new(executable)
         .output()
         .expect("runtime local array indexed string guard canary should run");
 
@@ -2364,11 +2370,14 @@ fn runtime_local_array_indexed_string_field_concat_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
         "runtime local-array-indexed string field concat canary should compile from its authored root",
     );
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation.checked_native_executable_path().expect(
+        "runtime local-array-indexed string field concat canary should retain its executable receipt",
+    );
+    let output = Command::new(executable)
         .output()
         .expect("runtime local-array-indexed string field concat canary should run");
     assert_eq!(
@@ -2395,11 +2404,14 @@ fn runtime_slice_fixed_indexed_string_guard_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
         "runtime slice fixed indexed string guard canary should compile from its authored root",
     );
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation.checked_native_executable_path().expect(
+        "runtime slice fixed indexed string guard canary should retain its executable receipt",
+    );
+    let output = Command::new(executable)
         .output()
         .expect("runtime slice fixed indexed string guard canary should run");
 
@@ -2428,10 +2440,13 @@ fn runtime_pointee_string_guard_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("runtime pointee string guard canary should compile from its authored root");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("runtime pointee string guard canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("runtime pointee string guard canary should run");
 
