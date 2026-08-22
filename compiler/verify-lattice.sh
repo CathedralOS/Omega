@@ -103,6 +103,7 @@ step "convergence (self-hosted) — the self-hosted compiler's certifiers, check
 step "convergence (reference route) — certifier RUN on interp.beta; cert checked by check.beta" delta-rs convergence-reference.sh proof-kernel gamma
 step "convergence (RUST-FREE) — omega2gamma.beta->interp.beta; cert checked by check.beta" omega convergence-reference.sh delta-rs proof-kernel gamma
 step "omega2gamma termination canary — translator halts on every sample, supported or refused (no silent scan-forever)" omega omega2gamma-termination.sh beta beta-lang beta-lang-rs ../lattice-corpus
+step "omega0 source bundle — canonical deterministic multi-file input" omega omega0-bundle-test.sh
 step "omega meaning — real Omega samples run Rust-free; exits match documented intent" omega omega-meaning.sh gamma ../lattice-corpus
 step "omega meaning-TV — the kernel re-computes each covered sample's arithmetic (proof, not comparison)" omega meaning-tv.sh gamma proof-kernel beta beta-lang beta-lang-rs ../lattice-corpus
 step "input-grid meaning TV — input-taking samples proven per documented input vector (substitution closes the program; the whole proof pipe applies per vector)" omega input-tv.sh gamma proof-kernel beta beta-lang beta-lang-rs ../lattice-corpus

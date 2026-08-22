@@ -36,7 +36,7 @@ bootstrap/
 
   omega0/                   Delta-built, simple first Omega compiler
     meaning/                Rust-free Omega/Psi meaning route used by Omega0
-    compiler/               Delta source and bootstrap profiles
+    compiler/               Delta source, bootstrap profiles, and source-bundle format
     gates/                  Delta→Omega and Omega self-build validation
 
   corpus/                   programs shared across multiple bootstrap seams

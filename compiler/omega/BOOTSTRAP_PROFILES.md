@@ -48,8 +48,8 @@ The following are outside D0: host pointers, ambient heap allocation, individual
 `free`, garbage collection, dynamic locals, threads, atomics, modules, a
 production `PagedArena`, and optimization-specific data structures. Source is a
 single deterministic byte stream. Multi-file input will be supplied by a
-separately audited bundling contract until native packages are implemented; that
-contract is a distinct open work package.
+separately audited bundling contract until native packages are implemented. The
+version-1 contract is frozen in [`OMEGA0_BUNDLE.md`](OMEGA0_BUNDLE.md).
 
 ### Fixed-backing allocation convention
 

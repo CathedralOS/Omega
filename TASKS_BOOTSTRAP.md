@@ -156,9 +156,11 @@ story.
     silently compiling a truncated prefix.
   - [ ] Replace `lowermachine`'s dedicated fixed source/table arrays with logical
     byte and typed arenas over explicit backing, preserving checked exhaustion.
-- [ ] **Choose and gate source packaging.** Support deterministic multi-file
-  input directly or define the audited bundling format used by the bootstrap
-  compiler.
+- [x] **Choose and gate source packaging.** `compiler/omega/OMEGA0_BUNDLE.md`
+  defines the canonical, length-delimited version-1 multi-source artifact.
+  Its gate covers deterministic ordering, exact byte preservation, canonical
+  paths, and malformed/truncated input rejection. The packer is untrusted; the
+  future Delta decoder must implement the same acceptance contract.
 - [ ] **Close the Delta-written artifact path.** Either emit the canonical
   object/image format directly or add a small lattice-built assembler/linker
   path. `clang`/`codesign` may remain development conveniences but cannot be an
