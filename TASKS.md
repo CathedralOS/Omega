@@ -525,8 +525,12 @@ Remaining:
   catalog: count bytes, exact nonzero identities, the eight-byte minimum-row
   capacity guard, and strict increasing-order replay. The parent retains upfront
   count conversion and global record order; canonical bytes, literal errors,
-  validation, and admission replay remain unchanged. The installation parent is
-  now 3,408
+  validation, and admission replay remain unchanged. The fixed installation-
+  header codec now owns magic/version, Terminal-Psi identity, target/subsystem
+  facts, profile/image identity, and compiler-text validation evidence. The
+  parent retains validation and every preflight count conversion in original
+  order; canonical bytes, literal errors, target admission, and installation
+  replay remain unchanged. The installation parent is now 3,272
   lines. This is
   custody, not
   authorization. The remaining
@@ -7251,8 +7255,11 @@ checked-result arithmetic decision listed below.
   element/capacity replay, decode range establishment, and named-data
   resolution. Encode-call validation now lives in a focused 400-line owner for
   schema-field classification, runtime-sized order, exact worst-case output
-  budgeting, value/schema matching, and output/written argument admission. The
-  natural dispatcher/decode root is now 475 lines; crate APIs, diagnostic order,
+  budgeting, value/schema matching, and output/written argument admission.
+  Decode-call validation and the exact `WireVerdict` zero/tag contract now live
+  in a focused 351-line owner. Schema-field admission, value matching, range
+  establishment, buffer/read/verdict checks, and diagnostic order remain
+  unchanged. The natural 130-line root is a dispatcher/test facade; crate APIs,
   protocol identities, and the exact 22-function inventory remain unchanged.
 - Extend repeated encode/decode to `Vec<T>` after allocator obligations land.
   Packed scalar decode into `&[T]` remains unsupported because variable-width
