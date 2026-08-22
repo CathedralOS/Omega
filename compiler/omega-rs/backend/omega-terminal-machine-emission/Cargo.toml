@@ -14,7 +14,10 @@ omega-calling-conventions = { path = "../../foundation/omega-calling-conventions
 omega-x86-encoding = { path = "../../foundation/omega-x86-encoding" }
 omega-terminal-assigned-target-operations = { path = "../../representations/omega-terminal-assigned-target-operations" }
 omega-terminal-machine-code = { path = "../../representations/omega-terminal-machine-code" }
+omega-terminal-installation-evidence = { path = "../../representations/omega-terminal-installation-evidence" }
 omega-terminal-target-operations = { path = "../../representations/omega-terminal-target-operations" }
+omega-isa-aarch64 = { path = "../instruction_set_architectures/omega-isa-aarch64" }
+omega-isa-x86_64 = { path = "../instruction_set_architectures/omega-isa-x86_64" }
 psi-core = { path = "../../../psi-rs/foundation/psi-core" }
 psi-terminal-fuel = { path = "../../../psi-rs/semantics/psi-terminal-fuel" }
 psi-terminal = { path = "../../../psi-rs/representations/psi-terminal" }

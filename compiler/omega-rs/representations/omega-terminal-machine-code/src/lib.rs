@@ -5,6 +5,7 @@
 
 use omega_calling_conventions::{ValuePlacement, ValueShape};
 use omega_target::NativeTarget;
+use omega_terminal_installation_evidence::NativeFuelTargetPlanProjection;
 use omega_terminal_target_operations::{
     TerminalBoundaryRealization, TerminalCallSiteOwner, TerminalCompletionClaimSource,
     TerminalProviderExecutionBinding, TerminalPsiProvenance,
@@ -25,6 +26,38 @@ pub struct TerminalMachineCodePlan {
     pub target: NativeTarget,
     pub entry: MachineId,
     pub functions: Vec<TerminalMachineCodeFunction>,
+}
+
+/// Metered bytes derived from one immutable, already emitted semantic plan.
+/// The source plan remains intact so object validation can replay every
+/// semantic interval independently; charge records provide the exact mapping
+/// into the derived byte stream.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalNativeFuelInstrumentedPlan {
+    pub source: TerminalMachineCodePlan,
+    pub target_policy: NativeFuelTargetPlanProjection,
+    pub functions: Vec<TerminalNativeFuelInstrumentedFunction>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalNativeFuelInstrumentedFunction {
+    pub machine: MachineId,
+    pub bytes: Vec<u8>,
+    /// End of semantic code and start of appended cold dispatch thunks.
+    pub semantic_end_offset: usize,
+    pub charges: Vec<TerminalNativeFuelChargeRecord>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TerminalNativeFuelChargeRecord {
+    /// Original semantic attribution retained by the immutable source plan.
+    pub attribution: TerminalNativeFuelAttribution,
+    pub charge_code_offset: usize,
+    pub charge_byte_count: usize,
+    /// Position of the unchanged semantic interval in the metered bytes.
+    pub semantic_code_offset: usize,
+    pub cold_dispatch_code_offset: usize,
+    pub cold_dispatch_byte_count: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

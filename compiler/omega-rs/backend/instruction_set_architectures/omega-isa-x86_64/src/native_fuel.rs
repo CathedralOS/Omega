@@ -15,6 +15,8 @@ use psi_diagnostics::Diagnostic;
 use crate::{Reg64, append_jcc_rel32, append_mov_reg_imm64, disp32};
 
 pub const X86_NATIVE_FUEL_CHARGE_BYTE_COUNT: usize = 36;
+/// Offset from charge start to the PC immediately after `JB rel32`.
+pub const X86_NATIVE_FUEL_FAILURE_BRANCH_END_OFFSET: usize = 26;
 pub const X86_NATIVE_FUEL_COLD_DISPATCH_BYTE_COUNT: usize = 78;
 
 pub fn native_fuel_charge_clobbers() -> RegisterSet {

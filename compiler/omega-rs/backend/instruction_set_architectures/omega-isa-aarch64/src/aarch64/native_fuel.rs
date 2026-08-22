@@ -18,6 +18,8 @@ use super::{
 };
 
 pub const AARCH64_NATIVE_FUEL_CHARGE_BYTE_COUNT: usize = 36;
+/// Offset from charge start to the `B.LO` instruction address.
+pub const AARCH64_NATIVE_FUEL_FAILURE_BRANCH_OFFSET: usize = 24;
 pub const AARCH64_NATIVE_FUEL_COLD_DISPATCH_BYTE_COUNT: usize = 88;
 
 pub fn native_fuel_charge_clobbers() -> RegisterSet {

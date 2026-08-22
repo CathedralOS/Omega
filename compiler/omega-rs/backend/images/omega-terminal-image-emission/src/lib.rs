@@ -19,6 +19,7 @@ mod final_image_validation;
 mod image_output;
 mod installation;
 mod instruction_loads;
+mod native_fuel;
 mod partial_cleanup_partition;
 mod scalar_call_stack;
 mod scalar_cleanup_preservation;
@@ -43,6 +44,10 @@ pub use image_output::{
     emit_terminal_executable_image, emit_terminal_object_container,
 };
 pub use installation::*;
+pub use native_fuel::{
+    TerminalNativeFuelValidationError, ValidatedTerminalNativeFuelArtifact,
+    ValidatedTerminalNativeFuelFunction, validate_terminal_native_fuel_plan,
+};
 pub(crate) use partial_cleanup_partition::exact_partial_cleanup_partition;
 pub use stack_demand::{derive_terminal_stack_demand, derive_terminal_unit_stack_demand};
 
