@@ -1036,6 +1036,12 @@ Owners:
   child. The 2,965-line coordinator retains external-root admission, execution,
   interrupt lifecycle, and ledger orchestration; public re-exports,
   diagnostics, behavior, and the 107-function inventory remain unchanged.
+  Opaque provider-exit assurance, admitted provider-execution identity, and
+  exact post-handoff writer preparation/writing/consumer-validation/retry
+  custody now live in a cohesive 1,077-line `provider_execution` child. The
+  1,906-line coordinator retains root validation, admission publication,
+  interrupt lifecycle, and ledger orchestration; public re-exports,
+  diagnostics, behavior, and the 107-function inventory remain unchanged.
 
 Acceptance: UART/MMIO, shared-page IPC, and ordinary RAM use one extent/layout
 foundation with different profiles. Misalignment, insufficient rights,
@@ -5464,6 +5470,12 @@ Owners:
   owner ambiguity, the 795 rooted/3 legacy inventory, and cross-copy receipt-
   drift fences remain green; their warm compiler/interpreter bodies remain
   0.02s.
+  The cross-transition slice-index and bounded slice-iteration regressions now
+  launch solely through the exact executables retained by their checked
+  compilation reports while preserving whole-element transition-copy exit 111
+  and transitioned indexed-read iteration exit 91. Exact-owner ambiguity, the
+  795 rooted/3 legacy inventory, and cross-copy receipt-drift fences remain
+  green; both warm compiler/interpreter bodies are 0.02s.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
