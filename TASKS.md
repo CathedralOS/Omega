@@ -2499,6 +2499,13 @@ Remaining:
   same row before constructing their immutable `Value`-to-definition maps.
   Query behavior, prefix replay, witness/proof shape, rejection, and the fixed
   four-definition frontier remain unchanged.
+  Affine-definition recording owners now retain the complete invocation-local
+  index carrier, ordered candidate insertion, adjacent-row deduplication, and
+  empty-miss query behavior. Producer and reconstruction expose the unchanged
+  side-local `DefinitionIndex` path through narrow re-exports, while syntactic
+  discovery and prefix replay remain independently implemented. Source order,
+  witness/proof shape, rejection behavior, and the fixed four-definition
+  frontier remain unchanged.
   One-equality transitive affine completion now lives in independent side-local
   `affine_selection/transitive/alias/completion` modules. Each parent retains
   its own ledger-ordered equality discovery, distinct root/alias custody, and
@@ -5006,6 +5013,13 @@ Owners:
   through exact checked-report executable receipts while preserving literal
   status 70 and boundary diagnostics. Exact-owner ambiguity, the 795 rooted/3
   legacy inventory, and receipt-drift fences remain green.
+  Three authored-root integer conversion/width regressions—mixed-width mixed-
+  sign promotion, integer sign/zero extension plus truncation/reinterpretation
+  threaded through transition parameters, and immediate i64 divide/modulo
+  retaining 64-bit width—now launch `OutputOnly` native execution solely
+  through exact checked-report executable receipts while preserving literal
+  status 70 and detailed diagnostics. Exact-owner ambiguity, the 795 rooted/3
+  legacy inventory, and receipt-drift fences remain green.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
@@ -5226,6 +5240,12 @@ reach or trust, and private proof improvements do not change public identity.
   decoded stack validation retain their existing ordering, bytes, errors, and
   public surface; the parent is 5,851 lines and the production inventory is 92
   functions after eliminating those two duplicates.
+  Exact Unit function/call frame validation, complete stack-mutation
+  accounting, and canonical x86-64/AArch64 stack-adjustment and return-link
+  replay now live in a focused 410-line `unit_stack` child, while stack-demand
+  composition and object/image orchestration remain in the 5,465-line parent.
+  Public APIs, error order, exact bytes, and the 140-function crate inventory
+  remain unchanged.
   Provider-sized external adapter/arrival state is design-blocked on
   `OWNER_QUESTIONS.md` Q3: stack-domain ownership across interrupted and
   switched entry must be settled before this can become a complete root
