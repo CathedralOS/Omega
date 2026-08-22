@@ -15,6 +15,7 @@ use crate::{ModuleError, ValidatedTerminalModule, validate_module};
 mod affine_joins;
 mod call_composition;
 mod evidence_provenance;
+mod float_meaning_projection;
 mod integer_add_subtract;
 mod integer_affine;
 mod integer_conversion;
@@ -28,6 +29,7 @@ mod substitution;
 mod sufficient_reduction;
 
 use evidence_provenance::validate_evidence_producer_provenance;
+pub use float_meaning_projection::*;
 use integer_foundation::*;
 pub use proof_bundle::*;
 use reconstruction::reconstruct_machine_semantics;

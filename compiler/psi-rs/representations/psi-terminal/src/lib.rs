@@ -12,8 +12,10 @@
 
 mod identity;
 mod module;
+mod proof_values;
 
 pub use psi_language_core::BindingRelevance;
 
 pub use identity::*;
 pub use module::*;
+pub use proof_values::*;
