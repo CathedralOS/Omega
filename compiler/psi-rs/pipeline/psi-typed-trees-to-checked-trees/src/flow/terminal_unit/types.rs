@@ -877,6 +877,30 @@ impl<'program> ShapeCollector<'program> {
                     )
                     .into_string(),
             }
+        } else if let Some(provider_symbol) = match self
+            .program
+            .type_reference_table
+            .type_reference(field.type_reference)
+        {
+            TypeReferenceNode::Named { symbol, .. }
+            | TypeReferenceNode::DynamicTrait { symbol, .. } => Some(*symbol),
+            _ => None,
+        } && self
+            .program
+            .traits()
+            .iter()
+            .any(|definition| definition.symbol == provider_symbol && definition.is_boundary)
+        {
+            CheckedUnitStructuralFieldType::ProviderBacked {
+                provider_type_identity: self
+                    .program
+                    .normalized_type_identity_with_binders_and_substitutions(
+                        field.type_reference,
+                        binders,
+                        substitutions,
+                    )
+                    .into_string(),
+            }
         } else if let Some(carrier) =
             byte_sequence_carrier(self.program, field.type_reference, substitutions)
         {

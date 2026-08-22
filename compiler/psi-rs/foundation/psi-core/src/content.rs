@@ -1,6 +1,9 @@
 use std::collections::BTreeMap;
 
-use crate::{ContentDomainId, PlaceId, PropositionError, StructuralTypeId};
+use crate::{
+    BoundaryMachineId, ContentDomainId, PlaceId, PropositionError, StructuralFieldId,
+    StructuralTypeId,
+};
 
 /// One compiler-owned closed content algebra and its normalized parameter
 /// identity. The parameter is the canonical coordinate-space or unit type
@@ -48,6 +51,15 @@ pub enum StructuralPlaceKind {
     ByteSequenceLiteral {
         declaration_ordinal: u32,
         structural_type: StructuralTypeId,
+    },
+    /// One authored provider-backed attachment field specialized out of the
+    /// runtime record into an exact bodyless boundary requirement. Installation
+    /// must bind the named boundary; this root is semantic evidence and has no
+    /// target layout of its own.
+    ProviderAttachment {
+        attachment: StructuralTypeId,
+        field: StructuralFieldId,
+        boundary: BoundaryMachineId,
     },
     /// One whole, claim-free affine local established by an explicit terminal
     /// operation. The exact concrete type and source declaration coordinate
@@ -217,6 +229,7 @@ fn encode_fingerprint_term(
                 // qualifications in the accepted slice, so they cannot become
                 // content-proposition roots by merely being declared.
                 StructuralPlaceKind::ByteSequenceLiteral { .. }
+                | StructuralPlaceKind::ProviderAttachment { .. }
                 | StructuralPlaceKind::TrivialAffineLocal { .. } => return None,
             }
             output.extend_from_slice(&(subject.segments.len() as u64).to_le_bytes());

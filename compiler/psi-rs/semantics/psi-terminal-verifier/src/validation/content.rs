@@ -397,6 +397,11 @@ fn validate_partition_source_places(
                     place.id,
                 ));
             }
+            StructuralPlaceKind::ProviderAttachment { .. } => {
+                return Err(ModuleError::ContentPartitionSourceLocalUnsupported(
+                    place.id,
+                ));
+            }
             StructuralPlaceKind::TrivialAffineLocal { .. } => {
                 return Err(ModuleError::ContentPartitionSourceLocalUnsupported(
                     place.id,

@@ -31,8 +31,27 @@ pub(super) fn validate_structural_foundation(module: &TerminalModule) -> Result<
                     });
                 }
                 match &field.field_type {
-                    StructuralFieldType::Erased { type_identity }
-                        if !field.relevance.is_erased() || type_identity.is_empty() =>
+                    StructuralFieldType::Erased { type_identity } if type_identity.is_empty() => {
+                        return Err(ModuleError::InvalidErasedStructuralField {
+                            structural_type: declaration.id,
+                            field: field.id,
+                        });
+                    }
+                    StructuralFieldType::Erased { .. }
+                        if !field.relevance.is_erased()
+                            && !module.machines.iter().any(|machine| {
+                                machine.structural_places.iter().any(|place| {
+                                    matches!(
+                                        place.kind,
+                                        StructuralPlaceKind::ProviderAttachment {
+                                            attachment,
+                                            field: provider_field,
+                                            ..
+                                        } if attachment == declaration.id
+                                            && provider_field == field.id
+                                    )
+                                })
+                            }) =>
                     {
                         return Err(ModuleError::InvalidErasedStructuralField {
                             structural_type: declaration.id,
@@ -391,6 +410,7 @@ pub(super) fn validate_structural_foundation(module: &TerminalModule) -> Result<
             &domains,
             StructuralSignatureOwner::Machine(machine.id),
         )?;
+        validate_provider_attachment_specialization(module, machine, &types)?;
         let mut byte_sequence_literals = machine
             .structural_places
             .iter()
@@ -629,6 +649,113 @@ pub(super) fn validate_structural_foundation(module: &TerminalModule) -> Result<
             ServiceCeilingOwner::Machine(machine.id),
         )?;
         validate_machine_entry_claims(module, machine)?;
+    }
+    Ok(())
+}
+
+fn validate_provider_attachment_specialization(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    types: &BTreeMap<StructuralTypeId, &psi_terminal::StructuralTypeDeclaration>,
+) -> Result<(), ModuleError> {
+    let provider_roots = machine
+        .structural_places
+        .iter()
+        .filter_map(|place| match place.kind {
+            StructuralPlaceKind::ProviderAttachment {
+                attachment,
+                field,
+                boundary,
+            } => Some((place.id, attachment, field, boundary)),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let provider_fields = machine
+        .attachment
+        .and_then(|attachment| types.get(&attachment))
+        .and_then(|attachment| match &attachment.shape {
+            StructuralTypeShape::Record { fields } => Some(
+                fields
+                    .iter()
+                    .filter(|field| {
+                        !field.relevance.is_erased()
+                            && matches!(field.field_type, StructuralFieldType::Erased { .. })
+                    })
+                    .collect::<Vec<_>>(),
+            ),
+            _ => None,
+        })
+        .unwrap_or_default();
+    if provider_fields.is_empty() && provider_roots.is_empty() {
+        return Ok(());
+    }
+    let invalid = || ModuleError::InvalidProviderAttachmentSpecialization(machine.id);
+    let [provider_field] = provider_fields.as_slice() else {
+        return Err(invalid());
+    };
+    let Some(attachment) = machine.attachment else {
+        return Err(invalid());
+    };
+    if provider_roots.is_empty()
+        || machine
+            .structural_parameters
+            .iter()
+            .any(|parameter| parameter.is_self)
+        || provider_roots.windows(2).any(|pair| pair[0].3 >= pair[1].3)
+    {
+        return Err(invalid());
+    }
+    let mut specialized_boundaries = BTreeSet::new();
+    for (_, root_attachment, field, boundary) in &provider_roots {
+        let Some(boundary_declaration) = module
+            .boundary_machines
+            .iter()
+            .find(|declaration| declaration.id == *boundary)
+        else {
+            return Err(invalid());
+        };
+        if *root_attachment != attachment
+            || *field != provider_field.id
+            || boundary_declaration.attachment.is_some()
+            || !specialized_boundaries.insert(*boundary)
+        {
+            return Err(invalid());
+        }
+    }
+
+    let mut called_boundaries = BTreeSet::new();
+    for operation in machine.blocks.iter().flat_map(|block| &block.operations) {
+        match &operation.kind {
+            OperationKind::BoundaryCall {
+                boundary,
+                structural_arguments,
+                ..
+            } => {
+                called_boundaries.insert(*boundary);
+                if structural_arguments.iter().any(|argument| {
+                    provider_roots
+                        .iter()
+                        .any(|(place, ..)| *place == argument.place)
+                }) {
+                    return Err(invalid());
+                }
+            }
+            OperationKind::CallUnit {
+                structural_arguments,
+                ..
+            } if structural_arguments.iter().any(|argument| {
+                provider_roots
+                    .iter()
+                    .any(|(place, ..)| *place == argument.place)
+            }) =>
+            {
+                return Err(invalid());
+            }
+            _ => {}
+        }
+    }
+    if called_boundaries != specialized_boundaries {
+        return Err(invalid());
     }
     Ok(())
 }

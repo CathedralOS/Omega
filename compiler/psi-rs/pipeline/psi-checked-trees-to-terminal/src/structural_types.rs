@@ -176,6 +176,9 @@ pub(super) fn retain_additional_structural_types(
                                     type_identity,
                                 )?)
                             }
+                            CheckedUnitStructuralFieldType::ProviderBacked { .. } => {
+                                return unsupported("provider-backed attachment fields are valid only in attached Unit lowering");
+                            }
                             CheckedUnitStructuralFieldType::Erased { type_identity } => {
                                 StructuralFieldType::Erased {
                                     type_identity: type_identity.clone(),
@@ -240,6 +243,9 @@ pub(super) fn retain_additional_structural_types(
                                                 &type_ids,
                                                 type_identity,
                                             )?),
+                                            CheckedUnitStructuralFieldType::ProviderBacked { .. } => {
+                                                return unsupported("provider-backed attachment fields are valid only in attached Unit lowering");
+                                            }
                                             CheckedUnitStructuralFieldType::Erased {
                                                 type_identity,
                                             } => StructuralFieldType::Erased {
@@ -338,6 +344,9 @@ pub(super) fn lower_structural_type_plans(
                                         type_identity,
                                     )?)
                                 }
+                                CheckedUnitStructuralFieldType::ProviderBacked { .. } => {
+                                    return unsupported("provider-backed attachment fields are valid only in attached Unit lowering");
+                                }
                                 CheckedUnitStructuralFieldType::Erased { type_identity } => {
                                     StructuralFieldType::Erased {
                                         type_identity: type_identity.clone(),
@@ -402,6 +411,9 @@ pub(super) fn lower_structural_type_plans(
                                                 } => StructuralFieldType::Structural(
                                                     lookup_type_id(&type_ids, type_identity)?,
                                                 ),
+                                                CheckedUnitStructuralFieldType::ProviderBacked { .. } => {
+                                                    return unsupported("provider-backed attachment fields are valid only in attached Unit lowering");
+                                                }
                                                 CheckedUnitStructuralFieldType::Erased {
                                                     type_identity,
                                                 } => StructuralFieldType::Erased {

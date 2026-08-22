@@ -775,11 +775,23 @@ pub(super) fn build_checked_machine(
     body_qualifications.sort_by_key(|domain| domain.0);
     body_qualifications.dedup();
 
+    let provider_attachment_requirements = checked_provider_attachment_requirements(
+        program,
+        shapes,
+        machine,
+        state,
+        &attachment_type_identity,
+        &structural_parameters,
+        calls,
+        &operations,
+    )?;
+
     Some(CheckedUnitEffectMachinePlan {
         machine: machine.symbol,
         state: state.symbol,
         attachment_type_identity,
         structural_parameters,
+        provider_attachment_requirements,
         trivial_affine_locals,
         entry_claims,
         body_qualifications,
@@ -788,4 +800,120 @@ pub(super) fn build_checked_machine(
         service_reach: state_flow.service_reach.clone(),
         operations,
     })
+}
+
+fn checked_provider_attachment_requirements(
+    program: &TypedTrees,
+    shapes: &ShapeCollector<'_>,
+    machine: &psi_typed_trees::machine::Machine,
+    state: &psi_typed_trees::state::State,
+    attachment_type_identity: &str,
+    structural_parameters: &[CheckedUnitStructuralParameterPlan],
+    calls: &[psi_checked_trees::FlowCallFact],
+    operations: &[CheckedUnitEffectOperationPlan],
+) -> Option<Vec<CheckedProviderAttachmentRequirementPlan>> {
+    let attachment = shapes.types.get(attachment_type_identity)?;
+    let CheckedUnitStructuralTypeShape::Record { fields } = &attachment.shape else {
+        return Some(Vec::new());
+    };
+    let provider_fields = fields
+        .iter()
+        .filter_map(|field| match &field.field_type {
+            CheckedUnitStructuralFieldType::ProviderBacked {
+                provider_type_identity,
+            } => Some((field, provider_type_identity)),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let [(field, provider_type_identity)] = provider_fields.as_slice() else {
+        return provider_fields.is_empty().then(Vec::new);
+    };
+    if field.identity.starts_with('#')
+        || !structural_parameters.is_empty()
+        || calls.is_empty()
+        || calls.len().checked_add(1)? != operations.len()
+    {
+        return None;
+    }
+
+    let attached_name = machine.attached_data.as_ref()?;
+    let attached = program
+        .data_definitions()
+        .iter()
+        .find(|data| data.name == *attached_name)?;
+    let provider_symbol = program.data_members(attached).iter().find_map(|member| {
+        let DataMember::Field(source_field) = member else {
+            return None;
+        };
+        if source_field.name.as_str() != field.identity {
+            return None;
+        }
+        match program
+            .type_reference_table
+            .type_reference(source_field.type_reference)
+        {
+            TypeReferenceNode::Named { symbol, .. }
+            | TypeReferenceNode::DynamicTrait { symbol, .. } => Some(*symbol),
+            _ => None,
+        }
+    })?;
+    let provider = program
+        .traits()
+        .iter()
+        .find(|definition| definition.symbol == provider_symbol && definition.is_boundary)?;
+    let provider_requirements = program
+        .trait_machine_signatures(provider)
+        .iter()
+        .map(|requirement| requirement.symbol)
+        .collect::<Vec<_>>();
+
+    let call_operations = &operations[..operations.len() - 1];
+    let mut requirements = Vec::with_capacity(calls.len());
+    for (call, operation) in calls.iter().zip(call_operations) {
+        if !provider_requirements.contains(&call.target_symbol) {
+            return None;
+        }
+        let crate::CallSite::Statement(call_site) = crate::find_call_site(
+            program,
+            machine.symbol,
+            state.symbol,
+            call.statement_index,
+            call.call_ordinal,
+        )?
+        else {
+            return None;
+        };
+        let receiver = program
+            .statement_table
+            .name_path_members(call_site.receiver);
+        if !matches!(receiver, [self_name, field_name]
+            if self_name.as_str() == "self" && field_name.as_str() == field.identity)
+        {
+            return None;
+        }
+        if !matches!(operation,
+            CheckedUnitEffectOperationPlan::BoundaryCall { target_machine, .. }
+                if *target_machine == call.target_symbol)
+        {
+            return None;
+        }
+        requirements.push(CheckedProviderAttachmentRequirementPlan {
+            field_identity: field.identity.clone(),
+            provider_type_identity: provider_type_identity.to_string(),
+            boundary: call.target_symbol,
+        });
+    }
+    requirements.sort_by_key(|requirement| {
+        (
+            requirement.boundary.arena_index(),
+            requirement.boundary.generation(),
+        )
+    });
+    if requirements
+        .windows(2)
+        .any(|pair| pair[0].boundary == pair[1].boundary)
+    {
+        return None;
+    }
+    Some(requirements)
 }

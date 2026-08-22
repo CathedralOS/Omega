@@ -173,6 +173,7 @@ enum StructuralRootKey {
     Parameter(u32),
     Result,
     ByteSequenceLiteral(u32),
+    ProviderAttachment(StructuralTypeId, StructuralFieldId, BoundaryMachineId),
     TrivialAffineLocal(u32),
 }
 

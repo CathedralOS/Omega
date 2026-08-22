@@ -43,6 +43,11 @@ pub(super) fn validate_machine(
                 declaration_ordinal,
                 ..
             } => StructuralRootKey::ByteSequenceLiteral(declaration_ordinal),
+            psi_core::StructuralPlaceKind::ProviderAttachment {
+                attachment,
+                field,
+                boundary,
+            } => StructuralRootKey::ProviderAttachment(attachment, field, boundary),
             psi_core::StructuralPlaceKind::TrivialAffineLocal {
                 declaration_ordinal,
                 ..

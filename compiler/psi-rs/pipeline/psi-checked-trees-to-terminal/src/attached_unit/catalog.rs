@@ -117,26 +117,33 @@ pub(super) fn lower_unit_structural_types(
                         "Unit structural type contains an empty or duplicate field identity",
                     ));
                 }
-                let field_type = match &field.field_type {
+                let (relevance, field_type) = match &field.field_type {
                     CheckedUnitStructuralFieldType::Scalar(primitive) => {
-                        terminal_structural_field_type(*primitive)?
+                        (field.relevance, terminal_structural_field_type(*primitive)?)
                     }
                     CheckedUnitStructuralFieldType::ByteSequence(carrier) => {
-                        StructuralFieldType::ByteSequence(terminal_byte_sequence_carrier(*carrier))
+                        (field.relevance, StructuralFieldType::ByteSequence(terminal_byte_sequence_carrier(*carrier)))
                     }
                     CheckedUnitStructuralFieldType::Structural { type_identity } => {
-                        StructuralFieldType::Structural(lookup_type_id(&type_ids, type_identity)?)
+                        (field.relevance, StructuralFieldType::Structural(lookup_type_id(&type_ids, type_identity)?))
+                    }
+                    CheckedUnitStructuralFieldType::ProviderBacked {
+                        provider_type_identity,
+                    } => {
+                        (field.relevance, StructuralFieldType::Erased {
+                            type_identity: provider_type_identity.clone(),
+                        })
                     }
                     CheckedUnitStructuralFieldType::Erased { type_identity } => {
-                        StructuralFieldType::Erased {
+                        (field.relevance, StructuralFieldType::Erased {
                             type_identity: type_identity.clone(),
-                        }
+                        })
                     }
                 };
                 Ok(StructuralFieldDeclaration {
                     id: structural_field_id(allocate_dense(&mut next_field)?),
                     identity: field.identity.clone(),
-                    relevance: field.relevance,
+                    relevance,
                     field_type,
                 })
                 }).collect::<Result<Vec<_>, LoweringError>>()?;
@@ -192,6 +199,9 @@ pub(super) fn lower_unit_structural_types(
                                                 &type_ids,
                                                 type_identity,
                                             )?),
+                                            CheckedUnitStructuralFieldType::ProviderBacked { .. } => {
+                                                return unsupported("provider-backed attachment fields are valid only on records");
+                                            }
                                             CheckedUnitStructuralFieldType::Erased {
                                                 type_identity,
                                             } => StructuralFieldType::Erased {

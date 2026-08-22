@@ -57,6 +57,90 @@ fn retains_exact_byte_literal_for_static_bodyless_boundary() {
 }
 
 #[test]
+fn specializes_one_provider_backed_attachment_field_into_exact_boundary_requirements() {
+    let checked = checked(
+        r#"
+        boundary trait Console {
+            machine write_line(text: &[u8])
+            reaches Console;
+            machine exit_process(return_code: i32)
+            reaches Console;
+        }
+
+        data Main { console: Console; }
+        machine Main::main(&mut self)
+        reaches Console
+        {
+            self.console.write_line("Hello");
+            self.console.exit_process(0);
+        }
+        "#,
+    );
+    let plans = &checked.facts.flow.terminal_unit_effects;
+    let main = plans
+        .for_machine(machine_named(&checked, "main"))
+        .expect("provider-backed Main should retain a checked Unit plan");
+    assert!(main.structural_parameters.is_empty());
+    assert_eq!(main.provider_attachment_requirements.len(), 2);
+    assert!(
+        main.provider_attachment_requirements
+            .iter()
+            .all(|requirement| requirement.field_identity == "console")
+    );
+    let attachment = plans
+        .structural_types
+        .iter()
+        .find(|shape| shape.identity == main.attachment_type_identity)
+        .expect("Main attachment shape");
+    let CheckedUnitStructuralTypeShape::Record { fields } = &attachment.shape else {
+        panic!("Main should remain a record")
+    };
+    assert!(matches!(
+        fields.as_slice(),
+        [field]
+            if field.identity == "console"
+                && matches!(field.field_type,
+                    CheckedUnitStructuralFieldType::ProviderBacked { .. })
+    ));
+}
+
+#[test]
+fn provider_attachment_specialization_rejects_ambiguous_or_unrouted_fields() {
+    for source in [
+        r#"
+        boundary trait Console { machine exit_process(return_code: i32) reaches Console; }
+        data Main { console: Console; backup: Console; }
+        machine Main::main(&mut self) reaches Console {
+            self.console.exit_process(0);
+        }
+        "#,
+        r#"
+        boundary trait Console { machine exit_process(return_code: i32) reaches Console; }
+        data Main { console: Console; }
+        machine Main::main(&mut self) reaches Console {
+            Console::exit_process(0);
+        }
+        "#,
+        r#"
+        boundary trait Console { machine exit_process(return_code: i32) reaches Console; }
+        data Main { console: Console; }
+        machine Main::main(&mut self) {}
+        "#,
+    ] {
+        let checked = checked(source);
+        assert!(
+            checked
+                .facts
+                .flow
+                .terminal_unit_effects
+                .for_machine(machine_named(&checked, "main"))
+                .is_none(),
+            "unsupported provider-backed attachment shapes must fail closed"
+        );
+    }
+}
+
+#[test]
 fn rejects_nonliteral_byte_sequence_boundary_source() {
     let checked = checked(
         r#"
