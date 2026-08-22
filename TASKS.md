@@ -1678,7 +1678,15 @@ Remaining:
   direct-literal, one-alias, stronger-alias, alias-literal, then two-alias
   precedence, citation orientation, endpoint order, rejection behavior, and
   the finite frontier are unchanged. This completes contiguous cast-chain
-  custody for exact divide/remainder goals but does not promote either whole row: affine/cast,
+  custody for exact divide/remainder goals. Fixed cast alias-family dispatch
+  now lives in independent side-local `cast_selection/alias` modules.
+  Production alone constructs one-alias, closed-strengthened alias,
+  alias-landed-literal, then two-alias proofs before cast completion;
+  reconstruction independently enumerates and rechecks those fixed families.
+  Direct retained bounds and direct landed literals remain earlier in each
+  parent. Citation orientation, endpoint order, proof shapes, rejection
+  behavior, and the finite two-alias frontier are unchanged. These slices do
+  not promote either whole row: affine/cast,
   shift/cast, joins, and correlated results remain trusted-reducer work, and
   `fully-derived false` is unchanged. The root-bound child may now also come
   from exactly one retained same-carrier `root == literal` fact when that
