@@ -1,10 +1,11 @@
 // Ladder rung L6 (ring normalization): multiplication distributes over
 // addition with no hypotheses. Lean analog: `Nat.add_mul` (also reachable via
-// `ring`). Needs polynomial normalization of both sides.
+// `ring`). The fixed-width inputs embed into proof `Int`, so normalization is
+// over unbounded mathematics rather than unproved Exact `u64` arithmetic.
 
 machine multiply_distributes(a: u64, b: u64, c: u64)
 ensures
-    (a + b) * c == a * c + b * c
+    (embed(a) + embed(b)) * embed(c) == embed(a) * embed(c) + embed(b) * embed(c)
 {
 }
 
