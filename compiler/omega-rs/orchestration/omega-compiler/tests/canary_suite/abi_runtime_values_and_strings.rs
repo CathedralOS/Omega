@@ -3158,10 +3158,13 @@ fn runtime_ordered_room_dispatch_loop_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("runtime ordered room dispatch loop canary should compile from its authored root");
 
-    let mut child = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("runtime ordered room dispatch loop canary should retain its executable receipt");
+    let mut child = Command::new(executable)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .spawn()
@@ -3229,11 +3232,14 @@ fn runtime_ordered_room_dispatch_real_show_states_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone()).expect(
         "runtime ordered room dispatch real-show-states canary should compile from its authored root",
     );
 
-    let mut child = Command::new(build_dir.join(executable_name()))
+    let executable = compilation.checked_native_executable_path().expect(
+        "runtime ordered room dispatch real-show-states canary should retain its executable receipt",
+    );
+    let mut child = Command::new(executable)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .spawn()
@@ -3275,7 +3281,7 @@ fn runtime_threaded_mut_arg_interrupt_soak_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
+    let compilation = compile(CompileOptions {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
@@ -3283,7 +3289,10 @@ fn runtime_threaded_mut_arg_interrupt_soak_exit_canary_runs() {
     })
     .expect("threaded mut-arg interrupt soak canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("threaded mut-arg interrupt soak canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("threaded mut-arg interrupt soak canary should run");
 
@@ -3396,10 +3405,13 @@ fn runtime_nested_value_call_caller_local_guard_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("nested value-call caller-local guard canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("nested value-call caller-local guard canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("nested value-call caller-local guard canary should run");
 
