@@ -579,7 +579,10 @@ Owners:
   symbolic fields now rejoin fragmented layout rows by stable member identity
   rather than presentation spelling: renames preserve generated-writer
   identity, while identity drift or collision rejects before resolver
-  invocation.
+  invocation. Symbolic materialization now preflights every retained write's
+  static bit geometry and byte range before invoking any provider/compiler
+  resolver; an invalid later field produces no resolver observation or partial
+  action plan.
 
 Acceptance: UART/MMIO, shared-page IPC, and ordinary RAM use one extent/layout
 foundation with different profiles. Misalignment, insufficient rights,
@@ -1474,9 +1477,13 @@ Remaining:
   citation may instead transport one directly cited canonical bound at that
   alias. Its fixed proof nests one `IntegerLessOrEqualSubstitution` under
   `IntegerCastBound`; reconstruction repeats the same exact equality/bound
-  selection. Missing, redirected, cross-carrier, or weaker bounds reject. The
-  constructor does not recurse or strengthen the alias bound. One fixed sibling
-  may instead land that alias through exactly one same-carrier
+  selection. Missing, redirected, cross-carrier, or weaker bounds reject. One
+  closed source-carrier endpoint bridge may also strengthen the cited alias
+  bound. Its fixed proof nests `IntegerLessOrEqualTransitivity` under the one
+  substitution; exact alias bounds remain preferred. Production and
+  reconstruction recheck the same bound, bridge, and equality. They do not
+  search alternate bounds or aliases, and a weaker bridge rejects. One fixed
+  sibling may instead land that alias through exactly one same-carrier
   `alias == literal` citation. It proves the closed canonical bridge,
   substitutes the alias, substitutes the root, then applies
   `IntegerCastBound`; production and reconstruction select the same two exact
@@ -2403,7 +2410,10 @@ Owners:
   receipts reject. Immediately before either outward receipt is minted,
   installation replays the renamed destination bytes once more against the
   sealed container; interval drift removes the changed file and rejects instead
-  of returning stale custody.
+  of returning stale custody. The validated output flag, category, flat receipt,
+  and optional bundle receipt are now outwardly read-only, so a report consumer
+  cannot rearrange or drop one component after the compiler's final consistency
+  check.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
@@ -2833,9 +2843,13 @@ Remaining N6/N8 work:
   Every request still rejects as non-executable until all remaining obligations
   are checked and retained in checked/terminal identity.
 - Suppress every synthesized representation observer on quotient formation.
-  Add quotient-owned executable equality through an ordinary lifted operation
-  with `DecidesEquivalence`; derive its `Respects` proof, and bind its optional
-  `==` token only through the settled fixed-operator declaration head.
+  Resolved-to-typed lowering now rejects runtime `==`/`!=`, a direct
+  `Equatable` conformance, and synthesized container equality through a quotient
+  field. Logical proof-position equality remains raw for the exact
+  quotient-congruence judge; it never lowers to representative bytes. Add
+  quotient-owned executable equality through an ordinary lifted operation with
+  `DecidesEquivalence`; derive its `Respects` proof, and bind its optional `==`
+  token only through the settled fixed-operator declaration head.
   Keep ordering, canonicalization, hashing, and later observer roles on
   explicit role-correctness contracts until each earns a named interface.
 - Enforce the initial quotient integration fences: lifted representative
