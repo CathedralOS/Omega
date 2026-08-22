@@ -17,6 +17,7 @@ mod final_image_validation;
 mod image_output;
 mod installation;
 mod instruction_loads;
+mod partial_cleanup_partition;
 mod scalar_cleanup_preservation;
 mod scalar_conditional_call_paths;
 mod scalar_conditional_regions;
@@ -33,6 +34,7 @@ pub use image_output::{
     emit_terminal_executable_image, emit_terminal_object_container,
 };
 pub use installation::*;
+pub(crate) use partial_cleanup_partition::exact_partial_cleanup_partition;
 pub use stack_demand::{derive_terminal_stack_demand, derive_terminal_unit_stack_demand};
 
 use scalar_cleanup_preservation::{
@@ -1511,115 +1513,6 @@ fn validate_unit_affine_cleanup(
         return Err(invalid());
     }
     Ok(())
-}
-
-pub(crate) fn exact_partial_cleanup_partition(
-    declarations: &[psi_terminal::StructuralTypeDeclaration],
-    root_type: psi_core::StructuralTypeId,
-    moved: &[(
-        &[psi_terminal::StructuralPathSegment],
-        psi_core::StructuralTypeId,
-    )],
-    residuals: &[&psi_terminal::StructuralAffineDiscard],
-) -> bool {
-    if declarations.is_empty() || moved.is_empty() || residuals.is_empty() {
-        return false;
-    }
-    let mut by_id = std::collections::BTreeMap::new();
-    let mut identities = std::collections::BTreeSet::new();
-    for declaration in declarations {
-        if declaration.identity.is_empty()
-            || !identities.insert(declaration.identity.as_str())
-            || by_id.insert(declaration.id, declaration).is_some()
-        {
-            return false;
-        }
-    }
-    if declarations.windows(2).any(|pair| pair[0].id >= pair[1].id) {
-        return false;
-    }
-    let mut expected = Vec::new();
-    if append_expected_partial_residuals(root_type, &[], moved, &by_id, &mut expected).is_none()
-        || expected.len() != residuals.len()
-    {
-        return false;
-    }
-    residuals
-        .iter()
-        .zip(expected)
-        .all(|(actual, (path, structural_type))| {
-            actual.path == path && actual.structural_type == structural_type
-        })
-}
-
-fn append_expected_partial_residuals(
-    structural_type: psi_core::StructuralTypeId,
-    prefix: &[psi_terminal::StructuralPathSegment],
-    moved: &[(
-        &[psi_terminal::StructuralPathSegment],
-        psi_core::StructuralTypeId,
-    )],
-    declarations: &std::collections::BTreeMap<
-        psi_core::StructuralTypeId,
-        &psi_terminal::StructuralTypeDeclaration,
-    >,
-    output: &mut Vec<(
-        Vec<psi_terminal::StructuralPathSegment>,
-        psi_core::StructuralTypeId,
-    )>,
-) -> Option<()> {
-    let declaration = declarations.get(&structural_type)?;
-    let psi_terminal::StructuralTypeShape::Record { fields } = &declaration.shape else {
-        return None;
-    };
-    if fields.is_empty()
-        || fields.iter().any(|field| {
-            field.relevance.is_erased()
-                || !matches!(
-                    field.field_type,
-                    psi_terminal::StructuralFieldType::Structural(_)
-                )
-        })
-    {
-        return None;
-    }
-    for field in fields.iter().rev() {
-        let psi_terminal::StructuralFieldType::Structural(field_type) = field.field_type else {
-            return None;
-        };
-        let matching = moved
-            .iter()
-            .filter(|(path, _)| {
-                matches!(path.first(), Some(psi_terminal::StructuralPathSegment::Field(identity))
-                    if identity == &field.identity)
-            })
-            .copied()
-            .collect::<Vec<_>>();
-        let mut field_path = prefix.to_vec();
-        field_path.push(psi_terminal::StructuralPathSegment::Field(
-            field.identity.clone(),
-        ));
-        if matching.is_empty() {
-            output.push((field_path, field_type));
-            continue;
-        }
-        let whole = matching
-            .iter()
-            .filter(|(path, _)| path.len() == 1)
-            .collect::<Vec<_>>();
-        if !whole.is_empty() {
-            if whole.len() != 1 || matching.len() != 1 || whole[0].1 != field_type {
-                return None;
-            }
-            continue;
-        }
-        let nested = matching
-            .iter()
-            .map(|(path, leaf)| (&path[1..], *leaf))
-            .collect::<Vec<_>>();
-        append_expected_partial_residuals(field_type, &field_path, &nested, declarations, output)?;
-    }
-    Some(())
 }
 
 fn bounded_nominal_receiver_shape(shape: omega_calling_conventions::ValueShape) -> bool {
