@@ -14,6 +14,7 @@ mod domains;
 mod effects;
 mod expression_types;
 mod float_projection_bindings;
+mod float_projection_invocations;
 mod invariants;
 mod invocations;
 mod literals;
@@ -111,9 +112,12 @@ pub struct ExactIntegerCastFact {
     pub maximum: psi_numerics::bignum::BigInt,
 }
 
+pub use float_projection_invocations::ValidatedFloatMeaningProjectionInvocation;
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ProgramValidationFacts {
     pub exact_integer_casts: Vec<ExactIntegerCastFact>,
+    pub float_meaning_projection_invocations: Vec<ValidatedFloatMeaningProjectionInvocation>,
 }
 
 pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
@@ -481,8 +485,11 @@ fn validate_program_internal(
         left.maximum = left.maximum.clone().max(right.maximum.clone());
         true
     });
+    let float_meaning_projection_invocations =
+        float_projection_invocations::collect_float_meaning_projection_invocations(program)?;
     Ok(ProgramValidationFacts {
         exact_integer_casts,
+        float_meaning_projection_invocations,
     })
 }
 

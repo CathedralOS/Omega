@@ -1,0 +1,228 @@
+//! Validated source joins for proof-only float-meaning projections.
+//!
+//! These facts are deliberately transient: source handles identify the exact
+//! typed invocation and its landed operand only until checked plans replace
+//! them with dense, plan-local identities.
+
+use psi_diagnostics::Diagnostic;
+use psi_numerics::float_projection::FloatProjectionOperation;
+use psi_symbols::SymbolHandle;
+use psi_typed_trees::TypedTrees;
+use psi_typed_trees::domain::ProofFact;
+use psi_typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
+use psi_typed_trees::operator::{resolve_named_call, resolve_named_expression_call};
+use psi_typed_trees::types::PrimitiveType;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ValidatedFloatMeaningProjectionInvocation {
+    pub invocation: ExpressionHandle,
+    pub source: ExpressionHandle,
+    pub selected_operator_symbol: SymbolHandle,
+    pub source_primitive: PrimitiveType,
+    pub operation: FloatProjectionOperation,
+}
+
+fn exact_projection_operation(
+    program: &TypedTrees,
+    call: &TableCallExpression,
+) -> Option<(SymbolHandle, PrimitiveType, FloatProjectionOperation)> {
+    let operator = resolve_projection_call(program, call)?;
+    let [namespace, name] = program.operator_path_members(operator.name) else {
+        return None;
+    };
+    let operation =
+        FloatProjectionOperation::from_source_identity(namespace.as_str(), name.as_str())?;
+    let [parameter] = program.operator_parameters(operator) else {
+        return None;
+    };
+    if operator.is_boundary
+        || !operator.symbol.is_valid()
+        || operator.spelling.is_some()
+        || !operator.lifetime_parameters.is_empty()
+        || !program.operator_type_parameters(operator).is_empty()
+        || parameter.is_const
+        || parameter.is_mutable
+        || parameter.is_self
+        || !program
+            .named_type_reference(operator.return_type)
+            .is_some_and(|name| name.as_str() == "FloatMeaning")
+    {
+        return None;
+    }
+    let primitive = program.primitive_type_reference(parameter.type_reference)?;
+    let expected = match operation {
+        FloatProjectionOperation::Meaning32 => PrimitiveType::F32,
+        FloatProjectionOperation::Meaning64 => PrimitiveType::F64,
+    };
+    if primitive != expected {
+        return None;
+    }
+    Some((operator.symbol, primitive, operation))
+}
+
+fn requested_projection_operation(
+    program: &TypedTrees,
+    call: &TableCallExpression,
+) -> Option<FloatProjectionOperation> {
+    let ExpressionNode::Name(path) = program.expression_table.expression(call.receiver) else {
+        return None;
+    };
+    let [namespace] = program.expression_table.name_path_members(path.members) else {
+        return None;
+    };
+    FloatProjectionOperation::from_source_identity(namespace.as_str(), call.target.as_str())
+}
+
+fn resolve_projection_call<'program>(
+    program: &'program TypedTrees,
+    call: &TableCallExpression,
+) -> Option<&'program psi_typed_trees::operator::OperatorDefinition> {
+    resolve_named_expression_call(program, call).or_else(|| {
+        let ExpressionNode::Name(path) = program.expression_table.expression(call.receiver) else {
+            return None;
+        };
+        let [namespace] = program.expression_table.name_path_members(path.members) else {
+            return None;
+        };
+        if namespace.as_str() != "Float" {
+            return None;
+        }
+        let static_receiver = [namespace.as_str()];
+        resolve_named_call(
+            program,
+            call.target_symbol,
+            Some(&static_receiver),
+            call.target.as_str(),
+            program
+                .expression_table
+                .expression_handles(call.arguments)
+                .len(),
+            false,
+        )
+    })
+}
+
+fn walk_expression(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    visited: &mut Vec<ExpressionHandle>,
+    projections: &mut Vec<ValidatedFloatMeaningProjectionInvocation>,
+) -> Result<(), Diagnostic> {
+    if !expression.is_valid() || visited.contains(&expression) {
+        return Ok(());
+    }
+    visited.push(expression);
+    match program.expression_table.expression(expression) {
+        ExpressionNode::ArrayLiteral(values) => {
+            for value in program.expression_table.expression_handles(*values) {
+                walk_expression(program, *value, visited, projections)?;
+            }
+        }
+        ExpressionNode::Atomic(atomic) => {
+            walk_expression(program, atomic.value, visited, projections)?;
+            walk_expression(program, atomic.result, visited, projections)?;
+        }
+        ExpressionNode::Binary(binary) => {
+            walk_expression(program, binary.left, visited, projections)?;
+            walk_expression(program, binary.right, visited, projections)?;
+        }
+        ExpressionNode::Cast(cast) => {
+            walk_expression(program, cast.value, visited, projections)?;
+        }
+        ExpressionNode::Call(call) => {
+            walk_expression(program, call.receiver, visited, projections)?;
+            for argument in program.expression_table.expression_handles(call.arguments) {
+                walk_expression(program, *argument, visited, projections)?;
+            }
+            if let Some(requested_operation) = requested_projection_operation(program, call) {
+                let Some((selected_operator_symbol, source_primitive, operation)) =
+                    exact_projection_operation(program, call)
+                else {
+                    return Err(Diagnostic::error(
+                        "proof-only float-meaning projection call did not resolve one exact canonical operator signature",
+                    ));
+                };
+                if operation != requested_operation {
+                    return Err(Diagnostic::error(
+                        "proof-only float-meaning projection call resolved a different canonical operation",
+                    ));
+                }
+                let [source] = program.expression_table.expression_handles(call.arguments) else {
+                    return Err(Diagnostic::error(
+                        "validated float-meaning projection did not retain one source operand",
+                    ));
+                };
+                let operator = resolve_projection_call(program, call)
+                    .expect("exact projection operation resolved its operator");
+                let [parameter] = program.operator_parameters(operator) else {
+                    unreachable!("exact projection operation checked one parameter");
+                };
+                if !crate::expression_types::argument_matches_type_reference_handle(
+                    program,
+                    *source,
+                    parameter.type_reference,
+                ) {
+                    return Err(Diagnostic::error(
+                        "validated float-meaning projection source no longer matches its exact format",
+                    ));
+                }
+                projections.push(ValidatedFloatMeaningProjectionInvocation {
+                    invocation: expression,
+                    source: *source,
+                    selected_operator_symbol,
+                    source_primitive,
+                    operation,
+                });
+            }
+        }
+        ExpressionNode::Indexed(indexed) => {
+            walk_expression(program, indexed.collection, visited, projections)?;
+            walk_expression(program, indexed.index, visited, projections)?;
+        }
+        ExpressionNode::Member(member) => {
+            walk_expression(program, member.receiver, visited, projections)?;
+        }
+        ExpressionNode::Mutable(value) => walk_expression(program, *value, visited, projections)?,
+        ExpressionNode::Range(range) => {
+            walk_expression(program, range.start, visited, projections)?;
+            walk_expression(program, range.end, visited, projections)?;
+        }
+        ExpressionNode::StructLiteral(literal) => {
+            for field in program.expression_table.struct_fields(literal.fields) {
+                walk_expression(program, field.value, visited, projections)?;
+            }
+        }
+        ExpressionNode::Unary(unary) => {
+            walk_expression(program, unary.operand, visited, projections)?;
+        }
+        ExpressionNode::Boolean(_)
+        | ExpressionNode::Float(_)
+        | ExpressionNode::Integer(_)
+        | ExpressionNode::Name(_)
+        | ExpressionNode::String(_)
+        | ExpressionNode::ZeroValue(_) => {}
+    }
+    Ok(())
+}
+
+pub(crate) fn collect_float_meaning_projection_invocations(
+    program: &TypedTrees,
+) -> Result<Vec<ValidatedFloatMeaningProjectionInvocation>, Vec<Diagnostic>> {
+    let mut visited = Vec::new();
+    let mut projections = Vec::new();
+    for (_, fact) in program.proof_facts.iter() {
+        let roots: &[ExpressionHandle] = match fact {
+            ProofFact::Expression(expression) => std::slice::from_ref(expression),
+            ProofFact::Membership(membership) => std::slice::from_ref(&membership.value),
+            ProofFact::Proposition(application) => program
+                .expression_table
+                .expression_handles(application.arguments),
+        };
+        for root in roots {
+            walk_expression(program, *root, &mut visited, &mut projections)
+                .map_err(|diagnostic| vec![diagnostic])?;
+        }
+    }
+    projections.sort_by_key(|projection| projection.invocation.arena_index());
+    Ok(projections)
+}

@@ -1,6 +1,7 @@
 use crate::context::*;
 use psi_checked_trees::CheckedEvidenceTerm;
 mod contracts;
+mod float_meaning;
 mod obligations;
 
 use contracts::{
@@ -99,9 +100,12 @@ pub(crate) fn build_proof_facts_with_operators(
         contract_calls,
         contract_exits,
         contract_operator_uses,
+        Vec::new(),
         proposition_vocabulary,
     )
 }
+
+pub(crate) use float_meaning::bind_float_meaning_projection_facts;
 
 pub(crate) fn bind_evidence_forwarding_facts(
     program: &psi_typed_trees::TypedTrees,
