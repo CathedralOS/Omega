@@ -5441,6 +5441,11 @@ Owners:
   recursive/cyclic, structural, report-bearing, slow-float, nested-loop,
   crash-specific, or explicit legacy owners; no ordinary finite owner remains
   in the module.
+  The finite decimal-text-to-integer parser regression now launches solely
+  through the exact executable retained by its checked compilation report while
+  preserving the `"12345"` to 12345 self-check and literal exit 70. Exact-owner
+  ambiguity, the 795 rooted/3 legacy inventory, and cross-copy receipt-drift
+  fences remain green; its warm compiler/interpreter body is 0.28s.
   The finite forward-array and decreasing-index loop regressions now launch
   solely through the exact executables retained by their checked compilation
   reports while preserving sum-to-100/backward-sum-to-10 self-checks and
