@@ -18,14 +18,19 @@ use omega_executable_installation::{
     validate_final_placement,
 };
 use omega_external_roots::{
-    ExternalRootCandidate, ExternalRootId, FixedFuelProviderSummary, FuelProvisionId,
+    AdmittedOpaqueFuelSuspensionFree, DynamicFuelMeterValidationReceiptId,
+    DynamicNativeFuelMeterPlan, ExternalRootCandidate, ExternalRootId, FixedFuelProviderSummary,
+    FuelExhaustionTransferPlanId, FuelProvisionId, FuelSuspensionValidationReceiptId,
     FuelValidationReceiptId, InstalledRootLedger, LogicalFuelResourceColumn,
-    MachineStateResourceColumn, NestingRelationId, OpaqueProviderExitAssurance, ProviderExecution,
-    ProviderExecutionId, ProviderFuelSummaryId, ProviderPlanId, ProviderStackSummary,
-    RootAdmission, RootAdmissionId, RootProviderId, RootSlotAuthority, RootSlotId, RootSlotOwnerId,
-    StackNestingRelation, StackResourceColumn, StackValidationReceiptId, StateValidationReceiptId,
-    TrustReceiptId, bind_installed_terminal_entry_fuel, bind_installed_terminal_entry_stack,
-    compose_artifact_stacks, compose_fixed_fuel, validate_external_root,
+    MachineStateResourceColumn, NativeFuelMeterPlanId, NestingRelationId,
+    OpaqueProviderExitAssurance, ProviderExecution, ProviderExecutionId, ProviderFuelSummaryId,
+    ProviderFuelValidationReceiptId, ProviderPlanId, ProviderStackSummary, RootAdmission,
+    RootAdmissionId, RootProviderId, RootSlotAuthority, RootSlotId, RootSlotOwnerId,
+    SponsorContextTransportId, StackNestingRelation, StackResourceColumn, StackValidationReceiptId,
+    StateValidationReceiptId, TrustReceiptId, admit_fixed_native_fuel,
+    bind_installed_dynamic_fuel_attributions, bind_installed_terminal_entry_fuel,
+    bind_installed_terminal_entry_stack, bind_suspension_free_fixed_fuel, compose_artifact_stacks,
+    compose_fixed_fuel, derive_fuel_suspension_free, validate_external_root,
     validate_installed_terminal_entry_fuel, validate_installed_terminal_entry_stack,
 };
 use omega_target::NativeTarget;

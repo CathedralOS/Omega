@@ -9,6 +9,24 @@
 
 use std::collections::BTreeSet;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum TerminalFuelAttributionSite {
+    Operation(psi_core::OperationId),
+    Edge(psi_core::EdgeId),
+}
+
+/// Read-only normalized projection of one byte-validated native fuel site.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TerminalFuelAttributionEvidence {
+    pub machine: psi_core::MachineId,
+    pub schedule: psi_core::FuelScheduleIdentity,
+    pub site: TerminalFuelAttributionSite,
+    pub units: u64,
+    pub operation_ordinal: usize,
+    pub text_offset: usize,
+    pub byte_count: usize,
+}
+
 /// Exact admitted provider-execution identity projected into terminal
 /// lowering and installation records.
 pub trait TerminalProviderExecutionEvidence: std::fmt::Debug {
@@ -23,9 +41,13 @@ pub trait TerminalProviderExecutionEvidence: std::fmt::Debug {
 /// fixed-fuel evidence.
 pub trait TerminalObjectEvidence {
     fn terminal_psi(&self) -> psi_terminal::TerminalPsiIdentity;
-    fn architecture(&self) -> omega_target::Architecture;
+    fn target(&self) -> omega_target::NativeTarget;
+    fn architecture(&self) -> omega_target::Architecture {
+        self.target().architecture
+    }
     fn text_bytes(&self) -> &[u8];
     fn function_text_offset(&self, machine: psi_core::MachineId) -> Option<usize>;
+    fn fuel_attribution(&self) -> Vec<TerminalFuelAttributionEvidence>;
 }
 
 /// Emitter-derived stack closure for one terminal entry.
