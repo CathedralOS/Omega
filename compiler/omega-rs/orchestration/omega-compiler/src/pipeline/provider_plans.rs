@@ -1362,7 +1362,24 @@ pub(crate) fn derive_satisfies_plans(
                 continue;
             };
             let binding_kind = match (&clause.via, machine.bodyless) {
-                (Some(binding), true) => Some(binding.clone()),
+                (Some(_), true) => {
+                    let Some(typed_machine) = typed
+                        .machines()
+                        .iter()
+                        .find(|candidate| candidate.name.as_str() == machine.name.as_str())
+                    else {
+                        continue;
+                    };
+                    let Some(binding) = exact_external_binding_identity(
+                        typed,
+                        typed_machine,
+                        clause.trait_name.as_str(),
+                        requirement.as_str(),
+                    ) else {
+                        continue;
+                    };
+                    Some(binding)
+                }
                 (None, false) => {
                     // A CHECKED ADAPTER derives a plan row only over a
                     // BOUNDARY trait (a service schema). A plain trait's
@@ -1386,8 +1403,7 @@ pub(crate) fn derive_satisfies_plans(
                 }
                 _ => continue, // refused elsewhere (via rungs)
             };
-            let binding = binding_kind.as_ref();
-            let _ = &binding;
+            let binding = binding_kind;
             // The selected target-machine marker is cleared before lowering
             // so the machine behaves ordinarily. Recover the deployment
             // dimension from compile selection for plan identity/selection;
@@ -1562,18 +1578,28 @@ fn derive_boundary_operator_plans(
                 continue;
             };
             let binding = match (&clause.via, machine.bodyless) {
-                (Some(binding), true) => external_provider_binding(
-                    binding,
-                    machine
-                        .attached_data
-                        .as_ref()
-                        .map(|name| name.as_str())
-                        .unwrap_or_default(),
-                    &typed
-                        .normalized_machine_overload_identity(typed_machine)
-                        .map(|identity| identity.identity())
-                        .unwrap_or_default(),
-                ),
+                (Some(_), true) => {
+                    let Some(binding) = exact_external_binding_identity(
+                        typed,
+                        typed_machine,
+                        clause.trait_name.as_str(),
+                        requirement.as_str(),
+                    ) else {
+                        continue;
+                    };
+                    external_provider_binding(
+                        binding,
+                        machine
+                            .attached_data
+                            .as_ref()
+                            .map(|name| name.as_str())
+                            .unwrap_or_default(),
+                        &typed
+                            .normalized_machine_overload_identity(typed_machine)
+                            .map(|identity| identity.identity())
+                            .unwrap_or_default(),
+                    )
+                }
                 (None, false) => ProviderBinding::CheckedAdapter {
                     machine: machine.name.as_str().to_owned(),
                 },
@@ -1696,30 +1722,53 @@ fn exact_satisfied_requirement_identity(
     }
 }
 
+fn exact_external_binding_identity<'typed>(
+    typed: &'typed TypedTrees,
+    machine: &psi_typed_trees::machine::Machine,
+    trait_name: &str,
+    requirement_name: &str,
+) -> Option<&'typed psi_language_semantics::ExternalBindingIdentity> {
+    let mut matching = typed
+        .machine_trait_conformances(machine)
+        .iter()
+        .filter(|conformance| same_semantic_name(conformance.name.as_str(), trait_name))
+        .filter(|conformance| {
+            conformance.requirement.as_ref().map(|name| name.as_str()) == Some(requirement_name)
+        })
+        .filter_map(|conformance| conformance.external_binding);
+    let binding = matching.next()?;
+    if matching.next().is_some() {
+        return None;
+    }
+    typed.external_bindings.identity(binding)
+}
+
 fn external_provider_binding(
-    binding: &psi_syntax_trees::item::ExternalBinding,
+    binding: &psi_language_semantics::ExternalBindingIdentity,
     provider_type: &str,
     intrinsic_machine_identity: &str,
 ) -> ProviderBinding {
-    use psi_syntax_trees::item::ExternalBinding;
+    use psi_language_semantics::ExternalBindingIdentity;
 
     match binding {
-        ExternalBinding::Syscall { number } => ProviderBinding::Syscall { number: *number },
-        ExternalBinding::DllImport { module, symbol } => ProviderBinding::Import {
-            library: module.clone(),
+        ExternalBindingIdentity::Syscall { number } => ProviderBinding::Syscall { number: *number },
+        ExternalBindingIdentity::Import { library, symbol } => ProviderBinding::Import {
+            library: library.clone(),
             symbol: symbol.clone(),
         },
-        ExternalBinding::CompilerIntrinsic => ProviderBinding::CompilerIntrinsic {
+        ExternalBindingIdentity::CompilerIntrinsic { .. } => ProviderBinding::CompilerIntrinsic {
             machine: intrinsic_machine_identity.to_owned(),
         },
-        ExternalBinding::VtableSlot { index } => ProviderBinding::VtableSlot { index: *index },
-        ExternalBinding::VtableField { field } => ProviderBinding::VtableField {
+        ExternalBindingIdentity::VtableSlot { index } => {
+            ProviderBinding::VtableSlot { index: *index }
+        }
+        ExternalBindingIdentity::VtableField { field } => ProviderBinding::VtableField {
             table: provider_type.to_owned(),
-            field: field.as_str().to_owned(),
+            field: field.clone(),
         },
-        ExternalBinding::TableFunction { field } => ProviderBinding::TableFunction {
+        ExternalBindingIdentity::TableFunction { field } => ProviderBinding::TableFunction {
             table: provider_type.to_owned(),
-            field: field.as_str().to_owned(),
+            field: field.clone(),
         },
     }
 }
@@ -2917,6 +2966,57 @@ mod tests {
             );
         };
         (typed, plan.clone())
+    }
+
+    #[test]
+    fn provider_derivation_consumes_typed_external_binding_identity() {
+        let source = |library: &str, symbol: &str| {
+            format!(
+                r#"
+                    boundary trait Process {{
+                        machine exit(code: i32);
+                    }}
+
+                    machine exit_leaf(code: i32)
+                    satisfies Process::exit
+                    via Binding::DllImport("{library}", "{symbol}");
+                "#
+            )
+        };
+        let retained_source = source("retained-library", "retained-symbol");
+        let retained_tokens = psi_source_files_to_tokens::Lexer::new(&retained_source)
+            .tokenize()
+            .expect("tokenize retained binding");
+        let retained_syntax = psi_tokens_to_syntax_trees::parse_syntax_trees(&retained_tokens)
+            .expect("parse retained binding");
+        let resolved =
+            psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&retained_syntax)
+                .expect("resolve retained binding");
+        let typed =
+            psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+                .expect("type retained binding");
+
+        // Supply a same-shaped syntax tree with different raw payload. Plan
+        // derivation must consume the exact id/table retained in typed trees,
+        // never re-read the later syntax payload.
+        let drifted_source = source("drifted-library", "drifted-symbol");
+        let drifted_tokens = psi_source_files_to_tokens::Lexer::new(&drifted_source)
+            .tokenize()
+            .expect("tokenize drifted binding");
+        let drifted_syntax = psi_tokens_to_syntax_trees::parse_syntax_trees(&drifted_tokens)
+            .expect("parse drifted binding");
+        let plans = derive_satisfies_plans(&drifted_syntax, &typed, None);
+        let [plan] = plans.as_slice() else {
+            panic!("one external provider plan")
+        };
+
+        assert_eq!(
+            plan.rows[0].binding,
+            ProviderBinding::Import {
+                library: "retained-library".to_owned(),
+                symbol: "retained-symbol".to_owned(),
+            }
+        );
     }
 
     fn selection_plan(name: &str, methods: &[&str], rows: &[&str]) -> ProviderPlan {

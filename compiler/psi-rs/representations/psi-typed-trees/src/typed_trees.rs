@@ -19,6 +19,10 @@ pub struct TypedTrees {
     /// STR4 checked plans, slice 1: the semantic-domain interner, copied
     /// verbatim from the resolved trees.
     pub semantic_domains: psi_language_semantics::SemanticDomainTable,
+    /// Exact structured identities for external realization bindings. Typed
+    /// conformance and supply rows retain ids into this table, so downstream
+    /// consumers never need to rescan source syntax to recover the binding.
+    pub external_bindings: psi_language_semantics::ExternalBindingTable,
     /// Validated layout plans for PLAN-LAID VALUE TYPES (`gdt: CLayout<Gdt>`
     /// in type position; programmable-layouts L4). Populated by the compiler
     /// pipeline AFTER build-time plan evaluation + validation; the native
@@ -371,6 +375,7 @@ impl TypedTrees {
             service_reaches: psi_language_semantics::ServiceReachTable::default(),
             service_reach_rows: psi_language_semantics::ServiceReachRowTable::default(),
             semantic_domains: psi_language_semantics::SemanticDomainTable::default(),
+            external_bindings: psi_language_semantics::ExternalBindingTable::default(),
             plan_laid_layouts: Vec::new(),
             placed_view_plans: Vec::new(),
             wire_placements: Arena::new(),

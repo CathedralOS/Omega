@@ -36,6 +36,7 @@ pub fn lower_symbol_resolved_trees(
     lowerer.typed_trees.service_reaches = symbol_resolved_trees.service_reaches.clone();
     lowerer.typed_trees.service_reach_rows = symbol_resolved_trees.service_reach_rows.clone();
     lowerer.typed_trees.semantic_domains = symbol_resolved_trees.semantic_domains.clone();
+    lowerer.typed_trees.external_bindings = symbol_resolved_trees.external_bindings.clone();
     lowerer.typed_trees.evidence_forwardings = symbol_resolved_trees
         .evidence_forwardings
         .iter()
@@ -232,6 +233,7 @@ impl Lowerer<'_> {
             service_reaches,
             service_reach_rows,
             semantic_domains,
+            external_bindings,
             plan_laid_layouts: _,
             placed_view_plans: _,
             wire_placements: _,
@@ -249,6 +251,7 @@ impl Lowerer<'_> {
         trees.service_reaches = service_reaches;
         trees.service_reach_rows = service_reach_rows;
         trees.semantic_domains = semantic_domains;
+        trees.external_bindings = external_bindings;
         trees.evidence_forwardings = evidence_forwardings
             .into_iter()
             .map(|mut forwarding| {
