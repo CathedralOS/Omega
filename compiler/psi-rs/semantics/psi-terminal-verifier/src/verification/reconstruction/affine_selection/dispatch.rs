@@ -12,16 +12,15 @@ pub(super) fn retained(
     semantic_axioms: &[Proposition],
     definitions: &DefinitionIndex,
 ) -> bool {
-    if direct::retained(context, goal, requirements, semantic_axioms, definitions) {
-        return true;
-    }
-    literal::retained_landed_literal_affine_bound(
-        context,
-        goal,
-        requirements,
-        semantic_axioms,
-        definitions,
-    ) || alias::retained_one(context, goal, requirements, semantic_axioms, definitions)
+    direct::retained(context, goal, requirements, semantic_axioms, definitions)
+        || literal::retained_landed_literal_affine_bound(
+            context,
+            goal,
+            requirements,
+            semantic_axioms,
+            definitions,
+        )
+        || alias::retained_one(context, goal, requirements, semantic_axioms, definitions)
         || transitive::retained_transitively_reconstructed_affine_bound(
             context,
             goal,

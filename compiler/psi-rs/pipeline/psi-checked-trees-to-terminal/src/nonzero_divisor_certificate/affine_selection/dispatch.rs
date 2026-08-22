@@ -13,34 +13,34 @@ pub(super) fn prove(
     semantic_axioms: &[Proposition],
     definitions: &DefinitionIndex,
 ) -> Option<ProofNode> {
-    if let Some(proof) = direct::prove(context, goal, assumptions, semantic_axioms, definitions) {
-        return Some(proof);
-    }
-    literal::prove_landed_literal_affine_bound(
-        context,
-        goal,
-        assumptions,
-        semantic_axioms,
-        definitions,
-    )
-    .or_else(|| alias::prove_one(context, goal, assumptions, semantic_axioms, definitions))
-    .or_else(|| {
-        transitive::prove_transitively_reconstructed_affine_bound(
-            context,
-            goal,
-            assumptions,
-            semantic_axioms,
-            definitions,
-        )
-    })
-    .or_else(|| {
-        transitive::prove_transitively_alias_substituted_affine_bound(
-            context,
-            goal,
-            assumptions,
-            semantic_axioms,
-            definitions,
-        )
-    })
-    .or_else(|| alias::prove_two(context, goal, assumptions, semantic_axioms, definitions))
+    direct::prove(context, goal, assumptions, semantic_axioms, definitions)
+        .or_else(|| {
+            literal::prove_landed_literal_affine_bound(
+                context,
+                goal,
+                assumptions,
+                semantic_axioms,
+                definitions,
+            )
+        })
+        .or_else(|| alias::prove_one(context, goal, assumptions, semantic_axioms, definitions))
+        .or_else(|| {
+            transitive::prove_transitively_reconstructed_affine_bound(
+                context,
+                goal,
+                assumptions,
+                semantic_axioms,
+                definitions,
+            )
+        })
+        .or_else(|| {
+            transitive::prove_transitively_alias_substituted_affine_bound(
+                context,
+                goal,
+                assumptions,
+                semantic_axioms,
+                definitions,
+            )
+        })
+        .or_else(|| alias::prove_two(context, goal, assumptions, semantic_axioms, definitions))
 }
