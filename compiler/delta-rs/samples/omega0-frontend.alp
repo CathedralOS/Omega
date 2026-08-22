@@ -7,7 +7,8 @@
 //
 //     (sum(decoded text bytes) + exit_code) % 251
 //
-// so both operands remain observable before terminal-Psi emission exists.
+// so both operands remain observable after the accepted program streams its
+// canonical terminal-Psi module to stdout.
 // Exit 251 is malformed/out-of-profile input and 252 is checked local-storage
 // exhaustion. O0 deliberately admits only ASCII identifiers, decimal
 // unsuffixed nonnegative i32 literals, and cooked strings with the basic byte
@@ -380,6 +381,197 @@ machine Main::parse_o0(&mut self) {
     state done() { }
 }
 
+// Canonical terminal-Psi wire primitives. These intentionally stream through
+// D0's ordinary write_byte boundary: the bootstrap producer does not retain a
+// second, Omega0-private artifact representation. All values admitted by O0
+// fit i32; semantic IDs are emitted as zero-extended little-endian u64 values.
+machine Main::emit_u16(&mut self, value: i32) {
+    write_byte(value & 255);
+    write_byte((value >> 8) & 255);
+}
+
+machine Main::emit_u32(&mut self, value: i32) {
+    write_byte(value & 255);
+    write_byte((value >> 8) & 255);
+    write_byte((value >> 16) & 255);
+    write_byte((value >> 24) & 255);
+}
+
+machine Main::emit_id(&mut self, value: i32) {
+    self.emit_u32(value);
+    self.emit_u32(0);
+}
+
+machine Main::emit_zeroes(&mut self, count: i32) {
+    self.i = 0;
+    transition count >= 0 { true -> loop() false -> bad() }
+    state loop() { transition self.i < count { true -> byte() false -> done() } }
+    state byte() { write_byte(0); self.i = self.i + 1; transition 0 { _ -> loop() } }
+    state bad() { self.status = 251; }
+    state done() { }
+}
+
+machine Main::emit_text_bytes(&mut self) {
+    self.i = 0;
+    transition 0 { _ -> loop() }
+    state loop() { transition self.i < self.text_len { true -> byte() false -> done() } }
+    state byte() { write_byte(self.text[self.i]); self.i = self.i + 1; transition 0 { _ -> loop() } }
+    state done() { }
+}
+
+machine Main::emit_main_identity(&mut self) {
+    write_byte(110); write_byte(97); write_byte(109); write_byte(101); write_byte(100); write_byte(40); write_byte(110); write_byte(97);
+    write_byte(109); write_byte(101); write_byte(40); write_byte(77); write_byte(97); write_byte(105); write_byte(110); write_byte(41);
+    write_byte(41);
+}
+
+machine Main::emit_console_field(&mut self) {
+    write_byte(99); write_byte(111); write_byte(110); write_byte(115); write_byte(111); write_byte(108); write_byte(101);
+}
+
+machine Main::emit_console_type_identity(&mut self) {
+    write_byte(110); write_byte(97); write_byte(109); write_byte(101); write_byte(100); write_byte(40); write_byte(110); write_byte(97);
+    write_byte(109); write_byte(101); write_byte(40); write_byte(67); write_byte(111); write_byte(110); write_byte(115); write_byte(111);
+    write_byte(108); write_byte(101); write_byte(41); write_byte(41);
+}
+
+machine Main::emit_bytes_type_identity(&mut self) {
+    write_byte(114); write_byte(101); write_byte(102); write_byte(40); write_byte(115); write_byte(108); write_byte(105); write_byte(99);
+    write_byte(101); write_byte(40); write_byte(110); write_byte(97); write_byte(109); write_byte(101); write_byte(100); write_byte(40);
+    write_byte(110); write_byte(97); write_byte(109); write_byte(101); write_byte(40); write_byte(117); write_byte(56); write_byte(41);
+    write_byte(41); write_byte(41); write_byte(41);
+}
+
+machine Main::emit_console_service(&mut self) {
+    write_byte(67); write_byte(111); write_byte(110); write_byte(115); write_byte(111); write_byte(108); write_byte(101);
+}
+
+machine Main::emit_exit_boundary_identity(&mut self) {
+    write_byte(110); write_byte(97); write_byte(109); write_byte(101); write_byte(100); write_byte(45); write_byte(99); write_byte(97);
+    write_byte(108); write_byte(108); write_byte(97); write_byte(98); write_byte(108); write_byte(101); write_byte(40); write_byte(112);
+    write_byte(97); write_byte(116); write_byte(104); write_byte(40); write_byte(67); write_byte(111); write_byte(110); write_byte(115);
+    write_byte(111); write_byte(108); write_byte(101); write_byte(58); write_byte(58); write_byte(101); write_byte(120); write_byte(105);
+    write_byte(116); write_byte(95); write_byte(112); write_byte(114); write_byte(111); write_byte(99); write_byte(101); write_byte(115);
+    write_byte(115); write_byte(41); write_byte(44); write_byte(112); write_byte(97); write_byte(114); write_byte(97); write_byte(109);
+    write_byte(101); write_byte(116); write_byte(101); write_byte(114); write_byte(115); write_byte(40); write_byte(112); write_byte(97);
+    write_byte(114); write_byte(97); write_byte(109); write_byte(101); write_byte(116); write_byte(101); write_byte(114); write_byte(92);
+    write_byte(40); write_byte(115); write_byte(101); write_byte(108); write_byte(102); write_byte(92); write_byte(40); write_byte(110);
+    write_byte(111); write_byte(92); write_byte(41); write_byte(92); write_byte(44); write_byte(109); write_byte(117); write_byte(116);
+    write_byte(97); write_byte(98); write_byte(108); write_byte(101); write_byte(92); write_byte(40); write_byte(110); write_byte(111);
+    write_byte(92); write_byte(41); write_byte(92); write_byte(44); write_byte(99); write_byte(111); write_byte(110); write_byte(115);
+    write_byte(116); write_byte(92); write_byte(40); write_byte(110); write_byte(111); write_byte(92); write_byte(41); write_byte(92);
+    write_byte(44); write_byte(110); write_byte(97); write_byte(109); write_byte(101); write_byte(100); write_byte(92); write_byte(40);
+    write_byte(110); write_byte(97); write_byte(109); write_byte(101); write_byte(92); write_byte(40); write_byte(105); write_byte(51);
+    write_byte(50); write_byte(92); write_byte(41); write_byte(92); write_byte(41); write_byte(92); write_byte(41); write_byte(41);
+    write_byte(44); write_byte(114); write_byte(101); write_byte(115); write_byte(117); write_byte(108); write_byte(116); write_byte(45);
+    write_byte(100); write_byte(105); write_byte(115); write_byte(112); write_byte(97); write_byte(116); write_byte(99); write_byte(104);
+    write_byte(40); write_byte(41); write_byte(41);
+}
+
+machine Main::emit_write_boundary_identity(&mut self) {
+    write_byte(110); write_byte(97); write_byte(109); write_byte(101); write_byte(100); write_byte(45); write_byte(99); write_byte(97);
+    write_byte(108); write_byte(108); write_byte(97); write_byte(98); write_byte(108); write_byte(101); write_byte(40); write_byte(112);
+    write_byte(97); write_byte(116); write_byte(104); write_byte(40); write_byte(67); write_byte(111); write_byte(110); write_byte(115);
+    write_byte(111); write_byte(108); write_byte(101); write_byte(58); write_byte(58); write_byte(119); write_byte(114); write_byte(105);
+    write_byte(116); write_byte(101); write_byte(95); write_byte(108); write_byte(105); write_byte(110); write_byte(101); write_byte(41);
+    write_byte(44); write_byte(112); write_byte(97); write_byte(114); write_byte(97); write_byte(109); write_byte(101); write_byte(116);
+    write_byte(101); write_byte(114); write_byte(115); write_byte(40); write_byte(112); write_byte(97); write_byte(114); write_byte(97);
+    write_byte(109); write_byte(101); write_byte(116); write_byte(101); write_byte(114); write_byte(92); write_byte(40); write_byte(115);
+    write_byte(101); write_byte(108); write_byte(102); write_byte(92); write_byte(40); write_byte(110); write_byte(111); write_byte(92);
+    write_byte(41); write_byte(92); write_byte(44); write_byte(109); write_byte(117); write_byte(116); write_byte(97); write_byte(98);
+    write_byte(108); write_byte(101); write_byte(92); write_byte(40); write_byte(110); write_byte(111); write_byte(92); write_byte(41);
+    write_byte(92); write_byte(44); write_byte(99); write_byte(111); write_byte(110); write_byte(115); write_byte(116); write_byte(92);
+    write_byte(40); write_byte(110); write_byte(111); write_byte(92); write_byte(41); write_byte(92); write_byte(44); write_byte(114);
+    write_byte(101); write_byte(102); write_byte(92); write_byte(40); write_byte(115); write_byte(108); write_byte(105); write_byte(99);
+    write_byte(101); write_byte(92); write_byte(40); write_byte(110); write_byte(97); write_byte(109); write_byte(101); write_byte(100);
+    write_byte(92); write_byte(40); write_byte(110); write_byte(97); write_byte(109); write_byte(101); write_byte(92); write_byte(40);
+    write_byte(117); write_byte(56); write_byte(92); write_byte(41); write_byte(92); write_byte(41); write_byte(92); write_byte(41);
+    write_byte(92); write_byte(41); write_byte(92); write_byte(41); write_byte(41); write_byte(44); write_byte(114); write_byte(101);
+    write_byte(115); write_byte(117); write_byte(108); write_byte(116); write_byte(45); write_byte(100); write_byte(105); write_byte(115);
+    write_byte(112); write_byte(97); write_byte(116); write_byte(99); write_byte(104); write_byte(40); write_byte(41); write_byte(41);
+}
+
+machine Main::emit_terminal_module(&mut self) {
+    // Semantic envelope: PSITERM\\0, codec format 22, vocabulary 25, entry #1.
+    write_byte(80); write_byte(83); write_byte(73); write_byte(84);
+    write_byte(69); write_byte(82); write_byte(77); write_byte(0);
+    self.emit_u16(22); self.emit_u16(25); self.emit_id(1);
+
+    // Structural types: attached Main record, then borrowed byte sequence.
+    self.emit_u32(2);
+    self.emit_id(1); self.emit_u32(17); self.emit_main_identity();
+    write_byte(1); self.emit_u32(1);
+    self.emit_id(1); self.emit_u32(7); self.emit_console_field();
+    write_byte(1); write_byte(3); self.emit_u32(20); self.emit_console_type_identity();
+    self.emit_id(2); self.emit_u32(27); self.emit_bytes_type_identity();
+    write_byte(4); write_byte(1);
+
+    // No structural domains. Console is the sole service and root reach.
+    self.emit_u32(0);
+    self.emit_u32(1); self.emit_id(1); self.emit_u32(7); self.emit_console_service(); self.emit_u32(0);
+    self.emit_u32(1); self.emit_id(1);
+    self.emit_u32(0);
+
+    // Boundary #1: Console::exit_process(i32), published under Console.
+    self.emit_u32(2);
+    self.emit_id(1); self.emit_u32(147); self.emit_exit_boundary_identity();
+    write_byte(0);
+    self.emit_u32(1); write_byte(2); write_byte(1); self.emit_u16(32);
+    self.emit_u32(0); write_byte(0); self.emit_u32(0); self.emit_u32(1); self.emit_id(1);
+
+    // Boundary #2: Console::write_line(&[u8]), published under Console.
+    self.emit_id(2); self.emit_u32(160); self.emit_write_boundary_identity();
+    write_byte(0);
+    self.emit_u32(0);
+    self.emit_u32(1); self.emit_id(1); self.emit_u32(0); write_byte(0);
+    self.emit_id(2); write_byte(1); self.emit_u32(0);
+    write_byte(0); self.emit_u32(0); self.emit_u32(1); self.emit_id(1);
+
+    // Empty provider/proof metadata tables preceding the one machine table:
+    // candidates, float projections/equalities, propositions/applications,
+    // evidence terms/lanes, proof outputs, and closed conformances.
+    self.emit_u32(0); self.emit_u32(0); self.emit_u32(0);
+    self.emit_u32(0); self.emit_u32(0); self.emit_u32(0);
+    self.emit_u32(0); self.emit_u32(0); self.emit_u32(0);
+    self.emit_u32(1);
+
+    // Main::main is attached to Main. Its two provider roots independently bind
+    // the authored console field to the exact exit and write boundaries.
+    self.emit_id(1); write_byte(1); self.emit_id(1);
+    self.emit_u32(0); self.emit_u32(0); write_byte(0);
+    self.emit_u32(3);
+    self.emit_id(2); write_byte(5); self.emit_id(1); self.emit_id(1); self.emit_id(1);
+    self.emit_id(3); write_byte(5); self.emit_id(1); self.emit_id(1); self.emit_id(2);
+    self.emit_id(4); write_byte(4); self.emit_u32(0); self.emit_id(2);
+    self.emit_u32(0);
+    self.emit_u32(1); self.emit_id(1);
+    self.emit_u32(0); self.emit_u32(0); self.emit_u32(0);
+    self.emit_id(1); self.emit_u32(1);
+
+    // Entry block: establish literal, write_line, establish exit scalar, exit.
+    self.emit_id(1); self.emit_u32(0); self.emit_u32(4);
+    self.emit_id(1); write_byte(0); write_byte(40); self.emit_id(4);
+    self.emit_u32(self.text_len); self.emit_text_bytes();
+
+    self.emit_id(2); write_byte(0); write_byte(35); self.emit_id(2);
+    self.emit_u32(0);
+    self.emit_u32(1); self.emit_id(4); self.emit_u32(0);
+    self.emit_u32(0); self.emit_u32(0);
+
+    self.emit_id(3); write_byte(1); self.emit_id(1);
+    write_byte(2); write_byte(1); self.emit_u16(32);
+    write_byte(1); write_byte(1); self.emit_u32(self.exit_code); self.emit_zeroes(12);
+
+    self.emit_id(4); write_byte(0); write_byte(35); self.emit_id(1);
+    self.emit_u32(1); self.emit_id(1);
+    self.emit_u32(0); self.emit_u32(0); self.emit_u32(0);
+
+    // Return Unit and the empty retained machine contract.
+    write_byte(5); self.emit_id(1); self.emit_u32(0);
+    self.emit_id(1); self.emit_u32(0); self.emit_u32(0); self.emit_u32(0);
+}
+
+
 machine Main::main(&mut self) {
     self.status = 0; self.n = 0; self.text_len = 0; self.text_sum = 0; self.exit_code = 0;
     self.init_names();
@@ -387,7 +579,8 @@ machine Main::main(&mut self) {
     transition self.status == 0 { true -> utf8() false -> reject_decode() }
     state utf8() { self.validate_utf8(); transition self.status == 0 { true -> parse() false -> reject_utf8() } }
     state parse() { self.parse_o0(); transition self.status == 0 { true -> accepted() false -> reject_parse() } }
-    state accepted() { self.console.exit_process((self.text_sum + (self.exit_code % 251)) % 251); }
+    state accepted() { self.emit_terminal_module(); transition self.status == 0 { true -> emitted() false -> reject_parse() } }
+    state emitted() { self.console.exit_process((self.text_sum + (self.exit_code % 251)) % 251); }
     state reject_decode() { self.console.exit_process(self.status); }
     state reject_utf8() { self.console.exit_process(self.status); }
     state reject_parse() { self.console.exit_process(self.status); }
