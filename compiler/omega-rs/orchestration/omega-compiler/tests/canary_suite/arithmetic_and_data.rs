@@ -1061,9 +1061,12 @@ fn runtime_narrow_signed_guard_ops_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("narrow-signed-guard-ops canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("narrow signed guard-ops canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("narrow-signed-guard-ops canary should run");
     assert_eq!(
@@ -1087,9 +1090,12 @@ fn runtime_narrow_signed_divide_guard_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("narrow-signed-divide-guard canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("narrow signed divide-guard canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("narrow-signed-divide-guard canary should run");
     assert_eq!(
@@ -1113,9 +1119,12 @@ fn runtime_saturating_narrow_divide_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("saturating-narrow-divide canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("saturating narrow-divide canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("saturating-narrow-divide canary should run");
     assert_eq!(
