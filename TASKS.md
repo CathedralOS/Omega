@@ -5121,6 +5121,14 @@ Owners:
   diagnostics, and abnormal-exit semantics remain unchanged; exact-owner
   ambiguity, the 795 rooted/3 legacy inventory, and receipt-drift fences remain
   green.
+  Four authored-root data/control-flow regressions—bare no-payload case-tag
+  dispatch, transition arguments sourced from embedded calls, embedded value-
+  call result-slot identity, and sequential self-field read/modify/write—now
+  launch `OutputOnly` native execution solely through exact checked-report
+  executable receipts while preserving literal exit 70 and each distinct
+  failure-status diagnostic. Exact-owner ambiguity, the 795 rooted/3 legacy
+  inventory, and receipt-drift fences remain green; crash semantics and legacy
+  owners are unchanged.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
