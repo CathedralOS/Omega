@@ -292,10 +292,11 @@ Remaining:
   Production builds still lack a source-compatible attached-root
   value/authority carrier (or separate hidden supply), final firmware
   composition, and native-execution evidence; those remain before this slice
-  is complete. The next receiver-free production boundary is now exact: Q2
-  must define the target-owned adapter that turns UEFI `ImageHandle` and
-  `SystemTable` arrival into the two provider-issued semantic root values and
-  one invocation receipt. Until that producer exists, no compiler carrier may
+  is complete. The next receiver-free production boundary is now exact: the
+  UEFI physical-to-semantic entry composition decision must define the target-
+  owned adapter that turns UEFI `ImageHandle` and `SystemTable` arrival into
+  the two provider-issued semantic root values and one invocation receipt.
+  Until that producer exists, no compiler carrier may
   claim that installed Image/InitialStorage authority occupied RCX/RDX at this
   wrapper invocation. Native-invocation evidence belongs after that adapter;
   another compiler-side authority row would duplicate facts without closing
@@ -578,6 +579,13 @@ Owners:
   machine substitution rejects fail closed; this binds existing evaluated
   evidence without re-evaluating policy code or establishing source-visible
   placement authority.
+  Independent placed-view validation now also replays the complete accessible
+  field inventory before accepting individual accessors: normalized non-
+  inaccessible access rows, retained field plans, and synthesized record
+  members must have identical cardinality, and the synthesized view must remain
+  a record. Missing retained rows, extra synthesized members, or case-bearing
+  drift reject fail closed before field lookup; no new placement or access
+  authority is established.
 - Keep alias-exclusion admission separate from access rights; `&mut` does not
   claim exclusivity against a device. Sealed primitive events now specialize
   linearly into Stable read/take/write/swap, External read/take/write, or one
@@ -5596,6 +5604,14 @@ Owners:
   exact site kind/index/generation, static ordinal, selected machine/entry
   handles, and evaluated calling-plan fingerprint. Symbol drift rejects even
   when forged encoded-function and object rows agree with each other. The
+  callback-thunk planner now independently reconstructs the retained callback
+  signature, revalidates and canonicalizes its complete target
+  `BoundaryEntryPlan`, and requires the nonzero fingerprint to match before
+  minting the private thunk identity. Final emission repeats that replay before
+  accepting encoded-function/object evidence, so plan, canonical-form, or
+  fingerprint drift rejects even when copied thunk and object rows agree. This
+  retains plan custody only; multi-entry/re-entrant body lowering and the
+  private registration relocation remain separate frontiers. The
   remaining slices are
   resource-ceiling aggregation, multi-entry/re-entrant target instruction
   lowering, and the
