@@ -1579,9 +1579,12 @@ fn runtime_selfcall_chain_second_receiver_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("self-call chain second-receiver canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("self-call chain second-receiver canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("self-call chain second-receiver canary should run");
     assert_eq!(
@@ -1606,9 +1609,12 @@ fn runtime_nested_inline_chain_result_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("nested inline chain result canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("nested inline chain result canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("nested inline chain result canary should run");
     assert_eq!(
@@ -1632,9 +1638,12 @@ fn runtime_nonentry_inline_second_receiver_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("non-entry inline second-receiver canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("non-entry inline second-receiver canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("non-entry inline second-receiver canary should run");
     assert_eq!(
@@ -1658,9 +1667,12 @@ fn runtime_nested_local_terminal_second_instance_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("nested local-terminal canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("nested local-terminal canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("nested local-terminal canary should run");
     assert_eq!(
@@ -1684,9 +1696,12 @@ fn runtime_nested_field_terminal_second_instance_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("nested field-terminal canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("nested field-terminal canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("nested field-terminal canary should run");
     assert_eq!(
