@@ -5643,6 +5643,13 @@ Remaining N6/N8 work:
   and crash ordering and invalid-tag/error path while declaration, contract,
   and structural-helper bytes remain separately owned. The parent is 2,197
   lines and the exact 199-function codec inventory remains unchanged.
+  The canonical top-level `TerminalModule` envelope now lives in a focused
+  private `module_wire` child, preserving exact format/vocabulary markers,
+  ordered structural, service, boundary, provider, proof, evidence,
+  conformance, and machine tables, optional-row tags, fingerprints, and error
+  order while individual payload formats remain dedicated sibling owners. The
+  parent is 1,807 lines and the exact 199-function codec inventory remains
+  unchanged.
   Proof-bundle coding likewise keeps its `PSIPRF`-specific little-endian
   cursor, bounded string/count/index handling, and nonzero semantic-ID
   primitives in a focused private child; its public API, exact bytes and
