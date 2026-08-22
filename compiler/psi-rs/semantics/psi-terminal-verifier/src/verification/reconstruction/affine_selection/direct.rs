@@ -14,16 +14,14 @@ pub(super) fn retained(
     semantic_axioms: &[Proposition],
     definitions: &DefinitionIndex,
 ) -> bool {
-    candidates::DirectAffineCandidates::new(requirements, semantic_axioms).any(
-        |root, root_bound| {
-            completion::retained(
-                context,
-                goal,
-                semantic_axioms,
-                definitions,
-                root,
-                root_bound,
-            )
-        },
-    )
+    candidates::any(requirements, semantic_axioms, |root, root_bound| {
+        completion::retained(
+            context,
+            goal,
+            semantic_axioms,
+            definitions,
+            root,
+            root_bound,
+        )
+    })
 }
