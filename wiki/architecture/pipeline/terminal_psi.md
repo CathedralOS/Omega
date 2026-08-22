@@ -1895,8 +1895,8 @@ roots remain preferred, then landed literals, alias transport, and
 transitivity; equality facts stay in ledger order, while bound and second-leg
 indexes use their exact value endpoint. A missing bound, equality, or order
 leg, unsafe or mistyped literal, identity, non-value, disconnected, redirected,
-cross-carrier, or same-citation join rejects. Multi-alias or three-or-more-leg
-root reconstruction, words of five
+cross-carrier, or same-citation join rejects. Three-or-more-alias or
+three-or-more-leg root reconstruction, words of five
 or more definitions, joins, cast/shift compositions, and correlated results
 remain trusted-reducer work; neither complete exact row changes trust.
 An exact mapped affine bound may also close to the canonical arm through one
@@ -1921,8 +1921,16 @@ exactly one retained value equality to the affine root, and then apply
 `IntegerLessOrEqualSubstitution`; missing or disconnected order legs and absent
 or redirected equalities reject. The constructor calls the affine builder
 directly, so it cannot add another equality or order leg and does not introduce
-recursive path search. Multi-alias and three-or-more-leg custody remain outside
-the producer.
+recursive path search. Three-or-more-alias and three-or-more-leg custody remain
+outside the producer.
+
+One fixed two-alias sibling may instead transport one directly cited bound to
+the affine root through exactly two distinct retained value equalities. Its
+proof nests two `IntegerLessOrEqualSubstitution` nodes beneath
+`IntegerAffineBound`; the root, middle alias, and bound alias must be distinct
+same-carrier values. A missing, reused, redirected, crossed, cyclic, or mistyped
+equality rejects. The constructor has no recursive alias walk, and a third
+alias remains outside the producer.
 
 The common pure-cast spine now has the same kind of producer-visible custody.
 `IntegerCastChainWitness` binds one or more contiguous partial fixed-native
