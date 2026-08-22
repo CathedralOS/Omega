@@ -2310,9 +2310,12 @@ fn runtime_dependent_subtract_exit_canary_runs() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-dependent-subtract-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("dependent subtract canary should compile from its authored root");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("dependent subtract canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("dependent subtract canary should run");
     assert_eq!(
@@ -2334,9 +2337,12 @@ fn runtime_dependent_ordering_chain_exit_canary_runs() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-dependent-ordering-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("dependent ordering-chain canary should compile from its authored root");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("dependent ordering-chain canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("dependent ordering-chain canary should run");
     assert_eq!(
@@ -2357,9 +2363,12 @@ fn runtime_requires_subtract_exit_canary_runs() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-requires-subtract-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("requires-subtract canary should compile from its authored root");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("requires-subtract canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("requires-subtract canary should run");
     assert_eq!(
@@ -2380,9 +2389,12 @@ fn runtime_requires_guarded_call_exit_canary_runs() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-requires-guarded-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("requires guarded-call canary should compile from its authored root");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("requires guarded-call canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("requires guarded-call canary should run");
     assert_eq!(
@@ -2402,9 +2414,12 @@ fn runtime_sibling_len_index_exit_canary_runs() {
     let canary = pass_canary("dependent/runtime_sibling_len_index_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-sibling-len-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("sibling-length canary should compile from its authored root");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("sibling-length canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("sibling-length canary should run");
     assert_eq!(
