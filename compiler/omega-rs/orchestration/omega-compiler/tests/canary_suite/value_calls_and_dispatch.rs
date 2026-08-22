@@ -2043,9 +2043,12 @@ fn runtime_deep_state_name_collision_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("deep-state name collision canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("deep-state name collision canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("deep-state name collision canary should run");
     assert_eq!(
@@ -2068,9 +2071,12 @@ fn runtime_u64_literal_let_guard_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("u64 let+guard canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("u64 let+guard canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("u64 let+guard canary should run");
     assert_eq!(
