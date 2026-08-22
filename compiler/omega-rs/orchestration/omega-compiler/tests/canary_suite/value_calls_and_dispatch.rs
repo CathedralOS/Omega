@@ -1205,10 +1205,13 @@ fn runtime_alias_indexed_read_through_transition_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("alias-indexed-read-through-transition canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation.checked_native_executable_path().expect(
+        "alias-indexed-read-through-transition canary should retain its executable receipt",
+    );
+    let output = Command::new(executable)
         .output()
         .expect("alias-indexed-read-through-transition canary should run");
 
@@ -1241,10 +1244,13 @@ fn runtime_dispatch_binary_call_argument_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("runtime dispatch binary call argument canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation.checked_native_executable_path().expect(
+        "runtime dispatch binary call argument canary should retain its executable receipt",
+    );
+    let output = Command::new(executable)
         .output()
         .expect("runtime dispatch binary call argument canary should run");
 
@@ -1272,10 +1278,13 @@ fn runtime_dispatch_result_field_binding_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("dispatch result field-binding canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("dispatch result field-binding canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("dispatch result field-binding canary should run");
 
@@ -1309,14 +1318,17 @@ fn runtime_trailing_state_mut_param_phase_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
+    let compilation = compile(CompileOptions {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
         write_output: true,
     })
     .expect("threaded mutable receiver phase canary should compile natively");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("threaded mutable receiver phase canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("threaded mutable receiver phase canary should run");
     assert_eq!(
@@ -1339,9 +1351,12 @@ fn runtime_same_type_second_receiver_mutation_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("second-receiver mutation canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("second-receiver mutation canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("second-receiver mutation canary should run");
     assert_eq!(
