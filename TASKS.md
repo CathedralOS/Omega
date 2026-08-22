@@ -4546,9 +4546,14 @@ Remaining:
   `X28` with `X16/X17`, full-width required units, unsigned strict-less-than
   failure branch, then subtraction and allowance store only on the payable arm.
   Equality therefore pays and leaves zero; the sequence touches no activation
-  stack. Wrong transport/profile, zero-unit, out-of-range displacement, and
-  branch-range inputs reject. These exact bytes are not yet inserted into a
-  terminal artifact and grant no installed dynamic evidence.
+  stack. Matching per-site cold dispatch sequences now record exact operation/
+  edge kind and identity, required units, and retry code offset before loading
+  the admitted transfer entry and tail-jumping/branching without stack access.
+  This is only the site dispatcher, not the still-missing opaque-state save,
+  sponsor-stack switch, or sponsor-policy stub. Wrong transport/profile,
+  zero-unit, out-of-range displacement, and branch-range inputs reject. These
+  exact bytes are not yet inserted into a terminal artifact and grant no
+  installed dynamic evidence.
   Root admission now retains the selected native realization against the exact
   logical-fuel demand, provision, grant, installed-code context, and artifact.
   Existing fixed roots automatically produce the exact fixed realization;

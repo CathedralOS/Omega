@@ -8,16 +8,21 @@
 use omega_calling_conventions::{MachineRegister, RegisterSet};
 use omega_target::Architecture;
 use omega_terminal_installation_evidence::{
-    NativeFuelTargetPlanProjection, SponsorContextTransport,
+    NativeFuelTargetPlanProjection, SponsorContextTransport, TerminalFuelAttributionSite,
 };
 use psi_diagnostics::Diagnostic;
 
 use crate::{Reg64, append_jcc_rel32, append_mov_reg_imm64, disp32};
 
 pub const X86_NATIVE_FUEL_CHARGE_BYTE_COUNT: usize = 36;
+pub const X86_NATIVE_FUEL_COLD_DISPATCH_BYTE_COUNT: usize = 78;
 
 pub fn native_fuel_charge_clobbers() -> RegisterSet {
     RegisterSet::new([MachineRegister::X86R10, MachineRegister::X86R11])
+}
+
+pub fn native_fuel_cold_dispatch_clobbers() -> RegisterSet {
+    RegisterSet::new([MachineRegister::X86R10])
 }
 
 /// Encode:
@@ -37,23 +42,7 @@ pub fn encode_native_fuel_charge(
     required_units: u64,
     cold_failure_distance: isize,
 ) -> Result<Vec<u8>, Diagnostic> {
-    if plan.target.architecture != Architecture::X86_64
-        || !matches!(
-            plan.transport,
-            SponsorContextTransport::ReservedNonvolatileRegister {
-                register: MachineRegister::X86Rbx
-            }
-        )
-    {
-        return Err(Diagnostic::error(
-            "x86-64 native fuel charging requires the admitted RBX context transport",
-        ));
-    }
-    if plan.profile.native_target() != plan.target {
-        return Err(Diagnostic::error(
-            "x86-64 native fuel charging rejects target-profile drift",
-        ));
-    }
+    validate_x86_plan(plan)?;
     if required_units == 0 {
         return Err(Diagnostic::error(
             "native fuel charge requires a nonzero logical-unit cost",
@@ -72,6 +61,83 @@ pub fn encode_native_fuel_charge(
     bytes.extend(remaining.to_le_bytes());
     debug_assert_eq!(bytes.len(), X86_NATIVE_FUEL_CHARGE_BYTE_COUNT);
     Ok(bytes)
+}
+
+/// Record one exact unpaid semantic site and tail-jump through the admitted
+/// transfer entry. The retry value is a code offset interpreted only by the
+/// validated transfer plan; this emits no source-visible/raw continuation.
+pub fn encode_native_fuel_cold_dispatch(
+    plan: &NativeFuelTargetPlanProjection,
+    site: TerminalFuelAttributionSite,
+    required_units: u64,
+    retry_code_offset: u64,
+) -> Result<Vec<u8>, Diagnostic> {
+    validate_x86_plan(plan)?;
+    if required_units == 0 {
+        return Err(Diagnostic::error(
+            "native fuel cold dispatch requires a nonzero logical-unit cost",
+        ));
+    }
+    let (site_kind, site_identity) = match site {
+        TerminalFuelAttributionSite::Operation(operation) => (0, operation.get()),
+        TerminalFuelAttributionSite::Edge(edge) => (1, edge.get()),
+    };
+    let mut bytes = Vec::with_capacity(X86_NATIVE_FUEL_COLD_DISPATCH_BYTE_COUNT);
+    append_context_u64_store(&mut bytes, plan.context.unpaid_site_kind_offset, site_kind)?;
+    append_context_u64_store(
+        &mut bytes,
+        plan.context.unpaid_site_identity_offset,
+        site_identity,
+    )?;
+    append_context_u64_store(
+        &mut bytes,
+        plan.context.required_units_offset,
+        required_units,
+    )?;
+    append_context_u64_store(
+        &mut bytes,
+        plan.context.retry_code_offset_offset,
+        retry_code_offset,
+    )?;
+    let transfer_entry = disp32(plan.context.transfer_entry_offset as usize)?;
+    bytes.extend([0x4c, 0x8b, 0x93]); // mov r10, [rbx + disp32]
+    bytes.extend(transfer_entry.to_le_bytes());
+    bytes.extend([0x41, 0xff, 0xe2]); // jmp r10
+    debug_assert_eq!(bytes.len(), X86_NATIVE_FUEL_COLD_DISPATCH_BYTE_COUNT);
+    Ok(bytes)
+}
+
+fn validate_x86_plan(plan: &NativeFuelTargetPlanProjection) -> Result<(), Diagnostic> {
+    if plan.target.architecture != Architecture::X86_64
+        || !matches!(
+            plan.transport,
+            SponsorContextTransport::ReservedNonvolatileRegister {
+                register: MachineRegister::X86Rbx
+            }
+        )
+    {
+        return Err(Diagnostic::error(
+            "x86-64 native fuel charging requires the admitted RBX context transport",
+        ));
+    }
+    if plan.profile.native_target() != plan.target {
+        return Err(Diagnostic::error(
+            "x86-64 native fuel charging rejects target-profile drift",
+        ));
+    }
+    Ok(())
+}
+
+fn append_context_u64_store(
+    bytes: &mut Vec<u8>,
+    byte_offset: u32,
+    value: u64,
+) -> Result<(), Diagnostic> {
+    let displacement = disp32(byte_offset as usize)?;
+    append_mov_reg_imm64(bytes, Reg64::R10, value);
+    bytes.extend([0x4c, 0x89, 0x93]); // mov [rbx + disp32], r10
+    bytes.extend(displacement.to_le_bytes());
+    Ok(())
 }
 
 #[cfg(test)]
@@ -95,7 +161,7 @@ mod tests {
                 unpaid_site_identity_offset: 40,
                 required_units_offset: 48,
                 transfer_entry_offset: 56,
-                retry_address_offset: 64,
+                retry_code_offset_offset: 64,
                 sponsor_stack_top_offset: 72,
                 activation_state_offset: 80,
                 activation_state_byte_count: 176,
@@ -138,5 +204,39 @@ mod tests {
         let mut large_offset = plan();
         large_offset.context.remaining_units_offset = u32::MAX;
         assert!(encode_native_fuel_charge(&large_offset, 1, 0).is_err());
+    }
+
+    #[test]
+    fn cold_dispatch_records_exact_site_and_tail_jumps_without_stack_access() {
+        let operation = psi_core::OperationId::new(9).unwrap();
+        let bytes = encode_native_fuel_cold_dispatch(
+            &plan(),
+            TerminalFuelAttributionSite::Operation(operation),
+            u64::MAX,
+            0x1020,
+        )
+        .expect("exact cold dispatch");
+        assert_eq!(bytes.len(), X86_NATIVE_FUEL_COLD_DISPATCH_BYTE_COUNT);
+        assert_eq!(&bytes[0..2], &[0x49, 0xba]); // mov r10, site kind
+        assert_eq!(&bytes[2..10], &0_u64.to_le_bytes());
+        assert_eq!(&bytes[17..19], &[0x49, 0xba]); // mov r10, site identity
+        assert_eq!(&bytes[19..27], &9_u64.to_le_bytes());
+        assert_eq!(&bytes[36..44], &u64::MAX.to_le_bytes());
+        assert_eq!(&bytes[53..61], &0x1020_u64.to_le_bytes());
+        assert_eq!(&bytes[68..71], &[0x4c, 0x8b, 0x93]);
+        assert_eq!(&bytes[75..], &[0x41, 0xff, 0xe2]);
+        assert_eq!(
+            native_fuel_cold_dispatch_clobbers().as_slice(),
+            &[MachineRegister::X86R10]
+        );
+
+        let edge = encode_native_fuel_cold_dispatch(
+            &plan(),
+            TerminalFuelAttributionSite::Edge(psi_core::EdgeId::new(9).unwrap()),
+            1,
+            0,
+        )
+        .unwrap();
+        assert_eq!(&edge[2..10], &1_u64.to_le_bytes());
     }
 }

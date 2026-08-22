@@ -24,7 +24,7 @@ pub struct NativeFuelContextLayout {
     pub unpaid_site_identity_offset: u32,
     pub required_units_offset: u32,
     pub transfer_entry_offset: u32,
-    pub retry_address_offset: u32,
+    pub retry_code_offset_offset: u32,
     pub sponsor_stack_top_offset: u32,
     pub activation_state_offset: u32,
     pub activation_state_byte_count: u32,
