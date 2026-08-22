@@ -2072,7 +2072,18 @@ Production and verification independently preserve direct-bound,
 landed-literal, fixed one-alias, closed-strengthening, alias-landed-literal,
 then fixed two-alias precedence; source-carrier literal remapping remains with
 cast custody. No proof shape or search frontier changes. This completes
-contiguous cast-chain custody for exact divide/remainder goals. One separately
+contiguous cast-chain custody for exact divide/remainder goals.
+
+Closed-strengthened alias transport now separates fact discovery from its
+existing cast completion. Independent producer and verifier
+`alias_transport/cast/stronger/candidates` modules retain equality-first,
+orientation-second, then bound-order enumeration and exact carrier/endpoint
+eligibility. Their parents still invoke side-local completion with the same
+cited proof nodes or retained facts. Citation identity, closed bridge and
+substitution bytes, rejection order, single-alias/single-bridge frontier, and
+cast-family precedence are unchanged.
+
+One separately
 bounded source-affine composition may now supply the cast root-bound child:
 production first follows the unique cast spine to its non-cast source, remaps
 the canonical literal endpoint into that source carrier, and invokes the
