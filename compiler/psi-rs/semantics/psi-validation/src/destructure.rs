@@ -80,6 +80,13 @@ pub(crate) fn validate_destructure_exhaustiveness(
                     )));
                     continue;
                 };
+                if data.quotient.is_some() {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "record pattern in machine `{}` state `{}` cannot destructure quotient `{}`: retained representatives are opaque and pattern matching requires a named lifted operation",
+                        machine.name, state.name, data.name,
+                    )));
+                    continue;
+                }
 
                 let mut declared_fields: Vec<&str> = Vec::new();
                 let mut has_variants = false;
@@ -173,6 +180,13 @@ fn validate_arm_pattern_marker(
     let Some(data) = crate::places::data_definition_for_type(program, declared) else {
         return;
     };
+    if data.quotient.is_some() {
+        diagnostics.push(Diagnostic::error(format!(
+            "destructure arm in machine `{}` state `{}` cannot pattern-match quotient `{}`: retained representatives are opaque and pattern matching requires a named lifted operation",
+            machine.name, state.name, data.name,
+        )));
+        return;
+    }
 
     // A computed subject is captured once before dispatch, then its pattern
     // fields are read independently from that local. That extraction is only
