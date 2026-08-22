@@ -6854,101 +6854,33 @@ Owner: `wiki/design_briefs/law_bearing_relations_and_quotients.md`.
 
 Remaining N6/N8 work:
 
-- **SELECTED-WITNESS-EVIDENCE.** Bind a privately selected named conformance to
-  one carrierless term at named `ensures`; consume its normalized requirement
-  map. Named `requires` terms are positional erased inputs, passed explicitly
-  after `;` and projected as `term.member`. Never infer evidence from visible
-  facts or attached state names.
+- **SELECTED-WITNESS-EVIDENCE — finish executable proof-output calls.** The
+  settled binding lanes are live: `let (value; public_slot: local_term) =
+  call()` selectively captures copyable Prop outputs, `let (; ...)` supports an
+  empty Type lane, and omitted selectors contribute facts without minting local
+  terms. The retired aggregate-package spelling rejects with directed guidance.
+  Checked and Terminal Psi retain exact call, selector, proposition/interface,
+  producer provenance, and optional caller-local term identity. Pure Unit proof
+  producers erase; runtime Unit and scalar producers retain exactly one linked
+  ordinary call. Terminal format 21 distinguishes all three shapes and rejects
+  a missing or mismatched runtime link.
 
-  The settled source surface is live:
-  `let (value; public_slot: local_term) = call()` separates the ordinary Type
-  result from selectively captured Prop outputs, and `let (; ...)` keeps an
-  empty Type lane. Omitted selectors contribute facts without minting local
-  terms. The retired `let { slot: term } = call()` package spelling rejects
-  with directed migration guidance. Resolved through Terminal Psi now uses
-  proof-output binding/call rows retaining the exact call, callee lane, public
-  selector, optional caller-local term, proposition/interface, and producer
-  provenance. Proposition terms remain copyable and add no runtime work,
-  cleanup, or fuel; no generated package identity or aggregate semantics exist.
+  Implement the remaining slices in order:
 
-  Unit-returning producers no longer have to be operationally empty. A pure
-  proof producer still erases, while one containing runtime body work retains
-  one ordinary `CallUnit`. Checked and Terminal Psi link that exact operation
-  to the proof-output row, and Terminal format 21 distinguishes erased, Unit,
-  and scalar execution shapes so removing a required link rejects.
+  1. apply ordinary value-argument contract substitution and bind explicit
+     erased `requires` inputs at the proof-output call coordinate;
+  2. accept the already-implemented closed generic application identity in this
+     call path (all non-lifetime arguments explicit; ordinary lifetime elision);
+  3. capture outcome-guarded outputs only in their applicable arm and retain the
+     exact guard through checked and Terminal Psi.
 
-  Remaining: generalize beyond the current concrete one-state, zero-argument
-  producer. Argumented calls need ordinary contract substitution and erased
-  evidence-input binding at the proof-output coordinate; generic calls need
-  the closed application identity below. Then support outcome-guarded capture
-  in the applicable arm while retaining the outcome guard in checked and
-  Terminal Psi. The full accepted identity and verification contract is in
+  Never infer evidence from visible facts or attached state names. Runtime Type
+  results retain their own multiplicity independently of the proof lane, and
+  proposition, term, and provenance identities remain distinct. Acceptance:
+  substitution, evidence-input identity, generic application, and outcome-guard
+  tampering each reject independently; omitted copyable outputs add no runtime
+  work, cleanup, or fuel. The complete contract is in
   [`law_bearing_relations_and_quotients.md`](wiki/design_briefs/law_bearing_relations_and_quotients.md).
-
-  Generic producer conformances use the same nested static application form as
-  other name-owned telescopes. Type, const, and static-machine arguments are
-  explicit; only ordinary lifetime elision applies. Runtime Type results retain
-  their own multiplicity independently of the proof lane.
-  Keep proposition, evidence-term, and provenance identities separate; neither
-  provenance nor display spelling is a term identity oracle.
-- Finish generic conformance instantiation and explicit binders. The declaration
-  front half now parses `Name<Telescope>: [Subject] satisfies Trait { ... }`,
-  retains lifetime/type/const/static-machine parameters through resolved and
-  typed Psi, resolves its contracts and trait arguments in that name-owned
-  scope, and gives every named conformance a package-scoped symbol. Machine
-  telescopes retain a distinct proof-static `Evidence: Subject satisfies Trait`
-  binder with its own lexical symbol. A concrete call now binds the exact named
-  closed conformance, validates its instantiated subject/trait shape, exposes
-  direct and inherited requirements in the binder scope, substitutes the
-  selected normalized rows, and commits the map identity separately from
-  callable static-machine arguments. Implement nested call-site applications
-  such as `SequenceEncoding<u8, Message>` inside the enclosing machine
-  telescope. Require every type, const, and static-machine argument owned by
-  the conformance; apply only the ordinary lifetime-elision rules, rejecting an
-  ambiguous or otherwise unresolved lifetime. Expected subject/trait shape
-  validates the closed application but never fills its non-lifetime arguments.
-  Nested generic calls already forward an exact closed evidence binder bare
-  through specialization. Identity retains declared name, complete normalized
-  telescope including resolved elided lifetimes, optional subject, instantiated
-  trait, and normalized rows. No visibility-, priority-, specificity-, or
-  expected-shape-based selection.
-
-  The nested-application closure slice is implemented. Static applications
-  remain recursively delimited through syntax, resolved, and typed Psi; checked
-  specialization requires every non-lifetime argument, rejects a bare generic
-  conformance name, validates the instantiated subject/trait shape, and retains
-  an argument-sensitive identity containing the exact declaration, explicit
-  lifetime/type/const/static-machine lanes, subject, trait application, and
-  closed row map. Different members of one conformance family now produce
-  different specialization identities. Inline and default realization machines
-  now close over the conformance telescope, and binder-member rewriting carries
-  the selected application's type arguments into the ordinary fixed-point
-  monomorphizer. Distinct family applications produce distinct executable row
-  instances. Literal const and concrete static-machine arguments now enter the
-  same specialization tuple, including calls through a captured static-machine
-  parameter inside the row body. Specializing an enclosing generic machine now
-  recursively substitutes type, const, and static-machine arguments inside a
-  forwarded conformance application before the next fixed-point pass. Generic
-  carriers retain their full instantiated subject identity (for example
-  `Box<Card>`) while executable attached-row lookup uses the carrier's declared
-  base namespace. Terminal Psi now retains each used closed application under
-  its concrete terminal machine ID as one ordered, category-tagged telescope,
-  exact declaration/subject/trait identities, normalized row map, and canonical
-  application commitment. Format-13/vocabulary-18 codec round trips preserve the
-  table, and a dedicated verifier module rejects unknown owners, malformed or
-  duplicate applications, and redirected rows. Erased conformance lifetimes now
-  resolve only from the enclosing call's parameter-position ordinary borrow
-  constraints. The closer retains the resolved region in checked and terminal
-  identity, rejects missing or conflicting constraints, and checks an explicitly
-  supplied region against the same call-site constraint; declaration arity alone
-  never selects a lifetime.
-  The generic-instance pipeline's 1,185-line unit corpus lives in a private test
-  child. Const-proof evaluation, closed-domain indexing, canonical const
-  expression/type identity, template normalization, and declared-width fitting
-  now live in a focused 2,043-line `const_evaluation` child, leaving a 2,109-
-  line specialization coordinator. All 42 unit tests, the 70-function
-  production inventory, diagnostic/evaluation order, and the public
-  specialization surface remain unchanged.
 - Add `Respects` over compiler-derived positional call telescopes, deriving its
   dependent domain, pointwise input relations, and lifted result relation.
   Add the sealed `Quotient::lift<F, Respect>` wrapper and
