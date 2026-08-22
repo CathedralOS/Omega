@@ -2805,10 +2805,13 @@ fn runtime_min_max_signedness_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-min-max-signedness-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("min/max signedness canary should compile");
 
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("min/max signedness canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("min/max signedness canary should run");
 
@@ -2829,10 +2832,13 @@ fn runtime_unsigned_division_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-unsigned-division-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("unsigned division canary should compile");
 
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("unsigned division canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("unsigned division canary should run");
 
@@ -3086,10 +3092,13 @@ fn runtime_signed_division_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-signed-division-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("signed division canary should compile");
 
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("signed division canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("signed division canary should run");
 
@@ -3131,10 +3140,13 @@ fn runtime_shift_right_signedness_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("shift-right signedness canary should compile");
 
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("shift-right signedness canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("shift-right signedness canary should run");
 
