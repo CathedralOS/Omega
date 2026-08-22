@@ -5189,6 +5189,12 @@ Owners:
   parity, literal exit 70, 72/73 diagnostics, and the no-#DE crash guard. Exact-
   owner ambiguity, the 795 rooted/3 legacy inventory, and receipt-drift fences
   remain green; explicit legacy owners are unchanged.
+  Two authored-root narrow const-fold regressions—saturating clamps at i8/u8
+  widths and wrapping-to-width folds at i8/u16—now launch `OutputOnly` native
+  execution solely through exact checked-report executable receipts while
+  preserving interpreter parity, literal exit 70, and width-regression exit-71
+  diagnostics. Exact-owner ambiguity, the 795 rooted/3 legacy inventory, and
+  receipt-drift fences remain green; explicit legacy owners are unchanged.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
