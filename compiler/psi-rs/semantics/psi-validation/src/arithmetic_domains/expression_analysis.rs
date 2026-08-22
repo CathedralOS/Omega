@@ -6,6 +6,22 @@
 
 use super::*;
 
+fn integer_policy_primitive(
+    operator: BinaryOperator,
+) -> Option<psi_numerics::integer_policy::IntegerPolicyPrimitive> {
+    use psi_numerics::integer_policy::IntegerPolicyPrimitive;
+
+    match operator {
+        BinaryOperator::Add => Some(IntegerPolicyPrimitive::Add),
+        BinaryOperator::Subtract => Some(IntegerPolicyPrimitive::Subtract),
+        BinaryOperator::Multiply => Some(IntegerPolicyPrimitive::Multiply),
+        BinaryOperator::Divide => Some(IntegerPolicyPrimitive::Divide),
+        BinaryOperator::ShiftLeft => Some(IntegerPolicyPrimitive::ShiftLeft),
+        BinaryOperator::ShiftRight => Some(IntegerPolicyPrimitive::ShiftRight),
+        _ => None,
+    }
+}
+
 /// The result of analysing an expression for the domain + overflow rules.
 pub(super) struct Analysis {
     /// The arithmetic domain (`None` = neutral: a literal or `bool` result).
@@ -224,6 +240,9 @@ pub(super) fn analyze(
             // range. Left shift separately retains F8's count obligation
             // below; proving a legal count never authorizes value overflow.
             let effective_domain = domain.unwrap_or(ArithmeticDomain::Exact);
+            let policy_bridge = integer_policy_primitive(operator).map(|primitive| {
+                psi_numerics::integer_policy::integer_policy_bridge(primitive, effective_domain)
+            });
             if effective_domain == ArithmeticDomain::Exact
                 && operator == BinaryOperator::Add
                 && (env.proves_joint_add_upper_bound(program, binary.left, binary.right)
@@ -282,15 +301,11 @@ pub(super) fn analyze(
             // range ALWAYS traps at runtime -- legal (the trap is the
             // requested effect, and a trap is never dead), but almost
             // certainly not what the author meant, so it warns.
-            if effective_domain == ArithmeticDomain::Trapping
-                && matches!(
-                    operator,
-                    BinaryOperator::Add
-                        | BinaryOperator::Subtract
-                        | BinaryOperator::Multiply
-                        | BinaryOperator::ShiftLeft
+            if policy_bridge.is_some_and(|bridge| {
+                bridge.trap_predicates.contains(
+                    &psi_numerics::integer_policy::IntegerTrapPredicate::ResultOutsideCarrier,
                 )
-                && let Some(primitive) = primitive
+            }) && let Some(primitive) = primitive
                 && let Some(range) = primitive_range(primitive)
             {
                 let always_above = matches!(
@@ -310,14 +325,15 @@ pub(super) fn analyze(
                     )));
                 }
             }
-            if effective_domain == ArithmeticDomain::Exact
-                && matches!(
-                    operator,
-                    BinaryOperator::Add
-                        | BinaryOperator::Subtract
-                        | BinaryOperator::Multiply
-                        | BinaryOperator::ShiftLeft
+            // Exact division retains its dedicated specification-position
+            // definedness checker; preserve that established lane while the
+            // generic interval gate consumes every other representability row.
+            if operator != BinaryOperator::Divide
+                && policy_bridge.is_some_and(|bridge| {
+                    bridge.formation_conditions.contains(
+                    &psi_numerics::integer_policy::IntegerFormationCondition::ResultRepresentable,
                 )
+                })
                 && let Some(primitive) = primitive
                 && let Some(range) = primitive_range(primitive)
                 && !range.contains(interval)
