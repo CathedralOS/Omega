@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-pub(super) const EXPECTED_UNIQUE_ROOTED_ACTIVE_COVERAGE: usize = 788;
+pub(super) const EXPECTED_UNIQUE_ROOTED_ACTIVE_COVERAGE: usize = 795;
 pub(super) const EXPECTED_UNIQUE_LEGACY_ACTIVE_COVERAGE: usize = 3;
 pub(super) const EXPECTED_UNIQUE_CROSS_TARGET_COVERAGE: usize = 32;
 pub(super) const EXPECTED_UNIQUE_ROOTED_TARGET_COVERAGE: usize = 3;
@@ -372,9 +372,6 @@ enum ExactTargetOwnerKind {
 }
 
 fn exact_native_coverage(body: &str) -> Option<(ExactNativeOwnerKind, String, i32)> {
-    if !body.contains("Command::new(") || !body.contains(".output()") {
-        return None;
-    }
     let canaries = exact_pass_canary_literals(body);
     let [canary] = canaries.as_slice() else {
         return None;
@@ -394,20 +391,60 @@ fn exact_native_coverage(body: &str) -> Option<(ExactNativeOwnerKind, String, i3
     } else {
         return None;
     };
-    let assertion = compact.find("assert_eq!(output.status.code(),Some(")?
-        + "assert_eq!(output.status.code(),Some(".len();
-    let status_digits = compact[assertion..]
-        .chars()
-        .take_while(char::is_ascii_digit)
-        .collect::<String>();
-    if status_digits.is_empty() {
-        return None;
+    let status = if body.contains("Command::new(") && body.contains(".output()") {
+        let assertion = compact.find("assert_eq!(output.status.code(),Some(")?
+            + "assert_eq!(output.status.code(),Some(".len();
+        let status_digits = compact[assertion..]
+            .chars()
+            .take_while(char::is_ascii_digit)
+            .collect::<String>();
+        let status_end = assertion + status_digits.len();
+        if status_digits.is_empty() || !compact[status_end..].starts_with(')') {
+            return None;
+        }
+        status_digits.parse().ok()?
+    } else {
+        exact_checked_report_native_status(&compact)?
+    };
+    Some((kind, canary.clone(), status))
+}
+
+fn exact_checked_report_native_status(compact: &str) -> Option<i32> {
+    const CALL: &str = "assert_native_exit_code(&";
+    let mut cursor = 0;
+    let mut expected = None;
+    while let Some(relative) = compact[cursor..].find(CALL) {
+        let local_start = cursor + relative + CALL.len();
+        let local = compact[local_start..]
+            .chars()
+            .take_while(|character| character.is_ascii_alphanumeric() || *character == '_')
+            .collect::<String>();
+        if local.is_empty() {
+            return None;
+        }
+        let status_start = local_start + local.len();
+        let remainder = compact.get(status_start..)?.strip_prefix(',')?;
+        let digits = remainder
+            .chars()
+            .take_while(char::is_ascii_digit)
+            .collect::<String>();
+        if digits.is_empty() || !remainder[digits.len()..].starts_with(',') {
+            return None;
+        }
+        let status = digits.parse().ok()?;
+        if expected.is_some_and(|expected| expected != status) {
+            return None;
+        }
+        expected = Some(status);
+        let ordinary = format!("let{local}=compile_rooted_canary_for_native_host(");
+        let full =
+            format!("let{local}=compile_rooted_canary_for_native_host_with_auxiliary_artifacts(");
+        if !compact.contains(&ordinary) && !compact.contains(&full) {
+            return None;
+        }
+        cursor = status_start + 1 + digits.len() + 1;
     }
-    let status_end = assertion + status_digits.len();
-    if !compact[status_end..].starts_with(')') {
-        return None;
-    }
-    Some((kind, canary.clone(), status_digits.parse().ok()?))
+    expected
 }
 
 fn exact_target_coverage(body: &str) -> Vec<(ExactTargetOwnerKind, String, String)> {
@@ -733,6 +770,13 @@ fn exact_native_source_index_is_strict_and_ambiguity_fails_closed() {
          assert_eq!(output.status.code(), Some(71)); }}",
         "canary"
     );
+    let checked_report = format!(
+        "#[test]\nfn checked_report() {{ let canary = pass_{}(\"demo/checked-report\"); \
+         let compilation = compile_rooted_canary_for_native_host(&canary, build).unwrap(); \
+         assert_native_exit_code(&compilation, 72, \"checked report\"); }}",
+        "canary"
+    );
+    let wrong_checked_report = checked_report.replace("&compilation, 72", "&other, 72");
     let ignored = format!("#[test]\n#[ignore]\n{}", &rooted[8..]);
     let configured = format!("#[test]\n#[cfg(windows)]\n{}", &rooted[8..]);
     let configured_before = format!("#[cfg(windows)]\n{rooted}");
@@ -761,6 +805,8 @@ fn exact_native_source_index_is_strict_and_ambiguity_fails_closed() {
     let index = ExactNativeCanaryCoverageIndex::from_sources(&[
         ("rooted.rs", &rooted),
         ("legacy.rs", &legacy),
+        ("checked_report.rs", &checked_report),
+        ("wrong_checked_report.rs", &wrong_checked_report),
         ("ignored.rs", &ignored),
         ("configured.rs", &configured),
         ("configured_before.rs", &configured_before),
@@ -788,6 +834,13 @@ fn exact_native_source_index_is_strict_and_ambiguity_fails_closed() {
         ("legacy", 71)
     );
     assert_eq!(index.rooted_owner_count("demo/legacy"), 0);
+    let owner = index
+        .unique_rooted_owner("demo/checked-report")
+        .expect("one checked-report rooted exact-native owner should qualify");
+    assert_eq!(
+        (owner.test_name.as_str(), owner.expected_status),
+        ("checked_report", 72)
+    );
     assert_eq!(index.legacy_owner_count("demo/rooted"), 0);
 
     let ambiguous = ExactNativeCanaryCoverageIndex::from_sources(&[("ambiguous.rs", &ambiguous)]);

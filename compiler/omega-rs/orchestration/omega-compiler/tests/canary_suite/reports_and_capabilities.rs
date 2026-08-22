@@ -1,7 +1,10 @@
 use super::*;
 
-fn assert_native_exit_code(build_dir: &Path, expected: i32, fixture: &str) {
-    let output = Command::new(build_dir.join(executable_name()))
+fn assert_native_exit_code(report: &CompileReport, expected: i32, fixture: &str) {
+    let executable = report
+        .checked_native_executable_path()
+        .unwrap_or_else(|| panic!("{fixture} lost its exact executable publication receipt"));
+    let output = Command::new(executable)
         .output()
         .unwrap_or_else(|error| panic!("{fixture} should run: {error}"));
     assert_eq!(
@@ -140,19 +143,19 @@ fn rooted_native_helpers_separate_disposable_and_auxiliary_artifacts() {
     let output_only = scratch.join("output-only");
     let full = scratch.join("full");
 
-    compile_rooted_canary_for_native_host(&canary, output_only.clone())
+    let output_only_report = compile_rooted_canary_for_native_host(&canary, output_only.clone())
         .expect("ordinary rooted native helper should compile");
     compile_rooted_canary_for_native_host_with_auxiliary_artifacts(&canary, full.clone())
         .expect("explicit rooted report helper should compile");
 
     assert_native_exit_code(
-        &output_only,
+        &output_only_report,
         0,
         "output-only rooted linear transfer and consume canary",
     );
 
     assert!(output_only.join(executable_name()).is_file());
-    assert_native_exit_code(&output_only, 0, "output-only rooted helper canary");
+    assert_native_exit_code(&output_only_report, 0, "output-only rooted helper canary");
     assert!(!output_only.join("backend_report.txt").exists());
     assert!(full.join(executable_name()).is_file());
     assert!(full.join("backend_report.txt").is_file());
@@ -439,9 +442,10 @@ fn backend_report_renders_ownership_summary_events() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host_with_auxiliary_artifacts(&canary, build_dir.clone())
-        .expect("linear transfer and consume canary should compile from its authored root");
-    assert_native_exit_code(&build_dir, 0, "linear transfer and consume canary");
+    let compilation =
+        compile_rooted_canary_for_native_host_with_auxiliary_artifacts(&canary, build_dir.clone())
+            .expect("linear transfer and consume canary should compile from its authored root");
+    assert_native_exit_code(&compilation, 0, "linear transfer and consume canary");
 
     let report = fs::read_to_string(build_dir.join("backend_report.txt"))
         .expect("backend report should be written");
@@ -517,9 +521,10 @@ fn backend_report_renders_transparent_record_claim_paths() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host_with_auxiliary_artifacts(&canary, build_dir.clone())
-        .expect("transparent record frontier canary should compile from its authored root");
-    assert_native_exit_code(&build_dir, 0, "transparent record frontier canary");
+    let compilation =
+        compile_rooted_canary_for_native_host_with_auxiliary_artifacts(&canary, build_dir.clone())
+            .expect("transparent record frontier canary should compile from its authored root");
+    assert_native_exit_code(&compilation, 0, "transparent record frontier canary");
 
     let report = fs::read_to_string(build_dir.join("backend_report.txt"))
         .expect("backend report should be written");
@@ -576,9 +581,10 @@ fn backend_report_realizes_state_call_entry_at_call_site() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host_with_auxiliary_artifacts(&canary, build_dir.clone())
-        .expect("linear state-call handoff canary should compile from its authored root");
-    assert_native_exit_code(&build_dir, 0, "linear state-call handoff canary");
+    let compilation =
+        compile_rooted_canary_for_native_host_with_auxiliary_artifacts(&canary, build_dir.clone())
+            .expect("linear state-call handoff canary should compile from its authored root");
+    assert_native_exit_code(&compilation, 0, "linear state-call handoff canary");
 
     let report = fs::read_to_string(build_dir.join("backend_report.txt"))
         .expect("backend report should be written");
@@ -618,12 +624,13 @@ fn backend_report_separates_transition_and_nested_call_ordinals() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host_with_auxiliary_artifacts(&canary, build_dir.clone())
-        .expect(
-            "linear nested-call transition handoff canary should compile from its authored root",
-        );
+    let compilation = compile_rooted_canary_for_native_host_with_auxiliary_artifacts(
+        &canary,
+        build_dir.clone(),
+    )
+    .expect("linear nested-call transition handoff canary should compile from its authored root");
     assert_native_exit_code(
-        &build_dir,
+        &compilation,
         0,
         "linear nested-call transition handoff canary",
     );
@@ -681,12 +688,13 @@ fn backend_report_separates_repeated_transition_call_ordinals() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host_with_auxiliary_artifacts(&canary, build_dir.clone())
-        .expect(
-            "repeated-target linear transition-call canary should compile from its authored root",
-        );
+    let compilation = compile_rooted_canary_for_native_host_with_auxiliary_artifacts(
+        &canary,
+        build_dir.clone(),
+    )
+    .expect("repeated-target linear transition-call canary should compile from its authored root");
     assert_native_exit_code(
-        &build_dir,
+        &compilation,
         0,
         "repeated-target linear transition-call canary",
     );
@@ -888,9 +896,10 @@ fn backend_report_preserves_fresh_state_call_result_origin() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host_with_auxiliary_artifacts(&canary, build_dir.clone())
-        .expect("fresh linear state-call result canary should compile from its authored root");
-    assert_native_exit_code(&build_dir, 0, "fresh linear state-call result canary");
+    let compilation =
+        compile_rooted_canary_for_native_host_with_auxiliary_artifacts(&canary, build_dir.clone())
+            .expect("fresh linear state-call result canary should compile from its authored root");
+    assert_native_exit_code(&compilation, 0, "fresh linear state-call result canary");
 
     let report = fs::read_to_string(build_dir.join("backend_report.txt"))
         .expect("backend report should be written");
@@ -930,12 +939,13 @@ fn backend_report_preserves_path_aligned_multi_claim_state_result() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host_with_auxiliary_artifacts(&canary, build_dir.clone())
-        .expect(
-            "path-aligned multi-claim state result canary should compile from its authored root",
-        );
+    let compilation = compile_rooted_canary_for_native_host_with_auxiliary_artifacts(
+        &canary,
+        build_dir.clone(),
+    )
+    .expect("path-aligned multi-claim state result canary should compile from its authored root");
     assert_native_exit_code(
-        &build_dir,
+        &compilation,
         0,
         "path-aligned multi-claim state result canary",
     );
@@ -972,9 +982,10 @@ fn backend_report_preserves_direct_aggregate_state_result_mapping() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host_with_auxiliary_artifacts(&canary, build_dir.clone())
-        .expect("direct aggregate state result canary should compile from its authored root");
-    assert_native_exit_code(&build_dir, 0, "direct aggregate state result canary");
+    let compilation =
+        compile_rooted_canary_for_native_host_with_auxiliary_artifacts(&canary, build_dir.clone())
+            .expect("direct aggregate state result canary should compile from its authored root");
+    assert_native_exit_code(&compilation, 0, "direct aggregate state result canary");
 
     let report = fs::read_to_string(build_dir.join("backend_report.txt"))
         .expect("backend report should be written");
