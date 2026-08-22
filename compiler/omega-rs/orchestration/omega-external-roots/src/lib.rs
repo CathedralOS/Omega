@@ -1702,6 +1702,8 @@ pub struct AdmittedTerminalProviderExecution {
 #[derive(Debug, PartialEq, Eq)]
 pub struct PreparedExternalRootPostHandoffWriterInvocation {
     provider_execution: AdmittedTerminalProviderExecution,
+    selected_entry: EntryStubId,
+    selected_entry_source_slot: usize,
     architecture: omega_target::Architecture,
     invocation: PostHandoffWriterInvocationPlan,
     writer: PostHandoffWriterPlan,
@@ -1716,6 +1718,8 @@ pub struct PreparedExternalRootPostHandoffWriterInvocation {
 #[must_use = "written external-root destination retains provider and mapping custody"]
 pub struct WrittenExternalRootPostHandoffWriterDestination<'mapping, 'bytes> {
     provider_execution: AdmittedTerminalProviderExecution,
+    selected_entry: EntryStubId,
+    selected_entry_source_slot: usize,
     architecture: omega_target::Architecture,
     invocation: PostHandoffWriterInvocationPlan,
     writer: PostHandoffWriterPlan,
@@ -1776,6 +1780,11 @@ impl PreparedExternalRootPostHandoffWriterInvocation {
                 "prepared external-root writer no longer matches its retained invocation".into(),
             ));
         }
+        validate_selected_entry_source(
+            &self.invocation,
+            self.selected_entry,
+            self.selected_entry_source_slot,
+        )?;
         if !self.context.binds_invocation(&self.invocation) {
             return Err(psi_layout_plans::MaterializationDiagnostic(
                 "prepared external-root writer context no longer binds its retained invocation"
@@ -1800,6 +1809,14 @@ impl PreparedExternalRootPostHandoffWriterInvocation {
 
     pub const fn provider_execution(&self) -> AdmittedTerminalProviderExecution {
         self.provider_execution
+    }
+
+    pub const fn selected_entry(&self) -> EntryStubId {
+        self.selected_entry
+    }
+
+    pub const fn selected_entry_source_slot(&self) -> usize {
+        self.selected_entry_source_slot
     }
 
     pub const fn architecture(&self) -> omega_target::Architecture {
@@ -1849,6 +1866,8 @@ impl PreparedExternalRootPostHandoffWriterInvocation {
         }
         let Self {
             provider_execution,
+            selected_entry,
+            selected_entry_source_slot,
             architecture,
             invocation,
             writer,
@@ -1862,6 +1881,8 @@ impl PreparedExternalRootPostHandoffWriterInvocation {
                     return Err(Box::new(PreparedExternalRootWriterExecutionError {
                         prepared: Self {
                             provider_execution,
+                            selected_entry,
+                            selected_entry_source_slot,
                             architecture,
                             invocation,
                             writer,
@@ -1873,6 +1894,8 @@ impl PreparedExternalRootPostHandoffWriterInvocation {
                 }
                 Ok(WrittenExternalRootPostHandoffWriterDestination {
                     provider_execution,
+                    selected_entry,
+                    selected_entry_source_slot,
                     architecture,
                     invocation,
                     writer,
@@ -1885,6 +1908,8 @@ impl PreparedExternalRootPostHandoffWriterInvocation {
                 Err(Box::new(PreparedExternalRootWriterExecutionError {
                     prepared: Self {
                         provider_execution,
+                        selected_entry,
+                        selected_entry_source_slot,
                         architecture,
                         invocation,
                         writer,
@@ -1901,6 +1926,14 @@ impl PreparedExternalRootPostHandoffWriterInvocation {
 impl<'mapping, 'bytes> WrittenExternalRootPostHandoffWriterDestination<'mapping, 'bytes> {
     pub const fn provider_execution(&self) -> AdmittedTerminalProviderExecution {
         self.provider_execution
+    }
+
+    pub const fn selected_entry(&self) -> EntryStubId {
+        self.selected_entry
+    }
+
+    pub const fn selected_entry_source_slot(&self) -> usize {
+        self.selected_entry_source_slot
     }
 
     pub const fn architecture(&self) -> omega_target::Architecture {
@@ -1926,8 +1959,18 @@ impl<'mapping, 'bytes> WrittenExternalRootPostHandoffWriterDestination<'mapping,
     ) -> Result<(), psi_layout_plans::MaterializationDiagnostic> {
         self.invocation.validate_structure()?;
         let replayed_invocation = self.writer.lower_reusable_fragment()?;
-        if replayed_invocation != self.invocation
-            || self.architecture != installed_code.architecture()
+        if replayed_invocation != self.invocation {
+            return Err(psi_layout_plans::MaterializationDiagnostic(
+                "written external-root destination does not retain its exact provider preparation and invocation"
+                    .into(),
+            ));
+        }
+        validate_selected_entry_source(
+            &self.invocation,
+            self.selected_entry,
+            self.selected_entry_source_slot,
+        )?;
+        if self.architecture != installed_code.architecture()
             || !self.written.context().binds_invocation(&self.invocation)
             || self.written.context().normalized_fragment_fingerprint()
                 != self.invocation.fragment().fingerprint()
@@ -1970,6 +2013,8 @@ impl<'mapping, 'bytes> WrittenExternalRootPostHandoffWriterDestination<'mapping,
         }
         let Self {
             provider_execution,
+            selected_entry,
+            selected_entry_source_slot,
             architecture,
             invocation,
             writer,
@@ -1979,6 +2024,8 @@ impl<'mapping, 'bytes> WrittenExternalRootPostHandoffWriterDestination<'mapping,
         Ok((
             PreparedExternalRootPostHandoffWriterInvocation {
                 provider_execution,
+                selected_entry,
+                selected_entry_source_slot,
                 architecture,
                 invocation,
                 writer,
@@ -1992,6 +2039,8 @@ impl<'mapping, 'bytes> WrittenExternalRootPostHandoffWriterDestination<'mapping,
         self,
     ) -> (
         AdmittedTerminalProviderExecution,
+        EntryStubId,
+        usize,
         omega_target::Architecture,
         PostHandoffWriterInvocationPlan,
         PostHandoffWriterPlan,
@@ -1999,12 +2048,59 @@ impl<'mapping, 'bytes> WrittenExternalRootPostHandoffWriterDestination<'mapping,
     ) {
         (
             self.provider_execution,
+            self.selected_entry,
+            self.selected_entry_source_slot,
             self.architecture,
             self.invocation,
             self.writer,
             self.written,
         )
     }
+}
+
+fn selected_entry_source_slot(
+    invocation: &PostHandoffWriterInvocationPlan,
+    selected_entry: EntryStubId,
+) -> Result<usize, psi_layout_plans::MaterializationDiagnostic> {
+    invocation.validate_structure()?;
+    let target = RelocationTarget::Entry(selected_entry);
+    let mut matches = invocation
+        .sources()
+        .iter()
+        .enumerate()
+        .filter(|(_, source)| source.target == target);
+    let Some((source_slot, source)) = matches.next() else {
+        return Err(psi_layout_plans::MaterializationDiagnostic(
+            "post-handoff writer does not contain the admitted external-root entry".into(),
+        ));
+    };
+    if matches.next().is_some() {
+        return Err(psi_layout_plans::MaterializationDiagnostic(
+            "post-handoff writer repeats the admitted external-root entry source".into(),
+        ));
+    }
+    if source.source != psi_layout_plans::PostHandoffWriterSource::Resolve(target) {
+        return Err(psi_layout_plans::MaterializationDiagnostic(
+            "post-handoff writer must resolve the admitted external-root entry through its sealed provider context"
+                .into(),
+        ));
+    }
+    Ok(source_slot)
+}
+
+fn validate_selected_entry_source(
+    invocation: &PostHandoffWriterInvocationPlan,
+    selected_entry: EntryStubId,
+    retained_source_slot: usize,
+) -> Result<(), psi_layout_plans::MaterializationDiagnostic> {
+    let replayed_source_slot = selected_entry_source_slot(invocation, selected_entry)?;
+    if replayed_source_slot != retained_source_slot {
+        return Err(psi_layout_plans::MaterializationDiagnostic(
+            "post-handoff writer selected-entry source-slot correspondence does not match its retained preparation"
+                .into(),
+        ));
+    }
+    Ok(())
 }
 
 impl AdmittedTerminalProviderExecution {
@@ -2170,16 +2266,8 @@ impl ProviderExecution {
         let invocation = writer
             .lower_reusable_fragment()
             .map_err(|error| ExternalRootDiagnostic(error.0))?;
-        let selected_entry = RelocationTarget::Entry(self.entry);
-        if !invocation
-            .sources()
-            .iter()
-            .any(|source| source.target == selected_entry)
-        {
-            return Err(ExternalRootDiagnostic(
-                "post-handoff writer does not contain the admitted external-root entry".into(),
-            ));
-        }
+        let selected_entry_source_slot = selected_entry_source_slot(&invocation, self.entry)
+            .map_err(|diagnostic| ExternalRootDiagnostic(diagnostic.0))?;
 
         let context = installed_code
             .populate_post_handoff_entry_writer_context(writer, destination_len, destination_site)
@@ -2192,6 +2280,8 @@ impl ProviderExecution {
         }
         Ok(PreparedExternalRootPostHandoffWriterInvocation {
             provider_execution: self.terminal_binding(),
+            selected_entry: self.entry,
+            selected_entry_source_slot,
             architecture: installed_code.architecture(),
             invocation,
             writer: writer.clone(),
@@ -4985,6 +5075,20 @@ mod tests {
                 .contains("does not contain the admitted external-root entry")
         );
 
+        let mut pre_resolved_writer = writer.clone();
+        pre_resolved_writer.steps[0].source =
+            psi_layout_plans::PostHandoffWriterSource::Resolved(0x1010);
+        let error = execution
+            .prepare_post_handoff_entry_writer(
+                selected_plan,
+                &code,
+                &pre_resolved_writer,
+                16,
+                writer_site(0x8000),
+            )
+            .expect_err("a copied numeric entry cannot replace provider resolution");
+        assert!(error.0.contains("sealed provider context"));
+
         let error = execution
             .prepare_post_handoff_entry_writer(
                 selected_plan,
@@ -5009,6 +5113,8 @@ mod tests {
             )
             .expect("exact selected execution, entry writer, resolver, and placement");
         assert_eq!(prepared.provider_execution(), execution.terminal_binding());
+        assert_eq!(prepared.selected_entry(), entry);
+        assert_eq!(prepared.selected_entry_source_slot(), 0);
         assert_eq!(prepared.architecture(), code.architecture());
         assert!(prepared.context().binds_invocation(prepared.invocation()));
     }
@@ -5045,6 +5151,12 @@ mod tests {
             .writer
             .lower_reusable_fragment()
             .expect("restore exact retained invocation");
+        prepared.selected_entry_source_slot = 1;
+        let error = prepared
+            .validate_execution(&code)
+            .expect_err("selected-entry source-slot drift must reject");
+        assert!(error.0.contains("source-slot correspondence"));
+        prepared.selected_entry_source_slot = 0;
         prepared
             .validate_execution(&code)
             .expect("corrected retained invocation supports retry");

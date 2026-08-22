@@ -327,6 +327,8 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
         .validate_for_consumer(&installed_code)
         .expect("unchanged written bound carrier supports corrected consumer retry");
     assert_eq!(written.written().provider_execution(), bound_provider);
+    assert_eq!(written.written().selected_entry(), entry);
+    assert_eq!(written.written().selected_entry_source_slot(), 0);
     assert_eq!(
         written.written().written().installed_code(),
         installed_code.identity()
@@ -347,8 +349,18 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
         .expect("recovered writer and destination execute again");
     let (retained_lowered, written) = written.into_parts();
     assert_eq!(retained_lowered, bound_lowered);
-    let (provider_execution, architecture, invocation, _writer, written) = written.into_parts();
+    let (
+        provider_execution,
+        selected_entry,
+        selected_entry_source_slot,
+        architecture,
+        invocation,
+        _writer,
+        written,
+    ) = written.into_parts();
     assert_eq!(provider_execution, bound_provider);
+    assert_eq!(selected_entry, entry);
+    assert_eq!(selected_entry_source_slot, 0);
     assert_eq!(architecture, installed_code.architecture());
     assert_eq!(&invocation, retained_lowered.invocation());
     let (_mapping, _receipt, _site, _bytes) = written.into_parts();
