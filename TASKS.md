@@ -1457,13 +1457,14 @@ Remaining:
   shift/cast, joins, and correlated results remain trusted-reducer work, and
   `fully-derived false` is unchanged. The root-bound child may now also come
   from exactly one retained same-carrier `root == literal` fact when that
-  literal is the canonical bound endpoint. The producer builds the closed
-  reflexive order, substitutes the root endpoint once, then applies the cast
-  rule; reconstruction independently selects the same exact equality. Direct
-  bounds remain preferred. Missing, redirected, mistyped, or changed endpoint
-  facts reject. Stronger-literal bridges, root aliases, affine/cast,
-  shift/cast, joins, and correlated results remain outside this fixed sibling;
-  neither complete exact row changes trust and `fully-derived false` remains.
+  literal equals or strengthens the canonical bound endpoint. The producer
+  remaps the endpoint into the source carrier, checks the closed bridge to the
+  landed literal, substitutes the root endpoint once, then applies the cast
+  rule; reconstruction independently selects the same exact equality and
+  rechecks the bridge. Direct bounds remain preferred. Missing, redirected,
+  mistyped, or weaker facts reject. Root aliases, affine/cast, shift/cast,
+  joins, and correlated results remain outside this fixed sibling; neither
+  complete exact row changes trust and `fully-derived false` remains.
   A third
   non-serialized common checker now normalizes the
   complete exact-shift core shared by direct, cast-adjacent, affine-adjacent,
@@ -2782,14 +2783,15 @@ Remaining N6/N8 work:
   are each exact-unique, the machine has exactly that one state, and its body
   contains no transition, the plan now records that this fallthrough path
   exhausts the owner's normal result exits. Duplicate identities, another
-  state, or any transition retain no single-state coverage claim. One exact
-  two-state sibling now also proves complete coverage when the only other state
-  contains one unconditional ordinary named transition to the result state, has
-  no continuation, and the result state retains the unchanged transition-free
-  fallthrough root. Redirected targets, conditional/crash transitions,
-  continuations, extra statements, or a third state reject. General
-  conditional, cyclic, or multi-hop forwarding remains unresolved. These
-  result-flow certificates prove no effect, contract, or `Respects` obligation.
+  state, or any transition retain no single-state coverage claim. A finite
+  sibling-state graph now also proves complete coverage when every non-result
+  state contains exactly one unconditional ordinary named transition, every
+  target is a unique state in the same machine, every path reaches the result
+  state, and that state retains the unchanged transition-free fallthrough root.
+  Conditional/crash transitions, continuations, extra statements, foreign or
+  missing targets, cycles, and duplicate state identities reject. This is one
+  bounded graph walk, not a hop-count permutation ladder. These result-flow
+  certificates prove no effect, contract, or `Respects` obligation.
   Every request still rejects as non-executable until all remaining obligations
   are checked and retained in checked/terminal identity.
 - Suppress every synthesized representation observer on quotient formation.

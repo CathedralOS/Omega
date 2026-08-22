@@ -152,7 +152,7 @@ fn reject_quotient_operation_requests(program: &TypedTrees, diagnostics: &mut Ve
                         result_root,
                     );
                     let complete_forwarded_result_flow = complete_result_flow.is_none().then(|| {
-                        relation_plan::complete_one_hop_state_forwarding_result_flow(
+                        relation_plan::complete_state_forwarding_result_flow(
                             program,
                             machine,
                             state,
@@ -194,7 +194,7 @@ fn reject_quotient_operation_requests(program: &TypedTrees, diagnostics: &mut Ve
                         )
                     } else if complete_forwarded_result_flow.is_some() {
                         format!(
-                            "complete one-hop state-forwarded normal-result coverage through {result_path}"
+                            "complete finite state-forwarded normal-result coverage through {result_path}"
                         )
                     } else {
                         format!("one unchanged state-fallthrough result edge through {result_path}")
