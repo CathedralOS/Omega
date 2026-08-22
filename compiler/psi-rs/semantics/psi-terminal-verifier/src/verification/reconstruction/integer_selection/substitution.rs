@@ -3,7 +3,7 @@
 use psi_core::{Proposition, PropositionContext, ScalarTerm};
 
 use super::super::affine_selection;
-use super::{closed_transitive_integer_bound, retained_two_fact_transitive_integer_bound};
+use super::order::{closed_transitive_integer_bound, retained_two_fact_transitive_integer_bound};
 
 pub(super) fn retained(
     context: Option<&PropositionContext>,

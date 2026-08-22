@@ -5,7 +5,7 @@ use psi_proof_kernel::{ProofNode, ProofRule};
 
 use super::super::affine_selection;
 use super::super::integer_evidence::{cited_facts, closed_integer_relation};
-use super::{
+use super::order::{
     prove_exact_or_closed_transitive_integer_bound, prove_two_fact_transitive_integer_bound,
 };
 
