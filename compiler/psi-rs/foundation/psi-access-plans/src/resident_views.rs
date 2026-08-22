@@ -9,7 +9,7 @@ use super::{
     DormantOwnedResident, ObservationModel, PlacedFieldProjection, PlacedOccurrenceId,
     PlacementAdmissionId, PlacementAuthorityRef, PlacementResourceCompatibility,
     ResourceProfileReceiptId, ValidatedPlacementPlan, project_placed_field,
-    validate_owned_resident_authority,
+    validate_owned_resident_authority, validate_placement_admission,
 };
 use psi_extents::{
     ExtentContentCustodyReceiptId, ExtentContentValidityReceiptId, ExtentLoan, LoanPolarity,
@@ -119,6 +119,30 @@ pub struct EstablishedBorrowedResidentPlacement<'resident> {
     custody_receipt: ExtentContentCustodyReceiptId,
 }
 
+/// Failed borrowed-resident retirement returns the complete active carrier.
+/// No loan is released and no resident identity or provider receipt is
+/// reconstructed from copied fields on rejection.
+#[derive(Debug)]
+pub struct BorrowedResidentRetirementError<'resident> {
+    established: EstablishedBorrowedResidentPlacement<'resident>,
+    diagnostic: AccessPlanDiagnostic,
+}
+
+impl<'resident> BorrowedResidentRetirementError<'resident> {
+    pub const fn diagnostic(&self) -> &AccessPlanDiagnostic {
+        &self.diagnostic
+    }
+
+    pub fn into_parts(
+        self,
+    ) -> (
+        EstablishedBorrowedResidentPlacement<'resident>,
+        AccessPlanDiagnostic,
+    ) {
+        (self.established, self.diagnostic)
+    }
+}
+
 impl<'resident> EstablishedBorrowedResidentPlacement<'resident> {
     pub const fn admission(&self) -> PlacementAdmissionId {
         self.admission
@@ -209,7 +233,45 @@ impl<'resident> EstablishedBorrowedResidentPlacement<'resident> {
         )
     }
 
+    fn validate_retirement_authority(&self) -> Result<(), AccessPlanDiagnostic> {
+        if self.profile.receipt() != self.profile_receipt {
+            return Err(AccessPlanDiagnostic(
+                "borrowed resident retirement profile receipt differs from its retained admitted profile"
+                    .into(),
+            ));
+        }
+        let replayed = validate_placement_admission(&self.loan, &self.plan, &self.profile)
+            .map_err(|diagnostic| {
+                AccessPlanDiagnostic(format!(
+                    "borrowed resident retirement could not replay the retained placement authority: {diagnostic}"
+                ))
+            })?;
+        if replayed != self.resources {
+            return Err(AccessPlanDiagnostic(
+                "borrowed resident retirement replayed resource compatibility differs from the retained active carrier"
+                    .into(),
+            ));
+        }
+        Ok(())
+    }
+
     /// Explicitly end this placed occurrence and release its exact loan. The
     /// lender's dormant resident claim and provider receipts remain unchanged.
-    pub fn retire(self) {}
+    pub fn retire(self) -> Result<(), BorrowedResidentRetirementError<'resident>> {
+        if let Err(diagnostic) = self.validate_retirement_authority() {
+            return Err(BorrowedResidentRetirementError {
+                established: self,
+                diagnostic,
+            });
+        }
+        Ok(())
+    }
+
+    #[cfg(test)]
+    pub(super) fn replace_profile_for_test(
+        &mut self,
+        profile: AdmittedResourceProfile,
+    ) -> AdmittedResourceProfile {
+        std::mem::replace(&mut self.profile, profile)
+    }
 }

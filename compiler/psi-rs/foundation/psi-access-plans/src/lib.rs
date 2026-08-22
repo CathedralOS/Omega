@@ -22,7 +22,7 @@ use psi_layout_plans::{
 
 mod resident_views;
 
-pub use resident_views::EstablishedBorrowedResidentPlacement;
+pub use resident_views::{BorrowedResidentRetirementError, EstablishedBorrowedResidentPlacement};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct BoundaryServiceReachId(u64);
@@ -6380,7 +6380,29 @@ mod tests {
                 .write()
                 .expect_err("shared resident loan cannot authorize a write");
             assert!(diagnostic.0.contains("Shared source loan"));
-            borrowed.retire();
+
+            let coincident = uart_extent_with_lineage(0xa100, 4, 203);
+            let wrong_profile = stable_word_profile(&coincident);
+            let correct_profile = borrowed.replace_profile_for_test(wrong_profile);
+            let rejection = borrowed
+                .retire()
+                .expect_err("shared resident retirement must replay exact loan authority");
+            assert!(rejection.diagnostic().0.contains("retirement"));
+            assert!(
+                rejection
+                    .diagnostic()
+                    .0
+                    .contains("retained placement authority")
+            );
+            let (mut borrowed, _) = rejection.into_parts();
+            assert_eq!(borrowed.resident_claim(), claim);
+            assert_eq!(borrowed.occurrence(), shared_occurrence);
+            assert_eq!(borrowed.validity_receipt(), validity);
+            assert_eq!(borrowed.custody_receipt(), custody);
+            borrowed.replace_profile_for_test(correct_profile);
+            borrowed
+                .retire()
+                .expect("returned shared resident carrier supports corrected retirement");
         }
         assert_eq!(dormant.resident_claim(), claim);
         assert_eq!(dormant.validity_receipt(), validity);
@@ -6416,7 +6438,9 @@ mod tests {
             assert_eq!(request.resident_claim(), Some(claim));
             assert_eq!(request.placed_occurrence(), Some(exclusive_occurrence));
             drop(request);
-            borrowed.retire();
+            borrowed
+                .retire()
+                .expect("exclusive resident retirement replays exact loan authority");
         }
 
         assert_eq!(dormant.resident_claim(), claim);
