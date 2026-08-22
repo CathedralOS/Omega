@@ -20,12 +20,13 @@ pub struct SelectedExternalRootProviderPlan {
     pub schema: ServiceSchema,
 }
 
-/// One exact selected source schema sealed to the provider-populated writer
-/// preparation it admitted. Binding consumes this carrier as a unit, so a
-/// caller cannot substitute another same-plan schema after source resolution.
+/// One exact selected source schema and AOT-lowered writer sealed to the
+/// provider-populated preparation they admitted. Lowering is checked before
+/// source resolution, and binding consumes this carrier as a unit.
 #[derive(Debug, PartialEq, Eq)]
 pub struct SelectedExternalRootPostHandoffWriterPreparation {
     selected_provider: SelectedExternalRootProviderPlan,
+    lowered: omega_instruction_selection::LoweredPostHandoffWriter,
     prepared: omega_external_roots::PreparedExternalRootPostHandoffWriterInvocation,
 }
 
@@ -39,14 +40,19 @@ impl SelectedExternalRootPostHandoffWriterPreparation {
     ) -> &omega_external_roots::PreparedExternalRootPostHandoffWriterInvocation {
         &self.prepared
     }
+
+    pub const fn lowered(&self) -> &omega_instruction_selection::LoweredPostHandoffWriter {
+        &self.lowered
+    }
 }
 
-/// Preparation rejection returns the exact selected schema. Provider
-/// execution, installed code, writer, and placement are borrowed inputs and
-/// therefore remain with the caller unchanged.
+/// Preparation rejection returns the exact selected schema and lowered writer.
+/// Provider execution, installed code, writer, and placement are borrowed
+/// inputs and therefore remain with the caller unchanged.
 #[derive(Debug)]
 pub struct SelectedExternalRootWriterPreparationError {
     selected_provider: SelectedExternalRootProviderPlan,
+    lowered: omega_instruction_selection::LoweredPostHandoffWriter,
     diagnostic: omega_external_roots::ExternalRootDiagnostic,
 }
 
@@ -55,8 +61,13 @@ impl SelectedExternalRootWriterPreparationError {
         &self.diagnostic
     }
 
-    pub fn into_selected_provider(self) -> SelectedExternalRootProviderPlan {
-        self.selected_provider
+    pub fn into_parts(
+        self,
+    ) -> (
+        SelectedExternalRootProviderPlan,
+        omega_instruction_selection::LoweredPostHandoffWriter,
+    ) {
+        (self.selected_provider, self.lowered)
     }
 }
 
@@ -219,13 +230,12 @@ impl<'mapping, 'bytes> WrittenBoundExternalRootPostHandoffWriterDestination<'map
     }
 }
 
-/// A failed source-schema/AOT/provider-preparation join returns every exact
-/// input so callers can inspect or retry them without regenerating lowered
-/// bytes or provider authority.
+/// A failed replay of the sealed source-schema/AOT/provider preparation
+/// returns that complete preparation without regenerating lowered bytes or
+/// provider authority.
 #[derive(Debug)]
 pub struct ExternalRootPostHandoffWriterBindingError {
     preparation: SelectedExternalRootPostHandoffWriterPreparation,
-    lowered: omega_instruction_selection::LoweredPostHandoffWriter,
     diagnostic: psi_diagnostics::Diagnostic,
 }
 
@@ -234,13 +244,8 @@ impl ExternalRootPostHandoffWriterBindingError {
         &self.diagnostic
     }
 
-    pub fn into_parts(
-        self,
-    ) -> (
-        omega_instruction_selection::LoweredPostHandoffWriter,
-        SelectedExternalRootPostHandoffWriterPreparation,
-    ) {
-        (self.lowered, self.preparation)
+    pub fn into_preparation(self) -> SelectedExternalRootPostHandoffWriterPreparation {
+        self.preparation
     }
 }
 
@@ -425,22 +430,20 @@ fn validate_selected_provider_source(
     Ok(())
 }
 
-/// Join an AOT-lowered writer fragment and retained selected source schema to
-/// provider-execution preparation that already checked selected closure,
-/// installed entry, symbolic sources, and concrete destination placement.
+/// Independently replay one selected source schema, AOT-lowered writer, and
+/// provider preparation before transferring them to executable custody.
 pub fn bind_external_root_post_handoff_writer_invocation(
-    lowered: omega_instruction_selection::LoweredPostHandoffWriter,
     preparation: SelectedExternalRootPostHandoffWriterPreparation,
 ) -> Result<BoundExternalRootPostHandoffWriterInvocation, ExternalRootPostHandoffWriterBindingError>
 {
     let selected_provider = preparation.selected_provider();
+    let lowered = preparation.lowered();
     let prepared = preparation.prepared();
     if let Err(diagnostic) =
-        omega_instruction_selection::validate_lowered_post_handoff_writer(&lowered)
+        omega_instruction_selection::validate_lowered_post_handoff_writer(lowered)
     {
         return Err(ExternalRootPostHandoffWriterBindingError {
             preparation,
-            lowered,
             diagnostic,
         });
     }
@@ -452,7 +455,6 @@ pub fn bind_external_root_post_handoff_writer_invocation(
         ));
         return Err(ExternalRootPostHandoffWriterBindingError {
             preparation,
-            lowered,
             diagnostic,
         });
     }
@@ -463,7 +465,6 @@ pub fn bind_external_root_post_handoff_writer_invocation(
     {
         return Err(ExternalRootPostHandoffWriterBindingError {
             preparation,
-            lowered,
             diagnostic: psi_diagnostics::Diagnostic::error(
                 "external-root provider preparation does not bind the exact lowered post-handoff writer invocation",
             ),
@@ -472,12 +473,12 @@ pub fn bind_external_root_post_handoff_writer_invocation(
     if let Err(diagnostic) = validate_selected_provider_writer_source(selected_provider, prepared) {
         return Err(ExternalRootPostHandoffWriterBindingError {
             preparation,
-            lowered,
             diagnostic: psi_diagnostics::Diagnostic::error(diagnostic.0),
         });
     }
     let SelectedExternalRootPostHandoffWriterPreparation {
         selected_provider,
+        lowered,
         prepared,
     } = preparation;
     Ok(BoundExternalRootPostHandoffWriterInvocation {
@@ -692,10 +693,12 @@ impl SelectedExternalRootProviderPlan {
     ///
     /// The selected-plan fingerprint remains identity rather than authority;
     /// the sealed execution and installed-code resolver provide the authority.
-    /// Matching it here prevents accidental closure substitution between
-    /// selection and writer preparation.
+    /// Exact AOT bytes, architecture, and writer invocation are preflighted
+    /// before the installed resolver may observe any symbolic source. Matching
+    /// the schema here also prevents closure substitution during preparation.
     pub fn prepare_post_handoff_entry_writer(
         self,
+        lowered: omega_instruction_selection::LoweredPostHandoffWriter,
         execution: &omega_external_roots::ProviderExecution,
         installed_code: &omega_executable_installation::InstalledCode,
         writer: &psi_layout_plans::PostHandoffWriterPlan,
@@ -708,8 +711,48 @@ impl SelectedExternalRootProviderPlan {
         if self.identity != execution.provider_plan() {
             return Err(SelectedExternalRootWriterPreparationError {
                 selected_provider: self,
+                lowered,
                 diagnostic: omega_external_roots::ExternalRootDiagnostic(
                     "post-handoff writer selected provider plan does not match the admitted provider execution"
+                        .into(),
+                ),
+            });
+        }
+        if let Err(diagnostic) =
+            omega_instruction_selection::validate_lowered_post_handoff_writer(&lowered)
+        {
+            return Err(SelectedExternalRootWriterPreparationError {
+                selected_provider: self,
+                lowered,
+                diagnostic: omega_external_roots::ExternalRootDiagnostic(diagnostic.message),
+            });
+        }
+        if lowered.fragment().target().architecture != installed_code.architecture() {
+            return Err(SelectedExternalRootWriterPreparationError {
+                selected_provider: self,
+                lowered,
+                diagnostic: omega_external_roots::ExternalRootDiagnostic(
+                    "post-handoff writer lowered architecture does not match the exact installed artifact"
+                        .into(),
+                ),
+            });
+        }
+        let replayed_invocation = match writer.lower_reusable_fragment() {
+            Ok(invocation) => invocation,
+            Err(diagnostic) => {
+                return Err(SelectedExternalRootWriterPreparationError {
+                    selected_provider: self,
+                    lowered,
+                    diagnostic: omega_external_roots::ExternalRootDiagnostic(diagnostic.0),
+                });
+            }
+        };
+        if lowered.invocation() != &replayed_invocation {
+            return Err(SelectedExternalRootWriterPreparationError {
+                selected_provider: self,
+                lowered,
+                diagnostic: omega_external_roots::ExternalRootDiagnostic(
+                    "AOT-lowered post-handoff writer does not match the exact provider writer plan"
                         .into(),
                 ),
             });
@@ -724,6 +767,7 @@ impl SelectedExternalRootProviderPlan {
         ) {
             return Err(SelectedExternalRootWriterPreparationError {
                 selected_provider: self,
+                lowered,
                 diagnostic: omega_external_roots::ExternalRootDiagnostic(diagnostic.0),
             });
         }
@@ -736,10 +780,12 @@ impl SelectedExternalRootProviderPlan {
         ) {
             Ok(prepared) => Ok(SelectedExternalRootPostHandoffWriterPreparation {
                 selected_provider: self,
+                lowered,
                 prepared,
             }),
             Err(diagnostic) => Err(SelectedExternalRootWriterPreparationError {
                 selected_provider: self,
+                lowered,
                 diagnostic,
             }),
         }
