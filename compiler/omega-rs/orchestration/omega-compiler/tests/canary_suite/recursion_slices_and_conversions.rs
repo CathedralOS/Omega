@@ -31,9 +31,12 @@ fn runtime_core_nat_declared_exit_canary_runs() {
     let canary = pass_canary("proofs/runtime_core_nat_declared_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-core-nat-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("core Nat canary should compile from its authored root");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("core Nat canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("core Nat canary should run");
     assert_eq!(
