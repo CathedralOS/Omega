@@ -3872,6 +3872,16 @@ Owners:
   frame write-demand summarization. The independent interpreter oracle repeats
   that frontend work, while backend emission is only 1.5 ms and `OutputOnly`
   already fences auxiliary reports.
+  A broader test-topology audit built every `omega-compiler` test binary in
+  4.61s wall, confirming that Rust test compilation is not the long pole. The
+  canary umbrella already runs independent compiles with bounded outer
+  parallelism (eight jobs by default), one inner backend worker, deterministic
+  source-ordered result collection, and exact-native duplicate elision; ordinary
+  helpers already disable auxiliary HTML/report emission through `OutputOnly`.
+  Current measurements therefore do not justify an Arena-to-PagedArena rewrite
+  or deleting report viewers for speed. Further work should target repeated
+  Stage 05 semantic compilation/search and reuse checked-report receipts where
+  one owner currently recompiles the same frontend.
   Five further authored-root lifetime/wire executions—method-view writes after
   last use, chained view-of-view writes, shrinking-slice recursion, primitive
   wire encoding, and wire era discrimination—now launch only from exact checked-
