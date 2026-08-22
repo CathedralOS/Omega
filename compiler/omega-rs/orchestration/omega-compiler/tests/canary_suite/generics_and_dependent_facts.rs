@@ -372,9 +372,12 @@ fn case_literal_texteq_field_store_exit_canary_runs() {
     );
     let build_dir = std::env::temp_dir().join(format!("omega-texteqstore-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("texteq field-store canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("texteq field-store canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("texteq field-store canary should run");
     assert_eq!(
@@ -403,9 +406,12 @@ fn runtime_text_equals_value_positions_exit_canary_runs() {
     );
     let build_dir = std::env::temp_dir().join(format!("omega-texteqval-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("texteq value-positions canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("texteq value-positions canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("texteq value-positions canary should run");
     assert_eq!(
@@ -448,9 +454,12 @@ fn runtime_branching_callee_chain_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_branching_callee_chain_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-brchain-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("branching callee chain canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("branching callee chain canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("branching callee chain canary should run");
     assert_eq!(
@@ -477,9 +486,12 @@ fn recursive_result_bind_first_arg_canary_runs() {
     let canary = pass_canary("calls/recursive_result_bind_first_arg");
     let build_dir = std::env::temp_dir().join(format!("omega-bindfirst-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("bind-first arg canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("bind-first arg canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("bind-first arg canary should run");
     assert_eq!(
@@ -498,9 +510,12 @@ fn runtime_recursive_result_roles_exit_canary_runs() {
     let canary = pass_canary("termination/runtime_recursive_result_roles_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-recroles-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("recursive result roles canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("recursive result roles canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("recursive result roles canary should run");
     assert_eq!(
