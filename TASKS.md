@@ -2539,10 +2539,12 @@ Remaining:
   left order and value eligibility; unique-source recovery, literal remapping,
   prefix-bounded affine custody, cast proof bytes, rejection order, direct-cast
   precedence, and the fixed frontier are unchanged. Direct
-  landed-literal cast completion now lives in independent side-local
-  `cast_selection/literal/completion` modules. Each parent retains its own
-  requirements-before-semantic-axioms equality discovery, orientation, and
-  typed value/literal filtering; production alone remaps the source endpoint,
+  landed-literal candidate enumeration now lives in paired, side-local
+  `cast_selection/literal/candidates` modules. Producer and reconstruction
+  independently preserve assumptions-before-semantic-axioms traversal,
+  equality orientation, and exact typed value/literal filtering; only
+  production carries citation proofs. Completion remains in independent side-
+  local `cast_selection/literal/completion` modules: production alone remaps the source endpoint,
   constructs the closed relation and one substitution proof, then completes
   the cast, while reconstruction independently replays the same endpoint,
   closed-order, root-bound, and cast checks. Direct-root, landed-literal, then
