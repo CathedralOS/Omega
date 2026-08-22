@@ -546,7 +546,11 @@ Owners:
   Every Stable primitive/compound, External primitive, and Atomic
   specialization independently replays the exact admitted effective-supply
   row—field key/name, width, authority-relative offset/address, and
-  alignment—and returns the unchanged sealed request on drift.
+  alignment—and returns the unchanged sealed request on drift. Sealed primitive
+  requests also retain their validated field descriptor; every Stable,
+  External, and Atomic specialization independently replays copied logical
+  extent, concrete footprint, observation, and operation/borrow authorization
+  before lowering, with unchanged authority-bearing custody returned on drift.
 - Implement `Extent::Resident<P, T>` as the owned exact-range dormant-content
   qualification, including invariant type indices, mutual exclusion with
   `Vacant`, split/merge rejection, borrow versus owned-view continuity,
@@ -1423,7 +1427,11 @@ Remaining:
   Candidate mapping supplies no authority: the kernel rechecks the exact
   affine conclusion and the enclosing transitivity certificate. A nonclosed,
   mistyped, redirected, or weaker bridge rejects, and no variable-endpoint or
-  cited-fact search is added. A
+  cited-fact search is added. Affine completion now lives in dedicated,
+  side-local `affine_custody` modules. Production and reconstruction
+  independently own the fixed four-definition witness frontier, exact mapped
+  bound, and optional closed relaxation; retained evidence selection remains in
+  their broader engines and no authority is shared. A
   single exact prior value equality may also transport a completed affine bound
   from its checked target alias to the canonical goal endpoint. The producer
   replaces that one endpoint, constructs the bounded affine relation directly,
@@ -2474,7 +2482,11 @@ Owners:
   wrapper evidence must rejoin the same pair rather than inventory alone. The
   receipt also retains the certificate's optional boundary-contract
   fingerprint; flat/bundle copies agree and native program-storage arrival
-  evidence must name that same concrete contract.
+  evidence must name that same concrete contract. Report validation now also
+  rejoins the retained selected entry binding's boundary-contract fingerprint
+  directly to the native flat receipt. Check-only retains that binding without
+  publication, while object-container output cannot carry it; matching arrival
+  evidence therefore cannot conceal a redirected selected binding.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
@@ -2918,14 +2930,15 @@ Remaining N6/N8 work:
   Resolved-to-typed lowering now rejects runtime `==`/`!=`, a direct
   `Equatable` conformance, and synthesized container equality through a quotient
   field. It also rejects proof-contract `zero_value<Quotient>()`; a retained
-  representative is not a compiler-verified canonical default. Record and arm
-  destructuring reject quotient subjects before field/case analysis, so an
-  empty or rest pattern cannot become a representation observer. Struct and
-  case literals likewise cannot forge a quotient value; casting an exact
-  carrier instance with `as Quotient` is the sole construction path. That
-  nominal fence runs before generic field-shape deferral, so a parameterized
-  quotient head cannot bypass it. Logical proof-position equality remains raw
-  for the exact
+  representative is not a compiler-verified canonical default. Build-time
+  layout/access schema reflection rejects a quotient directly and refuses to
+  derive a zero-byte nested record layout for one. Record and arm destructuring
+  reject quotient subjects before field/case analysis, so an empty or rest
+  pattern cannot become a representation observer. Struct and case literals
+  likewise cannot forge a quotient value; casting an exact carrier instance
+  with `as Quotient` is the sole construction path. That nominal fence runs
+  before generic field-shape deferral, so a parameterized quotient head cannot
+  bypass it. Logical proof-position equality remains raw for the exact
   quotient-congruence judge; it never lowers to representative bytes. Add
   quotient-owned executable equality through an ordinary lifted operation with
   `DecidesEquivalence`; derive its `Respects` proof, and bind its optional `==`
