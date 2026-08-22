@@ -34,6 +34,18 @@ data Nat {
     case Succ(prev: Nat);
 }
 
+// Natural order and exact subtraction are ordinary proof-number operators.
+// `<=` is the public spelling of the structural order decided below;
+// subtraction is partial at formation, with its premise carried explicitly by
+// the operator contract. The total provider is the same recursive definition
+// as `Nat::saturating_sub`, but bare `-` can select it only after proving the
+// right operand no greater than the left.
+operator <= Nat::less_or_equal(left: Nat, right: Nat) -> bool;
+
+operator - Nat::subtract(left: Nat, right: Nat) -> Nat
+requires
+    right <= left;
+
 // N4 roster operations (2026-07-11): the Peano ring surface as ordinary
 // PROOF MACHINES -- free machines over proof-only data (machine-stratum
 // contagion), structurally recursive, every self-call descending by the
@@ -405,13 +417,27 @@ machine pred(a: Nat) -> Nat
 // roster's `a <= b` spelling until an order surface lands. The settled public
 // name is `Nat::saturating_sub`; ordinary `Nat - Nat` is Exact and requires
 // `b <= a` at formation. This named monus and its proof corpus remain distinct
-// from that future operator rather than silently routing bare `-` to clamping.
+// from the exact operator above rather than silently routing bare `-` to
+// clamping.
 machine saturating_sub(a: Nat, b: Nat) -> Nat
+satisfies Nat::subtract
 terminates by b;
 {
     transition b {
         Nat::Zero -> (a)
         Nat::Succ { prev } -> (pred(saturating_sub(a, prev)))
+    }
+}
+
+// The structural decision procedure behind the public order operator. This
+// machine remains proof-only because both operands are recursive Nat data; it
+// contributes no runtime representation or primitive integer fallback.
+machine less_or_equal(a: Nat, b: Nat) -> bool
+satisfies Nat::less_or_equal
+{
+    transition (saturating_sub(a, b)) {
+        Nat::Zero -> true
+        Nat::Succ { prev } -> false
     }
 }
 

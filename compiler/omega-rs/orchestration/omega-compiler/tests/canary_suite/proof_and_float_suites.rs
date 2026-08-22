@@ -416,6 +416,37 @@ fn commutative_semiring_core_canaries() {
 }
 
 #[test]
+fn exact_nat_subtraction_requires_a_prior_order_fact() {
+    let accepted = pass_canary("proofs/nat_exact_subtraction_compile");
+    check_canary(&accepted).unwrap_or_else(|diagnostics| {
+        panic!(
+            "{} failed to reach checked semantics:\n{}",
+            accepted.display(),
+            diagnostics
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join("\n")
+        )
+    });
+
+    let rejected = fail_canary("proofs/nat_exact_subtraction_requires_order");
+    let diagnostics = check_canary(&rejected)
+        .expect_err("bare Nat subtraction without its order fact must reject");
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("cannot prove `used <= total`")
+            && combined.contains("`Nat::subtract` (spelled `-`)"),
+        "{} rejected with the wrong diagnostic:\n{combined}",
+        rejected.display()
+    );
+}
+
+#[test]
 fn algebraic_normalization_requires_an_exact_licensed_conformance() {
     let licensed = pass_canary("proofs/ring_rearrange_core_nat");
     check_canary(&licensed).unwrap_or_else(|diagnostics| {
