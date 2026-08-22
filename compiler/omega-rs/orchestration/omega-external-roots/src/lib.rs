@@ -1711,12 +1711,14 @@ pub struct PreparedExternalRootPostHandoffWriterInvocation {
 #[derive(Debug)]
 pub struct PreparedExternalRootWriterExecutionError<'mapping, 'bytes> {
     prepared: PreparedExternalRootPostHandoffWriterInvocation,
-    destination_error: omega_executable_installation::DestinationWriteError<'mapping, 'bytes>,
+    destination:
+        omega_executable_installation::PreparedPostHandoffWriterDestination<'mapping, 'bytes>,
+    diagnostic: psi_layout_plans::MaterializationDiagnostic,
 }
 
 impl<'mapping, 'bytes> PreparedExternalRootWriterExecutionError<'mapping, 'bytes> {
     pub const fn diagnostic(&self) -> &psi_layout_plans::MaterializationDiagnostic {
-        self.destination_error.diagnostic()
+        &self.diagnostic
     }
 
     pub fn into_parts(
@@ -1725,11 +1727,44 @@ impl<'mapping, 'bytes> PreparedExternalRootWriterExecutionError<'mapping, 'bytes
         PreparedExternalRootPostHandoffWriterInvocation,
         omega_executable_installation::PreparedPostHandoffWriterDestination<'mapping, 'bytes>,
     ) {
-        (self.prepared, self.destination_error.into_destination())
+        (self.prepared, self.destination)
     }
 }
 
 impl PreparedExternalRootPostHandoffWriterInvocation {
+    fn validate_execution(
+        &self,
+        installed_code: &InstalledCode,
+    ) -> Result<(), psi_layout_plans::MaterializationDiagnostic> {
+        self.invocation.validate_structure()?;
+        let replayed_invocation = self.writer.lower_reusable_fragment()?;
+        if replayed_invocation != self.invocation {
+            return Err(psi_layout_plans::MaterializationDiagnostic(
+                "prepared external-root writer no longer matches its retained invocation".into(),
+            ));
+        }
+        if !self.context.binds_invocation(&self.invocation) {
+            return Err(psi_layout_plans::MaterializationDiagnostic(
+                "prepared external-root writer context no longer binds its retained invocation"
+                    .into(),
+            ));
+        }
+        if installed_code.identity() != self.context.installed_code()
+            || installed_code.artifact() != self.context.artifact()
+        {
+            return Err(psi_layout_plans::MaterializationDiagnostic(
+                "prepared external-root writer does not bind the exact installed artifact".into(),
+            ));
+        }
+        if installed_code.architecture() != self.architecture {
+            return Err(psi_layout_plans::MaterializationDiagnostic(
+                "prepared external-root writer architecture does not match the exact installed artifact"
+                    .into(),
+            ));
+        }
+        Ok(())
+    }
+
     pub const fn provider_execution(&self) -> AdmittedTerminalProviderExecution {
         self.provider_execution
     }
@@ -1761,16 +1796,28 @@ impl PreparedExternalRootPostHandoffWriterInvocation {
         omega_executable_installation::WrittenPostHandoffWriterDestination<'mapping, 'bytes>,
         Box<PreparedExternalRootWriterExecutionError<'mapping, 'bytes>>,
     > {
+        if let Err(diagnostic) = self.validate_execution(installed_code) {
+            return Err(Box::new(PreparedExternalRootWriterExecutionError {
+                prepared: self,
+                destination,
+                diagnostic,
+            }));
+        }
         match installed_code.write_prepared_post_handoff_destination(
             &self.context,
             &self.writer,
             destination,
         ) {
             Ok(written) => Ok(written),
-            Err(destination_error) => Err(Box::new(PreparedExternalRootWriterExecutionError {
-                prepared: self,
-                destination_error: *destination_error,
-            })),
+            Err(destination_error) => {
+                let diagnostic = destination_error.diagnostic().clone();
+                let destination = (*destination_error).into_destination();
+                Err(Box::new(PreparedExternalRootWriterExecutionError {
+                    prepared: self,
+                    destination,
+                    diagnostic,
+                }))
+            }
         }
     }
 }
@@ -4779,6 +4826,43 @@ mod tests {
         assert_eq!(prepared.provider_execution(), execution.terminal_binding());
         assert_eq!(prepared.architecture(), code.architecture());
         assert!(prepared.context().binds_invocation(prepared.invocation()));
+    }
+
+    #[test]
+    fn prepared_writer_execution_replays_structure_before_destination_consumption() {
+        let entry = entry_id(1001);
+        let code = installed_code(1, entry);
+        let validated = validate_external_root(candidate(entry), &boundary()).expect("root plan");
+        let execution = provider_execution(&validated);
+        let writer = entry_writer(entry);
+        let mut prepared = execution
+            .prepare_post_handoff_entry_writer(
+                execution.provider_plan(),
+                &code,
+                &writer,
+                16,
+                writer_site(0x8000),
+            )
+            .expect("exact writer preparation");
+        prepared.invocation = entry_writer(entry_id(1002))
+            .lower_reusable_fragment()
+            .expect("structurally valid sibling invocation");
+        let error = prepared
+            .validate_execution(&code)
+            .expect_err("retained writer/invocation drift must reject before destination use");
+        assert!(
+            error
+                .0
+                .contains("no longer matches its retained invocation")
+        );
+
+        prepared.invocation = prepared
+            .writer
+            .lower_reusable_fragment()
+            .expect("restore exact retained invocation");
+        prepared
+            .validate_execution(&code)
+            .expect("corrected retained invocation supports retry");
     }
 
     #[test]
