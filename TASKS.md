@@ -2896,6 +2896,13 @@ Remaining:
   endpoint and lower-versus-upper orientation. Signed carrier validation,
   checked affine mapping, sign-directed target orientation, proof shape,
   rejection, and the fixed frontier remain unchanged.
+  Checked affine scalar mapping now lives in paired, side-local
+  `affine_custody/relaxation/mapping/value` modules. Producer and reconstruction
+  independently require an exact signed-integer endpoint of the affine carrier,
+  apply checked coefficient multiplication and offset addition, and reject
+  overflow or an unrepresentable mapped scalar. Endpoint custody, sign-directed
+  target orientation, proof shape, rejection behavior, and the fixed frontier
+  remain unchanged.
   Direct retained affine-bound custody handoff now lives in paired, side-local
   `affine_selection/direct/completion` modules. The producer independently
   converts the selected origin-indexed citation into its exact proof before
