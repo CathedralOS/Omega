@@ -2429,17 +2429,7 @@ impl<'view, 'extent> PlacementAuthorityRef<'view, 'extent> {
                 established.profile(),
             ),
             Self::EstablishedOwned(established) => {
-                let extent = established.extent();
-                let loan = extent.loan(0, extent.length()).map_err(|diagnostic| {
-                    AccessPlanDiagnostic(format!(
-                        "established placement could not replay its whole-range loan: {diagnostic}"
-                    ))
-                })?;
-                validate_placement_admission(
-                    &loan,
-                    established.placement_plan(),
-                    &established.admission.profile,
-                )
+                replay_owned_admission_resources(&established.admission)
             }
         }
     }
@@ -3697,6 +3687,18 @@ fn validate_owned_stable_adoption(
     admission: &OwnedPlacementAdmission,
     content: &ProviderExistingContentGrant,
 ) -> Result<(), AccessPlanDiagnostic> {
+    let replayed_resources = replay_owned_admission_resources(admission).map_err(|diagnostic| {
+        AccessPlanDiagnostic(format!(
+            "Stable adoption could not replay the admitted resource profile: {diagnostic}"
+        ))
+    })?;
+    if replayed_resources != admission.resources {
+        return Err(AccessPlanDiagnostic(
+            "Stable adoption replayed resource compatibility differs from the owned admission"
+                .into(),
+        ));
+    }
+
     let extent = &admission.extent;
     if content.interpretation().normalized_identity()
         != admission.placement_plan.identity().normalized_identity()
@@ -3749,6 +3751,23 @@ fn validate_owned_stable_adoption(
         )));
     }
     Ok(())
+}
+
+fn replay_owned_admission_resources(
+    admission: &OwnedPlacementAdmission,
+) -> Result<PlacementResourceCompatibility, AccessPlanDiagnostic> {
+    if admission.profile.receipt() != admission.profile_receipt {
+        return Err(AccessPlanDiagnostic(
+            "owned placement profile receipt differs from its retained admitted profile".into(),
+        ));
+    }
+    let extent = &admission.extent;
+    let loan = extent.loan(0, extent.length()).map_err(|diagnostic| {
+        AccessPlanDiagnostic(format!(
+            "owned placement could not replay its whole-range loan: {diagnostic}"
+        ))
+    })?;
+    validate_placement_admission(&loan, &admission.placement_plan, &admission.profile)
 }
 
 fn validate_placement_admission(
@@ -5894,6 +5913,79 @@ mod tests {
         assert_eq!(established.occurrence().normalized_identity(), 96);
         assert_eq!(established.validity_receipt().normalized_identity(), 93);
         assert_eq!(established.custody_receipt().normalized_identity(), 94);
+    }
+
+    #[test]
+    fn stable_adoption_replays_profile_and_returns_both_inputs_for_retry() {
+        let plan = stable_word_placement();
+        let (extent, content) = provider_existing_content(&plan, 0xad80, 4, 191, 192);
+        let extent_origin = extent.origin();
+        let extent_lineage = extent.lineage_root();
+        let profile = stable_word_profile(&extent);
+        let admission = admit_owned_placement(
+            PlacementAdmissionId::from_normalized_identity(195).expect("admission"),
+            extent,
+            &plan,
+            &profile,
+        )
+        .expect("owned Stable admission");
+
+        let coincident = uart_extent_with_lineage(0xad80, 4, 196);
+        let wrong_profile = stable_word_profile(&coincident);
+        let OwnedPlacementAdmission {
+            identity,
+            placement_plan,
+            profile_receipt,
+            profile: _,
+            resources,
+            extent,
+        } = admission;
+        let corrupt = OwnedPlacementAdmission {
+            identity,
+            placement_plan,
+            profile_receipt,
+            profile: wrong_profile,
+            resources,
+            extent,
+        };
+
+        let rejection = adopt_owned_stable(corrupt, content)
+            .expect_err("Stable adoption must replay admitted profile root facts");
+        assert!(
+            rejection
+                .diagnostic()
+                .0
+                .contains("replay the admitted resource profile"),
+            "{}",
+            rejection.diagnostic()
+        );
+        let (returned, content, _) = rejection.into_parts();
+        assert_eq!(returned.extent().origin(), extent_origin);
+        assert_eq!(returned.extent().lineage_root(), extent_lineage);
+        assert_eq!(content.resident_claim().normalized_identity(), 194);
+        assert_eq!(content.validity_receipt().normalized_identity(), 192);
+        assert_eq!(content.custody_receipt().normalized_identity(), 193);
+
+        let OwnedPlacementAdmission {
+            identity,
+            placement_plan,
+            profile_receipt,
+            profile: _,
+            resources,
+            extent,
+        } = returned;
+        let repaired = OwnedPlacementAdmission {
+            identity,
+            placement_plan,
+            profile_receipt,
+            profile,
+            resources,
+            extent,
+        };
+        let dormant = adopt_owned_stable(repaired, content)
+            .expect("returned admission and content remain valid for corrected retry");
+        assert_eq!(dormant.admission().normalized_identity(), 195);
+        assert_eq!(dormant.resident_claim().normalized_identity(), 194);
     }
 
     #[test]
