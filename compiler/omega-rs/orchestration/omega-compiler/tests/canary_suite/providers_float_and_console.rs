@@ -405,9 +405,12 @@ fn runtime_adapter_forwarding_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-adapter-forwarding-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("forwarding-adapter canary should compile natively");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("forwarding-adapter canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("forwarding-adapter canary should run");
     assert_eq!(
@@ -444,9 +447,12 @@ fn runtime_boundary_capability_state_forwarding_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("boundary capability should compile through native storage planning");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("boundary-capability canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("boundary-capability forwarding canary should run");
     assert_eq!(output.status.code(), Some(70));
@@ -475,9 +481,12 @@ fn runtime_console_byte_literal_exit_canary_runs() {
 
     let scratch = std::env::temp_dir().join(format!("omega-byte-literal-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("byte-literal canary should compile natively");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("byte-literal canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("byte-literal canary should run");
     assert_eq!(output.status.code(), Some(70));
