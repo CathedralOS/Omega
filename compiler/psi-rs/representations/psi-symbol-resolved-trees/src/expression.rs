@@ -1,8 +1,9 @@
 use crate::name::DiagnosticName;
 use psi_arena::{Arena, Handle, HandleSpan};
 use psi_numerics::literals::IntegerLiteral;
-use psi_source::{SourceSpan, SourceText};
+use psi_source::SourceSpan;
 use psi_symbols::SymbolHandle;
+use std::sync::Arc;
 
 mod display;
 #[cfg(test)]
@@ -896,9 +897,9 @@ impl ExpressionTable {
         self.expression(handle).display_name(self)
     }
 
-    pub fn string_literal(&self, handle: ExpressionHandle) -> Option<&str> {
+    pub fn string_literal(&self, handle: ExpressionHandle) -> Option<&[u8]> {
         match self.expression(handle) {
-            ExpressionNode::String(value) => Some(value.as_str()),
+            ExpressionNode::String(value) => Some(value.as_ref()),
             _ => None,
         }
     }
@@ -934,7 +935,8 @@ pub enum ExpressionNode {
     Name(TableNamePath),
     Range(TableRangeExpression),
     StructLiteral(TableStructLiteral),
-    String(SourceText),
+    /// Exact decoded literal octets, including non-UTF-8 `\xNN` values.
+    String(Arc<[u8]>),
     Unary(TableUnaryExpression),
     /// Proof-only observation of a type's normalized all-zero home value.
     ZeroValue(psi_arena::Handle<crate::types::TypeReference>),

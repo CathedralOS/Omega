@@ -228,7 +228,7 @@ fn static_max_byte_length(
         return None;
     }
     match program.expression_table.expression(expression) {
-        ExpressionNode::String(literal) => Some(literal.as_bytes().len()),
+        ExpressionNode::String(literal) => Some(literal.len()),
         ExpressionNode::Binary(binary)
             if binary.operator == psi_typed_trees::expression::BinaryOperator::Add =>
         {

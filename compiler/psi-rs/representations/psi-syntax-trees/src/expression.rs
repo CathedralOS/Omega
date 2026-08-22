@@ -2,6 +2,7 @@ use crate::identifier::Identifier;
 use psi_arena::{Arena, Handle, HandleSpan};
 use psi_numerics::literals::IntegerLiteral;
 use psi_source::{SourceSpan, SourceText};
+use std::sync::Arc;
 
 mod display;
 #[cfg(test)]
@@ -171,7 +172,9 @@ pub enum ExpressionNode {
     Range(TableRangeExpression),
     SelfValue,
     StructLiteral(TableStructLiteral),
-    String(SourceText),
+    /// Exact decoded literal octets. A string literal is not required to be
+    /// UTF-8 after `\xNN` escape decoding.
+    String(Arc<[u8]>),
     Unary(TableUnaryExpression),
     /// Proof-only observation of a type's normalized all-zero home value.
     ZeroValue(crate::types::TypeReferenceHandle),

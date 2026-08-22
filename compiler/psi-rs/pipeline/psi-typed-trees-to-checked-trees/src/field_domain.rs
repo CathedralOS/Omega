@@ -440,7 +440,7 @@ pub(crate) fn string_literal_expression_grants_domain(
     let Some(predicate) = domain_byte_predicate(program, domain_symbol) else {
         return false;
     };
-    predicate.holds_for(literal.as_bytes())
+    predicate.holds_for(literal)
 }
 
 /// Whether the domain's ZERO/ZII value -- for a slice carrier, the EMPTY byte

@@ -71,7 +71,11 @@ pub(crate) fn build_checked_unit_effect_plans(
         .filter(|machine| machine.supply_mode.is_boundary_declaration())
         .filter_map(|machine| build_boundary_machine(program, facts, &mut shapes, machine))
         .collect::<Vec<_>>();
-    boundary_machines.extend(build_static_boundary_requirements(program, facts));
+    boundary_machines.extend(build_static_boundary_requirements(
+        program,
+        facts,
+        &mut shapes,
+    ));
     let boundary_symbols = boundary_machines
         .iter()
         .map(|plan| plan.machine)

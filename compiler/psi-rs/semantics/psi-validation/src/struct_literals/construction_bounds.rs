@@ -60,7 +60,7 @@ pub(super) fn value_bounds(
     expression: ExpressionHandle,
 ) -> Bounds {
     match program.expression_table.expression(expression) {
-        ExpressionNode::String(literal) => Bounds::sequence(literal.as_bytes().len()),
+        ExpressionNode::String(literal) => Bounds::sequence(literal.len()),
         ExpressionNode::Integer(value) => value
             .text()
             .parse::<i64>()
@@ -136,9 +136,7 @@ fn local_initializer_bounds(
                     ExpressionNode::Integer(value) => {
                         value.text().parse::<i64>().ok().map(Bounds::point)
                     }
-                    ExpressionNode::String(literal) => {
-                        Some(Bounds::sequence(literal.as_bytes().len()))
-                    }
+                    ExpressionNode::String(literal) => Some(Bounds::sequence(literal.len())),
                     _ => None,
                 }
             }

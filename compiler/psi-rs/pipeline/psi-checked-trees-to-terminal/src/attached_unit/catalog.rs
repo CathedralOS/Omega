@@ -40,6 +40,7 @@ pub(super) fn lower_unit_structural_types(
         }
         active.push(identity.to_owned());
         match &plan.shape {
+            CheckedUnitStructuralTypeShape::ByteSequence(_) => {}
             CheckedUnitStructuralTypeShape::Record { fields } => {
                 for field in fields {
                     if let CheckedUnitStructuralFieldType::Structural { type_identity } =
@@ -105,6 +106,9 @@ pub(super) fn lower_unit_structural_types(
             .find(|plan| plan.identity == identity)
             .expect("selected structural type was validated above");
         let shape = match &plan.shape {
+            CheckedUnitStructuralTypeShape::ByteSequence(carrier) => {
+                StructuralTypeShape::ByteSequence(terminal_byte_sequence_carrier(*carrier))
+            }
             CheckedUnitStructuralTypeShape::Record { fields } => {
                 let mut field_identities = BTreeSet::new();
                 let fields = fields.iter().map(|field| {

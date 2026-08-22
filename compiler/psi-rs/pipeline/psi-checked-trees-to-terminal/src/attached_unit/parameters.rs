@@ -88,6 +88,7 @@ pub(crate) fn validate_transfer_shape(
     caller_parameters: &[StructuralParameterDeclaration],
     target_parameters: &[psi_checked_trees::CheckedUnitStructuralParameterPlan],
     type_ids: &[(String, StructuralTypeId)],
+    structural_types: &[StructuralTypeDeclaration],
     expected_claim_arguments: &[u32],
 ) -> Result<(), LoweringError> {
     if arguments.len() != target_parameters.len() {
@@ -96,6 +97,27 @@ pub(crate) fn validate_transfer_shape(
         );
     }
     for (argument, target) in arguments.iter().zip(target_parameters) {
+        if argument.byte_sequence_literal.is_some() {
+            if argument.source_parameter_index != u32::MAX
+                || !argument.path.is_empty()
+                || argument.type_identity != target.type_identity
+                || target.multiplicity != Multiplicity::Unrestricted
+                || !target.qualifications.is_empty()
+            {
+                return unsupported("byte-sequence literal argument has invalid checked custody");
+            }
+            let structural_type = lookup_type_id(type_ids, &argument.type_identity)?;
+            if !structural_types.iter().any(|declaration| {
+                declaration.id == structural_type
+                    && matches!(
+                        declaration.shape,
+                        StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView)
+                    )
+            }) {
+                return unsupported("byte-sequence literal argument requires a borrowed-view type");
+            }
+            continue;
+        }
         let source = caller_parameters
             .get(
                 usize::try_from(argument.source_parameter_index).map_err(|_| {
@@ -131,10 +153,24 @@ pub(crate) fn validate_transfer_shape(
 pub(crate) fn lower_structural_arguments(
     arguments: &[psi_checked_trees::CheckedUnitStructuralArgumentPlan],
     parameters: &[StructuralParameterDeclaration],
+    literal_places: &[PlaceId],
 ) -> Result<Vec<StructuralArgument>, LoweringError> {
+    let mut next_literal = 0usize;
     arguments
         .iter()
         .map(|argument| {
+            if argument.byte_sequence_literal.is_some() {
+                let place = *literal_places
+                    .get(next_literal)
+                    .ok_or(LoweringError::Unsupported(
+                        "byte-sequence literal place is absent",
+                    ))?;
+                next_literal += 1;
+                return Ok(StructuralArgument {
+                    place,
+                    path: Vec::new(),
+                });
+            }
             let parameter = parameters
                 .get(
                     usize::try_from(argument.source_parameter_index).map_err(|_| {
@@ -149,7 +185,14 @@ pub(crate) fn lower_structural_arguments(
                 path: lower_structural_path(&argument.path),
             })
         })
-        .collect()
+        .collect::<Result<Vec<_>, _>>()
+        .and_then(|lowered| {
+            if next_literal == literal_places.len() {
+                Ok(lowered)
+            } else {
+                unsupported("byte-sequence literal place count disagrees with arguments")
+            }
+        })
 }
 
 pub(crate) fn lower_structural_path(

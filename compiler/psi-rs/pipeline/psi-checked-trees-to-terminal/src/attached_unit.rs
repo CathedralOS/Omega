@@ -364,10 +364,69 @@ pub(super) fn lower_attached_unit_closure_including(
                 })
             })
             .collect::<Result<Vec<_>, LoweringError>>()?;
+        let mut literal_arguments = Vec::new();
+        for operation in &plan.operations {
+            match operation {
+                CheckedUnitEffectOperationPlan::BoundaryCall {
+                    structural_arguments,
+                    ..
+                } => literal_arguments.extend(
+                    structural_arguments
+                        .iter()
+                        .filter(|argument| argument.byte_sequence_literal.is_some()),
+                ),
+                CheckedUnitEffectOperationPlan::CallUnit {
+                    structural_arguments,
+                    ..
+                } if structural_arguments
+                    .iter()
+                    .any(|argument| argument.byte_sequence_literal.is_some()) =>
+                {
+                    return unsupported(
+                        "byte-sequence literals may target only bodyless boundaries",
+                    );
+                }
+                _ => {}
+            }
+        }
+        let literal_places = literal_arguments
+            .iter()
+            .enumerate()
+            .map(|(ordinal, argument)| {
+                Ok(StructuralPlaceDeclaration {
+                    id: place_id(allocate_dense(&mut next_place)?),
+                    kind: StructuralPlaceKind::ByteSequenceLiteral {
+                        declaration_ordinal: u32::try_from(ordinal).map_err(|_| {
+                            LoweringError::Unsupported("byte-sequence literal count exceeds u32")
+                        })?,
+                        structural_type: lookup_type_id(&type_ids, &argument.type_identity)?,
+                    },
+                })
+            })
+            .collect::<Result<Vec<_>, LoweringError>>()?;
         let operation_identity_base = next_operation
             .checked_sub(1)
             .expect("terminal operation identity starts at one");
         let mut operations = OperationBuffer::new(operation_identity_base);
+        for (argument, place) in literal_arguments.iter().zip(&literal_places) {
+            let bytes =
+                argument
+                    .byte_sequence_literal
+                    .as_ref()
+                    .ok_or(LoweringError::Unsupported(
+                        "byte-sequence literal payload is absent",
+                    ))?;
+            let id = operations.allocate();
+            operations.push(Operation {
+                id,
+                result: psi_terminal::OperationResult::Unit,
+                kind: OperationKind::EstablishByteSequenceLiteral {
+                    destination: place.id,
+                    bytes: bytes.clone(),
+                },
+            });
+        }
+        let mut next_literal_argument = 0usize;
         let mut next_value_identity = 1_u64;
         for operation in &plan.operations[..plan.operations.len() - 1] {
             let kind = match operation {
@@ -410,6 +469,7 @@ pub(super) fn lower_attached_unit_closure_including(
                         parameters,
                         &target.structural_parameters,
                         &type_ids,
+                        &structural_types,
                         &target
                             .entry_claims
                             .iter()
@@ -417,7 +477,7 @@ pub(super) fn lower_attached_unit_closure_including(
                             .collect::<Vec<_>>(),
                     )?;
                     let terminal_arguments =
-                        lower_structural_arguments(structural_arguments, parameters)?;
+                        lower_structural_arguments(structural_arguments, parameters, &[])?;
                     let target_parameters = lowered_machine_parameters
                         .iter()
                         .find_map(|(symbol, parameters)| {
@@ -536,7 +596,8 @@ pub(super) fn lower_attached_unit_closure_including(
                             plan.entry_claims
                                 .iter()
                                 .filter(move |claim| {
-                                    claim.parameter_index == argument.source_parameter_index
+                                    argument.byte_sequence_literal.is_none()
+                                        && claim.parameter_index == argument.source_parameter_index
                                         && (argument.path.is_empty() || claim.path == argument.path)
                                 })
                                 .map(move |_| {
@@ -554,6 +615,7 @@ pub(super) fn lower_attached_unit_closure_including(
                         parameters,
                         &target.structural_parameters,
                         &type_ids,
+                        &structural_types,
                         &expected_claim_arguments,
                     )?;
                     let (_, boundary, _, target_scalar_parameters) = lowered_boundary_parameters
@@ -585,12 +647,31 @@ pub(super) fn lower_attached_unit_closure_including(
                             ))
                         })
                         .collect::<Result<Vec<_>, LoweringError>>()?;
+                    let literal_count = structural_arguments
+                        .iter()
+                        .filter(|argument| argument.byte_sequence_literal.is_some())
+                        .count();
+                    let literal_end = next_literal_argument.checked_add(literal_count).ok_or(
+                        LoweringError::Unsupported(
+                            "byte-sequence literal argument count overflows usize",
+                        ),
+                    )?;
+                    let call_literal_places = literal_places
+                        .get(next_literal_argument..literal_end)
+                        .ok_or(LoweringError::Unsupported(
+                            "byte-sequence literal argument place is absent",
+                        ))?
+                        .iter()
+                        .map(|place| place.id)
+                        .collect::<Vec<_>>();
+                    next_literal_argument = literal_end;
                     OperationKind::BoundaryCall {
                         boundary: *boundary,
                         arguments,
                         structural_arguments: lower_structural_arguments(
                             structural_arguments,
                             parameters,
+                            &call_literal_places,
                         )?,
                         completion_receipts: completion_receipts
                             .iter()
@@ -655,6 +736,9 @@ pub(super) fn lower_attached_unit_closure_including(
                 kind,
             });
         }
+        if next_literal_argument != literal_places.len() {
+            return unsupported("byte-sequence literal argument consumption is incomplete");
+        }
         next_operation = operations.next_identity;
         let CheckedUnitEffectOperationPlan::ReturnUnit {
             trivial_affine_local_discard_ordinals,
@@ -718,6 +802,7 @@ pub(super) fn lower_attached_unit_closure_including(
                     },
                 })
                 .chain(local_places.iter().cloned())
+                .chain(literal_places.iter().cloned())
                 .collect(),
             entry_claims: entry_claims.clone(),
             published_service_ceiling: if let Some(provider) = provider_candidate_plans

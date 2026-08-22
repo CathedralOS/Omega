@@ -273,11 +273,11 @@ pub(super) fn parse_primary_expression_handle<'tokens, 'source>(
         .first()
         .is_some_and(|token| token.kind == TokenKind::StringLiteral)
     {
-        let (value, input) = input.take_string()?;
+        let (value, input) = input.take_string_bytes()?;
         return Ok((
             syntax_trees
                 .expressions
-                .insert(ExpressionNode::String(value.into())),
+                .insert(ExpressionNode::String(value)),
             input,
         ));
     }

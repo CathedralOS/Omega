@@ -280,6 +280,15 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
         }
     }
 
+    pub(super) fn take_string_bytes(self) -> Result<(std::sync::Arc<[u8]>, Self), ParseError> {
+        let (token, rest) = self.expect_token()?;
+        if token.is_string_literal() {
+            Ok((std::sync::Arc::from(token.lexeme.as_bytes()), rest))
+        } else {
+            Err(diagnostics::expected(self, token, "string literal"))
+        }
+    }
+
     pub(super) fn take_float_text(self) -> Result<(SourceText, Self), ParseError> {
         let (token, rest) = self.expect_token()?;
         if let Some(kind) = token.float_literal_kind() {

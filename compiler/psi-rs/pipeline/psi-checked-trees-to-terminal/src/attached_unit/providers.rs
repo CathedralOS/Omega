@@ -55,13 +55,6 @@ pub(super) fn checked_unit_provider_candidates(
                 );
             }
         };
-        if !boundary_plan.structural_parameters.is_empty()
-            || !boundary_plan.domain_requirements.is_empty()
-        {
-            return unsupported(
-                "checked provider dispatch currently admits only zero-argument Unit boundary requirements",
-            );
-        }
         let requirement_identity = checked
             .typed
             .normalized_trait_requirement_overload_identity(definition, signature)
@@ -69,7 +62,7 @@ pub(super) fn checked_unit_provider_candidates(
         if requirement_identity.is_empty() {
             return unsupported("Unit boundary requirement has an empty overload identity");
         }
-        for machine in checked.typed.machines().iter().filter(|machine| {
+        let candidates = checked.typed.machines().iter().filter(|machine| {
             machine.supply_mode == psi_language_semantics::MachineSupplyMode::CheckedBody
                 && machine.attached_data.is_some()
                 && checked
@@ -84,7 +77,15 @@ pub(super) fn checked_unit_provider_candidates(
                                 .as_ref()
                                 .is_some_and(|name| name == &signature.name)
                     })
-        }) {
+        });
+        for machine in candidates {
+            if !boundary_plan.structural_parameters.is_empty()
+                || !boundary_plan.domain_requirements.is_empty()
+            {
+                return unsupported(
+                    "checked provider dispatch currently admits only zero-argument Unit boundary requirements",
+                );
+            }
             plans
                 .for_machine(machine.symbol)
                 .ok_or(LoweringError::Unsupported(

@@ -905,7 +905,7 @@ pub enum ExpressionSnapshot {
         fields: Vec<StructLiteralFieldSnapshot>,
     },
     String {
-        value: String,
+        bytes: Vec<u8>,
     },
     Invalid {
         handle: u32,
@@ -1807,7 +1807,7 @@ fn expression_snapshot(program: &TypedTrees, expression: ExpressionHandle) -> Ex
             ordering: format!("{:?}", atomic.ordering),
         },
         ExpressionNode::String(value) => ExpressionSnapshot::String {
-            value: value.to_string(),
+            bytes: value.to_vec(),
         },
         ExpressionNode::Unary(unary) => ExpressionSnapshot::Unary {
             operator: unary.operator.display_name().to_owned(),

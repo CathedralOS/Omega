@@ -703,7 +703,7 @@ pub enum ExpressionSnapshot {
         fields: Vec<StructLiteralFieldSnapshot>,
     },
     String {
-        value: String,
+        bytes: Vec<u8>,
     },
     Unary {
         operator: &'static str,
@@ -1619,7 +1619,7 @@ fn table_expression_snapshot(
                 .collect(),
         },
         ExpressionNode::String(value) => ExpressionSnapshot::String {
-            value: value.as_str().to_owned(),
+            bytes: value.to_vec(),
         },
         ExpressionNode::Unary(unary) => ExpressionSnapshot::Unary {
             operator: unary.operator.display_name(),
