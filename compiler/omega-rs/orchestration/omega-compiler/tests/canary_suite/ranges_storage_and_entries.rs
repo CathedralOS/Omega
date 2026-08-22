@@ -1563,14 +1563,17 @@ fn runtime_entry_scalar_operation_results_exit_canaries_run() {
         let canary = pass_canary(&format!("control_flow/{name}"));
         let build_dir = std::env::temp_dir().join(format!("omega-{name}-{}", std::process::id()));
         let _ = fs::remove_dir_all(&build_dir);
-        compile(CompileOptions {
+        let compilation = compile(CompileOptions {
             root_path: canary.join("main.omg"),
             build_dir: Some(build_dir.clone()),
             target_name: None,
             write_output: true,
         })
         .expect("scalar-operation entry return canary should compile");
-        let output = Command::new(build_dir.join(executable_name()))
+        let executable = compilation.checked_native_executable_path().unwrap_or_else(|| {
+            panic!("scalar-operation entry return canary `{name}` lost its exact executable receipt")
+        });
+        let output = Command::new(executable)
             .output()
             .expect("scalar-operation entry return canary should run");
         assert_eq!(
