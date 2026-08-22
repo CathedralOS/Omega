@@ -4526,22 +4526,31 @@ Remaining:
   explicitly interpreter-enabled hosted environment and rejects for hosted
   native-only or freestanding installation. Terminal object evidence now also
   exposes a normalized read-only projection of its already byte-validated fuel
-  attribution rows and complete target. Dynamic plan binding requires the exact
-  relocation-free installed bytes and matching target, then retains the
-  terminal identity, installed-code context, artifact, and ordered rows. Empty,
-  noncanonical, wrong-schedule, zero-unit, out-of-range, unknown-function, or
-  duplicate semantic sites reject; zero-byte semantic sites remain valid
-  insertion points. The compact binding fingerprint is summary identity only.
+  attribution rows and complete target. The backend now retains the exact
+  `TargetProfile` as well as its native tuple, preventing Windows and UEFI
+  policy from becoming interchangeable. A dependency-light target recipe names
+  that profile, reserved nonvolatile `RBX`/`X28` context transport, exact aligned
+  and nonoverlapping allowance/site/transfer/retry/sponsor-stack slots, opaque
+  activation save area, and transfer-plan identity; malformed layouts,
+  architecture/register mismatches, and profile drift reject. Dynamic
+  attribution validation now correctly produces a pre-install basis bound to
+  exact source bytes, terminal identity, schedule, target recipe, and ordered
+  semantic rows. Empty, noncanonical, wrong-schedule, zero-unit, out-of-range,
+  unknown-function, or duplicate semantic sites reject; zero-byte semantic
+  sites remain valid insertion points. The prior path that mislabeled an
+  already-installed unmetered artifact as dynamic evidence is removed: no
+  constructor for final installed dynamic evidence exists until charge/stub
+  insertion and independent final-byte replay land. Compact fingerprints remain
+  summary identities only.
   Root admission now retains the selected native realization against the exact
   logical-fuel demand, provision, grant, installed-code context, and artifact.
   Existing fixed roots automatically produce the exact fixed realization;
-  dynamic admission cannot proceed without its matching installed attribution
-  binding, and fixed/interpreted paths reject stray dynamic evidence. Runtime
-  root custody retains the exact sealed value, while the address-free installed
-  root manifest publishes its kind and replay-bound fingerprint. The remaining
-  native slice is to implement/admit the target context transports and
-  exhaustion-transfer stubs before inserting compare-before-subtract charge
-  sequences.
+  dynamic admission cannot proceed before final metered-artifact evidence, and
+  fixed/interpreted paths reject stray dynamic evidence. Runtime root custody
+  retains the exact sealed value, while the address-free installed root manifest
+  publishes its kind and replay-bound fingerprint. The remaining native slice
+  is to emit and independently replay the target charge/transfer bytes, centrally
+  rebase semantic offsets, and bind only the final metered installed artifact.
 - **PROOF-RELEVANCE-MIGRATION.** Finish binding-level `[erased]`, checked
   noninterference, erased-stripped layout, and obligation preservation across
   the remaining consumers. Explicit relevance remains in semantic/proof

@@ -9,6 +9,7 @@ name = "omega_terminal_installation_evidence"
 path = "src/lib.rs"
 
 [dependencies]
+omega-calling-conventions = { path = "../../foundation/omega-calling-conventions" }
 omega-target = { path = "../../foundation/omega-target" }
 psi-core = { path = "../../../psi-rs/foundation/psi-core" }
 psi-terminal = { path = "../../../psi-rs/representations/psi-terminal" }

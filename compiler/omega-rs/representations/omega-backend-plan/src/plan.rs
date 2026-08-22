@@ -18,7 +18,7 @@ use omega_state_graph::RuntimeFlowPlan;
 use omega_state_guards::StateGuardPlan;
 use omega_state_storage::StateStoragePlan;
 use omega_state_values::StateValuePlan;
-use omega_target::NativeTarget;
+use omega_target::{NativeTarget, TargetProfile};
 use omega_target_operations::{InstructionPlan, TargetDataPlan};
 use psi_arena::Arena;
 use std::ops::{Deref, DerefMut};
@@ -26,6 +26,10 @@ use std::sync::Arc;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BackendPlan {
+    /// Exact deployment policy identity. This must not be reconstructed from
+    /// `target`: profiles such as Windows and UEFI deliberately share one
+    /// native architecture/object tuple while owning different root policy.
+    pub target_profile: TargetProfile,
     pub target: NativeTarget,
     pub artifacts: BackendArtifactRoots,
     pub host_abi: Arc<HostAbiPlan>,

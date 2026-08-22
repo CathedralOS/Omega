@@ -1223,6 +1223,7 @@ dependencies = [
 name = "omega-terminal-installation-evidence"
 version = "0.1.0"
 dependencies = [
+ "omega-calling-conventions",
  "omega-target",
  "psi-core",
  "psi-terminal",

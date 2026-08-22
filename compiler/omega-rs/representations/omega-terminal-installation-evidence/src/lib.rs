@@ -9,6 +9,11 @@
 
 use std::collections::BTreeSet;
 
+mod native_fuel;
+pub use native_fuel::{
+    NativeFuelContextLayout, NativeFuelTargetPlanProjection, SponsorContextTransport,
+};
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum TerminalFuelAttributionSite {
     Operation(psi_core::OperationId),

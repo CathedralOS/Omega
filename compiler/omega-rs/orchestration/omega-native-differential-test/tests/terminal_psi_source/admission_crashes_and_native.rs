@@ -906,24 +906,47 @@ fn interpreted_terminal_source_matches_emitted_host_machine_code() {
     .expect("exhaustion sponsor path has fixed provision");
     let sponsor_path = bind_suspension_free_fixed_fuel(sponsor_fixed, sponsor_free)
         .expect("fixed sponsor path binds its suspension evidence");
-    let dynamic_plan = DynamicNativeFuelMeterPlan::from_admitted_target(
-        object_artifact.target(),
+    let profile = omega_target::TargetProfile::host();
+    assert_eq!(profile.native_target(), object_artifact.target());
+    let context_register = match object_artifact.target().architecture {
+        omega_target::Architecture::X86_64 => MachineRegister::X86Rbx,
+        omega_target::Architecture::Aarch64 => MachineRegister::Aarch64X(28),
+    };
+    let target_policy = admit_native_fuel_target_policy(NativeFuelTargetPlanProjection {
+        profile,
+        target: object_artifact.target(),
+        transport: SponsorContextTransport::ReservedNonvolatileRegister {
+            register: context_register,
+        },
+        context: NativeFuelContextLayout {
+            byte_size: 256,
+            alignment: 16,
+            remaining_units_offset: 0,
+            unpaid_site_kind_offset: 8,
+            unpaid_site_identity_offset: 16,
+            required_units_offset: 24,
+            transfer_entry_offset: 32,
+            retry_address_offset: 40,
+            sponsor_stack_top_offset: 48,
+            activation_state_offset: 64,
+            activation_state_byte_count: 192,
+        },
+        transfer_plan_identity: 0x5357,
+    })
+    .expect("host x86-64 native fuel target policy");
+    let dynamic_plan = DynamicNativeFuelMeterPlan::from_admitted_target_policy(
+        target_policy,
         fixed_fuel.schedule(),
         NativeFuelMeterPlanId::from_normalized_identity(0x5355).expect("native meter plan"),
-        SponsorContextTransportId::from_normalized_identity(0x5356)
-            .expect("sponsor-context transport"),
         FuelExhaustionTransferPlanId::from_normalized_identity(0x5357)
             .expect("exhaustion-transfer plan"),
         sponsor_path,
         DynamicFuelMeterValidationReceiptId::from_normalized_identity(0x5358)
             .expect("dynamic meter validation receipt"),
     );
-    let missing_dynamic_attribution = bind_installed_dynamic_fuel_attributions(
-        dynamic_plan.clone(),
-        &object_artifact,
-        &installed_code,
-    )
-    .expect_err("native code without attribution rows cannot select dynamic metering");
+    let missing_dynamic_attribution =
+        validate_dynamic_fuel_attribution_basis(dynamic_plan, &object_artifact)
+            .expect_err("native code without attribution rows cannot select dynamic metering");
     assert!(missing_dynamic_attribution.0.contains("at least one"));
     validate_installed_terminal_entry_fuel(&installed_fixed_fuel, &installed_code, entry_stub)
         .expect("external-root recheck should accept the exact installed code and entry");
@@ -961,11 +984,6 @@ fn interpreted_terminal_source_matches_emitted_host_machine_code() {
         )
         .is_err(),
         "terminal fuel evidence must reject different installed bytes"
-    );
-    assert!(
-        bind_installed_dynamic_fuel_attributions(dynamic_plan, &object_artifact, &changed_code)
-            .is_err(),
-        "dynamic fuel attribution must reject different installed bytes"
     );
     let wrong_offset = if entry_offset == 0 { 4 } else { 0 };
     let (wrong_entry_code, wrong_entry) = install_terminal_object(

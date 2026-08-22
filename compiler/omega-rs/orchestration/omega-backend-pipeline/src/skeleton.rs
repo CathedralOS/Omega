@@ -19,12 +19,13 @@ use omega_state_graph::RuntimeFlowPlan;
 use omega_state_guards::StateGuardPlan;
 use omega_state_storage::StateStoragePlan;
 use omega_state_values::StateValuePlan;
-use omega_target::NativeTarget;
+use omega_target::{NativeTarget, TargetProfile};
 use omega_target_operations::{TargetDataPlan, TargetOperationPlan};
 use psi_arena::Arena;
 use std::sync::Arc;
 
 pub(super) struct BackendPlanSkeletonInput {
+    pub target_profile: TargetProfile,
     pub target: NativeTarget,
     pub host_abi: Arc<HostAbiPlan>,
     pub host_calls: HostCallPlan,
@@ -42,6 +43,7 @@ pub(super) struct BackendPlanSkeletonInput {
 
 pub(super) fn build_backend_plan_skeleton(input: BackendPlanSkeletonInput) -> BackendPlan {
     BackendPlan {
+        target_profile: input.target_profile,
         target: input.target,
         artifacts: BackendArtifactRoots::empty_for_target(input.target),
         host_abi: input.host_abi,

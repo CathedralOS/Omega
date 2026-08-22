@@ -1,5 +1,5 @@
 use omega_core::parallel::WorkerPoolHandle;
-use omega_target::NativeTarget;
+use omega_target::TargetProfile;
 use psi_checked_trees::CheckedTrees;
 use psi_diagnostics::Diagnostic;
 use std::sync::Arc;
@@ -28,7 +28,7 @@ pub fn build_backend_plan_from_control_flow_with_workers(
     entry_machine_name: Option<&str>,
     entry_boundary_plan: Option<omega_calling_conventions::BoundaryEntryPlan>,
     callback_placements: Arc<[omega_backend_plan::BoundNominalCallbackPlacement]>,
-    target: NativeTarget,
+    target_profile: TargetProfile,
     freestanding: bool,
     external_binding_rows: &[omega_calling_conventions::ExternalBindingRow],
     control_flow: Arc<ControlFlowPlan>,
@@ -40,7 +40,7 @@ pub fn build_backend_plan_from_control_flow_with_workers(
         entry_machine_name,
         entry_boundary_plan,
         callback_placements,
-        target,
+        target_profile,
         freestanding,
         external_binding_rows,
         control_flow,
