@@ -889,6 +889,17 @@ Owners:
   boundary, calling-plan, and entry claims; drift rejects with every input
   unchanged and no resolver observation. AOT binding and later consumers retain
   their independent replay.
+  Selected external-root source schema and provider-populated writer context now
+  cross preparation as one sealed non-clonable carrier. Preparation consumes
+  the exact selected plan only after preflighting provider identity,
+  requirement, boundary shape/calling identity, and entry claims; every
+  rejection returns that selected plan unchanged before resolver observation.
+  AOT binding accepts only the sealed preparation, and binding rejection returns
+  the exact lowered writer plus complete preparation for corrected retry,
+  preventing same-plan schema substitution after context population. Successful
+  binding transfers the original schema/context pair through bound, written,
+  and recovery custody. This grants no provider-operation authority and
+  establishes no device event, publication, or native execution.
 
 Acceptance: UART/MMIO, shared-page IPC, and ordinary RAM use one extent/layout
 foundation with different profiles. Misalignment, insufficient rights,
@@ -2740,7 +2751,17 @@ Remaining:
   citation precedence, proof shapes, rejection, and the producer/verifier trust
   boundary are unchanged. The exact mixed nominal regression fell from
   approximately 306s to 27.50s test-body time (29.29s wall; 476,823,552-byte
-  maximum resident set), with no persistent cache or generalized search.
+  maximum resident set), while the exact mixed-shift regression fell from
+  92.78s to 6.08s test-body time (6.76s wall; 421,036,032-byte maximum resident
+  set). No persistent cache or generalized search was introduced. Affine-
+  definition candidate indexing now lives in paired, side-local
+  `affine_custody/definition_index` modules. Producer and reconstruction
+  independently own their immutable source-order Value-to-definition indexes,
+  while frontier modules only enumerate the existing four-definition words and
+  replay each candidate through the proof kernel. This responsibility split
+  changes no citation order, proof shape, rejection, or search frontier. The
+  complete checked-to-Terminal package suite consequently fell from 401.56s to
+  35.68s wall while all tests remained enabled and green.
   Corpus-level bounded parallelism is viable at the harness boundary: the
   differential runner now defaults to four independent jobs with one native
   backend worker each, retains deterministic corpus-order reporting, and
@@ -3678,6 +3699,18 @@ Owners:
   report receipts while retaining literal status 70 and every alias, recursion,
   and byte-level diagnostic. The 795 rooted/3 legacy exact-owner pins remain
   stable.
+  Five further authored-root wire-decoder executions—primitive roundtrip,
+  ranged scalar and repeated fields, canonical Boolean enforcement, and
+  canonical varint enforcement—now launch only from exact checked-report
+  receipts while retaining literal status 70 and every hostile-input
+  preservation/byte-canonicality diagnostic. The 795 rooted/3 legacy exact-
+  owner pins remain stable.
+  Five additional authored-root wire executions—scalar-width overflow
+  rejection, nested-message roundtrip and malformed-length rejection, plus
+  repeated-field roundtrip and overflow rejection—now launch exclusively
+  through checked-report executable receipts while preserving literal status
+  70 and all byte-shape diagnostics. Exact-owner inventory pins remain
+  unchanged.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
