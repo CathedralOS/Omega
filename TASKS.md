@@ -5195,6 +5195,11 @@ Owners:
   preserving interpreter parity, literal exit 70, and width-regression exit-71
   diagnostics. Exact-owner ambiguity, the 795 rooted/3 legacy inventory, and
   receipt-drift fences remain green; explicit legacy owners are unchanged.
+  The authored-root nested-loop grid regression now launches `OutputOnly`
+  native execution solely through its exact checked-report executable receipt
+  while preserving literal exit 70 and the nested counter/reset diagnostic.
+  Exact-owner ambiguity, the 795 rooted/3 legacy inventory, and receipt-drift
+  fences remain green; slow-float and explicit legacy owners remain untouched.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
