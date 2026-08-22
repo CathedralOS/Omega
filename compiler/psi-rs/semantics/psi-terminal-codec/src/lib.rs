@@ -10,6 +10,7 @@ mod artifact_manifest;
 mod debug_map;
 mod proof_bundle;
 mod trust_graph;
+mod wire;
 
 pub use artifact_manifest::{
     ArtifactManifestError, SectionFingerprint, TerminalArtifactIdentity, TerminalArtifactManifest,
@@ -68,6 +69,7 @@ use psi_terminal::{
 use psi_terminal_verifier::{ModuleError, validate_module_representation};
 use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
+use wire::{Reader, Writer};
 
 const MAGIC: &[u8; 8] = b"PSITERM\0";
 const FORMAT_MARKER: u16 = 20;
@@ -5080,150 +5082,6 @@ fn decode_integer_value(reader: &mut Reader<'_>) -> Result<IntegerValue, CodecEr
         2 => IntegerValue::Unsigned(u128::from_le_bytes(reader.array()?)),
         tag => return Err(CodecError::InvalidTag("IntegerValue", tag)),
     })
-}
-
-#[derive(Default)]
-struct Writer {
-    bytes: Vec<u8>,
-}
-
-impl Writer {
-    fn finish(self) -> Vec<u8> {
-        self.bytes
-    }
-
-    fn bytes(&mut self, bytes: &[u8]) {
-        self.bytes.extend_from_slice(bytes);
-    }
-
-    fn u8(&mut self, value: u8) {
-        self.bytes.push(value);
-    }
-
-    fn boolean(&mut self, value: bool) {
-        self.u8(u8::from(value));
-    }
-
-    fn u16(&mut self, value: u16) {
-        self.bytes(&value.to_le_bytes());
-    }
-
-    fn u32(&mut self, value: u32) {
-        self.bytes(&value.to_le_bytes());
-    }
-
-    fn u64(&mut self, value: u64) {
-        self.bytes(&value.to_le_bytes());
-    }
-
-    fn id(&mut self, id: impl PsiSemanticId) {
-        self.bytes(&id.get().to_le_bytes());
-    }
-
-    fn len(&mut self, label: &'static str, len: usize) -> Result<(), CodecError> {
-        self.u32(u32::try_from(len).map_err(|_| CodecError::CollectionTooLong(label))?);
-        Ok(())
-    }
-
-    fn string(&mut self, label: &'static str, value: &str) -> Result<(), CodecError> {
-        if value.len() > MAX_CONTENT_IDENTITY_BYTES {
-            return Err(CodecError::StringTooLong(label));
-        }
-        self.len(label, value.len())?;
-        self.bytes(value.as_bytes());
-        Ok(())
-    }
-
-    fn strings(&mut self, label: &'static str, values: &[String]) -> Result<(), CodecError> {
-        self.len(label, values.len())?;
-        for value in values {
-            self.string(label, value)?;
-        }
-        Ok(())
-    }
-}
-
-struct Reader<'bytes> {
-    bytes: &'bytes [u8],
-    offset: usize,
-}
-
-impl<'bytes> Reader<'bytes> {
-    const fn new(bytes: &'bytes [u8]) -> Self {
-        Self { bytes, offset: 0 }
-    }
-
-    fn remaining(&self) -> usize {
-        self.bytes.len() - self.offset
-    }
-
-    fn take(&mut self, len: usize) -> Result<&'bytes [u8], CodecError> {
-        let end = self
-            .offset
-            .checked_add(len)
-            .ok_or(CodecError::UnexpectedEnd)?;
-        let bytes = self
-            .bytes
-            .get(self.offset..end)
-            .ok_or(CodecError::UnexpectedEnd)?;
-        self.offset = end;
-        Ok(bytes)
-    }
-
-    fn array<const N: usize>(&mut self) -> Result<[u8; N], CodecError> {
-        self.take(N)?
-            .try_into()
-            .map_err(|_| CodecError::UnexpectedEnd)
-    }
-
-    fn u8(&mut self) -> Result<u8, CodecError> {
-        Ok(self.array::<1>()?[0])
-    }
-
-    fn u16(&mut self) -> Result<u16, CodecError> {
-        Ok(u16::from_le_bytes(self.array()?))
-    }
-
-    fn u32(&mut self) -> Result<u32, CodecError> {
-        Ok(u32::from_le_bytes(self.array()?))
-    }
-
-    fn u64(&mut self) -> Result<u64, CodecError> {
-        Ok(u64::from_le_bytes(self.array()?))
-    }
-
-    fn count(&mut self) -> Result<u32, CodecError> {
-        self.u32()
-    }
-
-    fn boolean(&mut self) -> Result<bool, CodecError> {
-        match self.u8()? {
-            0 => Ok(false),
-            1 => Ok(true),
-            value => Err(CodecError::InvalidBoolean(value)),
-        }
-    }
-
-    fn string(&mut self, label: &'static str) -> Result<String, CodecError> {
-        let len = usize::try_from(self.count()?).map_err(|_| CodecError::StringTooLong(label))?;
-        if len > MAX_CONTENT_IDENTITY_BYTES {
-            return Err(CodecError::StringTooLong(label));
-        }
-        let bytes = self.take(len)?;
-        std::str::from_utf8(bytes)
-            .map(str::to_owned)
-            .map_err(|_| CodecError::InvalidUtf8(label))
-    }
-
-    fn strings(&mut self, label: &'static str) -> Result<Vec<String>, CodecError> {
-        let count = self.count()?;
-        (0..count).map(|_| self.string(label)).collect()
-    }
-
-    fn id<T: PsiSemanticId>(&mut self, label: &'static str) -> Result<T, CodecError> {
-        let raw = self.u64()?;
-        T::new(raw).ok_or(CodecError::ZeroIdentity(label))
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
