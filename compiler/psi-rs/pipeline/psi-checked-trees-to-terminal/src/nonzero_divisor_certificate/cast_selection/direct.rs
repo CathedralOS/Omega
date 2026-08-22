@@ -3,8 +3,9 @@
 use psi_core::{Proposition, PropositionContext};
 use psi_proof_kernel::ProofNode;
 
-use super::super::cast_custody;
 use super::super::integer_evidence::cited_facts;
+
+mod completion;
 
 pub(super) fn prove(
     context: &PropositionContext,
@@ -16,20 +17,16 @@ pub(super) fn prove(
         let Proposition::LessOrEqual(root_left, root_right) = root_bound else {
             continue;
         };
-        for root in [root_left, root_right]
-            .into_iter()
-            .filter(|root| matches!(root, psi_core::ScalarTerm::Value { .. }))
-        {
-            if let Some(proof) = cast_custody::prove_from_root(
-                context,
-                goal,
-                assumptions,
-                semantic_axioms,
-                root,
-                citation.proof(root_bound),
-            ) {
-                return Some(proof);
-            }
+        if let Some(proof) = completion::prove(
+            context,
+            goal,
+            assumptions,
+            semantic_axioms,
+            root_left,
+            root_right,
+            citation.proof(root_bound),
+        ) {
+            return Some(proof);
         }
     }
     None
