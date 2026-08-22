@@ -921,6 +921,15 @@ Owners:
   same-geometry destination substitution after resolution. This establishes no
   provider-operation authority, consumer semantics, publication, or native
   execution.
+  Prepared post-handoff destinations now expose a borrowed exact replay of
+  their activated mapping, provider receipt, required write rights, pinning,
+  unpublished state, placement, and byte-view geometry. External-root writer
+  preparation performs that replay before the installed resolver observes
+  symbolic sources; drift returns the selected schema, lowering, and complete
+  non-clonable destination unchanged. Corruption rejects without modifying
+  destination bytes, and repaired evidence supports retry through the same
+  carrier. This grants no provider-operation, write, publication, consumer-
+  semantic, or native-execution authority.
   External-root writer preparation now retains the exact borrowed installed-
   code realization beside the selected schema, AOT lowering, activated
   unpublished destination, and provider-populated context before symbolic-
@@ -4425,8 +4434,11 @@ Remaining N6/N8 work:
   and Trapping result-overflow predicates for add, subtract, multiply, and left
   shift while preserving its established interval refinements, warnings, and
   diagnostics. Exact division remains in its dedicated specification-
-  definedness lane. Remaining arithmetic producer, Terminal, and independent-
-  verifier consumers stay open.
+  definedness lane. The bounded checked-operation producer, proof-bearing
+  Terminal rows, structural-crash verifier, and dedicated Exact-division
+  consumers described above now consume the settled catalog. Remainder stays
+  explicitly outside it until a remainder primitive is ruled; other catalog
+  integrations remain open only where their owning operation surface exists.
   A separate shared float-projection catalog now owns the exact `meaning32`
   and `meaning64` rows. Each row fixes its source format, exact nonzero-rational
   finite projection, signed-zero and signed-infinity preservation, and NaN-
@@ -4439,7 +4451,13 @@ Remaining N6/N8 work:
   drifted canonical declaration unless it is the exact ordinary tokenless
   `f32`/`f64` to `FloatMeaning` signature, without lifetime/type parameters or
   receiver qualification. Leaf spelling alone grants no projection semantics.
-  Terminal and independent-verifier binding to the catalog remains open.
+  Terminal and independent-verifier binding to the catalog remains open. The
+  current checked/Terminal proposition and operation vocabularies have no
+  source-handle-free proof-only `FloatMeaning` carrier or projection fact, so
+  this cannot be completed as a name-table join. The next slice must first add
+  that erased carrier and exact format-specific projection operation, keeping
+  it separate from Terminal runtime float evaluation; only then can producer
+  emission and independent verifier reconstruction bind to the catalog.
 - Then migrate suffix law discovery to propositions plus explicit conformances,
   and expand the checked `Nat`/`Int`/`Rat`/Cauchy/approximation corpus. `Real`
   remains proof-only and core-level.
