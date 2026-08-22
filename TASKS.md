@@ -2778,11 +2778,16 @@ Remaining N6/N8 work:
   are each exact-unique, the machine has exactly that one state, and its body
   contains no transition, the plan now records that this fallthrough path
   exhausts the owner's normal result exits. Duplicate identities, another
-  state, or any transition retain no complete-coverage claim; transition and
-  state-forwarded result flow remains unresolved. The single-state certificate
-  proves no effect, termination, contract, or `Respects` obligation. Every
-  request still rejects as non-executable until all remaining obligations are
-  checked and retained in checked/terminal identity.
+  state, or any transition retain no single-state coverage claim. One exact
+  two-state sibling now also proves complete coverage when the only other state
+  contains one unconditional ordinary named transition to the result state, has
+  no continuation, and the result state retains the unchanged transition-free
+  fallthrough root. Redirected targets, conditional/crash transitions,
+  continuations, extra statements, or a third state reject. General
+  conditional, cyclic, or multi-hop forwarding remains unresolved. These
+  result-flow certificates prove no effect, contract, or `Respects` obligation.
+  Every request still rejects as non-executable until all remaining obligations
+  are checked and retained in checked/terminal identity.
 - Suppress every synthesized representation observer on quotient formation.
   Add quotient-owned executable equality through an ordinary lifted operation
   with `DecidesEquivalence`; derive its `Respects` proof, and bind its optional

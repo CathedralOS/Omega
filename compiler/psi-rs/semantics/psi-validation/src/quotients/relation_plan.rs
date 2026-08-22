@@ -545,6 +545,13 @@ pub(super) fn complete_one_hop_state_forwarding_result_flow(
             .filter(|state| state.symbol == result_state.symbol)
             .count()
             != 1
+        || program
+            .machines()
+            .iter()
+            .flat_map(|candidate| program.machine_states(candidate))
+            .filter(|candidate| candidate.symbol == result_state.symbol)
+            .count()
+            != 1
         || fallthrough_result_root(program, result_state) != Some(root)
         || program
             .statement_table
@@ -557,6 +564,16 @@ pub(super) fn complete_one_hop_state_forwarding_result_flow(
     let forwarding_state = states
         .iter()
         .find(|state| state.symbol != result_state.symbol)?;
+    if program
+        .machines()
+        .iter()
+        .flat_map(|candidate| program.machine_states(candidate))
+        .filter(|candidate| candidate.symbol == forwarding_state.symbol)
+        .count()
+        != 1
+    {
+        return None;
+    }
     let [StatementNode::Transition(transition)] = program
         .statement_table
         .statements(forwarding_state.statement_nodes)
@@ -2886,6 +2903,32 @@ mod tests {
             panic!("one forwarding transition")
         };
         transition.continuation = target;
+        let machine = &program.machines()[0];
+        let result_state = &program.machine_states(machine)[1];
+        assert_eq!(
+            complete_one_hop_state_forwarding_result_flow(&program, machine, result_state, root,),
+            None,
+        );
+
+        let [StatementNode::Transition(transition)] =
+            program.statement_table.statements_mut(forwarding_span)
+        else {
+            panic!("one forwarding transition")
+        };
+        transition.continuation = psi_typed_trees::statement::TransitionTargetHandle::invalid();
+        let mut duplicate_owner = Machine {
+            symbol: symbol(60),
+            ..Default::default()
+        };
+        program.push_machine_state(
+            &mut duplicate_owner,
+            State {
+                symbol: symbol(52),
+                return_type,
+                ..Default::default()
+            },
+        );
+        program.push_machine(duplicate_owner);
         let machine = &program.machines()[0];
         let result_state = &program.machine_states(machine)[1];
         assert_eq!(
