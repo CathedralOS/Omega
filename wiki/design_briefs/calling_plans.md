@@ -717,6 +717,11 @@ requires one flat receipt, identical certificate, inventory, publication,
 container, and output-leaf identities, plus distinct destination paths and
 installation identities. Missing, substituted, or self-aliased pairs reject
 instead of reaching the outward compiler report.
+The report also retains the exact orchestration output category. A native
+executable requires the flat receipt, an object-container fallback forbids both
+executable receipts, and a check-only result forbids both output and receipts.
+Thus lost native custody cannot be reclassified as a valid fallback merely
+because both use the older `wrote_output` boolean.
 Final relocation replay also builds one exact owner map from every retained
 selected-instruction identity to that function symbol. A selected instruction
 retained twice, an instruction relocation naming another function, or an

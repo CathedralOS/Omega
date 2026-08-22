@@ -1,5 +1,12 @@
 use std::path::PathBuf;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CompileOutputKind {
+    CheckOnly,
+    NativeExecutable,
+    ObjectContainer,
+}
+
 /// Immutable custody for one compiler-published executable container.
 ///
 /// This records the exact final-footprint certificate, publication seal, and
@@ -72,6 +79,10 @@ pub struct CompileReport {
     pub root_path: PathBuf,
     pub source_file_count: usize,
     pub wrote_output: bool,
+    /// Exact output category selected by orchestration. This distinguishes a
+    /// native executable, which requires publication custody, from the
+    /// non-executable object-container fallback.
+    pub output_kind: CompileOutputKind,
     /// Exact checked publication receipt for a native executable image.
     /// Object-container fallbacks and check-only compilations retain `None`.
     pub executable_publication: Option<ExecutablePublicationReceipt>,
@@ -96,9 +107,22 @@ impl CompileReport {
     /// optional app-bundle copy. This checks compiler-publication custody; it
     /// does not inspect or authorize runtime installation.
     pub fn has_consistent_executable_publication_custody(&self) -> bool {
-        if !self.wrote_output
-            && (self.executable_publication.is_some() || self.app_bundle_publication.is_some())
-        {
+        let cardinality_matches_kind = match self.output_kind {
+            CompileOutputKind::CheckOnly => {
+                !self.wrote_output
+                    && self.executable_publication.is_none()
+                    && self.app_bundle_publication.is_none()
+            }
+            CompileOutputKind::NativeExecutable => {
+                self.wrote_output && self.executable_publication.is_some()
+            }
+            CompileOutputKind::ObjectContainer => {
+                self.wrote_output
+                    && self.executable_publication.is_none()
+                    && self.app_bundle_publication.is_none()
+            }
+        };
+        if !cardinality_matches_kind {
             return false;
         }
         match (
@@ -134,7 +158,7 @@ impl CompileReport {
 
 #[cfg(test)]
 mod tests {
-    use super::{CompileReport, ExecutablePublicationReceipt};
+    use super::{CompileOutputKind, CompileReport, ExecutablePublicationReceipt};
 
     fn receipt(path: &str, installation: u64) -> ExecutablePublicationReceipt {
         ExecutablePublicationReceipt::new(path.into(), 1, 2, 3, 4, 5, installation)
@@ -142,6 +166,7 @@ mod tests {
 
     fn report(
         wrote_output: bool,
+        output_kind: CompileOutputKind,
         flat: Option<ExecutablePublicationReceipt>,
         bundle: Option<ExecutablePublicationReceipt>,
     ) -> CompileReport {
@@ -149,6 +174,7 @@ mod tests {
             root_path: "main.omg".into(),
             source_file_count: 1,
             wrote_output,
+            output_kind,
             executable_publication: flat,
             app_bundle_publication: bundle,
             program_storage_entry: None,
@@ -162,58 +188,128 @@ mod tests {
         let flat = receipt("build/main", 6);
         let bundle = receipt("build/Main.app/Contents/MacOS/main", 7);
         assert!(
-            report(true, Some(flat.clone()), Some(bundle.clone()))
-                .has_consistent_executable_publication_custody()
-        );
-        assert!(report(false, None, None).has_consistent_executable_publication_custody());
-        assert!(
-            !report(false, Some(flat.clone()), None)
-                .has_consistent_executable_publication_custody()
-        );
-        assert!(
-            !report(true, None, Some(bundle.clone()))
-                .has_consistent_executable_publication_custody()
+            report(
+                true,
+                CompileOutputKind::NativeExecutable,
+                Some(flat.clone()),
+                Some(bundle.clone()),
+            )
+            .has_consistent_executable_publication_custody()
         );
         assert!(
-            !report(true, Some(flat.clone()), Some(flat.clone()))
+            report(false, CompileOutputKind::CheckOnly, None, None)
                 .has_consistent_executable_publication_custody()
+        );
+        assert!(
+            report(true, CompileOutputKind::ObjectContainer, None, None)
+                .has_consistent_executable_publication_custody()
+        );
+        assert!(
+            !report(
+                false,
+                CompileOutputKind::CheckOnly,
+                Some(flat.clone()),
+                None,
+            )
+            .has_consistent_executable_publication_custody()
+        );
+        assert!(
+            !report(true, CompileOutputKind::NativeExecutable, None, None)
+                .has_consistent_executable_publication_custody()
+        );
+        assert!(
+            !report(
+                true,
+                CompileOutputKind::ObjectContainer,
+                Some(flat.clone()),
+                None,
+            )
+            .has_consistent_executable_publication_custody()
+        );
+        assert!(
+            !report(
+                true,
+                CompileOutputKind::NativeExecutable,
+                None,
+                Some(bundle.clone()),
+            )
+            .has_consistent_executable_publication_custody()
+        );
+        assert!(
+            !report(
+                true,
+                CompileOutputKind::NativeExecutable,
+                Some(flat.clone()),
+                Some(flat.clone()),
+            )
+            .has_consistent_executable_publication_custody()
         );
 
         let mut changed = bundle.clone();
         changed.certificate_fingerprint ^= 1;
         assert!(
-            !report(true, Some(flat.clone()), Some(changed))
-                .has_consistent_executable_publication_custody()
+            !report(
+                true,
+                CompileOutputKind::NativeExecutable,
+                Some(flat.clone()),
+                Some(changed),
+            )
+            .has_consistent_executable_publication_custody()
         );
         let mut changed = bundle.clone();
         changed.inventory_fingerprint ^= 1;
         assert!(
-            !report(true, Some(flat.clone()), Some(changed))
-                .has_consistent_executable_publication_custody()
+            !report(
+                true,
+                CompileOutputKind::NativeExecutable,
+                Some(flat.clone()),
+                Some(changed),
+            )
+            .has_consistent_executable_publication_custody()
         );
         let mut changed = bundle.clone();
         changed.publication_evidence_fingerprint ^= 1;
         assert!(
-            !report(true, Some(flat.clone()), Some(changed))
-                .has_consistent_executable_publication_custody()
+            !report(
+                true,
+                CompileOutputKind::NativeExecutable,
+                Some(flat.clone()),
+                Some(changed),
+            )
+            .has_consistent_executable_publication_custody()
         );
         let mut changed = bundle.clone();
         changed.container_byte_count += 1;
         assert!(
-            !report(true, Some(flat.clone()), Some(changed))
-                .has_consistent_executable_publication_custody()
+            !report(
+                true,
+                CompileOutputKind::NativeExecutable,
+                Some(flat.clone()),
+                Some(changed),
+            )
+            .has_consistent_executable_publication_custody()
         );
         let mut changed = bundle.clone();
         changed.container_fingerprint ^= 1;
         assert!(
-            !report(true, Some(flat.clone()), Some(changed))
-                .has_consistent_executable_publication_custody()
+            !report(
+                true,
+                CompileOutputKind::NativeExecutable,
+                Some(flat.clone()),
+                Some(changed),
+            )
+            .has_consistent_executable_publication_custody()
         );
         let mut changed = bundle;
         changed.installation_evidence_fingerprint = flat.installation_evidence_fingerprint;
         assert!(
-            !report(true, Some(flat), Some(changed))
-                .has_consistent_executable_publication_custody()
+            !report(
+                true,
+                CompileOutputKind::NativeExecutable,
+                Some(flat),
+                Some(changed),
+            )
+            .has_consistent_executable_publication_custody()
         );
     }
 }

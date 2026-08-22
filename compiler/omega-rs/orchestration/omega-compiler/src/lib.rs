@@ -7,8 +7,8 @@ pub(crate) use psi_tokens_to_syntax_trees as parser;
 pub use pipeline::{
     AdmittedExternalRootEntryFactHandoff, AggregateFieldSchema, AggregateFieldValue,
     ArtifactEmissionPolicy, BoundExternalRootPostHandoffWriterInvocation, BuildEvaluationUsage,
-    BuildTimeValue, ByteOrder, CheckedCompilation, CompileOptions, CompileReport,
-    ConsumptionInstant, DataSymbolId, EntryStubId, ExecutablePublicationReceipt,
+    BuildTimeValue, ByteOrder, CheckedCompilation, CompileOptions, CompileOutputKind,
+    CompileReport, ConsumptionInstant, DataSymbolId, EntryStubId, ExecutablePublicationReceipt,
     ExecutableTcbBuildPolicy, InstalledImageSubextent, InstalledProgramStorageRoots,
     IntegerInterpretation, LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport,
     MaterializationAction, MaterializationContext, MaterializationDiagnostic, MaterializationWrite,

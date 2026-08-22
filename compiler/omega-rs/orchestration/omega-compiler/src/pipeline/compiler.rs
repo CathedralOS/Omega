@@ -762,6 +762,7 @@ impl Compiler {
                 root_path: self.options.root_path,
                 source_file_count,
                 wrote_output: false,
+                output_kind: super::CompileOutputKind::CheckOnly,
                 executable_publication: None,
                 app_bundle_publication: None,
                 program_storage_entry: None,
@@ -914,7 +915,10 @@ impl Compiler {
         let (emission_plan, emitted) =
             backend_plan_to_native_image_payload(&backend, subsystem, &mut timings)?;
 
-        let (executable_publication, app_bundle_publication) = if self.options.write_output {
+        let (output_kind, executable_publication, app_bundle_publication) = if self
+            .options
+            .write_output
+        {
             let written_output = write_output(
                 &self.options,
                 &executable_tcb_installation_authorization,
@@ -955,14 +959,15 @@ impl Compiler {
                 write_timings(&self.options, timings.as_slice())?;
             }
             (
+                written_output.kind,
                 written_output.executable_publication,
                 written_output.app_bundle_publication,
             )
         } else if emit_auxiliary_artifacts {
             write_emission_plan(&self.options, &backend.plan, &emission_plan, None)?;
-            (None, None)
+            (super::CompileOutputKind::CheckOnly, None, None)
         } else {
-            (None, None)
+            (super::CompileOutputKind::CheckOnly, None, None)
         };
 
         if emit_auxiliary_artifacts {
@@ -973,6 +978,7 @@ impl Compiler {
             root_path: self.options.root_path,
             source_file_count,
             wrote_output: self.options.write_output,
+            output_kind,
             executable_publication,
             app_bundle_publication,
             program_storage_entry: program_storage_entry_bridge
