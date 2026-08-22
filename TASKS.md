@@ -2620,8 +2620,9 @@ conformance cannot change token meaning; and no accepted source contains a
 - Replace string-backed intrinsic identity. `Binding::CompilerIntrinsic` has no
   authored payload; its exact resolved realization-machine symbol, normalized
   signature, and selected target key the sealed compiler lowering catalog.
-  Rendered-binding reparsing is deleted; the remaining transitional rendering
-  is write-only symbol-resolution interning, never semantic reconstruction.
+  Rendered-binding reparsing and the write-only rendering interner are deleted;
+  symbol resolution interns a closed structural binding key whose mechanism and
+  field boundaries remain identity-bearing without text reconstruction.
   External leaves now retain a closed mechanism tag in their supply mode;
   validation, public snapshots, and contract fingerprints consume that tag
   rather than classifying a `Binding::Case(...)` prefix. Resolved and typed

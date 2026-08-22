@@ -139,6 +139,33 @@ impl ExternalBindingMechanism {
     }
 }
 
+/// Closed, structural identity for one irreducible external binding. These
+/// values are interned directly; no display rendering is parsed or compared.
+/// Foreign library/symbol fields remain bootstrap strings until their nominal
+/// ids move into the target package.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ExternalBindingIdentity {
+    Import { library: String, symbol: String },
+    Syscall { number: i64 },
+    CompilerIntrinsic { machine: String },
+    VtableSlot { index: i64 },
+    VtableField { field: String },
+    TableFunction { field: String },
+}
+
+impl ExternalBindingIdentity {
+    pub const fn mechanism(&self) -> ExternalBindingMechanism {
+        match self {
+            Self::Import { .. } => ExternalBindingMechanism::Import,
+            Self::Syscall { .. } => ExternalBindingMechanism::Syscall,
+            Self::CompilerIntrinsic { .. } => ExternalBindingMechanism::CompilerIntrinsic,
+            Self::VtableSlot { .. } => ExternalBindingMechanism::VtableSlot,
+            Self::VtableField { .. } => ExternalBindingMechanism::VtableField,
+            Self::TableFunction { .. } => ExternalBindingMechanism::TableFunction,
+        }
+    }
+}
+
 /// How a machine is supplied to its consumers (record §Machines). Provider
 /// admission, proof artifacts, manifests, and lowering consume this directly;
 /// resolved and typed trees do not retain a parallel source-spelling flag.
@@ -312,10 +339,9 @@ semantic_id!(
     ProgressProfileId
 );
 semantic_id!(
-    /// A normalized EXTERNAL-BINDING identity (PRV4 step 1): the rendered,
-    /// compile-time-evaluable `via <Binding>` expression of an
-    /// ExternalRealization leaf, interned so supply modes stay Copy and two
-    /// spellings of one binding share one identity.
+    /// A normalized EXTERNAL-BINDING identity (PRV4 step 1): the structural
+    /// `via <Binding>` value of an ExternalRealization leaf, interned so supply
+    /// modes stay Copy and equal bindings share one identity without rendering.
     ExternalBindingId
 );
 semantic_id!(
@@ -586,26 +612,24 @@ impl ServiceReachTable {
     }
 }
 
-/// Legacy deterministic EXTERNAL-BINDING text interner. The destination table
-/// interns structured nominal binding identities and exact realization symbols,
-/// never normalized display renderings. `NULL`/0 stays "not computed"; ids
-/// start at 1 during the compatibility interval.
+/// Deterministic EXTERNAL-BINDING interner. `NULL`/0 stays "not computed";
+/// ids start at 1.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ExternalBindingTable {
-    renderings: Vec<String>,
+    identities: Vec<ExternalBindingIdentity>,
 }
 
 impl ExternalBindingTable {
-    pub fn intern(&mut self, rendering: &str) -> ExternalBindingId {
+    pub fn intern(&mut self, identity: ExternalBindingIdentity) -> ExternalBindingId {
         if let Some(index) = self
-            .renderings
+            .identities
             .iter()
-            .position(|existing| existing == rendering)
+            .position(|existing| existing == &identity)
         {
             return ExternalBindingId(index as u32 + 1);
         }
-        self.renderings.push(rendering.to_owned());
-        ExternalBindingId(self.renderings.len() as u32)
+        self.identities.push(identity);
+        ExternalBindingId(self.identities.len() as u32)
     }
 }
 
@@ -918,6 +942,38 @@ mod tests {
             assert!(!mode.is_checked_body());
             assert!(!mode.is_boundary_declaration());
         }
+    }
+
+    #[test]
+    fn external_binding_interner_uses_structural_identity() {
+        let mut bindings = ExternalBindingTable::default();
+        let first = bindings.intern(ExternalBindingIdentity::Import {
+            library: "a,b".to_owned(),
+            symbol: "c".to_owned(),
+        });
+        assert_eq!(
+            bindings.intern(ExternalBindingIdentity::Import {
+                library: "a,b".to_owned(),
+                symbol: "c".to_owned(),
+            }),
+            first,
+            "equal structural bindings must share one identity"
+        );
+        assert_ne!(
+            bindings.intern(ExternalBindingIdentity::Import {
+                library: "a".to_owned(),
+                symbol: "b,c".to_owned(),
+            }),
+            first,
+            "field boundaries must remain identity-bearing"
+        );
+        assert_ne!(
+            bindings.intern(ExternalBindingIdentity::CompilerIntrinsic {
+                machine: "a,b".to_owned(),
+            }),
+            first,
+            "mechanism tags must remain identity-bearing"
+        );
     }
 
     #[test]
