@@ -571,6 +571,13 @@ Owners:
   Presentation-name substitution cannot redirect lookup; accessor-type
   substitution rejects fail closed. Atomic specialized carriers retain their
   separate typed operation fence.
+  Compiler-derived placed-view plans now also retain the exact build-time
+  `Policy::plan` machine symbol beside the nominal policy symbol and normalized
+  placement. Independent validation rejoins both identities to the current
+  policy data/machine attachment before field access. Policy-data or plan-
+  machine substitution rejects fail closed; this binds existing evaluated
+  evidence without re-evaluating policy code or establishing source-visible
+  placement authority.
 - Keep alias-exclusion admission separate from access rights; `&mut` does not
   claim exclusivity against a device. Sealed primitive events now specialize
   linearly into Stable read/take/write/swap, External read/take/write, or one
