@@ -101,6 +101,20 @@ operations, and type-check their receiver and arguments. Duplicate declarations,
 unknown names, wrong receiver types, wrong argument types/counts, malformed
 strings, and a missing entry are negative gates.
 
+`../delta-rs/samples/omega0-frontend.alp` now implements that front end in D0.
+It accepts exactly one canonical bundled source, retains at most 2,048 source
+bytes with checked exhaustion, validates the complete source as UTF-8, and uses
+a streaming lexer rather than a token arena. Fixed O0 names use ASCII
+identifiers; integers are unsuffixed nonnegative decimal `i32` literals; cooked
+strings admit direct UTF-8 bytes plus `\n`, `\r`, `\t`, `\0`, `\"`, `\\`, and
+`\xNN` byte escapes. The parser consumes the complete frozen declaration/call
+shape and retains up to 1,024 decoded `write_line` bytes plus the exact
+`exit_process` literal. Until terminal-Psi emission consumes those operands, a
+success digest makes perturbations of either observable. The focused native and
+Delta-written self-host gate covers the canonical source, trivia and UTF-8
+variants, the name/type/count rejection matrix, malformed input, and distinct
+source/string exhaustion.
+
 Accepted O0 lowers through the selected terminal-Psi representation to a
 deterministic runnable artifact. The artifact must print the literal plus one
 newline, then exit with the requested low-byte status; those observations must
@@ -122,6 +136,12 @@ operation. Treating the exit literal as an unrelated machine return or
 introducing an Omega0-only IR would evade, not close, the intended seam. The
 string passed to `write_line` must likewise retain its exact structural carrier
 and custody through the canonical call.
+
+The frontend is not yet covered by canonical Delta meaning: the current
+Beta-written Delta-to-Gamma elaboration route rejects the canonical frontend
+execution that both native production and Delta-written `lowermachine` accept.
+That is an explicit D0 meaning-coverage task, not permission to weaken the O0
+front end or treat native agreement as semantic authority.
 
 O0 excludes build files, packages beyond the fixed `use`, arbitrary data,
 general expressions, user calls, control flow, allocation, proofs, and

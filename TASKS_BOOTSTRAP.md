@@ -179,6 +179,11 @@ story.
   - [ ] Audit the eventual Omega0 Delta source against D0 and make every construct
     either elaborate through the lower-rung route or reject before it can enter
     the compiler. Keep `gamma_emit.rs` only as a reference differential producer.
+    - [ ] Extend `omega2gamma.beta` for the Delta-written O0 frontend. The native
+      on-ramp and Delta-written `lowermachine` both return its retained operand
+      digest 107 for `cli_mvp`; the current lower-rung elaboration/interpreter
+      route returns rejection 251 for that same canonical bundle. Preserve this
+      as an explicit meaning-coverage gap rather than weakening the frontend.
 - [ ] **Build a vertical Omega canary in Delta.** A Delta-written program must
   accept a small Omega source file, perform name/type checks, lower through the
   chosen terminal-Psi path, and produce a runnable artifact whose behavior
@@ -192,13 +197,26 @@ story.
     bump (vocabulary 23), semantic call schema, verifier, interpreter effect,
     and Omega abstract operation. Target lowering explicitly rejects nonempty
     scalar boundary arguments until a real native realization exists.
-  - [ ] Implement the Delta O0 lexer/parser and complete its positive and
-    name/type/count rejection matrix against the frozen source contract.
+  - [x] Implement the Delta O0 lexer/parser and complete its positive and
+    name/type/count rejection matrix against the frozen source contract. The
+    focused native gate covers 25 bundle/source cases and a Delta-written
+    `lowermachine` recompilation preserves both acceptance and rejection. It
+    retains the decoded `write_line` carrier and `exit_process` literal and
+    exposes their digest until terminal-Psi emission consumes them.
   - [ ] Emit the O0 terminal-Psi artifact while retaining `write_line`'s exact
     structural string carrier and custody through its boundary call.
   - [ ] Implement a genuine target `exit_process(i32)` boundary realization.
     Consume the preserved scalar argument; do not reinterpret it as a machine
     return or route it through the metadata-only port settlement.
+    - [ ] Close the first native slice with the import-free Linux `exit_group`
+      ABI (x86-64 first, with AArch64 byte validation where practical). Emit the
+      scalar value into the ABI argument register, record the exact consumed
+      value and nonempty settlement byte interval, and trap if the nominally
+      nonreturning syscall returns.
+    - [ ] Keep Darwin and Windows fail-closed until terminal images can carry and
+      independently validate the required external import and relocation
+      evidence. Their hosted `_exit`/`ExitProcess` paths are not aliases for the
+      import-free Linux realization.
   - [ ] Gate the runnable O0 artifact: exact output plus newline, requested
     low-byte exit status, deterministic bytes, and canonical-meaning agreement.
 - [ ] **Implement the first Omega compiler in Delta.** Grow the canary into the

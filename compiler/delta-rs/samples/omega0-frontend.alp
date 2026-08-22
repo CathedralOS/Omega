@@ -1,0 +1,394 @@
+// Delta-written front end for the frozen Omega O0 vertical canary.
+//
+// Input is one canonical OMEGA0_BUNDLE.md version-1 source. The accepted source
+// is the complete O0 grammar, not a prefix. The lexer retains the decoded bytes
+// of write_line's cooked string in `text`; the parser retains exit_process's
+// i32 literal in `exit_code`. Success exits with
+//
+//     (sum(decoded text bytes) + exit_code) % 251
+//
+// so both operands remain observable before terminal-Psi emission exists.
+// Exit 251 is malformed/out-of-profile input and 252 is checked local-storage
+// exhaustion. O0 deliberately admits only ASCII identifiers, decimal
+// unsuffixed nonnegative i32 literals, and cooked strings with the basic byte
+// escapes handled below; the complete source is nevertheless UTF-8 validated.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+    machine read_byte() -> i32;
+}
+
+data Main {
+    console: Console;
+    status: i32; decoded: i32; c: i32; i: i32; n: i32; pos: i32;
+    label_len: i32; content_len: i32; segment_len: i32;
+    segment_first: i32; segment_second: i32; char_ok: i32;
+    tok: i32; tok_start: i32; tok_len: i32; int_value: i32;
+    text_len: i32; text_sum: i32; exit_code: i32;
+    match_base: i32; match_len: i32; match_ok: i32;
+    b1: i32; b2: i32; b3: i32; digit: i32;
+    source: [u8; 2048];
+    text: [u8; 1024];
+    names: [u8; 96];
+}
+
+machine Main::read_u32(&mut self) {
+    self.decoded = 0 - 1;
+    self.c = read_byte();
+    transition 0 { _ -> byte0() }
+    state byte0() { self.decoded = self.c; self.c = read_byte(); transition 0 { _ -> byte1() } }
+    state byte1() { self.decoded = self.decoded + self.c * 256; self.c = read_byte(); transition 0 { _ -> byte2() } }
+    state byte2() { self.decoded = self.decoded + self.c * 65536; self.c = read_byte(); transition 0 { _ -> byte3() } }
+    // Every admitted O0 framing value is below 2^24 (count 1, label <=64,
+    // source <=2048). Preserve a nonzero high byte as rejection status; callers
+    // already branch on status before using the decoded value.
+    state byte3() { self.status = self.c; }
+}
+
+machine Main::check_label_byte(&mut self) {
+    self.char_ok = 0;
+    transition self.c >= 65 { true -> upper() false -> digit0() }
+    state upper() { transition self.c < 91 { true -> yes() false -> lower0() } }
+    state lower0() { transition self.c >= 97 { true -> lower() false -> digit0() } }
+    state lower() { transition self.c < 123 { true -> yes() false -> digit0() } }
+    state digit0() { transition self.c >= 48 { true -> digit1() false -> dot() } }
+    state digit1() { transition self.c < 58 { true -> yes() false -> dot() } }
+    state dot() { transition self.c == 46 { true -> yes() false -> under() } }
+    state under() { transition self.c == 95 { true -> yes() false -> dash() } }
+    state dash() { transition self.c == 45 { true -> yes() false -> slash() } }
+    state slash() { transition self.c == 47 { true -> yes() false -> no() } }
+    state yes() { self.char_ok = 1; }
+    state no() { }
+}
+
+machine Main::finish_label_segment(&mut self) {
+    transition self.segment_len > 0 { true -> dot1() false -> bad() }
+    state dot1() { transition self.segment_len == 1 { true -> single() false -> dot2() } }
+    state single() { transition self.segment_first == 46 { true -> bad() false -> good() } }
+    state dot2() { transition self.segment_len == 2 { true -> double() false -> good() } }
+    state double() { transition self.segment_first == 46 { true -> double2() false -> good() } }
+    state double2() { transition self.segment_second == 46 { true -> bad() false -> good() } }
+    state bad() { self.status = 251; }
+    state good() { }
+}
+
+machine Main::read_label(&mut self) {
+    self.i = 0;
+    self.segment_len = 0;
+    transition 0 { _ -> loop() }
+    state loop() { transition self.i < self.label_len { true -> read() false -> finish() } }
+    state read() { self.c = read_byte(); transition self.c < 0 { true -> bad() false -> classify() } }
+    state classify() { self.check_label_byte(); transition self.char_ok == 1 { true -> slash_check() false -> bad() } }
+    state slash_check() { transition self.c == 47 { true -> slash() false -> character() } }
+    state slash() { self.finish_label_segment(); transition self.status == 0 { true -> slash_next() false -> done() } }
+    state slash_next() { self.i = self.i + 1; self.segment_len = 0; transition 0 { _ -> loop() } }
+    state character() { transition self.segment_len == 0 { true -> first() false -> second_check() } }
+    state first() { self.segment_first = self.c; transition 0 { _ -> advance() } }
+    state second_check() { transition self.segment_len == 1 { true -> second() false -> advance() } }
+    state second() { self.segment_second = self.c; transition 0 { _ -> advance() } }
+    state advance() { self.i = self.i + 1; self.segment_len = self.segment_len + 1; transition 0 { _ -> loop() } }
+    state finish() { self.finish_label_segment(); transition 0 { _ -> done() } }
+    state bad() { self.status = 251; transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::read_source(&mut self) {
+    self.i = 0;
+    transition 0 { _ -> loop() }
+    state loop() { transition self.i < self.content_len { true -> read() false -> done() } }
+    state read() { self.c = read_byte(); transition self.c < 0 { true -> bad() false -> store() } }
+    state store() { self.source[self.i] = self.c; self.i = self.i + 1; transition 0 { _ -> loop() } }
+    state bad() { self.status = 251; }
+    state done() { self.n = self.content_len; }
+}
+
+machine Main::decode_bundle(&mut self) {
+    self.c = read_byte(); transition self.c == 79 { true -> magic1() false -> bad() }
+    state magic1() { self.c = read_byte(); transition self.c == 77 { true -> magic2() false -> bad() } }
+    state magic2() { self.c = read_byte(); transition self.c == 71 { true -> magic3() false -> bad() } }
+    state magic3() { self.c = read_byte(); transition self.c == 48 { true -> magic4() false -> bad() } }
+    state magic4() { self.c = read_byte(); transition self.c == 66 { true -> magic5() false -> bad() } }
+    state magic5() { self.c = read_byte(); transition self.c == 78 { true -> magic6() false -> bad() } }
+    state magic6() { self.c = read_byte(); transition self.c == 68 { true -> magic7() false -> bad() } }
+    state magic7() { self.c = read_byte(); transition self.c == 76 { true -> version() false -> bad() } }
+    state version() { self.read_u32(); transition self.status == 0 { true -> version_value() false -> done() } }
+    state version_value() { transition self.decoded == 1 { true -> count() false -> bad() } }
+    state count() { self.read_u32(); transition self.status == 0 { true -> count_value() false -> done() } }
+    state count_value() { transition self.decoded == 1 { true -> label_size() false -> bad() } }
+    state label_size() { self.read_u32(); transition self.status == 0 { true -> label_value() false -> done() } }
+    state label_value() { self.label_len = self.decoded; transition self.label_len > 0 { true -> label_capacity() false -> bad() } }
+    state label_capacity() { transition self.label_len < 65 { true -> content_size() false -> exhausted() } }
+    state content_size() { self.read_u32(); transition self.status == 0 { true -> content_value() false -> done() } }
+    state content_value() { self.content_len = self.decoded; transition self.content_len < 2049 { true -> label() false -> exhausted() } }
+    state label() { self.read_label(); transition self.status == 0 { true -> content() false -> done() } }
+    state content() { self.read_source(); transition self.status == 0 { true -> eof() false -> done() } }
+    state eof() { self.c = read_byte(); transition self.c < 0 { true -> done() false -> bad() } }
+    state bad() { self.status = 251; transition 0 { _ -> done() } }
+    state exhausted() { self.status = 252; transition 0 { _ -> done() } }
+    state done() { }
+}
+
+// Validate the complete retained source as canonical UTF-8 before tokenization.
+machine Main::validate_utf8(&mut self) {
+    self.i = 0;
+    transition 0 { _ -> loop() }
+    state loop() { transition self.i < self.n { true -> byte() false -> done() } }
+    state byte() { self.c = self.source[self.i]; transition self.c < 128 { true -> ascii() false -> two_low() } }
+    state ascii() { self.i = self.i + 1; transition 0 { _ -> loop() } }
+    state two_low() { transition self.c >= 194 { true -> two_high() false -> bad() } }
+    state two_high() { transition self.c < 224 { true -> need1() false -> three_low() } }
+    state need1() { transition self.i + 1 < self.n { true -> cont1() false -> bad() } }
+    state cont1() { self.b1 = self.source[self.i + 1]; transition self.b1 >= 128 { true -> cont1_high() false -> bad() } }
+    state cont1_high() { transition self.b1 < 192 { true -> advance2() false -> bad() } }
+    state advance2() { self.i = self.i + 2; transition 0 { _ -> loop() } }
+    state three_low() { transition self.c >= 224 { true -> three_high() false -> bad() } }
+    state three_high() { transition self.c < 240 { true -> need2() false -> four_low() } }
+    state need2() { transition self.i + 2 < self.n { true -> load2() false -> bad() } }
+    state load2() { self.b1 = self.source[self.i + 1]; self.b2 = self.source[self.i + 2]; transition self.b2 >= 128 { true -> cont2_high() false -> bad() } }
+    state cont2_high() { transition self.b2 < 192 { true -> three_first_low() false -> bad() } }
+    state three_first_low() { transition self.b1 >= 128 { true -> three_first_high() false -> bad() } }
+    state three_first_high() { transition self.b1 < 192 { true -> e0() false -> bad() } }
+    state e0() { transition self.c == 224 { true -> e0_bound() false -> ed() } }
+    state e0_bound() { transition self.b1 >= 160 { true -> advance3() false -> bad() } }
+    state ed() { transition self.c == 237 { true -> ed_bound() false -> advance3() } }
+    state ed_bound() { transition self.b1 < 160 { true -> advance3() false -> bad() } }
+    state advance3() { self.i = self.i + 3; transition 0 { _ -> loop() } }
+    state four_low() { transition self.c >= 240 { true -> four_high() false -> bad() } }
+    state four_high() { transition self.c < 245 { true -> need3() false -> bad() } }
+    state need3() { transition self.i + 3 < self.n { true -> load3() false -> bad() } }
+    state load3() { self.b1 = self.source[self.i + 1]; self.b2 = self.source[self.i + 2]; self.b3 = self.source[self.i + 3]; transition self.b1 >= 128 { true -> four_b1_high() false -> bad() } }
+    state four_b1_high() { transition self.b1 < 192 { true -> four_b2_low() false -> bad() } }
+    state four_b2_low() { transition self.b2 >= 128 { true -> four_b2_high() false -> bad() } }
+    state four_b2_high() { transition self.b2 < 192 { true -> four_b3_low() false -> bad() } }
+    state four_b3_low() { transition self.b3 >= 128 { true -> four_b3_high() false -> bad() } }
+    state four_b3_high() { transition self.b3 < 192 { true -> f0() false -> bad() } }
+    state f0() { transition self.c == 240 { true -> f0_bound() false -> f4() } }
+    state f0_bound() { transition self.b1 >= 144 { true -> advance4() false -> bad() } }
+    state f4() { transition self.c == 244 { true -> f4_bound() false -> advance4() } }
+    state f4_bound() { transition self.b1 < 144 { true -> advance4() false -> bad() } }
+    state advance4() { self.i = self.i + 4; transition 0 { _ -> loop() } }
+    state bad() { self.status = 251; }
+    state done() { }
+}
+
+machine Main::is_ident_start(&mut self) {
+    self.char_ok = 0;
+    transition self.c == 95 { true -> yes() false -> upper0() }
+    state upper0() { transition self.c >= 65 { true -> upper1() false -> lower0() } }
+    state upper1() { transition self.c < 91 { true -> yes() false -> lower0() } }
+    state lower0() { transition self.c >= 97 { true -> lower1() false -> no() } }
+    state lower1() { transition self.c < 123 { true -> yes() false -> no() } }
+    state yes() { self.char_ok = 1; }
+    state no() { }
+}
+
+machine Main::is_ident_continue(&mut self) {
+    self.is_ident_start();
+    transition self.char_ok == 1 { true -> done() false -> digit0() }
+    state digit0() { transition self.c >= 48 { true -> digit1() false -> done() } }
+    state digit1() { transition self.c < 58 { true -> yes() false -> done() } }
+    state yes() { self.char_ok = 1; }
+    state done() { }
+}
+
+machine Main::hex_value(&mut self) {
+    self.digit = 0 - 1;
+    transition self.c >= 48 { true -> digit1() false -> upper0() }
+    state digit1() { transition self.c < 58 { true -> digit() false -> upper0() } }
+    state digit() { self.digit = self.c - 48; transition 0 { _ -> done() } }
+    state upper0() { transition self.c >= 65 { true -> upper1() false -> lower0() } }
+    state upper1() { transition self.c < 71 { true -> upper() false -> lower0() } }
+    state upper() { self.digit = self.c - 55; transition 0 { _ -> done() } }
+    state lower0() { transition self.c >= 97 { true -> lower1() false -> done() } }
+    state lower1() { transition self.c < 103 { true -> lower() false -> done() } }
+    state lower() { self.digit = self.c - 87; }
+    state done() { }
+}
+
+machine Main::append_text(&mut self) {
+    transition self.text_len < 1024 { true -> store() false -> exhausted() }
+    state store() {
+        self.text[self.text_len] = self.c;
+        self.text_len = self.text_len + 1;
+        self.text_sum = (self.text_sum + self.c) % 251;
+        transition 0 { _ -> done() }
+    }
+    state exhausted() { self.status = 252; }
+    state done() { }
+}
+
+machine Main::scan_string(&mut self) {
+    self.pos = self.pos + 1; self.text_len = 0; self.text_sum = 0;
+    transition 0 { _ -> loop() }
+    state loop() { transition self.pos < self.n { true -> byte() false -> eof() } }
+    state byte() { self.c = self.source[self.pos]; transition self.c == 34 { true -> complete() false -> slash() } }
+    state slash() { transition self.c == 92 { true -> escape_begin() false -> control() } }
+    state control() { transition self.c >= 32 { true -> store() false -> bad() } }
+    state store() { self.append_text(); transition self.status == 0 { true -> next() false -> done() } }
+    state next() { self.pos = self.pos + 1; transition 0 { _ -> loop() } }
+    state escape_begin() { self.pos = self.pos + 1; transition self.pos < self.n { true -> escape_byte() false -> bad() } }
+    state escape_byte() { self.c = self.source[self.pos]; transition self.c == 110 { true -> escape_n() false -> escape_r_check() } }
+    state escape_n() { self.c = 10; transition 0 { _ -> escape_store() } }
+    state escape_r_check() { transition self.c == 114 { true -> escape_r() false -> escape_t_check() } }
+    state escape_r() { self.c = 13; transition 0 { _ -> escape_store() } }
+    state escape_t_check() { transition self.c == 116 { true -> escape_t() false -> escape_0_check() } }
+    state escape_t() { self.c = 9; transition 0 { _ -> escape_store() } }
+    state escape_0_check() { transition self.c == 48 { true -> escape_0() false -> escape_quote_check() } }
+    state escape_0() { self.c = 0; transition 0 { _ -> escape_store() } }
+    state escape_quote_check() { transition self.c == 34 { true -> escape_store() false -> escape_slash_check() } }
+    state escape_slash_check() { transition self.c == 92 { true -> escape_store() false -> escape_x_check() } }
+    state escape_x_check() { transition self.c == 120 { true -> escape_x_bound() false -> bad() } }
+    state escape_x_bound() { transition self.pos + 2 < self.n { true -> escape_x1() false -> bad() } }
+    state escape_x1() { self.c = self.source[self.pos + 1]; self.hex_value(); transition self.digit >= 0 { true -> escape_x1_save() false -> bad() } }
+    state escape_x1_save() { self.b1 = self.digit; self.c = self.source[self.pos + 2]; self.hex_value(); transition self.digit >= 0 { true -> escape_x2_save() false -> bad() } }
+    state escape_x2_save() { self.c = self.b1 * 16 + self.digit; self.pos = self.pos + 2; transition 0 { _ -> escape_store() } }
+    state escape_store() { self.append_text(); transition self.status == 0 { true -> next() false -> done() } }
+    state complete() { self.pos = self.pos + 1; self.tok = 258; self.tok_len = self.pos - self.tok_start; transition 0 { _ -> done() } }
+    state eof() { self.status = 251; transition 0 { _ -> done() } }
+    state bad() { self.status = 251; }
+    state done() { }
+}
+
+// Token kinds: 0 EOF, 256 identifier, 257 integer, 258 cooked string; ASCII
+// punctuation uses its byte value directly.
+machine Main::next_token(&mut self) {
+    self.tok = 0;
+    self.tok_len = 0;
+    transition self.status == 0 { true -> skip() false -> done() }
+    state skip() { transition self.pos < self.n { true -> skip_byte() false -> eof() } }
+    state skip_byte() { self.c = self.source[self.pos]; transition self.c == 32 { true -> skip_advance() false -> skip_lf() } }
+    state skip_lf() { transition self.c == 10 { true -> skip_advance() false -> skip_cr() } }
+    state skip_cr() { transition self.c == 13 { true -> skip_advance() false -> skip_tab() } }
+    state skip_tab() { transition self.c == 9 { true -> skip_advance() false -> slash() } }
+    state skip_advance() { self.pos = self.pos + 1; transition 0 { _ -> skip() } }
+    state slash() { transition self.c == 47 { true -> slash_bound() false -> classify() } }
+    state slash_bound() { transition self.pos + 1 < self.n { true -> slash_second() false -> classify() } }
+    state slash_second() { transition self.source[self.pos + 1] == 47 { true -> comment_advance() false -> classify() } }
+    state comment_advance() { self.pos = self.pos + 2; transition 0 { _ -> comment() } }
+    state comment() { transition self.pos < self.n { true -> comment_byte() false -> eof() } }
+    state comment_byte() { transition self.source[self.pos] == 10 { true -> skip_advance() false -> comment_next() } }
+    state comment_next() { self.pos = self.pos + 1; transition 0 { _ -> comment() } }
+    state classify() {
+        self.tok_start = self.pos;
+        self.is_ident_start();
+        transition self.char_ok == 1 { true -> ident_begin() false -> digit0() }
+    }
+    state ident_begin() { self.pos = self.pos + 1; transition 0 { _ -> ident_loop() } }
+    state ident_loop() { transition self.pos < self.n { true -> ident_byte() false -> ident_done() } }
+    state ident_byte() { self.c = self.source[self.pos]; self.is_ident_continue(); transition self.char_ok == 1 { true -> ident_next() false -> ident_done() } }
+    state ident_next() { self.pos = self.pos + 1; transition 0 { _ -> ident_loop() } }
+    state ident_done() { self.tok = 256; self.tok_len = self.pos - self.tok_start; transition 0 { _ -> done() } }
+    state digit0() { transition self.c >= 48 { true -> digit1() false -> quote() } }
+    state digit1() { transition self.c < 58 { true -> integer_begin() false -> quote() } }
+    state integer_begin() { self.int_value = 0; transition 0 { _ -> integer_loop() } }
+    state integer_loop() { transition self.pos < self.n { true -> integer_byte() false -> integer_done() } }
+    state integer_byte() { self.c = self.source[self.pos]; transition self.c >= 48 { true -> integer_digit_high() false -> integer_done() } }
+    state integer_digit_high() { transition self.c < 58 { true -> integer_bound() false -> integer_done() } }
+    state integer_bound() { transition self.int_value < 214748364 { true -> integer_add() false -> integer_last_bound() } }
+    state integer_last_bound() { transition self.int_value == 214748364 { true -> integer_last_digit() false -> integer_bad() } }
+    state integer_last_digit() { transition self.c < 56 { true -> integer_add() false -> integer_bad() } }
+    state integer_bad() { self.status = 251; transition 0 { _ -> done() } }
+    state integer_add() { self.int_value = self.int_value * 10 + self.c - 48; self.pos = self.pos + 1; transition 0 { _ -> integer_loop() } }
+    state integer_done() { self.tok = 257; self.tok_len = self.pos - self.tok_start; transition 0 { _ -> done() } }
+    state quote() { transition self.c == 34 { true -> string_call() false -> punctuation() } }
+    state string_call() { self.scan_string(); transition 0 { _ -> done() } }
+    state punctuation() { self.tok = self.c; self.tok_len = 1; self.pos = self.pos + 1; transition 0 { _ -> done() } }
+    state eof() { self.tok = 0; self.tok_start = self.pos; }
+    state done() { }
+}
+
+machine Main::init_names(&mut self) {
+    // useomegalanguagestdconsoledataMainConsolemachinemainmutselfwrite_lineexit_process
+    self.names[0]=117; self.names[1]=115; self.names[2]=101;
+    self.names[3]=111; self.names[4]=109; self.names[5]=101; self.names[6]=103; self.names[7]=97;
+    self.names[8]=108; self.names[9]=97; self.names[10]=110; self.names[11]=103; self.names[12]=117; self.names[13]=97; self.names[14]=103; self.names[15]=101;
+    self.names[16]=115; self.names[17]=116; self.names[18]=100;
+    self.names[19]=99; self.names[20]=111; self.names[21]=110; self.names[22]=115; self.names[23]=111; self.names[24]=108; self.names[25]=101;
+    self.names[26]=100; self.names[27]=97; self.names[28]=116; self.names[29]=97;
+    self.names[30]=77; self.names[31]=97; self.names[32]=105; self.names[33]=110;
+    self.names[34]=67; self.names[35]=111; self.names[36]=110; self.names[37]=115; self.names[38]=111; self.names[39]=108; self.names[40]=101;
+    self.names[41]=109; self.names[42]=97; self.names[43]=99; self.names[44]=104; self.names[45]=105; self.names[46]=110; self.names[47]=101;
+    self.names[48]=109; self.names[49]=97; self.names[50]=105; self.names[51]=110;
+    self.names[52]=109; self.names[53]=117; self.names[54]=116;
+    self.names[55]=115; self.names[56]=101; self.names[57]=108; self.names[58]=102;
+    self.names[59]=119; self.names[60]=114; self.names[61]=105; self.names[62]=116; self.names[63]=101;
+    self.names[64]=95; self.names[65]=108; self.names[66]=105; self.names[67]=110; self.names[68]=101;
+    self.names[69]=101; self.names[70]=120; self.names[71]=105; self.names[72]=116; self.names[73]=95; self.names[74]=112;
+    self.names[75]=114; self.names[76]=111; self.names[77]=99; self.names[78]=101; self.names[79]=115; self.names[80]=115;
+}
+
+machine Main::match_name(&mut self, base: i32, count: i32) {
+    self.match_ok = 0; self.match_base = base; self.match_len = count;
+    transition self.tok == 256 { true -> length() false -> done() }
+    state length() { transition self.tok_len == self.match_len { true -> setup() false -> done() } }
+    state setup() { self.i = 0; transition 0 { _ -> loop() } }
+    state loop() { transition self.i < self.match_len { true -> compare() false -> yes() } }
+    state compare() { transition self.source[self.tok_start + self.i] == self.names[self.match_base + self.i] { true -> advance() false -> done() } }
+    state advance() { self.i = self.i + 1; transition 0 { _ -> loop() } }
+    state yes() { self.match_ok = 1; }
+    state done() { }
+}
+
+machine Main::expect_name(&mut self, base: i32, count: i32) {
+    transition self.status == 0 { true -> compare_name() false -> done() }
+    state compare_name() { self.match_name(base, count); transition 0 { _ -> matched() } }
+    state matched() {
+    transition self.match_ok == 1 { true -> advance() false -> bad() }
+    }
+    state advance() { self.next_token(); transition 0 { _ -> done() } }
+    state bad() { self.status = 251; }
+    state done() { }
+}
+
+machine Main::expect_token(&mut self, expected: i32) {
+    transition self.status == 0 { true -> compare_token() false -> done() }
+    state compare_token() { transition self.tok == expected { true -> advance() false -> bad() } }
+    state advance() { self.next_token(); transition 0 { _ -> done() } }
+    state bad() { self.status = 251; }
+    state done() { }
+}
+
+machine Main::parse_o0(&mut self) {
+    self.pos = 0; self.next_token();
+    self.expect_name(0,3); self.expect_name(3,5); self.expect_token(58); self.expect_token(58);
+    self.expect_name(8,8); self.expect_token(58); self.expect_token(58); self.expect_name(16,3);
+    self.expect_token(58); self.expect_token(58); self.expect_name(19,7); self.expect_token(59);
+    transition self.status == 0 { true -> data_decl() false -> done() }
+    state data_decl() {
+        self.expect_name(26,4); self.expect_name(30,4); self.expect_token(123);
+        self.expect_name(19,7); self.expect_token(58); self.expect_name(34,7); self.expect_token(59); self.expect_token(125);
+        transition self.status == 0 { true -> machine_decl() false -> done() }
+    }
+    state machine_decl() {
+        self.expect_name(41,7); self.expect_name(30,4); self.expect_token(58); self.expect_token(58); self.expect_name(48,4);
+        self.expect_token(40); self.expect_token(38); self.expect_name(52,3); self.expect_name(55,4); self.expect_token(41); self.expect_token(123);
+        transition self.status == 0 { true -> write_call() false -> done() }
+    }
+    state write_call() {
+        self.expect_name(55,4); self.expect_token(46); self.expect_name(19,7); self.expect_token(46); self.expect_name(59,10); self.expect_token(40);
+        transition self.status == 0 { true -> write_argument() false -> done() }
+    }
+    state write_argument() { transition self.tok == 258 { true -> save_text() false -> bad() } }
+    state save_text() { self.next_token(); self.expect_token(41); self.expect_token(59); transition self.status == 0 { true -> exit_call() false -> done() } }
+    state exit_call() {
+        self.expect_name(55,4); self.expect_token(46); self.expect_name(19,7); self.expect_token(46); self.expect_name(69,12); self.expect_token(40);
+        transition self.status == 0 { true -> exit_argument() false -> done() }
+    }
+    state exit_argument() { transition self.tok == 257 { true -> save_exit() false -> bad() } }
+    state save_exit() { self.exit_code = self.int_value; self.next_token(); self.expect_token(41); self.expect_token(59); self.expect_token(125); transition self.status == 0 { true -> exact_end() false -> done() } }
+    state exact_end() { transition self.tok == 0 { true -> done() false -> bad() } }
+    state bad() { self.status = 251; }
+    state done() { }
+}
+
+machine Main::main(&mut self) {
+    self.status = 0; self.n = 0; self.text_len = 0; self.text_sum = 0; self.exit_code = 0;
+    self.init_names();
+    self.decode_bundle();
+    transition self.status == 0 { true -> utf8() false -> reject_decode() }
+    state utf8() { self.validate_utf8(); transition self.status == 0 { true -> parse() false -> reject_utf8() } }
+    state parse() { self.parse_o0(); transition self.status == 0 { true -> accepted() false -> reject_parse() } }
+    state accepted() { self.console.exit_process((self.text_sum + (self.exit_code % 251)) % 251); }
+    state reject_decode() { self.console.exit_process(self.status); }
+    state reject_utf8() { self.console.exit_process(self.status); }
+    state reject_parse() { self.console.exit_process(self.status); }
+}

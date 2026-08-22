@@ -40,6 +40,11 @@ That compiler then builds the full optimizing Omega compiler from Omega source.
 - `compiler/delta-rs/delta-storage-meaning.sh` evaluates that canary and a
   perturbation through `omega2gamma.beta` and Gamma's `interp.beta`, without the
   Rust Gamma emitter defining the result.
+- `compiler/delta-rs/samples/omega0-frontend.alp` is the first actual Omega0
+  compiler slice written in Delta. It decodes a canonical single-source bundle,
+  lexes and parses the frozen O0 shape, performs its exact name/type/count
+  checks, and retains the two console-boundary operands. Its focused gate also
+  recompiles it through Delta-written `lowermachine`.
 - `compiler/omega/BOOTSTRAP_PROFILES.md` freezes the Delta D0 implementation
   profile and Omega O0 vertical-canary input profile in their transitional home.
 
@@ -82,6 +87,9 @@ explicit boundary surfaces and remain in the platform trust ledger.
 - Use bootstrap Omega to build and validate the full Omega-source production
   compiler.
 - Continue widening the Delta-to-Gamma meaning route and its differential gates.
+- Extend that lower-rung route to the O0 frontend; native and Delta-self-hosted
+  execution agree today, while the current Beta-to-Gamma path rejects the
+  canonical frontend run and therefore does not yet grant semantic authority.
 - Replace `lowermachine`'s remaining dedicated fixed tables with logical arenas
   over the checked D0 backing convention. Its source extent now fails explicitly
   on exhaustion rather than silently truncating the input.

@@ -1491,13 +1491,21 @@ Remaining:
   lowering regression in
   `psi-checked-trees-to-terminal/tests/mixed_shift_source.rs`. On the current
   warm tree, the test enters `lower_machine` and remains there beyond 100
-  seconds; the retained profile history records about 6.08 seconds for the same
-  317-obligation source. Profile the producer-side fixed affine/cast/shift
-  reconstruction before changing storage or concurrency. Preserve the complete
-  source, proof frontier, independent verifier replay, and tamper gates. Accept
-  when the focused warm test is back below 10 seconds on the same host and the
-  emitted semantic/proof artifacts are unchanged. Viewer/report generation is
-  not implicated because this test lowers in memory.
+  seconds; a retained pre-regression binary completes the byte-identical fixture
+  in 5.49 seconds and produces the same 317 obligations. Sampling attributes
+  the regression to the appended
+  `affine_selection::cast::sandwich` fallback: failed candidates repeatedly
+  regenerate the depth-four definition frontier and rescan semantic axioms for
+  every cast, requirement, and endpoint. Add verifier-local cast-spine and
+  candidate indexing, prefilter candidates by exact goal/suffix reachability
+  and source-order boundaries before prefix-frontier construction, and cache
+  `definition_words(root)` for one reconstruction invocation. Do not change
+  storage or add concurrency to conceal this search regression. Preserve the
+  complete source, proof frontier, independent verifier replay, source order,
+  and tamper gates. Accept when the focused warm test is back below 10 seconds
+  on the same host and the emitted semantic/proof artifacts are unchanged.
+  Viewer/report generation is not implicated because this test lowers in
+  memory.
 
 - **PSIIR.** Extend terminal Psi only as complete vertical slices: canonical
   encoding, independent obligation reconstruction and verification,
