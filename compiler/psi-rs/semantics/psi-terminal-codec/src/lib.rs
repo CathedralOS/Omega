@@ -10,6 +10,7 @@ mod artifact_manifest;
 mod debug_map;
 mod proof_bundle;
 mod scalar_wire;
+mod structural_field_wire;
 mod trust_graph;
 mod wire;
 
@@ -35,32 +36,30 @@ pub use trust_graph::{
 };
 
 use psi_core::{
-    ByteSequenceStructuralField, CanonicalStructuralPathSegment, ClaimId, ContentAlgebra,
-    ContentAlgebraKind, ContentConservation, ContentDomainId, ContentPlaceSegment,
-    ContentPlaceVersion, ContentProjectionIdentity, ContentStructuralPlace, ContentTerm,
-    IeeeFloatComparisonKind, IeeeFloatFormat, IeeeFloatStructuralField, ObligationId, PlaceId,
+    CanonicalStructuralPathSegment, ClaimId, ContentAlgebra, ContentAlgebraKind,
+    ContentConservation, ContentDomainId, ContentPlaceSegment, ContentPlaceVersion,
+    ContentProjectionIdentity, ContentStructuralPlace, ContentTerm, IeeeFloatFormat, ObligationId,
     Proposition, PropositionError, PropositionId, PsiSemanticId, ScalarTerm, ServiceId,
     StructuralCaseSubject, StructuralPlaceKind, StructuralTypeId,
 };
 use psi_terminal::{
-    BindingRelevance, Block, BoundaryMachineDeclaration, ByteSequenceCarrier,
-    ClaimContentProjection, ClaimTransfer, ClosedConformanceApplication,
-    ClosedConformanceParameterBinding, ClosedConformanceParameterKind, ClosedConformanceRow,
-    CompletionReceipt, ContentEntryClaim, ContentIdentityReshuffle, ContentPartitionComposition,
-    ContentPlaceSubstitution, ContractClause, CrashCause, CrashPredicateTerm, CrashRouteBucket,
-    CrashRouteGuard, EntryClaim, EvidenceContractLane, EvidenceContractLaneKind,
-    EvidenceInterfaceIdentity, EvidencePackageInvocation, EvidencePackageOutputBinding,
-    EvidencePackageRuntimeCall, EvidenceTermDeclaration, FloatMeaningEqualityProposition,
-    FloatMeaningProjection, FloatMeaningProjectionOperation, FloatProjectionInput,
-    FloatProjectionInputId, MachineContract, NominalAffineCleanup, Operation, OperationKind,
-    OperationResult, ProofOnlyValueType, ProofPropositionId, ProofValueDeclaration, ProofValueId,
-    PropositionApplicationIdentity, PropositionBinderArgumentIdentity,
-    PropositionBinderArgumentKind, PropositionBinderDeclaration, PropositionBinderKind,
-    PropositionDeclaration, PropositionEvidence, ProviderCandidateConformance,
-    ProviderParameterRefinement, ProviderSignatureParameter, ProviderUnitRefinement,
-    ProviderUnitSignature, ServiceDeclaration, StructuralAffineDiscard, StructuralArgument,
-    StructuralCaseDeclaration, StructuralDomainDeclaration, StructuralDomainRequirement,
-    StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
+    Block, BoundaryMachineDeclaration, ClaimContentProjection, ClaimTransfer,
+    ClosedConformanceApplication, ClosedConformanceParameterBinding,
+    ClosedConformanceParameterKind, ClosedConformanceRow, CompletionReceipt, ContentEntryClaim,
+    ContentIdentityReshuffle, ContentPartitionComposition, ContentPlaceSubstitution,
+    ContractClause, CrashCause, CrashPredicateTerm, CrashRouteBucket, CrashRouteGuard, EntryClaim,
+    EvidenceContractLane, EvidenceContractLaneKind, EvidenceInterfaceIdentity,
+    EvidencePackageInvocation, EvidencePackageOutputBinding, EvidencePackageRuntimeCall,
+    EvidenceTermDeclaration, FloatMeaningEqualityProposition, FloatMeaningProjection,
+    FloatMeaningProjectionOperation, FloatProjectionInput, FloatProjectionInputId, MachineContract,
+    NominalAffineCleanup, Operation, OperationKind, OperationResult, ProofOnlyValueType,
+    ProofPropositionId, ProofValueDeclaration, ProofValueId, PropositionApplicationIdentity,
+    PropositionBinderArgumentIdentity, PropositionBinderArgumentKind, PropositionBinderDeclaration,
+    PropositionBinderKind, PropositionDeclaration, PropositionEvidence,
+    ProviderCandidateConformance, ProviderParameterRefinement, ProviderSignatureParameter,
+    ProviderUnitRefinement, ProviderUnitSignature, ServiceDeclaration, StructuralAffineDiscard,
+    StructuralArgument, StructuralCaseDeclaration, StructuralDomainDeclaration,
+    StructuralDomainRequirement, StructuralFieldType, StructuralMultiplicity,
     StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
     StructuralResultDeclaration, StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge,
     TerminalAffineCleanupAction, TerminalMachine, TerminalMachineResult, TerminalModule,
@@ -73,6 +72,13 @@ use scalar_wire::{
 };
 use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
+use structural_field_wire::{
+    decode_byte_sequence_field, decode_canonical_structural_field,
+    decode_ieee_float_comparison_kind, decode_ieee_float_field, decode_ieee_float_format,
+    decode_structural_field, encode_byte_sequence_field, encode_canonical_structural_field,
+    encode_ieee_float_comparison_kind, encode_ieee_float_field, encode_ieee_float_format,
+    encode_structural_field,
+};
 use wire::{Reader, Writer};
 
 const MAGIC: &[u8; 8] = b"PSITERM\0";
@@ -1748,177 +1754,6 @@ fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError> {
         encode_machine(&mut writer, machine)?;
     }
     Ok(writer.finish())
-}
-
-fn encode_ieee_float_format(writer: &mut Writer, format: IeeeFloatFormat) {
-    writer.u8(match format {
-        IeeeFloatFormat::Binary32 => 1,
-        IeeeFloatFormat::Binary64 => 2,
-    });
-}
-
-fn encode_ieee_float_comparison_kind(writer: &mut Writer, kind: IeeeFloatComparisonKind) {
-    writer.u8(match kind {
-        IeeeFloatComparisonKind::Equal => 1,
-        IeeeFloatComparisonKind::NotEqual => 2,
-    });
-}
-
-fn decode_ieee_float_comparison_kind(
-    reader: &mut Reader<'_>,
-) -> Result<IeeeFloatComparisonKind, CodecError> {
-    match reader.u8()? {
-        1 => Ok(IeeeFloatComparisonKind::Equal),
-        2 => Ok(IeeeFloatComparisonKind::NotEqual),
-        tag => Err(CodecError::InvalidTag("IeeeFloatComparisonKind", tag)),
-    }
-}
-
-fn decode_ieee_float_format(reader: &mut Reader<'_>) -> Result<IeeeFloatFormat, CodecError> {
-    match reader.u8()? {
-        1 => Ok(IeeeFloatFormat::Binary32),
-        2 => Ok(IeeeFloatFormat::Binary64),
-        tag => Err(CodecError::InvalidTag("IeeeFloatFormat", tag)),
-    }
-}
-
-fn encode_ieee_float_field(
-    writer: &mut Writer,
-    field: &IeeeFloatStructuralField,
-) -> Result<(), CodecError> {
-    encode_canonical_structural_field(writer, field.root(), field.path(), "IEEE float field path")
-}
-
-fn decode_ieee_float_field(
-    reader: &mut Reader<'_>,
-) -> Result<IeeeFloatStructuralField, CodecError> {
-    let (root, path) = decode_canonical_structural_field(reader)?;
-    IeeeFloatStructuralField::new(root, path).map_err(CodecError::MalformedProposition)
-}
-
-fn encode_byte_sequence_field(
-    writer: &mut Writer,
-    field: &ByteSequenceStructuralField,
-) -> Result<(), CodecError> {
-    encode_canonical_structural_field(
-        writer,
-        field.root(),
-        field.path(),
-        "byte-sequence field path",
-    )
-}
-
-fn decode_byte_sequence_field(
-    reader: &mut Reader<'_>,
-) -> Result<ByteSequenceStructuralField, CodecError> {
-    let (root, path) = decode_canonical_structural_field(reader)?;
-    ByteSequenceStructuralField::new(root, path).map_err(CodecError::MalformedProposition)
-}
-
-fn encode_canonical_structural_field(
-    writer: &mut Writer,
-    root: PlaceId,
-    path: &[CanonicalStructuralPathSegment],
-    length_label: &'static str,
-) -> Result<(), CodecError> {
-    writer.id(root);
-    writer.len(length_label, path.len())?;
-    for segment in path {
-        match segment {
-            CanonicalStructuralPathSegment::Field(field) => {
-                writer.u8(1);
-                writer.id(*field);
-            }
-            CanonicalStructuralPathSegment::FixedIndex(index) => {
-                writer.u8(2);
-                writer.u64(*index);
-            }
-            CanonicalStructuralPathSegment::Case(case) => {
-                writer.u8(3);
-                writer.id(*case);
-            }
-        }
-    }
-    Ok(())
-}
-
-fn decode_canonical_structural_field(
-    reader: &mut Reader<'_>,
-) -> Result<(PlaceId, Vec<CanonicalStructuralPathSegment>), CodecError> {
-    let root = reader.id("PlaceId")?;
-    let count = reader.count()?;
-    let mut path = Vec::with_capacity(count as usize);
-    for _ in 0..count {
-        path.push(match reader.u8()? {
-            1 => CanonicalStructuralPathSegment::Field(reader.id("StructuralFieldId")?),
-            2 => CanonicalStructuralPathSegment::FixedIndex(reader.u64()?),
-            3 => CanonicalStructuralPathSegment::Case(reader.id("StructuralCaseId")?),
-            tag => {
-                return Err(CodecError::InvalidTag(
-                    "CanonicalStructuralPathSegment",
-                    tag,
-                ));
-            }
-        });
-    }
-    Ok((root, path))
-}
-
-fn encode_byte_sequence_carrier(writer: &mut Writer, carrier: ByteSequenceCarrier) {
-    match carrier {
-        ByteSequenceCarrier::BorrowedView => writer.u8(1),
-        ByteSequenceCarrier::BoundedOwned { capacity } => {
-            writer.u8(2);
-            writer.u64(capacity);
-        }
-    }
-}
-
-fn decode_byte_sequence_carrier(
-    reader: &mut Reader<'_>,
-) -> Result<ByteSequenceCarrier, CodecError> {
-    match reader.u8()? {
-        1 => Ok(ByteSequenceCarrier::BorrowedView),
-        2 => Ok(ByteSequenceCarrier::BoundedOwned {
-            capacity: reader.u64()?,
-        }),
-        tag => Err(CodecError::InvalidTag("ByteSequenceCarrier", tag)),
-    }
-}
-
-fn encode_structural_field(
-    writer: &mut Writer,
-    field: &StructuralFieldDeclaration,
-) -> Result<(), CodecError> {
-    writer.id(field.id);
-    writer.string("structural field identity", &field.identity)?;
-    writer.u8(match field.relevance {
-        BindingRelevance::Relevant => 1,
-        BindingRelevance::Erased => 2,
-    });
-    match &field.field_type {
-        StructuralFieldType::Scalar(scalar_type) => {
-            writer.u8(1);
-            encode_scalar_type(writer, *scalar_type);
-        }
-        StructuralFieldType::IeeeFloat(format) => {
-            writer.u8(4);
-            encode_ieee_float_format(writer, *format);
-        }
-        StructuralFieldType::ByteSequence(carrier) => {
-            writer.u8(5);
-            encode_byte_sequence_carrier(writer, *carrier);
-        }
-        StructuralFieldType::Structural(structural_type) => {
-            writer.u8(2);
-            writer.id(*structural_type);
-        }
-        StructuralFieldType::Erased { type_identity } => {
-            writer.u8(3);
-            writer.string("erased structural field type identity", type_identity)?;
-        }
-    }
-    Ok(())
 }
 
 fn encode_structural_type(
@@ -3770,34 +3605,6 @@ fn decode_structural_type(
         id,
         identity,
         shape,
-    })
-}
-
-fn decode_structural_field(
-    reader: &mut Reader<'_>,
-) -> Result<StructuralFieldDeclaration, CodecError> {
-    let id = reader.id("StructuralFieldId")?;
-    let identity = reader.string("structural field identity")?;
-    let relevance = match reader.u8()? {
-        1 => BindingRelevance::Relevant,
-        2 => BindingRelevance::Erased,
-        tag => return Err(CodecError::InvalidTag("BindingRelevance", tag)),
-    };
-    let field_type = match reader.u8()? {
-        1 => StructuralFieldType::Scalar(decode_scalar_type(reader)?),
-        2 => StructuralFieldType::Structural(reader.id("StructuralTypeId")?),
-        3 => StructuralFieldType::Erased {
-            type_identity: reader.string("erased structural field type identity")?,
-        },
-        4 => StructuralFieldType::IeeeFloat(decode_ieee_float_format(reader)?),
-        5 => StructuralFieldType::ByteSequence(decode_byte_sequence_carrier(reader)?),
-        tag => return Err(CodecError::InvalidTag("StructuralFieldType", tag)),
-    };
-    Ok(StructuralFieldDeclaration {
-        id,
-        identity,
-        relevance,
-        field_type,
     })
 }
 
