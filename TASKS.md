@@ -3680,6 +3680,11 @@ Remaining:
   direct and transitive declaration checks, cycle-safe call-path recovery, and
   unchanged path diagnostics remain one settled judgment; the effects
   coordinator is now 436 lines with the exact 23-function inventory unchanged.
+  Pure-result discard validation now lives in a focused 181-line owner. Proof-
+  context and citation exemptions, checked-machine and boundary-signature
+  resolution, recursive service/operational purity, mutable-output detection,
+  and the existing warning remain unchanged; the natural effects facade is now
+  261 lines with the exact 23-function inventory unchanged.
   Profiling the differential corpus also ruled out a wholesale Arena-to-
   `PagedArena` migration as a concurrency fix: `PagedArena` provides stable
   paged storage, not concurrent mutation, and the existing sound parallel
