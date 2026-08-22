@@ -113,28 +113,7 @@ fn reject_quotient_operation_requests(program: &TypedTrees, diagnostics: &mut Ve
     let mut planned_requests = Vec::new();
     for machine in program.machines() {
         for state in program.machine_states(machine) {
-            let direct_root = program
-                .statement_table
-                .statements(state.statement_nodes)
-                .last()
-                .and_then(|statement| {
-                    let psi_typed_trees::statement::StatementNode::Expression(expression) =
-                        statement
-                    else {
-                        return None;
-                    };
-                    matches!(
-                        program.expression_table.expression(*expression),
-                        ExpressionNode::Call(call) if call.quotient_operation.is_some()
-                    )
-                    .then_some(relation_plan::ImmutableAliasFallthroughRoot {
-                        request_expression: *expression,
-                        alias_count: 0,
-                    })
-                });
-            let Some(result_root) = direct_root
-                .or_else(|| relation_plan::immutable_alias_fallthrough_root(program, state))
-            else {
+            let Some(result_root) = relation_plan::fallthrough_result_root(program, state) else {
                 continue;
             };
             let ExpressionNode::Call(call) = program
@@ -152,6 +131,12 @@ fn reject_quotient_operation_requests(program: &TypedTrees, diagnostics: &mut Ve
                 program, machine, state, call, request,
             ) {
                 Ok(plan) => {
+                    let complete_result_flow = relation_plan::complete_single_state_result_flow(
+                        program,
+                        machine,
+                        state,
+                        result_root,
+                    );
                     let correspondence = plan
                         .render_define_correspondence()
                         .map(|value| format!(" plus exact {value}"))
@@ -164,22 +149,34 @@ fn reject_quotient_operation_requests(program: &TypedTrees, diagnostics: &mut Ve
                         .render_public_precondition()
                         .map(|value| format!(" plus exact {value}"))
                         .unwrap_or_default();
-                    let result_flow = if result_root.alias_count == 0 {
-                        "one unchanged state-fallthrough result root".to_owned()
+                    let result_path = if result_root.alias_count == 0 {
+                        "the exact result root".to_owned()
                     } else {
                         format!(
-                            "one unchanged state-fallthrough result through {} exact immutable alias{}",
+                            "{} exact immutable result alias{}",
                             result_root.alias_count,
                             if result_root.alias_count == 1 { "" } else { "es" },
                         )
+                    };
+                    let result_flow = if complete_result_flow.is_some() {
+                        format!(
+                            "complete transition-free single-state normal-result coverage through {result_path}"
+                        )
+                    } else {
+                        format!("one unchanged state-fallthrough result edge through {result_path}")
                     };
                     let plan_kind = if result_root.alias_count == 0 {
                         "direct-terminal"
                     } else {
                         "immutable-alias fallthrough"
                     };
+                    let remaining_result_fence = if complete_result_flow.is_some() {
+                        ""
+                    } else {
+                        ", and all normalized result exits"
+                    };
                     diagnostics.push(Diagnostic::error(format!(
-                        "`Quotient::{operation}` has compiler-derived {plan_kind} relations {} and {} plus exact representative telescope {}{correspondence}{public_precondition}{precondition} and {result_flow}, but executable quotient operations are not admitted until complete operation/static correspondence, the selected `Respects` contract, and all normalized result exits are independently checked",
+                        "`Quotient::{operation}` has compiler-derived {plan_kind} relations {} and {} plus exact representative telescope {}{correspondence}{public_precondition}{precondition} and {result_flow}, but executable quotient operations are not admitted until complete operation/static correspondence, the selected `Respects` contract, effect/termination fences{remaining_result_fence} are independently checked",
                         plan.render_ra(program),
                         plan.render_rr(program),
                         plan.render_representative_telescope(program),

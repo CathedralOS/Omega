@@ -1,4 +1,5 @@
-//! Non-authoritative `RA`/`RR` derivation for direct terminal quotient requests.
+//! Non-authoritative relation and same-state result-flow planning for quotient
+//! requests.
 //!
 //! The plan retains exact quotient TYPE identity as well as relation symbol so
 //! two quotients over one carrier cannot collapse. It grants no execution
@@ -53,6 +54,13 @@ pub(super) struct DirectTerminalRelationPlan {
 pub(super) struct ImmutableAliasFallthroughRoot {
     pub(super) request_expression: ExpressionHandle,
     pub(super) alias_count: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) struct CompleteSingleStateResultFlow {
+    pub(super) machine_symbol: SymbolHandle,
+    pub(super) state_symbol: SymbolHandle,
+    pub(super) root: ImmutableAliasFallthroughRoot,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -295,6 +303,31 @@ pub(super) fn derive_direct_terminal_plan(
     })
 }
 
+pub(super) fn fallthrough_result_root(
+    program: &TypedTrees,
+    state: &State,
+) -> Option<ImmutableAliasFallthroughRoot> {
+    let direct = program
+        .statement_table
+        .statements(state.statement_nodes)
+        .last()
+        .and_then(|statement| {
+            let psi_typed_trees::statement::StatementNode::Expression(expression) = statement
+            else {
+                return None;
+            };
+            matches!(
+                program.expression_table.expression(*expression),
+                ExpressionNode::Call(call) if call.quotient_operation.is_some()
+            )
+            .then_some(ImmutableAliasFallthroughRoot {
+                request_expression: *expression,
+                alias_count: 0,
+            })
+        });
+    direct.or_else(|| immutable_alias_fallthrough_root(program, state))
+}
+
 /// Recognize only the straight-line immutable alias form of one unchanged
 /// state-fallthrough result. This deliberately excludes transitions,
 /// assignments, side statements, mutable locals, and type drift.
@@ -344,6 +377,63 @@ pub(super) fn immutable_alias_fallthrough_root(
         }
     }
     None
+}
+
+/// Prove that the already-normalized fallthrough root exhausts normal result
+/// exits only for one exact, transition-free state. This says nothing about
+/// effects, termination, contract correspondence, or executable admission.
+pub(super) fn complete_single_state_result_flow(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    root: ImmutableAliasFallthroughRoot,
+) -> Option<CompleteSingleStateResultFlow> {
+    if !machine.symbol.is_valid() || !state.symbol.is_valid() {
+        return None;
+    }
+    let mut owner_matches = program
+        .machines()
+        .iter()
+        .filter(|candidate| candidate.symbol == machine.symbol);
+    let Some(exact_owner) = owner_matches.next() else {
+        return None;
+    };
+    if exact_owner != machine || owner_matches.next().is_some() {
+        return None;
+    }
+    let mut state_matches = program
+        .machines()
+        .iter()
+        .flat_map(|candidate| program.machine_states(candidate))
+        .filter(|candidate| candidate.symbol == state.symbol);
+    let Some(exact_state) = state_matches.next() else {
+        return None;
+    };
+    if exact_state != state || state_matches.next().is_some() {
+        return None;
+    }
+    let states = program.machine_states(machine);
+    if states.len() != 1
+        || states[0].symbol != state.symbol
+        || fallthrough_result_root(program, state) != Some(root)
+        || program
+            .statement_table
+            .statements(state.statement_nodes)
+            .iter()
+            .any(|statement| {
+                matches!(
+                    statement,
+                    psi_typed_trees::statement::StatementNode::Transition(_)
+                )
+            })
+    {
+        return None;
+    }
+    Some(CompleteSingleStateResultFlow {
+        machine_symbol: machine.symbol,
+        state_symbol: state.symbol,
+        root,
+    })
 }
 
 fn exact_local_name_symbol(
@@ -1281,10 +1371,11 @@ mod tests {
         ExactQuotientRelation, InputRelation, RelationPlanError,
         RepresentativeContractFactLocation, RepresentativeContractOwner,
         RepresentativeRuntimeParameter, RepresentativeStaticApplication,
-        RepresentativeStaticBindingKind, RepresentativeTelescope, derive_direct_terminal_plan,
+        RepresentativeStaticBindingKind, RepresentativeTelescope,
+        complete_single_state_result_flow, derive_direct_terminal_plan,
         derive_exact_representative_static_application, derive_public_precondition_partition,
         derive_representative_precondition_partition, derive_representative_telescope,
-        immutable_alias_fallthrough_root, substituted_type_matches,
+        fallthrough_result_root, immutable_alias_fallthrough_root, substituted_type_matches,
     };
     use psi_arena::HandleSpan;
     use psi_symbols::SymbolHandle;
@@ -1306,7 +1397,7 @@ mod tests {
     };
     use psi_typed_trees::signature::{SignatureContract, SignatureContractKind, StateParameter};
     use psi_typed_trees::state::State;
-    use psi_typed_trees::statement::{StatementNode, TableLocalData};
+    use psi_typed_trees::statement::{StatementNode, TableLocalData, TableTransition};
     use psi_typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
 
     fn symbol(index: u32) -> SymbolHandle {
@@ -2365,9 +2456,9 @@ mod tests {
         assert!(diagnostics[0].message.contains("Q=[dependent:0, fixed:0]"));
         assert!(diagnostics[0].message.contains("P=[dependent:0, fixed:0]"));
         assert!(
-            diagnostics[0]
-                .message
-                .contains("one unchanged state-fallthrough result root")
+            diagnostics[0].message.contains(
+                "one unchanged state-fallthrough result edge through the exact result root"
+            )
         );
         assert!(
             diagnostics[0]
@@ -2447,6 +2538,104 @@ mod tests {
     }
 
     #[test]
+    fn complete_result_flow_requires_one_exact_machine_state() {
+        let mut program = TypedTrees::default();
+        let return_type = program.type_reference_table.insert(TypeReferenceNode::Unit);
+        let arguments = program
+            .expression_table
+            .insert_expression_handles(std::iter::empty());
+        let mut call = call_with_arguments(arguments);
+        call.quotient_operation = Some(request_with_representative(SymbolHandle::invalid()));
+        let request = program.expression_table.insert(ExpressionNode::Call(call));
+        let mut state = State {
+            symbol: symbol(31),
+            return_type,
+            ..Default::default()
+        };
+        program.statement_table.push_statement(
+            &mut state.statement_nodes,
+            StatementNode::Expression(request),
+        );
+        let mut machine = Machine {
+            symbol: symbol(30),
+            ..Default::default()
+        };
+        program.push_machine_state(&mut machine, state);
+        program.push_machine(machine);
+
+        let root = {
+            let machine = &program.machines()[0];
+            let state = &program.machine_states(machine)[0];
+            let root = fallthrough_result_root(&program, state).expect("exact result root");
+            assert_eq!(
+                complete_single_state_result_flow(&program, machine, state, root),
+                Some(super::CompleteSingleStateResultFlow {
+                    machine_symbol: symbol(30),
+                    state_symbol: symbol(31),
+                    root,
+                })
+            );
+            root
+        };
+
+        let mut machine = program.machines()[0].clone();
+        program.push_machine_state(
+            &mut machine,
+            State {
+                symbol: symbol(32),
+                return_type,
+                ..Default::default()
+            },
+        );
+        program.machines_mut()[0] = machine;
+        let machine = &program.machines()[0];
+        let state = &program.machine_states(&machine)[0];
+        assert_eq!(
+            complete_single_state_result_flow(&program, &machine, state, root),
+            None
+        );
+    }
+
+    #[test]
+    fn complete_result_flow_rejects_a_transition_before_fallthrough() {
+        let mut program = TypedTrees::default();
+        let return_type = program.type_reference_table.insert(TypeReferenceNode::Unit);
+        let arguments = program
+            .expression_table
+            .insert_expression_handles(std::iter::empty());
+        let mut call = call_with_arguments(arguments);
+        call.quotient_operation = Some(request_with_representative(SymbolHandle::invalid()));
+        let request = program.expression_table.insert(ExpressionNode::Call(call));
+        let mut state = State {
+            symbol: symbol(41),
+            return_type,
+            ..Default::default()
+        };
+        program.statement_table.push_statement(
+            &mut state.statement_nodes,
+            StatementNode::Transition(TableTransition::default()),
+        );
+        program.statement_table.push_statement(
+            &mut state.statement_nodes,
+            StatementNode::Expression(request),
+        );
+        let mut machine = Machine {
+            symbol: symbol(40),
+            ..Default::default()
+        };
+        program.push_machine_state(&mut machine, state);
+        program.push_machine(machine);
+        let machine = &program.machines()[0];
+        let state = &program.machine_states(&machine)[0];
+        let root = fallthrough_result_root(&program, state).expect("fallthrough edge still exists");
+
+        assert_eq!(
+            complete_single_state_result_flow(&program, &machine, state, root),
+            None
+        );
+    }
+
+    #[test]
     fn derived_immutable_alias_fallthrough_remains_non_executable() {
         let mut program = TypedTrees::default();
         let quotient_type = quotient_type(&mut program, symbol(1), "ExactQ", symbol(2), "ExactR");
@@ -2463,6 +2652,7 @@ mod tests {
         let result_symbol = symbol(4);
         let result = named_argument(&mut program, "result", result_symbol);
         let mut state = State {
+            symbol: symbol(5),
             return_type: quotient_type,
             ..Default::default()
         };
@@ -2489,7 +2679,10 @@ mod tests {
             &mut state.statement_nodes,
             StatementNode::Expression(result),
         );
-        let mut machine = Machine::default();
+        let mut machine = Machine {
+            symbol: symbol(6),
+            ..Default::default()
+        };
         program.push_machine_state(&mut machine, state);
         program.push_machine(machine);
         let mut diagnostics = Vec::new();
@@ -2505,7 +2698,7 @@ mod tests {
         assert!(
             diagnostics[0]
                 .message
-                .contains("through 1 exact immutable alias")
+                .contains("complete transition-free single-state normal-result coverage through 1 exact immutable result alias")
         );
         assert!(
             diagnostics[0]
