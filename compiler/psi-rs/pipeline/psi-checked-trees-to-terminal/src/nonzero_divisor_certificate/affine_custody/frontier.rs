@@ -4,6 +4,7 @@ use psi_core::{Proposition, PropositionContext, ScalarTerm};
 
 use super::DefinitionIndex;
 
+mod layer;
 mod prefix;
 
 pub(super) fn definition_words(
@@ -18,30 +19,16 @@ pub(super) fn definition_words(
     // successfully by the kernel advance, and the completed proof is checked
     // again before it leaves affine custody.
     let mut words = Vec::new();
-    let mut frontier = vec![(Vec::new(), 0, root.clone())];
+    let mut frontier = vec![layer::Entry::root(root)];
     for _ in 0..MAX_DEFINITIONS {
-        let mut next = Vec::new();
-        for (prefix, start, current) in frontier {
-            for &index in definitions
-                .candidates(&current)
-                .iter()
-                .skip_while(|&&index| index < start)
-            {
-                let mut word = prefix.clone();
-                word.push(index);
-                if let Some(next_target) = prefix::checked_target(
-                    context,
-                    semantic_axioms,
-                    root,
-                    &word,
-                    &semantic_axioms[index],
-                ) {
-                    words.push(word.clone());
-                    next.push((word, index + 1, next_target.clone()));
-                }
-            }
-        }
-        frontier = next;
+        frontier = layer::expand(
+            context,
+            semantic_axioms,
+            definitions,
+            root,
+            frontier,
+            &mut words,
+        );
     }
     words
 }
