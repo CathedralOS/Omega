@@ -510,7 +510,13 @@ Remaining:
   reserved bytes, count/capacity guards, literal diagnostics, and offset errors
   preserve exact bytes and precedence; the parent retains upfront count
   conversion, settlement order, validation, and admission replay. The
-  installation parent is now 3,573
+  ordered installed-function collection now lives in a private 172-line
+  composition codec. Function identity, attachment and spans, stack facts,
+  Unit/scalar parameter-home carriers, cleanup presence fields, nested row
+  order, reserved bytes, count/capacity guards, literal diagnostics, and offset
+  errors preserve exact bytes and precedence; the parent retains upfront count
+  conversion, cross-function order, canonicality, association, and admission
+  replay. The installation parent is now 3,435
   lines. This is
   custody, not
   authorization. The remaining
@@ -1349,6 +1355,12 @@ Owners:
   interrupt-lifecycle, and installed-root-ledger owner; public re-exports,
   diagnostics/order, behavior, and the 107-function inventory remain
   unchanged. This is the natural modularization boundary for that crate.
+  Struct-literal construction bounds now live in a focused 324-line private
+  owner. Literal, declared-range, local-initializer, sequence-length, and
+  capacity facts; saturating interval arithmetic; exact symbolic equality; and
+  fail-closed tri-state proof replay retain diagnostic order and no-implicit-
+  check behavior. The coordinator is now 880 lines with the exact 25-function
+  inventory unchanged.
 
 Acceptance: UART/MMIO, shared-page IPC, and ordinary RAM use one extent/layout
 foundation with different profiles. Misalignment, insufficient rights,
@@ -7097,9 +7109,9 @@ surface. Expression cast validation now lives in a focused 285-line private
 owner. Recast bypass, indexed qualification, proof embedding, quotient-mint
 carrier checks, same-carrier erasure, scalar source fences, and Exact/Wrapping
 float-policy diagnostics retain exact behavior and order. The natural 270-line
-expression-type facade retains generic argument matching, bounded-text capacity
-validation, expression-owner diagnostics, and type labels; crate-facing APIs,
-identities, and the exact 51-function inventory remain unchanged.
+  expression-type facade retains generic argument matching, bounded-text capacity
+  validation, expression-owner diagnostics, and type labels; crate-facing APIs,
+  identities, and the exact 51-function inventory remain unchanged.
 
 Checked-result float/integer conversion remains blocked on the separate
 checked-result arithmetic decision listed below.
