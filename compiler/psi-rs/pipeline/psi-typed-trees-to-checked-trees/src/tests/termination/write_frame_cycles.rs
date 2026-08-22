@@ -33,12 +33,14 @@ fn write_frame_stays_opaque_for_non_bijective_exclusive_cycle() {
         .expect("duplicate-cycle entry state");
     let resolver = psi_validation::CallFrameResolver::new(&typed).expect("valid symbol cache");
 
-    assert!(
-        !resolver
-            .inferred_state_write_frame(machine, entry)
-            .is_complete(),
-        "duplicating one exclusive root is not a permutation and must leave the frame opaque"
-    );
+    for query in 0..2 {
+        assert!(
+            !resolver
+                .inferred_state_write_frame(machine, entry)
+                .is_complete(),
+            "duplicating one exclusive root must remain opaque on query {query}"
+        );
+    }
 }
 
 #[test]

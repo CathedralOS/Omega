@@ -100,13 +100,31 @@ pub(crate) fn known_call_written_paths(
     machine_symbols: &MachineSymbols<'_>,
     symbols: &TopLevelSymbols<'_>,
 ) -> Option<Vec<String>> {
+    known_call_written_paths_with_summaries(
+        program,
+        call,
+        current_machine,
+        machine_symbols,
+        symbols,
+        &mut Vec::new(),
+    )
+}
+
+fn known_call_written_paths_with_summaries(
+    program: &TypedTrees,
+    call: &TableCall,
+    current_machine: &Machine,
+    machine_symbols: &MachineSymbols<'_>,
+    symbols: &TopLevelSymbols<'_>,
+    complete_state_summaries: &mut Vec<(SymbolHandle, Vec<String>)>,
+) -> Option<Vec<String>> {
     let receiver_members = program
         .statement_table
         .name_path_members(call.receiver)
         .iter()
         .map(|member| member.as_str().to_owned())
         .collect::<Vec<_>>();
-    known_call_written_paths_for_parts(
+    known_call_written_paths_for_parts_with_origins(
         program,
         call.target_symbol,
         call.target.as_str(),
@@ -116,6 +134,8 @@ pub(crate) fn known_call_written_paths(
         machine_symbols,
         symbols,
         &mut Vec::new(),
+        None,
+        complete_state_summaries,
     )
 }
 
@@ -131,6 +151,7 @@ fn known_call_written_paths_for_parts(
     symbols: &TopLevelSymbols<'_>,
     active_states: &mut Vec<SymbolHandle>,
 ) -> Option<Vec<String>> {
+    let mut complete_state_summaries = Vec::new();
     known_call_written_paths_for_parts_with_origins(
         program,
         target_symbol,
@@ -142,6 +163,7 @@ fn known_call_written_paths_for_parts(
         symbols,
         active_states,
         None,
+        &mut complete_state_summaries,
     )
 }
 
@@ -157,6 +179,7 @@ fn known_call_written_paths_for_parts_with_origins(
     symbols: &TopLevelSymbols<'_>,
     active_states: &mut Vec<SymbolHandle>,
     argument_origins: Option<&[Option<FramePlaceOrigin>]>,
+    complete_state_summaries: &mut Vec<(SymbolHandle, Vec<String>)>,
 ) -> Option<Vec<String>> {
     known_call_written_paths_for_parts_with_origins_and_summaries(
         program,
@@ -169,7 +192,7 @@ fn known_call_written_paths_for_parts_with_origins(
         symbols,
         active_states,
         argument_origins,
-        &mut Vec::new(),
+        complete_state_summaries,
     )
 }
 
@@ -1372,6 +1395,7 @@ fn statement_call_preserves_transparent_result(
         symbols,
         active_states,
         Some(&argument_origins),
+        &mut Vec::new(),
     )
     .or_else(|| {
         (!arguments
@@ -2743,6 +2767,7 @@ fn build_permuted_cycle_frame_equation<'program>(
                     symbols,
                     &mut active_states,
                     Some(&argument_origins),
+                    &mut Vec::new(),
                 )
                 .or_else(|| {
                     (!arguments
