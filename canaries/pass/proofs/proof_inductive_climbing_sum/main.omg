@@ -8,9 +8,10 @@
 // same strict-decrease + non-negativity polynomial gate the plain
 // descending-naturals measure uses. The instantiated hypothesis for
 // (limit, index + 1, acc + 1) is exactly the goal; the base arm closes
-// because the negated guard makes the remaining distance non-positive. (The
-// inequality form is used because it holds without a `requires index <= limit`
-// precondition.)
+// because the negated guard makes the remaining distance non-positive. The
+// contract embeds its runtime carriers into proof `Int`, so this is unbounded
+// mathematical arithmetic rather than unproved Exact `u64` arithmetic. (The
+// inequality form holds without a `requires index <= limit` precondition.)
 
 data Main {
 }
@@ -22,7 +23,7 @@ machine Main::main(&mut self) {
 machine Main::climb(&mut self, limit: u64, index: u64, acc: u64) -> u64
 terminates by (index, limit) -> Nat::BoundedDistance;
 ensures
-    result >= acc + limit - index
+    embed(result) >= embed(acc) + embed(limit) - embed(index)
 {
     transition index < limit {
         true -> climb(limit, index + 1, acc + 1)
