@@ -631,6 +631,14 @@ impl ExternalBindingTable {
         self.identities.push(identity);
         ExternalBindingId(self.identities.len() as u32)
     }
+
+    /// Recover the exact structured identity retained by an interned binding.
+    /// Invalid/zero and out-of-table ids fail closed instead of exposing an
+    /// implementation index or inviting a syntax-tree fallback.
+    pub fn identity(&self, binding: ExternalBindingId) -> Option<&ExternalBindingIdentity> {
+        let index = usize::try_from(binding.0).ok()?.checked_sub(1)?;
+        self.identities.get(index)
+    }
 }
 
 /// Decision 19/22 (STR4 checked plans, slice 1): the deterministic
@@ -974,6 +982,15 @@ mod tests {
             first,
             "mechanism tags must remain identity-bearing"
         );
+        assert_eq!(
+            bindings.identity(first),
+            Some(&ExternalBindingIdentity::Import {
+                library: "a,b".to_owned(),
+                symbol: "c".to_owned(),
+            })
+        );
+        assert_eq!(bindings.identity(ExternalBindingId(0)), None);
+        assert_eq!(bindings.identity(ExternalBindingId(u32::MAX)), None);
     }
 
     #[test]

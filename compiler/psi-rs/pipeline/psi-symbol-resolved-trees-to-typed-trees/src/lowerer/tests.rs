@@ -4,6 +4,40 @@ use psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
 use psi_tokens_to_syntax_trees::parse_syntax_trees;
 
 #[test]
+fn retains_structured_external_binding_table_in_typed_trees() {
+    let source = r#"
+        boundary trait Console {
+            machine write(value: u8);
+        }
+
+        machine write_leaf(value: u8)
+        satisfies Console::write
+        via Binding::DllImport("a,b", "c");
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let leaf = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "write_leaf")
+        .expect("external leaf");
+    let [conformance] = typed.machine_trait_conformances(leaf) else {
+        panic!("one exact external conformance")
+    };
+    let binding = conformance.external_binding.expect("external binding id");
+
+    assert_eq!(
+        typed.external_bindings.identity(binding),
+        Some(&psi_language_semantics::ExternalBindingIdentity::Import {
+            library: "a,b".to_owned(),
+            symbol: "c".to_owned(),
+        })
+    );
+}
+
+#[test]
 fn retains_exact_nominal_machine_parameter_identity_in_typed_trees() {
     let source = r#"
         boundary trait WindowProcedure {

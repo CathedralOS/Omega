@@ -2661,8 +2661,13 @@ conformance cannot change token meaning; and no accepted source contains a
   validation, public snapshots, and contract fingerprints consume that tag
   rather than classifying a `Binding::Case(...)` prefix. Resolved and typed
   conformance rows retain the exact `ExternalBindingId` instead of a copied
-  rendering; their consumers distinguish external from checked satisfiers by
-  identity presence, and the interner exposes no rendering lookup. The source
+  rendering; the complete structural binding table now survives into typed
+  trees and exposes a fail-closed identity lookup, so consumers can migrate
+  away from syntax rescans without reintroducing a text parser. Provider-plan
+  candidate derivation now resolves each exact typed conformance id through
+  that table; a same-shaped later syntax payload cannot redirect its binding.
+  Other consumers distinguish external from checked satisfiers by identity
+  presence, and the interner exposes no rendering lookup. The source
   binding case is now payloadless, the core/std/canary corpus uses that form,
   and the seven obsolete authored-name mismatch canaries are deleted in favor
   of one parser regression for the retired payload. Transitional provider rows
