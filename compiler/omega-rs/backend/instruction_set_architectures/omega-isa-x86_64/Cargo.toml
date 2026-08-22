@@ -10,6 +10,7 @@ path = "src/lib.rs"
 
 [dependencies]
 omega-calling-conventions = { path = "../../../foundation/omega-calling-conventions" }
+omega-target = { path = "../../../foundation/omega-target" }
 omega-x86-encoding = { path = "../../../foundation/omega-x86-encoding" }
 psi-arena = { path = "../../../../psi-rs/foundation/psi-arena" }
 psi-diagnostics = { path = "../../../../psi-rs/foundation/psi-diagnostics" }
@@ -18,3 +19,4 @@ psi-language-semantics = { path = "../../../../psi-rs/foundation/psi-language-se
 psi-layout-plans = { path = "../../../../psi-rs/foundation/psi-layout-plans" }
 psi-numerics = { path = "../../../../psi-rs/foundation/psi-numerics" }
 omega-target-operations = { path = "../../../representations/omega-target-operations" }
+omega-terminal-installation-evidence = { path = "../../../representations/omega-terminal-installation-evidence" }

@@ -25,6 +25,7 @@ pub fn internal_function_call_additional_machine_state() -> MachineStateSet {
 
 mod dispatch;
 mod generated_writer;
+mod native_fuel;
 mod place_bounded_buffer;
 mod primitives;
 mod runtime_storage;
@@ -35,6 +36,7 @@ mod wire_encode;
 
 pub use dispatch::*;
 pub use generated_writer::*;
+pub use native_fuel::*;
 pub use place_bounded_buffer::*;
 use primitives::*;
 pub use runtime_storage::*;
