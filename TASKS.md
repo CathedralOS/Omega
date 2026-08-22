@@ -2484,6 +2484,14 @@ Remaining:
   independent witness construction and proof-kernel replay. Definition-word
   order, proof shape, rejection behavior, and the fixed four-layer frontier
   remain unchanged.
+  Source-ordered `Value`-keyed affine candidate storage now lives in paired,
+  side-local `affine_selection/value_index` modules and is reused by literal-
+  landing and two-citation right-leg catalogs. Producer and reconstruction
+  independently retain their citation-bearing versus proposition-only
+  payloads; the storage owner preserves per-`Value` insertion order and empty-
+  miss behavior, while catalog owners retain carrier checks, row identity,
+  proof construction, and completion. Source order, proof shapes, rejection
+  behavior, precedence, and both fixed frontiers remain unchanged.
   One-equality transitive affine completion now lives in independent side-local
   `affine_selection/transitive/alias/completion` modules. Each parent retains
   its own ledger-ordered equality discovery, distinct root/alias custody, and
@@ -4970,6 +4978,13 @@ Owners:
   receipts while preserving literal status 70 and detailed wrong-branch/`sar`-
   versus-`shr` diagnostics. Exact-owner ambiguity, the 795 rooted/3 legacy
   inventory, and receipt-drift fences remain green.
+  Five authored-root guard-expression regressions—numeric casts, parenthesized
+  subjects, And-of-Or DNF lowering, De Morgan negation, and the combined
+  feature-composition case—now launch `OutputOnly` native execution solely
+  through exact checked-report executable receipts while preserving literal
+  status 70 and exact cast-width, parser, DNF, and negation diagnostics. Exact-
+  owner ambiguity, the 795 rooted/3 legacy inventory, and receipt-drift fences
+  remain green.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
