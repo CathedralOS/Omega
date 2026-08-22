@@ -198,12 +198,35 @@ fn hash_fingerprint_byte(hash: &mut u64, byte: u8) {
     *hash = hash.wrapping_mul(0x100000001b3);
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+enum MaterializationFieldKey {
+    Numbered(u64),
+    Positional(String),
+}
+
+fn materialization_field_key(field: &str, member_identity: Option<u64>) -> MaterializationFieldKey {
+    match member_identity {
+        Some(identity) => MaterializationFieldKey::Numbered(identity),
+        None => MaterializationFieldKey::Positional(field.to_owned()),
+    }
+}
+
+const fn stable_identity_suffix(member_identity: Option<u64>) -> &'static str {
+    if member_identity.is_some() {
+        " with the same stable identity"
+    } else {
+        ""
+    }
+}
+
 /// One ordinary scalar supplied to a validated dictated-layout materializer.
-/// The field name selects compiler-validated plan entries; callers never
-/// provide a byte offset or destination bit position.
+/// Positional fields select compiler-validated plan entries by name; numbered
+/// fields use their stable member identity. Callers never provide a byte
+/// offset or destination bit position.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ScalarFieldValue {
     pub field: String,
+    member_identity: Option<u64>,
     pub width_bits: u16,
     pub value: u64,
 }
@@ -226,9 +249,23 @@ impl ScalarFieldValue {
         }
         Ok(Self {
             field: field.into(),
+            member_identity: None,
             width_bits,
             value,
         })
+    }
+
+    /// Constructs a scalar value carrying its compiler-retained stable member
+    /// identity. The field spelling remains diagnostic presentation.
+    pub fn new_numbered(
+        field: impl Into<String>,
+        member_identity: u64,
+        width_bits: u16,
+        value: u64,
+    ) -> Result<Self, MaterializationDiagnostic> {
+        let mut value = Self::new(field, width_bits, value)?;
+        value.member_identity = Some(member_identity);
+        Ok(value)
     }
 }
 
@@ -373,6 +410,7 @@ impl AggregateFieldValue {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ScalarFieldSchema {
     pub field: String,
+    member_identity: Option<u64>,
     pub width_bits: u16,
 }
 
@@ -388,8 +426,21 @@ impl ScalarFieldSchema {
         }
         Ok(Self {
             field: field.into(),
+            member_identity: None,
             width_bits,
         })
+    }
+
+    /// Constructs a decode schema carrying its compiler-retained stable member
+    /// identity. Decoded values use the current schema spelling.
+    pub fn new_numbered(
+        field: impl Into<String>,
+        member_identity: u64,
+        width_bits: u16,
+    ) -> Result<Self, MaterializationDiagnostic> {
+        let mut schema = Self::new(field, width_bits)?;
+        schema.member_identity = Some(member_identity);
+        Ok(schema)
     }
 }
 
@@ -1253,11 +1304,22 @@ pub fn materialize_scalar_layout_into(
     }
 
     let mut supplied = std::collections::BTreeMap::new();
+    let mut supplied_names = std::collections::BTreeSet::new();
     for value in values {
-        if supplied.insert(value.field.as_str(), value).is_some() {
+        if !supplied_names.insert(value.field.as_str()) {
             return Err(MaterializationDiagnostic(format!(
                 "scalar field `{}` is supplied more than once",
                 value.field
+            )));
+        }
+        let key = materialization_field_key(&value.field, value.member_identity);
+        if supplied.insert(key, value).is_some() {
+            return Err(MaterializationDiagnostic(format!(
+                "scalar field `{}` repeats stable member identity #{}",
+                value.field,
+                value
+                    .member_identity
+                    .expect("only numbered values can collide after name validation")
             )));
         }
     }
@@ -1265,23 +1327,36 @@ pub fn materialize_scalar_layout_into(
     let planned = layout
         .entries
         .iter()
-        .map(|entry| entry.field.as_str())
+        .map(|entry| materialization_field_key(&entry.field, entry.member_identity))
         .collect::<std::collections::BTreeSet<_>>();
-    if let Some(field) = planned.iter().find(|field| !supplied.contains_key(**field)) {
+    if let Some(entry) = layout.entries.iter().find(|entry| {
+        !supplied.contains_key(&materialization_field_key(
+            &entry.field,
+            entry.member_identity,
+        ))
+    }) {
+        let suffix = stable_identity_suffix(entry.member_identity);
         return Err(MaterializationDiagnostic(format!(
-            "layout field `{field}` has no supplied scalar value"
+            "layout field `{}` has no supplied scalar value{suffix}",
+            entry.field
         )));
     }
-    if let Some(field) = supplied.keys().find(|field| !planned.contains(**field)) {
+    if let Some(value) = supplied
+        .iter()
+        .find_map(|(key, value)| (!planned.contains(key)).then_some(value))
+    {
+        let suffix = stable_identity_suffix(value.member_identity);
         return Err(MaterializationDiagnostic(format!(
-            "supplied scalar field `{field}` has no entry in the validated layout plan"
+            "supplied scalar field `{}` has no entry in the validated layout plan{suffix}",
+            value.field
         )));
     }
 
     let mut staged = vec![0_u8; byte_len];
     for entry in &layout.entries {
+        let key = materialization_field_key(&entry.field, entry.member_identity);
         let value = supplied
-            .get(entry.field.as_str())
+            .get(&key)
             .expect("complete field set validated above");
         apply_scalar_entry(&mut staged, byte_order, entry, value)?;
     }
@@ -1301,21 +1376,6 @@ pub fn materialize_aggregate_layout_into(
     values: &[AggregateFieldValue],
     destination: &mut [u8],
 ) -> Result<(), MaterializationDiagnostic> {
-    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-    enum AggregateFieldKey {
-        Numbered(u64),
-        Positional(String),
-    }
-
-    let schema_key = |field: &AggregateFieldSchema| match field.member_identity {
-        Some(identity) => AggregateFieldKey::Numbered(identity),
-        None => AggregateFieldKey::Positional(field.field.clone()),
-    };
-    let entry_key = |entry: &LayoutFieldEntryReport| match entry.member_identity {
-        Some(identity) => AggregateFieldKey::Numbered(identity),
-        None => AggregateFieldKey::Positional(entry.field.clone()),
-    };
-
     let byte_len = layout
         .size
         .ok_or_else(|| {
@@ -1346,7 +1406,8 @@ pub fn materialize_aggregate_layout_into(
                 field.field
             )));
         }
-        if schemas.insert(schema_key(field), field).is_some() {
+        let key = materialization_field_key(&field.field, field.member_identity);
+        if schemas.insert(key, field).is_some() {
             return Err(MaterializationDiagnostic(format!(
                 "aggregate field `{}` repeats stable member identity #{}",
                 field.field,
@@ -1366,9 +1427,10 @@ pub fn materialize_aggregate_layout_into(
         }
     }
     let mut planned =
-        std::collections::BTreeMap::<AggregateFieldKey, Vec<&LayoutFieldEntryReport>>::new();
+        std::collections::BTreeMap::<MaterializationFieldKey, Vec<&LayoutFieldEntryReport>>::new();
     for entry in &layout.entries {
-        planned.entry(entry_key(entry)).or_default().push(entry);
+        let key = materialization_field_key(&entry.field, entry.member_identity);
+        planned.entry(key).or_default().push(entry);
     }
     if let Some(entries) = planned
         .iter()
@@ -1377,11 +1439,7 @@ pub fn materialize_aggregate_layout_into(
         let entry = entries
             .first()
             .expect("planned aggregate key always retains an entry");
-        let suffix = if entry.member_identity.is_some() {
-            " with the same stable identity"
-        } else {
-            ""
-        };
+        let suffix = stable_identity_suffix(entry.member_identity);
         return Err(MaterializationDiagnostic(format!(
             "layout field `{}` has no aggregate schema extent{suffix}",
             entry.field
@@ -1391,11 +1449,7 @@ pub fn materialize_aggregate_layout_into(
         .iter()
         .find_map(|(key, field)| (!planned.contains_key(key)).then_some(field))
     {
-        let suffix = if field.member_identity.is_some() {
-            " with the same stable identity"
-        } else {
-            ""
-        };
+        let suffix = stable_identity_suffix(field.member_identity);
         return Err(MaterializationDiagnostic(format!(
             "aggregate schema field `{}` has no entry in the validated layout plan{suffix}",
             field.field
@@ -1584,38 +1638,60 @@ pub fn decode_scalar_layout(
     }
 
     let mut decoded = std::collections::BTreeMap::new();
+    let mut schema_names = std::collections::BTreeSet::new();
     for field in fields {
-        if decoded
-            .insert(field.field.as_str(), (field.width_bits, 0_u64, 0_u64))
-            .is_some()
-        {
+        if !schema_names.insert(field.field.as_str()) {
             return Err(MaterializationDiagnostic(format!(
                 "scalar field `{}` is declared more than once",
                 field.field
+            )));
+        }
+        let key = materialization_field_key(&field.field, field.member_identity);
+        if decoded.insert(key, (field, 0_u64, 0_u64)).is_some() {
+            return Err(MaterializationDiagnostic(format!(
+                "scalar field `{}` repeats stable member identity #{}",
+                field.field,
+                field
+                    .member_identity
+                    .expect("only numbered schemas can collide after name validation")
             )));
         }
     }
     let planned = layout
         .entries
         .iter()
-        .map(|entry| entry.field.as_str())
+        .map(|entry| materialization_field_key(&entry.field, entry.member_identity))
         .collect::<std::collections::BTreeSet<_>>();
-    if let Some(field) = planned.iter().find(|field| !decoded.contains_key(**field)) {
+    if let Some(entry) = layout.entries.iter().find(|entry| {
+        !decoded.contains_key(&materialization_field_key(
+            &entry.field,
+            entry.member_identity,
+        ))
+    }) {
+        let suffix = stable_identity_suffix(entry.member_identity);
         return Err(MaterializationDiagnostic(format!(
-            "layout field `{field}` has no scalar decode schema"
+            "layout field `{}` has no scalar decode schema{suffix}",
+            entry.field
         )));
     }
-    if let Some(field) = decoded.keys().find(|field| !planned.contains(**field)) {
+    if let Some(field) = decoded
+        .iter()
+        .find_map(|(key, (field, _, _))| (!planned.contains(key)).then_some(field))
+    {
+        let suffix = stable_identity_suffix(field.member_identity);
         return Err(MaterializationDiagnostic(format!(
-            "scalar decode field `{field}` has no entry in the validated layout plan"
+            "scalar decode field `{}` has no entry in the validated layout plan{suffix}",
+            field.field
         )));
     }
 
     for entry in &layout.entries {
-        let (width_bits, value, covered) = decoded
-            .get_mut(entry.field.as_str())
+        let key = materialization_field_key(&entry.field, entry.member_identity);
+        let (field, value, covered) = decoded
+            .get_mut(&key)
             .expect("complete field set validated above");
-        let fragment = scalar_fragment(entry, *width_bits)?;
+        let width_bits = field.width_bits;
+        let fragment = scalar_fragment(entry, width_bits)?;
         validate_fragment(
             byte_len,
             &entry.field,
@@ -1640,11 +1716,11 @@ pub fn decode_scalar_layout(
             if stored_width == 0
                 || stored_width > 64
                 || !stored_width.is_multiple_of(8)
-                || *width_bits < stored_width
+                || width_bits < stored_width
             {
                 return Err(MaterializationDiagnostic(format!(
                     "scalar field `{}` cannot decode {stored_width}-bit stored-integer storage into its {}-bit semantic carrier",
-                    entry.field, *width_bits
+                    entry.field, width_bits
                 )));
             }
             if *covered != 0 {
@@ -1666,11 +1742,11 @@ pub fn decode_scalar_layout(
             *value = match interpretation {
                 IntegerInterpretation::Unsigned => stored,
                 IntegerInterpretation::Signed if stored & (1_u64 << (stored_width - 1)) != 0 => {
-                    stored | (low_mask(*width_bits) & !low_mask(stored_width))
+                    stored | (low_mask(width_bits) & !low_mask(stored_width))
                 }
                 IntegerInterpretation::Signed => stored,
             };
-            *covered = low_mask(*width_bits);
+            *covered = low_mask(width_bits);
             continue;
         }
         let source_mask = low_mask(fragment.width) << fragment.source_lsb;
@@ -1695,14 +1771,17 @@ pub fn decode_scalar_layout(
 
     decoded
         .into_iter()
-        .map(|(field, (width_bits, value, covered))| {
+        .map(|(_, (field, value, covered))| {
+            let width_bits = field.width_bits;
             if covered != low_mask(width_bits) {
                 return Err(MaterializationDiagnostic(format!(
-                    "scalar field `{field}` decode fragments do not tile its complete {width_bits}-bit source"
+                    "scalar field `{}` decode fragments do not tile its complete {width_bits}-bit source",
+                    field.field
                 )));
             }
             Ok(ScalarFieldValue {
-                field: field.into(),
+                field: field.field.clone(),
+                member_identity: field.member_identity,
                 width_bits,
                 value,
             })
@@ -2722,6 +2801,115 @@ mod tests {
         assert_eq!(values["mode"], 1);
         assert_eq!(values["payload"], 0x12345);
         assert_eq!(values["high_guard"], 1);
+    }
+
+    #[test]
+    fn numbered_scalar_materialization_and_decode_rejoin_renamed_fields_by_identity() {
+        let layout = LayoutPlanReport {
+            schema_identity: 1,
+            entries: vec![
+                LayoutFieldEntryReport {
+                    field: "legacy_counter".into(),
+                    member_identity: Some(7),
+                    placement: LayoutPlacementReport::Bits {
+                        container: 0,
+                        container_width: 8,
+                        destination_lsb: 0,
+                        source_lsb: 0,
+                        width: 8,
+                    },
+                },
+                LayoutFieldEntryReport {
+                    field: "legacy_counter".into(),
+                    member_identity: Some(7),
+                    placement: LayoutPlacementReport::Bits {
+                        container: 1,
+                        container_width: 8,
+                        destination_lsb: 0,
+                        source_lsb: 8,
+                        width: 8,
+                    },
+                },
+                LayoutFieldEntryReport {
+                    field: "legacy_status".into(),
+                    member_identity: Some(9),
+                    placement: LayoutPlacementReport::At { offset: 2 },
+                },
+            ],
+            offsets: None,
+            size: Some(4),
+            align: 2,
+        };
+        let values = [
+            ScalarFieldValue::new_numbered("counter", 7, 16, 0x1234).expect("numbered counter"),
+            ScalarFieldValue::new_numbered("status", 9, 16, 0xabcd).expect("numbered status"),
+        ];
+        let mut bytes = [0xa5; 4];
+        materialize_scalar_layout_into(&layout, &values, ByteOrder::LittleEndian, &mut bytes)
+            .expect("stable identities should rejoin renamed scalar fields and fragments");
+        assert_eq!(bytes, [0x34, 0x12, 0xcd, 0xab]);
+
+        let decoded = decode_scalar_layout(
+            &layout,
+            &[
+                ScalarFieldSchema::new_numbered("counter", 7, 16).expect("numbered counter schema"),
+                ScalarFieldSchema::new_numbered("status", 9, 16).expect("numbered status schema"),
+            ],
+            ByteOrder::LittleEndian,
+            &bytes,
+        )
+        .expect("stable identities should decode through current schema spellings");
+        let decoded = decoded
+            .iter()
+            .map(|value| (value.field.as_str(), (value.member_identity, value.value)))
+            .collect::<std::collections::BTreeMap<_, _>>();
+        assert_eq!(decoded["counter"], (Some(7), 0x1234));
+        assert_eq!(decoded["status"], (Some(9), 0xabcd));
+
+        let mut drifted = layout;
+        drifted.entries[1].member_identity = Some(8);
+        let mut unchanged = [0x5a; 4];
+        let error = materialize_scalar_layout_into(
+            &drifted,
+            &values,
+            ByteOrder::LittleEndian,
+            &mut unchanged,
+        )
+        .expect_err("fragment identity drift must reject before destination mutation");
+        assert!(error.0.contains("same stable identity"));
+        assert_eq!(unchanged, [0x5a; 4]);
+
+        let error = decode_scalar_layout(
+            &drifted,
+            &[ScalarFieldSchema::new_numbered("counter", 7, 16).expect("numbered counter schema")],
+            ByteOrder::LittleEndian,
+            &bytes,
+        )
+        .expect_err("decode identity drift must reject before exposing partial values");
+        assert!(error.0.contains("same stable identity"));
+
+        let duplicate_identity = ScalarFieldValue::new_numbered("alias", 7, 16, 0)
+            .expect("second spelling with the same identity");
+        let error = materialize_scalar_layout_into(
+            &drifted,
+            &[values[0].clone(), duplicate_identity],
+            ByteOrder::LittleEndian,
+            &mut unchanged,
+        )
+        .expect_err("one stable identity cannot name two supplied scalar values");
+        assert!(error.0.contains("repeats stable member identity #7"));
+
+        let error = decode_scalar_layout(
+            &drifted,
+            &[
+                ScalarFieldSchema::new_numbered("counter", 7, 16).expect("numbered counter schema"),
+                ScalarFieldSchema::new_numbered("alias", 7, 16).expect("duplicate numbered schema"),
+            ],
+            ByteOrder::LittleEndian,
+            &bytes,
+        )
+        .expect_err("one stable identity cannot name two scalar decode schemas");
+        assert!(error.0.contains("repeats stable member identity #7"));
     }
 
     #[test]
