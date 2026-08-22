@@ -7078,8 +7078,14 @@ checked-result arithmetic decision listed below.
   qualification now lives in a focused 579-line private owner. Exact domain
   lookup and vacuity, literal/range/`requires` mint discharge, contextual
   statement/expression traversal, and diagnostic emission order retain
-  behavior. The recast coordinator is now 900 lines; public APIs, diagnostics,
-  identities, and the exact 49-function inventory remain unchanged. Remaining computed aggregate expression forms still
+  behavior. Raw interior-byte recast admission now lives in a focused 199-line
+  private owner. Exact source-shape recognition, literal/range/guard offset
+  evidence, offset diagnostics, and recursive fact-free target eligibility
+  retain behavior and order. The natural 711-line recast root retains
+  validation/root-position orchestration, the primary scalar judgment and
+  slice continuation, reference-pun closure, and shared borrow unwrapping;
+  public APIs, diagnostics, identities, and the exact 49-function inventory
+  remain unchanged. Remaining computed aggregate expression forms still
   need the same propagation law.
 - Materialize dynamic descriptors for pass-through, rebound, and escaping
   borrows from the retained exact conformance rows and declaring-trait symbol.
