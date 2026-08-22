@@ -1766,9 +1766,12 @@ fn runtime_indexed_guard_true_false_pair_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_indexed_guard_true_false_pair_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-idxpair-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("indexed guard true/false pair canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("indexed guard-pair canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("indexed guard true/false pair canary should run");
     assert_eq!(
@@ -1792,9 +1795,12 @@ fn runtime_indexed_field_local_operand_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_indexed_field_local_operand_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-idxfield-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("indexed-field-local-operand canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("indexed-field operand canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("indexed-field-local-operand canary should run");
     assert_eq!(
@@ -1817,9 +1823,12 @@ fn runtime_indexed_local_bitwise_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_indexed_local_bitwise_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-idxbit-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("indexed-local-bitwise canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("indexed-local bitwise canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("indexed-local-bitwise canary should run");
     assert_eq!(
@@ -1843,9 +1852,12 @@ fn runtime_indexed_local_compare_exit_canary_runs() {
     let canary = pass_canary("collections/runtime_indexed_local_compare_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-idxcmp-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("indexed-local-compare canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("indexed-local compare canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("indexed-local-compare canary should run");
     assert_eq!(
@@ -1868,9 +1880,12 @@ fn runtime_min_guard_true_false_pair_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_min_guard_true_false_pair_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-minpair-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("min guard true/false pair canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("min guard-pair canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("min guard true/false pair canary should run");
     assert_eq!(
