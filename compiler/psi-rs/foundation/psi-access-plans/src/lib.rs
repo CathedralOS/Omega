@@ -2214,18 +2214,9 @@ impl DormantOwnedResident {
         self,
         occurrence: PlacedOccurrenceId,
     ) -> Result<EstablishedOwnedPlacement, OwnedResidentViewEstablishmentError> {
-        let replayed_resources = replay_owned_admission_resources(&self.admission);
-        let diagnostic = match replayed_resources {
-            Ok(resources) if resources == self.admission.resources => None,
-            Ok(_) => Some(AccessPlanDiagnostic(
-                "owned resident view replayed resource compatibility differs from the retained admission"
-                    .into(),
-            )),
-            Err(diagnostic) => Some(AccessPlanDiagnostic(format!(
-                "owned resident view could not replay the retained placement authority: {diagnostic}"
-            ))),
-        };
-        if let Some(diagnostic) = diagnostic {
+        if let Err(diagnostic) =
+            validate_owned_resident_authority(&self.admission, "owned resident view")
+        {
             return Err(OwnedResidentViewEstablishmentError {
                 resident: self,
                 occurrence,
@@ -2253,6 +2244,24 @@ pub struct EstablishedOwnedPlacement {
     occurrence: PlacedOccurrenceId,
     validity_receipt: ExtentContentValidityReceiptId,
     custody_receipt: ExtentContentCustodyReceiptId,
+}
+
+/// Failed resident-preserving retirement returns the complete active carrier;
+/// no dormant claim is minted from drifted placement authority.
+#[derive(Debug)]
+pub struct OwnedResidentRetirementError {
+    established: EstablishedOwnedPlacement,
+    diagnostic: AccessPlanDiagnostic,
+}
+
+impl OwnedResidentRetirementError {
+    pub const fn diagnostic(&self) -> &AccessPlanDiagnostic {
+        &self.diagnostic
+    }
+
+    pub fn into_parts(self) -> (EstablishedOwnedPlacement, AccessPlanDiagnostic) {
+        (self.established, self.diagnostic)
+    }
 }
 
 impl EstablishedOwnedPlacement {
@@ -2295,13 +2304,21 @@ impl EstablishedOwnedPlacement {
     /// End this active owned view without destroying or moving out its
     /// content. The exact resident claim and provider receipts return to the
     /// dormant carrier; the active occurrence ends here.
-    pub fn retire_resident(self) -> DormantOwnedResident {
-        DormantOwnedResident {
+    pub fn retire_resident(self) -> Result<DormantOwnedResident, OwnedResidentRetirementError> {
+        if let Err(diagnostic) =
+            validate_owned_resident_authority(&self.admission, "resident-preserving retirement")
+        {
+            return Err(OwnedResidentRetirementError {
+                established: self,
+                diagnostic,
+            });
+        }
+        Ok(DormantOwnedResident {
             admission: self.admission,
             resident_claim: self.resident_claim,
             validity_receipt: self.validity_receipt,
             custody_receipt: self.custody_receipt,
-        }
+        })
     }
 
     /// Purely project one accepted Stable field through a shared borrow of
@@ -3833,6 +3850,23 @@ fn replay_owned_admission_resources(
         ))
     })?;
     validate_placement_admission(&loan, &admission.placement_plan, &admission.profile)
+}
+
+fn validate_owned_resident_authority(
+    admission: &OwnedPlacementAdmission,
+    transition: &str,
+) -> Result<(), AccessPlanDiagnostic> {
+    let resources = replay_owned_admission_resources(admission).map_err(|diagnostic| {
+        AccessPlanDiagnostic(format!(
+            "{transition} could not replay the retained placement authority: {diagnostic}"
+        ))
+    })?;
+    if resources != admission.resources {
+        return Err(AccessPlanDiagnostic(format!(
+            "{transition} replayed resource compatibility differs from the retained admission"
+        )));
+    }
+    Ok(())
 }
 
 fn validate_placement_admission(
@@ -6128,7 +6162,7 @@ mod tests {
         assert_eq!(dormant.custody_receipt(), custody);
         assert_eq!(dormant.extent().base(), 0xa080);
         dormant.admission.profile = profile;
-        let first = dormant
+        let mut first = dormant
             .view(returned_occurrence)
             .expect("first owned resident-view establishment");
         assert_eq!(first.resident_claim(), claim);
@@ -6147,7 +6181,29 @@ mod tests {
             assert_eq!(request.placed_occurrence(), Some(first_occurrence));
         }
 
-        let dormant = first.retire_resident();
+        let retained_profile = first.admission.profile.clone();
+        let coincident = uart_extent_with_lineage(0xa080, 4, 200);
+        first.admission.profile = stable_word_profile(&coincident);
+        let rejection = first
+            .retire_resident()
+            .expect_err("resident retirement must replay retained placement authority");
+        assert!(
+            rejection
+                .diagnostic()
+                .0
+                .contains("could not replay the retained placement authority"),
+            "{}",
+            rejection.diagnostic()
+        );
+        let (mut first, _) = rejection.into_parts();
+        assert_eq!(first.resident_claim(), claim);
+        assert_eq!(first.occurrence(), first_occurrence);
+        assert_eq!(first.validity_receipt(), validity);
+        assert_eq!(first.custody_receipt(), custody);
+        first.admission.profile = retained_profile;
+        let dormant = first
+            .retire_resident()
+            .expect("returned active resident supports corrected retirement");
         assert_eq!(dormant.resident_claim(), claim);
         assert_eq!(dormant.validity_receipt(), validity);
         assert_eq!(dormant.custody_receipt(), custody);
