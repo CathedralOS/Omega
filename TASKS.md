@@ -454,7 +454,9 @@ Remaining:
   projection/algebra rows, count guards, bytes, and decode errors. Its format-
   31 structural argument place/path codec now lives in a further 83-line child,
   retaining field/index tags, reserved bytes, UTF-8/nonempty-field validation,
-  count/end guards, exact bytes, and established errors. This is
+  count/end guards, exact bytes, and established errors. A 51-line scalar-
+  result codec additionally owns the exact six-byte Boolean/integer/address
+  type grammar and reserved-byte/invalid-result errors. This is
   custody, not
   authorization. The remaining
   work is real
