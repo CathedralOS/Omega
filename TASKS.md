@@ -3890,6 +3890,12 @@ Owners:
   interactive two-mode console owner and all previously fenced exceptional,
   report, float/cast, and policy owners remain excluded; exact-owner pins
   remain stable.
+  Five further authored-root UTF-8/content executions—parameter length-field
+  access, regular-call literal length, literal and view content equality, and
+  declared-domain field reads—now launch solely through checked-report
+  receipts while preserving status 70 and exact content/domain diagnostics.
+  Exceptional, interactive, report-bearing, float/cast, policy, and automaton
+  owners remain excluded; exact-owner pins remain stable.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
