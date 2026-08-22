@@ -7032,73 +7032,27 @@ boundary without its corresponding checked law.
 
 ### Boundary realization and nominal binding identity
 
-- The parallel boundary-primitive registry is retired. The top-level
-  `provider Name : Category;` item and operator-local `provider Name` clause no
-  longer parse or survive in syntax identity/snapshots; `ProviderCategory`, its
-  whitelist validator/collector, registry report rows, architecture coverage,
-  and registry-only canaries are deleted. Core slice, pointer, array, and vector
-  declarations are provider-agnostic exact boundary requirements, while
-  allocation and host-ABI realizations use the ordinary satisfier/external-leaf
-  path. Authored provider fields on ordinary data remain unrelated payload.
-- Boundary declarations are provider-agnostic. Candidate `ProviderPlan` rows
-  derive from exact satisfier identities and complete normalized contracts;
-  target defaults, authorized `build.omg` provider slots, or installation-owned
-  bindings select complete candidates without constructing rows. The selected
-  canonical fact set survives checked lowering and retains exact requirement,
-  realization, target applicability, artifact, admission, and receipt identity
-  through provider execution, Terminal installation records, manifests, trust
-  reports, and diagnostics. Missing, duplicate, partial, name-only, or
-  identity-drifting selections reject.
-  The compiler provider-plan coordinator's 2,070-line unit corpus now lives in
-  a private test child rather than sharing its 3,591-line production module;
-  all 38 provider-plan tests and the production surface remain unchanged.
-- Replace string-backed intrinsic identity. `Binding::CompilerIntrinsic` has no
-  authored payload; its exact resolved realization-machine symbol, normalized
-  signature, and selected target key the sealed compiler lowering catalog.
-  Rendered-binding reparsing and the write-only rendering interner are deleted;
-  symbol resolution interns a closed structural binding key whose mechanism and
-  field boundaries remain identity-bearing without text reconstruction.
-  External leaves now retain a closed mechanism tag in their supply mode;
-  validation, public snapshots, and contract fingerprints consume that tag
-  rather than classifying a `Binding::Case(...)` prefix. Resolved and typed
-  conformance rows retain the exact `ExternalBindingId` instead of a copied
-  rendering; the complete structural binding table now survives into typed
-  trees and exposes a fail-closed identity lookup, so consumers can migrate
-  away from syntax rescans without reintroducing a text parser. Typed public
-  snapshots publish each table id with its closed structural mechanism and
-  fields; a payloadless intrinsic snapshot therefore cannot invent a machine
-  name. Provider-plan
-  candidate derivation now walks only typed machines, exact conformance/supply
-  identities, and that table; its API accepts no syntax tree that could
-  redirect a retained binding.
-  Selected external ABI rows now derive only from the immutable selected
-  `ProviderPlan` carrier produced from that identity; backend preparation no
-  longer rescans `via` syntax as a second binding authority. Other consumers
-  distinguish external from checked satisfiers by identity presence, and the
-  interner exposes no rendering lookup. The source
-  binding case and its normalized structural value are now payloadless; the
-  exact normalized realization-machine identity remains on the enclosing
-  provider row instead of being copied into the binding value. The
-  core/std/canary corpus uses that form, and the seven obsolete authored-name
-  mismatch canaries are deleted in favor of one parser regression for the
-  retired payload. Transitional provider rows
-  now retain the compiler-derived normalized realization-machine overload
-  identity through ABI planning, trust reports, and executable-TCB identity.
-  Provider rows no longer retain a separate catalog/display string. A single
-  diagnostic-only renderer derives readable float labels on demand from the
-  exact checked operator namespace, requirement, types, and arithmetic policy;
-  it is never binding identity or dispatch input. Float execution resolves
-  directly from that checked structure and selected target, while the old
-  display-string catalog matcher and its permutation test are deleted.
 - Replace string-backed foreign binding identity with nominal `LibraryId`,
   `SymbolId`, `CallingPlanId`, firmware/table, vtable, and mechanism-specific
   values. Raw object-format library/symbol bytes may exist only in sealed
   target/link metadata and must never serve as an Omega symbol, requirement key,
   provider selection, or checked-artifact identity.
-- The console and target-float corpus has migrated mechanically to payloadless
-  `CompilerIntrinsic`; legacy payload syntax rejects and is not compatibility
-  parsed. Complete the nominal provider/catalog carrier described above; no
-  authored intrinsic string may reappear in semantic lowering.
+
+  The primitive registry and string-backed intrinsic lane are complete:
+  boundary requirements are provider-agnostic, `CompilerIntrinsic` is
+  payloadless, selected provider rows retain the exact realization overload,
+  and semantic consumers use the structural binding table rather than reparsing
+  source or display text. The remaining bootstrap leak is the import lane:
+  source `DllImport`, `ExternalBindingIdentity::Import`, typed snapshots,
+  `ProviderBinding::Import`, executable-TCB/artifact rows, calling-convention
+  rows, and backend import plans still carry raw library/symbol `String` pairs.
+  Introduce and retain the nominal identities across source, checked provider,
+  Terminal/artifact, trust, and installation custody; resolve them to target-
+  owned linker bytes only in sealed object/image metadata. Exact nominal-to-raw
+  binding, target applicability, artifact identity, and admission must reject
+  missing, duplicate, redirected, or changed mappings. No authored intrinsic
+  string, display renderer, ambient library lookup, or name-only provider
+  selection may reappear.
 
 Acceptance: the same boundary requirement can select a checked test provider or
 a target intrinsic without editing its declaration; final artifacts contain no
