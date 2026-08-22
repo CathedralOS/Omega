@@ -353,11 +353,14 @@ fn executable_domain_membership_expression_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.join("out")).expect(
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.join("out")).expect(
         "executable domain membership expression canary should compile from its authored root",
     );
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let executable = compilation.checked_native_executable_path().expect(
+        "executable domain membership expression canary should retain its executable receipt",
+    );
+    let output = Command::new(executable)
         .output()
         .expect("executable domain membership expression canary should run");
 
@@ -380,11 +383,14 @@ fn executable_imported_domain_membership_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.join("out")).expect(
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.join("out")).expect(
         "executable imported domain membership canary should compile from its authored root",
     );
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let executable = compilation.checked_native_executable_path().expect(
+        "executable imported domain membership canary should retain its executable receipt",
+    );
+    let output = Command::new(executable)
         .output()
         .expect("executable imported domain membership canary should run");
 
@@ -407,11 +413,14 @@ fn executable_imported_domain_membership_guard_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.join("out")).expect(
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.join("out")).expect(
         "executable imported domain membership guard canary should compile from its authored root",
     );
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let executable = compilation.checked_native_executable_path().expect(
+        "executable imported domain membership guard canary should retain its executable receipt",
+    );
+    let output = Command::new(executable)
         .output()
         .expect("executable imported domain membership guard canary should run");
 
@@ -435,10 +444,13 @@ fn executable_imported_domain_membership_intersection_guard_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("executable imported domain membership intersection guard canary should compile");
 
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation.checked_native_executable_path().expect(
+        "executable imported domain membership intersection guard canary should retain its executable receipt",
+    );
+    let output = Command::new(executable)
         .output()
         .expect("executable imported domain membership intersection guard canary should run");
 
@@ -461,10 +473,13 @@ fn executable_imported_domain_membership_union_guard_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("executable imported domain membership union guard canary should compile");
 
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation.checked_native_executable_path().expect(
+        "executable imported domain membership union guard canary should retain its executable receipt",
+    );
+    let output = Command::new(executable)
         .output()
         .expect("executable imported domain membership union guard canary should run");
 
