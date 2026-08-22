@@ -13,6 +13,7 @@ pub(super) fn boundary_result_is_exact(
 ) -> bool {
     match realization {
         TerminalBoundaryRealization::MetadataOnlyPort(_) => result.is_none(),
+        TerminalBoundaryRealization::LinuxExitGroupI32(_) => result.is_none(),
         TerminalBoundaryRealization::DirectPortReadU8(_) => {
             target.architecture == Architecture::X86_64
                 && result.is_some_and(|result| {

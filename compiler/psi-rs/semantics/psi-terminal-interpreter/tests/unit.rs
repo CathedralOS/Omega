@@ -7,16 +7,17 @@ use psi_proof_kernel::{
     AdmissionProfile, CertificateEnvelope, EvidenceRoute, ProofNode, ProofRule, ProofSystemMarker,
 };
 use psi_terminal::{
-    BindingRelevance, Block, BoundaryMachineDeclaration, ClaimTransfer, CompletionReceipt,
-    EntryClaim, MachineContract, NominalAffineCleanup, Operation, OperationKind, OperationResult,
-    ServiceDeclaration, StructuralAffineDiscard, StructuralArgument, StructuralDomainDeclaration,
-    StructuralDomainRequirement, StructuralFieldDeclaration, StructuralFieldType,
-    StructuralMultiplicity, StructuralParameterDeclaration, StructuralPathSegment,
-    StructuralPlaceDeclaration, StructuralResultDeclaration, StructuralTypeDeclaration,
-    StructuralTypeShape, SuccessorEdge, TerminalAffineCleanupAction, TerminalMachine,
-    TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
+    BindingRelevance, Block, BoundaryMachineDeclaration, ByteSequenceCarrier, ClaimTransfer,
+    CompletionReceipt, EntryClaim, MachineContract, NominalAffineCleanup, Operation, OperationKind,
+    OperationResult, ServiceDeclaration, StructuralAffineDiscard, StructuralArgument,
+    StructuralDomainDeclaration, StructuralDomainRequirement, StructuralFieldDeclaration,
+    StructuralFieldType, StructuralMultiplicity, StructuralParameterDeclaration,
+    StructuralPathSegment, StructuralPlaceDeclaration, StructuralResultDeclaration,
+    StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge, TerminalAffineCleanupAction,
+    TerminalMachine, TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration,
+    VocabularyMarker,
 };
-use psi_terminal_codec::{encode_module, encode_proof_bundle};
+use psi_terminal_codec::{decode_module, encode_module, encode_proof_bundle};
 use psi_terminal_fuel::{FuelChargeSite, FuelExhaustion, TerminalFuelMeter, TerminalFuelSchedule};
 use psi_terminal_interpreter::{
     TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalExecution,
@@ -1153,6 +1154,7 @@ fn unit_calls_transfer_claims_and_effects_observe_exact_structural_arguments() {
             boundary: boundary_id(1),
             arguments: Vec::new(),
             structural_arguments: vec![argument],
+            byte_sequence_arguments: vec![None],
             completion_receipts: vec![CompletionReceipt {
                 claim: claim_id(1),
                 argument_index: 0,
@@ -1169,6 +1171,58 @@ fn unit_calls_transfer_claims_and_effects_observe_exact_structural_arguments() {
     assert_eq!(measured.effects(), expected);
     assert_eq!(measured.value(), TerminalExecutionResult::Unit);
     assert_eq!(measured.usage().total_units(), 5);
+}
+
+#[test]
+fn byte_sequence_literal_round_trips_non_utf8_and_reaches_boundary_exactly() {
+    let module = byte_sequence_literal_module(vec![0x00, 0x7f, 0x80, 0xff]);
+    let semantic = encode_module(&module).expect("byte literal semantics encode");
+    assert_eq!(decode_module(&semantic), Ok(module));
+    let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes");
+    let mut handler = RecordingHandler::default();
+
+    let measured = interpret_terminal_artifact_with_effect_handler_measured(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+        &[],
+        &[],
+        &mut handler,
+    )
+    .expect("verified byte literal reaches the semantic boundary");
+
+    assert_eq!(measured.value(), TerminalExecutionResult::Unit);
+    assert!(matches!(
+        handler.effects.as_slice(),
+        [TerminalEffect::BoundaryCall {
+            structural_arguments,
+            byte_sequence_arguments,
+            ..
+        }] if structural_arguments.len() == 1
+            && byte_sequence_arguments == &[Some(vec![0x00, 0x7f, 0x80, 0xff])]
+    ));
+}
+
+#[test]
+fn byte_sequence_literal_tampering_fails_closed() {
+    let mut wrong_type = byte_sequence_literal_module(vec![0xff]);
+    wrong_type.structural_types[0].shape = StructuralTypeShape::Record { fields: Vec::new() };
+    assert!(encode_module(&wrong_type).is_err());
+
+    let mut wrong_source = byte_sequence_literal_module(vec![0xff]);
+    let OperationKind::BoundaryCall {
+        structural_arguments,
+        ..
+    } = &mut wrong_source.machines[0].blocks[0].operations[1].kind
+    else {
+        panic!("fixture boundary call");
+    };
+    structural_arguments[0].place = place_id(99);
+    assert!(encode_module(&wrong_source).is_err());
+
+    let mut reordered = byte_sequence_literal_module(vec![0xff]);
+    reordered.machines[0].blocks[0].operations.swap(0, 1);
+    assert!(encode_module(&reordered).is_err());
 }
 
 #[test]
@@ -1195,6 +1249,7 @@ fn boundary_scalar_arguments_reach_effect_handlers_in_declared_order() {
             TerminalScalarValue::Boolean(false),
         ],
         structural_arguments: Vec::new(),
+        byte_sequence_arguments: Vec::new(),
         completion_receipts: Vec::new(),
         result: None,
     };
@@ -1553,6 +1608,102 @@ impl TerminalEffectHandler for RejectScalarBoundaryArguments {
                 "scalar boundary arguments were not resolved in declaration order",
             )),
         }
+    }
+}
+
+fn byte_sequence_literal_module(bytes: Vec<u8>) -> TerminalModule {
+    let structural_type = structural_type_id(1);
+    let literal = place_id(1);
+    TerminalModule {
+        vocabulary_marker: VocabularyMarker::CURRENT,
+        entry: machine_id(1),
+        structural_types: vec![StructuralTypeDeclaration {
+            id: structural_type,
+            identity: "test::BorrowedBytes".into(),
+            shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView),
+        }],
+        structural_domains: Vec::new(),
+        services: Vec::new(),
+        root_service_reach: Default::default(),
+        boundary_machines: vec![BoundaryMachineDeclaration {
+            id: boundary_id(1),
+            identity: "test::write_line".into(),
+            attachment: None,
+            scalar_parameters: Vec::new(),
+            structural_parameters: vec![StructuralParameterDeclaration {
+                place: place_id(2),
+                position: 0,
+                is_self: false,
+                structural_type,
+                multiplicity: StructuralMultiplicity::Unrestricted,
+                qualifications: Vec::new(),
+            }],
+            result: None,
+            requires: Vec::new(),
+            published_service_ceiling: Vec::new(),
+        }],
+        provider_candidates: Vec::new(),
+        float_meaning_projections: Vec::new(),
+        float_meaning_equalities: Vec::new(),
+        proposition_declarations: Vec::new(),
+        proposition_applications: Vec::new(),
+        evidence_terms: Vec::new(),
+        evidence_contract_lanes: Vec::new(),
+        proof_output_calls: Vec::new(),
+        closed_conformance_applications: Vec::new(),
+        machines: vec![TerminalMachine {
+            id: machine_id(1),
+            attachment: None,
+            parameters: Vec::new(),
+            structural_parameters: Vec::new(),
+            result: TerminalMachineResult::Unit,
+            structural_places: vec![StructuralPlaceDeclaration {
+                id: literal,
+                kind: psi_core::StructuralPlaceKind::ByteSequenceLiteral {
+                    declaration_ordinal: 0,
+                    structural_type,
+                },
+            }],
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
+            content_entry_claims: Vec::new(),
+            content_identity_reshuffles: Vec::new(),
+            content_partition_compositions: Vec::new(),
+            entry: block_id(1),
+            blocks: vec![Block {
+                id: block_id(1),
+                parameters: Vec::new(),
+                operations: vec![
+                    Operation {
+                        id: operation_id(1),
+                        result: OperationResult::Unit,
+                        kind: OperationKind::EstablishByteSequenceLiteral {
+                            destination: literal,
+                            bytes,
+                        },
+                    },
+                    Operation {
+                        id: operation_id(2),
+                        result: OperationResult::Unit,
+                        kind: OperationKind::BoundaryCall {
+                            boundary: boundary_id(1),
+                            arguments: Vec::new(),
+                            structural_arguments: vec![StructuralArgument {
+                                place: literal,
+                                path: Vec::new(),
+                            }],
+                            completion_receipts: Vec::new(),
+                            requirement_obligations: Vec::new(),
+                        },
+                    },
+                ],
+                terminator: Terminator::ReturnUnit {
+                    edge: edge_id(1),
+                    trivial_affine_discards: Vec::new(),
+                },
+            }],
+            contract: empty_contract(contract_id(1)),
+        }],
     }
 }
 

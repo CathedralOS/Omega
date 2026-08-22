@@ -194,6 +194,14 @@ fn terminal_summary(
             declaration.id.get(),
             declaration.identity,
             match &declaration.shape {
+                psi_terminal::StructuralTypeShape::ByteSequence(carrier) => match carrier {
+                    psi_terminal::ByteSequenceCarrier::BorrowedView => {
+                        "byte_sequence(borrowed_view)".to_owned()
+                    }
+                    psi_terminal::ByteSequenceCarrier::BoundedOwned { capacity } => {
+                        format!("byte_sequence(bounded_owned,capacity={capacity})")
+                    }
+                },
                 psi_terminal::StructuralTypeShape::Record { fields } => {
                     format!("record(fields={})", fields.len())
                 }

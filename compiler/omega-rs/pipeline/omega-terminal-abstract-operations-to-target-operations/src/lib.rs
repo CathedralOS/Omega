@@ -9,19 +9,20 @@ use omega_calling_conventions::{
     CallSignature, CallingPolicy, PlanDiagnostic, ValueLocation, ValuePlacement, ValueShape,
     evaluate_call_plan,
 };
-use omega_target::{Architecture, NativeTarget};
+use omega_target::{Architecture, NativeTarget, ObjectFormat};
 use omega_terminal_abstract_operations::{
     TerminalAbstractFunction, TerminalAbstractFunctionResult, TerminalAbstractOperation,
     TerminalAbstractOperationPlan, TerminalAbstractParameter, TerminalAbstractResult,
 };
 use omega_terminal_target_operations::{
-    TerminalBoundaryRealization, TerminalBoundarySettlementBinding, TerminalPsiProvenance,
-    TerminalScalarParameterLocation, TerminalTargetBooleanControl, TerminalTargetBooleanExpression,
-    TerminalTargetCallArgument, TerminalTargetConditionalBooleanArm,
-    TerminalTargetConditionalIntegerArm, TerminalTargetFunction, TerminalTargetIntegerControl,
-    TerminalTargetIntegerExpression, TerminalTargetOperation, TerminalTargetOperationPlan,
-    TerminalTargetScalarExpression, TerminalTargetStructuralArgument,
-    TerminalTargetStructuralParameter, TerminalTargetUnitBody, TerminalTargetUnitOperation,
+    MachineRegister, TerminalBoundaryRealization, TerminalBoundaryScalarArgument,
+    TerminalBoundarySettlementBinding, TerminalPsiProvenance, TerminalScalarParameterLocation,
+    TerminalTargetBooleanControl, TerminalTargetBooleanExpression, TerminalTargetCallArgument,
+    TerminalTargetConditionalBooleanArm, TerminalTargetConditionalIntegerArm,
+    TerminalTargetFunction, TerminalTargetIntegerControl, TerminalTargetIntegerExpression,
+    TerminalTargetOperation, TerminalTargetOperationPlan, TerminalTargetScalarExpression,
+    TerminalTargetStructuralArgument, TerminalTargetStructuralParameter, TerminalTargetUnitBody,
+    TerminalTargetUnitOperation,
 };
 use psi_core::{
     BlockId, BoundaryMachineId, EdgeId, IeeeFloatFormat, IntegerSign, IntegerType, IntegerValue,
@@ -111,24 +112,6 @@ fn lower_to_target_operations_with_settlements(
     {
         return Err(LoweringError::EntryFunctionMissing(plan.entry));
     }
-    for function in &plan.functions {
-        if let Some(TerminalAbstractOperation::BoundaryCall {
-            psi_operation,
-            boundary,
-            arguments: _,
-            ..
-        }) = function.operations.iter().find(
-            |operation| matches!(operation, TerminalAbstractOperation::BoundaryCall { arguments, .. } if !arguments.is_empty()),
-        ) {
-            return Err(
-                LoweringError::ScalarBoundaryArgumentsRequireNativeRealization {
-                    machine: function.machine,
-                    operation: *psi_operation,
-                    boundary: *boundary,
-                },
-            );
-        }
-    }
     let functions_by_machine = plan
         .functions
         .iter()
@@ -138,6 +121,11 @@ fn lower_to_target_operations_with_settlements(
         .structural_types
         .iter()
         .map(|declaration| (declaration.id, declaration))
+        .collect::<BTreeMap<_, _>>();
+    let boundary_machines = plan
+        .boundary_machines
+        .iter()
+        .map(|boundary| (boundary.id, boundary))
         .collect::<BTreeMap<_, _>>();
     let mut settlements_by_boundary = BTreeMap::new();
     for binding in settlement_bindings {
@@ -188,6 +176,7 @@ fn lower_to_target_operations_with_settlements(
                     target,
                     &functions_by_machine,
                     &structural_types,
+                    &boundary_machines,
                     &settlements_by_boundary,
                 )
             })
@@ -200,8 +189,29 @@ fn lower_function(
     target: NativeTarget,
     functions: &BTreeMap<MachineId, &TerminalAbstractFunction>,
     structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    boundary_machines: &BTreeMap<BoundaryMachineId, &psi_terminal::BoundaryMachineDeclaration>,
     settlements: &BTreeMap<BoundaryMachineId, TerminalBoundarySettlementBinding>,
 ) -> Result<TerminalTargetFunction, LoweringError> {
+    if let Some(lowered) =
+        lower_linux_exit_group_i32(function, target, boundary_machines, settlements)?
+    {
+        return Ok(lowered);
+    }
+    if let Some(TerminalAbstractOperation::BoundaryCall {
+        psi_operation,
+        boundary,
+        ..
+    }) = function.operations.iter().find(
+        |operation| matches!(operation, TerminalAbstractOperation::BoundaryCall { arguments, .. } if !arguments.is_empty()),
+    ) {
+        return Err(
+            LoweringError::ScalarBoundaryArgumentsRequireNativeRealization {
+                machine: function.machine,
+                operation: *psi_operation,
+                boundary: *boundary,
+            },
+        );
+    }
     if let Some(result) = function.result.structural() {
         return lower_structural_return_function(function, result, target, structural_types);
     }
@@ -1654,6 +1664,113 @@ fn lower_function(
     })
 }
 
+fn lower_linux_exit_group_i32(
+    function: &TerminalAbstractFunction,
+    target: NativeTarget,
+    boundary_machines: &BTreeMap<BoundaryMachineId, &psi_terminal::BoundaryMachineDeclaration>,
+    settlements: &BTreeMap<BoundaryMachineId, TerminalBoundarySettlementBinding>,
+) -> Result<Option<TerminalTargetFunction>, LoweringError> {
+    let Some(TerminalAbstractOperation::BoundaryCall { boundary, arguments, .. }) = function
+        .operations
+        .iter()
+        .find(|operation| matches!(operation, TerminalAbstractOperation::BoundaryCall { arguments, .. } if !arguments.is_empty()))
+    else {
+        return Ok(None);
+    };
+    let Some(binding) = settlements.get(boundary).copied() else {
+        return Err(LoweringError::MissingBoundarySettlement(*boundary));
+    };
+    let TerminalBoundaryRealization::LinuxExitGroupI32(realization) = binding.realization else {
+        return Ok(None);
+    };
+    if target.object_format != ObjectFormat::Elf
+        || !matches!(
+            target.architecture,
+            Architecture::X86_64 | Architecture::Aarch64
+        )
+    {
+        return Err(LoweringError::LinuxExitGroupUnsupportedTarget {
+            machine: function.machine,
+            target,
+        });
+    }
+    let i32_type = IntegerType::new(IntegerSign::Signed, 32).expect("i32 is valid");
+    let expected_scalar_type = ScalarType::Integer(i32_type);
+    let Some(declaration) = boundary_machines.get(boundary).copied() else {
+        return Err(LoweringError::UnknownBoundarySettlement(*boundary));
+    };
+    let [
+        TerminalAbstractOperation::IntegerConstant {
+            psi_operation: constant_operation,
+            result: constant_result,
+            scalar_type,
+            value,
+        },
+        TerminalAbstractOperation::BoundaryCall {
+            psi_operation,
+            result: None,
+            boundary: called_boundary,
+            arguments: call_arguments,
+            structural_arguments,
+            completion_claim_sources,
+            completion_receipts,
+        },
+        TerminalAbstractOperation::ReturnUnit {
+            psi_edge: nominal_return_edge,
+            cleanup_actions,
+        },
+    ] = function.operations.as_slice()
+    else {
+        return Err(LoweringError::InvalidLinuxExitGroupShape(function.machine));
+    };
+    if function.result != TerminalAbstractFunctionResult::Unit
+        || !function.parameters.is_empty()
+        || !function.structural_parameters.is_empty()
+        || function.block_entries.len() != 1
+        || function.block_entries[0].block != function.entry
+        || declaration.scalar_parameters.as_slice() != [expected_scalar_type]
+        || !declaration.structural_parameters.is_empty()
+        || declaration.result.is_some()
+        || *called_boundary != *boundary
+        || arguments.as_slice() != [*constant_result]
+        || call_arguments.as_slice() != [*constant_result]
+        || *scalar_type != expected_scalar_type
+        || !i32_type.admits(*value)
+        || !structural_arguments.is_empty()
+        || !cleanup_actions.is_empty()
+    {
+        return Err(LoweringError::InvalidLinuxExitGroupShape(function.machine));
+    }
+    let destination = match target.architecture {
+        Architecture::X86_64 => MachineRegister::X86Rdi,
+        Architecture::Aarch64 => MachineRegister::Aarch64X(0),
+    };
+    Ok(Some(TerminalTargetFunction {
+        machine: function.machine,
+        attachment: function.attachment,
+        provenance: TerminalPsiProvenance {
+            operations: vec![*constant_operation, *psi_operation],
+            edges: vec![*nominal_return_edge],
+        },
+        operation: TerminalTargetOperation::ExitProcessI32 {
+            constant_operation: *constant_operation,
+            psi_operation: *psi_operation,
+            nominal_return_edge: *nominal_return_edge,
+            boundary: *boundary,
+            provider_execution: binding.provider_execution,
+            realization,
+            argument: TerminalBoundaryScalarArgument {
+                source_value: *constant_result,
+                scalar_type: *scalar_type,
+                immediate: *value,
+                destination,
+            },
+            completion_claim_sources: completion_claim_sources.clone(),
+            completion_receipts: completion_receipts.clone(),
+        },
+    }))
+}
+
 fn shared_boolean_cleanup_convergence_return_edge(
     function: &TerminalAbstractFunction,
 ) -> Option<EdgeId> {
@@ -2828,6 +2945,9 @@ fn structural_shape(
             .copied()
             .ok_or(LoweringError::UnknownStructuralType(structural_type))?;
         match &declaration.shape {
+            StructuralTypeShape::ByteSequence(_) => Err(
+                LoweringError::UnsupportedStructuralByteSequence(structural_type),
+            ),
             StructuralTypeShape::Record { fields } => {
                 if fields.is_empty() {
                     return Ok(ValueShape::integer(0, 1));
@@ -3677,6 +3797,11 @@ pub enum LoweringError {
         operation: OperationId,
         boundary: BoundaryMachineId,
     },
+    LinuxExitGroupUnsupportedTarget {
+        machine: MachineId,
+        target: NativeTarget,
+    },
+    InvalidLinuxExitGroupShape(MachineId),
     UnsupportedOperationInScalarFunction(MachineId),
     UnsupportedOperationInUnitFunction(MachineId),
     UnsupportedStructuralReturn(MachineId),
@@ -3703,6 +3828,7 @@ pub enum LoweringError {
     RecursiveStructuralType(StructuralTypeId),
     EmptyStructuralType(StructuralTypeId),
     RelevantOpaqueStructuralField(StructuralTypeId),
+    UnsupportedStructuralByteSequence(StructuralTypeId),
     UnsupportedStructuralSum(StructuralTypeId),
     StructuralTypeTooLarge(StructuralTypeId),
     ConditionalControlFlowRequiresBlockLowering(MachineId),

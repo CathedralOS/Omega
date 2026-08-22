@@ -42,6 +42,13 @@ pub enum StructuralPlaceKind {
         is_self: bool,
     },
     Result,
+    /// One immutable borrowed byte-sequence literal established by an exact
+    /// terminal operation. The declaration ordinal makes source-order
+    /// identity explicit without retaining a source-tree handle.
+    ByteSequenceLiteral {
+        declaration_ordinal: u32,
+        structural_type: StructuralTypeId,
+    },
     /// One whole, claim-free affine local established by an explicit terminal
     /// operation. The exact concrete type and source declaration coordinate
     /// make trivial disposal independently checkable without retaining a
@@ -206,10 +213,11 @@ fn encode_fingerprint_term(
                     output.extend_from_slice(&position.to_le_bytes());
                 }
                 StructuralPlaceKind::Result => output.push(3),
-                // Trivial affine locals carry no claims or content
+                // Literal and trivial affine locals carry no claims or content
                 // qualifications in the accepted slice, so they cannot become
                 // content-proposition roots by merely being declared.
-                StructuralPlaceKind::TrivialAffineLocal { .. } => return None,
+                StructuralPlaceKind::ByteSequenceLiteral { .. }
+                | StructuralPlaceKind::TrivialAffineLocal { .. } => return None,
             }
             output.extend_from_slice(&(subject.segments.len() as u64).to_le_bytes());
             for segment in &subject.segments {

@@ -222,6 +222,9 @@ fn lower_machine(
         });
         for operation in &block.operations {
             match operation.kind.clone() {
+                OperationKind::EstablishByteSequenceLiteral { .. } => {
+                    return Err(LoweringError::UnsupportedByteSequenceLiteral(operation.id));
+                }
                 OperationKind::EstablishTrivialAffineLocal { destination } => {
                     let (place, ordinal, structural_type) = unit_affine_locals
                         .iter()
@@ -1203,6 +1206,9 @@ fn lower_structural_machine(
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LoweringError {
     SemanticIdentity(CodecError),
+    /// Psi preserves exact byte-sequence literals, but native realization is
+    /// deliberately fenced until the selected boundary has a byte-view ABI.
+    UnsupportedByteSequenceLiteral(psi_core::OperationId),
     ScalarReturnFromUnitMachine(MachineId),
     UnitReturnFromScalarMachine(MachineId),
     /// The verified structural-result machine is wider than the exact

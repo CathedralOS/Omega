@@ -42,7 +42,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     assert_eq!(identity.vocabulary_marker, VocabularyMarker::CURRENT);
     assert_eq!(
         identity.program_fingerprint.to_string(),
-        "b22efc7e83eeb3201081ef73258c8e2e4b360827fc378a49f8ccaebde52aa7ad"
+        "56c1ba0c889364f64d63755e55068bb77dae1de451856cbb7977470e7102744b"
     );
     assert_eq!(
         identity.program_fingerprint,
@@ -255,7 +255,7 @@ fn partial_affine_unit_return_round_trips_exact_path_and_leaf_type() {
     let module = partial_affine_fixture();
     let bytes = encode_module(&module).expect("partial affine return should encode");
     assert_eq!(&bytes[8..10], 20_u16.to_le_bytes());
-    assert_eq!(&bytes[10..12], 23_u16.to_le_bytes());
+    assert_eq!(&bytes[10..12], 24_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 }
@@ -265,7 +265,7 @@ fn nominal_affine_unit_return_round_trips_exact_root_type_and_cleanup_machine() 
     let module = nominal_affine_fixture();
     let bytes = encode_module(&module).expect("nominal affine return should encode");
     assert_eq!(&bytes[8..10], 20_u16.to_le_bytes());
-    assert_eq!(&bytes[10..12], 23_u16.to_le_bytes());
+    assert_eq!(&bytes[10..12], 24_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 }
@@ -874,7 +874,7 @@ fn structural_effect_foundation_round_trips_and_has_stable_identity() {
     let module = structural_effect_fixture();
     let bytes = encode_module(&module).expect("structural/effect foundation should encode");
 
-    assert_eq!(&bytes[10..12], 23_u16.to_le_bytes());
+    assert_eq!(&bytes[10..12], 24_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 
@@ -1208,11 +1208,11 @@ fn structural_foundation_rejects_opaque_relevant_and_nonopaque_erased_fields() {
 #[test]
 fn decoder_rejects_the_previous_vocabulary_marker() {
     let mut bytes = encode_module(&structural_effect_fixture()).unwrap();
-    bytes[10..12].copy_from_slice(&22_u16.to_le_bytes());
+    bytes[10..12].copy_from_slice(&23_u16.to_le_bytes());
 
     assert_eq!(
         decode_module(&bytes),
-        Err(CodecError::UnsupportedVocabularyMarker(22))
+        Err(CodecError::UnsupportedVocabularyMarker(23))
     );
 }
 

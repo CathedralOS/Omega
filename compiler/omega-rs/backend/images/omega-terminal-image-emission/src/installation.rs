@@ -63,7 +63,7 @@ use structural_scalar_codec::{
 };
 use wire_codec::{Reader, decode_boolean, push_u16, push_u32, push_u64};
 
-pub const TERMINAL_INSTALLATION_FORMAT_MARKER: u16 = 31;
+pub const TERMINAL_INSTALLATION_FORMAT_MARKER: u16 = 32;
 const MAGIC: &[u8; 8] = b"PSIINST\0";
 
 /// Exact normalized identity of one provider plan selected for this
@@ -767,6 +767,7 @@ fn validate_record_shape(
                 && matches!(
                     settlement.settlement.realization,
                     TerminalBoundaryRealization::DirectPortReadU8(_)
+                        | TerminalBoundaryRealization::LinuxExitGroupI32(_)
                 )
         });
         let has_scalar_custody = has_scalar_cleanup || has_scalar_boundary_custody;
@@ -1749,7 +1750,8 @@ fn validate_record_shape(
         }
         let valid_realization = match installed.settlement.realization {
             TerminalBoundaryRealization::MetadataOnlyPort(realization) => {
-                installed.settlement.byte_count == 0
+                installed.settlement.scalar_arguments.is_empty()
+                    && installed.settlement.byte_count == 0
                     && record
                         .port_effects
                         .iter()
@@ -1805,7 +1807,8 @@ fn validate_record_shape(
                                 .count()
                                 == 1
                         });
-                record.target.architecture == Architecture::X86_64
+                installed.settlement.scalar_arguments.is_empty()
+                    && record.target.architecture == Architecture::X86_64
                     && installed.settlement.byte_count
                         == omega_x86_encoding::IMMEDIATE_PORT_READ_U8_WIDTH
                     && function.unit_stack.is_none()
@@ -1818,6 +1821,77 @@ fn validate_record_shape(
                                 .iter()
                                 .any(|parameter| parameter.place == argument.place)
                     })
+            }
+            TerminalBoundaryRealization::LinuxExitGroupI32(_) => {
+                let [argument] = installed.settlement.scalar_arguments.as_slice() else {
+                    return Err(TerminalInstallationError::BoundaryRealizationMismatch {
+                        machine: installed.machine,
+                        operation: installed.settlement.psi_operation,
+                    });
+                };
+                let i32_type = psi_core::IntegerType::new(psi_core::IntegerSign::Signed, 32)
+                    .expect("i32 is valid");
+                let value = match (argument.scalar_type, argument.immediate) {
+                    (
+                        psi_core::ScalarType::Integer(actual),
+                        psi_core::IntegerValue::Signed(value),
+                    ) if actual == i32_type => i32::try_from(value).ok(),
+                    _ => None,
+                };
+                let expected_destination =
+                    match (record.target.object_format, record.target.architecture) {
+                        (omega_target::ObjectFormat::Elf, Architecture::X86_64) => {
+                            Some(omega_calling_conventions::MachineRegister::X86Rdi)
+                        }
+                        (omega_target::ObjectFormat::Elf, Architecture::Aarch64) => {
+                            Some(omega_calling_conventions::MachineRegister::Aarch64X(0))
+                        }
+                        _ => None,
+                    };
+                let expected_byte_count = value
+                    .and_then(|value| match record.target.architecture {
+                        Architecture::X86_64 => {
+                            Some(omega_isa_x86_64::encode_linux_exit_group_i32(value).len())
+                        }
+                        Architecture::Aarch64 => {
+                            omega_isa_aarch64::encode_linux_exit_group_i32(value)
+                                .ok()
+                                .map(|bytes| bytes.len())
+                        }
+                    })
+                    .unwrap_or(0);
+                let exact_nominal_tail = installed
+                    .settlement
+                    .operation_ordinal
+                    .checked_add(1)
+                    .is_some_and(|tail_ordinal| {
+                        record
+                            .fuel_attribution
+                            .iter()
+                            .filter(|attribution| {
+                                attribution.machine == installed.machine
+                                    && matches!(
+                                        attribution.attribution.site,
+                                        TerminalNativeFuelSite::Edge(_)
+                                    )
+                                    && attribution.attribution.units == 1
+                                    && attribution.attribution.operation_ordinal == tail_ordinal
+                                    && attribution.attribution.code_offset == function.byte_count
+                                    && attribution.attribution.byte_count == 0
+                            })
+                            .count()
+                            == 1
+                    });
+                record.target.object_format == omega_target::ObjectFormat::Elf
+                    && expected_destination == Some(argument.destination)
+                    && installed.settlement.code_offset == 0
+                    && installed.settlement.byte_count == expected_byte_count
+                    && expected_byte_count != 0
+                    && installed.settlement.arguments.is_empty()
+                    && installed.settlement.native_result.is_none()
+                    && function.unit_stack.is_none()
+                    && function.scalar_stack.is_none()
+                    && exact_nominal_tail
             }
         };
         if !valid_realization
@@ -2054,6 +2128,19 @@ fn encode_structural_types(
         push_u64(bytes, declaration.id.get());
         encode_identity(bytes, &declaration.identity)?;
         match &declaration.shape {
+            psi_terminal::StructuralTypeShape::ByteSequence(carrier) => {
+                bytes.extend_from_slice(&[4, 0, 0, 0]);
+                match carrier {
+                    psi_terminal::ByteSequenceCarrier::BorrowedView => {
+                        bytes.extend_from_slice(&[1, 0, 0, 0]);
+                        push_u64(bytes, 0);
+                    }
+                    psi_terminal::ByteSequenceCarrier::BoundedOwned { capacity } => {
+                        bytes.extend_from_slice(&[2, 0, 0, 0]);
+                        push_u64(bytes, *capacity);
+                    }
+                }
+            }
             psi_terminal::StructuralTypeShape::Record { fields } => {
                 bytes.extend_from_slice(&[1, 0, 0, 0]);
                 encode_structural_fields(bytes, fields)?;
@@ -2105,6 +2192,22 @@ fn decode_structural_types(
             3 => psi_terminal::StructuralTypeShape::Sum {
                 cases: decode_structural_cases(reader)?,
             },
+            4 => {
+                let carrier_tag = reader.u8()?;
+                if reader.u8()? != 0 || reader.u8()? != 0 || reader.u8()? != 0 {
+                    return Err(TerminalInstallationError::NonzeroReservedField);
+                }
+                let capacity = reader.u64()?;
+                psi_terminal::StructuralTypeShape::ByteSequence(match carrier_tag {
+                    1 if capacity == 0 => psi_terminal::ByteSequenceCarrier::BorrowedView,
+                    2 => psi_terminal::ByteSequenceCarrier::BoundedOwned { capacity },
+                    tag => {
+                        return Err(TerminalInstallationError::InvalidStructuralTypeShapeTag(
+                            tag,
+                        ));
+                    }
+                })
+            }
             tag => {
                 return Err(TerminalInstallationError::InvalidStructuralTypeShapeTag(
                     tag,
@@ -2159,6 +2262,7 @@ pub enum TerminalInstallationError {
     TooManyFuelAttributions,
     TooManyPortEffects,
     TooManyBoundarySettlements,
+    TooManySettlementScalarArguments,
     TooManySettlementArguments,
     TooManySettlementArgumentPathSegments,
     SettlementArgumentFieldTooLong,
@@ -2249,6 +2353,7 @@ pub enum TerminalInstallationError {
     },
     InvalidCompletionClaimSource,
     InvalidBoundaryResult,
+    InvalidBoundaryScalarArgument,
     BoundaryRealizationMismatch {
         machine: MachineId,
         operation: OperationId,

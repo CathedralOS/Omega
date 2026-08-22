@@ -153,7 +153,8 @@ pub(super) fn append_operation(
         | OperationKind::SaturatingIntegerMultiply { .. } => {
             unreachable!("goal-free scalar rows return before specialized reconstruction")
         }
-        OperationKind::EstablishTrivialAffineLocal { .. }
+        OperationKind::EstablishByteSequenceLiteral { .. }
+        | OperationKind::EstablishTrivialAffineLocal { .. }
         | OperationKind::PortWrite { .. }
         | OperationKind::BooleanStructuralField { .. } => {
             unreachable!("structural/effect rows return before specialized reconstruction")

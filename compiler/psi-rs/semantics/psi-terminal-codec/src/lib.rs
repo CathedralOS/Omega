@@ -165,6 +165,10 @@ fn validate_structural_foundation(module: &TerminalModule) -> Result<(), CodecEr
 
     for declaration in &module.structural_types {
         match &declaration.shape {
+            StructuralTypeShape::ByteSequence(psi_terminal::ByteSequenceCarrier::BorrowedView) => {}
+            StructuralTypeShape::ByteSequence(_) => {
+                return malformed("first-class byte-sequence type must be a borrowed view");
+            }
             StructuralTypeShape::Record { fields } => {
                 require_unique_nonempty_identities(
                     fields.iter().map(|field| field.identity.as_str()),
@@ -519,6 +523,9 @@ fn validate_structural_path(
             (_, StructuralTypeShape::Sum { .. }) => {
                 return malformed("structural path cannot traverse a payload-less sum");
             }
+            (_, StructuralTypeShape::ByteSequence(_)) => {
+                return malformed("byte-sequence structural type has no projected children");
+            }
         };
     }
     Ok(structural_type)
@@ -563,6 +570,37 @@ fn validate_operation_foundation(
     operation: &Operation,
 ) -> Result<(), CodecError> {
     match &operation.kind {
+        OperationKind::EstablishByteSequenceLiteral { destination, .. } => {
+            if operation.result != OperationResult::Unit {
+                return malformed("byte-sequence literal establishment declares a scalar result");
+            }
+            let Some(StructuralPlaceDeclaration {
+                kind:
+                    StructuralPlaceKind::ByteSequenceLiteral {
+                        structural_type, ..
+                    },
+                ..
+            }) = machine
+                .structural_places
+                .iter()
+                .find(|place| place.id == *destination)
+            else {
+                return malformed("byte-sequence literal establishment has no literal declaration");
+            };
+            let Some(declaration) = module
+                .structural_types
+                .iter()
+                .find(|declaration| declaration.id == *structural_type)
+            else {
+                return malformed("byte-sequence literal has an unknown structural type");
+            };
+            if !matches!(
+                declaration.shape,
+                StructuralTypeShape::ByteSequence(psi_terminal::ByteSequenceCarrier::BorrowedView)
+            ) {
+                return malformed("byte-sequence literal must use a borrowed byte-sequence type");
+            }
+        }
         OperationKind::CallUnit {
             callee,
             structural_arguments,
@@ -732,19 +770,41 @@ fn validate_structural_arguments(
     expected: &[StructuralParameterDeclaration],
 ) -> Result<(), CodecError> {
     for (argument, expected) in arguments.iter().zip(expected) {
-        let Some(actual) = machine
-            .structural_parameters
-            .iter()
-            .find(|parameter| parameter.place == argument.place)
-        else {
-            return malformed("structural argument references an unknown parameter place");
+        let Some(actual_type) = structural_place_type(machine, argument.place) else {
+            return malformed("structural argument references an unknown structural place");
         };
-        let actual_type = validate_structural_path(module, actual.structural_type, &argument.path)?;
+        let actual_type = validate_structural_path(module, actual_type, &argument.path)?;
         if actual_type != expected.structural_type {
             return malformed("structural argument has the wrong concrete type");
         }
     }
     Ok(())
+}
+
+fn structural_place_type(
+    machine: &TerminalMachine,
+    place: psi_core::PlaceId,
+) -> Option<StructuralTypeId> {
+    machine
+        .structural_parameters
+        .iter()
+        .find_map(|parameter| (parameter.place == place).then_some(parameter.structural_type))
+        .or_else(|| {
+            machine.structural_places.iter().find_map(|declaration| {
+                if declaration.id != place {
+                    return None;
+                }
+                match declaration.kind {
+                    StructuralPlaceKind::ByteSequenceLiteral {
+                        structural_type, ..
+                    }
+                    | StructuralPlaceKind::TrivialAffineLocal {
+                        structural_type, ..
+                    } => Some(structural_type),
+                    StructuralPlaceKind::Parameter { .. } | StructuralPlaceKind::Result => None,
+                }
+            })
+        })
 }
 
 fn validate_claim_indices(
@@ -798,6 +858,7 @@ fn validate_structural_type_graph(module: &TerminalModule) -> Result<(), CodecEr
             .find(|declaration| declaration.id == id)
             .expect("structural field targets were validated before graph traversal");
         match &declaration.shape {
+            StructuralTypeShape::ByteSequence(_) => {}
             StructuralTypeShape::Record { fields } => {
                 for field in fields {
                     if let StructuralFieldType::Structural(target) = &field.field_type {
@@ -1005,6 +1066,14 @@ fn encode_structural_place_kind(writer: &mut Writer, kind: StructuralPlaceKind) 
             writer.u8(u8::from(is_self));
         }
         StructuralPlaceKind::Result => writer.u8(2),
+        StructuralPlaceKind::ByteSequenceLiteral {
+            declaration_ordinal,
+            structural_type,
+        } => {
+            writer.u8(4);
+            writer.u32(declaration_ordinal);
+            writer.id(structural_type);
+        }
         StructuralPlaceKind::TrivialAffineLocal {
             declaration_ordinal,
             structural_type,
@@ -1109,6 +1178,10 @@ fn decode_structural_place_kind(
             is_self: reader.boolean()?,
         },
         2 => StructuralPlaceKind::Result,
+        4 => StructuralPlaceKind::ByteSequenceLiteral {
+            declaration_ordinal: reader.u32()?,
+            structural_type: reader.id("StructuralTypeId")?,
+        },
         3 => StructuralPlaceKind::TrivialAffineLocal {
             declaration_ordinal: reader.u32()?,
             structural_type: reader.id("StructuralTypeId")?,

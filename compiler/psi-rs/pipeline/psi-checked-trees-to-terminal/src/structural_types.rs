@@ -114,7 +114,9 @@ pub(super) fn retain_additional_structural_types(
         .iter()
         .flat_map(|declaration| match &declaration.shape {
             StructuralTypeShape::Record { fields } => fields.as_slice(),
-            StructuralTypeShape::FixedArray { .. } | StructuralTypeShape::Sum { .. } => &[],
+            StructuralTypeShape::ByteSequence(_)
+            | StructuralTypeShape::FixedArray { .. }
+            | StructuralTypeShape::Sum { .. } => &[],
         })
         .map(|field| field.id.get())
         .max()
@@ -128,7 +130,9 @@ pub(super) fn retain_additional_structural_types(
         .iter()
         .flat_map(|declaration| match &declaration.shape {
             StructuralTypeShape::Sum { cases } => cases.as_slice(),
-            StructuralTypeShape::Record { .. } | StructuralTypeShape::FixedArray { .. } => &[],
+            StructuralTypeShape::ByteSequence(_)
+            | StructuralTypeShape::Record { .. }
+            | StructuralTypeShape::FixedArray { .. } => &[],
         })
         .map(|case| case.id.get())
         .max()

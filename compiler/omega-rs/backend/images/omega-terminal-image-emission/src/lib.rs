@@ -620,6 +620,7 @@ pub fn build_terminal_object_artifact(
             matches!(
                 settlement.realization,
                 TerminalBoundaryRealization::DirectPortReadU8(_)
+                    | TerminalBoundaryRealization::LinuxExitGroupI32(_)
             )
         });
         let scalar_custody = scalar_cleanup_custody || scalar_boundary_custody;
@@ -950,7 +951,8 @@ pub fn build_terminal_object_artifact(
             }
             let valid_realization = match settlement.realization {
                 TerminalBoundaryRealization::MetadataOnlyPort(realization) => {
-                    settlement.byte_count == 0
+                    settlement.scalar_arguments.is_empty()
+                        && settlement.byte_count == 0
                         && function
                             .port_effects
                             .iter()
@@ -996,7 +998,8 @@ pub fn build_terminal_object_artifact(
                                 == 1
                                 && function.bytes.get(return_offset) == Some(&0xc3)
                         });
-                    settlement.byte_count == expected.len()
+                    settlement.scalar_arguments.is_empty()
+                        && settlement.byte_count == expected.len()
                         && plan.target.architecture == Architecture::X86_64
                         && settlement
                             .code_offset
@@ -1013,6 +1016,69 @@ pub fn build_terminal_object_artifact(
                                     .iter()
                                     .any(|parameter| parameter.place == argument.place)
                         })
+                }
+                TerminalBoundaryRealization::LinuxExitGroupI32(_) => {
+                    let [argument] = settlement.scalar_arguments.as_slice() else {
+                        return Err(TerminalObjectError::BoundaryRealizationMismatch {
+                            machine: function.machine,
+                            operation: settlement.psi_operation,
+                        });
+                    };
+                    let i32_type = psi_core::IntegerType::new(psi_core::IntegerSign::Signed, 32)
+                        .expect("i32 is valid");
+                    let value = match (argument.scalar_type, argument.immediate) {
+                        (
+                            psi_core::ScalarType::Integer(actual),
+                            psi_core::IntegerValue::Signed(value),
+                        ) if actual == i32_type => i32::try_from(value).ok(),
+                        _ => None,
+                    };
+                    let expected_destination =
+                        match (plan.target.object_format, plan.target.architecture) {
+                            (omega_target::ObjectFormat::Elf, Architecture::X86_64) => {
+                                Some(omega_calling_conventions::MachineRegister::X86Rdi)
+                            }
+                            (omega_target::ObjectFormat::Elf, Architecture::Aarch64) => {
+                                Some(omega_calling_conventions::MachineRegister::Aarch64X(0))
+                            }
+                            _ => None,
+                        };
+                    let expected = value.and_then(|value| match plan.target.architecture {
+                        Architecture::X86_64 => {
+                            Some(omega_isa_x86_64::encode_linux_exit_group_i32(value))
+                        }
+                        Architecture::Aarch64 => {
+                            omega_isa_aarch64::encode_linux_exit_group_i32(value).ok()
+                        }
+                    });
+                    let exact_nominal_tail = settlement
+                        .operation_ordinal
+                        .checked_add(1)
+                        .is_some_and(|tail_ordinal| {
+                            function
+                                .fuel_attribution
+                                .iter()
+                                .filter(|attribution| {
+                                    matches!(attribution.site, TerminalNativeFuelSite::Edge(_))
+                                        && attribution.units == 1
+                                        && attribution.operation_ordinal == tail_ordinal
+                                        && attribution.code_offset == function.bytes.len()
+                                        && attribution.byte_count == 0
+                                })
+                                .count()
+                                == 1
+                        });
+                    expected.is_some_and(|expected| {
+                        settlement.code_offset == 0
+                            && settlement.byte_count == expected.len()
+                            && settlement.byte_count != 0
+                            && function.bytes == expected
+                    }) && expected_destination == Some(argument.destination)
+                        && settlement.arguments.is_empty()
+                        && settlement.native_result.is_none()
+                        && function.unit_stack.is_none()
+                        && function.scalar_stack.is_none()
+                        && exact_nominal_tail
                 }
             };
             if !valid_realization

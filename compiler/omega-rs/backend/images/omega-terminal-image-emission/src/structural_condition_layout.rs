@@ -30,6 +30,9 @@ fn replay_structural_shape(
     }
     let declaration = declarations.get(&structural_type)?;
     let shape = match &declaration.shape {
+        // First-class byte views are not Boolean-field aggregates and have no
+        // native condition layout in this consumer.
+        psi_terminal::StructuralTypeShape::ByteSequence(_) => return None,
         psi_terminal::StructuralTypeShape::Record { fields } => {
             let mut byte_size = 0_u32;
             let mut alignment = 1_u16;

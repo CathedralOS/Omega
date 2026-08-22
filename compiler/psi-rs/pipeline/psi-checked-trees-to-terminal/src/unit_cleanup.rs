@@ -415,9 +415,9 @@ pub(super) fn lower_nominal_affine_unit_cleanup_machine(
                 .find(|declaration| declaration.id == cleanup_type)
                 .and_then(|declaration| match &declaration.shape {
                     StructuralTypeShape::Record { fields } => Some(fields),
-                    StructuralTypeShape::FixedArray { .. } | StructuralTypeShape::Sum { .. } => {
-                        None
-                    }
+                    StructuralTypeShape::ByteSequence(_)
+                    | StructuralTypeShape::FixedArray { .. }
+                    | StructuralTypeShape::Sum { .. } => None,
                 })
                 .ok_or(LoweringError::Unsupported(
                     "contextual nominal cleanup terminal receiver shape drifted",

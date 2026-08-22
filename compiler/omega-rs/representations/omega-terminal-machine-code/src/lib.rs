@@ -7,8 +7,8 @@ use omega_calling_conventions::{ValuePlacement, ValueShape};
 use omega_target::NativeTarget;
 use omega_terminal_installation_evidence::NativeFuelTargetPlanProjection;
 use omega_terminal_target_operations::{
-    TerminalBoundaryRealization, TerminalCallSiteOwner, TerminalCompletionClaimSource,
-    TerminalProviderExecutionBinding, TerminalPsiProvenance,
+    TerminalBoundaryRealization, TerminalBoundaryScalarArgument, TerminalCallSiteOwner,
+    TerminalCompletionClaimSource, TerminalProviderExecutionBinding, TerminalPsiProvenance,
 };
 use psi_core::{
     BoundaryMachineId, ClaimId, EdgeId, FuelScheduleIdentity, MachineId, OperationId, PlaceId,
@@ -222,6 +222,10 @@ pub struct TerminalBoundarySettlementRecord {
     pub boundary: BoundaryMachineId,
     pub provider_execution: TerminalProviderExecutionRecord,
     pub realization: TerminalBoundaryRealization,
+    /// Ordered scalar inputs consumed by executable boundary code. Metadata-
+    /// only settlements retain an empty list; native realizations retain the
+    /// exact terminal value, type, immediate, and ABI destination.
+    pub scalar_arguments: Vec<TerminalBoundaryScalarArgument>,
     /// Exact typed Psi custody arguments, including structural projections.
     /// These are provider-settlement evidence and do not describe an internal
     /// Unit-call ABI.

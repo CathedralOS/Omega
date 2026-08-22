@@ -162,6 +162,10 @@ pub enum TerminalEffect {
         boundary: BoundaryMachineId,
         arguments: Vec<TerminalScalarValue>,
         structural_arguments: Vec<TerminalStructuralValue>,
+        /// Exact byte payload aligned with `structural_arguments`. Only a
+        /// first-class byte-sequence literal contributes `Some`; opaque host
+        /// structural arguments remain `None`.
+        byte_sequence_arguments: Vec<Option<Vec<u8>>>,
         completion_receipts: Vec<CompletionReceipt>,
         result: Option<ScalarType>,
     },
@@ -321,6 +325,10 @@ pub struct TerminalExecution {
     blocks: BTreeMap<BlockId, Block>,
     values: BTreeMap<ValueId, TerminalScalarValue>,
     structural_values: BTreeMap<PlaceId, TerminalStructuralValue>,
+    /// Immutable exact literal payloads keyed by invocation-independent
+    /// terminal machine/place identity. Literal operations are canonical and
+    /// idempotently establish the same bytes on every invocation.
+    byte_sequence_literals: BTreeMap<(MachineId, PlaceId), Vec<u8>>,
     structural_boolean_fields: BTreeMap<(MachineId, PlaceId, StructuralFieldId), bool>,
     /// Exact claim-free affine ownership frontier. Opaque structural storage is
     /// root-addressed, so projected moves must be represented here rather than
@@ -546,6 +554,7 @@ impl TerminalExecution {
             blocks,
             values,
             structural_values,
+            byte_sequence_literals: BTreeMap::new(),
             structural_boolean_fields,
             live_affine_frontier,
             live_claims,
@@ -606,6 +615,47 @@ impl TerminalExecution {
                     return meter_status(error);
                 }
                 match operation.kind.clone() {
+                    OperationKind::EstablishByteSequenceLiteral { destination, bytes } => {
+                        if !matches!(operation.result, psi_terminal::OperationResult::Unit)
+                            || self.structural_values.contains_key(&destination)
+                        {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        }
+                        let machine = self.machines.get(&self.current_machine).ok_or(
+                            TerminalInterpretError::VerifiedCallTargetMissing(self.current_machine),
+                        )?;
+                        let Some(psi_terminal::StructuralPlaceDeclaration {
+                            kind:
+                                psi_core::StructuralPlaceKind::ByteSequenceLiteral {
+                                    structural_type,
+                                    ..
+                                },
+                            ..
+                        }) = machine
+                            .structural_places
+                            .iter()
+                            .find(|place| place.id == destination)
+                        else {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        };
+                        let key = (self.current_machine, destination);
+                        if self
+                            .byte_sequence_literals
+                            .insert(key, bytes.clone())
+                            .is_some_and(|previous| previous != bytes)
+                        {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        }
+                        self.structural_values.insert(
+                            destination,
+                            TerminalStructuralValue {
+                                opaque_identity: destination.get(),
+                                structural_type: *structural_type,
+                                qualifications: Vec::new(),
+                                path: Vec::new(),
+                            },
+                        );
+                    }
                     OperationKind::EstablishTrivialAffineLocal { destination } => {
                         if !matches!(operation.result, psi_terminal::OperationResult::Unit)
                             || self.structural_values.contains_key(&destination)
@@ -931,6 +981,20 @@ impl TerminalExecution {
                             boundary,
                             arguments: scalar_arguments,
                             structural_arguments: arguments,
+                            byte_sequence_arguments: structural_arguments
+                                .iter()
+                                .map(|argument| {
+                                    argument
+                                        .path
+                                        .is_empty()
+                                        .then(|| {
+                                            self.byte_sequence_literals
+                                                .get(&(self.current_machine, argument.place))
+                                                .cloned()
+                                        })
+                                        .flatten()
+                                })
+                                .collect(),
                             completion_receipts,
                             result: boundary_declaration.result,
                         };

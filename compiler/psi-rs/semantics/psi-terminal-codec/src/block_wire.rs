@@ -38,6 +38,12 @@ pub(super) fn encode_block(writer: &mut Writer, block: &Block) -> Result<(), Cod
             }
         }
         match operation.kind.clone() {
+            OperationKind::EstablishByteSequenceLiteral { destination, bytes } => {
+                writer.u8(40);
+                writer.id(destination);
+                writer.len("byte-sequence literal bytes", bytes.len())?;
+                writer.bytes(&bytes);
+            }
             OperationKind::EstablishTrivialAffineLocal { destination } => {
                 writer.u8(37);
                 writer.id(destination);
@@ -507,6 +513,14 @@ pub(super) fn decode_block(reader: &mut Reader<'_>) -> Result<Block, CodecError>
             tag => return Err(CodecError::InvalidTag("OperationResult", tag)),
         };
         let kind = match reader.u8()? {
+            40 => OperationKind::EstablishByteSequenceLiteral {
+                destination: reader.id("PlaceId")?,
+                bytes: {
+                    let len =
+                        usize::try_from(reader.count()?).map_err(|_| CodecError::UnexpectedEnd)?;
+                    reader.take(len)?.to_vec()
+                },
+            },
             1 => OperationKind::IntegerConstant {
                 value: decode_integer_value(reader)?,
             },

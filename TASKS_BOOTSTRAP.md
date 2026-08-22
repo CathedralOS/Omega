@@ -218,12 +218,16 @@ story.
     boundary call. This is implementation work, not an unresolved language
     ruling, and it must use the shared terminal representation rather than an
     O0-private IR.
-    - [ ] Add the first-class borrowed byte-sequence structural type, canonical
+    - [x] Add the first-class borrowed byte-sequence structural type, canonical
       literal establishment/place, and generalized structural boundary-argument
-      source required by `write_line` (terminal vocabulary 24).
-    - [ ] Preserve literal bytes exactly in the canonical codec, verifier, and
+      source required by `write_line` (terminal vocabulary 24). Local literal
+      sources are admitted only at bodyless boundaries; in-module forwarding
+      and unsupported native layout remain fail-closed.
+    - [x] Preserve literal bytes exactly in the canonical codec, verifier, and
       interpreter, including non-UTF-8 bytes; fix the Psi lexer so `\xNN` adds
-      the requested byte instead of round-tripping it through Unicode.
+      the requested byte instead of round-tripping it through Unicode. The
+      parser now rejects raw-byte strings with a directed diagnostic until the
+      syntax/typed/checked representations own byte payloads end to end.
     - [ ] Preserve the same structural operand through Psi-to-Omega abstract
       lowering. Keep native target lowering fail-closed until `write_line` has a
       real target realization.
@@ -240,15 +244,15 @@ story.
       generic length-delimited terminal envelope; do not invent an O0-only
       container. The proof-free semantic-slice gate does not depend on this
       packaging work.
-  - [ ] Implement a genuine target `exit_process(i32)` boundary realization.
+  - [x] Implement a genuine target `exit_process(i32)` boundary realization.
     Consume the preserved scalar argument; do not reinterpret it as a machine
     return or route it through the metadata-only port settlement.
-    - [ ] Close the first native slice with the import-free Linux `exit_group`
+    - [x] Close the first native slice with the import-free Linux `exit_group`
       ABI (x86-64 first, with AArch64 byte validation where practical). Emit the
       scalar value into the ABI argument register, record the exact consumed
       value and nonempty settlement byte interval, and trap if the nominally
       nonreturning syscall returns.
-    - [ ] Keep Darwin and Windows fail-closed until terminal images can carry and
+    - [x] Keep Darwin and Windows fail-closed until terminal images can carry and
       independently validate the required external import and relocation
       evidence. Their hosted `_exit`/`ExitProcess` paths are not aliases for the
       import-free Linux realization.

@@ -42,7 +42,7 @@ representation.
 ### Boundary-argument realization fence
 
 Ordinary in-module and bodyless boundary calls both carry positional scalar
-arguments. In terminal-Psi vocabulary 23, `BoundaryMachineDeclaration` declares
+arguments. In current terminal-Psi vocabulary 24, `BoundaryMachineDeclaration` declares
 ordered scalar parameter types and `BoundaryCall` carries the matching ordered
 `ValueId` arguments alongside its structural lane. Canonical encoding binds
 both orders; validation checks exact arity, definition, dominance, and type;
@@ -50,11 +50,21 @@ interpretation evaluates the scalar values before invoking the effect handler;
 and Omega abstract lowering preserves them without reinterpretation. The
 optional primitive scalar remains the independent result lane.
 
-Preservation is not realization. Omega target lowering rejects nonempty scalar
-boundary calls until the selected boundary has a native implementation; it may
-not discard the values in a metadata-only backend path. Producers likewise may
-not encode an effect input as an ordinary machine return or introduce a private
-pre-terminal IR to evade this fence.
+Vocabulary 24 also admits a first-class immutable borrowed byte-sequence shape,
+an exact raw-octet literal establishment, and that local literal as a structural
+argument to a bodyless boundary. The codec, verifier, and interpreter preserve
+all bytes, including non-UTF-8 payloads. In-module forwarding, source-tree byte
+ownership, and native byte-view layout remain fenced until their dedicated paths
+exist.
+
+Preservation is not realization. Omega target lowering accepts the one exact
+Linux `exit_process(i32)` shape through import-free `exit_group`, including the
+consumed scalar and nonreturning trap tail. Other nonempty scalar calls and all
+byte-sequence literal realization remain rejected; metadata-only paths may not
+discard either lane. Darwin and Windows process exit remain fail-closed pending
+validated import/relocation evidence. Producers likewise may not encode an
+effect input as an ordinary machine return or introduce a private pre-terminal
+IR to evade this fence.
 
 ## Checked-adapter provider installation
 

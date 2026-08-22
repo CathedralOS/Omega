@@ -4,7 +4,8 @@ use omega_object_file::{
 use omega_target::{NativeTarget, TargetProfile};
 use omega_terminal_image_emission::{
     TERMINAL_INSTALLATION_FORMAT_MARKER, TerminalInstallationError, TerminalObjectError,
-    build_terminal_installation_record, build_terminal_object_artifact,
+    build_terminal_installation_record,
+    build_terminal_installation_record_with_provider_executions, build_terminal_object_artifact,
     can_emit_terminal_executable_image, decode_terminal_installation_record,
     derive_terminal_installation_stack_demand, derive_terminal_stack_demand,
     derive_terminal_unit_stack_demand, emit_terminal_executable_image,
@@ -15,6 +16,7 @@ use omega_terminal_image_emission::{
 };
 use omega_terminal_installation_evidence::{
     NativeFuelContextLayout, NativeFuelTargetPlanProjection, SponsorContextTransport,
+    TerminalProviderExecutionEvidence,
 };
 use omega_terminal_machine_code::{
     TerminalAarch64ReturnLinkEvidence, TerminalBoundarySettlementRecord,
@@ -29,8 +31,10 @@ use omega_terminal_machine_code::{
     TerminalUnitParameterHomeRecord, TerminalUnitParameterRecord, TerminalUnitStackEvidence,
 };
 use omega_terminal_target_operations::{
-    TerminalCallSiteOwner, TerminalCompletionClaimSource, TerminalMetadataOnlyPortRealization,
-    TerminalProviderExecutionBinding, TerminalProviderPlanIdentity, TerminalPsiProvenance,
+    TerminalBoundaryRealization, TerminalBoundaryScalarArgument, TerminalCallSiteOwner,
+    TerminalCompletionClaimSource, TerminalLinuxExitGroupI32Realization,
+    TerminalMetadataOnlyPortRealization, TerminalProviderExecutionBinding,
+    TerminalProviderPlanIdentity, TerminalPsiProvenance,
 };
 use psi_core::{
     BoundaryMachineId, ClaimId, EdgeId, MachineId, OperationId, PlaceId, ProfileDecisionId,
@@ -99,6 +103,182 @@ fn object_artifact_owns_canonical_function_spans_and_psi_provenance() {
     assert_eq!(container.output.bss_bytes, 0);
     assert_eq!(container.output.symbols, 2);
     assert_eq!(container.output.relocations, 0);
+}
+
+#[test]
+fn linux_exit_group_object_validation_replays_exact_scalar_and_trap_bytes() {
+    #[derive(Debug)]
+    struct ExitProvider;
+    impl TerminalProviderExecutionEvidence for ExitProvider {
+        fn provider_plan(&self) -> u64 {
+            91
+        }
+
+        fn provider_execution_identity(&self) -> u64 {
+            92
+        }
+
+        fn provider_execution_fingerprint(&self) -> u64 {
+            93
+        }
+
+        fn normalized_root_identity(&self) -> u64 {
+            94
+        }
+
+        fn boundary_contract_fingerprint(&self) -> u64 {
+            95
+        }
+    }
+
+    for (target, destination) in [
+        (
+            NativeTarget::linux_x64(),
+            omega_calling_conventions::MachineRegister::X86Rdi,
+        ),
+        (
+            NativeTarget::linux_arm64(),
+            omega_calling_conventions::MachineRegister::Aarch64X(0),
+        ),
+    ] {
+        let machine = machine_id(91);
+        let constant = operation_id(91);
+        let settlement_operation = operation_id(92);
+        let nominal_return = edge_id(91);
+        let boundary = BoundaryMachineId::new(91).unwrap();
+        let source_value = psi_core::ValueId::new(91).unwrap();
+        let scalar_type = psi_core::ScalarType::Integer(
+            psi_core::IntegerType::new(psi_core::IntegerSign::Signed, 32).unwrap(),
+        );
+        let argument = TerminalBoundaryScalarArgument {
+            source_value,
+            scalar_type,
+            immediate: psi_core::IntegerValue::Signed(37),
+            destination,
+        };
+        let bytes = match target.architecture {
+            omega_target::Architecture::X86_64 => omega_isa_x86_64::encode_linux_exit_group_i32(37),
+            omega_target::Architecture::Aarch64 => {
+                omega_isa_aarch64::encode_linux_exit_group_i32(37).unwrap()
+            }
+        };
+        let provider = TerminalProviderExecutionBinding::from_execution_record(
+            TerminalProviderPlanIdentity::new(91).unwrap(),
+            92,
+            93,
+            94,
+            95,
+        )
+        .unwrap();
+        let plan = TerminalMachineCodePlan {
+            terminal_psi: identity(),
+            target,
+            entry: machine,
+            functions: vec![TerminalMachineCodeFunction {
+                machine,
+                attachment: None,
+                provenance: TerminalPsiProvenance {
+                    operations: vec![constant, settlement_operation],
+                    edges: vec![nominal_return],
+                },
+                bytes: bytes.clone(),
+                unit_stack: None,
+                unit_parameter_homes: Vec::new(),
+                unit_parameters: Vec::new(),
+                scalar_stack: None,
+                internal_calls: Vec::new(),
+                internal_unit_calls: Vec::new(),
+                unit_affine_cleanup: None,
+                fuel_attribution: vec![
+                    TerminalNativeFuelAttribution {
+                        schedule: psi_terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
+                        site: TerminalNativeFuelSite::Operation(constant),
+                        units: 1,
+                        operation_ordinal: 0,
+                        code_offset: 0,
+                        byte_count: 0,
+                    },
+                    TerminalNativeFuelAttribution {
+                        schedule: psi_terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
+                        site: TerminalNativeFuelSite::Operation(settlement_operation),
+                        units: 1,
+                        operation_ordinal: 1,
+                        code_offset: 0,
+                        byte_count: bytes.len(),
+                    },
+                    TerminalNativeFuelAttribution {
+                        schedule: psi_terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
+                        site: TerminalNativeFuelSite::Edge(nominal_return),
+                        units: 1,
+                        operation_ordinal: 2,
+                        code_offset: bytes.len(),
+                        byte_count: 0,
+                    },
+                ],
+                port_effects: Vec::new(),
+                boundary_settlements: vec![TerminalBoundarySettlementRecord {
+                    psi_operation: settlement_operation,
+                    boundary,
+                    provider_execution: provider.into(),
+                    realization: TerminalBoundaryRealization::LinuxExitGroupI32(
+                        TerminalLinuxExitGroupI32Realization,
+                    ),
+                    scalar_arguments: vec![argument],
+                    arguments: Vec::new(),
+                    completion_claim_sources: Vec::new(),
+                    completion_receipts: Vec::new(),
+                    completion_provider_custody: Vec::new(),
+                    native_result: None,
+                    operation_ordinal: 1,
+                    code_offset: 0,
+                    byte_count: bytes.len(),
+                }],
+                scalar_affine_cleanup: None,
+                scalar_control_affine_cleanups: Vec::new(),
+                scalar_structural_parameters: Vec::new(),
+                scalar_structural_parameter_homes: Vec::new(),
+                structural_return: None,
+            }],
+        };
+        let object = build_terminal_object_artifact(&plan).expect("validated exit object");
+        let again = build_terminal_object_artifact(&plan).expect("deterministic exit object");
+        assert_eq!(object.text_bytes(), again.text_bytes());
+        assert_eq!(
+            object.boundary_settlements()[0].settlement.scalar_arguments,
+            [argument]
+        );
+        let image = emit_terminal_executable_image(&object, 3).expect("import-free exit image");
+        assert_eq!(
+            image.boundary_settlements()[0].settlement.byte_count,
+            bytes.len()
+        );
+        let installation = build_terminal_installation_record_with_provider_executions(
+            &image,
+            ProfileDecisionId::new(91).unwrap(),
+            [&ExitProvider],
+        )
+        .expect("exit installation record");
+        let encoded =
+            encode_terminal_installation_record(&installation).expect("exit installation encoding");
+        let decoded =
+            decode_terminal_installation_record(&encoded).expect("exit installation decoding");
+        assert_eq!(decoded, installation);
+        assert_eq!(
+            decoded.boundary_settlements()[0]
+                .settlement
+                .scalar_arguments,
+            [argument]
+        );
+        validate_terminal_installation_record(&decoded, &image)
+            .expect("decoded exit installation binds image");
+
+        let mut corrupted = plan;
+        corrupted.functions[0].bytes[0] ^= 1;
+        assert!(matches!(
+            build_terminal_object_artifact(&corrupted),
+            Err(TerminalObjectError::BoundaryRealizationMismatch { .. })
+        ));
+    }
 }
 
 #[test]
@@ -1834,7 +2014,7 @@ fn installation_record_is_canonical_and_binds_exact_image_and_target_facts() {
         terminal_installation_fingerprint(&record)
             .expect("installation fingerprint")
             .to_string(),
-        "7ffcdd785eb843a7ac0f02d72a41db4a2a6cacf65b3d4e20aa628c2a82550349"
+        "8e105b56967a29ad17d713d7b28eb0d326878f74be9e336a4d9287c119f143e5"
     );
 
     let mut changed_plan = plan;
@@ -1978,6 +2158,7 @@ fn privileged_effect_and_exact_provider_execution_survive_installation() {
                 boundary,
                 provider_execution: provider_execution.into(),
                 realization: realization.into(),
+                scalar_arguments: Vec::new(),
                 arguments: Vec::new(),
                 completion_claim_sources: Vec::new(),
                 completion_receipts: Vec::new(),

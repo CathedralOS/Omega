@@ -36,7 +36,8 @@ impl TerminalFuelSchedule {
 
     pub const fn operation_units(self, kind: &OperationKind) -> u64 {
         match kind {
-            OperationKind::EstablishTrivialAffineLocal { .. }
+            OperationKind::EstablishByteSequenceLiteral { .. }
+            | OperationKind::EstablishTrivialAffineLocal { .. }
             | OperationKind::Call { .. }
             | OperationKind::CallUnit { .. }
             | OperationKind::CallStructuralScalar { .. }

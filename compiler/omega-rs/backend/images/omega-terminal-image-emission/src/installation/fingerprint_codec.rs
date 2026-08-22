@@ -1,4 +1,4 @@
-//! Domain-separated fingerprints for format-31 installation evidence.
+//! Domain-separated fingerprints for format-32 installation evidence.
 
 use sha2::{Digest, Sha256};
 

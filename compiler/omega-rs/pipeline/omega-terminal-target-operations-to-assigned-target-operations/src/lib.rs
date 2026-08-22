@@ -133,6 +133,46 @@ fn assign_function(
                 structural_parameters: structural_parameters.clone(),
             }
         }
+        TerminalTargetOperation::ExitProcessI32 {
+            constant_operation,
+            psi_operation,
+            nominal_return_edge,
+            boundary,
+            provider_execution,
+            realization,
+            argument,
+            completion_claim_sources,
+            completion_receipts,
+        } => {
+            let expected_destination = match (target.object_format, architecture) {
+                (omega_target::ObjectFormat::Elf, Architecture::X86_64) => MachineRegister::X86Rdi,
+                (omega_target::ObjectFormat::Elf, Architecture::Aarch64) => {
+                    MachineRegister::Aarch64X(0)
+                }
+                _ => {
+                    return Err(AssignmentError::LinuxExitGroupUnsupported {
+                        machine: function.machine,
+                        target,
+                    });
+                }
+            };
+            if argument.destination != expected_destination {
+                return Err(AssignmentError::LinuxExitGroupArgumentMismatch(
+                    function.machine,
+                ));
+            }
+            TerminalAssignedOperation::ExitProcessI32 {
+                constant_operation: *constant_operation,
+                psi_operation: *psi_operation,
+                nominal_return_edge: *nominal_return_edge,
+                boundary: *boundary,
+                provider_execution: *provider_execution,
+                realization: *realization,
+                argument: *argument,
+                completion_claim_sources: completion_claim_sources.clone(),
+                completion_receipts: completion_receipts.clone(),
+            }
+        }
         TerminalTargetOperation::BooleanControlWithCleanup {
             control,
             structural_types,
@@ -2141,6 +2181,11 @@ pub enum AssignmentError {
         machine: MachineId,
         architecture: Architecture,
     },
+    LinuxExitGroupUnsupported {
+        machine: MachineId,
+        target: NativeTarget,
+    },
+    LinuxExitGroupArgumentMismatch(MachineId),
     UnsupportedStructuralPlacement(psi_core::PlaceId),
     StructuralRegisterArchitectureMismatch {
         place: psi_core::PlaceId,

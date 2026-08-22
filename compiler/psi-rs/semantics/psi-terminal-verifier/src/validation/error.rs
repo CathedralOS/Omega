@@ -230,6 +230,20 @@ pub enum ModuleError {
         machine: MachineId,
         place: PlaceId,
     },
+    UnknownByteSequenceLiteral {
+        operation: OperationId,
+        place: PlaceId,
+    },
+    ByteSequenceLiteralRequiresBorrowedView {
+        operation: OperationId,
+        place: PlaceId,
+    },
+    ByteSequenceLiteralDeclarationRequiresBorrowedView {
+        machine: MachineId,
+        place: PlaceId,
+    },
+    ByteSequenceLiteralEstablishmentMismatch(MachineId),
+    NonCanonicalByteSequenceLiterals(MachineId),
     UnknownTrivialAffineLocal {
         operation: OperationId,
         place: PlaceId,

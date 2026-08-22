@@ -6,9 +6,7 @@
 #[cfg(test)]
 use omega_calling_conventions::ValueShape;
 use omega_calling_conventions::{ValueLocation, ValuePlacement};
-#[cfg(test)]
-use omega_target::ObjectFormat;
-use omega_target::{Architecture, NativeTarget};
+use omega_target::{Architecture, NativeTarget, ObjectFormat};
 #[cfg(test)]
 use omega_terminal_assigned_target_operations::TerminalAssignedBooleanControl;
 use omega_terminal_assigned_target_operations::{
@@ -234,6 +232,7 @@ fn emit_function(
                     omega_terminal_target_operations::TerminalBoundaryRealization::DirectPortReadU8(
                         *realization,
                     ),
+                scalar_arguments: Vec::new(),
                 arguments: arguments.clone(),
                 completion_claim_sources: completion_claim_sources.clone(),
                 completion_receipts: completion_receipts.clone(),
@@ -279,6 +278,92 @@ fn emit_function(
                     },
                 )
                 .collect();
+            bytes
+        }
+        TerminalAssignedOperation::ExitProcessI32 {
+            constant_operation,
+            psi_operation,
+            nominal_return_edge,
+            boundary,
+            provider_execution,
+            realization,
+            argument,
+            completion_claim_sources,
+            completion_receipts,
+        } => {
+            let i32_type = psi_core::IntegerType::new(psi_core::IntegerSign::Signed, 32)
+                .expect("i32 is valid");
+            let value = match (argument.scalar_type, argument.immediate) {
+                (psi_core::ScalarType::Integer(actual), psi_core::IntegerValue::Signed(value))
+                    if actual == i32_type =>
+                {
+                    i32::try_from(value)
+                        .map_err(|_| EmissionError::LinuxExitGroupArgumentMismatch(*boundary))?
+                }
+                _ => return Err(EmissionError::LinuxExitGroupArgumentMismatch(*boundary)),
+            };
+            let expected_destination = match (target.object_format, architecture) {
+                (ObjectFormat::Elf, Architecture::X86_64) => MachineRegister::X86Rdi,
+                (ObjectFormat::Elf, Architecture::Aarch64) => MachineRegister::Aarch64X(0),
+                _ => return Err(EmissionError::LinuxExitGroupUnsupported(target)),
+            };
+            if argument.destination != expected_destination {
+                return Err(EmissionError::LinuxExitGroupArgumentMismatch(*boundary));
+            }
+            let bytes = match architecture {
+                Architecture::X86_64 => omega_isa_x86_64::encode_linux_exit_group_i32(value),
+                Architecture::Aarch64 => omega_isa_aarch64::encode_linux_exit_group_i32(value)
+                    .map_err(|_| EmissionError::LinuxExitGroupEncoding)?,
+            };
+            fuel_attribution.push(TerminalNativeFuelAttribution {
+                schedule: psi_terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
+                site: TerminalNativeFuelSite::Operation(*constant_operation),
+                units: 1,
+                operation_ordinal: 0,
+                code_offset: 0,
+                byte_count: 0,
+            });
+            fuel_attribution.push(TerminalNativeFuelAttribution {
+                schedule: psi_terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
+                site: TerminalNativeFuelSite::Operation(*psi_operation),
+                units: 1,
+                operation_ordinal: 1,
+                code_offset: 0,
+                byte_count: bytes.len(),
+            });
+            fuel_attribution.push(TerminalNativeFuelAttribution {
+                schedule: psi_terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
+                site: TerminalNativeFuelSite::Edge(*nominal_return_edge),
+                units: 1,
+                operation_ordinal: 2,
+                code_offset: bytes.len(),
+                byte_count: 0,
+            });
+            let provider_execution = (*provider_execution).into();
+            let completion_provider_custody = derive_completion_provider_custody(
+                provider_execution,
+                completion_claim_sources,
+                completion_receipts,
+            )
+            .ok_or(EmissionError::InvalidCompletionProviderCustody)?;
+            boundary_settlements.push(TerminalBoundarySettlementRecord {
+                psi_operation: *psi_operation,
+                boundary: *boundary,
+                provider_execution,
+                realization:
+                    omega_terminal_target_operations::TerminalBoundaryRealization::LinuxExitGroupI32(
+                        *realization,
+                    ),
+                scalar_arguments: vec![*argument],
+                arguments: Vec::new(),
+                completion_claim_sources: completion_claim_sources.clone(),
+                completion_receipts: completion_receipts.clone(),
+                completion_provider_custody,
+                native_result: None,
+                operation_ordinal: 1,
+                code_offset: 0,
+                byte_count: bytes.len(),
+            });
             bytes
         }
         TerminalAssignedOperation::UnitBody(body) => {
@@ -868,6 +953,9 @@ pub enum EmissionError {
     UnsupportedStructuralResultRegister(MachineRegister),
     PortWriteUnsupportedOnArchitecture(Architecture),
     BoundaryPortReadUnsupported(Architecture),
+    LinuxExitGroupUnsupported(NativeTarget),
+    LinuxExitGroupArgumentMismatch(psi_core::BoundaryMachineId),
+    LinuxExitGroupEncoding,
     InvalidCompletionProviderCustody,
     IntegerWidthNotNativelySupported {
         value: ValueId,

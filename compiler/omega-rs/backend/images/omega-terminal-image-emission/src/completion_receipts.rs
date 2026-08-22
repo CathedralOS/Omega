@@ -188,6 +188,7 @@ mod tests {
                         value: 0x20,
                     },
                 ),
+            scalar_arguments: Vec::new(),
             arguments,
             completion_claim_sources,
             completion_receipts,

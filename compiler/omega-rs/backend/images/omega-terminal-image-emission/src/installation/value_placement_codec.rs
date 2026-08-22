@@ -1,4 +1,4 @@
-//! Canonical format-31 value-shape and placement codec.
+//! Canonical format-32 value-shape and placement codec.
 //!
 //! Owning rows retain their ordering and validation in the installation
 //! parent. This child owns only the exact shape, register, and location bytes.
@@ -265,7 +265,7 @@ pub(super) fn decode_direct_placement(
     Ok(ValuePlacement { shape, locations })
 }
 
-fn register_tag(register: MachineRegister) -> Result<u8, TerminalInstallationError> {
+pub(super) fn register_tag(register: MachineRegister) -> Result<u8, TerminalInstallationError> {
     match register {
         MachineRegister::X86Rax => Ok(1),
         MachineRegister::X86Rcx => Ok(2),
@@ -286,7 +286,7 @@ fn register_tag(register: MachineRegister) -> Result<u8, TerminalInstallationErr
     }
 }
 
-fn decode_register(value: u8) -> Result<MachineRegister, TerminalInstallationError> {
+pub(super) fn decode_register(value: u8) -> Result<MachineRegister, TerminalInstallationError> {
     match value {
         1 => Ok(MachineRegister::X86Rax),
         2 => Ok(MachineRegister::X86Rcx),

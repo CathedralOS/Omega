@@ -6,8 +6,9 @@
 use omega_calling_conventions::{CallPlan, ValuePlacement, ValueShape};
 use omega_target::NativeTarget;
 use omega_terminal_target_operations::{
-    MachineRegister, TerminalBoundaryRealization, TerminalCompletionClaimSource,
-    TerminalDirectPortReadU8Realization, TerminalProviderExecutionBinding, TerminalPsiProvenance,
+    MachineRegister, TerminalBoundaryRealization, TerminalBoundaryScalarArgument,
+    TerminalCompletionClaimSource, TerminalDirectPortReadU8Realization,
+    TerminalLinuxExitGroupI32Realization, TerminalProviderExecutionBinding, TerminalPsiProvenance,
     TerminalTargetStructuralParameter,
 };
 use psi_core::{
@@ -74,6 +75,17 @@ pub enum TerminalAssignedOperation {
         call_plan: omega_calling_conventions::CallPlan,
         structural_parameters:
             Vec<omega_terminal_target_operations::TerminalTargetStructuralParameter>,
+    },
+    ExitProcessI32 {
+        constant_operation: OperationId,
+        psi_operation: OperationId,
+        nominal_return_edge: EdgeId,
+        boundary: BoundaryMachineId,
+        provider_execution: TerminalProviderExecutionBinding,
+        realization: TerminalLinuxExitGroupI32Realization,
+        argument: TerminalBoundaryScalarArgument,
+        completion_claim_sources: Vec<TerminalCompletionClaimSource>,
+        completion_receipts: Vec<CompletionReceipt>,
     },
     /// Assigned form of one finite short-circuit Boolean tree. Exact cleanup
     /// ownership remains attached to each leaf's terminal-Psi return edge.

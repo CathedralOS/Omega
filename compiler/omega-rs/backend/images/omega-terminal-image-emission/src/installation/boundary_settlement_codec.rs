@@ -1,4 +1,4 @@
-//! Canonical format-31 codec for boundary-settlement rows.
+//! Canonical format-32 codec for boundary-settlement rows.
 //!
 //! The installation parent retains upfront count conversion, settlement order,
 //! validation, and admission replay. This child composes the exact row bytes.
@@ -8,10 +8,13 @@ use omega_terminal_machine_code::{
     TerminalCompletionProviderCustodyBinding,
 };
 use omega_terminal_target_operations::{
-    TerminalBoundaryRealization, TerminalDirectPortReadU8Realization,
+    TerminalBoundaryRealization, TerminalBoundaryScalarArgument,
+    TerminalDirectPortReadU8Realization, TerminalLinuxExitGroupI32Realization,
     TerminalMetadataOnlyPortRealization,
 };
-use psi_core::{BoundaryMachineId, ClaimId, EdgeId, MachineId, OperationId, ServiceId, ValueId};
+use psi_core::{
+    BoundaryMachineId, ClaimId, EdgeId, IntegerValue, MachineId, OperationId, ServiceId, ValueId,
+};
 use psi_terminal::CompletionReceipt;
 
 use super::{
@@ -24,7 +27,7 @@ use super::{
     provider_execution_codec::{decode_provider_execution, encode_provider_execution},
     push_u16, push_u32, push_u64,
     structural_argument_codec::{decode_structural_argument, encode_structural_argument},
-    value_placement_codec::{decode_placement, encode_placement},
+    value_placement_codec::{decode_placement, decode_register, encode_placement, register_tag},
 };
 
 pub(super) fn encode_boundary_settlements(
@@ -54,6 +57,13 @@ pub(super) fn encode_boundary_settlements(
                 push_u16(bytes, realization.port);
                 bytes.push(0);
             }
+            TerminalBoundaryRealization::LinuxExitGroupI32(_) => {
+                bytes.push(2);
+                push_u64(bytes, 0);
+                push_u64(bytes, 0);
+                push_u16(bytes, 0);
+                bytes.push(0);
+            }
         }
         bytes.push(0);
         push_u64(
@@ -76,6 +86,29 @@ pub(super) fn encode_boundary_settlements(
             u64::try_from(settlement.byte_count)
                 .map_err(|_| TerminalInstallationError::SettlementOffsetNotRepresentable)?,
         );
+        push_u32(
+            bytes,
+            u32::try_from(settlement.scalar_arguments.len())
+                .map_err(|_| TerminalInstallationError::TooManySettlementScalarArguments)?,
+        );
+        for argument in &settlement.scalar_arguments {
+            push_u64(bytes, argument.source_value.get());
+            encode_boundary_result_scalar_type(bytes, argument.scalar_type);
+            match argument.immediate {
+                IntegerValue::Signed(value) => {
+                    bytes.push(1);
+                    bytes.extend_from_slice(&[0; 3]);
+                    bytes.extend_from_slice(&value.to_le_bytes());
+                }
+                IntegerValue::Unsigned(value) => {
+                    bytes.push(2);
+                    bytes.extend_from_slice(&[0; 3]);
+                    bytes.extend_from_slice(&value.to_le_bytes());
+                }
+            }
+            bytes.push(register_tag(argument.destination)?);
+            bytes.extend_from_slice(&[0; 3]);
+        }
         push_u32(
             bytes,
             u32::try_from(settlement.arguments.len())
@@ -146,9 +179,7 @@ pub(super) fn decode_boundary_settlements(
         let provider_execution = decode_provider_execution(reader)?;
         let realization_tag = reader.u8()?;
         let effect_operation = reader.u64()?;
-        let service = ServiceId::new(reader.u64()?).ok_or(
-            TerminalInstallationError::ZeroSettlementIdentity("realization ServiceId"),
-        )?;
+        let service = reader.u64()?;
         let port = reader.u16()?;
         let value = reader.u8()?;
         let realization = match realization_tag {
@@ -159,16 +190,23 @@ pub(super) fn decode_boundary_settlements(
                             "realization OperationId",
                         ),
                     )?,
-                    service,
+                    service: ServiceId::new(service).ok_or(
+                        TerminalInstallationError::ZeroSettlementIdentity("realization ServiceId"),
+                    )?,
                     port,
                     value,
                 })
             }
             1 if effect_operation == 0 && value == 0 => {
                 TerminalBoundaryRealization::DirectPortReadU8(TerminalDirectPortReadU8Realization {
-                    service,
+                    service: ServiceId::new(service).ok_or(
+                        TerminalInstallationError::ZeroSettlementIdentity("realization ServiceId"),
+                    )?,
                     port,
                 })
+            }
+            2 if effect_operation == 0 && service == 0 && port == 0 && value == 0 => {
+                TerminalBoundaryRealization::LinuxExitGroupI32(TerminalLinuxExitGroupI32Realization)
             }
             _ => return Err(TerminalInstallationError::InvalidBoundaryRealizationTag),
         };
@@ -183,6 +221,38 @@ pub(super) fn decode_boundary_settlements(
             .map_err(|_| TerminalInstallationError::SettlementOffsetNotRepresentable)?;
         let byte_count = usize::try_from(reader.u64()?)
             .map_err(|_| TerminalInstallationError::SettlementOffsetNotRepresentable)?;
+        let scalar_argument_count = usize::try_from(reader.u32()?)
+            .map_err(|_| TerminalInstallationError::TooManySettlementScalarArguments)?;
+        if scalar_argument_count > reader.remaining() / 36 {
+            return Err(TerminalInstallationError::UnexpectedEnd);
+        }
+        let mut scalar_arguments = Vec::with_capacity(scalar_argument_count);
+        for _ in 0..scalar_argument_count {
+            let source_value = ValueId::new(reader.u64()?)
+                .ok_or(TerminalInstallationError::InvalidBoundaryScalarArgument)?;
+            let scalar_type = decode_boundary_result_scalar_type(reader)?;
+            let immediate_tag = reader.u8()?;
+            if reader.take(3)? != [0; 3] {
+                return Err(TerminalInstallationError::NonzeroReservedField);
+            }
+            let raw = <[u8; 16]>::try_from(reader.take(16)?)
+                .map_err(|_| TerminalInstallationError::UnexpectedEnd)?;
+            let immediate = match immediate_tag {
+                1 => IntegerValue::Signed(i128::from_le_bytes(raw)),
+                2 => IntegerValue::Unsigned(u128::from_le_bytes(raw)),
+                _ => return Err(TerminalInstallationError::InvalidBoundaryScalarArgument),
+            };
+            let destination = decode_register(reader.u8()?)?;
+            if reader.take(3)? != [0; 3] {
+                return Err(TerminalInstallationError::NonzeroReservedField);
+            }
+            scalar_arguments.push(TerminalBoundaryScalarArgument {
+                source_value,
+                scalar_type,
+                immediate,
+                destination,
+            });
+        }
         let argument_count = usize::try_from(reader.u32()?)
             .map_err(|_| TerminalInstallationError::TooManySettlementArguments)?;
         if argument_count > reader.remaining() / 12 {
@@ -254,6 +324,7 @@ pub(super) fn decode_boundary_settlements(
                 boundary,
                 provider_execution,
                 realization,
+                scalar_arguments,
                 arguments,
                 completion_claim_sources,
                 completion_receipts,

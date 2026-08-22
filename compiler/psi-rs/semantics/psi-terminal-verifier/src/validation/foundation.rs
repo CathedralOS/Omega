@@ -10,7 +10,14 @@ pub(super) fn validate_structural_foundation(module: &TerminalModule) -> Result<
         if declaration.identity.is_empty() || !type_names.insert(declaration.identity.as_str()) {
             return Err(ModuleError::InvalidStructuralTypeIdentity(declaration.id));
         }
-        if let StructuralTypeShape::Record { fields } = &declaration.shape {
+        if matches!(
+            declaration.shape,
+            StructuralTypeShape::ByteSequence(
+                psi_terminal::ByteSequenceCarrier::BoundedOwned { .. }
+            )
+        ) {
+            return Err(ModuleError::InvalidStructuralTypeIdentity(declaration.id));
+        } else if let StructuralTypeShape::Record { fields } = &declaration.shape {
             let mut field_ids = BTreeSet::new();
             let mut field_names = BTreeSet::new();
             for field in fields {
@@ -101,6 +108,7 @@ pub(super) fn validate_structural_foundation(module: &TerminalModule) -> Result<
     }
     for declaration in &module.structural_types {
         match &declaration.shape {
+            StructuralTypeShape::ByteSequence(_) => {}
             StructuralTypeShape::Record { fields } => {
                 for field in fields {
                     if let StructuralFieldType::Structural(target) = &field.field_type
@@ -383,6 +391,79 @@ pub(super) fn validate_structural_foundation(module: &TerminalModule) -> Result<
             &domains,
             StructuralSignatureOwner::Machine(machine.id),
         )?;
+        let mut byte_sequence_literals = machine
+            .structural_places
+            .iter()
+            .filter_map(|place| match place.kind {
+                StructuralPlaceKind::ByteSequenceLiteral {
+                    declaration_ordinal,
+                    structural_type,
+                } => Some((place.id, declaration_ordinal, structural_type)),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        byte_sequence_literals.sort_by_key(|(_, declaration_ordinal, _)| *declaration_ordinal);
+        if byte_sequence_literals.iter().enumerate().any(
+            |(expected, (_, declaration_ordinal, _))| {
+                u32::try_from(expected).ok() != Some(*declaration_ordinal)
+            },
+        ) {
+            return Err(ModuleError::NonCanonicalByteSequenceLiterals(machine.id));
+        }
+        for (place, _, structural_type) in &byte_sequence_literals {
+            let Some(declaration) = types.get(structural_type) else {
+                return Err(ModuleError::UnknownStructuralType(*structural_type));
+            };
+            if !matches!(
+                declaration.shape,
+                StructuralTypeShape::ByteSequence(psi_terminal::ByteSequenceCarrier::BorrowedView)
+            ) {
+                return Err(
+                    ModuleError::ByteSequenceLiteralDeclarationRequiresBorrowedView {
+                        machine: machine.id,
+                        place: *place,
+                    },
+                );
+            }
+        }
+        let literal_establishments = machine
+            .blocks
+            .first()
+            .into_iter()
+            .flat_map(|block| &block.operations)
+            .take(byte_sequence_literals.len())
+            .filter_map(|operation| match operation.kind {
+                OperationKind::EstablishByteSequenceLiteral { destination, .. } => {
+                    Some(destination)
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        let expected_literal_establishments = byte_sequence_literals
+            .iter()
+            .map(|(place, _, _)| *place)
+            .collect::<Vec<_>>();
+        let total_literal_establishments = machine
+            .blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+            .filter(|operation| {
+                matches!(
+                    operation.kind,
+                    OperationKind::EstablishByteSequenceLiteral { .. }
+                )
+            })
+            .count();
+        if !byte_sequence_literals.is_empty()
+            && (machine.blocks.len() != 1
+                || literal_establishments != expected_literal_establishments
+                || total_literal_establishments != byte_sequence_literals.len())
+        {
+            return Err(ModuleError::ByteSequenceLiteralEstablishmentMismatch(
+                machine.id,
+            ));
+        }
+
         let mut trivial_affine_locals = machine
             .structural_places
             .iter()
@@ -581,6 +662,7 @@ fn validate_structural_type_graph(
         }
         let declaration = types[&id];
         match &declaration.shape {
+            StructuralTypeShape::ByteSequence(_) => {}
             StructuralTypeShape::Record { fields } => {
                 for field in fields {
                     if let StructuralFieldType::Structural(target) = &field.field_type {

@@ -545,7 +545,13 @@ Remaining:
   reserved bytes, count/capacity guards, literal diagnostics, and offset errors
   preserve exact bytes and precedence; the parent retains upfront count
   conversion, settlement order, validation, and admission replay. The
-  ordered installed-function collection now lives in a private 172-line
+  format-32 successor adds ordered scalar-argument custody and an exact
+  Linux-only `exit_group(i32)` realization. Object, image, and installation
+  validation independently replay the consumed literal, ABI destination,
+  nonempty code interval, syscall bytes, and trap-on-return tail; Darwin and
+  Windows reject this realization before emission. All format-31 custody rows
+  retain their canonical spelling under the new marker. The ordered installed-
+  function collection now lives in a private 172-line
   composition codec. Function identity, attachment and spans, stack facts,
   Unit/scalar parameter-home carriers, cleanup presence fields, nested row
   order, reserved bytes, count/capacity guards, literal diagnostics, and offset

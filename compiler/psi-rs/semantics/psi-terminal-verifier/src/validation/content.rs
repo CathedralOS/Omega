@@ -392,6 +392,11 @@ fn validate_partition_source_places(
                 StructuralRootKey::Parameter(position)
             }
             StructuralPlaceKind::Result => StructuralRootKey::Result,
+            StructuralPlaceKind::ByteSequenceLiteral { .. } => {
+                return Err(ModuleError::ContentPartitionSourceLocalUnsupported(
+                    place.id,
+                ));
+            }
             StructuralPlaceKind::TrivialAffineLocal { .. } => {
                 return Err(ModuleError::ContentPartitionSourceLocalUnsupported(
                     place.id,

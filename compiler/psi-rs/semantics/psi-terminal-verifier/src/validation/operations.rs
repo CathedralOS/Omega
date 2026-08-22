@@ -446,6 +446,7 @@ pub(super) fn validate_operation_operands(
         | OperationKind::CallStructuralScalar { .. }
         | OperationKind::BoundaryCall { .. }
         | OperationKind::PortWrite { .. }
+        | OperationKind::EstablishByteSequenceLiteral { .. }
         | OperationKind::EstablishTrivialAffineLocal { .. } => None,
     }) else {
         return Ok(());
