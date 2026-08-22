@@ -2827,6 +2827,14 @@ Remaining:
   `left <= right` proposition. Completion parents retain left-then-right value-
   root traversal and affine custody, so citation order, proof shape, rejection,
   and the fixed definition frontier are unchanged.
+  Alias-substituted transitive affine root-bound construction now lives in
+  paired, side-local `affine_selection/transitive/alias/completion/bound`
+  modules. The producer independently constructs the ordered two-citation
+  transitivity proof and substitutes endpoint 0 or 1 from the exact alias
+  equality; reconstruction independently selects and rebuilds the same
+  resulting root-bound proposition. Completion parents retain affine custody,
+  so citation/equality order, proof shape, rejection, and the fixed definition
+  frontier are unchanged.
   The two ordered direct landed-literal affine root bounds now live in paired,
   side-local `affine_selection/literal/direct/completion/bound` modules. The
   producer independently constructs the closed reflexive relation and endpoint
@@ -3819,6 +3827,12 @@ Owners:
   while preserving status 70 and exact result diagnostics. Exceptional
   historical-hang, report-bearing, float/cast, and policy owners remain
   excluded; exact-owner pins remain stable.
+  Five further authored-root struct/index executions—enum-grid scanning, dual
+  indexed reads, struct-field temporary arithmetic, runtime-indexed whole-
+  struct writes, and indexed-read guard evaluation—now launch solely through
+  checked-report receipts while preserving status 70 and exact regression
+  diagnostics. Exceptional historical-hang, report-bearing, float/cast, and
+  policy owners remain excluded; exact-owner pins remain stable.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
