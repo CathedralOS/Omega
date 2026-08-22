@@ -975,12 +975,14 @@ impl Compiler {
 
 #[cfg(test)]
 mod tests {
-    use super::selected_source_boundary_entry_plan;
+    use super::{extract_external_binding_rows, selected_source_boundary_entry_plan};
     use crate::pipeline::calling_policy_plans::BoundaryCallingPlanRealization;
     use omega_calling_conventions::{
         BoundaryEntryPlan, CallSignature, CallingPolicy, evaluate_ordinary_boundary_entry_plan,
     };
-    use omega_effects::provider_plan::{ProviderPlan, ServiceMethod, ServiceSchema};
+    use omega_effects::provider_plan::{
+        ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceMethod, ServiceSchema,
+    };
     use psi_symbols::SymbolHandle;
     use psi_typed_trees::TypedTrees;
     use psi_typed_trees::name::Identifier;
@@ -1140,6 +1142,48 @@ mod tests {
             &fixture.requirement_identity,
         )
         .map_err(|diagnostic| diagnostic.message)
+    }
+
+    #[test]
+    fn external_abi_rows_derive_from_the_selected_provider_plan() {
+        let mut fixture = fixture(false);
+        fixture.plans[0].target = "retained-target".to_owned();
+        fixture.plans[0].provider_type = "RetainedProvider".to_owned();
+        fixture.plans[0].rows.push(ProviderPlanRow {
+            method: METHOD_NAME.to_owned(),
+            requirement_identity: fixture.requirement_identity.clone(),
+            binding: ProviderBinding::Import {
+                library: "retained-library".to_owned(),
+                symbol: "retained-symbol".to_owned(),
+            },
+        });
+
+        let rows = extract_external_binding_rows(
+            None,
+            omega_target::NativeTarget::host(),
+            &fixture.selected,
+            &fixture.plans,
+            &fixture.realizations,
+            &fixture.typed,
+        )
+        .expect("selected provider binding should produce one ABI row");
+        let [row] = rows.as_slice() else {
+            panic!("one selected external ABI row")
+        };
+
+        assert_eq!(row.target_name, "retained-target");
+        assert_eq!(row.trait_name, SCHEMA_NAME);
+        assert_eq!(row.method, METHOD_NAME);
+        assert_eq!(row.requirement_identity, fixture.requirement_identity);
+        assert_eq!(row.table_type, "RetainedProvider");
+        assert_eq!(row.boundary_entry_plan, Some(fixture.expected));
+        assert_eq!(
+            row.binding,
+            omega_calling_conventions::ExternalBindingKind::DllImport {
+                module: "retained-library".to_owned(),
+                symbol: "retained-symbol".to_owned(),
+            }
+        );
     }
 
     #[test]
