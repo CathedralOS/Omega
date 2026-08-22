@@ -1225,10 +1225,13 @@ fn runtime_value_call_same_callee_sites_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-same-callee-sites-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("same-callee-sites canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("same-callee-sites canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("same-callee-sites canary should run");
 
@@ -1269,10 +1272,13 @@ fn runtime_value_call_transition_args_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-transition-args-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("transition-args canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("transition-args canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("transition-args canary should run");
 
@@ -1310,10 +1316,13 @@ fn runtime_value_call_transition_args_straight_line_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-transition-args-sl-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("transition-args straight-line canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("transition-args straight-line canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("transition-args straight-line canary should run");
 
@@ -1351,10 +1360,13 @@ fn runtime_value_call_shared_slot_straight_line_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-shared-slot-straight-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("shared-slot straight-line canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("shared-slot straight-line canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("shared-slot straight-line canary should run");
 
@@ -1395,10 +1407,13 @@ fn runtime_enum_self_method_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-enum-self-method-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("enum-self-method canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("enum-self-method canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("enum-self-method canary should run");
 
