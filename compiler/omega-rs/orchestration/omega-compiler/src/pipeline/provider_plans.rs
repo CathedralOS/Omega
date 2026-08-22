@@ -57,14 +57,15 @@ impl ExternalRootPostHandoffWriterBindingError {
 
 #[derive(Debug)]
 pub struct BoundExternalRootWriterExecutionError<'mapping, 'bytes> {
-    lowered: omega_instruction_selection::LoweredPostHandoffWriter,
-    prepared_error:
-        omega_external_roots::PreparedExternalRootWriterExecutionError<'mapping, 'bytes>,
+    bound: BoundExternalRootPostHandoffWriterInvocation,
+    destination:
+        omega_executable_installation::PreparedPostHandoffWriterDestination<'mapping, 'bytes>,
+    diagnostic: psi_layout_plans::MaterializationDiagnostic,
 }
 
 impl<'mapping, 'bytes> BoundExternalRootWriterExecutionError<'mapping, 'bytes> {
     pub const fn diagnostic(&self) -> &psi_layout_plans::MaterializationDiagnostic {
-        self.prepared_error.diagnostic()
+        &self.diagnostic
     }
 
     pub fn into_parts(
@@ -73,18 +74,37 @@ impl<'mapping, 'bytes> BoundExternalRootWriterExecutionError<'mapping, 'bytes> {
         BoundExternalRootPostHandoffWriterInvocation,
         omega_executable_installation::PreparedPostHandoffWriterDestination<'mapping, 'bytes>,
     ) {
-        let (prepared, destination) = self.prepared_error.into_parts();
-        (
-            BoundExternalRootPostHandoffWriterInvocation {
-                lowered: self.lowered,
-                prepared,
-            },
-            destination,
-        )
+        (self.bound, self.destination)
     }
 }
 
 impl BoundExternalRootPostHandoffWriterInvocation {
+    fn validate_execution(&self) -> Result<(), psi_layout_plans::MaterializationDiagnostic> {
+        omega_instruction_selection::validate_lowered_post_handoff_writer(&self.lowered).map_err(
+            |diagnostic| psi_layout_plans::MaterializationDiagnostic(diagnostic.message),
+        )?;
+        if self.prepared.architecture() != self.lowered.fragment().target().architecture {
+            return Err(psi_layout_plans::MaterializationDiagnostic(
+                "bound external-root writer architecture no longer matches its provider preparation"
+                    .into(),
+            ));
+        }
+        if self.prepared.invocation() != self.lowered.invocation()
+            || self.prepared.context().normalized_fragment_fingerprint()
+                != self.lowered.fragment().normalized_plan_fingerprint()
+            || !self
+                .prepared
+                .context()
+                .binds_invocation(self.lowered.invocation())
+        {
+            return Err(psi_layout_plans::MaterializationDiagnostic(
+                "bound external-root writer preparation no longer binds its exact lowered invocation"
+                    .into(),
+            ));
+        }
+        Ok(())
+    }
+
     pub const fn lowered(&self) -> &omega_instruction_selection::LoweredPostHandoffWriter {
         &self.lowered
     }
@@ -109,12 +129,25 @@ impl BoundExternalRootPostHandoffWriterInvocation {
         omega_executable_installation::WrittenPostHandoffWriterDestination<'mapping, 'bytes>,
         Box<BoundExternalRootWriterExecutionError<'mapping, 'bytes>>,
     > {
-        match self.prepared.execute(installed_code, destination) {
+        if let Err(diagnostic) = self.validate_execution() {
+            return Err(Box::new(BoundExternalRootWriterExecutionError {
+                bound: self,
+                destination,
+                diagnostic,
+            }));
+        }
+        let Self { lowered, prepared } = self;
+        match prepared.execute(installed_code, destination) {
             Ok(written) => Ok(written),
-            Err(prepared_error) => Err(Box::new(BoundExternalRootWriterExecutionError {
-                lowered: self.lowered,
-                prepared_error: *prepared_error,
-            })),
+            Err(prepared_error) => {
+                let diagnostic = prepared_error.diagnostic().clone();
+                let (prepared, destination) = (*prepared_error).into_parts();
+                Err(Box::new(BoundExternalRootWriterExecutionError {
+                    bound: BoundExternalRootPostHandoffWriterInvocation { lowered, prepared },
+                    destination,
+                    diagnostic,
+                }))
+            }
         }
     }
 }
