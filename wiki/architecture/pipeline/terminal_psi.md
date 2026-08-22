@@ -2096,6 +2096,14 @@ precedence. No inverse arithmetic, alias walk, proof rule, or v19 field is
 added; broader affine/cast shapes and the complete exact rows retain their
 trusted status and `fully-derived false` remains unchanged.
 
+Cast-adjacent affine selection is now split at that exact responsibility
+boundary on both sides of the trust boundary. Small producer and verifier
+parents retain direct-before-sandwich dispatch, while independent side-local
+`cast/direct`, `cast/sandwich`, and `cast/endpoint` modules own direct root
+completion, the fixed two-affine composition, and typed literal remapping.
+Citation order, strict cast boundaries, proof shapes, rejection behavior, and
+the finite frontier are unchanged; neither side shares evidence authority.
+
 The cast root-bound child may also be reconstructed from exactly one retained
 same-carrier `root == literal` fact when that literal equals or strengthens the
 canonical bound endpoint. Production remaps the endpoint into the source
