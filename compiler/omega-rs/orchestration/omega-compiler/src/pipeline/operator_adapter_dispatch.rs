@@ -508,7 +508,8 @@ mod tests {
                 }
                 Drift::Intrinsic => {
                     plan.rows[0].binding = ProviderBinding::CompilerIntrinsic {
-                        name: "CheckedMath::offset_zero".into(),
+                        machine: "CheckedMath::offset_zero".into(),
+                        catalog: "CheckedMath::offset_zero".into(),
                     };
                     plans = vec![plan.clone()];
                 }

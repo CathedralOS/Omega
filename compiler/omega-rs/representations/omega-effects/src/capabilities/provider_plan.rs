@@ -126,9 +126,15 @@ pub enum ProviderBinding {
     /// Direct system call by number.
     Syscall { number: i64 },
     /// A compiler-known operation furnished by the selected target package.
-    /// The name is canonical `BoundaryTrait::method` identity; ABI planning
-    /// validates that the target already owns the matching lowering.
-    CompilerIntrinsic { name: String },
+    /// This is the exact normalized realization-machine overload identity;
+    /// target catalog selection is derived separately from the checked
+    /// requirement and selected target.
+    CompilerIntrinsic {
+        machine: String,
+        /// Transitional compiler-derived display/catalog label. This is not
+        /// binding identity and will become a structured target catalog key.
+        catalog: String,
+    },
     /// COM/UEFI slot dispatch: callee address read from the receiver.
     VtableSlot { index: i64 },
     /// Field-model vtable dispatch: the fn-ptr field of a named table
@@ -922,10 +928,16 @@ impl ProviderPlan {
                         ));
                     }
                 }
-                ProviderBinding::CompilerIntrinsic { name } => {
-                    if name.is_empty() {
+                ProviderBinding::CompilerIntrinsic { machine, catalog } => {
+                    if machine.is_empty() {
                         errors.push(format!(
-                            "plan `{}` row `{}` compiler intrinsic has no exact identity",
+                            "plan `{}` row `{}` compiler intrinsic has no exact realization-machine identity",
+                            self.name, row.method,
+                        ));
+                    }
+                    if catalog.is_empty() {
+                        errors.push(format!(
+                            "plan `{}` row `{}` compiler intrinsic has no compiler-derived catalog entry",
                             self.name, row.method,
                         ));
                     }
@@ -1834,7 +1846,8 @@ mod tests {
                 number: i64::from(u32::MAX),
             },
             ProviderBinding::CompilerIntrinsic {
-                name: "Console::write_line".to_owned(),
+                machine: "Console::write_line".to_owned(),
+                catalog: "Console::write_line".to_owned(),
             },
             ProviderBinding::VtableSlot { index: 0 },
             ProviderBinding::VtableField {
@@ -1865,7 +1878,8 @@ mod tests {
             },
             ProviderBinding::Syscall { number: 0 },
             ProviderBinding::CompilerIntrinsic {
-                name: "Console::write_line".to_owned(),
+                machine: "Console::write_line".to_owned(),
+                catalog: "Console::write_line".to_owned(),
             },
             ProviderBinding::VtableSlot { index: 0 },
         ] {
@@ -1902,9 +1916,10 @@ mod tests {
             ),
             (
                 ProviderBinding::CompilerIntrinsic {
-                    name: String::new(),
+                    machine: String::new(),
+                    catalog: "Console::write_line".to_owned(),
                 },
-                "compiler intrinsic has no exact identity",
+                "compiler intrinsic has no exact realization-machine identity",
             ),
             (
                 ProviderBinding::VtableSlot { index: -1 },

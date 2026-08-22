@@ -740,25 +740,51 @@ fn selected_operator_provider_identity(
         }
         return Ok(Some(plan.identity_fingerprint()));
     }
-    let ProviderBinding::CompilerIntrinsic { name } = &row.binding else {
+    let ProviderBinding::CompilerIntrinsic { machine, .. } = &row.binding else {
         return Err(psi_diagnostics::Diagnostic::error(format!(
             "selected boundary-operator ProviderPlan `{}` uses unsupported binding `{:?}`; boundary operators require a checked adapter or compiler intrinsic",
             plan.name, row.binding,
         )));
     };
-    let expected = expected_float_intrinsic(&checked.typed, operator).ok_or_else(|| {
+    expected_float_intrinsic(&checked.typed, operator).ok_or_else(|| {
         psi_diagnostics::Diagnostic::error(format!(
             "selected boundary-operator ProviderPlan `{}` targets `{slot}`, which has no compiler-known migrated intrinsic",
             plan.name,
         ))
     })?;
-    if name != &expected {
+    if !intrinsic_realization_matches_operator(&checked.typed, machine, operator) {
         return Err(psi_diagnostics::Diagnostic::error(format!(
-            "selected boundary-operator ProviderPlan `{}` binds `{name}`, but `{slot}` requires exact intrinsic `{expected}`",
+            "selected boundary-operator ProviderPlan `{}` binds realization `{machine}`, but it does not satisfy exact slot `{slot}` as an external leaf",
             plan.name,
         )));
     }
     Ok(Some(plan.identity_fingerprint()))
+}
+
+pub(super) fn intrinsic_realization_matches_operator(
+    typed: &TypedTrees,
+    realization_machine_identity: &str,
+    operator: &psi_typed_trees::operator::OperatorDefinition,
+) -> bool {
+    let [namespace, requirement] = typed.operator_path_members(operator.name) else {
+        return false;
+    };
+    typed.machines().iter().any(|machine| {
+        typed
+            .normalized_machine_overload_identity(machine)
+            .is_some_and(|identity| identity.identity() == realization_machine_identity)
+            && typed
+                .machine_trait_conformances(machine)
+                .iter()
+                .any(|conformance| conformance.external_binding.is_some())
+            && psi_typed_trees::operator::resolve_satisfied_boundary_operator(
+                typed,
+                machine,
+                namespace.as_str(),
+                requirement.as_str(),
+            )
+            .is_some_and(|resolved| resolved.symbol == operator.symbol)
+    })
 }
 
 pub(super) fn expected_float_intrinsic(
@@ -1381,6 +1407,7 @@ pub(crate) fn derive_satisfies_plans(
                 Some(binding) => external_provider_binding(
                     binding,
                     &provider_type,
+                    &realization_machine_identity(typed, machine.name.as_str()),
                     &format!("{}::{}", clause.trait_name, requirement),
                 ),
             };
@@ -1532,7 +1559,7 @@ fn derive_boundary_operator_plans(
             ) else {
                 continue;
             };
-            let intrinsic_name = expected_float_intrinsic(typed, operator)
+            let intrinsic_catalog = expected_float_intrinsic(typed, operator)
                 .unwrap_or_else(|| format!("{}::{}", clause.trait_name, requirement));
             let binding = match (&clause.via, machine.bodyless) {
                 (Some(binding), true) => external_provider_binding(
@@ -1542,7 +1569,11 @@ fn derive_boundary_operator_plans(
                         .as_ref()
                         .map(|name| name.as_str())
                         .unwrap_or_default(),
-                    &intrinsic_name,
+                    &typed
+                        .normalized_machine_overload_identity(typed_machine)
+                        .map(|identity| identity.identity())
+                        .unwrap_or_default(),
+                    &intrinsic_catalog,
                 ),
                 (None, false) => ProviderBinding::CheckedAdapter {
                     machine: machine.name.as_str().to_owned(),
@@ -1669,7 +1700,8 @@ fn exact_satisfied_requirement_identity(
 fn external_provider_binding(
     binding: &psi_syntax_trees::item::ExternalBinding,
     provider_type: &str,
-    intrinsic_name: &str,
+    intrinsic_machine_identity: &str,
+    intrinsic_catalog: &str,
 ) -> ProviderBinding {
     use psi_syntax_trees::item::ExternalBinding;
 
@@ -1680,7 +1712,8 @@ fn external_provider_binding(
             symbol: symbol.clone(),
         },
         ExternalBinding::CompilerIntrinsic => ProviderBinding::CompilerIntrinsic {
-            name: intrinsic_name.to_owned(),
+            machine: intrinsic_machine_identity.to_owned(),
+            catalog: intrinsic_catalog.to_owned(),
         },
         ExternalBinding::VtableSlot { index } => ProviderBinding::VtableSlot { index: *index },
         ExternalBinding::VtableField { field } => ProviderBinding::VtableField {
@@ -1692,6 +1725,16 @@ fn external_provider_binding(
             field: field.as_str().to_owned(),
         },
     }
+}
+
+fn realization_machine_identity(typed: &TypedTrees, machine_name: &str) -> String {
+    typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == machine_name)
+        .and_then(|machine| typed.normalized_machine_overload_identity(machine))
+        .map(|identity| identity.identity())
+        .unwrap_or_default()
 }
 
 fn provider_boundary_arguments(

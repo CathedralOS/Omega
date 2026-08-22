@@ -227,11 +227,11 @@ fn push_entry_json(json: &mut String, entry: &ExecutableTcbEntry) {
             push_json_string(json, machine);
             json.push('}');
         }
-        ExecutableIdentity::CurrentArtifactIntrinsic { target, name } => {
+        ExecutableIdentity::CurrentArtifactIntrinsic { target, machine } => {
             json.push_str("{\"kind\": \"current_artifact_intrinsic\", \"target\": ");
             push_json_string(json, target);
             json.push_str(", \"identity\": ");
-            push_json_string(json, name);
+            push_json_string(json, machine);
             json.push('}');
         }
         ExecutableIdentity::PinnedOpaqueArtifact(identity) => {
@@ -257,11 +257,11 @@ fn push_entry_json(json: &mut String, entry: &ExecutableTcbEntry) {
             push_json_string(json, machine);
             json.push('}');
         }
-        ImplementationEvidence::CompilerKnown { target, intrinsic } => {
+        ImplementationEvidence::CompilerKnown { target, machine } => {
             json.push_str("{\"class\": \"compiler_known\", \"target\": ");
             push_json_string(json, target);
             json.push_str(", \"identity\": ");
-            push_json_string(json, intrinsic);
+            push_json_string(json, machine);
             json.push('}');
         }
         ImplementationEvidence::AdmittedOpaque { receipt_identity } => {

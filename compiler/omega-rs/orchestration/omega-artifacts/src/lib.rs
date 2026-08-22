@@ -2336,7 +2336,7 @@ pub struct TrustProviderRequirementRow {
 pub enum TrustProviderRealization {
     Import { library: String, symbol: String },
     Syscall { number: i64 },
-    CompilerIntrinsic { name: String },
+    CompilerIntrinsic { machine: String },
     VtableSlot { index: i64 },
     VtableField { table: String, field: String },
     TableFunction { table: String, field: String },
@@ -2350,7 +2350,9 @@ impl TrustProviderRealization {
                 format!("import `{library}` symbol `{symbol}`")
             }
             Self::Syscall { number } => format!("syscall {number}"),
-            Self::CompilerIntrinsic { name } => format!("compiler intrinsic `{name}`"),
+            Self::CompilerIntrinsic { machine } => {
+                format!("compiler intrinsic realization `{machine}`")
+            }
             Self::VtableSlot { index } => format!("vtable slot {index}"),
             Self::VtableField { table, field } => format!("vtable field `{table}.{field}`"),
             Self::TableFunction { table, field } => {

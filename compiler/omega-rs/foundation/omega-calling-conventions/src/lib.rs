@@ -1163,9 +1163,10 @@ pub enum ExternalBindingKind {
     },
     /// Select an existing compiler-known platform lowering. Unlike the other
     /// cases this contributes no new `HostBinding`; the target plan must
-    /// already contain the named boundary operation.
+    /// already contain the requirement's boundary operation. The retained
+    /// string is the exact normalized realization-machine overload identity.
     CompilerIntrinsic {
-        name: String,
+        machine: String,
     },
     VtableSlot {
         index: i64,
@@ -1229,11 +1230,10 @@ pub fn merge_external_binding_rows(
                 row.trait_name, row.method
             ));
         }
-        if let ExternalBindingKind::CompilerIntrinsic { name } = &row.binding {
-            let expected_name = format!("{}::{}", row.trait_name, row.method);
-            if name != &expected_name {
+        if let ExternalBindingKind::CompilerIntrinsic { machine } = &row.binding {
+            if machine.is_empty() {
                 return Err(format!(
-                    "compiler intrinsic `{name}` cannot bind `{}::{}`; the intrinsic name must be exactly `{expected_name}`",
+                    "compiler intrinsic for `{}::{}` has no exact realization-machine identity",
                     row.trait_name, row.method,
                 ));
             }
@@ -1244,8 +1244,8 @@ pub fn merge_external_binding_rows(
             });
             if !has_lowering {
                 return Err(format!(
-                    "compiler intrinsic `{name}` is unavailable on target `{:?}`; the selected target package must furnish that lowering",
-                    plan.target,
+                    "compiler intrinsic realization `{machine}` for `{}::{}` is unavailable on target `{:?}`; the selected target package must furnish that lowering",
+                    row.trait_name, row.method, plan.target,
                 ));
             }
             continue;
@@ -2117,8 +2117,8 @@ mod binding_plan_tests {
     }
 
     #[test]
-    fn compiler_intrinsic_selects_only_an_exact_existing_target_lowering() {
-        let row = |name: &str, method: &str| ExternalBindingRow {
+    fn compiler_intrinsic_requires_an_exact_realization_and_existing_target_lowering() {
+        let row = |machine: &str, method: &str| ExternalBindingRow {
             target_name: "macos_arm64".to_owned(),
             trait_name: "Console".to_owned(),
             method: method.to_owned(),
@@ -2126,7 +2126,7 @@ mod binding_plan_tests {
             table_type: "ConsoleNativeProvider".to_owned(),
             boundary_entry_plan: None,
             binding: ExternalBindingKind::CompilerIntrinsic {
-                name: name.to_owned(),
+                machine: machine.to_owned(),
             },
         };
 
@@ -2145,10 +2145,9 @@ mod binding_plan_tests {
             "an intrinsic selects an existing lowering and installs no host binding"
         );
 
-        let identity_error =
-            merge_external_binding_rows(&mut hosted, &[row("Console::read_byte", "write_byte")])
-                .expect_err("an intrinsic cannot impersonate another requirement");
-        assert!(identity_error.contains("must be exactly `Console::write_byte`"));
+        let machine_error = merge_external_binding_rows(&mut hosted, &[row("", "write_byte")])
+            .expect_err("an intrinsic must retain its exact realization machine");
+        assert!(machine_error.contains("has no exact realization-machine identity"));
 
         let unavailable =
             merge_external_binding_rows(&mut hosted, &[row("Console::missing", "missing")])

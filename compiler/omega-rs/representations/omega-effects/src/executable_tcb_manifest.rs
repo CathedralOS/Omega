@@ -31,7 +31,7 @@ pub enum ExecutableIdentity {
     CurrentArtifactMachine(String),
     CurrentArtifactIntrinsic {
         target: String,
-        name: String,
+        machine: String,
     },
     PinnedOpaqueArtifact(String),
     IsolatedProviderEndpoint {
@@ -48,7 +48,7 @@ pub enum ImplementationEvidence {
     },
     CompilerKnown {
         target: String,
-        intrinsic: String,
+        machine: String,
     },
     AdmittedOpaque {
         receipt_identity: String,
@@ -625,17 +625,17 @@ pub(crate) fn derive_static_manifest(
                     execution_scope: scope,
                     containment: Vec::new(),
                 }),
-                ProviderBinding::CompilerIntrinsic { name } => Some(ExecutableTcbEntry {
+                ProviderBinding::CompilerIntrinsic { machine, .. } => Some(ExecutableTcbEntry {
                     provider_identity: provider_identity.clone(),
                     provider_plan_identity,
                     selected_requirement: selected_requirement.clone(),
                     executable_identity: ExecutableIdentity::CurrentArtifactIntrinsic {
                         target: plan.target.clone(),
-                        name: name.clone(),
+                        machine: machine.clone(),
                     },
                     implementation_evidence: ImplementationEvidence::CompilerKnown {
                         target: plan.target.clone(),
-                        intrinsic: name.clone(),
+                        machine: machine.clone(),
                     },
                     origin: ExecutableEntryOrigin::StaticSelection,
                     execution_scope: scope,

@@ -230,26 +230,21 @@ fn extract_external_binding_rows(
                     symbol: symbol.clone(),
                 },
                 ExternalBinding::CompilerIntrinsic => {
-                    let name = psi_typed_trees::operator::resolve_satisfied_boundary_operator(
-                        typed,
-                        typed
-                            .machines()
-                            .iter()
-                            .find(|candidate| candidate.name.as_str() == machine.name.as_str())
-                            .ok_or_else(|| {
-                                vec![Diagnostic::error(format!(
-                                    "external realization `{}` has no exact typed machine",
-                                    machine.name
-                                ))]
-                            })?,
-                        clause.trait_name.as_str(),
-                        requirement.as_str(),
-                    )
-                    .and_then(|operator| {
-                        crate::pipeline::provider_plans::expected_float_intrinsic(typed, operator)
-                    })
-                    .unwrap_or_else(|| format!("{}::{}", clause.trait_name, requirement));
-                    ExternalBindingKind::CompilerIntrinsic { name }
+                    let typed_machine = typed
+                        .machines()
+                        .iter()
+                        .find(|candidate| candidate.name.as_str() == machine.name.as_str())
+                        .ok_or_else(|| {
+                            vec![Diagnostic::error(format!(
+                                "external realization `{}` has no exact typed machine",
+                                machine.name
+                            ))]
+                        })?;
+                    let machine = typed
+                        .normalized_machine_overload_identity(typed_machine)
+                        .map(|identity| identity.identity())
+                        .unwrap_or_default();
+                    ExternalBindingKind::CompilerIntrinsic { machine }
                 }
                 ExternalBinding::VtableSlot { index } => {
                     ExternalBindingKind::VtableSlot { index: *index }
