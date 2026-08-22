@@ -681,6 +681,11 @@ whenever a boundary contract is present and folds it into both placement and
 certificate identity. A certificate can therefore neither pair pre-attachment
 function evidence with an unrelated post-attachment inventory nor omit the
 only authorized post-validation inventory mutation.
+The compiler constructs and revalidates this complete footprint certificate
+before installing the executable or app-bundle bytes. Auxiliary inventory
+serialization consumes that already validated certificate instead of creating
+authority after publication; report I/O may fail later, but no semantic
+certificate failure can occur only after executable visibility.
 Final relocation replay also builds one exact owner map from every retained
 selected-instruction identity to that function symbol. A selected instruction
 retained twice, an instruction relocation naming another function, or an
