@@ -230,6 +230,7 @@ pub(super) fn lower_boundary_scalar_return_machine(
             services,
             boundary_machines: vec![boundary_declaration],
             provider_candidates: Vec::new(),
+            float_meaning_projections: Vec::new(),
             proposition_declarations: Vec::new(),
             proposition_applications: Vec::new(),
             evidence_terms: Vec::new(),

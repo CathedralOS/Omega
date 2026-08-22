@@ -18,6 +18,15 @@ pub enum ContractClauseKind {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ModuleError {
+    NonDenseFloatMeaningProjection {
+        expected: u32,
+        result: u32,
+        source: u32,
+    },
+    InvalidFloatMeaningProjection {
+        index: u32,
+        error: crate::verification::FloatMeaningProjectionVerificationError,
+    },
     OperationSemanticSchema(OperationSemanticError),
     InvalidPartialAffineCleanup {
         machine: MachineId,
@@ -259,6 +268,12 @@ pub enum ModuleError {
     UnitCallTargetHasScalarSignature {
         operation: OperationId,
         callee: MachineId,
+    },
+    StructuralScalarCallTargetMismatch {
+        operation: OperationId,
+        callee: MachineId,
+        expected: Option<ScalarType>,
+        actual: Option<ScalarType>,
     },
     ProjectedUnitCallOutsideBoundedSlice {
         operation: OperationId,

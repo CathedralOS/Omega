@@ -26,7 +26,7 @@ impl VocabularyMarker {
     }
 
     pub const fn get(self) -> u16 {
-        20
+        21
     }
 }
 
@@ -94,6 +94,9 @@ pub struct TerminalModule {
     /// retained Unit boundary requirement. This is a semantic catalog, not a
     /// selection: installation policy remains outside terminal-Psi identity.
     pub provider_candidates: Vec<ProviderCandidateConformance>,
+    /// Source-handle-free proof-only float projections. These rows are
+    /// semantic-module evidence, never executable operations or runtime values.
+    pub float_meaning_projections: Vec<crate::FloatMeaningProjection>,
     /// Nominal proof-formula vocabulary, strictly ordered by `id`.
     /// Transparent aliases never receive a declaration row.
     pub proposition_declarations: Vec<PropositionDeclaration>,
@@ -886,6 +889,17 @@ pub enum OperationKind {
     },
     /// Invoke one in-module Unit machine with positional structural arguments.
     CallUnit {
+        callee: MachineId,
+        structural_arguments: Vec<StructuralArgument>,
+        claim_transfers: Vec<ClaimTransfer>,
+        requirement_obligations: Vec<ObligationId>,
+        crash_continuations: Vec<CrashRouteBucket>,
+    },
+    /// Invoke one in-module scalar-result machine with positional structural
+    /// arguments. This is the scalar-result counterpart of `CallUnit`: exact
+    /// structural custody crosses the call while successful return binds the
+    /// operation result.
+    CallStructuralScalar {
         callee: MachineId,
         structural_arguments: Vec<StructuralArgument>,
         claim_transfers: Vec<ClaimTransfer>,

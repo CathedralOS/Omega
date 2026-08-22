@@ -480,6 +480,11 @@ fn lower_function(
                     operation: *psi_operation,
                 });
             }
+            TerminalAbstractOperation::CallStructuralScalar { .. } => {
+                return Err(LoweringError::UnsupportedOperationInScalarFunction(
+                    function.machine,
+                ));
+            }
             TerminalAbstractOperation::Call {
                 psi_operation,
                 result,
@@ -2463,6 +2468,7 @@ fn lower_unit_function(
             }
             TerminalAbstractOperation::Crash { .. }
             | TerminalAbstractOperation::Call { .. }
+            | TerminalAbstractOperation::CallStructuralScalar { .. }
             | TerminalAbstractOperation::IntegerConstant { .. }
             | TerminalAbstractOperation::BooleanConstant { .. }
             | TerminalAbstractOperation::BooleanStructuralField { .. }
@@ -5304,6 +5310,7 @@ fn conditional_provenance(
         let psi_operation = match operation {
             TerminalAbstractOperation::EstablishTrivialAffineLocal { psi_operation, .. }
             | TerminalAbstractOperation::CallUnit { psi_operation, .. }
+            | TerminalAbstractOperation::CallStructuralScalar { psi_operation, .. }
             | TerminalAbstractOperation::BoundaryCall { psi_operation, .. }
             | TerminalAbstractOperation::PortWrite { psi_operation, .. }
             | TerminalAbstractOperation::Call { psi_operation, .. }

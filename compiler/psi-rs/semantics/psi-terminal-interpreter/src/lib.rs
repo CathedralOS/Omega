@@ -700,16 +700,134 @@ impl TerminalExecution {
                                 )?;
                             }
                         }
+                        let mut caller_structural_values =
+                            std::mem::take(&mut self.structural_values);
+                        for (argument, _parameter) in structural_arguments
+                            .iter()
+                            .zip(&callee.structural_parameters)
+                            .filter(|(argument, parameter)| {
+                                argument.path.is_empty()
+                                    && parameter.multiplicity
+                                        != StructuralMultiplicity::Unrestricted
+                            })
+                        {
+                            if caller_structural_values.remove(&argument.place).is_none() {
+                                return Err(
+                                    TerminalInterpretError::VerifiedStructuralPlaceMissing(
+                                        argument.place,
+                                    ),
+                                );
+                            }
+                        }
                         self.call_stack.push(SuspendedCall {
                             blocks: std::mem::take(&mut self.blocks),
                             values: std::mem::take(&mut self.values),
-                            structural_values: std::mem::take(&mut self.structural_values),
+                            structural_values: caller_structural_values,
                             live_affine_frontier: caller_affine_frontier,
                             live_claims: std::mem::take(&mut self.live_claims),
                             current_machine: self.current_machine,
                             current: self.current,
                             next_operation: self.next_operation,
                             result: SuspendedCallResult::Unit,
+                        });
+                        self.blocks = callee.blocks;
+                        self.values = BTreeMap::new();
+                        self.structural_values = structural_values;
+                        self.live_affine_frontier = callee_affine_frontier;
+                        self.live_claims = live_claims;
+                        self.current_machine = callee_id;
+                        self.current = callee.entry;
+                        self.next_operation = 0;
+                        continue;
+                    }
+                    OperationKind::CallStructuralScalar {
+                        callee,
+                        structural_arguments,
+                        claim_transfers,
+                        ..
+                    } => {
+                        let result = operation
+                            .result
+                            .scalar()
+                            .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+                        let callee_id = callee;
+                        let callee =
+                            self.machines.get(&callee_id).cloned().ok_or(
+                                TerminalInterpretError::VerifiedCallTargetMissing(callee_id),
+                            )?;
+                        if callee.parameters.len() != 0
+                            || callee.result.scalar().map(|result| result.scalar_type)
+                                != Some(result.scalar_type)
+                        {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        }
+                        let arguments = resolve_structural_arguments(
+                            &self.structural_types,
+                            &self.structural_values,
+                            &structural_arguments,
+                        )?;
+                        let structural_values =
+                            bind_structural_arguments(&callee.structural_parameters, &arguments)?;
+                        let callee_affine_frontier = bind_affine_frontier(
+                            &callee.structural_parameters,
+                            &structural_values,
+                        )?;
+                        let (remaining_claims, live_claims) = transfer_claims(
+                            &self.live_claims,
+                            &self.structural_values,
+                            &structural_arguments,
+                            &claim_transfers,
+                            &callee.structural_parameters,
+                            &callee.entry_claims,
+                            &callee.content_entry_claims,
+                            &structural_values,
+                        )?;
+                        self.next_operation += 1;
+                        self.live_claims = remaining_claims;
+                        let mut caller_affine_frontier =
+                            std::mem::take(&mut self.live_affine_frontier);
+                        for (argument, parameter) in structural_arguments
+                            .iter()
+                            .zip(&callee.structural_parameters)
+                        {
+                            if parameter.multiplicity == StructuralMultiplicity::Affine {
+                                consume_affine_projection(
+                                    &self.structural_types,
+                                    &self.structural_values,
+                                    &mut caller_affine_frontier,
+                                    argument,
+                                )?;
+                            }
+                        }
+                        let mut caller_structural_values =
+                            std::mem::take(&mut self.structural_values);
+                        for (argument, _parameter) in structural_arguments
+                            .iter()
+                            .zip(&callee.structural_parameters)
+                            .filter(|(argument, parameter)| {
+                                argument.path.is_empty()
+                                    && parameter.multiplicity
+                                        != StructuralMultiplicity::Unrestricted
+                            })
+                        {
+                            if caller_structural_values.remove(&argument.place).is_none() {
+                                return Err(
+                                    TerminalInterpretError::VerifiedStructuralPlaceMissing(
+                                        argument.place,
+                                    ),
+                                );
+                            }
+                        }
+                        self.call_stack.push(SuspendedCall {
+                            blocks: std::mem::take(&mut self.blocks),
+                            values: std::mem::take(&mut self.values),
+                            structural_values: caller_structural_values,
+                            live_affine_frontier: caller_affine_frontier,
+                            live_claims: std::mem::take(&mut self.live_claims),
+                            current_machine: self.current_machine,
+                            current: self.current,
+                            next_operation: self.next_operation,
+                            result: SuspendedCallResult::Scalar(result.id),
                         });
                         self.blocks = callee.blocks;
                         self.values = BTreeMap::new();

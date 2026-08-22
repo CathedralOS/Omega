@@ -39,6 +39,7 @@ impl TerminalFuelSchedule {
             OperationKind::EstablishTrivialAffineLocal { .. }
             | OperationKind::Call { .. }
             | OperationKind::CallUnit { .. }
+            | OperationKind::CallStructuralScalar { .. }
             | OperationKind::BoundaryCall { .. }
             | OperationKind::PortWrite { .. }
             | OperationKind::IntegerConstant { .. }

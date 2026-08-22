@@ -270,6 +270,24 @@ fn lower_machine(
                         claim_transfers,
                     });
                 }
+                OperationKind::CallStructuralScalar {
+                    callee,
+                    structural_arguments,
+                    claim_transfers,
+                    ..
+                } => {
+                    let result = operation.result.expect_scalar();
+                    operations.push(TerminalAbstractOperation::CallStructuralScalar {
+                        psi_operation: operation.id,
+                        result: TerminalAbstractResult {
+                            value: result.id,
+                            scalar_type: result.scalar_type,
+                        },
+                        callee,
+                        structural_arguments,
+                        claim_transfers,
+                    });
+                }
                 OperationKind::BoundaryCall {
                     boundary,
                     structural_arguments,

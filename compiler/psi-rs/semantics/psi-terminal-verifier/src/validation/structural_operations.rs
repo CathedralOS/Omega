@@ -137,6 +137,76 @@ pub(super) fn validate_unit_operation_static(
                 operation.id,
             )?;
         }
+        OperationKind::CallStructuralScalar {
+            callee,
+            structural_arguments,
+            claim_transfers,
+            requirement_obligations,
+            crash_continuations,
+        } => {
+            let callee = machines
+                .get(callee)
+                .copied()
+                .ok_or(ModuleError::UnknownCallTarget {
+                    operation: operation.id,
+                    callee: *callee,
+                })?;
+            let expected = callee.result.scalar().map(|result| result.scalar_type);
+            let actual = operation.result.scalar().map(|result| result.scalar_type);
+            if !callee.parameters.is_empty() || expected.is_none() || actual != expected {
+                return Err(ModuleError::StructuralScalarCallTargetMismatch {
+                    operation: operation.id,
+                    callee: callee.id,
+                    expected,
+                    actual,
+                });
+            }
+            if let Some(argument_index) = structural_arguments
+                .iter()
+                .position(|argument| !argument.path.is_empty())
+            {
+                return Err(ModuleError::InvalidStructuralArgumentPath {
+                    operation: operation.id,
+                    argument_index: argument_index as u32,
+                });
+            }
+            validate_structural_arguments(
+                module,
+                machine,
+                structural_arguments,
+                &callee.structural_parameters,
+                operation.id,
+                true,
+            )?;
+            validate_unit_call_contract_places(callee, operation.id)?;
+            validate_service_reach(
+                operation.id,
+                &machine.published_service_ceiling,
+                &callee.published_service_ceiling,
+            )?;
+            if requirement_obligations.len() != callee.contract.requires.len() {
+                return Err(ModuleError::CallRequirementArityMismatch {
+                    operation: operation.id,
+                    expected: callee.contract.requires.len(),
+                    actual: requirement_obligations.len(),
+                });
+            }
+            validate_unit_call_claim_transfers(
+                machine,
+                callee,
+                structural_arguments,
+                claim_transfers,
+                operation.id,
+            )?;
+            validate_unit_call_crash_continuations(
+                module,
+                machine,
+                callee,
+                structural_arguments,
+                crash_continuations,
+                operation.id,
+            )?;
+        }
         OperationKind::BoundaryCall {
             boundary,
             structural_arguments,

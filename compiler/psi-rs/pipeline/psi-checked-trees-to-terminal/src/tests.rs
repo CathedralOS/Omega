@@ -23,6 +23,51 @@ mod structural_return_cases;
 mod unit_cleanup;
 
 #[test]
+fn actual_float_meaning_calls_emit_source_free_module_rows() {
+    let source = r#"
+        data FloatMeaning { }
+        operator Float::meaning32(value: f32) -> FloatMeaning;
+        operator Float::meaning64(value: f64) -> FloatMeaning;
+
+        machine prove_projection(value32: f32, value64: f64)
+        requires
+            Float::meaning32(value32) == Float::meaning32(value32);
+            Float::meaning64(value64) == Float::meaning64(value64);
+        { }
+
+        machine terminal_root(value: bool) -> bool
+        requires
+            true == true;
+        ensures
+            true == true;
+        { value }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("check");
+    let lowered = lower_machine(&checked, "terminal_root").expect("lower");
+    let projections = &lowered.semantic_module.float_meaning_projections;
+    assert_eq!(projections.len(), 4);
+    assert_eq!(projections[0].result.id, psi_terminal::ProofValueId(0));
+    assert_eq!(
+        projections[0].operation,
+        psi_terminal::FloatMeaningProjectionOperation::Meaning32
+    );
+    assert_eq!(
+        projections[2].operation,
+        psi_terminal::FloatMeaningProjectionOperation::Meaning64
+    );
+    psi_terminal_verifier::validate_module(&lowered.semantic_module).expect("verify");
+    let bytes = psi_terminal_codec::encode_module(&lowered.semantic_module).expect("encode");
+    assert_eq!(
+        psi_terminal_codec::decode_module(&bytes),
+        Ok(lowered.semantic_module)
+    );
+}
+
+#[test]
 fn integer_operation_obligations_follow_the_shared_policy_catalog() {
     let operation = operation_id(10);
     let obligation_kinds = [
@@ -273,7 +318,7 @@ fn payloadless_sum_equality_lowers_to_case_membership_equivalence() {
         .expect("case-membership equality validates");
     let bytes = psi_terminal_codec::encode_module(&lowered.semantic_module)
         .expect("case-membership module encodes");
-    assert_eq!(&bytes[8..10], &18_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &19_u16.to_le_bytes());
     assert_eq!(
         psi_terminal_codec::decode_module(&bytes),
         Ok(lowered.semantic_module.clone())
@@ -354,7 +399,7 @@ fn payload_bearing_sum_equality_uses_exact_case_payload_paths() {
         .expect("exact case-payload paths validate");
     let bytes = psi_terminal_codec::encode_module(&lowered.semantic_module)
         .expect("payload-bearing sum module encodes");
-    assert_eq!(&bytes[8..10], &18_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &19_u16.to_le_bytes());
     assert_eq!(
         psi_terminal_codec::decode_module(&bytes),
         Ok(lowered.semantic_module.clone())

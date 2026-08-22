@@ -27,6 +27,7 @@ impl<'a> MachineReconstructionContext<'a> {
                     &operation.kind,
                     OperationKind::Call { .. }
                         | OperationKind::CallUnit { .. }
+                        | OperationKind::CallStructuralScalar { .. }
                         | OperationKind::IntegerExactCast { .. }
                         | OperationKind::ExactIntegerShiftLeft { .. }
                         | OperationKind::ExactIntegerShiftRight { .. }

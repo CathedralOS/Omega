@@ -1191,9 +1191,9 @@ mod tests {
                 .iter()
                 .filter(|node| node.kind() == TrustDependencyKind::CallComposition)
                 .count(),
-            3
+            4
         );
-        assert_eq!(OperationSemanticRow::ALL.len(), 38);
+        assert_eq!(OperationSemanticRow::ALL.len(), 39);
         assert_eq!(
             OperationSemanticRow::ALL
                 .iter()
@@ -1206,7 +1206,7 @@ mod tests {
                 .iter()
                 .filter(|row| row.custody() == OperationSemanticCustody::CallComposition)
                 .count(),
-            3
+            4
         );
         assert_eq!(
             OperationSemanticRow::ALL

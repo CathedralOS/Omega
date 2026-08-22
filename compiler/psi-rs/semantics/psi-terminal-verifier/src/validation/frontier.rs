@@ -171,6 +171,9 @@ pub(super) fn validate_structural_frontier(
             let claims = match &operation.kind {
                 OperationKind::CallUnit {
                     claim_transfers, ..
+                }
+                | OperationKind::CallStructuralScalar {
+                    claim_transfers, ..
                 } => claim_transfers
                     .iter()
                     .map(|transfer| transfer.claim)
@@ -194,6 +197,11 @@ pub(super) fn validate_structural_frontier(
             }
             let consumed_places = match &operation.kind {
                 OperationKind::CallUnit {
+                    callee,
+                    structural_arguments,
+                    ..
+                }
+                | OperationKind::CallStructuralScalar {
                     callee,
                     structural_arguments,
                     ..
@@ -238,6 +246,10 @@ pub(super) fn validate_structural_frontier(
             }
             let projected_arguments = match &operation.kind {
                 OperationKind::CallUnit {
+                    structural_arguments,
+                    ..
+                }
+                | OperationKind::CallStructuralScalar {
                     structural_arguments,
                     ..
                 }

@@ -801,6 +801,7 @@ pub(super) fn lower_attached_unit_closure_including(
             services,
             boundary_machines,
             provider_candidates,
+            float_meaning_projections: Vec::new(),
             proposition_declarations: Vec::new(),
             proposition_applications: Vec::new(),
             evidence_terms: Vec::new(),
