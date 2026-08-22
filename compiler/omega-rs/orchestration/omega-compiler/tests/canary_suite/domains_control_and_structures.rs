@@ -502,11 +502,14 @@ fn executable_domain_membership_intersection_guard_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.join("out")).expect(
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.join("out")).expect(
         "executable domain membership intersection canary should compile from its authored root",
     );
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let executable = compilation.checked_native_executable_path().expect(
+        "executable domain membership intersection canary should retain its executable receipt",
+    );
+    let output = Command::new(executable)
         .output()
         .expect("executable domain membership intersection canary should run");
 
@@ -529,10 +532,13 @@ fn executable_domain_membership_union_guard_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("executable domain membership union canary should compile from its authored root");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("executable domain membership union canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("executable domain membership union canary should run");
 
@@ -555,11 +561,14 @@ fn executable_domain_membership_union_value_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.join("out")).expect(
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.join("out")).expect(
         "executable domain membership union value canary should compile from its authored root",
     );
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let executable = compilation.checked_native_executable_path().expect(
+        "executable domain membership union value canary should retain its executable receipt",
+    );
+    let output = Command::new(executable)
         .output()
         .expect("executable domain membership union value canary should run");
 
@@ -582,10 +591,13 @@ fn executable_domain_membership_intersection_value_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("executable domain membership intersection value canary should compile");
 
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation.checked_native_executable_path().expect(
+        "executable domain membership intersection value canary should retain its executable receipt",
+    );
+    let output = Command::new(executable)
         .output()
         .expect("executable domain membership intersection value canary should run");
 
@@ -608,10 +620,13 @@ fn executable_imported_domain_membership_union_value_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("executable imported domain membership union value canary should compile");
 
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation.checked_native_executable_path().expect(
+        "executable imported domain membership union value canary should retain its executable receipt",
+    );
+    let output = Command::new(executable)
         .output()
         .expect("executable imported domain membership union value canary should run");
 
