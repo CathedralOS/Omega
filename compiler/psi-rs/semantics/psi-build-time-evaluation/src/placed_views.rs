@@ -246,11 +246,49 @@ fn install_placed_view_plan(
                     entry.field()
                 ))]
             })?;
+        let mut accessor_targets = Vec::new();
+        for operation in accessor_operations(entry.access()) {
+            let machines = typed
+                .machines()
+                .iter()
+                .filter(|machine| {
+                    machine.attached_data.as_ref().is_some_and(|attached| {
+                        attached.as_str() == accessor_name
+                            && machine
+                                .name
+                                .as_str()
+                                .rsplit("::")
+                                .next()
+                                .is_some_and(|name| name == operation)
+                    })
+                })
+                .collect::<Vec<_>>();
+            let [machine] = machines.as_slice() else {
+                return Err(vec![Diagnostic::error(format!(
+                    "placed view `{}` field `{}` must retain one exact generated `{operation}` accessor machine",
+                    record.synthetic_name,
+                    entry.field()
+                ))]);
+            };
+            let [state] = typed.machine_states(machine) else {
+                return Err(vec![Diagnostic::error(format!(
+                    "placed view `{}` field `{}` generated `{operation}` accessor must have one exact callable state",
+                    record.synthetic_name,
+                    entry.field()
+                ))]);
+            };
+            accessor_targets.push(psi_typed_trees::typed_trees::PlacedAccessorTarget {
+                operation: operation.to_owned(),
+                machine_symbol: machine.symbol,
+                state_symbol: state.symbol,
+            });
+        }
         fields.push(psi_typed_trees::typed_trees::PlacedFieldPlan {
             field_name: entry.field().to_owned(),
             member_identity: schema_field.identity,
             field_symbol: schema_field.symbol,
             accessor_name,
+            accessor_targets,
             value_type: schema_field.type_reference,
             access: entry.access().clone(),
         });
