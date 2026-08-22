@@ -980,9 +980,12 @@ fn runtime_saturating_narrow_add_sub_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_saturating_narrow_add_sub_exit");
     let scratch = std::env::temp_dir().join(format!("omega-sat-narrow-as-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("saturating narrow add/sub canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("saturating narrow add/sub canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("saturating narrow add/sub canary should run");
     assert_eq!(
@@ -1004,9 +1007,12 @@ fn runtime_unsigned_high_bit_u32_ops_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_unsigned_high_bit_u32_ops_exit");
     let scratch = std::env::temp_dir().join(format!("omega-u32-highbit-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("unsigned high-bit u32 ops canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("unsigned high-bit u32 canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("unsigned high-bit u32 ops canary should run");
     assert_eq!(
@@ -1027,9 +1033,12 @@ fn runtime_narrow_signed_wrap_boundaries_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_narrow_signed_wrap_boundaries_exit");
     let scratch = std::env::temp_dir().join(format!("omega-narrow-wrap-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("narrow signed wrap canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("narrow signed wrap canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("narrow signed wrap canary should run");
     assert_eq!(
