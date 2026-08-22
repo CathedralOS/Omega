@@ -3510,6 +3510,13 @@ Remaining:
   explicit entry-point selection. The 2,371-line parent retains report carriers
   and presentation; the crate-root API, selected-entry behavior, and the 79-
   function inventory are unchanged.
+  Canonical boundary-call and value-placement JSON projection now lives in a
+  focused 278-line `calling_plan_json` child, owning shapes, registers, stack/
+  indirect locations, call control, machine regime, stack domain, and
+  preemption vocabulary. External-root reports reuse three narrow projection
+  helpers, while the 2,099-line parent retains carriers and orchestration; the
+  public `value_placement_json` API, exact bytes, and 79-function inventory are
+  unchanged.
   Development and test profiles now both omit full DWARF by default, with an
   explicit `CARGO_PROFILE_{DEV,TEST}_DEBUG=2` escape hatch for debugger
   sessions. On the same macOS host, rebuilding the development CLI after the
@@ -5617,6 +5624,11 @@ reach or trust, and private proof improvements do not change public identity.
   terminal construction and higher cleanup orchestration, with crate-root
   linkage, native behavior, validation order, and the 69-function inventory
   unchanged.
+  Scalar internal-call frames, AArch64 return-link handling, and caller-live
+  stack-alignment replay now live in a focused 180-line
+  `scalar_call_stack_replay` child. The 3,483-line parent retains terminal image
+  orchestration, with crate linkage, native byte/error order, and the 69-
+  function inventory unchanged.
   The installed-cleanup ordinal-tamper regression now locates the authoritative
   internal-call custody row by its complete machine/text-offset/owner/target
   header before mutating the ordinal, rather than accidentally changing an
