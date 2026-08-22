@@ -3,6 +3,7 @@
 use psi_core::{Proposition, PropositionContext};
 use psi_proof_kernel::ProofNode;
 
+mod affine;
 mod alias;
 mod direct;
 mod literal;
@@ -21,4 +22,5 @@ pub(super) fn prove(
     }
     literal::prove(context, goal, assumptions, semantic_axioms)
         .or_else(|| alias::prove(context, goal, assumptions, semantic_axioms))
+        .or_else(|| affine::prove(context, goal, assumptions, semantic_axioms))
 }
