@@ -37,7 +37,8 @@ pub struct BoundExternalRootPostHandoffWriterInvocation {
 #[derive(Debug)]
 pub struct WrittenBoundExternalRootPostHandoffWriterDestination<'mapping, 'bytes> {
     lowered: omega_instruction_selection::LoweredPostHandoffWriter,
-    written: omega_executable_installation::WrittenPostHandoffWriterDestination<'mapping, 'bytes>,
+    written:
+        omega_external_roots::WrittenExternalRootPostHandoffWriterDestination<'mapping, 'bytes>,
 }
 
 impl<'mapping, 'bytes> WrittenBoundExternalRootPostHandoffWriterDestination<'mapping, 'bytes> {
@@ -47,7 +48,8 @@ impl<'mapping, 'bytes> WrittenBoundExternalRootPostHandoffWriterDestination<'map
 
     pub const fn written(
         &self,
-    ) -> &omega_executable_installation::WrittenPostHandoffWriterDestination<'mapping, 'bytes> {
+    ) -> &omega_external_roots::WrittenExternalRootPostHandoffWriterDestination<'mapping, 'bytes>
+    {
         &self.written
     }
 
@@ -61,15 +63,19 @@ impl<'mapping, 'bytes> WrittenBoundExternalRootPostHandoffWriterDestination<'map
         omega_instruction_selection::validate_lowered_post_handoff_writer(&self.lowered).map_err(
             |diagnostic| psi_layout_plans::MaterializationDiagnostic(diagnostic.message),
         )?;
-        self.written
-            .validate_for_consumer(installed_code)
-            .map_err(|diagnostic| psi_layout_plans::MaterializationDiagnostic(diagnostic.0))?;
+        self.written.validate_for_consumer(installed_code)?;
         if self.lowered.fragment().target().architecture != installed_code.architecture()
+            || self.written.invocation() != self.lowered.invocation()
             || !self
                 .written
+                .written()
                 .context()
                 .binds_invocation(self.lowered.invocation())
-            || self.written.context().normalized_fragment_fingerprint()
+            || self
+                .written
+                .written()
+                .context()
+                .normalized_fragment_fingerprint()
                 != self.lowered.fragment().normalized_plan_fingerprint()
         {
             return Err(psi_layout_plans::MaterializationDiagnostic(
@@ -88,7 +94,7 @@ impl<'mapping, 'bytes> WrittenBoundExternalRootPostHandoffWriterDestination<'map
         self,
     ) -> (
         omega_instruction_selection::LoweredPostHandoffWriter,
-        omega_executable_installation::WrittenPostHandoffWriterDestination<'mapping, 'bytes>,
+        omega_external_roots::WrittenExternalRootPostHandoffWriterDestination<'mapping, 'bytes>,
     ) {
         (self.lowered, self.written)
     }
