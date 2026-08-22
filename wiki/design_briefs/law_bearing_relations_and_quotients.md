@@ -793,8 +793,8 @@ obligations.
 The first exact `define` equivalence rung now consumes those partitions. It
 alpha-renames the public and representative runtime parameters to their retained
 position identities, then requires one order-independent bijection across the
-dependent facts and another across the fixed facts. Each match retains both
-side/owner/contract/fact coordinates. Expression, membership, and proposition
+dependent facts. Fixed facts remain ordinary call obligations outside `Q` and
+`P`. Each match retains both side/owner/contract/fact coordinates. Expression, membership, and proposition
 facts compare their closed structural identities after that positional rename;
 missing, duplicated, category-drifted, or redirected facts reject. This proves
 `Q <-> P` only when both sides are already the same normalized fact set. General

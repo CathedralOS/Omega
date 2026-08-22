@@ -129,7 +129,6 @@ pub(super) struct DefinePreconditionFactPair {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct DefinePreconditionCorrespondence {
     pub(super) dependent: Vec<DefinePreconditionFactPair>,
-    pub(super) fixed: Vec<DefinePreconditionFactPair>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -618,18 +617,7 @@ fn derive_define_precondition_correspondence(
         &public_substitutions,
         &representative_substitutions,
     )?;
-    let fixed = pair_precondition_facts(
-        program,
-        public_machine.contracts,
-        public_state.contracts,
-        representative.machine_contracts,
-        representative.state_contracts,
-        &public.fixed,
-        &representative_partition.fixed,
-        &public_substitutions,
-        &representative_substitutions,
-    )?;
-    Ok(DefinePreconditionCorrespondence { dependent, fixed })
+    Ok(DefinePreconditionCorrespondence { dependent })
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1228,13 +1216,7 @@ impl DirectTerminalRelationPlan {
     pub(super) fn render_define_precondition_correspondence(&self) -> Option<String> {
         self.define_precondition_correspondence
             .as_ref()
-            .map(|correspondence| {
-                format!(
-                    "Q<->P=[dependent:{}, fixed:{}]",
-                    correspondence.dependent.len(),
-                    correspondence.fixed.len()
-                )
-            })
+            .map(|correspondence| format!("Q<->P=[dependent:{}]", correspondence.dependent.len()))
     }
 }
 
@@ -2349,7 +2331,6 @@ mod tests {
             plan.define_precondition_correspondence,
             Some(super::DefinePreconditionCorrespondence {
                 dependent: Vec::new(),
-                fixed: Vec::new(),
             })
         );
         assert_eq!(
@@ -2471,11 +2452,7 @@ mod tests {
         assert!(diagnostics[0].message.contains("define-runtime=[0]"));
         assert!(diagnostics[0].message.contains("Q=[dependent:0, fixed:0]"));
         assert!(diagnostics[0].message.contains("P=[dependent:0, fixed:0]"));
-        assert!(
-            diagnostics[0]
-                .message
-                .contains("Q<->P=[dependent:0, fixed:0]")
-        );
+        assert!(diagnostics[0].message.contains("Q<->P=[dependent:0]"));
         assert!(
             diagnostics[0].message.contains(
                 "one unchanged state-fallthrough result edge through the exact result root"
