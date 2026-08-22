@@ -7,7 +7,6 @@ use super::super::affine_custody::DefinitionIndex;
 mod alias;
 mod completion;
 mod direct;
-mod eligibility;
 
 pub(super) fn retained_landed_literal_affine_bound(
     context: &PropositionContext,
