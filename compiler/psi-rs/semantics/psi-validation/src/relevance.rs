@@ -182,7 +182,7 @@ fn validate_supported_shapes(program: &TypedTrees, diagnostics: &mut Vec<Diagnos
         if program
             .placed_view_plans
             .iter()
-            .any(|plan| plan.data_name == definition.name.as_str())
+            .any(|plan| plan.data_symbol == definition.symbol)
         {
             diagnostics.push(unsupported(definition, &field_names, "placed-view data"));
         }
@@ -230,11 +230,11 @@ fn supports_erased_attached_machine_record(
         || program
             .plan_laid_layouts
             .iter()
-            .any(|plan| plan.data_name == definition.name.as_str())
+            .any(|plan| plan.data_symbol == definition.symbol)
         || program
             .placed_view_plans
             .iter()
-            .any(|plan| plan.data_name == definition.name.as_str())
+            .any(|plan| plan.data_symbol == definition.symbol)
         || program
             .wire_schemas()
             .iter()

@@ -266,7 +266,12 @@ pub struct ClosedConformanceRowIdentity {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct PlanLaidLayout {
     /// Name of the synthesized data definition (e.g. `CLayout<GdtEntryish>`).
+    /// Diagnostic/source-oriented presentation only.
     pub data_name: String,
+    /// Exact synthesized data definition whose physical layout this plan owns.
+    pub data_symbol: psi_symbols::SymbolHandle,
+    /// Exact runtime field identities in the same order as `offsets`.
+    pub field_symbols: Vec<psi_symbols::SymbolHandle>,
     /// Byte offset of each field, in declaration order.
     pub offsets: Vec<usize>,
     /// Fragmented scalar fields keyed by declaration-order field index.
