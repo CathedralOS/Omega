@@ -516,7 +516,7 @@ machine Main::main(&mut self) {}
         "unexpected diagnostic: {error}"
     );
 
-    let mut aliased = retained;
+    let mut aliased = retained.clone();
     let mut forged_alias = aliased.entries[0].clone();
     forged_alias.field = "forged_alias".into();
     aliased.entries.push(forged_alias);
@@ -530,6 +530,25 @@ machine Main::main(&mut self) {}
     assert!(
         error.contains("not a canonical field-identity set")
             && error.contains("identity names both `legacy_status` and `forged_alias`"),
+        "unexpected diagnostic: {error}"
+    );
+
+    let mut ambiguous = retained;
+    let mut forged_identity = ambiguous.entries[0].clone();
+    forged_identity.member_identity = Some(8);
+    ambiguous.entries.push(forged_identity);
+    let error = compute_access_plan(
+        &renamed.typed,
+        "RegisterAccess::plan",
+        "Registers",
+        &ambiguous,
+    )
+    .expect_err("one presentation name cannot replay two stable identities");
+    assert!(
+        error.contains("not a canonical field-identity set")
+            && error.contains(
+                "identifies both stable member identity #7 and stable member identity #8"
+            ),
         "unexpected diagnostic: {error}"
     );
 }
