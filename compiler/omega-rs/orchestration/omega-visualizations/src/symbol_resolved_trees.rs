@@ -909,7 +909,7 @@ fn statement_label(program: &SymbolResolvedTrees, statement: &Statement) -> Stri
             call.target.as_str(),
             symbol_label(call.target_symbol)
         ),
-        Statement::EvidencePackageDestructure(package) => format!(
+        Statement::ProofOutputBindingStatement(package) => format!(
             "evidence package {}",
             package
                 .bindings

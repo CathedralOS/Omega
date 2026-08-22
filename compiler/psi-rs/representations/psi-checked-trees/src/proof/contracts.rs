@@ -144,32 +144,32 @@ pub struct EvidenceForwardingFact {
 }
 
 /// One immediate call whose selected proof outputs are bound to
-/// fresh caller-local evidence terms. A scalar `value` package additionally
+/// fresh caller-local evidence terms. A scalar Type result additionally
 /// names the exact ordinary runtime call coordinate.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct EvidencePackageInvocationFact {
+pub struct ProofOutputCallFact {
     pub caller_machine_symbol: SymbolHandle,
     pub caller_state_symbol: SymbolHandle,
     pub statement_index: usize,
     pub source_statement_index: usize,
-    pub runtime_call: Option<EvidencePackageRuntimeCallFact>,
+    pub runtime_call: Option<ProofOutputRuntimeCallFact>,
     pub target_machine_symbol: SymbolHandle,
     pub target_state_symbol: SymbolHandle,
-    pub outputs: Vec<EvidencePackageOutputFact>,
+    pub outputs: Vec<ProofOutputFact>,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct EvidencePackageRuntimeCallFact {
+pub struct ProofOutputRuntimeCallFact {
     pub statement_index: usize,
     pub call_ordinal: usize,
 }
 
-/// One exact public field disposition within a generated package invocation.
+/// One exact published proof disposition from a proof-output call.
 /// `callee_output` is the published lane declaration. `output` is the distinct
-/// term introduced in the caller, or `None` when the source explicitly binds
-/// this copyable proposition field to `_`.
+/// term introduced in the caller, or `None` when the copyable proposition is
+/// omitted or explicitly discarded.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct EvidencePackageOutputFact {
+pub struct ProofOutputFact {
     pub output_position: usize,
     pub callee_output: Handle<CheckedEvidenceTerm>,
     pub output: Option<Handle<CheckedEvidenceTerm>>,

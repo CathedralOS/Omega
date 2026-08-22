@@ -1,10 +1,9 @@
 use crate::parser::context::StateKind;
 use crate::parser::input::{Input, ParseResult};
 use crate::parser::statement::{
-    parse_asm_block_statement_handles, parse_statement_handle,
-    reject_retired_evidence_package_destructure, try_parse_atomic_compare_exchange_let,
-    try_parse_atomic_fetch_let, try_parse_atomic_swap_let, try_parse_destructure_let,
-    try_parse_evidence_package_destructure,
+    parse_asm_block_statement_handles, parse_statement_handle, reject_retired_proof_output_binding,
+    try_parse_atomic_compare_exchange_let, try_parse_atomic_fetch_let, try_parse_atomic_swap_let,
+    try_parse_destructure_let, try_parse_proof_output_binding,
 };
 use crate::parser::transition::parse_transition_block_handles;
 use crate::parser::type_reference::parse_type_reference_handle_allowing_borrow;
@@ -67,7 +66,7 @@ pub(super) fn parse_state<'tokens, 'source>(
     let mut statement_count = 0u32;
 
     while !input.at_punctuation(PunctuationKind::RightBrace) {
-        reject_retired_evidence_package_destructure(input)?;
+        reject_retired_proof_output_binding(input)?;
         if input.at_punctuation(PunctuationKind::Arrow) {
             return Err(input.error_here(
                 "explicit state bodies must use the `transition` keyword; bare `->` transitions are only allowed in implicit entry",
@@ -104,7 +103,7 @@ pub(super) fn parse_state<'tokens, 'source>(
         // `let { x, y as h, z as _ } = place;` expands to the marker +
         // per-field lets.
         } else if let Some((new_statements, rest)) =
-            try_parse_evidence_package_destructure(syntax_trees, input)
+            try_parse_proof_output_binding(syntax_trees, input)
         {
             if statement_count == 0 {
                 statement_start = new_statements.start();

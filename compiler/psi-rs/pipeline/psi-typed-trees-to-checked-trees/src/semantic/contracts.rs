@@ -130,7 +130,7 @@ pub(super) fn append_contract_semantic_facts(
     // context at the binding coordinate so omitted selectors contribute facts
     // without minting caller-local terms. The current accepted producer subset
     // is zero-argument, so the declaration payload needs no call substitution.
-    for (_, invocation) in proof.evidence_package_invocations.iter() {
+    for (_, invocation) in proof.proof_output_calls.iter() {
         if invocation.runtime_call.is_some() {
             continue;
         }

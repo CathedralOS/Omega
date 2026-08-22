@@ -73,7 +73,7 @@ const EMPTY_PRODUCER_SOURCE: &str = r#"
     }
 "#;
 
-const GENERATED_PACKAGE_SOURCE: &str = r#"
+const PROOF_OUTPUT_SOURCE: &str = r#"
     trait Evidence {}
     proposition ready() evidence Evidence;
     ConcreteEvidence: satisfies Evidence {}
@@ -93,7 +93,7 @@ const GENERATED_PACKAGE_SOURCE: &str = r#"
     }
 "#;
 
-const COPY_AND_DISCARD_GENERATED_PACKAGE_SOURCE: &str = r#"
+const COPY_AND_DISCARD_PROOF_OUTPUT_SOURCE: &str = r#"
     trait Evidence {}
     proposition ready() evidence Evidence;
     ConcreteEvidence: satisfies Evidence {}
@@ -114,7 +114,7 @@ const COPY_AND_DISCARD_GENERATED_PACKAGE_SOURCE: &str = r#"
     }
 "#;
 
-const MULTI_FIELD_GENERATED_PACKAGE_SOURCE: &str = r#"
+const MULTI_FIELD_PROOF_OUTPUT_SOURCE: &str = r#"
     trait Evidence {}
     proposition ready() evidence Evidence;
     ConcreteEvidence: satisfies Evidence {}
@@ -138,7 +138,7 @@ const MULTI_FIELD_GENERATED_PACKAGE_SOURCE: &str = r#"
     }
 "#;
 
-const RUNTIME_VALUE_GENERATED_PACKAGE_SOURCE: &str = r#"
+const RUNTIME_VALUE_PROOF_OUTPUT_SOURCE: &str = r#"
     trait Evidence {}
     proposition ready() evidence Evidence;
     ConcreteEvidence: satisfies Evidence {}
@@ -173,7 +173,7 @@ const RUNTIME_VALUE_GENERATED_PACKAGE_SOURCE: &str = r#"
     }
 "#;
 
-const REPEATED_MULTI_FIELD_GENERATED_PACKAGE_SOURCE: &str = r#"
+const REPEATED_MULTI_FIELD_PROOF_OUTPUT_SOURCE: &str = r#"
     trait Evidence {}
     proposition ready() evidence Evidence;
     ConcreteEvidence: satisfies Evidence {}
@@ -199,7 +199,7 @@ const REPEATED_MULTI_FIELD_GENERATED_PACKAGE_SOURCE: &str = r#"
     }
 "#;
 
-const REPEATED_GENERATED_PACKAGE_SOURCE: &str = r#"
+const REPEATED_PROOF_OUTPUT_SOURCE: &str = r#"
     trait Evidence {}
     proposition ready() evidence Evidence;
     ConcreteEvidence: satisfies Evidence {}
@@ -222,7 +222,7 @@ const REPEATED_GENERATED_PACKAGE_SOURCE: &str = r#"
     }
 "#;
 
-const DISTINCT_GENERATED_PACKAGE_PRODUCERS_SOURCE: &str = r#"
+const DISTINCT_PROOF_OUTPUT_PRODUCERS_SOURCE: &str = r#"
     trait Evidence {}
     proposition ready() evidence Evidence;
     ConcreteEvidence: satisfies Evidence {}
@@ -571,7 +571,7 @@ fn source_forwarding_preserves_exact_positional_terminal_evidence_identities() {
     assert_ne!(
         semantic_fingerprint(&renamed).expect("renamed output remains valid"),
         baseline,
-        "the public generated-package field enters semantic identity"
+        "the public proof-output field enters semantic identity"
     );
 
     let mut missing_field = lowered.semantic_module.clone();
@@ -863,35 +863,31 @@ fn source_producer_provenance_is_separate_canonical_verified_proof_data() {
 }
 
 #[test]
-fn generated_evidence_package_is_canonical_verified_and_runtime_erased() {
-    let checked = check(GENERATED_PACKAGE_SOURCE);
+fn proof_output_is_canonical_verified_and_runtime_erased() {
+    let checked = check(PROOF_OUTPUT_SOURCE);
     let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::relay")
-        .expect("generated evidence package should cross terminal Psi");
-    let [invocation] = lowered
-        .semantic_module
-        .evidence_package_invocations
-        .as_slice()
-    else {
-        panic!("one terminal evidence-package invocation expected")
+        .expect("proof-output call should cross terminal Psi");
+    let [invocation] = lowered.semantic_module.proof_output_calls.as_slice() else {
+        panic!("one terminal proof-output invocation expected")
     };
     assert_eq!(invocation.ordinal, 0);
     let [output] = invocation.outputs.as_slice() else {
-        panic!("one terminal evidence-package output expected")
+        panic!("one terminal proof-output output expected")
     };
     assert_eq!(output.output_position, 0);
     assert_eq!(output.output_field, "outgoing");
     assert_ne!(output.callee_output, output.output.expect("bound output"));
     assert_eq!(lowered.proof_bundle.evidence_producers.len(), 1);
 
-    let bytes = encode_module(&lowered.semantic_module).expect("package module encodes");
+    let bytes = encode_module(&lowered.semantic_module).expect("proof-output module encodes");
     assert_eq!(decode_module(&bytes), Ok(lowered.semantic_module.clone()));
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("package proof encodes");
+    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("proof-output proof encodes");
     let verified = psi_terminal_verifier::verify_module(
         &lowered.semantic_module,
         &lowered.proof_bundle,
         &AdmissionProfile::default(),
     )
-    .expect("exact package invocation and callee producer verify");
+    .expect("exact proof-output call and callee producer verify");
     derive_fixed_entry_fuel(&verified, lowered.semantic_module.entry)
         .expect("proof-only invocation adds no runtime fuel obligation");
 
@@ -902,73 +898,69 @@ fn generated_evidence_package_is_canonical_verified_and_runtime_erased() {
         &[],
         &[],
     )
-    .expect("proof-only package requires no runtime argument");
+    .expect("proof-only proof output requires no runtime argument");
     let mut meter = TerminalFuelMeter::unbounded();
     assert_eq!(
         execution
             .resume(&mut meter)
-            .expect("execute erased package"),
+            .expect("execute erased proof output"),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
 
     let mut forged = lowered.semantic_module.clone();
-    forged.evidence_package_invocations[0].outputs[0].output =
-        Some(forged.evidence_package_invocations[0].outputs[0].callee_output);
+    forged.proof_output_calls[0].outputs[0].output =
+        Some(forged.proof_output_calls[0].outputs[0].callee_output);
     assert!(matches!(
         psi_terminal_verifier::validate_module_representation(&forged),
-        Err(psi_terminal_verifier::ModuleError::InvalidEvidencePackageInvocation { .. })
+        Err(psi_terminal_verifier::ModuleError::InvalidProofOutputCall { .. })
     ));
 
-    let baseline = semantic_fingerprint(&lowered.semantic_module).expect("package identity");
+    let baseline = semantic_fingerprint(&lowered.semantic_module).expect("proof-output identity");
     let mut renamed_target = lowered.semantic_module.clone();
-    renamed_target.evidence_package_invocations[0].target_machine_identity =
+    renamed_target.proof_output_calls[0].target_machine_identity =
         "different canonical producer".to_owned();
     assert_ne!(
         semantic_fingerprint(&renamed_target).expect("renamed target is distinct semantics"),
         baseline
     );
     let mut renamed_field = lowered.semantic_module.clone();
-    renamed_field.evidence_package_invocations[0].outputs[0].output_field = "renamed".to_owned();
+    renamed_field.proof_output_calls[0].outputs[0].output_field = "renamed".to_owned();
     assert_ne!(
         semantic_fingerprint(&renamed_field).expect("renamed field is distinct semantics"),
         baseline
     );
     let mut non_dense = lowered.semantic_module.clone();
-    non_dense.evidence_package_invocations[0].ordinal = 1;
+    non_dense.proof_output_calls[0].ordinal = 1;
     assert!(matches!(
         psi_terminal_verifier::validate_module_representation(&non_dense),
-        Err(psi_terminal_verifier::ModuleError::NonCanonicalEvidencePackageInvocation { .. })
+        Err(psi_terminal_verifier::ModuleError::NonCanonicalProofOutputCall { .. })
     ));
     let mut empty_target = lowered.semantic_module.clone();
-    empty_target.evidence_package_invocations[0]
+    empty_target.proof_output_calls[0]
         .target_machine_identity
         .clear();
     assert!(matches!(
         psi_terminal_verifier::validate_module_representation(&empty_target),
-        Err(psi_terminal_verifier::ModuleError::InvalidEvidencePackageInvocation { .. })
+        Err(psi_terminal_verifier::ModuleError::InvalidProofOutputCall { .. })
     ));
     let mut reserved_field = lowered.semantic_module.clone();
-    reserved_field.evidence_package_invocations[0].outputs[0].output_field = "value".to_owned();
+    reserved_field.proof_output_calls[0].outputs[0].output_field = "value".to_owned();
     assert!(matches!(
         psi_terminal_verifier::validate_module_representation(&reserved_field),
-        Err(psi_terminal_verifier::ModuleError::InvalidEvidencePackageInvocation { .. })
+        Err(psi_terminal_verifier::ModuleError::InvalidProofOutputCall { .. })
     ));
 }
 
 #[test]
-fn generated_evidence_package_retains_copy_and_explicit_discard() {
-    let checked = check(COPY_AND_DISCARD_GENERATED_PACKAGE_SOURCE);
+fn proof_output_retains_copy_and_explicit_discard() {
+    let checked = check(COPY_AND_DISCARD_PROOF_OUTPUT_SOURCE);
     let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::relay")
         .expect("copyable and discarded evidence should cross terminal Psi");
-    let [invocation] = lowered
-        .semantic_module
-        .evidence_package_invocations
-        .as_slice()
-    else {
-        panic!("one package invocation expected")
+    let [invocation] = lowered.semantic_module.proof_output_calls.as_slice() else {
+        panic!("one proof-output call expected")
     };
     let [copied, discarded] = invocation.outputs.as_slice() else {
-        panic!("two complete package fields expected")
+        panic!("two complete proof selectors expected")
     };
     let copied_term = copied.output.expect("copied field binds a caller term");
     assert_eq!(discarded.output, None);
@@ -994,35 +986,31 @@ fn generated_evidence_package_retains_copy_and_explicit_discard() {
     .expect("copy and discard preserve exact evidence provenance");
 
     let mut omitted = lowered.semantic_module.clone();
-    omitted.evidence_package_invocations[0].outputs.pop();
+    omitted.proof_output_calls[0].outputs.pop();
     assert!(psi_terminal_verifier::validate_module_representation(&omitted).is_err());
 }
 
 #[test]
-fn runtime_value_generated_package_links_one_scalar_call_and_executes_once() {
-    let checked = check(RUNTIME_VALUE_GENERATED_PACKAGE_SOURCE);
+fn runtime_value_proof_output_links_one_scalar_call_and_executes_once() {
+    let checked = check(RUNTIME_VALUE_PROOF_OUTPUT_SOURCE);
     let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "relay")
-        .expect("runtime value package should cross terminal Psi");
-    let [invocation] = lowered
-        .semantic_module
-        .evidence_package_invocations
-        .as_slice()
-    else {
-        panic!("one terminal runtime-value package expected")
+        .expect("runtime value proof output should cross terminal Psi");
+    let [invocation] = lowered.semantic_module.proof_output_calls.as_slice() else {
+        panic!("one terminal runtime-value proof output expected")
     };
     let runtime_type = invocation
         .runtime_value
-        .expect("runtime package retains its scalar payload type");
+        .expect("runtime proof output retains its scalar payload type");
     let runtime_call = invocation
         .runtime_call
-        .expect("runtime package retains its exact ordinary call operation");
+        .expect("runtime proof output retains its exact ordinary call operation");
     assert_eq!(runtime_type, psi_core::ScalarType::Boolean);
     let caller = lowered
         .semantic_module
         .machines
         .iter()
         .find(|machine| machine.id == invocation.caller)
-        .expect("package caller machine");
+        .expect("proof-output caller machine");
     let calls = caller
         .blocks
         .iter()
@@ -1032,28 +1020,30 @@ fn runtime_value_generated_package_links_one_scalar_call_and_executes_once() {
     assert_eq!(
         calls.len(),
         2,
-        "one unrelated call precedes the package call"
+        "one unrelated call precedes the proof-output call"
     );
     let call = calls
         .iter()
         .copied()
         .find(|operation| operation.id == runtime_call.operation)
-        .expect("the retained ID selects the package call, not the earlier call");
+        .expect("the retained ID selects the proof-output call, not the earlier call");
     assert_eq!(call.id, runtime_call.operation);
     assert!(matches!(
         call.kind,
         OperationKind::Call { callee, .. } if callee == runtime_call.callee
     ));
 
-    let bytes = encode_module(&lowered.semantic_module).expect("runtime package module encodes");
+    let bytes =
+        encode_module(&lowered.semantic_module).expect("runtime proof-output module encodes");
     assert_eq!(decode_module(&bytes), Ok(lowered.semantic_module.clone()));
-    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("runtime package proof encodes");
+    let proof =
+        encode_proof_bundle(&lowered.proof_bundle).expect("runtime proof-output proof encodes");
     let verified = psi_terminal_verifier::verify_module(
         &lowered.semantic_module,
         &lowered.proof_bundle,
         &AdmissionProfile::default(),
     )
-    .expect("runtime package operation and proof group verify together");
+    .expect("runtime proof-output operation and proof group verify together");
     let fuel = derive_fixed_entry_fuel(&verified, lowered.semantic_module.entry)
         .expect("the ordinary scalar call has fixed fuel");
     assert!(fuel.ceiling_units() > 0);
@@ -1086,7 +1076,7 @@ fn runtime_value_generated_package_links_one_scalar_call_and_executes_once() {
     assert_eq!(
         fuel.ceiling_units(),
         baseline_fuel.ceiling_units(),
-        "erased package proof metadata adds no runtime fuel"
+        "erased proof-output proof metadata adds no runtime fuel"
     );
 
     let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
@@ -1096,33 +1086,33 @@ fn runtime_value_generated_package_links_one_scalar_call_and_executes_once() {
         &[],
         &[],
     )
-    .expect("runtime package artifact starts");
+    .expect("runtime proof-output artifact starts");
     let mut meter = TerminalFuelMeter::unbounded();
     assert_eq!(
         execution
             .resume(&mut meter)
-            .expect("execute runtime package"),
+            .expect("execute runtime proof output"),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(
             TerminalScalarValue::Boolean(true)
         ))
     );
 
-    let invalid_package = |module: &psi_terminal::TerminalModule| {
+    let invalid_proof_output = |module: &psi_terminal::TerminalModule| {
         matches!(
             psi_terminal_verifier::validate_module_representation(module),
-            Err(psi_terminal_verifier::ModuleError::InvalidEvidencePackageInvocation { .. })
+            Err(psi_terminal_verifier::ModuleError::InvalidProofOutputCall { .. })
         )
     };
     let mut unknown_operation = lowered.semantic_module.clone();
-    unknown_operation.evidence_package_invocations[0]
+    unknown_operation.proof_output_calls[0]
         .runtime_call
         .as_mut()
         .expect("runtime link")
         .operation = OperationId::new(u64::MAX).unwrap();
-    assert!(invalid_package(&unknown_operation));
+    assert!(invalid_proof_output(&unknown_operation));
 
     let mut wrong_kind = lowered.semantic_module.clone();
-    let linked = wrong_kind.evidence_package_invocations[0]
+    let linked = wrong_kind.proof_output_calls[0]
         .runtime_call
         .expect("runtime link")
         .operation;
@@ -1136,49 +1126,43 @@ fn runtime_value_generated_package_links_one_scalar_call_and_executes_once() {
         .kind = OperationKind::IntegerConstant {
         value: IntegerValue::Signed(7),
     };
-    assert!(invalid_package(&wrong_kind));
+    assert!(invalid_proof_output(&wrong_kind));
 
     let mut wrong_caller = lowered.semantic_module.clone();
-    wrong_caller.evidence_package_invocations[0].caller = runtime_call.callee;
-    assert!(invalid_package(&wrong_caller));
+    wrong_caller.proof_output_calls[0].caller = runtime_call.callee;
+    assert!(invalid_proof_output(&wrong_caller));
 
     let mut missing_link = lowered.semantic_module.clone();
-    missing_link.evidence_package_invocations[0].runtime_call = None;
-    assert!(invalid_package(&missing_link));
+    missing_link.proof_output_calls[0].runtime_call = None;
+    assert!(invalid_proof_output(&missing_link));
 
     let mut mismatched_callee = lowered.semantic_module.clone();
-    mismatched_callee.evidence_package_invocations[0]
+    mismatched_callee.proof_output_calls[0]
         .runtime_call
         .as_mut()
         .expect("runtime link")
         .callee = invocation.caller;
-    assert!(invalid_package(&mismatched_callee));
+    assert!(invalid_proof_output(&mismatched_callee));
 
-    let proof_only = psi_checked_trees_to_terminal::lower_machine(
-        &check(GENERATED_PACKAGE_SOURCE),
-        "Root::relay",
-    )
-    .expect("proof-only package");
+    let proof_only =
+        psi_checked_trees_to_terminal::lower_machine(&check(PROOF_OUTPUT_SOURCE), "Root::relay")
+            .expect("proof-only proof output");
     let mut spurious_link = proof_only.semantic_module;
-    spurious_link.evidence_package_invocations[0].runtime_call = Some(runtime_call);
-    assert!(invalid_package(&spurious_link));
+    spurious_link.proof_output_calls[0].runtime_call = Some(runtime_call);
+    assert!(invalid_proof_output(&spurious_link));
 }
 
 #[test]
-fn multi_field_generated_package_is_complete_canonical_and_runtime_erased() {
-    let checked = check(MULTI_FIELD_GENERATED_PACKAGE_SOURCE);
+fn multi_field_proof_output_is_complete_canonical_and_runtime_erased() {
+    let checked = check(MULTI_FIELD_PROOF_OUTPUT_SOURCE);
     let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::relay")
-        .expect("complete multi-field package should cross terminal Psi");
-    let [invocation] = lowered
-        .semantic_module
-        .evidence_package_invocations
-        .as_slice()
-    else {
-        panic!("one grouped terminal evidence-package invocation expected")
+        .expect("complete multi-field proof output should cross terminal Psi");
+    let [invocation] = lowered.semantic_module.proof_output_calls.as_slice() else {
+        panic!("one grouped terminal proof-output invocation expected")
     };
     assert_eq!(invocation.ordinal, 0);
     let [first, second] = invocation.outputs.as_slice() else {
-        panic!("two terminal evidence-package outputs expected")
+        panic!("two terminal proof-output outputs expected")
     };
     assert_eq!((first.output_position, second.output_position), (0, 1));
     assert_eq!(
@@ -1197,7 +1181,7 @@ fn multi_field_generated_package_is_complete_canonical_and_runtime_erased() {
     assert_ne!(first.callee_output, second.callee_output);
     assert_eq!(lowered.proof_bundle.evidence_producers.len(), 2);
 
-    let bytes = encode_module(&lowered.semantic_module).expect("multi-field package encodes");
+    let bytes = encode_module(&lowered.semantic_module).expect("multi-field proof output encodes");
     assert_eq!(decode_module(&bytes), Ok(lowered.semantic_module.clone()));
     let proof = encode_proof_bundle(&lowered.proof_bundle).expect("multi-field proof encodes");
     let verified = psi_terminal_verifier::verify_module(
@@ -1205,7 +1189,7 @@ fn multi_field_generated_package_is_complete_canonical_and_runtime_erased() {
         &lowered.proof_bundle,
         &AdmissionProfile::default(),
     )
-    .expect("complete multi-field package verifies");
+    .expect("complete multi-field proof output verifies");
     derive_fixed_entry_fuel(&verified, lowered.semantic_module.entry)
         .expect("multi-field proof-only invocation adds no runtime fuel");
 
@@ -1216,57 +1200,53 @@ fn multi_field_generated_package_is_complete_canonical_and_runtime_erased() {
         &[],
         &[],
     )
-    .expect("multi-field proof-only package requires no runtime argument");
+    .expect("multi-field proof-only proof output requires no runtime argument");
     let mut meter = TerminalFuelMeter::unbounded();
     assert_eq!(
         execution
             .resume(&mut meter)
-            .expect("execute erased package"),
+            .expect("execute erased proof output"),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
 
     let mut non_dense = lowered.semantic_module.clone();
-    non_dense.evidence_package_invocations[0].outputs[1].output_position = 2;
+    non_dense.proof_output_calls[0].outputs[1].output_position = 2;
     assert!(encode_module(&non_dense).is_err());
     assert!(matches!(
         psi_terminal_verifier::validate_module_representation(&non_dense),
-        Err(psi_terminal_verifier::ModuleError::InvalidEvidencePackageInvocation { .. })
+        Err(psi_terminal_verifier::ModuleError::InvalidProofOutputCall { .. })
     ));
 
     let mut aliased = lowered.semantic_module.clone();
-    aliased.evidence_package_invocations[0].outputs[1].output =
-        aliased.evidence_package_invocations[0].outputs[0].output;
+    aliased.proof_output_calls[0].outputs[1].output =
+        aliased.proof_output_calls[0].outputs[0].output;
     assert!(matches!(
         psi_terminal_verifier::validate_module_representation(&aliased),
-        Err(psi_terminal_verifier::ModuleError::InvalidEvidencePackageInvocation { .. })
+        Err(psi_terminal_verifier::ModuleError::InvalidProofOutputCall { .. })
     ));
 
     let mut duplicate_field = lowered.semantic_module.clone();
-    duplicate_field.evidence_package_invocations[0].outputs[1].output_field =
-        duplicate_field.evidence_package_invocations[0].outputs[0]
+    duplicate_field.proof_output_calls[0].outputs[1].output_field =
+        duplicate_field.proof_output_calls[0].outputs[0]
             .output_field
             .clone();
     assert!(matches!(
         psi_terminal_verifier::validate_module_representation(&duplicate_field),
-        Err(psi_terminal_verifier::ModuleError::InvalidEvidencePackageInvocation { .. })
+        Err(psi_terminal_verifier::ModuleError::InvalidProofOutputCall { .. })
     ));
 
     let mut incomplete = lowered.semantic_module.clone();
-    incomplete.evidence_package_invocations[0].outputs.pop();
+    incomplete.proof_output_calls[0].outputs.pop();
     assert!(psi_terminal_verifier::validate_module_representation(&incomplete).is_err());
 }
 
 #[test]
-fn repeated_multi_field_packages_group_calls_and_reuse_callee_producers() {
-    let checked = check(REPEATED_MULTI_FIELD_GENERATED_PACKAGE_SOURCE);
+fn repeated_multi_field_proof_outputs_group_calls_and_reuse_callee_producers() {
+    let checked = check(REPEATED_MULTI_FIELD_PROOF_OUTPUT_SOURCE);
     let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::relay")
-        .expect("repeated multi-field packages should lower");
-    let [first, second] = lowered
-        .semantic_module
-        .evidence_package_invocations
-        .as_slice()
-    else {
-        panic!("two grouped package invocations expected")
+        .expect("repeated multi-field proof outputs should lower");
+    let [first, second] = lowered.semantic_module.proof_output_calls.as_slice() else {
+        panic!("two grouped proof-output calls expected")
     };
     assert_eq!((first.ordinal, second.ordinal), (0, 1));
     assert_eq!(first.outputs.len(), 2);
@@ -1298,15 +1278,11 @@ fn repeated_multi_field_packages_group_calls_and_reuse_callee_producers() {
 }
 
 #[test]
-fn repeated_generated_package_calls_have_dense_fresh_outputs_and_one_callee_producer() {
-    let checked = check(REPEATED_GENERATED_PACKAGE_SOURCE);
+fn repeated_proof_output_calls_have_dense_fresh_outputs_and_one_callee_producer() {
+    let checked = check(REPEATED_PROOF_OUTPUT_SOURCE);
     let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::relay")
-        .expect("repeated package calls should retain distinct invocation terms");
-    let [first, second] = lowered
-        .semantic_module
-        .evidence_package_invocations
-        .as_slice()
-    else {
+        .expect("repeated proof-output calls should retain distinct invocation terms");
+    let [first, second] = lowered.semantic_module.proof_output_calls.as_slice() else {
         panic!("two invocation rows expected")
     };
     assert_eq!((first.ordinal, second.ordinal), (0, 1));
@@ -1325,15 +1301,11 @@ fn repeated_generated_package_calls_have_dense_fresh_outputs_and_one_callee_prod
 }
 
 #[test]
-fn same_shape_generated_packages_retain_distinct_canonical_callee_identities() {
-    let checked = check(DISTINCT_GENERATED_PACKAGE_PRODUCERS_SOURCE);
+fn same_shape_proof_outputs_retain_distinct_canonical_callee_identities() {
+    let checked = check(DISTINCT_PROOF_OUTPUT_PRODUCERS_SOURCE);
     let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::relay")
-        .expect("same-shape producer packages should lower");
-    let [first, second] = lowered
-        .semantic_module
-        .evidence_package_invocations
-        .as_slice()
-    else {
+        .expect("same-shape producer proof outputs should lower");
+    let [first, second] = lowered.semantic_module.proof_output_calls.as_slice() else {
         panic!("two invocation rows expected")
     };
     assert_ne!(

@@ -234,16 +234,12 @@ fn append_proof_output_ensures(
     active_contexts: &mut psi_arena::HandleSpan<FlowSemanticContextRef>,
     active_constraints: &mut psi_arena::HandleSpan<FlowConstraintRef>,
 ) {
-    let has_proof_only_binding =
-        proof
-            .evidence_package_invocations
-            .iter()
-            .any(|(_, invocation)| {
-                invocation.caller_machine_symbol == machine_symbol
-                    && invocation.caller_state_symbol == state_symbol
-                    && invocation.statement_index == statement_index
-                    && invocation.runtime_call.is_none()
-            });
+    let has_proof_only_binding = proof.proof_output_calls.iter().any(|(_, invocation)| {
+        invocation.caller_machine_symbol == machine_symbol
+            && invocation.caller_state_symbol == state_symbol
+            && invocation.statement_index == statement_index
+            && invocation.runtime_call.is_none()
+    });
     if !has_proof_only_binding {
         return;
     }

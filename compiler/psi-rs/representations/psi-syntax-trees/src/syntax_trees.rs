@@ -1024,9 +1024,9 @@ impl SyntaxTrees {
                 operational_acknowledgement: call.operational_acknowledgement,
                 discards_result: call.discards_result,
             }),
-            StatementNode::EvidencePackageDestructure(binding) => {
-                StatementNode::EvidencePackageDestructure(
-                    crate::statement::TableEvidencePackageDestructure {
+            StatementNode::ProofOutputBindingStatement(binding) => {
+                StatementNode::ProofOutputBindingStatement(
+                    crate::statement::TableProofOutputBindingStatement {
                         bindings: binding.bindings.clone(),
                         call: self.copy_expression_handle(other, binding.call),
                     },

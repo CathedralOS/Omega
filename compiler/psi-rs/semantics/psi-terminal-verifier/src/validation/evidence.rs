@@ -75,30 +75,29 @@ pub(super) fn validate_evidence_contract_lanes(
             })?;
     }
     let mut next_package_ordinals = BTreeMap::new();
-    for invocation in &module.evidence_package_invocations {
+    for invocation in &module.proof_output_calls {
         let expected = next_package_ordinals
             .entry(invocation.caller)
             .or_insert(0_u32);
         if invocation.ordinal != *expected {
-            return Err(ModuleError::NonCanonicalEvidencePackageInvocation {
+            return Err(ModuleError::NonCanonicalProofOutputCall {
                 caller: invocation.caller,
                 ordinal: invocation.ordinal,
             });
         }
-        *expected =
-            expected
-                .checked_add(1)
-                .ok_or(ModuleError::NonCanonicalEvidencePackageInvocation {
-                    caller: invocation.caller,
-                    ordinal: invocation.ordinal,
-                })?;
+        *expected = expected
+            .checked_add(1)
+            .ok_or(ModuleError::NonCanonicalProofOutputCall {
+                caller: invocation.caller,
+                ordinal: invocation.ordinal,
+            })?;
         if !machines.contains_key(&invocation.caller) {
             return Err(ModuleError::UnknownEvidenceContractMachine(
                 invocation.caller,
             ));
         }
         if invocation.target_machine_identity.is_empty() || invocation.outputs.is_empty() {
-            return Err(ModuleError::InvalidEvidencePackageInvocation {
+            return Err(ModuleError::InvalidProofOutputCall {
                 caller: invocation.caller,
                 ordinal: invocation.ordinal,
             });
@@ -115,7 +114,7 @@ pub(super) fn validate_evidence_contract_lanes(
                     .flat_map(|block| &block.operations)
                     .filter(|operation| operation.id == runtime_call.operation);
                 let Some(operation) = matching_operations.next() else {
-                    return Err(ModuleError::InvalidEvidencePackageInvocation {
+                    return Err(ModuleError::InvalidProofOutputCall {
                         caller: invocation.caller,
                         ordinal: invocation.ordinal,
                     });
@@ -129,14 +128,14 @@ pub(super) fn validate_evidence_contract_lanes(
                         ) if result.scalar_type == runtime_value && *callee == runtime_call.callee
                     )
                 {
-                    return Err(ModuleError::InvalidEvidencePackageInvocation {
+                    return Err(ModuleError::InvalidProofOutputCall {
                         caller: invocation.caller,
                         ordinal: invocation.ordinal,
                     });
                 }
             }
             _ => {
-                return Err(ModuleError::InvalidEvidencePackageInvocation {
+                return Err(ModuleError::InvalidProofOutputCall {
                     caller: invocation.caller,
                     ordinal: invocation.ordinal,
                 });
@@ -153,7 +152,7 @@ pub(super) fn validate_evidence_contract_lanes(
             };
             if binding.output_position
                 != u32::try_from(expected_position).map_err(|_| {
-                    ModuleError::InvalidEvidencePackageInvocation {
+                    ModuleError::InvalidProofOutputCall {
                         caller: invocation.caller,
                         ordinal: invocation.ordinal,
                     }
@@ -164,7 +163,7 @@ pub(super) fn validate_evidence_contract_lanes(
                 || !callee_terms.insert(binding.callee_output)
                 || output_terms.contains(&binding.callee_output)
             {
-                return Err(ModuleError::InvalidEvidencePackageInvocation {
+                return Err(ModuleError::InvalidProofOutputCall {
                     caller: invocation.caller,
                     ordinal: invocation.ordinal,
                 });
@@ -180,7 +179,7 @@ pub(super) fn validate_evidence_contract_lanes(
                     || !output_terms.insert(output_id)
                     || callee_terms.contains(&output_id)
                 {
-                    return Err(ModuleError::InvalidEvidencePackageInvocation {
+                    return Err(ModuleError::InvalidProofOutputCall {
                         caller: invocation.caller,
                         ordinal: invocation.ordinal,
                     });

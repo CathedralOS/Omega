@@ -12,23 +12,23 @@ pub enum Statement {
     AssemblyFact(AssemblyFact),
     Assignment(Assignment),
     Call(Call),
-    EvidencePackageDestructure(EvidencePackageDestructure),
+    ProofOutputBindingStatement(ProofOutputBindingStatement),
     Expression(crate::expression::ExpressionHandle),
     LocalData(LocalData),
     Transition(Transition),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct EvidencePackageDestructure {
+pub struct ProofOutputBindingStatement {
     pub machine_symbol: SymbolHandle,
     pub state_symbol: SymbolHandle,
     pub statement_index: usize,
-    pub bindings: Box<[EvidencePackageBinding]>,
+    pub bindings: Box<[ProofOutputSelector]>,
     pub call: crate::expression::ExpressionHandle,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct EvidencePackageBinding {
+pub struct ProofOutputSelector {
     pub output_field: DiagnosticName,
     pub binding: DiagnosticName,
 }
@@ -374,15 +374,15 @@ impl StatementTable {
                     discards_result: call.discards_result,
                 }))
             }
-            Statement::EvidencePackageDestructure(package) => {
+            Statement::ProofOutputBindingStatement(package) => {
                 let call = expression_handle_from_tree(
                     source_expressions,
                     expressions,
                     package.call,
                     copy_expression_handles,
                 );
-                self.insert(StatementNode::EvidencePackageDestructure(
-                    EvidencePackageDestructure {
+                self.insert(StatementNode::ProofOutputBindingStatement(
+                    ProofOutputBindingStatement {
                         machine_symbol: package.machine_symbol,
                         state_symbol: package.state_symbol,
                         statement_index: package.statement_index,
@@ -577,7 +577,7 @@ pub enum StatementNode {
     AssemblyFact(TableAssemblyFact),
     Assignment(TableAssignment),
     Call(TableCall),
-    EvidencePackageDestructure(EvidencePackageDestructure),
+    ProofOutputBindingStatement(ProofOutputBindingStatement),
     Expression(crate::expression::ExpressionHandle),
     LocalData(TableLocalData),
     Transition(TableTransition),

@@ -23,7 +23,7 @@ pub(super) fn lower_and_install_evidence_artifacts(
         lowered.semantic_module.entry,
         &evidence_terms.term_ids,
     )?;
-    let evidence_package_invocations = lower_evidence_package_invocations(
+    let proof_output_calls = lower_proof_output_calls(
         checked,
         machine,
         lowered.semantic_module.entry,
@@ -38,7 +38,7 @@ pub(super) fn lower_and_install_evidence_artifacts(
     lowered.semantic_module.proposition_applications = applications;
     lowered.semantic_module.evidence_terms = evidence_terms.declarations;
     lowered.semantic_module.evidence_contract_lanes = evidence_contract_lanes;
-    lowered.semantic_module.evidence_package_invocations = evidence_package_invocations;
+    lowered.semantic_module.proof_output_calls = proof_output_calls;
     Ok(())
 }
 
@@ -260,7 +260,7 @@ fn lower_evidence_term_ids(
     for (_, invocation) in checked
         .facts
         .proof
-        .evidence_package_invocations
+        .proof_output_calls
         .iter()
         .filter(|(_, invocation)| invocation.caller_machine_symbol == selected_machine)
     {
@@ -509,24 +509,24 @@ fn lower_evidence_contract_lanes(
     Ok(lanes)
 }
 
-fn lower_evidence_package_invocations(
+fn lower_proof_output_calls(
     checked: &CheckedTrees,
     selected_machine: psi_symbols::SymbolHandle,
     terminal_machine: MachineId,
     semantic_module: &TerminalModule,
     term_ids: &[Option<EvidenceTermId>],
-) -> Result<Vec<EvidencePackageInvocation>, LoweringError> {
+) -> Result<Vec<ProofOutputCall>, LoweringError> {
     let mut invocations = checked
         .facts
         .proof
-        .evidence_package_invocations
+        .proof_output_calls
         .iter()
         .filter_map(|(_, invocation)| {
             (invocation.caller_machine_symbol == selected_machine).then_some(invocation)
         })
         .enumerate()
         .map(|(ordinal, invocation)| {
-            let (runtime_value, runtime_call) = lower_evidence_package_runtime_call(
+            let (runtime_value, runtime_call) = lower_proof_output_runtime_call(
                 checked,
                 selected_machine,
                 terminal_machine,
@@ -539,7 +539,7 @@ fn lower_evidence_package_invocations(
                 .map(|output| {
                     let callee_output =
                         checked.facts.proof.evidence_terms.get(output.callee_output);
-                    Ok(EvidencePackageOutputBinding {
+                    Ok(ProofOutput {
                         output_position: u32::try_from(output.output_position).map_err(|_| {
                             LoweringError::Unsupported(
                                 "terminal evidence package output position exceeds u32",
@@ -574,7 +574,7 @@ fn lower_evidence_package_invocations(
                     })
                 })
                 .collect::<Result<Vec<_>, LoweringError>>()?;
-            Ok(EvidencePackageInvocation {
+            Ok(ProofOutputCall {
                 caller: terminal_machine,
                 ordinal: u32::try_from(ordinal).map_err(|_| {
                     LoweringError::Unsupported(
@@ -595,13 +595,13 @@ fn lower_evidence_package_invocations(
     Ok(invocations)
 }
 
-fn lower_evidence_package_runtime_call(
+fn lower_proof_output_runtime_call(
     checked: &CheckedTrees,
     selected_machine: psi_symbols::SymbolHandle,
     terminal_machine: MachineId,
     semantic_module: &TerminalModule,
-    invocation: &psi_checked_trees::EvidencePackageInvocationFact,
-) -> Result<(Option<ScalarType>, Option<EvidencePackageRuntimeCall>), LoweringError> {
+    invocation: &psi_checked_trees::ProofOutputCallFact,
+) -> Result<(Option<ScalarType>, Option<ProofOutputRuntimeCall>), LoweringError> {
     let Some(runtime_call) = invocation.runtime_call else {
         return Ok((None, None));
     };
@@ -699,7 +699,7 @@ fn lower_evidence_package_runtime_call(
     }
     Ok((
         Some(runtime_value),
-        Some(EvidencePackageRuntimeCall {
+        Some(ProofOutputRuntimeCall {
             operation: operation.id,
             callee: *callee,
         }),
@@ -714,7 +714,7 @@ fn lower_evidence_producer_provenance(
     let package_callees = checked
         .facts
         .proof
-        .evidence_package_invocations
+        .proof_output_calls
         .iter()
         .filter_map(|(_, invocation)| {
             (invocation.caller_machine_symbol == selected_machine)

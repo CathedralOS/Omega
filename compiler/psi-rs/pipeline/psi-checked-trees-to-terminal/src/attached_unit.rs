@@ -852,7 +852,7 @@ pub(super) fn lower_attached_unit_closure_including(
             proposition_applications: Vec::new(),
             evidence_terms: Vec::new(),
             evidence_contract_lanes: Vec::new(),
-            evidence_package_invocations: Vec::new(),
+            proof_output_calls: Vec::new(),
             closed_conformance_applications: Vec::new(),
             machines,
         },

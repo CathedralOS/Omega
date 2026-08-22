@@ -244,7 +244,7 @@ impl Lowerer<'_> {
             boundary_calling_plans: _,
             open_index_normalizations: _,
             evidence_forwardings,
-            evidence_package_invocations,
+            proof_output_calls,
         } = self.typed_trees;
 
         let mut trees = TypedTrees::with_roots(roots, tables, symbols);
@@ -256,7 +256,7 @@ impl Lowerer<'_> {
         trees.evidence_forwardings = evidence_forwardings
             .into_iter()
             .map(|mut forwarding| {
-                let erased_before = evidence_package_invocations
+                let erased_before = proof_output_calls
                     .iter()
                     .filter(|package| {
                         package.machine_symbol == forwarding.machine_symbol
@@ -269,7 +269,7 @@ impl Lowerer<'_> {
                 forwarding
             })
             .collect();
-        trees.evidence_package_invocations = evidence_package_invocations;
+        trees.proof_output_calls = proof_output_calls;
         normalize_domain_constraints(self.source_trees, &mut trees)?;
         normalize_qualification_casts(&mut trees)?;
         Ok(trees)

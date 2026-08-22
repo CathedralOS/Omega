@@ -160,7 +160,7 @@ fn lower_statement_node(
             }));
             Ok(hoisted)
         }
-        syntax::statement::StatementNode::EvidencePackageDestructure(binding) => {
+        syntax::statement::StatementNode::ProofOutputBindingStatement(binding) => {
             let call = lower_statement_expression(lowerer, syntax_trees, binding.call)?;
             let runtime_value = binding.bindings.iter().find(|binding| {
                 binding.output_field.as_str() == "value" && binding.binding.as_str() != "_"
@@ -174,7 +174,7 @@ fn lower_statement_node(
                             .current_evidence_term_names
                             .push(binding.binding.as_str().to_owned());
                     }
-                    psi_symbol_resolved_trees::statement::EvidencePackageBinding {
+                    psi_symbol_resolved_trees::statement::ProofOutputSelector {
                         output_field: crate::name::lower_name(&binding.output_field),
                         binding: crate::name::lower_name(&binding.binding),
                     }
@@ -197,8 +197,8 @@ fn lower_statement_node(
                     },
                 }));
             }
-            lowered.push(Statement::EvidencePackageDestructure(
-                psi_symbol_resolved_trees::statement::EvidencePackageDestructure {
+            lowered.push(Statement::ProofOutputBindingStatement(
+                psi_symbol_resolved_trees::statement::ProofOutputBindingStatement {
                     machine_symbol: SymbolHandle::invalid(),
                     state_symbol: SymbolHandle::invalid(),
                     statement_index,

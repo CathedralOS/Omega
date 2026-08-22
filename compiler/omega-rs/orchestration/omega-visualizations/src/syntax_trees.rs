@@ -689,7 +689,7 @@ fn statement_label(syntax: &SyntaxTrees, statement: &StatementNode) -> String {
             syntax.expressions.display_name(assignment.value)
         ),
         StatementNode::Call(call) => call_label(syntax, call),
-        StatementNode::EvidencePackageDestructure(package) => format!(
+        StatementNode::ProofOutputBindingStatement(package) => format!(
             "evidence package {}",
             package
                 .bindings

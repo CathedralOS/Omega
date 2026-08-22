@@ -30,7 +30,7 @@ pub(super) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
     }
     if !strictly_increasing(
         module
-            .evidence_package_invocations
+            .proof_output_calls
             .iter()
             .map(|invocation| (invocation.caller, invocation.ordinal)),
     ) {
@@ -54,7 +54,7 @@ pub(super) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
             "closed conformance applications by owner, declaration, and fingerprint",
         ));
     }
-    for invocation in &module.evidence_package_invocations {
+    for invocation in &module.proof_output_calls {
         if invocation
             .outputs
             .iter()

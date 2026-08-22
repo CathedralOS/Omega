@@ -89,7 +89,7 @@ fn scan_statement(
             }
             Ok(())
         }
-        StatementNode::EvidencePackageDestructure(package) => {
+        StatementNode::ProofOutputBindingStatement(package) => {
             scan_expression(program, package.call, false)
         }
         StatementNode::Expression(expression) => scan_expression(program, *expression, false),

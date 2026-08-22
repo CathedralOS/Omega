@@ -802,7 +802,7 @@ fn conditional_module(vocabulary_marker: VocabularyMarker) -> TerminalModule {
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),
         evidence_contract_lanes: Vec::new(),
-        evidence_package_invocations: Vec::new(),
+        proof_output_calls: Vec::new(),
         closed_conformance_applications: Vec::new(),
         machines: vec![TerminalMachine {
             id: MachineId::new(1).unwrap(),
@@ -954,7 +954,7 @@ fn conditional_shared_tail_module() -> TerminalModule {
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),
         evidence_contract_lanes: Vec::new(),
-        evidence_package_invocations: Vec::new(),
+        proof_output_calls: Vec::new(),
         closed_conformance_applications: Vec::new(),
         machines: vec![TerminalMachine {
             id: MachineId::new(1).unwrap(),
@@ -1080,7 +1080,7 @@ fn nested_constant_conditional_module() -> TerminalModule {
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),
         evidence_contract_lanes: Vec::new(),
-        evidence_package_invocations: Vec::new(),
+        proof_output_calls: Vec::new(),
         closed_conformance_applications: Vec::new(),
         machines: vec![TerminalMachine {
             id: MachineId::new(1).unwrap(),
@@ -1222,7 +1222,7 @@ fn nested_boolean_conditional_module() -> TerminalModule {
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),
         evidence_contract_lanes: Vec::new(),
-        evidence_package_invocations: Vec::new(),
+        proof_output_calls: Vec::new(),
         closed_conformance_applications: Vec::new(),
         machines: vec![TerminalMachine {
             id: MachineId::new(1).unwrap(),

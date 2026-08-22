@@ -91,7 +91,7 @@ pub(super) fn assign_statement_symbols(
                 assign_static_argument_symbols(symbols, machine.symbol, argument, false);
             }
         }
-        psi_symbol_resolved_trees::statement::Statement::EvidencePackageDestructure(binding) => {
+        psi_symbol_resolved_trees::statement::Statement::ProofOutputBindingStatement(binding) => {
             binding.machine_symbol = machine.symbol;
             binding.state_symbol = state_symbol;
             assign_statement_expression_symbols(

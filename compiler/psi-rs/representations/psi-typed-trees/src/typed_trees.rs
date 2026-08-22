@@ -61,7 +61,7 @@ pub struct TypedTrees {
     /// Calls whose proof-output lane is bound immediately. The
     /// group itself is proof metadata; a contextual scalar `value` separately
     /// names its corresponding ordinary runtime local/call statement.
-    pub evidence_package_invocations: Vec<EvidencePackageInvocation>,
+    pub proof_output_calls: Vec<ProofOutputCall>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -77,21 +77,21 @@ pub struct EvidenceForwarding {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct EvidencePackageInvocation {
+pub struct ProofOutputCall {
     pub machine_symbol: psi_symbols::SymbolHandle,
     pub state_symbol: psi_symbols::SymbolHandle,
     pub statement_index: usize,
     /// Pre-erasure coordinate used only to normalize other erased metadata.
     pub source_statement_index: usize,
     /// Exact runtime local statement synthesized for a contextual `value`
-    /// field. Proof-only packages have no runtime statement.
+    /// result. Proof-only calls have no runtime statement.
     pub runtime_call_statement_index: Option<usize>,
-    pub bindings: Box<[EvidencePackageBinding]>,
+    pub bindings: Box<[ProofOutputSelector]>,
     pub call: crate::expression::ExpressionHandle,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct EvidencePackageBinding {
+pub struct ProofOutputSelector {
     pub output_field: crate::name::Identifier,
     pub binding: crate::name::Identifier,
 }
@@ -430,7 +430,7 @@ impl TypedTrees {
             boundary_calling_plans: Vec::new(),
             open_index_normalizations: Vec::new(),
             evidence_forwardings: Vec::new(),
-            evidence_package_invocations: Vec::new(),
+            proof_output_calls: Vec::new(),
         }
     }
 

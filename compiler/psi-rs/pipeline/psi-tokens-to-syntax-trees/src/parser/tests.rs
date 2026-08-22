@@ -4752,7 +4752,7 @@ fn proof_output_binding_separates_type_and_prop_lanes() {
         .statements(state.statements)
         .iter()
         .find_map(|handle| match parsed.statements.statement(*handle) {
-            StatementNode::EvidencePackageDestructure(package) => Some(package),
+            StatementNode::ProofOutputBindingStatement(package) => Some(package),
             _ => None,
         })
         .expect("one internal proof-output binding carrier");

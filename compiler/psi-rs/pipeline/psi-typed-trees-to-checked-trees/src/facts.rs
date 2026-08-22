@@ -67,7 +67,7 @@ pub(crate) fn build_check_facts(
         &validation_facts.float_meaning_projection_invocations,
         &validation_facts.float_meaning_equality_propositions,
     )?;
-    crate::proof::bind_evidence_package_invocation_facts(program, &mut proof)?;
+    crate::proof::bind_proof_output_call_facts(program, &mut proof)?;
     crate::proof::bind_evidence_forwarding_facts(program, &mut proof)?;
     crate::proof::bind_evidence_projection_facts(program, &mut proof)?;
     let invariants = build_invariant_facts(program);

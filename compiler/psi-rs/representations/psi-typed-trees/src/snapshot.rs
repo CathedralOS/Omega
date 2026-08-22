@@ -44,7 +44,7 @@ pub struct TypedTreesSnapshot {
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub evidence_forwardings: Vec<EvidenceForwardingSnapshot>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub evidence_package_invocations: Vec<EvidencePackageInvocationSnapshot>,
+    pub proof_output_calls: Vec<ProofOutputCallSnapshot>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -60,7 +60,7 @@ pub struct EvidenceForwardingSnapshot {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-pub struct EvidencePackageInvocationSnapshot {
+pub struct ProofOutputCallSnapshot {
     pub machine_symbol: u32,
     pub state_symbol: u32,
     pub statement_index: usize,
@@ -189,10 +189,10 @@ impl TypedTreesSnapshot {
                         .map(|symbol| symbol.arena_index()),
                 })
                 .collect(),
-            evidence_package_invocations: program
-                .evidence_package_invocations
+            proof_output_calls: program
+                .proof_output_calls
                 .iter()
-                .map(|package| EvidencePackageInvocationSnapshot {
+                .map(|package| ProofOutputCallSnapshot {
                     machine_symbol: package.machine_symbol.arena_index(),
                     state_symbol: package.state_symbol.arena_index(),
                     statement_index: package.statement_index,
