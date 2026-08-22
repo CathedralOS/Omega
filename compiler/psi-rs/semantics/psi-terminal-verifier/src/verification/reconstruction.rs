@@ -5,17 +5,12 @@ use std::collections::{BTreeMap, BTreeSet};
 use psi_core::{Proposition, PropositionContext, ScalarTerm, ValueId};
 use psi_proof_kernel::{Obligation, ObligationClass};
 use psi_terminal::{OperationKind, TerminalMachine, TerminalModule, Terminator};
-use psi_terminal_semantics::{
-    CanonicalScalarGoal, OperationSemanticError, OperationSemanticTag,
-    goal_free_scalar_leaf_equation, proof_bearing_scalar_leaf_semantics,
-    structural_effect_leaf_observation,
-};
+#[cfg(test)]
+use psi_terminal_semantics::CanonicalScalarGoal;
 
 use crate::{ModuleError, validate_module};
 
-use super::call_composition::compose_call_operation;
 use super::substitution::substitute_proposition_places;
-use super::sufficient_reduction::reduce_proof_bearing_scalar_goal;
 
 mod affine_custody;
 mod affine_selection;
@@ -25,6 +20,7 @@ mod cast_selection;
 mod certificate_entry;
 mod integer_evidence;
 mod integer_selection;
+mod operation_facts;
 mod path_facts;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -200,126 +196,17 @@ pub(super) fn reconstruct_machine_semantics(
             axioms.retain(|fact| path.contains(fact));
         }
         for operation in &block.operations {
-            if let Some(equation) = goal_free_scalar_leaf_equation(operation, &value_types)
-                .map_err(ModuleError::OperationSemanticSchema)?
-            {
-                axioms.push(equation);
-                continue;
-            }
-            if let Some(semantics) = proof_bearing_scalar_leaf_semantics(operation, &value_types)
-                .map_err(ModuleError::OperationSemanticSchema)?
-            {
-                let canonical_certificate = matches!(
-                    semantics.tag(),
-                    OperationSemanticTag::WrappingIntegerDivide
-                        | OperationSemanticTag::WrappingIntegerRemainder
-                        | OperationSemanticTag::SaturatingIntegerDivide
-                        | OperationSemanticTag::SaturatingIntegerRemainder
-                ) || exact_division_has_prior_certificate(
-                    &proposition_context,
-                    semantics.canonical_goal(),
-                    &axioms,
-                    &machine.contract.requires,
-                );
-                let proposition = if canonical_certificate {
-                    semantics
-                        .canonical_goal()
-                        .kernel_proposition()
-                        .map_err(ModuleError::OperationSemanticSchema)?
-                        .ok_or(ModuleError::OperationSemanticSchema(
-                            OperationSemanticError::ProofBearingScalarSchemaMismatch(
-                                semantics.tag(),
-                            ),
-                        ))?
-                } else {
-                    reduce_proof_bearing_scalar_goal(
-                        &semantics,
-                        &axioms,
-                        &machine.contract.requires,
-                        &machine_parameter_values,
-                    )
-                };
-                operation_obligations.push(ReconstructedOperationObligation {
-                    obligation: Obligation {
-                        id: semantics.obligation(),
-                        proposition,
-                        class: ObligationClass::Derivable,
-                    },
-                    semantic_axioms: axioms.clone(),
-                    canonical_certificate,
-                });
-                axioms.push(semantics.result_equation().clone());
-                continue;
-            }
-            if let Some(observation) = structural_effect_leaf_observation(operation)
-                .map_err(ModuleError::OperationSemanticSchema)?
-            {
-                if let Some(equation) = observation.local_equation() {
-                    axioms.push(equation.clone());
-                }
-                continue;
-            }
-            if compose_call_operation(
+            operation_facts::append_operation(
                 module,
                 machine,
                 operation,
                 &machines,
                 &value_types,
+                &proposition_context,
+                &machine_parameter_values,
                 &mut axioms,
                 &mut operation_obligations,
-            )? {
-                continue;
-            }
-            match operation.kind.clone() {
-                OperationKind::IntegerExactCast { .. }
-                | OperationKind::ExactIntegerShiftLeft { .. }
-                | OperationKind::ExactIntegerShiftRight { .. }
-                | OperationKind::ExactIntegerAdd { .. }
-                | OperationKind::ExactIntegerSubtract { .. }
-                | OperationKind::ExactIntegerMultiply { .. }
-                | OperationKind::ExactIntegerDivide { .. }
-                | OperationKind::ExactIntegerRemainder { .. }
-                | OperationKind::WrappingIntegerDivide { .. }
-                | OperationKind::WrappingIntegerRemainder { .. }
-                | OperationKind::SaturatingIntegerDivide { .. }
-                | OperationKind::SaturatingIntegerRemainder { .. } => {
-                    unreachable!(
-                        "proof-bearing scalar rows return before legacy reduction dispatch"
-                    )
-                }
-                OperationKind::IntegerConstant { .. }
-                | OperationKind::BooleanConstant { .. }
-                | OperationKind::BooleanNot { .. }
-                | OperationKind::BooleanEqual { .. }
-                | OperationKind::IntegerEqual { .. }
-                | OperationKind::IntegerLessThan { .. }
-                | OperationKind::IntegerLessOrEqual { .. }
-                | OperationKind::IntegerBitwiseNot { .. }
-                | OperationKind::IntegerWiden { .. }
-                | OperationKind::IntegerBitwiseAnd { .. }
-                | OperationKind::IntegerBitwiseOr { .. }
-                | OperationKind::IntegerBitwiseXor { .. }
-                | OperationKind::WrappingIntegerShiftLeft { .. }
-                | OperationKind::WrappingIntegerShiftRight { .. }
-                | OperationKind::WrappingIntegerAdd { .. }
-                | OperationKind::SaturatingIntegerAdd { .. }
-                | OperationKind::WrappingIntegerSubtract { .. }
-                | OperationKind::SaturatingIntegerSubtract { .. }
-                | OperationKind::WrappingIntegerMultiply { .. }
-                | OperationKind::SaturatingIntegerMultiply { .. } => {
-                    unreachable!("goal-free scalar rows return before specialized reconstruction")
-                }
-                OperationKind::EstablishTrivialAffineLocal { .. }
-                | OperationKind::PortWrite { .. }
-                | OperationKind::BooleanStructuralField { .. } => {
-                    unreachable!("structural/effect rows return before specialized reconstruction")
-                }
-                OperationKind::Call { .. }
-                | OperationKind::CallUnit { .. }
-                | OperationKind::BoundaryCall { .. } => {
-                    unreachable!("call rows return before specialized reconstruction")
-                }
-            }
+            )?;
         }
         match &block.terminator {
             Terminator::Jump {
@@ -495,6 +382,7 @@ fn exact_division_has_closed_prior_certificate(
     certificate_entry::retained(None, goal, semantic_axioms, requirements)
 }
 
+#[cfg(test)]
 fn exact_division_has_prior_certificate(
     context: &PropositionContext,
     goal: &CanonicalScalarGoal,

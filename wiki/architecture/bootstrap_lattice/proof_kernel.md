@@ -523,6 +523,12 @@ successor parameters, emits edge equalities before rewritten facts, and
 deduplicates propagated facts. The reconstruction parent still owns traversal,
 merge intersection, and certificate selection; this extraction grants no proof
 authority and changes no fact order.
+Per-operation obligation reconstruction now lives in a side-local
+`operation_facts` module. It preserves the exact goal-free, proof-bearing,
+structural-effect, then call dispatch order; only the proof-bearing branch may
+choose canonical certificate custody or trusted sufficient reduction before
+recording the pre-result axiom snapshot. CFG traversal and return intersection
+remain in the parent, and an unclaimed validated operation still fails closed.
 One exact prior value equality may also transport a completed affine bound from
 its checked target alias to the canonical goal endpoint. The producer replaces
 that one endpoint, constructs the bounded affine relation directly, and wraps
