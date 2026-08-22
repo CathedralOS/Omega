@@ -23,6 +23,79 @@ mod structural_return_cases;
 mod unit_cleanup;
 
 #[test]
+fn bounded_installation_reach_lowers_source_free_terminal_dependency() {
+    let source = r#"
+        boundary trait MachineControl {}
+        boundary trait PortIo {}
+
+        boundary trait InterruptCompletion {
+            machine complete()
+            reaches <= MachineControl + PortIo;
+        }
+
+        machine pic_complete()
+        satisfies InterruptCompletion::complete
+        reaches PortIo
+        { }
+
+        machine invoke<machine Completion>()
+        where machine Completion satisfies InterruptCompletion::complete;
+        { Completion(); }
+
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("check");
+    let root = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "invoke")
+        .expect("generic invocation machine");
+    let service_ids = ["MachineControl", "PortIo"]
+        .iter()
+        .enumerate()
+        .map(|(index, name)| {
+            (
+                checked
+                    .facts
+                    .service_reaches
+                    .services
+                    .id_for_name(name)
+                    .expect("service exists"),
+                service_id(u64::try_from(index).expect("service index") + 1),
+            )
+        })
+        .collect::<Vec<_>>();
+    let closure = lower_root_service_reach(&checked, root.symbol, &service_ids)
+        .expect("lower root service reach");
+    assert!(closure.concrete.is_empty());
+    let [dependency] = closure.installation_dependencies.as_slice() else {
+        panic!("terminal root must retain one installation reach dependency");
+    };
+    assert!(
+        dependency
+            .requirement_identity
+            .contains("InterruptCompletion::complete")
+    );
+    let bound_names = dependency
+        .upper_bound
+        .iter()
+        .map(|id| {
+            service_ids
+                .iter()
+                .find(|(_, terminal)| terminal == id)
+                .and_then(|(source, _)| checked.facts.service_reaches.services.definition(*source))
+                .expect("bound service is declared")
+                .name
+                .as_str()
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(bound_names, ["MachineControl", "PortIo"]);
+}
+
+#[test]
 fn actual_float_meaning_calls_emit_source_free_module_rows() {
     let source = r#"
         data FloatMeaning { }

@@ -112,6 +112,8 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
     );
     let fuel =
         compose_fixed_fuel(fuel_summary.identity, [&fuel_summary]).expect("fuel composition");
+    let selected_providers = omega_effects::SelectedProviderPlanFacts::from_selection(&[], &[])
+        .expect("empty provider closure");
     let candidate = ExternalRootCandidate {
         identity: root,
         entry,
@@ -121,6 +123,12 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
         entry_claims: Vec::new(),
         acknowledgement_parameter_index: None,
         interrupt_mask_guard_claim: None,
+        service_reach: ResolvedRootServiceReach::from_selected_provider_closure(
+            Vec::new(),
+            Vec::new(),
+            &selected_providers,
+        )
+        .expect("empty root service reach"),
         effects: [root_id(3, RootEffectId::from_normalized_identity)]
             .into_iter()
             .collect(),

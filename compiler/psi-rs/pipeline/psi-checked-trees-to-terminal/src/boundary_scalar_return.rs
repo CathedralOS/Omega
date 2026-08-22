@@ -228,6 +228,7 @@ pub(super) fn lower_boundary_scalar_return_machine(
             structural_types,
             structural_domains,
             services,
+            root_service_reach: Default::default(),
             boundary_machines: vec![boundary_declaration],
             provider_candidates: Vec::new(),
             float_meaning_projections: Vec::new(),

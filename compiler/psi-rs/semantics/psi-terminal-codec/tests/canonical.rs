@@ -11,17 +11,18 @@ use psi_terminal::{
     CompletionReceipt, ContentEntryClaim, ContentIdentityReshuffle, ContentPartitionComposition,
     ContentPlaceSubstitution, ContractClause, CrashCause, EntryClaim, EvidenceInterfaceIdentity,
     FloatMeaningEqualityProposition, FloatMeaningProjection, FloatMeaningProjectionOperation,
-    FloatProjectionInput, FloatProjectionInputId, MachineContract, NominalAffineCleanup, Operation,
-    OperationKind, OperationResult, ProofOnlyValueType, ProofPropositionId, ProofValueDeclaration,
-    ProofValueId, PropositionApplicationIdentity, PropositionBinderArgumentIdentity,
-    PropositionBinderArgumentKind, PropositionBinderDeclaration, PropositionBinderKind,
-    PropositionDeclaration, PropositionEvidence, ServiceDeclaration, StructuralAffineDiscard,
-    StructuralArgument, StructuralCaseDeclaration, StructuralDomainDeclaration,
-    StructuralDomainRequirement, StructuralFieldDeclaration, StructuralFieldType,
-    StructuralMultiplicity, StructuralParameterDeclaration, StructuralPathSegment,
-    StructuralPlaceDeclaration, StructuralResultDeclaration, StructuralTypeDeclaration,
-    StructuralTypeShape, SuccessorEdge, TerminalAffineCleanupAction, TerminalMachine,
-    TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
+    FloatProjectionInput, FloatProjectionInputId, InstallationReachDependency, MachineContract,
+    NominalAffineCleanup, Operation, OperationKind, OperationResult, ProofOnlyValueType,
+    ProofPropositionId, ProofValueDeclaration, ProofValueId, PropositionApplicationIdentity,
+    PropositionBinderArgumentIdentity, PropositionBinderArgumentKind, PropositionBinderDeclaration,
+    PropositionBinderKind, PropositionDeclaration, PropositionEvidence, ServiceDeclaration,
+    StructuralAffineDiscard, StructuralArgument, StructuralCaseDeclaration,
+    StructuralDomainDeclaration, StructuralDomainRequirement, StructuralFieldDeclaration,
+    StructuralFieldType, StructuralMultiplicity, StructuralParameterDeclaration,
+    StructuralPathSegment, StructuralPlaceDeclaration, StructuralResultDeclaration,
+    StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge, TerminalAffineCleanupAction,
+    TerminalMachine, TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration,
+    VocabularyMarker,
 };
 use psi_terminal_codec::{
     CodecError, decode_module, encode_module, semantic_fingerprint, terminal_psi_identity,
@@ -41,11 +42,46 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     assert_eq!(identity.vocabulary_marker, VocabularyMarker::CURRENT);
     assert_eq!(
         identity.program_fingerprint.to_string(),
-        "ac3db947ec2eec1b9d6b3662ad96b8aba4773df9269737886a3b8ce7444e8396"
+        "b22efc7e83eeb3201081ef73258c8e2e4b360827fc378a49f8ccaebde52aa7ad"
     );
     assert_eq!(
         identity.program_fingerprint,
         semantic_fingerprint(&module).unwrap()
+    );
+}
+
+#[test]
+fn installation_reach_dependencies_round_trip_and_require_canonical_identity() {
+    let mut module = fixture();
+    module.services = vec![
+        ServiceDeclaration {
+            id: service_id(1),
+            identity: "MachineControl".into(),
+            parents: Vec::new(),
+        },
+        ServiceDeclaration {
+            id: service_id(2),
+            identity: "PortIo".into(),
+            parents: Vec::new(),
+        },
+    ];
+    module.root_service_reach.concrete = vec![service_id(1)];
+    module.root_service_reach.installation_dependencies = vec![InstallationReachDependency {
+        requirement_identity: "InterruptCompletion::complete".into(),
+        upper_bound: vec![service_id(1), service_id(2)],
+    }];
+
+    let bytes = encode_module(&module).expect("installation reach dependency encodes");
+    assert_eq!(decode_module(&bytes), Ok(module.clone()));
+
+    module.root_service_reach.installation_dependencies[0]
+        .upper_bound
+        .reverse();
+    assert_eq!(
+        encode_module(&module),
+        Err(CodecError::NonCanonicalOrder(
+            "installation reach upper bounds by ServiceId"
+        ))
     );
 }
 
@@ -219,7 +255,7 @@ fn partial_affine_unit_return_round_trips_exact_path_and_leaf_type() {
     let module = partial_affine_fixture();
     let bytes = encode_module(&module).expect("partial affine return should encode");
     assert_eq!(&bytes[8..10], 20_u16.to_le_bytes());
-    assert_eq!(&bytes[10..12], 22_u16.to_le_bytes());
+    assert_eq!(&bytes[10..12], 23_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 }
@@ -229,7 +265,7 @@ fn nominal_affine_unit_return_round_trips_exact_root_type_and_cleanup_machine() 
     let module = nominal_affine_fixture();
     let bytes = encode_module(&module).expect("nominal affine return should encode");
     assert_eq!(&bytes[8..10], 20_u16.to_le_bytes());
-    assert_eq!(&bytes[10..12], 22_u16.to_le_bytes());
+    assert_eq!(&bytes[10..12], 23_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 }
@@ -703,6 +739,7 @@ fn trivial_affine_local_declaration_and_establishment_round_trip_canonically() {
         ],
         structural_domains: Vec::new(),
         services: Vec::new(),
+        root_service_reach: Default::default(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         float_meaning_projections: Vec::new(),
@@ -837,7 +874,7 @@ fn structural_effect_foundation_round_trips_and_has_stable_identity() {
     let module = structural_effect_fixture();
     let bytes = encode_module(&module).expect("structural/effect foundation should encode");
 
-    assert_eq!(&bytes[10..12], 22_u16.to_le_bytes());
+    assert_eq!(&bytes[10..12], 23_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 
@@ -1867,6 +1904,7 @@ fn partial_affine_fixture() -> TerminalModule {
         ],
         structural_domains: Vec::new(),
         services: Vec::new(),
+        root_service_reach: Default::default(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         float_meaning_projections: Vec::new(),
@@ -2083,6 +2121,7 @@ fn nominal_affine_fixture() -> TerminalModule {
         ],
         structural_domains: Vec::new(),
         services: Vec::new(),
+        root_service_reach: Default::default(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         float_meaning_projections: Vec::new(),
@@ -2237,6 +2276,7 @@ fn structural_effect_fixture() -> TerminalModule {
             identity: "example::DeviceIo".to_owned(),
             parents: Vec::new(),
         }],
+        root_service_reach: Default::default(),
         boundary_machines: vec![BoundaryMachineDeclaration {
             id: boundary_machine_id(1),
             identity: "example::Occurrence::settle".to_owned(),
@@ -2473,6 +2513,7 @@ fn unit_fixture() -> TerminalModule {
         structural_types: Vec::new(),
         structural_domains: Vec::new(),
         services: Vec::new(),
+        root_service_reach: Default::default(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         float_meaning_projections: Vec::new(),
@@ -2529,6 +2570,7 @@ fn fixture() -> TerminalModule {
         structural_types: Vec::new(),
         structural_domains: Vec::new(),
         services: Vec::new(),
+        root_service_reach: Default::default(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         float_meaning_projections: Vec::new(),
@@ -2670,6 +2712,7 @@ fn content_conservation_fixture(vocabulary_marker: VocabularyMarker) -> Terminal
         structural_types: Vec::new(),
         structural_domains: Vec::new(),
         services: Vec::new(),
+        root_service_reach: Default::default(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         float_meaning_projections: Vec::new(),
@@ -2889,6 +2932,7 @@ fn call_fixture() -> TerminalModule {
         structural_types: Vec::new(),
         structural_domains: Vec::new(),
         services: Vec::new(),
+        root_service_reach: Default::default(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         float_meaning_projections: Vec::new(),

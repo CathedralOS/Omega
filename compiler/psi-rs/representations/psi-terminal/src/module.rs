@@ -26,7 +26,7 @@ impl VocabularyMarker {
     }
 
     pub const fn get(self) -> u16 {
-        22
+        23
     }
 }
 
@@ -88,6 +88,10 @@ pub struct TerminalModule {
     pub structural_domains: Vec<StructuralDomainDeclaration>,
     /// Boundary-service declarations and their normalized parent closure.
     pub services: Vec<ServiceDeclaration>,
+    /// Source-handle-free service-reach closure of the selected entry.
+    /// Concrete reach remains distinct from bounded installation dependencies;
+    /// final installation substitutes one selected provider row per dependency.
+    pub root_service_reach: TerminalRootServiceReach,
     /// Bodyless target-neutral Unit machines callable from terminal Psi.
     pub boundary_machines: Vec<BoundaryMachineDeclaration>,
     /// Every checked, target-neutral provider candidate eligible to realize a
@@ -120,6 +124,18 @@ pub struct TerminalModule {
     /// machine whose specialization selected the application.
     pub closed_conformance_applications: Vec<ClosedConformanceApplication>,
     pub machines: Vec<TerminalMachine>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct TerminalRootServiceReach {
+    pub concrete: Vec<ServiceId>,
+    pub installation_dependencies: Vec<InstallationReachDependency>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct InstallationReachDependency {
+    pub requirement_identity: String,
+    pub upper_bound: Vec<ServiceId>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]

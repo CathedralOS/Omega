@@ -175,6 +175,39 @@ pub(super) fn validate_structural_foundation(module: &TerminalModule) -> Result<
     }
     validate_service_graph(&services)?;
 
+    validate_service_ceiling(
+        &module.root_service_reach.concrete,
+        &services,
+        ServiceCeilingOwner::RootConcrete,
+    )?;
+
+    let mut installation_requirements = BTreeSet::new();
+    for (index, dependency) in module
+        .root_service_reach
+        .installation_dependencies
+        .iter()
+        .enumerate()
+    {
+        if dependency.requirement_identity.is_empty()
+            || !installation_requirements.insert(dependency.requirement_identity.as_str())
+        {
+            return Err(ModuleError::InvalidInstallationReachDependency(index));
+        }
+        validate_service_ceiling(
+            &dependency.upper_bound,
+            &services,
+            ServiceCeilingOwner::InstallationReach(index),
+        )?;
+    }
+    if module
+        .root_service_reach
+        .installation_dependencies
+        .windows(2)
+        .any(|pair| pair[0].requirement_identity >= pair[1].requirement_identity)
+    {
+        return Err(ModuleError::NonCanonicalInstallationReachDependencies);
+    }
+
     let mut boundary_ids = BTreeSet::new();
     let mut boundary_names = BTreeSet::new();
     for boundary in &module.boundary_machines {
@@ -633,6 +666,8 @@ pub enum StructuralSignatureOwner {
 pub enum ServiceCeilingOwner {
     Machine(MachineId),
     Boundary(BoundaryMachineId),
+    RootConcrete,
+    InstallationReach(usize),
 }
 
 trait AttachmentIdentity: Copy {

@@ -11,9 +11,9 @@ use psi_terminal::{
     EvidenceContractLaneKind, EvidencePackageInvocation, EvidencePackageOutputBinding,
     EvidencePackageRuntimeCall, EvidenceTermDeclaration, FloatMeaningEqualityProposition,
     FloatMeaningProjection, FloatMeaningProjectionOperation, FloatProjectionInput,
-    FloatProjectionInputId, ProofOnlyValueType, ProofPropositionId, ProofValueDeclaration,
-    ProofValueId, ServiceDeclaration, StructuralDomainDeclaration, TerminalModule,
-    VocabularyMarker,
+    FloatProjectionInputId, InstallationReachDependency, ProofOnlyValueType, ProofPropositionId,
+    ProofValueDeclaration, ProofValueId, ServiceDeclaration, StructuralDomainDeclaration,
+    TerminalModule, TerminalRootServiceReach, VocabularyMarker,
 };
 
 use super::machine_wire::{decode_machine, encode_machine};
@@ -51,6 +51,30 @@ pub(super) fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError>
         writer.len("service parents", declaration.parents.len())?;
         for parent in &declaration.parents {
             writer.id(*parent);
+        }
+    }
+    writer.len(
+        "concrete root service reach",
+        module.root_service_reach.concrete.len(),
+    )?;
+    for service in &module.root_service_reach.concrete {
+        writer.id(*service);
+    }
+    writer.len(
+        "installation reach dependencies",
+        module.root_service_reach.installation_dependencies.len(),
+    )?;
+    for dependency in &module.root_service_reach.installation_dependencies {
+        writer.string(
+            "installation reach requirement identity",
+            &dependency.requirement_identity,
+        )?;
+        writer.len(
+            "installation reach upper bound",
+            dependency.upper_bound.len(),
+        )?;
+        for service in &dependency.upper_bound {
+            writer.id(*service);
         }
     }
     writer.len("boundary machines", module.boundary_machines.len())?;
@@ -235,6 +259,13 @@ pub(super) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
             parents: decode_ids(reader, "ServiceId")?,
         })
     })?;
+    let concrete_root_service_reach = decode_ids(reader, "ServiceId")?;
+    let installation_reach_dependencies = decode_counted(reader, |reader| {
+        Ok(InstallationReachDependency {
+            requirement_identity: reader.string("installation reach requirement identity")?,
+            upper_bound: decode_ids(reader, "ServiceId")?,
+        })
+    })?;
     let boundary_machines = decode_counted(reader, decode_boundary_machine)?;
     let provider_candidates = decode_counted(reader, decode_provider_candidate)?;
     let float_meaning_projections = decode_counted(reader, |reader| {
@@ -391,6 +422,10 @@ pub(super) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
         structural_types,
         structural_domains,
         services,
+        root_service_reach: TerminalRootServiceReach {
+            concrete: concrete_root_service_reach,
+            installation_dependencies: installation_reach_dependencies,
+        },
         boundary_machines,
         provider_candidates,
         float_meaning_projections,

@@ -6,9 +6,10 @@ use psi_proof_kernel::{
     AdmissionProfile, CertificateEnvelope, EvidenceRoute, ProofNode, ProofRule, ProofSystemMarker,
 };
 use psi_terminal::{
-    Block, ContractClause, CrashCause, CrashRouteBucket, CrashRouteGuard, MachineContract,
-    Operation, OperationKind, ServiceDeclaration, TerminalMachine, TerminalMachineResult,
-    TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
+    Block, ContractClause, CrashCause, CrashRouteBucket, CrashRouteGuard,
+    InstallationReachDependency, MachineContract, Operation, OperationKind, ServiceDeclaration,
+    TerminalMachine, TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration,
+    VocabularyMarker,
 };
 use psi_terminal_verifier::{
     ModuleError, ObligationEvidence, ProofBundle, reconstruct_operation_obligations,
@@ -203,6 +204,30 @@ fn scalar_calls_publish_every_reachable_service() {
     validate_module(&module).expect("the caller publishes its scalar callee's service reach");
 }
 
+#[test]
+fn installation_reach_dependencies_are_exact_closed_service_rows() {
+    let mut module = call_module();
+    module.services.push(ServiceDeclaration {
+        id: service_id(1),
+        identity: "PortIo".into(),
+        parents: Vec::new(),
+    });
+    module.root_service_reach.concrete = vec![service_id(1)];
+    module.root_service_reach.installation_dependencies = vec![InstallationReachDependency {
+        requirement_identity: "InterruptCompletion::complete".into(),
+        upper_bound: vec![service_id(1)],
+    }];
+    validate_module(&module).expect("canonical installation reach dependency");
+
+    module.root_service_reach.installation_dependencies[0]
+        .requirement_identity
+        .clear();
+    assert_eq!(
+        validate_module(&module).unwrap_err(),
+        ModuleError::InvalidInstallationReachDependency(0)
+    );
+}
+
 fn call_module() -> TerminalModule {
     let caller_constant = value_id(1);
     let call_result = value_id(2);
@@ -215,6 +240,7 @@ fn call_module() -> TerminalModule {
         structural_types: Vec::new(),
         structural_domains: Vec::new(),
         services: Vec::new(),
+        root_service_reach: Default::default(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         float_meaning_projections: Vec::new(),

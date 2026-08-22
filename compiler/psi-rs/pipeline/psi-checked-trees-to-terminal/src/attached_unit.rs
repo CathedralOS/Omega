@@ -20,6 +20,7 @@ pub(super) use call_closure::{
 };
 pub(super) use catalog::{
     checked_unit_target_reach_matches, collect_contract_services, collect_service_summary,
+    lower_root_service_reach,
 };
 use catalog::{
     lower_provider_candidate_service_ceiling, lower_unit_services, lower_unit_structural_domains,
@@ -139,6 +140,7 @@ pub(super) fn lower_attached_unit_closure_including(
         lower_unit_structural_domains(checked, &closure, &boundaries, &type_ids)?;
     let (services, service_ids) =
         lower_unit_services(checked, &closure, &boundaries, &provider_candidate_plans)?;
+    let root_service_reach = lower_root_service_reach(checked, entry, &service_ids)?;
 
     let mut next_place = 1_u64;
     let mut lowered_boundary_parameters = Vec::with_capacity(boundaries.len());
@@ -799,6 +801,7 @@ pub(super) fn lower_attached_unit_closure_including(
             structural_types,
             structural_domains,
             services,
+            root_service_reach,
             boundary_machines,
             provider_candidates,
             float_meaning_projections: Vec::new(),

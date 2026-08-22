@@ -169,6 +169,8 @@ pub enum ModuleError {
         service: ServiceId,
         ancestor: ServiceId,
     },
+    InvalidInstallationReachDependency(usize),
+    NonCanonicalInstallationReachDependencies,
     DuplicateBoundaryMachine(BoundaryMachineId),
     InvalidBoundaryMachineIdentity(BoundaryMachineId),
     UnknownMachineAttachment {

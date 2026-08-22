@@ -116,6 +116,32 @@ pub(super) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
             "service parents by ServiceId",
         ));
     }
+    if !strictly_increasing(module.root_service_reach.concrete.iter().copied()) {
+        return Err(CodecError::NonCanonicalOrder(
+            "concrete root service reach by ServiceId",
+        ));
+    }
+    if !strictly_increasing(
+        module
+            .root_service_reach
+            .installation_dependencies
+            .iter()
+            .map(|dependency| dependency.requirement_identity.as_str()),
+    ) {
+        return Err(CodecError::NonCanonicalOrder(
+            "installation reach dependencies by requirement identity",
+        ));
+    }
+    if module
+        .root_service_reach
+        .installation_dependencies
+        .iter()
+        .any(|dependency| !strictly_increasing(dependency.upper_bound.iter().copied()))
+    {
+        return Err(CodecError::NonCanonicalOrder(
+            "installation reach upper bounds by ServiceId",
+        ));
+    }
     if module
         .float_meaning_equalities
         .iter()

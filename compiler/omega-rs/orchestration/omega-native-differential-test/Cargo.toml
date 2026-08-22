@@ -49,6 +49,7 @@ omega-terminal-image-emission = { path = "../../backend/images/omega-terminal-im
 omega-terminal-psi-to-abstract-operations = { path = "../../pipeline/omega-terminal-psi-to-abstract-operations" }
 
 [dev-dependencies]
+omega-effects = { path = "../../representations/omega-effects" }
 psi-source-files-to-tokens = { path = "../../../psi-rs/pipeline/psi-source-files-to-tokens" }
 psi-symbol-resolved-trees-to-typed-trees = { path = "../../../psi-rs/pipeline/psi-symbol-resolved-trees-to-typed-trees" }
 psi-syntax-trees-to-symbol-resolved-trees = { path = "../../../psi-rs/pipeline/psi-syntax-trees-to-symbol-resolved-trees" }
