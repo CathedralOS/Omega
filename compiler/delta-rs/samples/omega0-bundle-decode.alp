@@ -1,0 +1,215 @@
+// Streaming decoder canary for OMEGA0_BUNDLE.md version 1.
+// Exit 0..250 is the sum of every label/content byte modulo 251.
+// Exit 251 is malformed/noncanonical input; 252 is checked local exhaustion.
+// Helpers stay below the Rust-free elaborator's current per-machine state cap.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+    machine read_byte() -> i32;
+}
+
+data Main {
+    console: Console;
+    status: i32; decoded: i32; c: i32; char_ok: i32;
+    source_count: i32; entry: i32;
+    label_len: i32; content_len: i32;
+    prev_len: i32; i: i32;
+    segment_len: i32; segment_first: i32; segment_second: i32;
+    checksum: i32;
+    labels: [u8; 128]; // previous label at 0, current label at 64
+}
+
+machine Main::read_u32(&mut self) {
+    self.decoded = 0 - 1;
+    self.c = read_byte();
+    transition self.c < 0 { true -> fail() false -> byte0() }
+    state byte0() { self.decoded = self.c; self.c = read_byte(); transition self.c < 0 { true -> fail() false -> byte1() } }
+    state byte1() { self.decoded = self.decoded + self.c * 256; self.c = read_byte(); transition self.c < 0 { true -> fail() false -> byte2() } }
+    state byte2() { self.decoded = self.decoded + self.c * 65536; self.c = read_byte(); transition self.c < 0 { true -> fail() false -> range() } }
+    state range() { transition self.c <= 127 { true -> byte3() false -> fail() } }
+    state fail() { self.status = 251; }
+    state byte3() { self.decoded = self.decoded + self.c * 16777216; }
+}
+
+machine Main::check_magic(&mut self) {
+    self.c = read_byte();
+    transition self.c == 79 { true -> magic1() false -> bad() }
+    state magic1() { self.c = read_byte(); transition self.c == 77 { true -> magic2() false -> bad() } }
+    state magic2() { self.c = read_byte(); transition self.c == 71 { true -> magic3() false -> bad() } }
+    state magic3() { self.c = read_byte(); transition self.c == 48 { true -> magic4() false -> bad() } }
+    state magic4() { self.c = read_byte(); transition self.c == 66 { true -> magic5() false -> bad() } }
+    state magic5() { self.c = read_byte(); transition self.c == 78 { true -> magic6() false -> bad() } }
+    state magic6() { self.c = read_byte(); transition self.c == 68 { true -> magic7() false -> bad() } }
+    state magic7() { self.c = read_byte(); transition self.c == 76 { true -> good() false -> bad() } }
+    state bad() { self.status = 251; }
+    state good() { }
+}
+
+machine Main::read_header(&mut self) {
+    self.check_magic();
+    transition self.status == 0 { true -> version() false -> done() }
+    state version() { self.read_u32(); transition self.status == 0 { true -> version_value() false -> done() } }
+    state version_value() { transition self.decoded == 1 { true -> count() false -> bad() } }
+    state count() { self.read_u32(); transition self.status == 0 { true -> count_value() false -> done() } }
+    state count_value() {
+        self.source_count = self.decoded;
+        transition self.source_count > 0 { true -> done() false -> bad() }
+    }
+    state bad() { self.status = 251; }
+    state done() { }
+}
+
+machine Main::classify_label_byte(&mut self) {
+    self.char_ok = 0;
+    transition self.c >= 65 { true -> upper1() false -> digit0() }
+    state upper1() { transition self.c <= 90 { true -> yes() false -> lower0() } }
+    state lower0() { transition self.c >= 97 { true -> lower1() false -> digit0() } }
+    state lower1() { transition self.c <= 122 { true -> yes() false -> digit0() } }
+    state digit0() { transition self.c >= 48 { true -> digit1() false -> punct0() } }
+    state digit1() { transition self.c <= 57 { true -> yes() false -> punct0() } }
+    state punct0() { transition self.c == 46 { true -> yes() false -> punct1() } }
+    state punct1() { transition self.c == 95 { true -> yes() false -> punct2() } }
+    state punct2() { transition self.c == 45 { true -> yes() false -> slash() } }
+    state slash() { transition self.c == 47 { true -> yes() false -> no() } }
+    state yes() { self.char_ok = 1; }
+    state no() { }
+}
+
+machine Main::finish_segment(&mut self) {
+    transition self.segment_len > 0 { true -> dot1() false -> bad() }
+    state dot1() { transition self.segment_len == 1 { true -> single() false -> dot2() } }
+    state single() { transition self.segment_first == 46 { true -> bad() false -> good() } }
+    state dot2() { transition self.segment_len == 2 { true -> double() false -> good() } }
+    state double() { transition self.segment_first == 46 { true -> double2() false -> good() } }
+    state double2() { transition self.segment_second == 46 { true -> bad() false -> good() } }
+    state bad() { self.status = 251; }
+    state good() { }
+}
+
+machine Main::read_label(&mut self) {
+    self.i = 0;
+    self.segment_len = 0;
+    transition 0 { _ -> loop() }
+    state loop() { transition self.i < self.label_len { true -> read() false -> finish() } }
+    state read() { self.c = read_byte(); transition self.c < 0 { true -> bad() false -> classify() } }
+    state classify() {
+        self.classify_label_byte();
+        transition self.char_ok == 1 { true -> slash_check() false -> bad() }
+    }
+    state slash_check() { transition self.c == 47 { true -> slash() false -> character() } }
+    state slash() {
+        self.finish_segment();
+        transition self.status == 0 { true -> store_slash() false -> done() }
+    }
+    state store_slash() {
+        self.labels[64 + self.i] = self.c;
+        self.checksum = (self.checksum + self.c) % 251;
+        self.i = self.i + 1;
+        self.segment_len = 0;
+        transition 0 { _ -> loop() }
+    }
+    state character() { transition self.segment_len == 0 { true -> first() false -> second_check() } }
+    state first() { self.segment_first = self.c; transition 0 { _ -> store() } }
+    state second_check() { transition self.segment_len == 1 { true -> second() false -> store() } }
+    state second() { self.segment_second = self.c; transition 0 { _ -> store() } }
+    state store() {
+        self.labels[64 + self.i] = self.c;
+        self.checksum = (self.checksum + self.c) % 251;
+        self.i = self.i + 1;
+        self.segment_len = self.segment_len + 1;
+        transition 0 { _ -> loop() }
+    }
+    state finish() { self.finish_segment(); transition 0 { _ -> done() } }
+    state bad() { self.status = 251; transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::check_order(&mut self) {
+    transition self.entry == 0 { true -> good() false -> setup() }
+    state setup() { self.i = 0; transition 0 { _ -> loop() } }
+    state loop() { transition self.i < self.prev_len { true -> current_bound() false -> prev_end() } }
+    state current_bound() { transition self.i < self.label_len { true -> compare() false -> bad() } }
+    state compare() { transition self.labels[64 + self.i] == self.labels[self.i] { true -> advance() false -> greater() } }
+    state greater() { transition self.labels[64 + self.i] > self.labels[self.i] { true -> good() false -> bad() } }
+    state advance() { self.i = self.i + 1; transition 0 { _ -> loop() } }
+    state prev_end() { transition self.label_len > self.prev_len { true -> good() false -> bad() } }
+    state bad() { self.status = 251; }
+    state good() { }
+}
+
+machine Main::read_content(&mut self) {
+    self.i = 0;
+    transition 0 { _ -> loop() }
+    state loop() { transition self.i < self.content_len { true -> read() false -> done() } }
+    state read() { self.c = read_byte(); transition self.c < 0 { true -> bad() false -> add() } }
+    state add() {
+        self.checksum = (self.checksum + self.c) % 251;
+        self.i = self.i + 1;
+        transition 0 { _ -> loop() }
+    }
+    state bad() { self.status = 251; }
+    state done() { }
+}
+
+machine Main::copy_label(&mut self) {
+    self.i = 0;
+    transition 0 { _ -> loop() }
+    state loop() { transition self.i < self.label_len { true -> copy() false -> done() } }
+    state copy() {
+        self.labels[self.i] = self.labels[64 + self.i];
+        self.i = self.i + 1;
+        transition 0 { _ -> loop() }
+    }
+    state done() { }
+}
+
+machine Main::read_entry(&mut self) {
+    self.read_u32();
+    transition self.status == 0 { true -> label_value() false -> done() }
+    state label_value() {
+        self.label_len = self.decoded;
+        transition self.label_len > 0 { true -> capacity() false -> bad() }
+    }
+    state capacity() { transition self.label_len <= 64 { true -> content() false -> exhausted() } }
+    state content() { self.read_u32(); transition self.status == 0 { true -> content_value() false -> done() } }
+    state content_value() {
+        self.content_len = self.decoded;
+        self.read_label();
+        transition self.status == 0 { true -> label_done() false -> done() }
+    }
+    state label_done() {
+        self.check_order();
+        transition self.status == 0 { true -> order_done() false -> done() }
+    }
+    state order_done() {
+        self.read_content();
+        transition self.status == 0 { true -> content_done() false -> done() }
+    }
+    state content_done() { self.copy_label(); transition 0 { _ -> done() } }
+    state bad() { self.status = 251; transition 0 { _ -> done() } }
+    state exhausted() { self.status = 252; transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::main(&mut self) {
+    self.status = 0;
+    self.checksum = 0;
+    self.entry = 0;
+    self.prev_len = 0;
+    self.read_header();
+    transition self.status == 0 { true -> entries() false -> reject() }
+    state entries() { transition self.entry < self.source_count { true -> read_entry() false -> exact_eof() } }
+    state read_entry() {
+        self.read_entry();
+        transition self.status == 0 { true -> next_entry() false -> reject() }
+    }
+    state next_entry() {
+        self.prev_len = self.label_len;
+        self.entry = self.entry + 1;
+        transition 0 { _ -> entries() }
+    }
+    state exact_eof() { self.c = read_byte(); transition self.c < 0 { true -> accepted() false -> malformed() } }
+    state accepted() { self.console.exit_process(self.checksum); }
+    state reject() { transition self.status == 252 { true -> exhausted() false -> malformed() } }
+    state malformed() { self.console.exit_process(251); }
+    state exhausted() { self.console.exit_process(252); }
+}

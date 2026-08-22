@@ -160,7 +160,9 @@ story.
   defines the canonical, length-delimited version-1 multi-source artifact.
   Its gate covers deterministic ordering, exact byte preservation, canonical
   paths, and malformed/truncated input rejection. The packer is untrusted; the
-  future Delta decoder must implement the same acceptance contract.
+  Delta streaming decoder canary implements the same acceptance contract with
+  explicit local-storage exhaustion and is gated natively and through the
+  Rust-free meaning route.
 - [ ] **Close the Delta-written artifact path.** Either emit the canonical
   object/image format directly or add a small lattice-built assembler/linker
   path. `clang`/`codesign` may remain development conveniences but cannot be an

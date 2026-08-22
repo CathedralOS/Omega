@@ -88,6 +88,13 @@ tokens_test() {
   if [ "$got" = "$4" ]; then PASS=$((PASS+1)); else
     FAIL=$((FAIL+1)); echo "  FAIL $1 : [$3] -> [$got], expected [$4]"; fi
 }
+# bundle_result INPUT_FILE EXPECTED_EXIT — compile the D0 bundle decoder once,
+# then feed one binary fixture without passing NUL bytes through shell variables.
+bundle_result() {
+  set +e; "$T/out" < "$1" > /dev/null 2>&1; got=$?; set -e
+  if [ "$got" = "$2" ]; then PASS=$((PASS+1)); else
+    FAIL=$((FAIL+1)); echo "  FAIL omega0 bundle $3 : exit $got, expected $2"; fi
+}
 # compiler NAME SOURCE.alp EXPR EXPECTED_EXIT  — a Delta-written COMPILER:
 # build it, run it on EXPR to emit assembly, assemble+sign+run, check the exit code.
 compiler_test() {
@@ -131,6 +138,25 @@ selfhost_test() {
       FAIL=$((FAIL+1)); echo "  FAIL $shn : in [$inp] -> lm [$b](exit $bx), ref [$a](exit $ax)"; fi
   done
 }
+# selfhost_file_test NAME SOURCE INPUT_FILE — binary-input counterpart to
+# selfhost_test, used where the fixture contains NUL framing bytes.
+selfhost_file_test() {
+  shn=$1; shs=$2; input_file=$3
+  DELTA_ARCH=aarch64 "$BIN" "$shs" "$T/shref" >/dev/null 2>"$T/err" && codesign -f -s - "$T/shref" 2>/dev/null || {
+    FAIL=$((FAIL+1)); echo "  FAIL $shn : reference build"; return; }
+  "$T/lmx" < "$shs" > "$T/shg.s" 2>/dev/null
+  clang -arch arm64 -o "$T/shg" "$T/shg.s" 2>"$T/cerr" && codesign -f -s - "$T/shg" 2>/dev/null || {
+    FAIL=$((FAIL+1)); echo "  FAIL $shn : lowermachine-emitted asm did not assemble:"; sed 's/^/    /' "$T/cerr"; return; }
+  set +e
+  "$T/shref" < "$input_file" > "$T/ref.out" 2>/dev/null; ref_exit=$?
+  "$T/shg" < "$input_file" > "$T/self.out" 2>/dev/null; self_exit=$?
+  set -e
+  if [ "$ref_exit" = "$self_exit" ] && cmp -s "$T/ref.out" "$T/self.out"; then
+    PASS=$((PASS+1))
+  else
+    FAIL=$((FAIL+1)); echo "  FAIL $shn : self=$self_exit reference=$ref_exit"
+  fi
+}
 
 # Slice 1: exit_process(<const>) -> the constant is the process exit status.
 run "exit7 (exit_process(7))" samples/exit7.alp 7
@@ -161,6 +187,23 @@ run "data (self fields, sum 1..5)" samples/data.alp 15
 # Slice 7b: array fields + self/method calls + bounds-checked indexing.
 run "methods (stack in self, 7*10+5)" samples/methods.alp 75
 run "bootstrap storage (aligned bump allocation + reset)" samples/bootstrap-storage.alp 42
+if build "omega0 canonical bundle decoder" samples/omega0-bundle-decode.alp; then
+  # One canonical entry: label `main.omg`, content `abc`. Its byte checksum mod
+  # 251 is 80. The other fixtures exercise framing, paths, ordering, and the
+  # decoder's explicit local resource ceiling.
+  printf 'OMG0BNDL\001\000\000\000\001\000\000\000\010\000\000\000\003\000\000\000main.omgabc' > "$T/bundle-ok"
+  cp "$T/bundle-ok" "$T/bundle-trailing"; printf x >> "$T/bundle-trailing"
+  printf 'OMG0BNDL\001\000\000\000\001\000\000\000\010\000\000\000\003\000\000\000main.omgab' > "$T/bundle-short"
+  printf 'OMG0BNDL\001\000\000\000\001\000\000\000\101\000\000\000\000\000\000\000' > "$T/bundle-exhausted"
+  printf 'OMG0BNDL\001\000\000\000\002\000\000\000\005\000\000\000\000\000\000\000z.omg\005\000\000\000\000\000\000\000a.omg' > "$T/bundle-order"
+  printf 'OMG0BNDL\001\000\000\000\001\000\000\000\004\000\000\000\000\000\000\000../x' > "$T/bundle-path"
+  bundle_result "$T/bundle-ok" 80 "canonical input"
+  bundle_result "$T/bundle-trailing" 251 "trailing byte"
+  bundle_result "$T/bundle-short" 251 "truncated content"
+  bundle_result "$T/bundle-exhausted" 252 "checked label-storage exhaustion"
+  bundle_result "$T/bundle-order" 251 "noncanonical label order"
+  bundle_result "$T/bundle-path" 251 "unsafe label"
+fi
 cat > "$T/ib.alp" <<'EOF'
 boundary trait Console { machine exit_process(return_code: i32); }
 data Main { console: Console; arr: [i32; 4]; }
@@ -491,6 +534,9 @@ if [ "$source_overflow" = 2 ]; then
 else
   FAIL=$((FAIL+1)); echo "  FAIL lowermachine source overflow: exit $source_overflow, expected 2"
 fi
+
+selfhost_file_test "self-hosting: lowermachine compiles the Omega0 bundle decoder" \
+  samples/omega0-bundle-decode.alp "$T/bundle-ok"
 
 # SECOND-ORDER self-hosting: the byte-identical lowermachine ($T/lmx) compiles rpn.alp -- another
 # real ~200-line Delta program (a shunting-yard compiler) -- and the resulting arm64 binary
