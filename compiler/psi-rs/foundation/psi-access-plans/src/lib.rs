@@ -3527,6 +3527,22 @@ impl<'view, 'extent> ExternalPrimitiveAccessRequest<'view, 'extent> {
         self.request.effect_footprint
     }
 
+    /// Independently replay the complete placed authority, admitted supply
+    /// substitution, and exact External operation before an outward lowering
+    /// consumer accepts this request. Rejection only borrows the carrier, so
+    /// no external event occurs and the same request remains available for
+    /// corrected retry.
+    pub fn validate_for_lowering(&self) -> Result<(), AccessPlanDiagnostic> {
+        let operation = validate_external_primitive_request(&self.request)?;
+        if operation != self.operation {
+            return Err(AccessPlanDiagnostic(
+                "External primitive lowering operation differs from its retained specialization"
+                    .into(),
+            ));
+        }
+        Ok(())
+    }
+
     pub fn into_primitive_request(self) -> PrimitiveAccessRequest<'view, 'extent> {
         self.request
     }
@@ -3560,77 +3576,59 @@ impl<'view, 'extent> PrimitiveAccessRequest<'view, 'extent> {
         ExternalPrimitiveAccessRequest<'view, 'extent>,
         ExternalPrimitiveAccessRejection<'view, 'extent>,
     > {
-        let operation = if self.observation != ObservationModel::External {
-            return Err(ExternalPrimitiveAccessRejection {
-                request: self,
-                diagnostic: AccessPlanDiagnostic(
-                    "External lowering requires an External observation".into(),
-                ),
-            });
-        } else {
-            match self.operation {
-                AccessOperation::Read => ExternalPrimitiveOperation::Read,
-                AccessOperation::Take => ExternalPrimitiveOperation::Take,
-                AccessOperation::Write => ExternalPrimitiveOperation::Write,
-                AccessOperation::CompoundMutation | AccessOperation::Atomic(_) => {
-                    return Err(ExternalPrimitiveAccessRejection {
-                        request: self,
-                        diagnostic: AccessPlanDiagnostic(
-                            "External lowering accepts only one sealed Read, Take, or Write event"
-                                .into(),
-                        ),
-                    });
-                }
+        let operation = match validate_external_primitive_request(&self) {
+            Ok(operation) => operation,
+            Err(diagnostic) => {
+                return Err(ExternalPrimitiveAccessRejection {
+                    request: self,
+                    diagnostic,
+                });
             }
         };
-        let supply_is_compatible = match self.effective_supply.kind() {
-            EffectiveSupplyKind::External => true,
-            EffectiveSupplyKind::Stable => {
-                matches!(
-                    operation,
-                    ExternalPrimitiveOperation::Read | ExternalPrimitiveOperation::Write
-                )
-            }
-            EffectiveSupplyKind::Atomic => false,
-        };
-        if !supply_is_compatible {
-            return Err(ExternalPrimitiveAccessRejection {
-                request: self,
-                diagnostic: AccessPlanDiagnostic(
-                    "External lowering requires admitted External supply, or conservative Stable supply for Read or Write"
-                        .into(),
-                ),
-            });
-        }
-        if let Err(diagnostic) = self.validate_effective_supply_binding() {
-            return Err(ExternalPrimitiveAccessRejection {
-                request: self,
-                diagnostic,
-            });
-        }
-        if let Err(diagnostic) = self.validate_descriptor_binding() {
-            return Err(ExternalPrimitiveAccessRejection {
-                request: self,
-                diagnostic,
-            });
-        }
-        if let Err(diagnostic) = self.validate_authority_binding() {
-            return Err(ExternalPrimitiveAccessRejection {
-                request: self,
-                diagnostic,
-            });
-        }
-        if let Err(diagnostic) = self.validate_authorization_binding() {
-            return Err(ExternalPrimitiveAccessRejection {
-                request: self,
-                diagnostic,
-            });
-        }
         Ok(ExternalPrimitiveAccessRequest {
             request: self,
             operation,
         })
     }
+}
+
+fn validate_external_primitive_request(
+    request: &PrimitiveAccessRequest<'_, '_>,
+) -> Result<ExternalPrimitiveOperation, AccessPlanDiagnostic> {
+    if request.observation != ObservationModel::External {
+        return Err(AccessPlanDiagnostic(
+            "External lowering requires an External observation".into(),
+        ));
+    }
+    let operation = match request.operation {
+        AccessOperation::Read => ExternalPrimitiveOperation::Read,
+        AccessOperation::Take => ExternalPrimitiveOperation::Take,
+        AccessOperation::Write => ExternalPrimitiveOperation::Write,
+        AccessOperation::CompoundMutation | AccessOperation::Atomic(_) => {
+            return Err(AccessPlanDiagnostic(
+                "External lowering accepts only one sealed Read, Take, or Write event".into(),
+            ));
+        }
+    };
+    let supply_is_compatible = match request.effective_supply.kind() {
+        EffectiveSupplyKind::External => true,
+        EffectiveSupplyKind::Stable => matches!(
+            operation,
+            ExternalPrimitiveOperation::Read | ExternalPrimitiveOperation::Write
+        ),
+        EffectiveSupplyKind::Atomic => false,
+    };
+    if !supply_is_compatible {
+        return Err(AccessPlanDiagnostic(
+            "External lowering requires admitted External supply, or conservative Stable supply for Read or Write"
+                .into(),
+        ));
+    }
+    request.validate_effective_supply_binding()?;
+    request.validate_descriptor_binding()?;
+    request.validate_authority_binding()?;
+    request.validate_authorization_binding()?;
+    Ok(operation)
 }
 
 /// Atomic operation and proof-static ordering accepted by primitive lowering.
@@ -7281,6 +7279,49 @@ mod tests {
         assert_eq!(take_request.operation(), AccessOperation::Take);
         assert_eq!(take_request.current_borrow(), BorrowPolarity::Exclusive);
         assert_eq!(take_request.source_loan(), BorrowPolarity::Exclusive);
+    }
+
+    #[test]
+    fn external_primitive_lowering_replays_authority_without_observing_storage() {
+        let plan = uart_placement_plan();
+        let extent = uart_extent_with_lineage(0xb080, 12, 232);
+        let loan = extent.loan(0, 12).expect("shared UART loan");
+        let admission =
+            admit_uart(233, loan, &plan, &uart_reach()).expect("External UART admission");
+        let view = place(admission).expect("External read-view establishment");
+        let projection = view
+            .project(field_key(plan.access(), "status"))
+            .expect("External status projection");
+        let request = projection
+            .read()
+            .expect("repeatable External read")
+            .into_primitive_request();
+        let mut external = request
+            .into_external_primitive_access()
+            .expect("External read specialization");
+        let expected = primitive_request_snapshot(&external.request);
+        let profile_receipt = external.request.profile_receipt;
+
+        external.request.profile_receipt =
+            ResourceProfileReceiptId::from_normalized_identity(999).expect("drifted receipt");
+        let diagnostic = external
+            .validate_for_lowering()
+            .expect_err("outward preflight must reject copied receipt drift");
+        assert!(diagnostic.0.contains("retained placement authority"));
+        external.request.profile_receipt = profile_receipt;
+
+        external.operation = ExternalPrimitiveOperation::Write;
+        let diagnostic = external
+            .validate_for_lowering()
+            .expect_err("outward preflight must reject specialization drift");
+        assert!(diagnostic.0.contains("retained specialization"));
+        external.operation = ExternalPrimitiveOperation::Read;
+
+        external
+            .validate_for_lowering()
+            .expect("corrected carrier must remain valid for retry");
+        assert_eq!(primitive_request_snapshot(&external.request), expected);
+        assert_eq!(external.operation(), ExternalPrimitiveOperation::Read);
     }
 
     #[test]
