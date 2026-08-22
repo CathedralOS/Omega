@@ -184,7 +184,9 @@ fn push_external_root_json(output: &mut String, record: &InstalledRootRecord) {
         if let Some(receipt) = input.body_evidence().provider_validation_receipt() {
             stack_receipts.insert(receipt);
         }
-        stack_receipts.insert(input.realization_evidence().validation_receipt());
+        if let Some(receipt) = input.realization_evidence().validation_receipt() {
+            stack_receipts.insert(receipt);
+        }
     }
     push_identity_set(
         output,
@@ -241,7 +243,16 @@ fn push_external_root_json(output: &mut String, record: &InstalledRootRecord) {
             }
         }
         let adapter = input.realization_evidence();
-        output.push_str(", \"adapter_target\": \"");
+        output.push_str(", \"adapter_origin\": \"");
+        output.push_str(match adapter.origin() {
+            omega_external_roots::AdapterStackRealizationOrigin::DirectGenerated => {
+                "direct_generated"
+            }
+            omega_external_roots::AdapterStackRealizationOrigin::OpaqueProvider => {
+                "opaque_provider"
+            }
+        });
+        output.push_str("\", \"adapter_target\": \"");
         output.push_str(match adapter.architecture() {
             omega_target::Architecture::X86_64 => "x86_64",
             omega_target::Architecture::Aarch64 => "aarch64",
@@ -259,7 +270,11 @@ fn push_external_root_json(output: &mut String, record: &InstalledRootRecord) {
         output.push_str(", \"adapter_realization_fingerprint\": ");
         push_hex_identity(output, adapter.realization().fingerprint());
         output.push_str(", \"adapter_validation_receipt\": ");
-        push_hex_identity(output, adapter.validation_receipt().normalized_identity());
+        if let Some(receipt) = adapter.validation_receipt() {
+            push_hex_identity(output, receipt.normalized_identity());
+        } else {
+            output.push_str("null");
+        }
         output.push_str(", \"arrival_contexts\": ");
         push_entry_stack_realization_json(output, adapter.realization());
         output.push('}');

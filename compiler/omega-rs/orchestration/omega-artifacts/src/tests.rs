@@ -906,6 +906,14 @@ fn external_root_manifest_is_complete_normalized_and_address_free() {
         "0x000000000000012c"
     );
     assert_eq!(
+        parsed["roots"][0]["resources"]["stack"]["summary_evidence"][0]["adapter_origin"],
+        "opaque_provider"
+    );
+    assert_eq!(
+        parsed["roots"][0]["resources"]["stack"]["summary_evidence"][0]["adapter_validation_receipt"],
+        "0x000000000000001e"
+    );
+    assert_eq!(
         parsed["roots"][0]["resources"]["logical_fuel"]["composed_units"],
         11
     );

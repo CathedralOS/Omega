@@ -972,9 +972,13 @@ The complete admissible context set comes from validated installation facts,
 not provider omission. A sealed target arrival rule applied to those facts
 derives architectural arrival epochs, including privilege-conditional and
 hardware-atomic switching. Generated adapter epochs derive from exact emitted
-stub instructions. An opaque adapter instead carries admitted provider evidence
-bound to the target, exact installed entry, boundary plan, domains, contexts,
-epochs, and validation receipt. A bare byte count establishes nothing.
+stub instructions. A direct compiler-emitted Terminal entry with no adapter
+prologue is the degenerate generated case: its exact installed Terminal stack
+closure derives one body epoch and requires no provider receipt. An opaque
+adapter instead carries admitted provider evidence bound to the target, exact
+installed entry, boundary plan, domains, contexts, epochs, and validation
+receipt. Generated and opaque origins remain distinct in artifact identity and
+reports. A bare byte count establishes nothing.
 `ProviderSelected` must close to the interrupted domain or one exact provisioned
 domain before final composition. Unknown arrival contexts or unresolved domains
 reject; when no narrower phase-specific nesting fact is proven, the root's

@@ -1150,29 +1150,46 @@ fn interpreted_terminal_source_matches_emitted_host_machine_code() {
         boundary.plan().state.stack,
         installed_stack,
     );
-    let composed_stack = compose_artifact_stacks(
+    let bound_stack = bind_direct_generated_entry_stack_realization(
+        &stack_summary,
+        &boundary,
+        &installed_code,
+        entry_stub,
+        omega_calling_conventions::EntryStack::Interrupted,
+    )
+    .expect("direct generated entry should derive its epoch realization");
+    let composed_stack = compose_bound_entry_stack_epochs(
         &StackNestingRelation {
             identity: relation_identity,
             edges: BTreeSet::new(),
         },
-        [&stack_summary],
+        [&bound_stack],
     )
-    .expect("terminal stack evidence should enter artifact-wide composition")
-    .demand(root_identity)
-    .expect("root stack demand")
-    .clone();
-    assert!(composed_stack.validation_receipts().is_empty());
+    .expect("terminal stack evidence should enter artifact-wide composition");
+    let stack_input = composed_stack
+        .input(root_identity)
+        .expect("root stack input");
     assert!(matches!(
-        &composed_stack
-            .summary_evidence()
-            .next()
-            .expect("root summary")
-            .1
-            .local_evidence,
+        stack_input.body_evidence(),
         omega_external_roots::StackLocalEvidence::TerminalEntry(binding)
             if binding.terminal_entry() == object_artifact.entry()
                 && binding.installed_code() == installed_code.identity()
     ));
+    assert_eq!(
+        stack_input.realization_evidence().origin(),
+        AdapterStackRealizationOrigin::DirectGenerated
+    );
+    assert_eq!(
+        stack_input.realization_evidence().validation_receipt(),
+        None
+    );
+    let stack_ceiling = composed_stack
+        .demand(root_identity)
+        .expect("root stack demand")
+        .domains()
+        .map(|(_, demand)| demand.bytes)
+        .max()
+        .expect("direct entry has one stack domain");
 
     let trust_receipt = TrustReceiptId::from_normalized_identity(0x6002).unwrap();
     let candidate = ExternalRootCandidate {
@@ -1189,7 +1206,7 @@ fn interpreted_terminal_source_matches_emitted_host_machine_code() {
         nesting_relation: relation_identity,
         acknowledgement_policy: None,
         stack: StackResourceColumn {
-            ceiling_bytes: composed_stack.composed_wcsu_bytes(),
+            ceiling_bytes: stack_ceiling,
             realization: composed_stack,
             validation_receipt: StackValidationReceiptId::from_normalized_identity(0x6004).unwrap(),
         },
@@ -1238,23 +1255,28 @@ fn interpreted_terminal_source_matches_emitted_host_machine_code() {
         .expect("terminal stack evidence should reach the installed-root report");
     let root_record = ledger.record(root_identity).expect("installed root record");
     assert_eq!(
-        root_record.stack.realization.local_wcsu_bytes(),
+        root_record
+            .stack
+            .realization
+            .input(root_identity)
+            .expect("installed root stack input")
+            .pure()
+            .body_wcsu_bytes,
         decoded_stack_demand.ceiling_bytes()
     );
     assert!(matches!(
-        &root_record
+        root_record
             .stack
             .realization
-            .summary_evidence()
-            .next()
-            .expect("reported root summary")
-            .1
-            .local_evidence,
+            .input(root_identity)
+            .expect("reported root stack input")
+            .body_evidence(),
         omega_external_roots::StackLocalEvidence::TerminalEntry(binding)
             if binding.artifact() == installed_code.artifact()
     ));
     let root_report = external_root_manifest_json(&ledger);
     assert!(root_report.contains("\"origin\": \"terminal_entry\""));
+    assert!(root_report.contains("\"adapter_origin\": \"direct_generated\""));
     assert!(root_report.contains("\"contributing_machines\": ["));
 
     let manifest_module = decode_module(&canonical_bytes)
