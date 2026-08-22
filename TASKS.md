@@ -808,8 +808,11 @@ Owners:
   and diagnostic order before specialization. The four-form private placement-
   authority witness and its independent resource, correspondence, resident-
   content, loan, admission, claim, and occurrence replay now live in a focused
-  177-line owner without a public re-export. These extractions leave a 1,696-
-  line coordinator. All 81
+  177-line owner without a public re-export. Pure placed-field projection and
+  its exact authority/resource/correspondence/resident replay plus named-
+  operation authorization now live in a cohesive 349-line owner; public
+  projection remains re-exported while field-access/request construction stays
+  sealed. These extractions leave a 1,364-line coordinator. All 81
   unit tests, the current 440-function production inventory, diagnostics,
   custody, retry behavior, and the public surface remain unchanged.
 - Implement `Extent::Resident<P, T>` as the owned exact-range dormant-content
