@@ -629,7 +629,7 @@ fn retained_alias_substituted_cast_bound(
     semantic_axioms: &[Proposition],
 ) -> bool {
     let facts = || requirements.iter().chain(semantic_axioms);
-    facts()
+    if facts()
         .filter_map(|equality| match equality {
             Proposition::Equal(left, right) => Some((left, right)),
             _ => None,
@@ -679,6 +679,100 @@ fn retained_alias_substituted_cast_bound(
                             )
                     })
             })
+        })
+    {
+        return true;
+    }
+    retained_landed_literal_via_alias_cast_bound(context, goal, requirements, semantic_axioms)
+}
+
+fn retained_landed_literal_via_alias_cast_bound(
+    context: &PropositionContext,
+    goal: &Proposition,
+    requirements: &[Proposition],
+    semantic_axioms: &[Proposition],
+) -> bool {
+    let facts = || requirements.iter().chain(semantic_axioms);
+    facts()
+        .filter_map(|root_equality| match root_equality {
+            Proposition::Equal(left, right) => Some((root_equality, left, right)),
+            _ => None,
+        })
+        .any(|(root_equality, root_left, root_right)| {
+            [(root_left, root_right), (root_right, root_left)]
+                .into_iter()
+                .filter(|(root, alias)| {
+                    root != alias
+                        && matches!(root, ScalarTerm::Value { .. })
+                        && matches!(alias, ScalarTerm::Value { .. })
+                        && root.scalar_type() == alias.scalar_type()
+                })
+                .any(|(root, alias)| {
+                    facts()
+                        .filter(|literal_equality| !std::ptr::eq(root_equality, *literal_equality))
+                        .filter_map(|literal_equality| match literal_equality {
+                            Proposition::Equal(left, right) => Some((left, right)),
+                            _ => None,
+                        })
+                        .any(|(literal_left, literal_right)| {
+                            let literal = if literal_left == alias {
+                                literal_right
+                            } else if literal_right == alias {
+                                literal_left
+                            } else {
+                                return false;
+                            };
+                            let Some((integer_type, _)) = literal.integer_value() else {
+                                return false;
+                            };
+                            root.scalar_type() == psi_core::ScalarType::Integer(integer_type)
+                                && retained_cast_bound_from_landed_literal_via_alias(
+                                    context,
+                                    goal,
+                                    semantic_axioms,
+                                    root,
+                                    literal,
+                                )
+                        })
+                })
+        })
+}
+
+fn retained_cast_bound_from_landed_literal_via_alias(
+    context: &PropositionContext,
+    goal: &Proposition,
+    semantic_axioms: &[Proposition],
+    root: &ScalarTerm,
+    landed_literal: &ScalarTerm,
+) -> bool {
+    let Proposition::LessOrEqual(goal_left, goal_right) = goal else {
+        return false;
+    };
+    let psi_core::ScalarType::Integer(root_type) = root.scalar_type() else {
+        return false;
+    };
+    [(goal_right, goal_left, 1), (goal_left, goal_right, 0)]
+        .into_iter()
+        .filter(|(target, _, _)| matches!(target, ScalarTerm::Value { .. }))
+        .any(|(_, target_endpoint, endpoint)| {
+            let Some(source_endpoint) = retained_remap_integer_literal(target_endpoint, root_type)
+            else {
+                return false;
+            };
+            let closed = if endpoint == 1 {
+                closed_integer_less_or_equal(&source_endpoint, landed_literal)
+            } else {
+                closed_integer_less_or_equal(landed_literal, &source_endpoint)
+            };
+            if !closed {
+                return false;
+            }
+            let root_bound = if endpoint == 1 {
+                Proposition::LessOrEqual(source_endpoint, root.clone())
+            } else {
+                Proposition::LessOrEqual(root.clone(), source_endpoint)
+            };
+            retained_cast_bound_from_root(context, goal, semantic_axioms, root, &root_bound)
         })
 }
 
@@ -3107,9 +3201,69 @@ mod tests {
                     ScalarTerm::integer(i32_type, IntegerValue::Signed(0)).expect("i32 zero"),
                     value(6, i32_type),
                 ),
-                root_alias,
+                root_alias.clone(),
             ],
         ));
+        assert!(exact_division_has_prior_certificate(
+            &context,
+            &goal,
+            &[first_cast.clone(), second_cast.clone()],
+            &[
+                root_alias.clone(),
+                Proposition::Equal(
+                    value(6, i32_type),
+                    ScalarTerm::integer(i32_type, IntegerValue::Signed(2)).expect("i32 two"),
+                ),
+            ],
+        ));
+        assert!(exact_division_has_prior_certificate(
+            &context,
+            &goal,
+            &[first_cast.clone(), second_cast.clone()],
+            &[
+                root_alias.clone(),
+                Proposition::Equal(
+                    value(6, i32_type),
+                    ScalarTerm::integer(i32_type, IntegerValue::Signed(-3)).expect("i32 -3"),
+                ),
+            ],
+        ));
+        assert!(!exact_division_has_prior_certificate(
+            &context,
+            &goal,
+            &[first_cast.clone(), second_cast.clone()],
+            &[Proposition::Equal(
+                value(6, i32_type),
+                ScalarTerm::integer(i32_type, IntegerValue::Signed(2)).expect("i32 two"),
+            )],
+        ));
+        assert!(!exact_division_has_prior_certificate(
+            &context,
+            &goal,
+            &[first_cast.clone(), second_cast.clone()],
+            &[
+                root_alias.clone(),
+                Proposition::Equal(
+                    value(7, i32_type),
+                    ScalarTerm::integer(i32_type, IntegerValue::Signed(2)).expect("i32 two"),
+                ),
+            ],
+        ));
+        for weak in [0, -1] {
+            assert!(!exact_division_has_prior_certificate(
+                &context,
+                &goal,
+                &[first_cast.clone(), second_cast.clone()],
+                &[
+                    root_alias.clone(),
+                    Proposition::Equal(
+                        value(6, i32_type),
+                        ScalarTerm::integer(i32_type, IntegerValue::Signed(weak))
+                            .expect("weak i32 literal"),
+                    ),
+                ],
+            ));
+        }
         assert!(!exact_division_has_prior_certificate(
             &context,
             &goal,

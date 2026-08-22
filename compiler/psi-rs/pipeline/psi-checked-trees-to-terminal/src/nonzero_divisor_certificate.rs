@@ -453,6 +453,136 @@ fn prove_alias_substituted_cast_bound(
             }
         }
     }
+    prove_landed_literal_via_alias_cast_bound(context, goal, assumptions, semantic_axioms)
+}
+
+fn prove_landed_literal_via_alias_cast_bound(
+    context: &PropositionContext,
+    goal: &Proposition,
+    assumptions: &[Proposition],
+    semantic_axioms: &[Proposition],
+) -> Option<ProofNode> {
+    for (root_citation, root_equality) in cited_facts(assumptions, semantic_axioms) {
+        let Proposition::Equal(root_left, root_right) = root_equality else {
+            continue;
+        };
+        for (root, alias) in [(root_left, root_right), (root_right, root_left)] {
+            if root == alias
+                || !matches!(root, psi_core::ScalarTerm::Value { .. })
+                || !matches!(alias, psi_core::ScalarTerm::Value { .. })
+                || root.scalar_type() != alias.scalar_type()
+            {
+                continue;
+            }
+            for (literal_citation, literal_equality) in cited_facts(assumptions, semantic_axioms) {
+                if std::ptr::eq(root_equality, literal_equality) {
+                    continue;
+                }
+                let Proposition::Equal(literal_left, literal_right) = literal_equality else {
+                    continue;
+                };
+                let literal = if literal_left == alias {
+                    literal_right
+                } else if literal_right == alias {
+                    literal_left
+                } else {
+                    continue;
+                };
+                let Some((integer_type, _)) = literal.integer_value() else {
+                    continue;
+                };
+                if root.scalar_type() != psi_core::ScalarType::Integer(integer_type) {
+                    continue;
+                }
+                if let Some(proof) = prove_cast_bound_from_landed_literal_via_alias(
+                    context,
+                    goal,
+                    assumptions,
+                    semantic_axioms,
+                    root,
+                    alias,
+                    literal,
+                    root_citation.proof(root_equality),
+                    literal_citation.proof(literal_equality),
+                ) {
+                    return Some(proof);
+                }
+            }
+        }
+    }
+    None
+}
+
+#[allow(clippy::too_many_arguments)]
+fn prove_cast_bound_from_landed_literal_via_alias(
+    context: &PropositionContext,
+    goal: &Proposition,
+    assumptions: &[Proposition],
+    semantic_axioms: &[Proposition],
+    root: &psi_core::ScalarTerm,
+    alias: &psi_core::ScalarTerm,
+    landed_literal: &psi_core::ScalarTerm,
+    root_equality: ProofNode,
+    literal_equality: ProofNode,
+) -> Option<ProofNode> {
+    let Proposition::LessOrEqual(goal_left, goal_right) = goal else {
+        return None;
+    };
+    let psi_core::ScalarType::Integer(root_type) = root.scalar_type() else {
+        return None;
+    };
+    for (target, target_endpoint, endpoint) in
+        [(goal_right, goal_left, 1), (goal_left, goal_right, 0)]
+    {
+        if !matches!(target, psi_core::ScalarTerm::Value { .. }) {
+            continue;
+        }
+        let Some(source_endpoint) = remap_integer_literal(target_endpoint, root_type) else {
+            continue;
+        };
+        let closed_relation = if endpoint == 1 {
+            Proposition::LessOrEqual(source_endpoint.clone(), landed_literal.clone())
+        } else {
+            Proposition::LessOrEqual(landed_literal.clone(), source_endpoint.clone())
+        };
+        let Some(closed_relation) = closed_integer_relation(closed_relation) else {
+            continue;
+        };
+        let alias_bound = ProofNode {
+            conclusion: if endpoint == 1 {
+                Proposition::LessOrEqual(source_endpoint.clone(), alias.clone())
+            } else {
+                Proposition::LessOrEqual(alias.clone(), source_endpoint.clone())
+            },
+            rule: ProofRule::IntegerLessOrEqualSubstitution {
+                relation: Box::new(closed_relation),
+                equality: Box::new(literal_equality.clone()),
+                endpoint,
+            },
+        };
+        let root_bound = ProofNode {
+            conclusion: if endpoint == 1 {
+                Proposition::LessOrEqual(source_endpoint, root.clone())
+            } else {
+                Proposition::LessOrEqual(root.clone(), source_endpoint)
+            },
+            rule: ProofRule::IntegerLessOrEqualSubstitution {
+                relation: Box::new(alias_bound),
+                equality: Box::new(root_equality.clone()),
+                endpoint,
+            },
+        };
+        if let Some(proof) = prove_cast_bound_from_root(
+            context,
+            goal,
+            assumptions,
+            semantic_axioms,
+            root,
+            root_bound,
+        ) {
+            return Some(proof);
+        }
+    }
     None
 }
 
@@ -3458,13 +3588,111 @@ mod tests {
                 &goal,
                 &[
                     Proposition::LessOrEqual(integer(i32_type, 0), value(6, i32_type)),
-                    root_alias,
+                    root_alias.clone(),
                 ],
                 &[first_cast.clone(), second_cast.clone()],
             )
             .is_none(),
             "the fixed alias sibling does not strengthen a weaker bound",
         );
+
+        let alias_landed_positive = Proposition::Equal(value(6, i32_type), integer(i32_type, 2));
+        let proof = prove_canonical_integer_proposition(
+            &context,
+            &goal,
+            &[root_alias.clone(), alias_landed_positive.clone()],
+            &[first_cast.clone(), second_cast.clone()],
+        )
+        .expect("one root alias may land one stronger literal before the cast");
+        let ProofRule::DisjunctionIntroduction { disjunct, index } = proof.rule else {
+            panic!("literal-via-alias selects one canonical arm")
+        };
+        assert_eq!(index, 1);
+        let ProofRule::IntegerCastBound { root_bound, .. } = disjunct.rule else {
+            panic!("literal-via-alias uses the cast-bound rule")
+        };
+        let ProofRule::IntegerLessOrEqualSubstitution {
+            relation: alias_bound,
+            equality: root_equality,
+            endpoint,
+        } = root_bound.rule
+        else {
+            panic!("literal-via-alias substitutes the root")
+        };
+        assert_eq!(endpoint, 1);
+        assert!(matches!(
+            root_equality.rule,
+            ProofRule::Assumption { index: 0 }
+        ));
+        let ProofRule::IntegerLessOrEqualSubstitution {
+            relation,
+            equality: literal_equality,
+            endpoint,
+        } = alias_bound.rule
+        else {
+            panic!("literal-via-alias substitutes the alias")
+        };
+        assert_eq!(endpoint, 1);
+        assert!(matches!(
+            relation.rule,
+            ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation)
+        ));
+        assert!(matches!(
+            literal_equality.rule,
+            ProofRule::Assumption { index: 1 }
+        ));
+
+        let alias_landed_negative = Proposition::Equal(value(6, i32_type), integer(i32_type, -3));
+        let negative = prove_canonical_integer_proposition(
+            &context,
+            &goal,
+            &[root_alias.clone(), alias_landed_negative],
+            &[first_cast.clone(), second_cast.clone()],
+        )
+        .expect("one root alias may land one stronger negative literal");
+        let ProofRule::DisjunctionIntroduction { index, .. } = negative.rule else {
+            panic!("negative literal-via-alias selects one canonical arm")
+        };
+        assert_eq!(index, 0);
+
+        assert!(
+            prove_canonical_integer_proposition(
+                &context,
+                &goal,
+                std::slice::from_ref(&alias_landed_positive),
+                &[first_cast.clone(), second_cast.clone()],
+            )
+            .is_none(),
+            "a landed alias literal without the root equality cannot reach the cast",
+        );
+        assert!(
+            prove_canonical_integer_proposition(
+                &context,
+                &goal,
+                &[
+                    root_alias.clone(),
+                    Proposition::Equal(value(7, i32_type), integer(i32_type, 2)),
+                ],
+                &[first_cast.clone(), second_cast.clone()],
+            )
+            .is_none(),
+            "a redirected landed literal cannot bind the selected alias",
+        );
+        for weak in [0, -1] {
+            assert!(
+                prove_canonical_integer_proposition(
+                    &context,
+                    &goal,
+                    &[
+                        root_alias.clone(),
+                        Proposition::Equal(value(6, i32_type), integer(i32_type, weak)),
+                    ],
+                    &[first_cast.clone(), second_cast.clone()],
+                )
+                .is_none(),
+                "a weaker landed alias literal cannot justify either arm",
+            );
+        }
 
         assert!(
             prove_canonical_integer_proposition(
