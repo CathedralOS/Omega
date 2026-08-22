@@ -555,6 +555,10 @@ Owners:
   independently replays its plan, profile receipt, admission, boundary reach,
   exact resource row/descriptor, source-loan polarity, resident claim, and
   placed occurrence; drift returns the unchanged authority-bearing request.
+  Primitive requests also retain the original sealed field authorization and
+  independently replay descriptor, current/source borrow polarities, and
+  operation before specialization; coordinated privilege rewrites reject while
+  returning the unchanged authority-bearing request.
 - Implement `Extent::Resident<P, T>` as the owned exact-range dormant-content
   qualification, including invariant type indices, mutual exclusion with
   `Vacant`, split/merge rejection, borrow versus owned-view continuity,
@@ -1498,9 +1502,13 @@ Remaining:
   retains tag 13; the producer and reconstruction independently follow the
   unique exact-cast SSA definition spine backward from the goal, reject
   ambiguous target definitions, and require its source-ordered ledger word.
-  They perform no recursive path or permutation search. This completes
-  contiguous cast-chain custody for exact divide/remainder goals but does not
-  promote either whole row: affine/cast,
+  They perform no recursive path or permutation search. Cast-chain custody now
+  lives in dedicated, side-local `cast_custody` modules. Production and
+  reconstruction independently own unique-spine selection, exact
+  witness/kernel replay, and final `IntegerCastBound` completion; the broader
+  evidence selectors retain their existing order and proof shapes. This
+  completes contiguous cast-chain custody for exact divide/remainder goals but
+  does not promote either whole row: affine/cast,
   shift/cast, joins, and correlated results remain trusted-reducer work, and
   `fully-derived false` is unchanged. The root-bound child may now also come
   from exactly one retained same-carrier `root == literal` fact when that
@@ -2498,7 +2506,11 @@ Owners:
   receipt's installation seal is now independently recomputed from its exact
   destination role, publication identity, output path, and container byte
   identity. Flat-only and flat-plus-bundle reports reject a stale or
-  substituted seal without relying on pairwise inequality alone.
+  substituted seal without relying on pairwise inequality alone. The private
+  written-output handoff now also requires a native output path to equal its
+  flat receipt's installed path before auxiliary reporting or report
+  construction; object output carries no executable receipts, and check-only
+  cannot masquerade as a written output.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
