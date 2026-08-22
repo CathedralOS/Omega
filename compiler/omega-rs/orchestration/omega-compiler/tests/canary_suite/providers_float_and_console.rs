@@ -674,10 +674,13 @@ fn const_fold_unsigned_landed_ops_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-const-fold-landed-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("landed-ops const-fold canary should compile");
 
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("landed-ops const-fold canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("landed-ops const-fold canary should run");
 
@@ -715,10 +718,13 @@ fn const_fold_unsigned_shift_right_arg_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-const-fold-shr-arg-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("shift-right arg-delivery canary should compile");
 
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("shift-right arg canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("shift-right arg-delivery canary should run");
 
@@ -755,10 +761,13 @@ fn const_fold_unsigned_divide_arg_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-const-fold-div-arg-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("divide/mod arg-delivery canary should compile");
 
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("divide/mod arg canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("divide/mod arg-delivery canary should run");
 
@@ -795,10 +804,13 @@ fn unsigned_min_max_wrapping_local_canary_runs() {
 
     let scratch = std::env::temp_dir().join(format!("omega-minmax-local-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("unsigned min/max local canary should compile");
 
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("unsigned min/max local canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("unsigned min/max local canary should run");
 
@@ -836,10 +848,13 @@ fn unsigned_min_max_operand_position_canary_runs() {
 
     let scratch = std::env::temp_dir().join(format!("omega-minmax-operand-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("operand-position min/max canary should compile");
 
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("operand-position min/max canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("operand-position min/max canary should run");
 
