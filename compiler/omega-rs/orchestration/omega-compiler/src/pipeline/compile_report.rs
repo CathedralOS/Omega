@@ -293,6 +293,21 @@ impl CompileReport {
         self.app_bundle_publication.as_ref()
     }
 
+    /// Returns the exact installed flat executable only after independently
+    /// replaying the complete report custody checks. Object/check-only reports
+    /// and any internally drifted receipt graph fail closed.
+    pub fn checked_native_executable_path(&self) -> Option<&std::path::Path> {
+        (self.output_kind == CompileOutputKind::NativeExecutable
+            && self.has_consistent_executable_publication_custody()
+            && self.has_consistent_program_storage_entry_custody())
+        .then(|| {
+            self.executable_publication
+                .as_ref()
+                .expect("consistent native report has one flat publication receipt")
+                .output_path()
+        })
+    }
+
     pub fn program_storage_entry(&self) -> Option<&super::ProgramStorageEntryPlanBinding> {
         self.program_storage_entry.as_ref()
     }
@@ -664,23 +679,23 @@ mod tests {
         );
         assert!(flat.has_consistent_installation_identity());
         assert!(bundle.has_consistent_installation_identity());
-        assert!(
-            report(
-                true,
-                CompileOutputKind::NativeExecutable,
-                Some(flat.clone()),
-                Some(bundle.clone()),
-            )
-            .has_consistent_executable_publication_custody()
+        let native = report(
+            true,
+            CompileOutputKind::NativeExecutable,
+            Some(flat.clone()),
+            Some(bundle.clone()),
         );
-        assert!(
-            report(false, CompileOutputKind::CheckOnly, None, None)
-                .has_consistent_executable_publication_custody()
+        assert!(native.has_consistent_executable_publication_custody());
+        assert_eq!(
+            native.checked_native_executable_path(),
+            Some(std::path::Path::new("build/main")),
         );
-        assert!(
-            report(true, CompileOutputKind::ObjectContainer, None, None)
-                .has_consistent_executable_publication_custody()
-        );
+        let check_only = report(false, CompileOutputKind::CheckOnly, None, None);
+        assert!(check_only.has_consistent_executable_publication_custody());
+        assert!(check_only.checked_native_executable_path().is_none());
+        let object = report(true, CompileOutputKind::ObjectContainer, None, None);
+        assert!(object.has_consistent_executable_publication_custody());
+        assert!(object.checked_native_executable_path().is_none());
         assert!(
             !report(
                 false,
@@ -719,26 +734,24 @@ mod tests {
         );
         let mut changed = flat.clone();
         changed.installation_evidence_fingerprint ^= 1;
-        assert!(
-            !report(
-                true,
-                CompileOutputKind::NativeExecutable,
-                Some(changed),
-                None,
-            )
-            .has_consistent_executable_publication_custody()
+        let changed = report(
+            true,
+            CompileOutputKind::NativeExecutable,
+            Some(changed),
+            None,
         );
+        assert!(!changed.has_consistent_executable_publication_custody());
+        assert!(changed.checked_native_executable_path().is_none());
         let mut changed = flat.clone();
         changed.output_path = "build/redirected-main".into();
-        assert!(
-            !report(
-                true,
-                CompileOutputKind::NativeExecutable,
-                Some(changed),
-                None,
-            )
-            .has_consistent_executable_publication_custody()
+        let changed = report(
+            true,
+            CompileOutputKind::NativeExecutable,
+            Some(changed),
+            None,
         );
+        assert!(!changed.has_consistent_executable_publication_custody());
+        assert!(changed.checked_native_executable_path().is_none());
         let retained = report(
             true,
             CompileOutputKind::NativeExecutable,

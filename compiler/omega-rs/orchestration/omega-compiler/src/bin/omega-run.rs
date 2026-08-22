@@ -46,7 +46,7 @@ fn main() {
     let _ = std::fs::remove_dir_all(&build_dir);
 
     let artifact_policy = probe_artifact_policy(keep);
-    if let Err(diagnostics) = compile_with_artifact_policy(
+    let report = match compile_with_artifact_policy(
         CompileOptions {
             root_path: main_path.clone(),
             build_dir: Some(build_dir.clone()),
@@ -55,12 +55,15 @@ fn main() {
         },
         artifact_policy,
     ) {
-        eprintln!("native compile FAILED:");
-        for diagnostic in diagnostics {
-            eprintln!("  {diagnostic}");
+        Ok(report) => report,
+        Err(diagnostics) => {
+            eprintln!("native compile FAILED:");
+            for diagnostic in diagnostics {
+                eprintln!("  {diagnostic}");
+            }
+            std::process::exit(200);
         }
-        std::process::exit(200);
-    }
+    };
     if let Some(target) = &target_name {
         // Cross-target images do not run on the host; compiling IS the check.
         eprintln!(
@@ -73,10 +76,9 @@ fn main() {
         return;
     }
 
-    let exe = build_dir.join(if cfg!(windows) {
-        "omega-program.exe"
-    } else {
-        "omega-program"
+    let exe = report.checked_native_executable_path().unwrap_or_else(|| {
+        eprintln!("native compile returned no consistently retained executable receipt");
+        std::process::exit(200);
     });
     let output = Command::new(&exe)
         .output()

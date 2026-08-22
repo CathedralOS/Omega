@@ -1069,3 +1069,10 @@ consumed: the bundle must use its canonical root-derived path and bundle role,
 retain the flat publication/certificate/container identities, carry its own
 valid installation seal, and remain distinct from the flat installation. The
 final report independently replays the same relation.
+
+Native execution consumers no longer reconstruct the executable name from a
+build-directory convention. The report exposes its flat installed path only
+after replaying both the complete publication graph and optional
+program-storage bridge custody; check-only, object-container, or internally
+drifted reports return no executable path. The `omega-run` probe consumes only
+that checked receipt path.
