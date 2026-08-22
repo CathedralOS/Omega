@@ -564,6 +564,10 @@ Owners:
   specialization independently replays the exact profile/loan/plan join and
   rejects profile-root or compatibility drift while returning the unchanged
   request.
+  Stable content adoption independently replays that retained profile against
+  the exact owned extent and placement before establishing resident custody;
+  rejection returns both the unchanged owned admission and provider content
+  for corrected retry.
 - Implement `Extent::Resident<P, T>` as the owned exact-range dormant-content
   qualification, including invariant type indices, mutual exclusion with
   `Vacant`, split/merge rejection, borrow versus owned-view continuity,
@@ -1448,7 +1452,12 @@ Remaining:
   modules. Production and reconstruction independently preserve the exact
   preference order across direct, literal-landed, fixed one-/two-alias, and
   exactly-two-leg transitive custody before invoking affine completion; no
-  generic path search or additional evidence shape is introduced. A
+  generic path search or additional evidence shape is introduced.
+  Prior-evidence primitives now live in dedicated, side-local
+  `integer_evidence` modules. Production alone owns citation indices and proof
+  nodes; reconstruction independently resolves retained integer literals and
+  replays closed order. Selectors depend on these leaf helpers without sharing
+  authority, changing precedence, or expanding the search frontier. A
   single exact prior value equality may also transport a completed affine bound
   from its checked target alias to the canonical goal endpoint. The producer
   replaces that one endpoint, constructs the bounded affine relation directly,
@@ -2054,9 +2063,13 @@ Remaining:
   parent delegates the 242-line exact quotient-congruence judgment to a focused
   child. That child alone recognizes quotient mint equality and requires the
   quotient's retained relation premise; it performs no ambient proof discovery
-  and cannot fall through to generic arithmetic or structural tiers. Compiler
-  footprint derivation now has a 509-line composition/partition parent over a
-  declarative four-family registry: 249-line control/entry, 621-line
+  and cannot fall through to generic arithmetic or structural tiers.
+  Its structural-term algebra, explicit ring/semiring licensing, substitution,
+  and structural judgment now form a separate 1,839-line responsibility; the
+  arithmetic, inductive, and citation coordinator is 5,005 lines, with the
+  existing parent-facing judgment and proved-index-algebra surface unchanged.
+  Compiler footprint derivation now has a 509-line composition/partition parent
+  over a declarative four-family registry: 249-line control/entry, 621-line
   storage/place, 866-line outbound-call, and 512-line buffer/wire/text
   responsibilities. A
   separate instruction-selection boundary-footprint owner has begun the same
@@ -2524,7 +2537,10 @@ Owners:
   optional bundle receipt must also satisfy the same canonical root-derived
   path, role, shared publication/certificate/container identity, valid
   installation seal, and distinct-installation checks that final report
-  construction independently replays.
+  construction independently replays. Native execution consumers no longer
+  reconstruct an executable leaf from the build directory: the report returns
+  its exact flat receipt path only after replaying complete publication and
+  program-storage custody, and `omega-run` consumes only that checked path.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
