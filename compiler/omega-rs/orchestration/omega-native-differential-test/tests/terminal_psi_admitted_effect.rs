@@ -325,8 +325,9 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
     written
         .validate_for_consumer(&installed_code)
         .expect("unchanged written bound carrier supports corrected consumer retry");
+    assert_eq!(written.written().provider_execution(), bound_provider);
     assert_eq!(
-        written.written().installed_code(),
+        written.written().written().installed_code(),
         installed_code.identity()
     );
     assert_eq!(
@@ -335,6 +336,10 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
     );
     let (retained_lowered, written) = written.into_parts();
     assert_eq!(retained_lowered, bound_lowered);
+    let (provider_execution, architecture, invocation, _writer, written) = written.into_parts();
+    assert_eq!(provider_execution, bound_provider);
+    assert_eq!(architecture, installed_code.architecture());
+    assert_eq!(&invocation, retained_lowered.invocation());
     let (_mapping, _receipt, _site, _bytes) = written.into_parts();
 
     let machine = MachineId::new(1).unwrap();

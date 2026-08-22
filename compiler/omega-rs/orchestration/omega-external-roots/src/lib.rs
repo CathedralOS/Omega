@@ -1708,6 +1708,20 @@ pub struct PreparedExternalRootPostHandoffWriterInvocation {
     context: ResolvedPostHandoffEntryWriterContext,
 }
 
+/// Still-unpublished destination retaining the exact selected external-root
+/// execution and writer preparation that produced its bytes. The provider
+/// evidence is not reduced to copied report identities, and this carrier does
+/// not establish consumer semantics or publication authority.
+#[derive(Debug)]
+#[must_use = "written external-root destination retains provider and mapping custody"]
+pub struct WrittenExternalRootPostHandoffWriterDestination<'mapping, 'bytes> {
+    provider_execution: AdmittedTerminalProviderExecution,
+    architecture: omega_target::Architecture,
+    invocation: PostHandoffWriterInvocationPlan,
+    writer: PostHandoffWriterPlan,
+    written: omega_executable_installation::WrittenPostHandoffWriterDestination<'mapping, 'bytes>,
+}
+
 #[derive(Debug)]
 pub struct PreparedExternalRootWriterExecutionError<'mapping, 'bytes> {
     prepared: PreparedExternalRootPostHandoffWriterInvocation,
@@ -1793,7 +1807,7 @@ impl PreparedExternalRootPostHandoffWriterInvocation {
             'bytes,
         >,
     ) -> Result<
-        omega_executable_installation::WrittenPostHandoffWriterDestination<'mapping, 'bytes>,
+        WrittenExternalRootPostHandoffWriterDestination<'mapping, 'bytes>,
         Box<PreparedExternalRootWriterExecutionError<'mapping, 'bytes>>,
     > {
         if let Err(diagnostic) = self.validate_execution(installed_code) {
@@ -1838,7 +1852,13 @@ impl PreparedExternalRootPostHandoffWriterInvocation {
                         diagnostic: psi_layout_plans::MaterializationDiagnostic(diagnostic.0),
                     }));
                 }
-                Ok(written)
+                Ok(WrittenExternalRootPostHandoffWriterDestination {
+                    provider_execution,
+                    architecture,
+                    invocation,
+                    writer,
+                    written,
+                })
             }
             Err(destination_error) => {
                 let diagnostic = destination_error.diagnostic().clone();
@@ -1856,6 +1876,73 @@ impl PreparedExternalRootPostHandoffWriterInvocation {
                 }))
             }
         }
+    }
+}
+
+impl<'mapping, 'bytes> WrittenExternalRootPostHandoffWriterDestination<'mapping, 'bytes> {
+    pub const fn provider_execution(&self) -> AdmittedTerminalProviderExecution {
+        self.provider_execution
+    }
+
+    pub const fn architecture(&self) -> omega_target::Architecture {
+        self.architecture
+    }
+
+    pub const fn invocation(&self) -> &PostHandoffWriterInvocationPlan {
+        &self.invocation
+    }
+
+    pub const fn written(
+        &self,
+    ) -> &omega_executable_installation::WrittenPostHandoffWriterDestination<'mapping, 'bytes> {
+        &self.written
+    }
+
+    /// Independently replay provider preparation, invocation structure, and
+    /// the installation-owned context. Rejection only borrows this carrier so
+    /// the exact provider and destination inputs remain available for retry.
+    pub fn validate_for_consumer(
+        &self,
+        installed_code: &InstalledCode,
+    ) -> Result<(), psi_layout_plans::MaterializationDiagnostic> {
+        self.invocation.validate_structure()?;
+        let replayed_invocation = self.writer.lower_reusable_fragment()?;
+        if replayed_invocation != self.invocation
+            || self.architecture != installed_code.architecture()
+            || !self.written.context().binds_invocation(&self.invocation)
+            || self.written.context().normalized_fragment_fingerprint()
+                != self.invocation.fragment().fingerprint()
+        {
+            return Err(psi_layout_plans::MaterializationDiagnostic(
+                "written external-root destination does not retain its exact provider preparation and invocation"
+                    .into(),
+            ));
+        }
+        self.written
+            .validate_for_consumer(installed_code)
+            .map_err(|diagnostic| psi_layout_plans::MaterializationDiagnostic(diagnostic.0))
+    }
+
+    pub fn bytes(&self) -> &[u8] {
+        self.written.bytes()
+    }
+
+    pub fn into_parts(
+        self,
+    ) -> (
+        AdmittedTerminalProviderExecution,
+        omega_target::Architecture,
+        PostHandoffWriterInvocationPlan,
+        PostHandoffWriterPlan,
+        omega_executable_installation::WrittenPostHandoffWriterDestination<'mapping, 'bytes>,
+    ) {
+        (
+            self.provider_execution,
+            self.architecture,
+            self.invocation,
+            self.writer,
+            self.written,
+        )
     }
 }
 
