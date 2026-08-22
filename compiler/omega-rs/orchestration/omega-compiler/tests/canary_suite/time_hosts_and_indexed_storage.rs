@@ -8,9 +8,12 @@ fn runtime_i64_min_literal_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_i64_min_literal_exit");
     let scratch = std::env::temp_dir().join(format!("omega-i64min-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("i64::MIN literal canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("i64::MIN literal canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("i64::MIN literal canary should run");
     assert_eq!(
