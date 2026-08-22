@@ -1935,12 +1935,35 @@ fn one_executable_nominal_cleanup_action_retains_its_exact_ordinal_on_all_target
             owner_encoding.extend_from_slice(&emitted_cleanup.psi_edge.get().to_le_bytes());
             owner_encoding.extend_from_slice(&executable_action_ordinal.to_le_bytes());
             owner_encoding.extend_from_slice(&0_u32.to_le_bytes());
-            let owner_offset = bytes
-                .windows(owner_encoding.len())
-                .position(|window| window == owner_encoding)
-                .expect("installation encodes the exact cleanup-action owner");
+            let mut installed_call_header = Vec::new();
+            installed_call_header.extend_from_slice(&installed_call.machine.get().to_le_bytes());
+            installed_call_header.extend_from_slice(
+                &u64::try_from(installed_call.text_offset)
+                    .expect("installed call offset remains encodable")
+                    .to_le_bytes(),
+            );
+            installed_call_header.extend_from_slice(&owner_encoding);
+            installed_call_header
+                .extend_from_slice(&installed_call.custody.target.get().to_le_bytes());
+            let installed_call_offsets = bytes
+                .windows(installed_call_header.len())
+                .enumerate()
+                .filter_map(|(offset, window)| (window == installed_call_header).then_some(offset))
+                .collect::<Vec<_>>();
+            let [installed_call_offset] = installed_call_offsets.as_slice() else {
+                panic!(
+                    "installation encodes one exact installed cleanup-call header, found {}",
+                    installed_call_offsets.len()
+                )
+            };
+            assert!(
+                bytes[..*installed_call_offset]
+                    .windows(owner_encoding.len())
+                    .any(|window| window == owner_encoding),
+                "the earlier stack-evidence duplicate must not select the installed call"
+            );
             let mut forged_ordinal = bytes.clone();
-            let ordinal_offset = owner_offset + 12;
+            let ordinal_offset = installed_call_offset + 16 + 12;
             forged_ordinal[ordinal_offset..ordinal_offset + 4]
                 .copy_from_slice(&(1 - executable_action_ordinal).to_le_bytes());
             assert!(decode_terminal_installation_record(&forged_ordinal).is_err());
