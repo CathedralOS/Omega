@@ -58,7 +58,8 @@ lattice and `compiler/` for the product implementation.
 | --- | --- | --- |
 | `compiler/beta-lang-rs/`, Rust producer portion of `compiler/delta-rs/` | disposable/reference on-ramps | `bootstrap/onramps/` |
 | semantic and symbolic portions of `compiler/beta-lang-py/` | Beta meaning/refinement references | Beta reference or refinement owner, not a Python-named peer rung |
-| parser/compiler portions of `compiler/beta-lang-py/bc2.py` | shared reference parser plus optional differential backend | split the parser to its consumers; retain the backend only for unique diagnostics |
+| `compiler/beta-lang-py/beta_parser.py` | shared untrusted Beta source recognition | narrowest Beta reference/refinement owner needing it |
+| compiler portion of `compiler/beta-lang-py/bc2.py` | optional differential backend | retain only for unique diagnostics |
 | `compiler/psi-rs/`, `compiler/omega-rs/` | current production Psi/Omega implementations | `compiler/psi/`, `compiler/omega/` |
 
 ## Current architectural state
@@ -313,9 +314,12 @@ from attractive but deferrable language work.
   checker implementations, untrusted proof tooling, corpora, and gates under
   `bootstrap/assurance/proof-kernel/`.
 - [ ] **Split `beta-lang-py` by role.** Retain the interpreter, symbolic evaluator,
-  and useful fuzzing under Beta/refinement owners. Extract the parser currently
-  shared through `bc2.py`; retain its compiler backend only while it provides
-  unique differential coverage.
+  and useful fuzzing under Beta/refinement owners. Retain the optional `bc2.py`
+  compiler backend only while it provides unique differential coverage.
+  - [x] Extract source recognition into `beta_parser.py`. The interpreter,
+    symbolic evaluator, exhaustive-I/O checker, and loop-summary checker now
+    share it without importing compiler code; `bc2.py` re-exports the same
+    parser only for compatibility. Its `bc.beta` assembly remains byte-identical.
   - [x] Remove the retired DDC comparison gate. Compiler diversity is neither a
     repository role nor a prerequisite for closing the `bc` refinement edge.
 - [ ] **Move first-Omega work out of the product namespace.** Place the existing

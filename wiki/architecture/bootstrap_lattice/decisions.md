@@ -148,10 +148,11 @@ DDC. Close it by building the seed Beta compiler through the preceding audited
 rung or by validating the complete `bc` artifact against `bc.beta` with authority
 rooted below `bc`.
 
-The dedicated `compiler/beta-lang-py` DDC gate has been removed. The shared
-`bc2.py` parser and optional differential backend may remain as untrusted
-reference tools while they provide unique diagnostic value. Their results have
-no authority and do not close an architectural proof obligation. Useful
+The dedicated `compiler/beta-lang-py` DDC gate has been removed. Shared source
+recognition now lives in `beta_parser.py` without importing compiler code; the
+optional `bc2.py` differential backend may remain as an untrusted reference
+tool while it provides unique diagnostic value. Its results have no authority
+and do not close an architectural proof obligation. Useful
 interpreter and symbolic-evaluation code in that directory should be retained
 by role when the repository is reorganized.
 

@@ -12,7 +12,7 @@ import sys, os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import beta_symbolic as B
 import beta_interp
-from bc2 import lex, Parser
+from beta_parser import lex, Parser
 
 def loop(guard, updates, ret='total'):
     return ("proc main() {\n"
