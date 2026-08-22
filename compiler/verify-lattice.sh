@@ -115,6 +115,7 @@ step "predicate soundness — FUZZ: random predicates, kernel vs operational dec
 step "delta — on-ramp compiles + RUNS its corpus"   delta-rs  test_aarch64.sh
 step "delta meaning — native exec vs gamma reference interpreter" delta-rs delta-meaning-diamond.sh gamma
 step "delta D0 storage meaning (RUST-FREE) — omega2gamma.beta -> interp.beta" delta-rs delta-storage-meaning.sh omega0 gamma
+step "omega0 Delta frontend — canonical bundle through lexer/parser/checker and Delta-written recompilation" delta-rs omega0-frontend-test.sh omega0 corpus
 step "omega kernel cross-check (RUST-FREE) — native vs omega2gamma.beta->interp.beta" omega kernel-diamond.sh delta-rs gamma
 step "convergence — Delta emits a proof; the proof kernel checks it" delta-rs convergence.sh proof-kernel
 step "convergence (self-hosted) — the self-hosted compiler's certifiers, checked by the proof kernel" delta-rs convergence-selfhost.sh proof-kernel
