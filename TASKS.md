@@ -2902,8 +2902,10 @@ Remaining N6/N8 work:
   Resolved-to-typed lowering now rejects runtime `==`/`!=`, a direct
   `Equatable` conformance, and synthesized container equality through a quotient
   field. It also rejects proof-contract `zero_value<Quotient>()`; a retained
-  representative is not a compiler-verified canonical default. Logical
-  proof-position equality remains raw for the exact
+  representative is not a compiler-verified canonical default. Record and arm
+  destructuring reject quotient subjects before field/case analysis, so an
+  empty or rest pattern cannot become a representation observer. Logical proof-
+  position equality remains raw for the exact
   quotient-congruence judge; it never lowers to representative bytes. Add
   quotient-owned executable equality through an ordinary lifted operation with
   `DecidesEquivalence`; derive its `Respects` proof, and bind its optional `==`
