@@ -142,11 +142,7 @@ impl InstalledExecutablePublicationEvidence {
         output_path: &std::path::Path,
     ) -> Result<Self, Diagnostic> {
         publication.validate_identity()?;
-        if output_path.file_name() != Some(std::ffi::OsStr::new(publication.file_name())) {
-            return Err(Diagnostic::error(
-                "executable installation path does not retain the sealed output name",
-            ));
-        }
+        validate_executable_installation_path(publication, output_path)?;
         let mut evidence = Self {
             publication_evidence_fingerprint: publication.evidence.evidence_fingerprint,
             output_path: output_path.to_path_buf(),
@@ -698,15 +694,33 @@ fn write_validated_executable_output_file(
     output_path: &std::path::Path,
     publication: &ValidatedExecutablePublication<'_>,
 ) -> Result<InstalledExecutablePublicationEvidence, Diagnostic> {
-    let expected = InstalledExecutablePublicationEvidence::current(publication, output_path)?;
+    publication.validate_identity()?;
+    validate_executable_installation_path(publication, output_path)?;
     write_output_file_with_staged_validation(
         output_path,
         publication.bytes(),
         true,
         |staged_path| validate_staged_executable_bytes(staged_path, publication.bytes()),
     )?;
-    expected.validate(publication, output_path)?;
-    Ok(expected)
+    if let Err(diagnostic) = validate_published_executable_bytes(output_path, publication.bytes()) {
+        let _ = std::fs::remove_file(output_path);
+        return Err(diagnostic);
+    }
+    let installed = InstalledExecutablePublicationEvidence::current(publication, output_path)?;
+    installed.validate(publication, output_path)?;
+    Ok(installed)
+}
+
+fn validate_executable_installation_path(
+    publication: &ValidatedExecutablePublication<'_>,
+    output_path: &std::path::Path,
+) -> Result<(), Diagnostic> {
+    if output_path.file_name() != Some(std::ffi::OsStr::new(publication.file_name())) {
+        return Err(Diagnostic::error(
+            "executable installation path does not retain the sealed output name",
+        ));
+    }
+    Ok(())
 }
 
 fn validate_staged_executable_bytes(
@@ -722,6 +736,24 @@ fn validate_staged_executable_bytes(
     if staged_bytes != expected_bytes {
         return Err(Diagnostic::error(
             "staged executable bytes do not match the sealed publication",
+        ));
+    }
+    Ok(())
+}
+
+fn validate_published_executable_bytes(
+    output_path: &std::path::Path,
+    expected_bytes: &[u8],
+) -> Result<(), Diagnostic> {
+    let published_bytes = std::fs::read(output_path).map_err(|error| {
+        Diagnostic::error(format!(
+            "failed to replay published executable {}: {error}",
+            output_path.display()
+        ))
+    })?;
+    if published_bytes != expected_bytes {
+        return Err(Diagnostic::error(
+            "published executable bytes do not match the sealed publication",
         ));
     }
     Ok(())
@@ -800,8 +832,8 @@ fn mark_executable_if_needed(_path: &std::path::Path) -> Result<(), Diagnostic> 
 mod tests {
     use super::{
         ExecutablePublicationEvidence, FNV_OFFSET, ValidatedExecutablePublication,
-        build_final_footprint_certificate, fingerprint_into, validate_staged_executable_bytes,
-        write_validated_executable_output_file,
+        build_final_footprint_certificate, fingerprint_into, validate_published_executable_bytes,
+        validate_staged_executable_bytes, write_validated_executable_output_file,
     };
 
     fn compiler_text_validation() -> omega_image::CompilerTextValidationEvidence {
@@ -958,7 +990,14 @@ mod tests {
         std::fs::write(&staged, [0x7f, b'O', b'M', b'F']).expect("drifted candidate");
         assert!(validate_staged_executable_bytes(&staged, publication.bytes()).is_err());
 
-        let output = directory.join(publication.file_name());
+        let drifted_destination = directory.join(publication.file_name());
+        std::fs::write(&drifted_destination, [0x7f, b'O', b'M', b'F'])
+            .expect("drifted destination");
+        assert!(
+            validate_published_executable_bytes(&drifted_destination, publication.bytes()).is_err()
+        );
+
+        let output = drifted_destination;
         let receipt = write_validated_executable_output_file(&output, &publication)
             .expect("validated installation");
         receipt

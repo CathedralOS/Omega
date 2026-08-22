@@ -704,6 +704,10 @@ path, container, and checked installation identities remain joined instead of
 collapsing back to a bare path. Check-only and object-container fallback
 reports retain no receipt. This compiler-publication evidence does not grant
 runtime loading or installation authority.
+After atomic rename, the compiler independently reads the destination and
+compares every byte with the sealed container before minting or returning the
+installation receipt. A missing or changed destination is removed and rejects,
+so the outward report cannot attest merely to a validated temporary file.
 Final relocation replay also builds one exact owner map from every retained
 selected-instruction identity to that function symbol. A selected instruction
 retained twice, an instruction relocation naming another function, or an
