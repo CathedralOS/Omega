@@ -801,7 +801,12 @@ Owners:
   permission-only extent withdrawal/rejection, dormant resident activation,
   active Stable projection, resident-preserving retirement, and retry-carrier
   recovery remain exact inherent transitions while carrier declarations remain
-  root-private. These extractions leave a 2,085-line coordinator. All 81
+  root-private. Sealed primitive-request inspection and replay now live in a
+  focused 243-line owner while the carrier and replay fields remain root-
+  private. Effective-supply, descriptor/footprint, retained placement/
+  correspondence/resident, and authorization replay preserve their validation
+  and diagnostic order before specialization. These extractions leave a 1,851-
+  line coordinator. All 81
   unit tests, the current 440-function production inventory, diagnostics,
   custody, retry behavior, and the public surface remain unchanged.
 - Implement `Extent::Resident<P, T>` as the owned exact-range dormant-content
