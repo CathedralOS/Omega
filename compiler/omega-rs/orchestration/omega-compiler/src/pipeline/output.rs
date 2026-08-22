@@ -200,6 +200,12 @@ impl InstalledExecutablePublicationEvidence {
         publication: &ValidatedExecutablePublication<'_>,
     ) -> Result<super::ExecutablePublicationReceipt, Diagnostic> {
         self.validate(publication, &self.output_path)?;
+        if let Err(diagnostic) =
+            validate_published_executable_bytes(&self.output_path, publication.bytes())
+        {
+            let _ = std::fs::remove_file(&self.output_path);
+            return Err(diagnostic);
+        }
         Ok(super::ExecutablePublicationReceipt::new(
             self.destination,
             self.output_path.clone(),
@@ -1040,6 +1046,17 @@ mod tests {
         receipt
             .validate(&publication, &output)
             .expect("exact receipt");
+        std::fs::write(&output, [0x7f, b'O', b'M', b'F'])
+            .expect("post-installation destination drift");
+        assert!(receipt.retained_receipt(&publication).is_err());
+        assert!(!output.exists());
+
+        let receipt = write_validated_executable_output_file(
+            ExecutablePublicationDestination::FlatOutput,
+            &output,
+            &publication,
+        )
+        .expect("revalidated installation");
         let retained = receipt
             .retained_receipt(&publication)
             .expect("compile report receipt");
