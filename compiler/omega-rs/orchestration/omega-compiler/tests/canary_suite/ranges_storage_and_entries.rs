@@ -360,21 +360,13 @@ fn runtime_frame_indexed_param_read_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-frame-idx-param-read-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("frame indexed param read canary should compile");
-
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("frame indexed param read canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(1),
-        "expected `let v = arr[k]` (arr=[10,20,30], k=1) to read 20 and exit 1, got {:?}
-stderr:
-{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        1,
+        "frame-indexed parameter-read canary",
+        "a runtime-indexed by-value array parameter should read the selected element",
     );
 
     let _ = fs::remove_dir_all(&scratch);
@@ -390,21 +382,13 @@ fn runtime_frame_indexed_param_operand_arg_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-frame-idx-param-opa-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("frame indexed param operand/arg canary should compile");
-
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("frame indexed param operand/arg canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(1),
-        "expected `vals[k] + 100` == 130 then `self.report(vals[k])` == 30 to exit 1, got {:?}
-stderr:
-{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        1,
+        "frame-indexed parameter operand/argument canary",
+        "the indexed parameter element should materialize as both operand and argument",
     );
 
     let _ = fs::remove_dir_all(&scratch);
@@ -421,21 +405,13 @@ fn runtime_frame_indexed_param_field_exit_canary_runs() {
     ));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("frame indexed param field canary should compile");
-
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("frame indexed param field canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(1),
-        "expected `points[k].y` (points[1].y=42, k=1) to read 42 and exit 1, got {:?}
-stderr:
-{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        1,
+        "frame-indexed parameter-field canary",
+        "the indexed struct parameter should preserve its selected field offset",
     );
 
     let _ = fs::remove_dir_all(&scratch);
@@ -449,21 +425,13 @@ fn runtime_frame_indexed_local_read_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-frame-idx-local-read-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("frame indexed local read canary should compile");
-
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("frame indexed local read canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(1),
-        "expected machine-indexed inline-frame copy, immediate, and binary writes to read back and exit 1, got {:?}
-stderr:
-{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        1,
+        "frame-indexed local-read canary",
+        "the inline local copy should preserve its runtime-indexed reads and writes",
     );
 
     let _ = fs::remove_dir_all(&scratch);
@@ -478,21 +446,13 @@ fn runtime_frame_indexed_byte_param_read_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-frame-idx-byte-read-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("frame indexed byte param read canary should compile");
-
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("frame indexed byte param read canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(1),
-        "expected `small[k]` (i8, small[3]=9, k=3) to read 9 and exit 1, got {:?}
-stderr:
-{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        1,
+        "frame-indexed byte-parameter canary",
+        "the one-byte indexed parameter element should preserve its byte width",
     );
 
     let _ = fs::remove_dir_all(&scratch);
