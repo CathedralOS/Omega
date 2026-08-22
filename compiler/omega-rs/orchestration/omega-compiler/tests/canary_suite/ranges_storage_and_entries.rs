@@ -678,21 +678,13 @@ fn runtime_struct_field_operand_matrix_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-sf-operand-matrix-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("struct-field operand matrix canary should compile");
-
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("struct-field operand matrix canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(1),
-        "expected `cells[i].x` to compute correctly in all six operand positions and exit 1, got {:?}
-stderr:
-{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        1,
+        "struct-field operand-matrix canary",
+        "the indexed struct field should compute correctly in all operand positions",
     );
 
     let _ = fs::remove_dir_all(&scratch);
@@ -706,21 +698,13 @@ fn runtime_struct_field_operand_param_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-sf-operand-param-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("struct-field operand param canary should compile");
-
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("struct-field operand param canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(1),
-        "expected `cells[i].x + 5` through a by-value param array to compute 42 and exit 1, got {:?}
-stderr:
-{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        1,
+        "struct-field parameter-operand canary",
+        "the indexed struct field should materialize through the by-value parameter",
     );
 
     let _ = fs::remove_dir_all(&scratch);
@@ -735,21 +719,13 @@ fn runtime_double_indexed_read_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-double-indexed-read-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("double-indexed read canary should compile");
-
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("double-indexed read canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(1),
-        "expected `grid[i][j]` (both indices runtime) to read the right elements across all faces and exit 1, got {:?}
-stderr:
-{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        1,
+        "double-indexed read canary",
+        "both runtime indices should select the right elements across all storage faces",
     );
 
     let _ = fs::remove_dir_all(&scratch);
@@ -766,21 +742,13 @@ fn runtime_nested_deep_const_prefix_exit_canary_runs() {
     ));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("nested deep const-prefix canary should compile");
-
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("nested deep const-prefix canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(1),
-        "expected `cube[1][1][k]` read+write and the unit-length alias shape (`weird[1][2][z]`) to hit the right elements and exit 1, got {:?}
-stderr:
-{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        1,
+        "nested deep constant-prefix canary",
+        "the deep constant prefix and runtime leaf should preserve their full index stack",
     );
 
     let _ = fs::remove_dir_all(&scratch);
@@ -793,21 +761,13 @@ fn runtime_dual_frame_index_copy_exit_canary_runs() {
     let scratch = std::env::temp_dir().join(format!("omega-dual-fi-copy-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("dual frame-index copy canary should compile");
-
-    let output = Command::new(scratch.join(executable_name()))
-        .output()
-        .expect("dual frame-index copy canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(1),
-        "expected `self.arr[k] = self.arr[j]` (k=3, j=1 params, arr[1]=77) to exit 1, got {:?}
-stderr:
-{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
+    assert_native_exit_code(
+        &compilation,
+        1,
+        "dual frame-index copy canary",
+        "the two frame-resident indices should copy between the selected machine elements",
     );
 
     let _ = fs::remove_dir_all(&scratch);

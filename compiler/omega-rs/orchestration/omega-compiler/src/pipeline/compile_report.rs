@@ -792,15 +792,14 @@ mod tests {
         );
         assert!(!self_aliased.has_consistent_executable_publication_custody());
         assert!(self_aliased.checked_native_executable_path().is_none());
-        assert!(
-            !report(
-                true,
-                CompileOutputKind::NativeExecutable,
-                Some(bundle.clone()),
-                Some(flat.clone()),
-            )
-            .has_consistent_executable_publication_custody()
+        let swapped_roles = report(
+            true,
+            CompileOutputKind::NativeExecutable,
+            Some(bundle.clone()),
+            Some(flat.clone()),
         );
+        assert!(!swapped_roles.has_consistent_executable_publication_custody());
+        assert!(swapped_roles.checked_native_executable_path().is_none());
         let mut changed = bundle.clone();
         changed.output_path = "build/Other.app/Contents/MacOS/main".into();
         let changed = report(
