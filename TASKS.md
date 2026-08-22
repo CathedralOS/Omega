@@ -4999,6 +4999,13 @@ Owners:
   preserving literal status 70 and detailed width/policy diagnostics. Exact-
   owner ambiguity, the 795 rooted/3 legacy inventory, and receipt-drift fences
   remain green.
+  Three authored-root narrow signed guard/division regressions—negative i8
+  compare/subtract/multiply guard subjects, i8/i16 signed divide/modulo guard
+  subjects with sign extension, and saturating i8/i16 division including
+  `TYPE_MIN / -1 -> TYPE_MAX`—now launch `OutputOnly` native execution solely
+  through exact checked-report executable receipts while preserving literal
+  status 70 and boundary diagnostics. Exact-owner ambiguity, the 795 rooted/3
+  legacy inventory, and receipt-drift fences remain green.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
