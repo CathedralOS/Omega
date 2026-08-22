@@ -854,10 +854,13 @@ fn runtime_subslice_of_slice_param_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("runtime subslice of slice param canary should compile");
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("runtime subslice of slice param canary should retain its executable receipt");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(executable)
         .output()
         .expect("runtime subslice of slice param canary should run");
 
@@ -886,10 +889,13 @@ fn runtime_machine_field_subslice_arg_index_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("machine-field subslice arg canary should compile");
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("machine-field subslice arg canary should retain its executable receipt");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let output = Command::new(executable)
         .output()
         .expect("machine-field subslice arg canary should run");
 
