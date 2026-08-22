@@ -4901,6 +4901,12 @@ Owners:
   diagnostics. Exact-owner ambiguity, the 795 rooted/3 legacy inventory, and
   receipt-drift fences remain green; nested-loop and mixed-width payload owners
   remain separate.
+  The authored-root mixed-width sum-payload layout regression now launches
+  `OutputOnly` native execution solely through its exact checked-report
+  executable receipt while preserving interpreter parity, literal status 70,
+  and the distinct wrong-variant versus wrong-offset/width diagnostics for
+  `(i16, i16, i64)` payload reads. Exact-owner ambiguity, the 795 rooted/3
+  legacy inventory, and receipt-drift fences remain green.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
