@@ -18,6 +18,154 @@ use psi_typed_trees::statement::{
     StatementNode, TableAssignment, TransitionGuardNode, TransitionTargetNode,
 };
 
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+enum RetainedFieldIdentity {
+    Numbered(u64),
+    Positional(String),
+}
+
+fn retained_field_identity(name: &str, identity: Option<u64>) -> RetainedFieldIdentity {
+    match identity {
+        Some(identity) => RetainedFieldIdentity::Numbered(identity),
+        None => RetainedFieldIdentity::Positional(name.to_owned()),
+    }
+}
+
+/// Independently replay the compiler-derived nominal and stable-member joins
+/// before any placed accessor is accepted as an ordinary typed operation.
+pub(crate) fn validate_plans(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>) {
+    for view in &program.placed_view_plans {
+        let Some(view_data) = program
+            .data_definitions()
+            .iter()
+            .find(|definition| definition.symbol == view.data_symbol)
+        else {
+            diagnostics.push(Diagnostic::error(format!(
+                "placed view `{}` no longer names its exact synthesized data identity",
+                view.data_name
+            )));
+            continue;
+        };
+        let Some(schema) = program
+            .data_definitions()
+            .iter()
+            .find(|definition| definition.symbol == view.schema_symbol)
+        else {
+            diagnostics.push(Diagnostic::error(format!(
+                "placed view `{}` no longer names its exact source schema identity",
+                view.data_name
+            )));
+            continue;
+        };
+        let mut field_symbols = Vec::with_capacity(view.fields.len());
+        let mut accessor_names = Vec::with_capacity(view.fields.len());
+        for field in &view.fields {
+            if field_symbols.contains(&field.field_symbol)
+                || accessor_names.contains(&field.accessor_name)
+            {
+                diagnostics.push(Diagnostic::error(format!(
+                    "placed view `{}` repeats field or accessor identity for `{}`",
+                    view.data_name, field.field_name
+                )));
+                continue;
+            }
+            field_symbols.push(field.field_symbol);
+            accessor_names.push(field.accessor_name.clone());
+
+            let Some(schema_field) = program
+                .data_members(schema)
+                .iter()
+                .filter_map(|member| match member {
+                    psi_typed_trees::data::DataMember::Field(field) => Some(field),
+                    psi_typed_trees::data::DataMember::Variant(_) => None,
+                })
+                .find(|candidate| candidate.symbol == field.field_symbol)
+            else {
+                diagnostics.push(Diagnostic::error(format!(
+                    "placed view `{}` field `{}` no longer names its exact source field identity",
+                    view.data_name, field.field_name
+                )));
+                continue;
+            };
+            if schema_field.identity != field.member_identity
+                || (field.member_identity.is_none()
+                    && schema_field.name.as_str() != field.field_name)
+                || schema_field.type_reference != field.value_type
+            {
+                diagnostics.push(Diagnostic::error(format!(
+                    "placed view `{}` field `{}` changed its exact source member binding",
+                    view.data_name, field.field_name
+                )));
+                continue;
+            }
+
+            let field_identity = retained_field_identity(&field.field_name, field.member_identity);
+            let exact_layout_entry = view.placement.layout().entries.iter().find(|entry| {
+                retained_field_identity(&entry.field, entry.member_identity) == field_identity
+            });
+            if exact_layout_entry.is_none() {
+                diagnostics.push(Diagnostic::error(format!(
+                    "placed view `{}` field `{}` changed its retained layout member identity",
+                    view.data_name, field.field_name
+                )));
+                continue;
+            }
+
+            let mut canonical_layout_identities = view
+                .placement
+                .layout()
+                .entries
+                .iter()
+                .map(|entry| retained_field_identity(&entry.field, entry.member_identity))
+                .collect::<Vec<_>>();
+            canonical_layout_identities.sort();
+            canonical_layout_identities.dedup();
+            let exact_access = canonical_layout_identities
+                .iter()
+                .position(|identity| identity == &field_identity)
+                .and_then(|slot| u32::try_from(slot).ok())
+                .and_then(|slot| {
+                    view.placement
+                        .access()
+                        .plan()
+                        .entries()
+                        .iter()
+                        .find(|entry| entry.key().slot() == slot)
+                });
+            if !exact_access.is_some_and(|entry| entry.access() == &field.access) {
+                diagnostics.push(Diagnostic::error(format!(
+                    "placed view `{}` field `{}` changed its admitted access decision",
+                    view.data_name, field.field_name
+                )));
+                continue;
+            }
+
+            let exact_view_field = program
+                .data_members(view_data)
+                .iter()
+                .filter_map(|member| match member {
+                    psi_typed_trees::data::DataMember::Field(field) => Some(field),
+                    psi_typed_trees::data::DataMember::Variant(_) => None,
+                })
+                .find(|candidate| {
+                    candidate.identity == field.member_identity
+                        && (field.member_identity.is_some()
+                            || candidate.name.as_str() == field.field_name)
+                });
+            if !exact_view_field.is_some_and(|candidate| {
+                program
+                    .named_type_reference(candidate.type_reference)
+                    .is_some_and(|name| name.as_str() == field.accessor_name)
+            }) {
+                diagnostics.push(Diagnostic::error(format!(
+                    "placed view `{}` field `{}` changed its exact synthesized accessor binding",
+                    view.data_name, field.field_name
+                )));
+            }
+        }
+    }
+}
+
 pub(crate) fn validate_statement(
     program: &TypedTrees,
     machine: &Machine,

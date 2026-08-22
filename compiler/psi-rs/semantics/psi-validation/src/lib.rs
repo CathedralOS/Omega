@@ -204,6 +204,7 @@ fn validate_program_internal(
         diagnostics.append(&mut dynamic_diagnostics);
     }
     validate_data_field_types(program, &symbols, &mut diagnostics);
+    placed_views::validate_plans(program, &mut diagnostics);
     relevance::validate_relevance(program, &mut diagnostics);
     // Math roster N1: recursive data is legal and PROOF-ONLY (computed, never
     // spelled); every runtime consumption face refuses with the
