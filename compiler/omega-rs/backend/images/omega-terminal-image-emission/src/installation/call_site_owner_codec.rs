@@ -1,4 +1,4 @@
-//! Canonical format-32 codec for native call-site ownership.
+//! Canonical format-33 codec for native call-site ownership.
 //!
 //! Call stack rows and ordering remain in the installation parent. This child
 //! owns only the operation-versus-cleanup owner tag and its exact identities.

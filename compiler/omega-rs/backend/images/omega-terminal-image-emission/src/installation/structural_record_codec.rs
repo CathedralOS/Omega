@@ -1,4 +1,4 @@
-//! Canonical format-32 record-field catalogs.
+//! Canonical format-33 record-field catalogs.
 
 use psi_terminal::StructuralFieldDeclaration;
 

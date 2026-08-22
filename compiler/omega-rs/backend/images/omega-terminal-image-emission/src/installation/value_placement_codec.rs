@@ -1,4 +1,4 @@
-//! Canonical format-32 value-shape and placement codec.
+//! Canonical format-33 value-shape and placement codec.
 //!
 //! Owning rows retain their ordering and validation in the installation
 //! parent. This child owns only the exact shape, register, and location bytes.

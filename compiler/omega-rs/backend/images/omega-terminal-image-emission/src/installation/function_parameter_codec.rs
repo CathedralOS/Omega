@@ -1,4 +1,4 @@
-//! Canonical format-32 codec for installed function parameters and homes.
+//! Canonical format-33 codec for installed function parameters and homes.
 //!
 //! Unit/scalar row positions remain in the installation parent. This child
 //! shares their exact bytes while retaining the established decode labels.

@@ -53,15 +53,19 @@ optional primitive scalar remains the independent result lane.
 Vocabulary 24 also admits a first-class immutable borrowed byte-sequence shape,
 an exact raw-octet literal establishment, and that local literal as a structural
 argument to a bodyless boundary. The codec, verifier, and interpreter preserve
-all bytes, including non-UTF-8 payloads. In-module forwarding, source-tree byte
-ownership, and native byte-view layout remain fenced until their dedicated paths
-exist.
+all bytes, including non-UTF-8 payloads. Psi syntax, resolved, typed, and checked
+trees own that exact payload, and checked-to-terminal lowering establishes its
+borrowed place before passing the same place to the bodyless call. In-module and
+nonliteral forwarding remain fenced.
 
 Preservation is not realization. Omega target lowering accepts the one exact
 Linux `exit_process(i32)` shape through import-free `exit_group`, including the
-consumed scalar and nonreturning trap tail. Other nonempty scalar calls and all
-byte-sequence literal realization remain rejected; metadata-only paths may not
-discard either lane. Darwin and Windows process exit remain fail-closed pending
+consumed scalar and nonreturning trap tail. It also accepts the exact literal-only
+Linux `write_line` settlement: x86-64 and AArch64 emit an import-free short-write
+loop over the retained bytes plus one newline, and object/image/installation
+validation replays the code, data intervals, and structural custody. Other
+nonempty calls and nonliteral byte sequences remain rejected; metadata-only
+paths may not discard either lane. Darwin and Windows remain fail-closed pending
 validated import/relocation evidence. Producers likewise may not encode an
 effect input as an ordinary machine return or introduce a private pre-terminal
 IR to evade this fence.

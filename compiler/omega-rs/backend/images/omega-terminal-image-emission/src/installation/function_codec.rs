@@ -1,4 +1,4 @@
-//! Canonical format-32 codec for installed function rows.
+//! Canonical format-33 codec for installed function rows.
 //!
 //! The installation parent retains upfront count conversion, cross-function
 //! ordering, canonicality, and admission validation. This child composes rows.

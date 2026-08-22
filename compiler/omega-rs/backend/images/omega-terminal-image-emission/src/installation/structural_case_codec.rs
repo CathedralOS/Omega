@@ -1,4 +1,4 @@
-//! Canonical format-32 sum-case catalogs.
+//! Canonical format-33 sum-case catalogs.
 
 use psi_core::StructuralCaseId;
 use psi_terminal::StructuralCaseDeclaration;
