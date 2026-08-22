@@ -2361,9 +2361,12 @@ fn runtime_enum_classify_dispatch_exit_canary_runs() {
     let canary = pass_canary("structs/runtime_enum_classify_dispatch_exit");
     let scratch = std::env::temp_dir().join(format!("omega-enum-classify-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("enum classify-dispatch canary should compile from its authored root");
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("enum classify-dispatch canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("enum classify-dispatch canary should run");
     assert_eq!(
@@ -2386,10 +2389,13 @@ fn runtime_nested_field_accumulate_loop_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-nested-accum-loop-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("nested-field accumulate-loop canary should compile from its authored root");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("nested-field accumulate-loop canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("nested-field accumulate-loop canary should run");
 
@@ -2411,10 +2417,13 @@ fn runtime_indexed_write_const_read_exit_canary_runs() {
         "omega-indexed-write-const-read-{}",
         std::process::id()
     ));
-    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("indexed-write/const-read canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("indexed-write/const-read canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("indexed-write/const-read canary should run");
 
@@ -2434,10 +2443,13 @@ fn runtime_indexed_rmw_temp_exit_canary_runs() {
     let canary = pass_canary("slices/runtime_indexed_rmw_temp_exit");
     let scratch =
         std::env::temp_dir().join(format!("omega-indexed-rmw-temp-{}", std::process::id()));
-    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("indexed-rmw-temp canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("indexed-rmw-temp canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("indexed-rmw-temp canary should run");
 
@@ -2459,10 +2471,13 @@ fn runtime_indexed_write_adjacent_field_exit_canary_runs() {
         "omega-indexed-write-adjacent-{}",
         std::process::id()
     ));
-    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("indexed-write-adjacent-field canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("indexed-write-adjacent-field canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("indexed-write-adjacent-field canary should run");
 
