@@ -1,10 +1,12 @@
+mod wire;
+
 use psi_core::{
     ByteSequenceStructuralField, CanonicalStructuralPathSegment, ContentAlgebra,
     ContentAlgebraKind, ContentConservation, ContentDomainId, ContentPlaceSegment,
     ContentPlaceVersion, ContentProjectionIdentity, ContentStructuralPlace, ContentTerm,
     EvidenceIdentity, IeeeFloatComparisonKind, IeeeFloatFormat, IeeeFloatStructuralField,
     IntegerCarrier, IntegerSign, IntegerType, IntegerValue, Proposition, PropositionError,
-    PropositionId, PsiSemanticId, ScalarTerm, ScalarType, StructuralCaseSubject,
+    PropositionId, ScalarTerm, ScalarType, StructuralCaseSubject,
 };
 use psi_proof_kernel::{
     AcceptedFactRoute, AdmissionEvidence, AdmissionKind, CertificateEnvelope, EvidenceRoute,
@@ -16,6 +18,7 @@ use psi_terminal_verifier::{
     ObligationEvidence, ProofBundle, VerifiedTerminalModule,
 };
 use sha2::{Digest, Sha256};
+use wire::{Reader, Writer};
 
 const MAGIC: &[u8; 8] = b"PSIPRF\0\0";
 /// Single current pre-release proof vocabulary marker.
@@ -1916,141 +1919,6 @@ fn decode_admission_kind(reader: &mut Reader<'_>) -> Result<AdmissionKind, Proof
         2 => Ok(AdmissionKind::ProviderFact),
         3 => Ok(AdmissionKind::CheckedAssemblyClaim),
         tag => Err(ProofCodecError::InvalidTag("AdmissionKind", tag)),
-    }
-}
-
-#[derive(Default)]
-struct Writer {
-    bytes: Vec<u8>,
-}
-
-impl Writer {
-    fn finish(self) -> Vec<u8> {
-        self.bytes
-    }
-
-    fn bytes(&mut self, bytes: &[u8]) {
-        self.bytes.extend_from_slice(bytes);
-    }
-
-    fn u8(&mut self, value: u8) {
-        self.bytes.push(value);
-    }
-
-    fn u16(&mut self, value: u16) {
-        self.bytes(&value.to_le_bytes());
-    }
-
-    fn u32(&mut self, value: u32) {
-        self.bytes(&value.to_le_bytes());
-    }
-
-    fn u64(&mut self, value: u64) {
-        self.bytes(&value.to_le_bytes());
-    }
-
-    fn id(&mut self, id: impl PsiSemanticId) {
-        self.bytes(&id.get().to_le_bytes());
-    }
-
-    fn len(&mut self, label: &'static str, len: usize) -> Result<(), ProofCodecError> {
-        self.u32(u32::try_from(len).map_err(|_| ProofCodecError::CollectionTooLong(label))?);
-        Ok(())
-    }
-
-    fn index(&mut self, label: &'static str, index: usize) -> Result<(), ProofCodecError> {
-        self.u32(u32::try_from(index).map_err(|_| ProofCodecError::IndexTooLarge(label))?);
-        Ok(())
-    }
-
-    fn string(&mut self, label: &'static str, value: &str) -> Result<(), ProofCodecError> {
-        if value.len() > MAX_CONTENT_IDENTITY_BYTES {
-            return Err(ProofCodecError::StringTooLong(label));
-        }
-        self.len(label, value.len())?;
-        self.bytes(value.as_bytes());
-        Ok(())
-    }
-}
-
-struct Reader<'bytes> {
-    bytes: &'bytes [u8],
-    offset: usize,
-}
-
-impl<'bytes> Reader<'bytes> {
-    const fn new(bytes: &'bytes [u8]) -> Self {
-        Self { bytes, offset: 0 }
-    }
-
-    fn remaining(&self) -> usize {
-        self.bytes.len() - self.offset
-    }
-
-    fn take(&mut self, len: usize) -> Result<&'bytes [u8], ProofCodecError> {
-        let end = self
-            .offset
-            .checked_add(len)
-            .ok_or(ProofCodecError::UnexpectedEnd)?;
-        let bytes = self
-            .bytes
-            .get(self.offset..end)
-            .ok_or(ProofCodecError::UnexpectedEnd)?;
-        self.offset = end;
-        Ok(bytes)
-    }
-
-    fn array<const N: usize>(&mut self) -> Result<[u8; N], ProofCodecError> {
-        self.take(N)?
-            .try_into()
-            .map_err(|_| ProofCodecError::UnexpectedEnd)
-    }
-
-    fn u8(&mut self) -> Result<u8, ProofCodecError> {
-        Ok(self.array::<1>()?[0])
-    }
-
-    fn u16(&mut self) -> Result<u16, ProofCodecError> {
-        Ok(u16::from_le_bytes(self.array()?))
-    }
-
-    fn u32(&mut self) -> Result<u32, ProofCodecError> {
-        Ok(u32::from_le_bytes(self.array()?))
-    }
-
-    fn u64(&mut self) -> Result<u64, ProofCodecError> {
-        Ok(u64::from_le_bytes(self.array()?))
-    }
-
-    fn count(&mut self) -> Result<u32, ProofCodecError> {
-        self.u32()
-    }
-
-    fn index(&mut self) -> Result<usize, ProofCodecError> {
-        usize::try_from(self.u32()?).map_err(|_| ProofCodecError::IndexOutsideHost)
-    }
-
-    fn boolean(&mut self) -> Result<bool, ProofCodecError> {
-        match self.u8()? {
-            0 => Ok(false),
-            1 => Ok(true),
-            value => Err(ProofCodecError::InvalidBoolean(value)),
-        }
-    }
-
-    fn string(&mut self, label: &'static str) -> Result<String, ProofCodecError> {
-        let len =
-            usize::try_from(self.count()?).map_err(|_| ProofCodecError::StringTooLong(label))?;
-        if len > MAX_CONTENT_IDENTITY_BYTES {
-            return Err(ProofCodecError::StringTooLong(label));
-        }
-        std::str::from_utf8(self.take(len)?)
-            .map(str::to_owned)
-            .map_err(|_| ProofCodecError::InvalidUtf8(label))
-    }
-
-    fn id<T: PsiSemanticId>(&mut self, label: &'static str) -> Result<T, ProofCodecError> {
-        T::new(self.u64()?).ok_or(ProofCodecError::ZeroIdentity(label))
     }
 }
 
