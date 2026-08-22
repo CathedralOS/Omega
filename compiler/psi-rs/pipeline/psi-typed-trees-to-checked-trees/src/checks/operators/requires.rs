@@ -360,7 +360,7 @@ fn contexts_prove_boolean_leaf(
 }
 
 /// A leaf clause is proven by a boolean fact whose rendered form matches the
-/// instantiated clause, or by a domain membership whose domain body states it
+/// instantiated clause, or by a domain membership whose `requires` states it
 /// over the member value (mirroring the call-`requires` leaf prover in
 /// checks/contracts/direct.rs and domains.rs).
 fn context_proves_boolean_label(

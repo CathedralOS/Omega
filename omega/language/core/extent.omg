@@ -30,10 +30,9 @@ boundary machine no_wrap(base: addr, length: u64) -> bool;
 pub domain Extent::Granted
 requires
     no_wrap(self.base, self.length)
-{
-    ExtentRootProvider::grant;
+established by
+    ExtentRootProvider::grant,
     ProgramStorageEntry::enter;
-}
 
 // One stable semantic entry requirement owns the loader-provisioned image and
 // initial stack/storage roots. A target profile composes its separate physical

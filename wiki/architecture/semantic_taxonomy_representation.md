@@ -180,7 +180,7 @@ Conjunction combines roles by axis and rejects competing contributors to the
 same role.
 
 Domain propositions normalize from `requires`; exact requirement identities in
-the body are the only authored establishment routes. Empty atomic domains may
+`established by` are the only authored establishment routes. Empty atomic domains may
 be qualified vacuously, while predicate-bearing domains require proof and
 routed domains require an exact authorized exit. No package ownership,
 attachment name, machine placement, or former privileged qualification trait
@@ -531,8 +531,13 @@ contract identity separate from private implementation evidence; ranking
 subjects, views, ranges, and other witness material never enter the contract
 object.
 
-Boundary progress profiles referenced by premises are sealed semantic
-commitments with grant/receipt identity. They participate in provider
+Boundary progress profiles referenced by premises are atomic domains explicitly
+classified by their owner with `satisfies ProgressProfile`. Their
+`established by` requirements and exact admitted receipts seal the commitment;
+predicate absence or provider use never infers the classification. Published
+contracts retain authored premise schemas, checked call edges retain exact
+substituted instances, and coverage resolves each instance to a public schema,
+local receipt, or manifest-bound provider receipt. They participate in provider
 admission but remain outside the initial ordinary proof-fact catalog.
 
 Task consumption needs a derived artifact rather than syntax booleans. TR1

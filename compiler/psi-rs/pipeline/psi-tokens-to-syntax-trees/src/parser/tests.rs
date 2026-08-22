@@ -3536,10 +3536,9 @@ fn parses_domain_requires_and_requirement_routes_independently() {
         domain Reservation::Confirmed
         requires
             self.seats > 0
-        {
-            Reservations::confirm;
+        established by
+            Reservations::confirm,
             Imported::Reservations::restore;
-        }
         "#;
 
     let tokens = Lexer::new(source)
@@ -3595,7 +3594,7 @@ fn rejects_legacy_domain_body_predicates_with_migration_guidance() {
         "got: {}",
         error.message
     );
-    assert!(error.message.contains("`Trait::requirement`"));
+    assert!(error.message.contains("`established by Trait::requirement"));
 }
 
 #[test]

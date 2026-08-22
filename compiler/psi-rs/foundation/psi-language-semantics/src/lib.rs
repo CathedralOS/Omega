@@ -764,7 +764,7 @@ impl DomainSemanticRoles {
 /// relationship was allowed to introduce it in the first place.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DomainEstablishmentRoute {
-    /// An exact ordinary trait requirement authored in the domain body.
+    /// An exact ordinary trait requirement authored by `established by`.
     CheckedRequirement {
         trait_definition: psi_symbols::SymbolHandle,
         requirement: psi_symbols::SymbolHandle,

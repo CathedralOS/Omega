@@ -170,12 +170,18 @@ termination either. The normalized artifact derives its terminal-outcome
 classification from the termination guarantee, reachable outcomes, and
 explicit premises without adding phantom `Completes<...>` surface syntax.
 
-Pinned operations and providers, not reach rows, identify positive progress
-premises. Boundary progress profiles are opaque, sealed commitments using
-the existing grant/receipt machinery; they participate in deterministic slot
-admission and appear through ordinary requirements such as
-`requires scheduler in WeakFair`, but do not entail proof facts. General trace
-logic and profile entailment remain deferred.
+Pinned operation contracts, not reach rows or mere parameter mentions,
+identify positive progress premises. A profile is an owner-classified atomic
+domain declared with `satisfies ProgressProfile` and an `established by`
+boundary route. It is opaque, predicate-free, sealed against downstream
+classification or route extension, and established only with the exact
+admitted grant/receipt. Public termination contracts author premise schemas
+through ordinary requirements such as `requires scheduler in WeakFair`;
+checked calls instantiate those schemas by exact argument substitution.
+Derived instances must match a published schema, an exact local receipt, or a
+build-bound provider premise in the component manifest. The profiles do not
+entail proof facts, and general trace logic and profile entailment remain
+deferred.
 
 The ranking witness is excluded from published contract identity. Swapping one
 valid view for another revalidates the implementation and proof cache only;

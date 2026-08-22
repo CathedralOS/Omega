@@ -43,18 +43,17 @@ map, or otherwise consume authority require the relevant domain membership.
 ## Qualification evidence
 
 A domain declares predicate obligations in `requires` and exact authorized
-establishment requirements in its body. `Extent::Granted` requires geometry
+establishment requirements in `established by`. `Extent::Granted` requires
+geometry
 that fits the target address space and names its boundary root directly:
 
 ```omega
 pub domain Extent::Granted
     requires no_wrap(self.base, self.length)
-{
-    ExtentRootProvider::grant;
-}
+    established by ExtentRootProvider::grant;
 ```
 
-The body does not call `grant`; it authorizes that exact requirement to
+The clause does not call `grant`; it authorizes that exact requirement to
 originate the domain at its exact qualified subjects. Here the subject is the
 result. A selected provider satisfies the requirement, and admission records
 its evidence. A third party cannot create a look-alike trait or machine to
@@ -65,7 +64,7 @@ resolve to one exact overload. Ambiguity rejects without consulting visible or
 selected satisfiers. The same rule governs nominal static-machine callback
 binders and every other signature-free requirement reference. Adding an
 overload to an existing requirement name is consequently a breaking change for
-distant route lists and binders as well as local callers; compatibility
+distant establishment clauses and binders as well as local callers; compatibility
 reporting surfaces that at the requirement declaration. `as Name` continues to
 name a satisfying conformance and is not an overload selector.
 
@@ -799,9 +798,10 @@ root separately retains that mask-provider contract. The exact transition
 receipt then qualifies the concrete guard subject for that invocation. A raw
 guard or explicit `as ... in Active` cannot reproduce the route.
 
-Inbound acknowledgement establishment uses the same route spelling as a
-routed result. Core owns one stable acknowledgement-entry requirement, and
-`Pending` names that requirement in its domain body. Target interrupt roots
+Inbound acknowledgement establishment uses the same `established by` route
+spelling as a routed result. Core owns one stable acknowledgement-entry
+requirement, and `Pending` names that requirement in its `established by`
+clause. Target interrupt roots
 inherit the exact requirement; `Calling<C>` and target policy may refine its
 plan and ABI without replacing its semantic identity. Installation supplies
 the direction: an installed external-root occurrence introduces every exact

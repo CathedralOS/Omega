@@ -254,14 +254,13 @@ is not inferred from the trait's current requirement count.
 
 ### Domain establishment requirements
 
-A domain may name an exact trait requirement in its body. This does not make
+A domain may name an exact trait requirement in `established by`. This does not make
 the trait special globally; it records that requirement as one authorized
 origin for that domain:
 
 ```omega
-domain Reservation::Issued {
-    Issues::issue;
-}
+domain Reservation::Issued
+established by Issues::issue;
 ```
 
 A machine satisfying `Issues::issue` may establish `Reservation::Issued` at

@@ -4698,8 +4698,8 @@ Owners:
 - **CALLBACK-PARAMETER-REQUIREMENT — implement the settled nominal binder.**
   Parse and resolve `where machine Selected satisfies Trait::requirement`,
   deriving the complete callable contract from one uniquely resolved
-  requirement row. Centralize that exact resolver for domain route lists and
-  every other signature-free requirement site. Reject overloaded paths,
+  requirement row. Centralize that exact resolver for domain `established by`
+  clauses and every other signature-free requirement site. Reject overloaded paths,
   structural coincidence, and visible-unique selection. Retain a checked
   per-use row with call site, static-machine ordinal, selected
   machine/satisfaction row, exact requirement overload, separate published and
@@ -4713,7 +4713,7 @@ Owners:
   selected identity in provenance without importing narrower facts unless an
   API contract forwards them. Add declaration-side compatibility reporting
   when a new overload makes signature-free references ambiguous, with pass/fail
-  canaries covering both callback binders and domain routes.
+  canaries covering both callback binders and domain establishment clauses.
 
   The declaration and admission slice is implemented. Syntax, resolved, and
   typed trees retain a discriminated structural-or-nominal contract; nominal
@@ -4723,11 +4723,11 @@ Owners:
   another trait, and keeps nominal and structural specializations distinct in
   template identity. Checked-only filesystem pass/fail canaries now pin unique
   and overloaded signature-free paths for both nominal callback binders and
-  authored domain routes. Declaration-side compatibility reporting is also
-  implemented: after symbols are assigned and before authored paths are
+  authored domain establishment clauses. Declaration-side compatibility
+  reporting is also implemented: after symbols are assigned and before authored paths are
   normalized, one diagnostic names each overloaded declaring-trait family and
   source-ordered diagnostics name every affected nominal binder or domain
-  route. The checked identity spine is also implemented:
+  establishment clause. The checked identity spine is also implemented:
   every admitted nominal use retains its exact statement/expression site,
   static-machine ordinal, registration operation, selected machine and entry,
   unique satisfaction trait/requirement, and canonical requirement-overload
@@ -6583,12 +6583,27 @@ compiler concept is introduced.
   and out-of-isolated-root shapes remain conservative fences. Do not restore
   authored `stores` clauses or treat lifetime elision as evidence; Git carries
   individual evidence cohorts.
-- **TPR4/TPR6 — design blocked on owner Q1.** Choose how an ordinary domain or
-  routed requirement is classified and attached as a progress premise before
-  connecting progress-profile grants and receipts. Generic routed/domain
-  requirements must not be treated as progress merely because they are
-  predicate-free or provider-backed; private ranking witnesses remain outside
-  public identity.
+- **TPR4/TPR6 — implement explicit progress-profile classification and premise
+  coverage.** Extend domain declarations with the owner-only, at-most-one
+  `satisfies ProgressProfile` classification. Require classified domains to be
+  atomic, predicate-free, and routed through exact `established by` boundary
+  requirements with admitted receipts; never infer the role from shape, use,
+  or provider backing. Normalize authored public premise schemas separately
+  from exact call-edge instances. Exported checked bodies must cover every
+  derived instance without letting implementation refactors rewrite their
+  published set; private bodies derive only from selected operation termination
+  contracts. Resolve each instance by exact substitution/lineage to a public
+  schema, local receipt, or manifest-bound provider receipt and reject unknown
+  correspondence. Keep nominal static-machine binder premises pinned to the
+  named requirement contract and ranking witnesses outside public identity.
+- **DOMAIN-ESTABLISHED-BY-MIGRATION — retire route bodies completely.** The
+  parser and canonical core sources now accept/use
+  `established by Trait::requirement, ...;`. Migrate remaining compiler fixture
+  strings and external source producers from the compatibility
+  `{ Trait::requirement; }` form, update snapshots/visualizations to call the
+  retained count an establishment-clause count, then replace the compatibility
+  parser with a directed diagnostic. Never reinterpret bare `via`: adjacent
+  `satisfies Requirement via Binding` remains the external-realization pair.
 Acceptance: contract axes normalize independently, wrappers cannot launder
 reach or trust, and private proof improvements do not change public identity.
 
@@ -7520,7 +7535,6 @@ specifications:
   checked arithmetic.
 - **IMPORTED-CRASH-CAPSULES:** realization/import/certificate identity in
   `wiki/language_guide/appendix_open_questions.md`.
-- **PROGRESS-PROFILE-CLASSIFICATION:** owner Q1.
 
 ## Platform-gated verification
 

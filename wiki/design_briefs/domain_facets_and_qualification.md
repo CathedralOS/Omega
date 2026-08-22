@@ -51,22 +51,20 @@ The declaration separates propositions from provenance:
 domain [u8]::Path
     requires no_nul(self);
 
-pub domain Reservation::Issued {
-    Issues::issue;
-}
+pub domain Reservation::Issued
+    established by Issues::issue;
 
 domain Reservation::Confirmed
     requires has_seat(self)
-{
-    Confirms::confirm;
-}
+    established by Confirms::confirm;
 ```
 
 `requires` is uniformly propositional, exactly as it is on a machine. Every
-predicate must hold. The body contains exact trait-requirement identities;
-each entry is an alternative authorized origin for the domain.
+predicate must hold. `established by` contains exact trait-requirement
+identities; each comma-separated entry is an alternative authorized origin for
+the domain.
 
-The domain body does not invoke those requirements. It licenses their selected
+The establishment clause does not invoke those requirements. It licenses their selected
 conformances to establish membership at exact qualified subject positions. A
 result is established by the selected call. A non-`self` parameter is
 established only at an installed external-root invocation and remains a
@@ -139,7 +137,7 @@ source:
 | admitted boundary conformance | routed provenance under its selected provider receipt |
 
 An admitted membership assertion is valid only on an exact qualified subject
-of a boundary requirement named in the domain body. A result establishes at
+of a boundary requirement named by `established by`. A result establishes at
 the selected call; a non-`self` parameter establishes only at an installed
 external-root occurrence and remains a precondition at an ordinary call. A
 direct accepted-machine membership guarantee is not authorization. Checked
@@ -185,9 +183,7 @@ with one routed origin:
 ```omega
 domain Extent::Granted
     requires no_wrap(self.base, self.length)
-{
-    ExtentRootProvider::grant;
-}
+    established by ExtentRootProvider::grant;
 ```
 
 Every authorized route proves the predicate at its exact established subject.
@@ -412,7 +408,8 @@ dispatches to their conversion machinery.
 The compiler already carries independent predicate, semantic-role,
 establishment-origin, normalized route, alias, and receipt records. The source
 parser and establishment checker use predicate `requires` plus exact authored
-requirement routes; checked artifacts retain those identities, and neither
+`established by` requirement routes; checked artifacts retain those identities,
+and neither
 owner placement nor boundary contract placement infers authority. The coercion
 resolver now enforces denotation-preserving integer `as`: widening follows the
 source carrier range and narrowing or signedness changes require a complete
@@ -425,7 +422,7 @@ fields still need to adopt the rest of this brief.
 Migration should:
 
 1. move domain propositions to ordinary `requires` and parse exact requirement
-   identities as alternative body routes;
+   identities from `established by` as alternative routes;
 2. make an empty declaration obligation-free and remove ambient owner-package
    establishment;
 3. remove the legacy core qualification relationship from domain

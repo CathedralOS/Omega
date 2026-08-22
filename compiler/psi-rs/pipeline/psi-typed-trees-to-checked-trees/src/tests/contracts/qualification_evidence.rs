@@ -9,9 +9,8 @@ data Guard [linear] {
     identity: u64;
 }
 
-domain Guard::Active {
-    MaskControl::save;
-}
+domain Guard::Active
+established by MaskControl::save;
 
 boundary trait MaskControl {
     machine save(&mut self) -> Guard in Active

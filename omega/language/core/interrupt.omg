@@ -9,8 +9,8 @@
 // Both obligations are ordinary linear data. Their fields carry the runtime
 // identities needed by the selected provider. Active guards use an exact
 // routed result; acknowledgement entry occurrence evidence is bound at runtime.
-// Pending will name one stable core-owned entry requirement using the ordinary
-// domain-route spelling; installation makes its matching parameter inbound.
+// Pending names one stable core-owned entry requirement through `established
+// by`; installation makes its matching parameter inbound.
 // Reconstructing the same fields therefore does not recreate either runtime
 // obligation.
 
@@ -25,9 +25,8 @@ data InterruptMaskGuard [linear] {
     masked_state: u64;
 }
 
-pub domain InterruptMaskGuard::Active {
-    InterruptMaskControl::save_and_mask;
-}
+pub domain InterruptMaskGuard::Active
+established by InterruptMaskControl::save_and_mask;
 
 // The capability that may change the current activation's interrupt mask.
 // Saving returns the only authority that can restore that exact prior state.
@@ -59,9 +58,8 @@ data InterruptAcknowledgement [linear] {
 // surface migrates both this entry and complete below to distinct
 // `reaches <= MachineControl + PortIo` installation rows; implementation is
 // tracked under BOUNDED-INSTALLATION-REACH-ROWS.
-pub domain InterruptAcknowledgement::Pending {
-    InterruptEntry::enter;
-}
+pub domain InterruptAcknowledgement::Pending
+established by InterruptEntry::enter;
 
 pub boundary trait InterruptEntry {
     machine enter(acknowledgement: InterruptAcknowledgement in Pending)

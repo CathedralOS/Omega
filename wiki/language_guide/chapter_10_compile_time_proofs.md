@@ -1143,7 +1143,7 @@ Certificates need no construct of their own: a certificate is wire data,
 its checker is a measured machine, its soundness is a theorem
 (`check(c) == true` implies the claim), and establishment is the
 `evaluated` tier — or a proved `as` qualification through a certificate domain
-(`domain [u8]::ValidCert { check(self); }`), the validated-decode pattern
+(`domain [u8]::ValidCert requires check(self);`), the validated-decode pattern
 of chapter 8 applied to proofs. A build that can afford the check *proves*
 the claim outright; one that cannot accepts the narrow execution claim
 above and lifts it by theorem.

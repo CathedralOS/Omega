@@ -401,7 +401,7 @@ fn empty_domain_explicit_as_qualifies_vacuously() {
 fn user_authored_predicate_machine_compiles() {
     let canary = pass_canary("domains/user_authored_predicate_machine");
     compile_canary_without_output(&canary)
-        .expect("a domain body may call an ordinary user-authored predicate machine");
+        .expect("domain `requires` may call an ordinary user-authored predicate machine");
 }
 
 #[test]
