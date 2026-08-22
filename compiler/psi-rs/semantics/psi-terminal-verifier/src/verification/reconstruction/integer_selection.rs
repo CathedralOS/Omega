@@ -4,6 +4,7 @@ use psi_core::{Proposition, PropositionContext};
 
 use super::{affine_selection, cast_selection};
 
+mod logical;
 mod order;
 mod substitution;
 
@@ -40,15 +41,12 @@ pub(super) fn retained(
                     affine_selection::retained(context, goal, requirements, semantic_axioms)
                 })
         }
-        Proposition::Conjunction(conjuncts) => {
-            !conjuncts.is_empty()
-                && conjuncts
-                    .iter()
-                    .all(|conjunct| retained(context, conjunct, requirements, semantic_axioms))
-        }
-        Proposition::Disjunction(disjuncts) => disjuncts
-            .iter()
-            .any(|disjunct| retained(context, disjunct, requirements, semantic_axioms)),
+        Proposition::Conjunction(conjuncts) => logical::retained_conjunction(conjuncts, |part| {
+            retained(context, part, requirements, semantic_axioms)
+        }),
+        Proposition::Disjunction(disjuncts) => logical::retained_disjunction(disjuncts, |part| {
+            retained(context, part, requirements, semantic_axioms)
+        }),
         _ => false,
     }
 }
