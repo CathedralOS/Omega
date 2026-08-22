@@ -4687,6 +4687,13 @@ Owners:
   and all detailed diagnostics. Exact-owner ambiguity, the 795 rooted/3 legacy
   inventory, and receipt-drift fences remain green; loop/automaton and numeric-
   conversion owners stay fenced.
+  Five authored-root subslice-boundary executions—length folding, bounded and
+  end-only parameter ranges, local parameter subslices, and runtime-start
+  ranges—now launch solely through exact checked-report executable receipts
+  while preserving literal status 70 and all detailed descriptor diagnostics.
+  Exact-owner ambiguity, the 795 rooted/3 legacy inventory, and receipt-drift
+  fences remain green; loop/automaton and numeric-conversion owners stay
+  fenced.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
