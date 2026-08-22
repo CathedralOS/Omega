@@ -2943,7 +2943,7 @@ fn runtime_mut_ref_forward_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-mut-ref-forward-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
+    let compilation = compile(CompileOptions {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
@@ -2951,7 +2951,10 @@ fn runtime_mut_ref_forward_exit_canary_runs() {
     })
     .expect("mut-ref forward canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("mut-ref forward canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("mut-ref forward canary should run");
 
@@ -2988,7 +2991,7 @@ fn runtime_local_slice_forward_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-local-slice-forward-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
+    let compilation = compile(CompileOptions {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
@@ -2996,7 +2999,10 @@ fn runtime_local_slice_forward_exit_canary_runs() {
     })
     .expect("local-slice forward canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("local-slice forward canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("local-slice forward canary should run");
 
