@@ -3,6 +3,7 @@
 use psi_core::{Proposition, PropositionContext};
 
 mod bound;
+mod dispatch;
 mod exact;
 mod logical;
 mod order;
@@ -17,16 +18,7 @@ pub(super) fn retained(
     if exact::retained(goal, requirements, semantic_axioms) {
         return true;
     }
-    match goal {
-        Proposition::LessOrEqual(_, _) => {
-            bound::retained(context, goal, requirements, semantic_axioms)
-        }
-        Proposition::Conjunction(conjuncts) => logical::retained_conjunction(conjuncts, |part| {
-            retained(context, part, requirements, semantic_axioms)
-        }),
-        Proposition::Disjunction(disjuncts) => logical::retained_disjunction(disjuncts, |part| {
-            retained(context, part, requirements, semantic_axioms)
-        }),
-        _ => false,
-    }
+    dispatch::retained(context, goal, requirements, semantic_axioms, |part| {
+        retained(context, part, requirements, semantic_axioms)
+    })
 }
