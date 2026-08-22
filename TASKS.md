@@ -7091,7 +7091,12 @@ diagnostics, unary checks, and shared shape classifiers retain exact behavior.
 Expression store-shape validation now lives in a focused 120-line private
 owner. Array-versus-scalar and scalar-versus-data classification, text-carrier
 exceptions, and exact diagnostics retain behavior and order across every store
-surface. The natural expression-type root is now 548 lines; crate-facing APIs,
+surface. Expression cast validation now lives in a focused 285-line private
+owner. Recast bypass, indexed qualification, proof embedding, quotient-mint
+carrier checks, same-carrier erasure, scalar source fences, and Exact/Wrapping
+float-policy diagnostics retain exact behavior and order. The natural 270-line
+expression-type facade retains generic argument matching, bounded-text capacity
+validation, expression-owner diagnostics, and type labels; crate-facing APIs,
 identities, and the exact 51-function inventory remain unchanged.
 
 Checked-result float/integer conversion remains blocked on the separate
