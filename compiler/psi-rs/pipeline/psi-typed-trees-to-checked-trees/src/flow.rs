@@ -143,7 +143,8 @@ use domain::filter_contexts_after_place_mutations;
 use exits::append_state_exit_facts;
 use mutation::call_may_mutate_contract_state;
 pub(crate) use mutation::{
-    StateMutationSummaryCache, call_mutated_places, statement_mutated_place,
+    StateMutationSummaryCache, call_mutated_places, canonical_receiver_place_for_call_site,
+    statement_mutated_place,
 };
 use operator_calls::{
     append_operator_statement_ensures, operator_statement_call_mutated_places,

@@ -162,7 +162,7 @@ fn progress_profile_termination_premise_normalizes_subject_and_profile() {
 }
 
 #[test]
-fn checked_progress_dependencies_fail_closed_until_call_edge_coverage() {
+fn checked_machine_may_publish_a_conservative_progress_schema_without_using_it() {
     let typed = typed_program_from_source(
         r#"
         data SchedulerHandle {}
@@ -182,13 +182,188 @@ fn checked_progress_dependencies_fail_closed_until_call_edge_coverage() {
         "#,
     );
 
-    let diagnostics =
-        validate_program(&typed).expect_err("checked progress coverage must remain fail closed");
+    validate_program(&typed)
+        .expect("an unused authored premise may conservatively strengthen the public contract");
+}
+
+#[test]
+fn checked_progress_call_instantiates_and_covers_the_exact_public_subject() {
+    let typed = typed_program_from_source(
+        r#"
+        data SchedulerHandle {}
+        domain SchedulerHandle::WeakFair
+        satisfies ProgressProfile
+        established by SchedulerAdmission::grant;
+        boundary trait SchedulerAdmission {
+            machine grant(scheduler: SchedulerHandle) -> SchedulerHandle in WeakFair
+            ensures result in SchedulerHandle::WeakFair
+            terminates;
+        }
+        boundary trait SchedulerRuntime {
+            machine wait(scheduler: SchedulerHandle)
+            requires scheduler in WeakFair
+            terminates;
+        }
+        machine process(
+            runtime: &mut SchedulerRuntime,
+            scheduler: SchedulerHandle
+        )
+        requires scheduler in WeakFair
+        terminates
+        {
+            runtime.wait(scheduler);
+        }
+        "#,
+    );
+
+    let checked = psi_typed_trees_to_checked_trees::lower_typed_trees(typed)
+        .expect("the selected call premise should match the authored public schema");
+    let process = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "process")
+        .expect("process machine");
+    let plan = checked
+        .facts
+        .termination
+        .for_machine(process.symbol)
+        .expect("checked termination plan");
+    let psi_language_semantics::TerminationGuarantee::Terminates { premises } =
+        &plan.checked_summary
+    else {
+        panic!("process should retain a checked termination summary")
+    };
+    assert_eq!(premises.len(), 1);
+}
+
+#[test]
+fn checked_progress_call_rejects_an_unpublished_subject_dependency() {
+    let typed = typed_program_from_source(
+        r#"
+        data SchedulerHandle {}
+        domain SchedulerHandle::WeakFair
+        satisfies ProgressProfile
+        established by SchedulerAdmission::grant;
+        boundary trait SchedulerAdmission {
+            machine grant(scheduler: SchedulerHandle) -> SchedulerHandle in WeakFair
+            ensures result in SchedulerHandle::WeakFair
+            terminates;
+        }
+        boundary trait SchedulerRuntime {
+            machine wait(scheduler: SchedulerHandle)
+            requires scheduler in WeakFair
+            terminates;
+        }
+        machine process(
+            runtime: &mut SchedulerRuntime,
+            scheduler: SchedulerHandle in WeakFair
+        )
+        terminates
+        {
+            runtime.wait(scheduler);
+        }
+        "#,
+    );
+
+    let diagnostics = psi_typed_trees_to_checked_trees::lower_typed_trees(typed)
+        .expect_err("a parameter qualification must not silently become a public progress schema");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
-            .contains("checked call-edge premise coverage is not implemented yet")
+            .contains("published termination contract does not cover that exact subject")
     }));
+}
+
+#[test]
+fn private_progress_dependencies_substitute_through_the_exact_helper_call() {
+    let typed = typed_program_from_source(
+        r#"
+        data SchedulerHandle {}
+        domain SchedulerHandle::WeakFair
+        satisfies ProgressProfile
+        established by SchedulerAdmission::grant;
+        boundary trait SchedulerAdmission {
+            machine grant(scheduler: SchedulerHandle) -> SchedulerHandle in WeakFair
+            terminates;
+        }
+        boundary trait SchedulerRuntime {
+            machine wait(scheduler: SchedulerHandle)
+            requires scheduler in WeakFair
+            terminates;
+        }
+        machine helper(
+            runtime: &mut SchedulerRuntime,
+            scheduler: SchedulerHandle
+        )
+        requires scheduler in WeakFair
+        {
+            runtime.wait(scheduler);
+        }
+        machine process(
+            runtime: &mut SchedulerRuntime,
+            scheduler: SchedulerHandle
+        )
+        requires scheduler in WeakFair
+        terminates
+        {
+            helper(runtime, scheduler);
+        }
+        "#,
+    );
+
+    psi_typed_trees_to_checked_trees::lower_typed_trees(typed)
+        .expect("a private helper should forward its exact derived premise by position");
+}
+
+#[test]
+fn admitted_local_progress_receipt_discharges_the_selected_call_premise() {
+    let typed = typed_program_from_source(
+        r#"
+        data SchedulerHandle {}
+        domain SchedulerHandle::WeakFair
+        satisfies ProgressProfile
+        established by SchedulerAdmission::grant;
+        boundary trait SchedulerAdmission {
+            machine grant(scheduler: SchedulerHandle) -> SchedulerHandle in WeakFair
+            ensures result in SchedulerHandle::WeakFair
+            terminates;
+        }
+        boundary trait SchedulerRuntime {
+            machine wait(scheduler: SchedulerHandle)
+            requires scheduler in WeakFair
+            terminates;
+        }
+        machine process(
+            admission: &mut SchedulerAdmission,
+            runtime: &mut SchedulerRuntime,
+            scheduler: SchedulerHandle
+        )
+        terminates
+        {
+            let granted: SchedulerHandle in WeakFair = admission.grant(scheduler);
+            runtime.wait(granted);
+        }
+        "#,
+    );
+
+    let checked = psi_typed_trees_to_checked_trees::lower_typed_trees(typed)
+        .expect("the exact locally admitted receipt should discharge the wait premise");
+    let process = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "process")
+        .expect("process machine");
+    let plan = checked
+        .facts
+        .termination
+        .for_machine(process.symbol)
+        .expect("checked termination plan");
+    assert_eq!(
+        plan.checked_summary,
+        psi_language_semantics::TerminationGuarantee::Terminates {
+            premises: Vec::new(),
+        }
+    );
 }
 
 #[test]

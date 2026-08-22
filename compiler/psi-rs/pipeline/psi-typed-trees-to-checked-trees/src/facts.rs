@@ -116,7 +116,7 @@ pub(crate) fn build_check_facts(
     // retains public negative guarantees separately from private inference.
     let blocking = build_blocking_facts(program, &machine_blocking);
     // TPR/EFX: termination is published as an independent exact-machine root.
-    let termination = build_termination_facts(program);
+    let termination = build_termination_facts(program, &flow, &semantic)?;
     // R5/STR: body-derived mutation frames are an independent checked axis,
     // never a field of the published machine contract.
     let mutation = build_mutation_facts(program);
@@ -272,17 +272,30 @@ fn build_nominal_machine_use_facts(
         .map_err(|message| vec![psi_diagnostics::Diagnostic::error(message)])
 }
 
-fn build_termination_facts(program: &TypedTrees) -> psi_checked_trees::TerminationFacts {
-    psi_checked_trees::TerminationFacts {
+fn build_termination_facts(
+    program: &TypedTrees,
+    flow: &psi_checked_trees::FlowFacts,
+    semantic: &psi_facts::FactPlan,
+) -> Result<psi_checked_trees::TerminationFacts, Vec<psi_diagnostics::Diagnostic>> {
+    let summaries = crate::checks::termination::analyze_checked_progress(program, flow, semantic)?;
+    Ok(psi_checked_trees::TerminationFacts {
         machines: program
             .machines()
             .iter()
             .map(|machine| psi_checked_trees::MachineTerminationFact {
                 machine: machine.symbol,
-                plan: crate::checks::termination::build_checked_termination_plan(program, machine),
+                plan: crate::checks::termination::build_checked_termination_plan_with_summary(
+                    program,
+                    machine,
+                    summaries
+                        .iter()
+                        .find(|(symbol, _)| *symbol == machine.symbol)
+                        .map(|(_, summary)| summary.clone())
+                        .unwrap_or(psi_language_semantics::TerminationGuarantee::NoGuarantee),
+                ),
             })
             .collect(),
-    }
+    })
 }
 
 fn build_blocking_facts(

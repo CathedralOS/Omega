@@ -1,5 +1,6 @@
 mod graph;
 mod order;
+mod progress;
 mod ranking;
 
 use crate::labels::machine_name;
@@ -107,17 +108,32 @@ pub(crate) fn check_machine_termination(
 /// resolution and proof functions used by the checker. The authored interface
 /// is preserved, while the checked summary and any pending canonical witness
 /// view are implementation-only evidence.
+#[cfg(test)]
 pub(crate) fn build_checked_termination_plan(
     program: &psi_typed_trees::TypedTrees,
     machine: &psi_typed_trees::machine::Machine,
 ) -> psi_language_semantics::MachineTerminationPlan {
+    build_checked_termination_plan_with_summary(
+        program,
+        machine,
+        infer_machine_checked_summary(program, machine),
+    )
+}
+
+pub(crate) fn build_checked_termination_plan_with_summary(
+    program: &psi_typed_trees::TypedTrees,
+    machine: &psi_typed_trees::machine::Machine,
+    checked_summary: psi_language_semantics::TerminationGuarantee,
+) -> psi_language_semantics::MachineTerminationPlan {
     let mut plan = machine.termination_plan.clone();
-    plan.checked_summary = infer_machine_checked_summary(program, machine);
+    plan.checked_summary = checked_summary;
     if let Some(witness) = plan.implementation_witness.as_mut() {
         witness.view_path = ranking::machine_resolved_view_path(program, machine);
     }
     plan
 }
+
+pub(crate) use progress::analyze_checked_progress;
 
 /// Derive the same body-local termination summary retained in checked facts.
 ///

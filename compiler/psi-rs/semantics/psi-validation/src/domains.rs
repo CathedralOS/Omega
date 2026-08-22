@@ -43,7 +43,6 @@ pub(crate) fn validate_domain_definitions(
     }
 
     validate_domain_membership_cycles(program, fact_plan, diagnostics);
-    reject_checked_progress_dependencies_until_covered(program, diagnostics);
 }
 
 fn validate_progress_profile_domains(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>) {
@@ -82,32 +81,6 @@ fn validate_progress_profile_domains(program: &TypedTrees, diagnostics: &mut Vec
             diagnostics.push(Diagnostic::error(format!(
                 "progress profile `{}` may be established only by exact boundary trait requirements",
                 domain.name
-            )));
-        }
-    }
-}
-
-/// Public schemas are normalized, but checked call-edge instantiation and
-/// receipt/manifest coverage are a later TPR6 slice. Keep checked bodies fail
-/// closed while allowing bodyless requirements to publish the contract that
-/// those edges will instantiate.
-fn reject_checked_progress_dependencies_until_covered(
-    program: &TypedTrees,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    for machine in program.machines() {
-        let psi_language_semantics::TerminationInterface::Published(
-            psi_language_semantics::TerminationGuarantee::Terminates { premises },
-        ) = &machine.termination_plan.interface
-        else {
-            continue;
-        };
-        if machine.supply_mode == psi_language_semantics::MachineSupplyMode::CheckedBody
-            && !premises.is_empty()
-        {
-            diagnostics.push(Diagnostic::error(format!(
-                "machine `{}` has subject-bearing progress dependencies, but checked call-edge premise coverage is not implemented yet",
-                machine.name
             )));
         }
     }
