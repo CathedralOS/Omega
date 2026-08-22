@@ -49,6 +49,11 @@ python3 compiler/omega/omega0_bundle.py get sources.omg0b src/main.omg
 The gate proves invocation-order independence, exact-byte round trips (including
 NUL and missing final newline), canonical manifest order, and rejection of
 duplicates, unsafe labels, truncation, and trailing data. The Delta-written
-Omega0 decoder must reproduce these acceptance rules before it consumes a
-multi-file bundle.
-
+decoder canary is
+[`../delta-rs/samples/omega0-bundle-decode.alp`](../delta-rs/samples/omega0-bundle-decode.alp).
+It streams the format with checked `i32` lengths, canonical path/order checks,
+exact EOF, and an explicit local label-storage exhaustion result at 64 label
+bytes in this first canary. Native and Rust-free meaning gates cover canonical
+input, truncation, trailing bytes,
+noncanonical ordering, and the decoder's explicit resource ceiling; the native
+gate also exercises an unsafe path label.
