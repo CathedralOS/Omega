@@ -4390,6 +4390,13 @@ Owners:
   attaches citation custody. Consumer eligibility, per-alias landing order,
   direct-before-alias precedence, proof shapes, rejection behavior, and the
   fixed affine-literal frontier remain unchanged.
+  Five authored-root const-data specialization executions—forwarded array
+  lengths, multiple layout instances, named values, closed arithmetic
+  expressions, and symbolic expressions—now launch solely through exact
+  checked-report executable receipts while preserving literal status 70 and
+  all nested-extent, distinct-layout, named-value, and expression-
+  specialization diagnostics. The 795 rooted/3 legacy exact-owner pins and all
+  established fences remain unchanged.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
