@@ -1,0 +1,16 @@
+//! Source-ordered retained integer bounds for independent reconstruction.
+
+use psi_core::{Proposition, ScalarTerm};
+
+pub(super) fn ordered<'a>(
+    requirements: &'a [Proposition],
+    semantic_axioms: &'a [Proposition],
+) -> impl Iterator<Item = (&'a Proposition, &'a ScalarTerm, &'a ScalarTerm)> + 'a {
+    requirements
+        .iter()
+        .chain(semantic_axioms)
+        .filter_map(|fact| match fact {
+            Proposition::LessOrEqual(left, right) => Some((fact, left, right)),
+            _ => None,
+        })
+}

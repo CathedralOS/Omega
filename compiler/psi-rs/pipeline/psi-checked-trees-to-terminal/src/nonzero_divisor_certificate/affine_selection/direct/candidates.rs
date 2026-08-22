@@ -2,18 +2,17 @@
 
 use psi_core::{Proposition, ScalarTerm};
 
-use super::super::super::integer_evidence::{Citation, cited_facts};
-use super::super::eligibility;
+use super::super::super::integer_evidence::Citation;
+use super::super::{bounds, eligibility};
 
 pub(super) fn find<'a, T>(
     assumptions: &'a [Proposition],
     semantic_axioms: &'a [Proposition],
     mut complete: impl FnMut(&'a ScalarTerm, &'a Proposition, Citation) -> Option<T>,
 ) -> Option<T> {
-    for (citation, root_bound) in cited_facts(assumptions, semantic_axioms) {
-        let Proposition::LessOrEqual(root_left, root_right) = root_bound else {
-            continue;
-        };
+    for (citation, root_bound, root_left, root_right) in
+        bounds::ordered(assumptions, semantic_axioms)
+    {
         for root in eligibility::ordered_value_endpoints(root_left, root_right) {
             if let Some(result) = complete(root, root_bound, citation) {
                 return Some(result);
