@@ -7,6 +7,12 @@ pub enum CompileOutputKind {
     ObjectContainer,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ExecutablePublicationDestination {
+    FlatOutput,
+    MacOsAppBundle,
+}
+
 /// Immutable custody for one compiler-published executable container.
 ///
 /// This records the exact final-footprint certificate, publication seal, and
@@ -15,6 +21,7 @@ pub enum CompileOutputKind {
 /// installation.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExecutablePublicationReceipt {
+    destination: ExecutablePublicationDestination,
     output_path: PathBuf,
     certificate_fingerprint: u64,
     inventory_fingerprint: u64,
@@ -26,6 +33,7 @@ pub struct ExecutablePublicationReceipt {
 
 impl ExecutablePublicationReceipt {
     pub(crate) fn new(
+        destination: ExecutablePublicationDestination,
         output_path: PathBuf,
         certificate_fingerprint: u64,
         inventory_fingerprint: u64,
@@ -35,6 +43,7 @@ impl ExecutablePublicationReceipt {
         installation_evidence_fingerprint: u64,
     ) -> Self {
         Self {
+            destination,
             output_path,
             certificate_fingerprint,
             inventory_fingerprint,
@@ -43,6 +52,10 @@ impl ExecutablePublicationReceipt {
             container_fingerprint,
             installation_evidence_fingerprint,
         }
+    }
+
+    pub const fn destination(&self) -> ExecutablePublicationDestination {
+        self.destination
     }
 
     pub fn output_path(&self) -> &std::path::Path {
@@ -114,7 +127,10 @@ impl CompileReport {
                     && self.app_bundle_publication.is_none()
             }
             CompileOutputKind::NativeExecutable => {
-                self.wrote_output && self.executable_publication.is_some()
+                self.wrote_output
+                    && self.executable_publication.as_ref().is_some_and(|receipt| {
+                        receipt.destination == ExecutablePublicationDestination::FlatOutput
+                    })
             }
             CompileOutputKind::ObjectContainer => {
                 self.wrote_output
@@ -132,7 +148,8 @@ impl CompileReport {
             (None, None) | (Some(_), None) => true,
             (None, Some(_)) => false,
             (Some(flat), Some(bundle)) => {
-                flat.output_path != bundle.output_path
+                bundle.destination == ExecutablePublicationDestination::MacOsAppBundle
+                    && flat.output_path != bundle.output_path
                     && flat.output_path.file_name() == bundle.output_path.file_name()
                     && flat.certificate_fingerprint == bundle.certificate_fingerprint
                     && flat.inventory_fingerprint == bundle.inventory_fingerprint
@@ -158,10 +175,17 @@ impl CompileReport {
 
 #[cfg(test)]
 mod tests {
-    use super::{CompileOutputKind, CompileReport, ExecutablePublicationReceipt};
+    use super::{
+        CompileOutputKind, CompileReport, ExecutablePublicationDestination,
+        ExecutablePublicationReceipt,
+    };
 
-    fn receipt(path: &str, installation: u64) -> ExecutablePublicationReceipt {
-        ExecutablePublicationReceipt::new(path.into(), 1, 2, 3, 4, 5, installation)
+    fn receipt(
+        destination: ExecutablePublicationDestination,
+        path: &str,
+        installation: u64,
+    ) -> ExecutablePublicationReceipt {
+        ExecutablePublicationReceipt::new(destination, path.into(), 1, 2, 3, 4, 5, installation)
     }
 
     fn report(
@@ -185,8 +209,16 @@ mod tests {
 
     #[test]
     fn executable_publication_pair_rejects_every_cross_copy_drift() {
-        let flat = receipt("build/main", 6);
-        let bundle = receipt("build/Main.app/Contents/MacOS/main", 7);
+        let flat = receipt(
+            ExecutablePublicationDestination::FlatOutput,
+            "build/main",
+            6,
+        );
+        let bundle = receipt(
+            ExecutablePublicationDestination::MacOsAppBundle,
+            "build/Main.app/Contents/MacOS/main",
+            7,
+        );
         assert!(
             report(
                 true,
@@ -240,6 +272,15 @@ mod tests {
                 true,
                 CompileOutputKind::NativeExecutable,
                 Some(flat.clone()),
+                Some(flat.clone()),
+            )
+            .has_consistent_executable_publication_custody()
+        );
+        assert!(
+            !report(
+                true,
+                CompileOutputKind::NativeExecutable,
+                Some(bundle.clone()),
                 Some(flat.clone()),
             )
             .has_consistent_executable_publication_custody()

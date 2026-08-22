@@ -717,6 +717,10 @@ requires one flat receipt, identical certificate, inventory, publication,
 container, and output-leaf identities, plus distinct destination paths and
 installation identities. Missing, substituted, or self-aliased pairs reject
 instead of reaching the outward compiler report.
+Each receipt also carries its exact destination role, and that role participates
+in the installation identity. The flat report slot accepts only `FlatOutput`,
+while the optional bundle slot accepts only `MacOsAppBundle`; swapping two
+otherwise matching receipts therefore rejects.
 The report also retains the exact orchestration output category. A native
 executable requires the flat receipt, an object-container fallback forbids both
 executable receipts, and a check-only result forbids both output and receipts.

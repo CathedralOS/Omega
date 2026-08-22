@@ -129,6 +129,7 @@ impl<'a> ValidatedExecutablePublication<'a> {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct InstalledExecutablePublicationEvidence {
+    destination: super::ExecutablePublicationDestination,
     publication_evidence_fingerprint: u64,
     output_path: std::path::PathBuf,
     container_byte_count: usize,
@@ -138,12 +139,14 @@ struct InstalledExecutablePublicationEvidence {
 
 impl InstalledExecutablePublicationEvidence {
     fn current(
+        destination: super::ExecutablePublicationDestination,
         publication: &ValidatedExecutablePublication<'_>,
         output_path: &std::path::Path,
     ) -> Result<Self, Diagnostic> {
         publication.validate_identity()?;
         validate_executable_installation_path(publication, output_path)?;
         let mut evidence = Self {
+            destination,
             publication_evidence_fingerprint: publication.evidence.evidence_fingerprint,
             output_path: output_path.to_path_buf(),
             container_byte_count: publication.bytes().len(),
@@ -159,7 +162,7 @@ impl InstalledExecutablePublicationEvidence {
         publication: &ValidatedExecutablePublication<'_>,
         output_path: &std::path::Path,
     ) -> Result<(), Diagnostic> {
-        if *self != Self::current(publication, output_path)? {
+        if *self != Self::current(self.destination, publication, output_path)? {
             return Err(Diagnostic::error(
                 "installed executable receipt does not match the sealed publication",
             ));
@@ -177,6 +180,13 @@ impl InstalledExecutablePublicationEvidence {
             &mut hash,
             &self.publication_evidence_fingerprint.to_le_bytes(),
         );
+        fingerprint_into(
+            &mut hash,
+            &[match self.destination {
+                super::ExecutablePublicationDestination::FlatOutput => 0,
+                super::ExecutablePublicationDestination::MacOsAppBundle => 1,
+            }],
+        );
         let path = self.output_path.as_os_str().as_encoded_bytes();
         fingerprint_into(&mut hash, &(path.len() as u64).to_le_bytes());
         fingerprint_into(&mut hash, path);
@@ -191,6 +201,7 @@ impl InstalledExecutablePublicationEvidence {
     ) -> Result<super::ExecutablePublicationReceipt, Diagnostic> {
         self.validate(publication, &self.output_path)?;
         Ok(super::ExecutablePublicationReceipt::new(
+            self.destination,
             self.output_path.clone(),
             publication.certificate.certificate_fingerprint,
             publication.certificate.inventory.inventory_fingerprint,
@@ -309,8 +320,12 @@ pub(super) fn write_output(
             .validate_identity()
             .map_err(|diagnostic| vec![diagnostic])?;
         let output_path = build_dir.join(publication.file_name());
-        let installation = write_validated_executable_output_file(&output_path, &publication)
-            .map_err(|diagnostic| vec![diagnostic])?;
+        let installation = write_validated_executable_output_file(
+            super::ExecutablePublicationDestination::FlatOutput,
+            &output_path,
+            &publication,
+        )
+        .map_err(|diagnostic| vec![diagnostic])?;
         installation
             .validate(&publication, &output_path)
             .map_err(|diagnostic| vec![diagnostic])?;
@@ -691,8 +706,12 @@ fn write_macos_app_bundle(
     std::fs::write(contents_dir.join("Info.plist"), info_plist).map_err(io_diagnostic)?;
     std::fs::write(contents_dir.join("PkgInfo"), b"APPL????").map_err(io_diagnostic)?;
     let executable_path = macos_dir.join(executable_name);
-    let installation = write_validated_executable_output_file(&executable_path, publication)
-        .map_err(|diagnostic| vec![diagnostic])?;
+    let installation = write_validated_executable_output_file(
+        super::ExecutablePublicationDestination::MacOsAppBundle,
+        &executable_path,
+        publication,
+    )
+    .map_err(|diagnostic| vec![diagnostic])?;
     installation
         .validate(publication, &executable_path)
         .map_err(|diagnostic| vec![diagnostic])?;
@@ -702,6 +721,7 @@ fn write_macos_app_bundle(
 }
 
 fn write_validated_executable_output_file(
+    destination: super::ExecutablePublicationDestination,
     output_path: &std::path::Path,
     publication: &ValidatedExecutablePublication<'_>,
 ) -> Result<InstalledExecutablePublicationEvidence, Diagnostic> {
@@ -717,7 +737,8 @@ fn write_validated_executable_output_file(
         let _ = std::fs::remove_file(output_path);
         return Err(diagnostic);
     }
-    let installed = InstalledExecutablePublicationEvidence::current(publication, output_path)?;
+    let installed =
+        InstalledExecutablePublicationEvidence::current(destination, publication, output_path)?;
     installed.validate(publication, output_path)?;
     Ok(installed)
 }
@@ -841,6 +862,7 @@ fn mark_executable_if_needed(_path: &std::path::Path) -> Result<(), Diagnostic> 
 
 #[cfg(test)]
 mod tests {
+    use super::super::ExecutablePublicationDestination;
     use super::{
         ExecutablePublicationEvidence, FNV_OFFSET, ValidatedExecutablePublication,
         build_final_footprint_certificate, fingerprint_into, validate_published_executable_bytes,
@@ -1009,8 +1031,12 @@ mod tests {
         );
 
         let output = drifted_destination;
-        let receipt = write_validated_executable_output_file(&output, &publication)
-            .expect("validated installation");
+        let receipt = write_validated_executable_output_file(
+            ExecutablePublicationDestination::FlatOutput,
+            &output,
+            &publication,
+        )
+        .expect("validated installation");
         receipt
             .validate(&publication, &output)
             .expect("exact receipt");
@@ -1018,6 +1044,10 @@ mod tests {
             .retained_receipt(&publication)
             .expect("compile report receipt");
         assert_eq!(retained.output_path(), output);
+        assert_eq!(
+            retained.destination(),
+            ExecutablePublicationDestination::FlatOutput
+        );
         assert_eq!(
             retained.certificate_fingerprint(),
             certificate.certificate_fingerprint
@@ -1035,13 +1065,20 @@ mod tests {
         let bundle_directory = directory.join("Main.app/Contents/MacOS");
         std::fs::create_dir_all(&bundle_directory).expect("bundle directory");
         let bundle_output = bundle_directory.join(publication.file_name());
-        let bundle_installation =
-            write_validated_executable_output_file(&bundle_output, &publication)
-                .expect("validated bundle installation");
+        let bundle_installation = write_validated_executable_output_file(
+            ExecutablePublicationDestination::MacOsAppBundle,
+            &bundle_output,
+            &publication,
+        )
+        .expect("validated bundle installation");
         let bundle_retained = bundle_installation
             .retained_receipt(&publication)
             .expect("bundle compile report receipt");
         assert_ne!(bundle_retained.output_path(), retained.output_path());
+        assert_eq!(
+            bundle_retained.destination(),
+            ExecutablePublicationDestination::MacOsAppBundle
+        );
         assert_eq!(
             bundle_retained.publication_evidence_fingerprint(),
             retained.publication_evidence_fingerprint()
