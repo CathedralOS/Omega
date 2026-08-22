@@ -410,10 +410,13 @@ fn runtime_trailing_local_return_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("runtime trailing local return canary should compile from its authored root");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("trailing local return canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("runtime trailing local return canary should run");
 
@@ -1447,9 +1450,12 @@ fn runtime_value_machine_receiver_field_postentry_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("receiver-field postentry canary should compile natively");
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("receiver-field postentry canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("receiver-field postentry canary should run");
     assert_eq!(
