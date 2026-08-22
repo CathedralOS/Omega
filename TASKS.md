@@ -2112,6 +2112,18 @@ Remaining:
   bridge, root-bound, and cast checks. Equality/bound citation order,
   orientation precedence, proof shapes, redirected, mistyped, or nonclosed
   rejection, and the single-alias/single-bridge frontier are unchanged.
+  Closed stronger alias-bound transport for exact casts now lives in
+  independent side-local
+  `alias_transport/cast/stronger/completion/bound` modules. Each completion
+  parent retains exact goal/target projection, literal carrier remapping, and
+  cast-custody completion, while its outer parent retains ledger-ordered
+  equality and bound discovery. Production alone constructs the closed bridge,
+  one `IntegerLessOrEqualTransitivity` child, and one endpoint substitution;
+  reconstruction independently checks the same closed relation and rebuilds
+  the same root-bound proposition. Citation order, endpoint orientation, nested
+  proof shape, weaker, nonclosed, redirected, or mistyped rejection, and the
+  fixed one-alias/one-bridge frontier are unchanged; no recursive strengthening
+  or generic search is introduced.
   Direct retained bounds and direct landed literals remain earlier in each
   parent. Citation orientation, endpoint order, proof shapes, rejection
   behavior, and the finite two-alias frontier are unchanged. Alias-landed-
@@ -2124,6 +2136,18 @@ Remaining:
   endpoint, closed-order, root-bound, and cast checks. Equality citation order
   and distinctness, endpoint precedence, proof shapes, redirected, mistyped,
   or unsafe rejection, and the fixed two-equality frontier are unchanged.
+  Landed-literal alias root-bound transport for exact casts now lives in
+  independent side-local `alias_transport/cast/literal/completion/bound`
+  modules. Each completion parent retains exact target precedence, literal
+  carrier remapping, and cast-custody completion, while its outer parent retains
+  ledger-ordered root and literal equality discovery. Production alone
+  constructs the closed relation, inner literal-to-alias endpoint substitution,
+  and outer alias-to-root substitution; reconstruction independently checks the
+  same closed relation and rebuilds the resulting root-bound proposition.
+  Citation order and distinctness, endpoint orientation, nested proof shape,
+  unsafe, missing, reused, redirected, or mistyped rejection, and the fixed
+  two-equality frontier are unchanged; no recursive alias or generic search is
+  introduced.
   These slices do
   not promote either whole row: affine/cast,
   shift/cast, joins, and correlated results remain trusted-reducer work, and
@@ -2573,7 +2597,14 @@ Remaining:
   summarization, but the exact warmed float canary moved from 4.13s to 4.21s:
   the cost was one expensive state per resolver, not repeated identical state
   queries. No state-cache code remains. The next optimization must reduce or
-  incrementally solve that demanded recursive summary itself.
+  incrementally solve that demanded recursive summary itself. Recursive
+  statement-call inference now shares one invocation-local completed-state
+  summary set instead of discarding it at every resolved call boundary. The
+  same exact sample reduced the demanded state-frame stack from 219 to 180 and
+  recursive summarization from 100 to 80; warmed canary runs moved from 4.13s
+  to 3.93–3.98s with unchanged exit 70. The memo remains local to one demand,
+  carries exact state identities and complete relative paths, and introduces no
+  eager whole-program solve or shared mutable state.
   Corpus-level bounded parallelism is viable at the harness boundary: the
   differential runner now defaults to four independent jobs with one native
   backend worker each, retains deterministic corpus-order reporting, and
@@ -3423,6 +3454,17 @@ Owners:
   copies, negated comparison guards, and case-member dispatch retain 201, 247,
   87, 75, and 70. Existing diagnostics remain unchanged, and the 795 rooted/3
   legacy exact-owner pins remain stable.
+  Fifteen further authored-root case/data/control executions now use exact
+  checked-report receipts. Case-payload construction, record field-value
+  patterns, case-payload guard reads, case-membership values, and exhaustive-
+  by-cases dispatch retain status 70 and every decoy-sensitive diagnostic.
+  Exhaustive case-union domains, case-membership union guards, case
+  reassignment, mixed-shape data, and array-literal String fields likewise
+  retain status 70 and every wrong-arm/stale-data diagnostic. Struct-literal
+  String fields, immutable parameter-domain forwarding, case-payload domain
+  forwarding, tuple transitions, and room-use reentry retain statuses 70, 70,
+  70, 22, and 41; both independent interpreter oracles remain unchanged. The
+  795 rooted/3 legacy exact-owner pins remain stable.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
