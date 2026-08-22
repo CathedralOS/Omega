@@ -6237,9 +6237,22 @@ mod tests {
         let claim = dormant.resident_claim();
         let validity = dormant.validity_receipt();
         let custody = dormant.custody_receipt();
+        let retained_profile = profile.clone();
 
         let shared_occurrence =
             PlacedOccurrenceId::from_normalized_identity(109).expect("shared occurrence");
+        let coincident = uart_extent_with_lineage(0xa100, 4, 201);
+        dormant.admission.profile = stable_word_profile(&coincident);
+        let diagnostic = dormant
+            .borrow_view(shared_occurrence)
+            .expect_err("shared resident view must replay retained placement authority");
+        assert!(diagnostic.0.contains("shared-view establishment"));
+        assert!(diagnostic.0.contains("retained placement authority"));
+        assert_eq!(dormant.resident_claim(), claim);
+        assert_eq!(dormant.validity_receipt(), validity);
+        assert_eq!(dormant.custody_receipt(), custody);
+        assert_eq!(dormant.extent().base(), 0xa100);
+        dormant.admission.profile = retained_profile.clone();
         {
             let mut borrowed = dormant
                 .borrow_view(shared_occurrence)
@@ -6283,6 +6296,18 @@ mod tests {
 
         let exclusive_occurrence =
             PlacedOccurrenceId::from_normalized_identity(110).expect("exclusive occurrence");
+        let coincident = uart_extent_with_lineage(0xa100, 4, 202);
+        dormant.admission.profile = stable_word_profile(&coincident);
+        let diagnostic = dormant
+            .borrow_view_mut(exclusive_occurrence)
+            .expect_err("exclusive resident view must replay retained placement authority");
+        assert!(diagnostic.0.contains("exclusive-view establishment"));
+        assert!(diagnostic.0.contains("retained placement authority"));
+        assert_eq!(dormant.resident_claim(), claim);
+        assert_eq!(dormant.validity_receipt(), validity);
+        assert_eq!(dormant.custody_receipt(), custody);
+        assert_eq!(dormant.extent().base(), 0xa100);
+        dormant.admission.profile = retained_profile;
         {
             let mut borrowed = dormant
                 .borrow_view_mut(exclusive_occurrence)

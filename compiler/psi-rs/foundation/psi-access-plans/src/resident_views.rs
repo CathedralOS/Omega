@@ -9,6 +9,7 @@ use super::{
     DormantOwnedResident, ObservationModel, PlacedFieldProjection, PlacedOccurrenceId,
     PlacementAdmissionId, PlacementAuthorityRef, PlacementResourceCompatibility,
     ResourceProfileReceiptId, ValidatedPlacementPlan, project_placed_field,
+    validate_owned_resident_authority,
 };
 use psi_extents::{
     ExtentContentCustodyReceiptId, ExtentContentValidityReceiptId, ExtentLoan, LoanPolarity,
@@ -25,6 +26,10 @@ impl DormantOwnedResident {
         &self,
         occurrence: PlacedOccurrenceId,
     ) -> Result<EstablishedBorrowedResidentPlacement<'_>, AccessPlanDiagnostic> {
+        validate_owned_resident_authority(
+            &self.admission,
+            "borrowed resident shared-view establishment",
+        )?;
         let length = self.admission.extent.length();
         let loan = self
             .admission
@@ -56,6 +61,10 @@ impl DormantOwnedResident {
         &mut self,
         occurrence: PlacedOccurrenceId,
     ) -> Result<EstablishedBorrowedResidentPlacement<'_>, AccessPlanDiagnostic> {
+        validate_owned_resident_authority(
+            &self.admission,
+            "borrowed resident exclusive-view establishment",
+        )?;
         let plan = self.admission.placement_plan.clone();
         let profile_receipt = self.admission.profile_receipt;
         let profile = self.admission.profile.clone();
