@@ -2347,6 +2347,12 @@ Remaining:
   reuse of one equality as both legs. Direct-before-alias precedence,
   root/literal carrier equality, proof shapes, rejection behavior, and the
   fixed one-intermediate-alias frontier remain unchanged.
+  Exact value-to-integer-literal carrier recognition is now private to the
+  paired affine equality authorities that own those ordered binding catalogs.
+  Generic affine eligibility no longer exposes literal-specific helpers;
+  producer and reconstruction still classify bindings independently, and
+  source/orientation order, direct-before-alias precedence, same-fact
+  rejection, proof shapes, and fixed frontiers remain unchanged.
   One-equality transitive affine completion now lives in independent side-local
   `affine_selection/transitive/alias/completion` modules. Each parent retains
   its own ledger-ordered equality discovery, distinct root/alias custody, and
@@ -4637,6 +4643,13 @@ Owners:
   parameters—now launch solely through exact checked-report executable
   receipts while preserving literal exits 181, 70, 184, 171, and 173 and all
   detailed diagnostics. Exact-owner ambiguity, the 795 rooted/3 legacy
+  inventory, and receipt-drift fences remain green.
+  Five authored-root indexed-mutation executions—dynamic machine-owned indexed
+  parameters, caller-local binary writes, helper-local alias addition, slice-
+  alias field writes, and descriptor-indexed binary read-modify-write—now
+  launch solely through exact checked-report executable receipts while
+  preserving literal exits 175, 191, 181, 201, and 70, interpreter parity, and
+  all detailed diagnostics. Exact-owner ambiguity, the 795 rooted/3 legacy
   inventory, and receipt-drift fences remain green.
   Final
   replay now also retains an exact
