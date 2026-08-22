@@ -2544,6 +2544,14 @@ Remaining:
   avoiding redundant empty-layer allocation on rejected or shorter chains.
   Source order, prefix replay, witness/proof shape, and rejection behavior
   remain unchanged.
+  Fixed affine frontier ceilings no longer materialize unusable successor
+  cursors after the fourth accepted definition layer. Producer and
+  reconstruction independently preserve the same source-ordered prefix replay
+  and accumulated definition words, while final-layer acceptance moves each
+  word directly into the catalog instead of cloning it into a dead cursor.
+  Proof shapes, rejection behavior, and the exact four-definition frontier
+  remain unchanged; the measured 5.45s versus 5.44s mixed-shift hotspot shows
+  this is allocation cleanup, not a material end-to-end speedup.
   One-equality transitive affine completion now lives in independent side-local
   `affine_selection/transitive/alias/completion` modules. Each parent retains
   its own ledger-ordered equality discovery, distinct root/alias custody, and
