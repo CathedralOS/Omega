@@ -2440,6 +2440,13 @@ Remaining:
   ordered definition-word enumeration and independent proof completion, so
   witness order, proof shape, rejection behavior, and the fixed four-definition
   frontier remain unchanged.
+  Affine witness candidate authorities now independently build one invocation-
+  local fixed definition-word catalog after confirming an eligible goal target,
+  then reuse that exact source-ordered catalog across left-before-right `Value`
+  targets. Producer and reconstruction retain separate catalogs and completion
+  logic; invalid goals still reject before frontier replay, while witness order,
+  kernel checking, proof shapes, rejection behavior, and the four-definition
+  frontier remain unchanged.
   One-equality transitive affine completion now lives in independent side-local
   `affine_selection/transitive/alias/completion` modules. Each parent retains
   its own ledger-ordered equality discovery, distinct root/alias custody, and
@@ -4864,6 +4871,13 @@ Owners:
   owner ambiguity, the 795 rooted/3 legacy inventory, and receipt-drift fences
   remain green; the nested named-conversion alias remains on its explicit
   legacy compile boundary.
+  Three authored-root integer arithmetic-policy regressions—wrapping addition,
+  saturating addition, and saturating signed divide/modulo including the
+  `MIN / -1` corner—now launch `OutputOnly` native execution solely through
+  exact checked-report executable receipts while preserving literal status 70
+  and their exact wrap/clamp diagnostics. Exact-owner ambiguity, the 795
+  rooted/3 legacy inventory, and receipt-drift fences remain green; trapping,
+  float, and legacy-conversion owners remain separate.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
@@ -5509,6 +5523,12 @@ Remaining N6/N8 work:
   tags, and error behavior while recursive proposition terms and proof
   admission remain separate. The parent is 4,088 lines and the exact 199-
   function codec inventory remains unchanged.
+  Canonical successor-edge, machine-contract, and crash-route encoding/
+  decoding now lives in a focused private `contract_wire` child, preserving
+  exact contract-clause, crash-cause, guard, predicate, successor argument, and
+  discard order, tags, and error behavior while recursive proposition bytes
+  remain parent-owned. The parent is 3,959 lines and the exact 199-function
+  codec inventory remains unchanged.
   Proof-bundle coding likewise keeps its `PSIPRF`-specific little-endian
   cursor, bounded string/count/index handling, and nonzero semantic-ID
   primitives in a focused private child; its public API, exact bytes and
