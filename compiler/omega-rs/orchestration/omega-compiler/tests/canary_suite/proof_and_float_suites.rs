@@ -649,10 +649,13 @@ fn runtime_shared_ref_param_member_exit_canary_runs() {
     let build_dir = std::env::temp_dir().join(format!("omega-sharedref-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("shared-ref param canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("shared-ref param canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("shared-ref param canary should run");
 
@@ -683,10 +686,13 @@ fn runtime_shared_ref_param_large_deref_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-sharedref-large-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("large shared-ref deref canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("large shared-ref deref canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("large shared-ref deref canary should run");
 
@@ -713,10 +719,13 @@ fn runtime_large_shared_ref_direct_assignment_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("large shared-ref direct-assignment canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("large shared-ref direct-assignment canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("large shared-ref direct-assignment canary should run");
     assert_eq!(
