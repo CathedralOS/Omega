@@ -1043,3 +1043,10 @@ at the final artifact.
 These are plan/checker/backend questions. They do not justify reviving
 `boundary(<Plan>)`, adding an interrupt machine species, or exposing code
 addresses as integers.
+
+The compile report also rejoins a retained program-storage entry binding's
+exact boundary-contract fingerprint directly to the native flat publication
+receipt. Check-only compilation may retain the selected binding while no
+publication exists, and object-container output may not retain the binding at
+all. This is an independent custody check: matching wrapper-arrival evidence
+cannot conceal a redirected selected binding.
