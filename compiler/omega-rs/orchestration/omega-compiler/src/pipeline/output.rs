@@ -222,6 +222,7 @@ pub(super) struct WrittenOutput {
 
 impl WrittenOutput {
     fn checked(
+        root_path: &std::path::Path,
         path: std::path::PathBuf,
         kind: super::CompileOutputKind,
         executable_publication: Option<super::ExecutablePublicationReceipt>,
@@ -233,6 +234,11 @@ impl WrittenOutput {
                     receipt.destination() == super::ExecutablePublicationDestination::FlatOutput
                         && receipt.output_path() == path
                         && receipt.has_consistent_installation_identity()
+                        && super::compile_report::executable_publication_pair_matches(
+                            root_path,
+                            receipt,
+                            app_bundle_publication.as_ref(),
+                        )
                 })
             }
             super::CompileOutputKind::ObjectContainer => {
@@ -407,6 +413,7 @@ pub(super) fn write_output(
             None
         };
         return WrittenOutput::checked(
+            &options.root_path,
             output_path,
             super::CompileOutputKind::NativeExecutable,
             Some(executable_publication),
@@ -427,6 +434,7 @@ pub(super) fn write_output(
     write_output_file(&output_path, &object_container.bytes, false)
         .map_err(|diagnostic| vec![diagnostic])?;
     WrittenOutput::checked(
+        &options.root_path,
         output_path,
         super::CompileOutputKind::ObjectContainer,
         None,
@@ -1141,8 +1149,10 @@ mod tests {
             super::byte_fingerprint(&image.bytes)
         );
         assert!(retained.has_consistent_installation_identity());
+        let root_path = directory.join("Main/main.omg");
         assert!(
             WrittenOutput::checked(
+                &root_path,
                 output.clone(),
                 super::super::CompileOutputKind::NativeExecutable,
                 Some(retained.clone()),
@@ -1152,6 +1162,7 @@ mod tests {
         );
         assert!(
             WrittenOutput::checked(
+                &root_path,
                 directory.join("redirected"),
                 super::super::CompileOutputKind::NativeExecutable,
                 Some(retained.clone()),
@@ -1161,6 +1172,7 @@ mod tests {
         );
         assert!(
             WrittenOutput::checked(
+                &root_path,
                 output.clone(),
                 super::super::CompileOutputKind::NativeExecutable,
                 None,
@@ -1170,6 +1182,7 @@ mod tests {
         );
         assert!(
             WrittenOutput::checked(
+                &root_path,
                 output.clone(),
                 super::super::CompileOutputKind::ObjectContainer,
                 Some(retained.clone()),
@@ -1179,6 +1192,7 @@ mod tests {
         );
         assert!(
             WrittenOutput::checked(
+                &root_path,
                 output.clone(),
                 super::super::CompileOutputKind::ObjectContainer,
                 None,
@@ -1188,6 +1202,7 @@ mod tests {
         );
         assert!(
             WrittenOutput::checked(
+                &root_path,
                 output.clone(),
                 super::super::CompileOutputKind::CheckOnly,
                 None,
@@ -1224,6 +1239,27 @@ mod tests {
         assert!(bundle_retained.has_consistent_installation_identity());
         assert!(
             WrittenOutput::checked(
+                &root_path,
+                output.clone(),
+                super::super::CompileOutputKind::NativeExecutable,
+                Some(retained.clone()),
+                Some(bundle_retained.clone()),
+            )
+            .is_ok()
+        );
+        assert!(
+            WrittenOutput::checked(
+                &directory.join("Other/main.omg"),
+                output.clone(),
+                super::super::CompileOutputKind::NativeExecutable,
+                Some(retained.clone()),
+                Some(bundle_retained.clone()),
+            )
+            .is_err()
+        );
+        assert!(
+            WrittenOutput::checked(
+                &root_path,
                 bundle_output,
                 super::super::CompileOutputKind::NativeExecutable,
                 Some(bundle_retained.clone()),

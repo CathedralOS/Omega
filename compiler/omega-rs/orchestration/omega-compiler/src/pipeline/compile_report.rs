@@ -73,6 +73,30 @@ pub(super) fn executable_installation_evidence_fingerprint(
     hash
 }
 
+pub(super) fn executable_publication_pair_matches(
+    root_path: &std::path::Path,
+    flat: &ExecutablePublicationReceipt,
+    bundle: Option<&ExecutablePublicationReceipt>,
+) -> bool {
+    let Some(bundle) = bundle else {
+        return true;
+    };
+    bundle.destination == ExecutablePublicationDestination::MacOsAppBundle
+        && bundle.has_consistent_installation_identity()
+        && expected_macos_app_bundle_executable_path(root_path, &flat.output_path).as_deref()
+            == Some(bundle.output_path.as_path())
+        && flat.certificate_fingerprint == bundle.certificate_fingerprint
+        && flat.boundary_contract_fingerprint == bundle.boundary_contract_fingerprint
+        && flat.inventory_fingerprint == bundle.inventory_fingerprint
+        && flat.compiler_text_validation_fingerprint == bundle.compiler_text_validation_fingerprint
+        && flat.compiler_function_validation_fingerprint
+            == bundle.compiler_function_validation_fingerprint
+        && flat.publication_evidence_fingerprint == bundle.publication_evidence_fingerprint
+        && flat.container_byte_count == bundle.container_byte_count
+        && flat.container_fingerprint == bundle.container_fingerprint
+        && flat.installation_evidence_fingerprint != bundle.installation_evidence_fingerprint
+}
+
 fn fingerprint_into(hash: &mut u64, bytes: &[u8]) {
     for byte in bytes {
         *hash ^= u64::from(*byte);
@@ -365,27 +389,10 @@ impl CompileReport {
             self.executable_publication.as_ref(),
             self.app_bundle_publication.as_ref(),
         ) {
-            (None, None) | (Some(_), None) => true,
+            (None, None) => true,
             (None, Some(_)) => false,
-            (Some(flat), Some(bundle)) => {
-                bundle.destination == ExecutablePublicationDestination::MacOsAppBundle
-                    && bundle.has_consistent_installation_identity()
-                    && expected_macos_app_bundle_executable_path(&self.root_path, &flat.output_path)
-                        .as_deref()
-                        == Some(bundle.output_path.as_path())
-                    && flat.certificate_fingerprint == bundle.certificate_fingerprint
-                    && flat.boundary_contract_fingerprint == bundle.boundary_contract_fingerprint
-                    && flat.inventory_fingerprint == bundle.inventory_fingerprint
-                    && flat.compiler_text_validation_fingerprint
-                        == bundle.compiler_text_validation_fingerprint
-                    && flat.compiler_function_validation_fingerprint
-                        == bundle.compiler_function_validation_fingerprint
-                    && flat.publication_evidence_fingerprint
-                        == bundle.publication_evidence_fingerprint
-                    && flat.container_byte_count == bundle.container_byte_count
-                    && flat.container_fingerprint == bundle.container_fingerprint
-                    && flat.installation_evidence_fingerprint
-                        != bundle.installation_evidence_fingerprint
+            (Some(flat), bundle) => {
+                executable_publication_pair_matches(&self.root_path, flat, bundle)
             }
         }
     }
