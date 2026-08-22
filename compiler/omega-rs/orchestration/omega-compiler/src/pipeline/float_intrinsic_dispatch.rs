@@ -263,7 +263,7 @@ fn resolve_float_intrinsic_call(
             "selected named-float overload `{overload_identity}` has no compiler-known intrinsic realization",
         ))
     })?;
-    let realization = named_float_realization(&expected).ok_or_else(|| {
+    let realization = named_float_realization_from_operator(&checked.typed, operator).ok_or_else(|| {
         Diagnostic::error(format!(
             "selected named-float overload `{overload_identity}` has no execution realization for compiler catalog entry `{expected}`",
         ))
@@ -395,6 +395,104 @@ fn named_float_realization_builtin(
         }
     };
     Ok(function)
+}
+
+/// Resolve execution from the exact checked operator shape. The retained
+/// catalog label is diagnostic-only; it is never parsed or used as a dispatch
+/// key.
+fn named_float_realization_from_operator(
+    typed: &psi_typed_trees::TypedTrees,
+    operator: &psi_typed_trees::operator::OperatorDefinition,
+) -> Option<NamedFloatRealization> {
+    let [namespace, requirement] = typed.operator_path_members(operator.name) else {
+        return None;
+    };
+    let requirement = requirement.as_str();
+    if matches!(
+        namespace.as_str(),
+        "I8" | "I16" | "I32" | "I64" | "U8" | "U16" | "U32" | "U64"
+    ) {
+        return matches!(requirement, "from_f32" | "from_f64").then(|| {
+            NamedFloatRealization::Convert(
+                typed
+                    .type_reference_table
+                    .arithmetic_domain(operator.return_type),
+            )
+        });
+    }
+    let format = match namespace.as_str() {
+        "F32" => FloatFormat::F32,
+        "F64" => FloatFormat::F64,
+        _ => return None,
+    };
+    if requirement.starts_with("from_") {
+        return Some(NamedFloatRealization::Convert(ArithmeticDomain::Exact));
+    }
+    let builtin = |function, arity| NamedFloatRealization::Builtin { function, arity };
+    match requirement {
+        "minimum" => Some(builtin(BuiltinFunction::Min, 2)),
+        "maximum" => Some(builtin(BuiltinFunction::Max, 2)),
+        "square_root" => Some(builtin(BuiltinFunction::Sqrt, 1)),
+        "negate" => Some(NamedFloatRealization::Negate(format)),
+        "multiply_then_add" => Some(NamedFloatRealization::MultiplyThenAdd(format)),
+        "fused_multiply_add" => Some(NamedFloatRealization::FusedMultiplyAdd(format)),
+        "is_nan" => Some(builtin(BuiltinFunction::FloatIsNan, 1)),
+        "is_finite" => Some(builtin(BuiltinFunction::FloatIsFinite, 1)),
+        "is_infinite" => Some(builtin(BuiltinFunction::FloatIsInfinite, 1)),
+        "is_normal" => Some(builtin(BuiltinFunction::FloatIsNormal, 1)),
+        "is_subnormal" => Some(builtin(BuiltinFunction::FloatIsSubnormal, 1)),
+        "classify" => Some(builtin(
+            match format {
+                FloatFormat::F32 => BuiltinFunction::FloatClassifyF32,
+                FloatFormat::F64 => BuiltinFunction::FloatClassifyF64,
+            },
+            1,
+        )),
+        _ => directed_float_realization(requirement, format),
+    }
+}
+
+fn directed_float_realization(
+    requirement: &str,
+    format: FloatFormat,
+) -> Option<NamedFloatRealization> {
+    for (suffix, direction) in [
+        ("_toward_zero", RoundingDirection::TowardZero),
+        ("_toward_positive", RoundingDirection::TowardPositive),
+        ("_toward_negative", RoundingDirection::TowardNegative),
+    ] {
+        let Some(operation) = requirement.strip_suffix(suffix) else {
+            continue;
+        };
+        return match operation {
+            "add" => Some(NamedFloatRealization::DirectedBinary(
+                DirectedFloatBinaryOperation::Add,
+                format,
+                direction,
+            )),
+            "subtract" => Some(NamedFloatRealization::DirectedBinary(
+                DirectedFloatBinaryOperation::Subtract,
+                format,
+                direction,
+            )),
+            "multiply" => Some(NamedFloatRealization::DirectedBinary(
+                DirectedFloatBinaryOperation::Multiply,
+                format,
+                direction,
+            )),
+            "divide" => Some(NamedFloatRealization::DirectedBinary(
+                DirectedFloatBinaryOperation::Divide,
+                format,
+                direction,
+            )),
+            "square_root" => Some(NamedFloatRealization::DirectedSquareRoot(format, direction)),
+            "fused_multiply_add" => Some(NamedFloatRealization::DirectedFusedMultiplyAdd(
+                format, direction,
+            )),
+            _ => None,
+        };
+    }
+    None
 }
 
 fn directed_fused_multiply_add_builtin(
@@ -580,303 +678,6 @@ fn directed_binary_builtin(
         }
     };
     Ok(function)
-}
-
-fn named_float_realization(intrinsic: &str) -> Option<NamedFloatRealization> {
-    if let Some(domain) = float_to_integer_intrinsic_domain(intrinsic) {
-        return Some(NamedFloatRealization::Convert(domain));
-    }
-    if integer_to_float_intrinsic(intrinsic) {
-        return Some(NamedFloatRealization::Convert(ArithmeticDomain::Exact));
-    }
-    match intrinsic {
-        "F32::minimum.f32" | "F64::minimum.f64" => Some(NamedFloatRealization::Builtin {
-            function: BuiltinFunction::Min,
-            arity: 2,
-        }),
-        "F32::maximum.f32" | "F64::maximum.f64" => Some(NamedFloatRealization::Builtin {
-            function: BuiltinFunction::Max,
-            arity: 2,
-        }),
-        "F32::square_root.f32" | "F64::square_root.f64" => Some(NamedFloatRealization::Builtin {
-            function: BuiltinFunction::Sqrt,
-            arity: 1,
-        }),
-        "F32::negate.f32" => Some(NamedFloatRealization::Negate(FloatFormat::F32)),
-        "F64::negate.f64" => Some(NamedFloatRealization::Negate(FloatFormat::F64)),
-        "F32::multiply_then_add.f32" => {
-            Some(NamedFloatRealization::MultiplyThenAdd(FloatFormat::F32))
-        }
-        "F64::multiply_then_add.f64" => {
-            Some(NamedFloatRealization::MultiplyThenAdd(FloatFormat::F64))
-        }
-        "F32::fused_multiply_add.f32" => {
-            Some(NamedFloatRealization::FusedMultiplyAdd(FloatFormat::F32))
-        }
-        "F64::fused_multiply_add.f64" => {
-            Some(NamedFloatRealization::FusedMultiplyAdd(FloatFormat::F64))
-        }
-        "F32::add_toward_zero.f32" => Some(NamedFloatRealization::DirectedBinary(
-            DirectedFloatBinaryOperation::Add,
-            FloatFormat::F32,
-            RoundingDirection::TowardZero,
-        )),
-        "F64::add_toward_zero.f64" => Some(NamedFloatRealization::DirectedBinary(
-            DirectedFloatBinaryOperation::Add,
-            FloatFormat::F64,
-            RoundingDirection::TowardZero,
-        )),
-        "F32::add_toward_positive.f32" => Some(NamedFloatRealization::DirectedBinary(
-            DirectedFloatBinaryOperation::Add,
-            FloatFormat::F32,
-            RoundingDirection::TowardPositive,
-        )),
-        "F64::add_toward_positive.f64" => Some(NamedFloatRealization::DirectedBinary(
-            DirectedFloatBinaryOperation::Add,
-            FloatFormat::F64,
-            RoundingDirection::TowardPositive,
-        )),
-        "F32::add_toward_negative.f32" => Some(NamedFloatRealization::DirectedBinary(
-            DirectedFloatBinaryOperation::Add,
-            FloatFormat::F32,
-            RoundingDirection::TowardNegative,
-        )),
-        "F64::add_toward_negative.f64" => Some(NamedFloatRealization::DirectedBinary(
-            DirectedFloatBinaryOperation::Add,
-            FloatFormat::F64,
-            RoundingDirection::TowardNegative,
-        )),
-        "F32::subtract_toward_zero.f32" => Some(NamedFloatRealization::DirectedBinary(
-            DirectedFloatBinaryOperation::Subtract,
-            FloatFormat::F32,
-            RoundingDirection::TowardZero,
-        )),
-        "F64::subtract_toward_zero.f64" => Some(NamedFloatRealization::DirectedBinary(
-            DirectedFloatBinaryOperation::Subtract,
-            FloatFormat::F64,
-            RoundingDirection::TowardZero,
-        )),
-        "F32::subtract_toward_positive.f32" => Some(NamedFloatRealization::DirectedBinary(
-            DirectedFloatBinaryOperation::Subtract,
-            FloatFormat::F32,
-            RoundingDirection::TowardPositive,
-        )),
-        "F64::subtract_toward_positive.f64" => Some(NamedFloatRealization::DirectedBinary(
-            DirectedFloatBinaryOperation::Subtract,
-            FloatFormat::F64,
-            RoundingDirection::TowardPositive,
-        )),
-        "F32::subtract_toward_negative.f32" => Some(NamedFloatRealization::DirectedBinary(
-            DirectedFloatBinaryOperation::Subtract,
-            FloatFormat::F32,
-            RoundingDirection::TowardNegative,
-        )),
-        "F64::subtract_toward_negative.f64" => Some(NamedFloatRealization::DirectedBinary(
-            DirectedFloatBinaryOperation::Subtract,
-            FloatFormat::F64,
-            RoundingDirection::TowardNegative,
-        )),
-        "F32::multiply_toward_zero.f32" => Some(NamedFloatRealization::DirectedBinary(
-            DirectedFloatBinaryOperation::Multiply,
-            FloatFormat::F32,
-            RoundingDirection::TowardZero,
-        )),
-        "F64::multiply_toward_zero.f64" => Some(NamedFloatRealization::DirectedBinary(
-            DirectedFloatBinaryOperation::Multiply,
-            FloatFormat::F64,
-            RoundingDirection::TowardZero,
-        )),
-        "F32::multiply_toward_positive.f32" => Some(NamedFloatRealization::DirectedBinary(
-            DirectedFloatBinaryOperation::Multiply,
-            FloatFormat::F32,
-            RoundingDirection::TowardPositive,
-        )),
-        "F64::multiply_toward_positive.f64" => Some(NamedFloatRealization::DirectedBinary(
-            DirectedFloatBinaryOperation::Multiply,
-            FloatFormat::F64,
-            RoundingDirection::TowardPositive,
-        )),
-        "F32::multiply_toward_negative.f32" => Some(NamedFloatRealization::DirectedBinary(
-            DirectedFloatBinaryOperation::Multiply,
-            FloatFormat::F32,
-            RoundingDirection::TowardNegative,
-        )),
-        "F64::multiply_toward_negative.f64" => Some(NamedFloatRealization::DirectedBinary(
-            DirectedFloatBinaryOperation::Multiply,
-            FloatFormat::F64,
-            RoundingDirection::TowardNegative,
-        )),
-        "F32::divide_toward_zero.f32" => Some(NamedFloatRealization::DirectedBinary(
-            DirectedFloatBinaryOperation::Divide,
-            FloatFormat::F32,
-            RoundingDirection::TowardZero,
-        )),
-        "F64::divide_toward_zero.f64" => Some(NamedFloatRealization::DirectedBinary(
-            DirectedFloatBinaryOperation::Divide,
-            FloatFormat::F64,
-            RoundingDirection::TowardZero,
-        )),
-        "F32::divide_toward_positive.f32" => Some(NamedFloatRealization::DirectedBinary(
-            DirectedFloatBinaryOperation::Divide,
-            FloatFormat::F32,
-            RoundingDirection::TowardPositive,
-        )),
-        "F64::divide_toward_positive.f64" => Some(NamedFloatRealization::DirectedBinary(
-            DirectedFloatBinaryOperation::Divide,
-            FloatFormat::F64,
-            RoundingDirection::TowardPositive,
-        )),
-        "F32::divide_toward_negative.f32" => Some(NamedFloatRealization::DirectedBinary(
-            DirectedFloatBinaryOperation::Divide,
-            FloatFormat::F32,
-            RoundingDirection::TowardNegative,
-        )),
-        "F64::divide_toward_negative.f64" => Some(NamedFloatRealization::DirectedBinary(
-            DirectedFloatBinaryOperation::Divide,
-            FloatFormat::F64,
-            RoundingDirection::TowardNegative,
-        )),
-        "F32::square_root_toward_zero.f32" => Some(NamedFloatRealization::DirectedSquareRoot(
-            FloatFormat::F32,
-            RoundingDirection::TowardZero,
-        )),
-        "F64::square_root_toward_zero.f64" => Some(NamedFloatRealization::DirectedSquareRoot(
-            FloatFormat::F64,
-            RoundingDirection::TowardZero,
-        )),
-        "F32::square_root_toward_positive.f32" => Some(NamedFloatRealization::DirectedSquareRoot(
-            FloatFormat::F32,
-            RoundingDirection::TowardPositive,
-        )),
-        "F64::square_root_toward_positive.f64" => Some(NamedFloatRealization::DirectedSquareRoot(
-            FloatFormat::F64,
-            RoundingDirection::TowardPositive,
-        )),
-        "F32::square_root_toward_negative.f32" => Some(NamedFloatRealization::DirectedSquareRoot(
-            FloatFormat::F32,
-            RoundingDirection::TowardNegative,
-        )),
-        "F64::square_root_toward_negative.f64" => Some(NamedFloatRealization::DirectedSquareRoot(
-            FloatFormat::F64,
-            RoundingDirection::TowardNegative,
-        )),
-        "F32::fused_multiply_add_toward_zero.f32" => {
-            Some(NamedFloatRealization::DirectedFusedMultiplyAdd(
-                FloatFormat::F32,
-                RoundingDirection::TowardZero,
-            ))
-        }
-        "F64::fused_multiply_add_toward_zero.f64" => {
-            Some(NamedFloatRealization::DirectedFusedMultiplyAdd(
-                FloatFormat::F64,
-                RoundingDirection::TowardZero,
-            ))
-        }
-        "F32::fused_multiply_add_toward_positive.f32" => {
-            Some(NamedFloatRealization::DirectedFusedMultiplyAdd(
-                FloatFormat::F32,
-                RoundingDirection::TowardPositive,
-            ))
-        }
-        "F64::fused_multiply_add_toward_positive.f64" => {
-            Some(NamedFloatRealization::DirectedFusedMultiplyAdd(
-                FloatFormat::F64,
-                RoundingDirection::TowardPositive,
-            ))
-        }
-        "F32::fused_multiply_add_toward_negative.f32" => {
-            Some(NamedFloatRealization::DirectedFusedMultiplyAdd(
-                FloatFormat::F32,
-                RoundingDirection::TowardNegative,
-            ))
-        }
-        "F64::fused_multiply_add_toward_negative.f64" => {
-            Some(NamedFloatRealization::DirectedFusedMultiplyAdd(
-                FloatFormat::F64,
-                RoundingDirection::TowardNegative,
-            ))
-        }
-        "F32::is_nan.f32" | "F64::is_nan.f64" => Some(NamedFloatRealization::Builtin {
-            function: BuiltinFunction::FloatIsNan,
-            arity: 1,
-        }),
-        "F32::is_finite.f32" | "F64::is_finite.f64" => Some(NamedFloatRealization::Builtin {
-            function: BuiltinFunction::FloatIsFinite,
-            arity: 1,
-        }),
-        "F32::is_infinite.f32" | "F64::is_infinite.f64" => Some(NamedFloatRealization::Builtin {
-            function: BuiltinFunction::FloatIsInfinite,
-            arity: 1,
-        }),
-        "F32::is_normal.f32" | "F64::is_normal.f64" => Some(NamedFloatRealization::Builtin {
-            function: BuiltinFunction::FloatIsNormal,
-            arity: 1,
-        }),
-        "F32::is_subnormal.f32" | "F64::is_subnormal.f64" => Some(NamedFloatRealization::Builtin {
-            function: BuiltinFunction::FloatIsSubnormal,
-            arity: 1,
-        }),
-        "F32::classify.f32" => Some(NamedFloatRealization::Builtin {
-            function: BuiltinFunction::FloatClassifyF32,
-            arity: 1,
-        }),
-        "F64::classify.f64" => Some(NamedFloatRealization::Builtin {
-            function: BuiltinFunction::FloatClassifyF64,
-            arity: 1,
-        }),
-        "F32::from_f64.f64" | "F64::from_f32.f32" => {
-            Some(NamedFloatRealization::Convert(ArithmeticDomain::Exact))
-        }
-        _ => None,
-    }
-}
-
-fn integer_to_float_intrinsic(intrinsic: &str) -> bool {
-    let Some((namespace, operation)) = intrinsic.split_once("::") else {
-        return false;
-    };
-    let Some((requirement, source_suffix)) = operation.rsplit_once('.') else {
-        return false;
-    };
-    let Some(source) = requirement.strip_prefix("from_") else {
-        return false;
-    };
-    if source != source_suffix
-        || !matches!(
-            source,
-            "i8" | "i16" | "i32" | "i64" | "u8" | "u16" | "u32" | "u64"
-        )
-    {
-        return false;
-    }
-    matches!(namespace, "F32" | "F64")
-}
-
-fn float_to_integer_intrinsic_domain(intrinsic: &str) -> Option<ArithmeticDomain> {
-    let (namespace, operation) = intrinsic.split_once("::")?;
-    if !matches!(
-        namespace,
-        "I8" | "I16" | "I32" | "I64" | "U8" | "U16" | "U32" | "U64"
-    ) {
-        return None;
-    }
-    let mut parts = operation.split('.');
-    let requirement = parts.next()?;
-    let source_suffix = parts.next()?;
-    let policy = parts.next()?;
-    if parts.next().is_some() {
-        return None;
-    }
-    let source = requirement.strip_prefix("from_")?;
-    if source != source_suffix || !matches!(source, "f32" | "f64") {
-        return None;
-    }
-    match policy {
-        "exact" => Some(ArithmeticDomain::Exact),
-        "trapping" => Some(ArithmeticDomain::Trapping),
-        "saturating" => Some(ArithmeticDomain::Saturating),
-        _ => None,
-    }
 }
 
 #[cfg(test)]
@@ -1289,147 +1090,6 @@ mod tests {
                 .expression(retained.expression),
             &before,
             "validation failure must not publish any staged rewrite",
-        );
-    }
-
-    #[test]
-    fn only_the_migrated_named_float_cohort_maps_to_execution_forms() {
-        assert_eq!(
-            named_float_realization("F32::minimum.f32"),
-            Some(NamedFloatRealization::Builtin {
-                function: BuiltinFunction::Min,
-                arity: 2,
-            })
-        );
-        assert_eq!(
-            named_float_realization("F64::maximum.f64"),
-            Some(NamedFloatRealization::Builtin {
-                function: BuiltinFunction::Max,
-                arity: 2,
-            })
-        );
-        assert_eq!(
-            named_float_realization("F64::square_root.f64"),
-            Some(NamedFloatRealization::Builtin {
-                function: BuiltinFunction::Sqrt,
-                arity: 1,
-            })
-        );
-        assert_eq!(
-            named_float_realization("F64::negate.f64"),
-            Some(NamedFloatRealization::Negate(FloatFormat::F64))
-        );
-        assert_eq!(
-            named_float_realization("F32::is_nan.f32"),
-            Some(NamedFloatRealization::Builtin {
-                function: BuiltinFunction::FloatIsNan,
-                arity: 1,
-            })
-        );
-        assert_eq!(
-            named_float_realization("F32::multiply_then_add.f32"),
-            Some(NamedFloatRealization::MultiplyThenAdd(FloatFormat::F32))
-        );
-        assert_eq!(
-            named_float_realization("F32::fused_multiply_add.f32"),
-            Some(NamedFloatRealization::FusedMultiplyAdd(FloatFormat::F32))
-        );
-        assert_eq!(
-            named_float_realization("F32::classify.f32"),
-            Some(NamedFloatRealization::Builtin {
-                function: BuiltinFunction::FloatClassifyF32,
-                arity: 1,
-            })
-        );
-        assert_eq!(
-            named_float_realization("F64::is_subnormal.f64"),
-            Some(NamedFloatRealization::Builtin {
-                function: BuiltinFunction::FloatIsSubnormal,
-                arity: 1,
-            })
-        );
-        assert_eq!(
-            named_float_realization("F32::from_f64.f64"),
-            Some(NamedFloatRealization::Convert(ArithmeticDomain::Exact))
-        );
-        assert_eq!(
-            named_float_realization("F64::from_f32.f32"),
-            Some(NamedFloatRealization::Convert(ArithmeticDomain::Exact))
-        );
-        assert_eq!(
-            named_float_realization("F32::from_i8.i8"),
-            Some(NamedFloatRealization::Convert(ArithmeticDomain::Exact))
-        );
-        assert_eq!(
-            named_float_realization("F64::from_u64.u64"),
-            Some(NamedFloatRealization::Convert(ArithmeticDomain::Exact))
-        );
-        assert_eq!(named_float_realization("F32::from_u64.i64"), None);
-        assert_eq!(
-            named_float_realization("I32::from_f64.f64.trapping"),
-            Some(NamedFloatRealization::Convert(ArithmeticDomain::Trapping))
-        );
-        assert_eq!(
-            named_float_realization("I32::from_f64.f64.exact"),
-            Some(NamedFloatRealization::Convert(ArithmeticDomain::Exact))
-        );
-        assert_eq!(
-            named_float_realization("U8::from_f32.f32.saturating"),
-            Some(NamedFloatRealization::Convert(ArithmeticDomain::Saturating))
-        );
-        assert_eq!(named_float_realization("U8::from_f32.f32.wrapping"), None);
-        assert_eq!(
-            named_float_realization("F32::square_root_toward_positive.f32"),
-            Some(NamedFloatRealization::DirectedSquareRoot(
-                FloatFormat::F32,
-                RoundingDirection::TowardPositive,
-            ))
-        );
-        assert_eq!(
-            named_float_realization("F64::add_toward_negative.f64"),
-            Some(NamedFloatRealization::DirectedBinary(
-                DirectedFloatBinaryOperation::Add,
-                FloatFormat::F64,
-                RoundingDirection::TowardNegative,
-            ))
-        );
-        assert_eq!(
-            named_float_realization("F32::subtract_toward_positive.f32"),
-            Some(NamedFloatRealization::DirectedBinary(
-                DirectedFloatBinaryOperation::Subtract,
-                FloatFormat::F32,
-                RoundingDirection::TowardPositive,
-            ))
-        );
-        assert_eq!(
-            named_float_realization("F64::multiply_toward_zero.f64"),
-            Some(NamedFloatRealization::DirectedBinary(
-                DirectedFloatBinaryOperation::Multiply,
-                FloatFormat::F64,
-                RoundingDirection::TowardZero,
-            ))
-        );
-        assert_eq!(
-            named_float_realization("F32::divide_toward_negative.f32"),
-            Some(NamedFloatRealization::DirectedBinary(
-                DirectedFloatBinaryOperation::Divide,
-                FloatFormat::F32,
-                RoundingDirection::TowardNegative,
-            ))
-        );
-        assert_eq!(
-            named_float_realization("F64::square_root_toward_positive.f64"),
-            Some(NamedFloatRealization::DirectedSquareRoot(
-                FloatFormat::F64,
-                RoundingDirection::TowardPositive,
-            ))
-        );
-        assert_eq!(
-            named_float_realization("F32::fused_multiply_add_toward_zero.f32"),
-            Some(NamedFloatRealization::DirectedFusedMultiplyAdd(
-                FloatFormat::F32,
-                RoundingDirection::TowardZero,
-            ))
         );
     }
 }
