@@ -1460,10 +1460,13 @@ fn runtime_struct_literal_string_field_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("struct literal string field canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("struct literal string field canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("struct literal string field canary should run");
 
@@ -1500,10 +1503,13 @@ fn runtime_param_domain_forward_exit_canary_runs() {
 
     let scratch =
         std::env::temp_dir().join(format!("omega-param-domain-forward-{}", std::process::id()));
-    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("param domain forward canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("param domain forward canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("param domain forward canary should run");
 
@@ -1542,10 +1548,13 @@ fn runtime_case_payload_domain_forward_exit_canary_runs() {
         "omega-case-payload-domain-forward-{}",
         std::process::id()
     ));
-    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("case payload domain forward canary should compile");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("case payload domain forward canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("case payload domain forward canary should run");
 
@@ -1569,10 +1578,13 @@ fn runtime_tuple_transition_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
         .expect("runtime tuple transition canary should compile");
 
-    let output = Command::new(build_dir.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("runtime tuple transition canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("runtime tuple transition canary should run");
 
@@ -1593,10 +1605,13 @@ fn runtime_room_use_reentry_exit_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-runtime-room-reentry-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
         .expect("runtime room use reentry canary should compile from its authored root");
 
-    let output = Command::new(scratch.join("out").join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("runtime room use reentry canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("runtime room use reentry canary should run");
 
