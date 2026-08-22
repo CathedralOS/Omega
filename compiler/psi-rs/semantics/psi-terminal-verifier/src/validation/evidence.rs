@@ -102,9 +102,42 @@ pub(super) fn validate_evidence_contract_lanes(
                 ordinal: invocation.ordinal,
             });
         }
-        match (invocation.runtime_value, invocation.runtime_call) {
+        match (invocation.runtime_result, invocation.runtime_call) {
             (None, None) => {}
-            (Some(runtime_value), Some(runtime_call)) => {
+            (Some(psi_terminal::ProofOutputRuntimeResult::Unit), Some(runtime_call)) => {
+                let caller = machines
+                    .get(&invocation.caller)
+                    .expect("the proof-output caller was validated above");
+                let mut matching_operations = caller
+                    .blocks
+                    .iter()
+                    .flat_map(|block| &block.operations)
+                    .filter(|operation| operation.id == runtime_call.operation);
+                let Some(operation) = matching_operations.next() else {
+                    return Err(ModuleError::InvalidProofOutputCall {
+                        caller: invocation.caller,
+                        ordinal: invocation.ordinal,
+                    });
+                };
+                if matching_operations.next().is_some()
+                    || !matches!(
+                        (&operation.result, &operation.kind),
+                        (
+                            psi_terminal::OperationResult::Unit,
+                            psi_terminal::OperationKind::CallUnit { callee, .. }
+                        ) if *callee == runtime_call.callee
+                    )
+                {
+                    return Err(ModuleError::InvalidProofOutputCall {
+                        caller: invocation.caller,
+                        ordinal: invocation.ordinal,
+                    });
+                }
+            }
+            (
+                Some(psi_terminal::ProofOutputRuntimeResult::Scalar(runtime_value)),
+                Some(runtime_call),
+            ) => {
                 let caller = machines
                     .get(&invocation.caller)
                     .expect("the package caller was validated above");

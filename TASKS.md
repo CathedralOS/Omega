@@ -6831,8 +6831,8 @@ reach or trust, and private proof improvements do not change public identity.
   header before mutating the ordinal, rather than accidentally changing an
   earlier stack-evidence duplicate. The unchanged decoder rejects the targeted
   drift, and all 16 projected Unit-call integration tests pass.
-  The terminal-conditional identity golden now reflects format 20/vocabulary
-  22's canonical FloatMeaning equality table. Its empty table count is still
+  The terminal-conditional identity golden reflects vocabulary 24's canonical
+  FloatMeaning equality table. Its empty table count is still
   part of the domain-separated semantic bytes, so the refreshed fingerprint
   pins the intentional identity change; conditional, nested-conditional,
   division-stack, and image suites are green.
@@ -6871,10 +6871,18 @@ Remaining N6/N8 work:
   provenance. Proposition terms remain copyable and add no runtime work,
   cleanup, or fuel; no generated package identity or aggregate semantics exist.
 
-  Remaining: remove the current concrete one-state, zero-argument producer
-  restriction and support outcome-guarded capture in the applicable arm while
-  retaining the outcome guard in checked and Terminal Psi. The full accepted
-  identity and verification contract is in
+  Unit-returning producers no longer have to be operationally empty. A pure
+  proof producer still erases, while one containing runtime body work retains
+  one ordinary `CallUnit`. Checked and Terminal Psi link that exact operation
+  to the proof-output row, and Terminal format 21 distinguishes erased, Unit,
+  and scalar execution shapes so removing a required link rejects.
+
+  Remaining: generalize beyond the current concrete one-state, zero-argument
+  producer. Argumented calls need ordinary contract substitution and erased
+  evidence-input binding at the proof-output coordinate; generic calls need
+  the closed application identity below. Then support outcome-guarded capture
+  in the applicable arm while retaining the outcome guard in checked and
+  Terminal Psi. The full accepted identity and verification contract is in
   [`law_bearing_relations_and_quotients.md`](wiki/design_briefs/law_bearing_relations_and_quotients.md).
 
   Generic producer conformances use the same nested static application form as
@@ -7197,7 +7205,7 @@ Remaining N6/N8 work:
   format, original binary-equality expression, and both invocation handles
   before transactionally publishing dense projection and equality-proposition
   tables; operand and cross-format substitution reject. Terminal vocabulary
-  22/module format 20 encode the exact projection rows plus dense, source-
+  24/module format 21 encode the exact projection rows plus dense, source-
   handle-free equality rows with ordered projection references. Verification
   independently resolves each operand through the projection table and
   reconstructs its format-specific catalog law, rejecting missing, reordered,

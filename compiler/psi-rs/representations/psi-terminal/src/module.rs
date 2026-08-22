@@ -517,13 +517,20 @@ pub struct ProofOutputCall {
     pub ordinal: u32,
     /// Canonical checked callable identity, never a diagnostic display path.
     pub target_machine_identity: String,
-    /// Declared runtime payload shape, independent of the operation link so a
-    /// missing or spurious link is verifier-visible. `None` is proof-only.
-    pub runtime_value: Option<ScalarType>,
-    /// Exact canonical ordinary call which produced `runtime_value`.
+    /// Declared execution shape, independent of the operation link so a
+    /// missing or spurious link is verifier-visible. `None` is erased proof
+    /// construction; `Unit` and `Scalar` each require one ordinary call.
+    pub runtime_result: Option<ProofOutputRuntimeResult>,
+    /// Exact canonical ordinary call which produced `runtime_result`.
     pub runtime_call: Option<ProofOutputRuntimeCall>,
     /// Complete canonical proof-output set, ordered by callee lane.
     pub outputs: Vec<ProofOutput>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum ProofOutputRuntimeResult {
+    Unit,
+    Scalar(ScalarType),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

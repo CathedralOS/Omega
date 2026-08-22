@@ -11,9 +11,9 @@ use psi_terminal::{
     EvidenceContractLaneKind, EvidenceTermDeclaration, FloatMeaningEqualityProposition,
     FloatMeaningProjection, FloatMeaningProjectionOperation, FloatProjectionInput,
     FloatProjectionInputId, InstallationReachDependency, ProofOnlyValueType, ProofOutput,
-    ProofOutputCall, ProofOutputRuntimeCall, ProofPropositionId, ProofValueDeclaration,
-    ProofValueId, ServiceDeclaration, StructuralDomainDeclaration, TerminalModule,
-    TerminalRootServiceReach, VocabularyMarker,
+    ProofOutputCall, ProofOutputRuntimeCall, ProofOutputRuntimeResult, ProofPropositionId,
+    ProofValueDeclaration, ProofValueId, ServiceDeclaration, StructuralDomainDeclaration,
+    TerminalModule, TerminalRootServiceReach, VocabularyMarker,
 };
 
 use super::machine_wire::{decode_machine, encode_machine};
@@ -150,30 +150,33 @@ pub(super) fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError>
             writer.string("evidence output field", field)?;
         }
     }
-    writer.len(
-        "evidence package invocations",
-        module.proof_output_calls.len(),
-    )?;
+    writer.len("proof-output invocations", module.proof_output_calls.len())?;
     for invocation in &module.proof_output_calls {
         writer.id(invocation.caller);
         writer.u32(invocation.ordinal);
         writer.string(
-            "evidence package target machine identity",
+            "proof-output target machine identity",
             &invocation.target_machine_identity,
         )?;
-        writer.boolean(invocation.runtime_value.is_some());
-        if let Some(runtime_value) = invocation.runtime_value {
-            encode_scalar_type(&mut writer, runtime_value);
+        writer.boolean(invocation.runtime_result.is_some());
+        if let Some(runtime_result) = invocation.runtime_result {
+            writer.boolean(matches!(
+                runtime_result,
+                ProofOutputRuntimeResult::Scalar(_)
+            ));
+            if let ProofOutputRuntimeResult::Scalar(runtime_value) = runtime_result {
+                encode_scalar_type(&mut writer, runtime_value);
+            }
         }
         writer.boolean(invocation.runtime_call.is_some());
         if let Some(runtime_call) = invocation.runtime_call {
             writer.id(runtime_call.operation);
             writer.id(runtime_call.callee);
         }
-        writer.len("evidence package outputs", invocation.outputs.len())?;
+        writer.len("proof outputs", invocation.outputs.len())?;
         for output in &invocation.outputs {
             writer.u32(output.output_position);
-            writer.string("evidence package output field", &output.output_field)?;
+            writer.string("proof-output field", &output.output_field)?;
             writer.id(output.callee_output);
             writer.boolean(output.output.is_some());
             if let Some(output) = output.output {
@@ -343,10 +346,16 @@ pub(super) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
         Ok(ProofOutputCall {
             caller: reader.id("MachineId")?,
             ordinal: reader.u32()?,
-            target_machine_identity: reader.string("evidence package target machine identity")?,
-            runtime_value: reader
+            target_machine_identity: reader.string("proof-output target machine identity")?,
+            runtime_result: reader
                 .boolean()?
-                .then(|| decode_scalar_type(reader))
+                .then(|| {
+                    Ok(if reader.boolean()? {
+                        ProofOutputRuntimeResult::Scalar(decode_scalar_type(reader)?)
+                    } else {
+                        ProofOutputRuntimeResult::Unit
+                    })
+                })
                 .transpose()?,
             runtime_call: reader
                 .boolean()?
@@ -360,7 +369,7 @@ pub(super) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
             outputs: decode_counted(reader, |reader| {
                 Ok(ProofOutput {
                     output_position: reader.u32()?,
-                    output_field: reader.string("evidence package output field")?,
+                    output_field: reader.string("proof-output field")?,
                     callee_output: reader.id("EvidenceTermId")?,
                     output: reader
                         .boolean()?

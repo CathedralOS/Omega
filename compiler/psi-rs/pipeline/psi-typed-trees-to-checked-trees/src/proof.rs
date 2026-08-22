@@ -247,11 +247,10 @@ pub(crate) fn bind_proof_output_call_facts(
             .is_valid()
             .then(|| program.primitive_type_reference(target_state.return_type))
             .flatten();
-        let proof_only =
-            !target_state.return_type.is_valid() && target_state.statement_nodes.is_empty();
+        let proof_only = !target_state.return_type.is_valid();
         if !concrete || !immediate || (!proof_only && runtime_value_type.is_none()) {
             diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
-                "proof-output call `{}` is currently limited to a concrete one-state, zero-argument proof-only or scalar-result machine",
+                "proof-output call `{}` is currently limited to a concrete one-state, zero-argument Unit- or scalar-result machine",
                 call.target
             )));
             continue;
@@ -300,7 +299,6 @@ pub(crate) fn bind_proof_output_call_facts(
             )));
             continue;
         }
-
         let mut fields = std::collections::BTreeMap::new();
         let mut local_names = std::collections::BTreeSet::new();
         let mut invalid = false;
@@ -362,15 +360,7 @@ pub(crate) fn bind_proof_output_call_facts(
             }
         }
 
-        let runtime_call = if let (Some(runtime_value_type), Some(value_binding)) =
-            (runtime_value_type, value_binding)
-        {
-            let Some(statement_index) = package.runtime_call_statement_index else {
-                diagnostics.push(psi_diagnostics::Diagnostic::error(
-                    "runtime proof-output binding has no ordinary call statement",
-                ));
-                continue;
-            };
+        let runtime_call = if let Some(statement_index) = package.runtime_call_statement_index {
             let Some(caller_state) = program.machines().iter().find_map(|machine| {
                 program
                     .machine_states(machine)
@@ -378,32 +368,43 @@ pub(crate) fn bind_proof_output_call_facts(
                     .find(|state| state.symbol == package.state_symbol)
             }) else {
                 diagnostics.push(psi_diagnostics::Diagnostic::error(
-                    "runtime proof-output binding has no caller state",
+                    "proof-output binding has no caller state",
                 ));
                 continue;
             };
-            let Some(psi_typed_trees::statement::StatementNode::LocalData(local)) = program
+            let runtime_statement = program
                 .statement_table
                 .statements(caller_state.statement_nodes)
-                .get(statement_index)
-            else {
+                .get(statement_index);
+            let exact_runtime_statement =
+                match (runtime_value_type, value_binding, runtime_statement) {
+                    (
+                        Some(runtime_value_type),
+                        Some(value_binding),
+                        Some(psi_typed_trees::statement::StatementNode::LocalData(local)),
+                    ) => {
+                        let local_call = local
+                            .initial_value
+                            .is_valid()
+                            .then(|| program.expression_table.expression(local.initial_value));
+                        local.name == value_binding.binding
+                            && program.primitive_type_reference(local.type_reference)
+                                == Some(runtime_value_type)
+                            && matches!(local_call, Some(ExpressionNode::Call(local_call))
+                                if local_call.target_symbol == call.target_symbol)
+                    }
+                    (
+                        None,
+                        None,
+                        Some(psi_typed_trees::statement::StatementNode::Call(unit_call)),
+                    ) => unit_call.target_symbol == call.target_symbol,
+                    _ => false,
+                };
+            if !exact_runtime_statement
+                || package.statement_index != statement_index.saturating_add(1)
+            {
                 diagnostics.push(psi_diagnostics::Diagnostic::error(
-                    "runtime proof-output binding must bind its Type result through an ordinary local",
-                ));
-                continue;
-            };
-            let local_call = local
-                .initial_value
-                .is_valid()
-                .then(|| program.expression_table.expression(local.initial_value));
-            let exact_local = local.name == value_binding.binding
-                && program.primitive_type_reference(local.type_reference)
-                    == Some(runtime_value_type)
-                && matches!(local_call, Some(ExpressionNode::Call(local_call))
-                    if local_call.target_symbol == call.target_symbol);
-            if !exact_local || package.statement_index != statement_index.saturating_add(1) {
-                diagnostics.push(psi_diagnostics::Diagnostic::error(
-                    "runtime proof-output binding does not match its exact ordinary call local",
+                    "proof-output binding does not match its exact ordinary call",
                 ));
                 continue;
             }
@@ -416,7 +417,7 @@ pub(crate) fn bind_proof_output_call_facts(
             });
             let Some(contract_call) = matching_calls.next() else {
                 diagnostics.push(psi_diagnostics::Diagnostic::error(
-                    "runtime proof-output call has no exact checked contract-call row",
+                    "proof-output call has no exact checked contract-call row",
                 ));
                 continue;
             };
@@ -425,7 +426,7 @@ pub(crate) fn bind_proof_output_call_facts(
                 || contract_call.target_state_symbol != target_state.symbol
             {
                 diagnostics.push(psi_diagnostics::Diagnostic::error(
-                    "runtime proof-output call disagrees with its checked contract-call row",
+                    "proof-output call disagrees with its checked contract-call row",
                 ));
                 continue;
             }
@@ -434,10 +435,11 @@ pub(crate) fn bind_proof_output_call_facts(
                 call_ordinal: 0,
             })
         } else {
-            if package.runtime_call_statement_index.is_some() {
-                diagnostics.push(psi_diagnostics::Diagnostic::error(
-                    "proof-only output binding cannot carry a runtime call",
-                ));
+            if runtime_value_type.is_some() {
+                diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
+                    "proof-output call `{}` is missing its runtime Type result",
+                    call.target
+                )));
                 continue;
             }
             None
