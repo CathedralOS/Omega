@@ -121,20 +121,20 @@ impl ExecutablePublicationReceipt {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CompileReport {
-    pub(crate) root_path: PathBuf,
+    root_path: PathBuf,
     pub source_file_count: usize,
-    pub(crate) wrote_output: bool,
+    wrote_output: bool,
     /// Exact output category selected by orchestration. This distinguishes a
     /// native executable, which requires publication custody, from the
     /// non-executable object-container fallback.
-    pub(crate) output_kind: CompileOutputKind,
+    output_kind: CompileOutputKind,
     /// Exact checked publication receipt for a native executable image.
     /// Object-container fallbacks and check-only compilations retain `None`.
-    pub(crate) executable_publication: Option<ExecutablePublicationReceipt>,
+    executable_publication: Option<ExecutablePublicationReceipt>,
     /// Exact checked publication receipt for the executable copied into an
     /// optional macOS application bundle. Non-GUI/non-Mach-O builds retain
     /// `None`; this remains distinct from the flat executable receipt.
-    pub(crate) app_bundle_publication: Option<ExecutablePublicationReceipt>,
+    app_bundle_publication: Option<ExecutablePublicationReceipt>,
     /// Exact target root-slot/schema/ABI-capture binding for a program-storage
     /// entry. Hosted compatibility entries and unmigrated name discovery have
     /// no such authority-bearing artifact.
@@ -148,6 +148,36 @@ pub struct CompileReport {
 }
 
 impl CompileReport {
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn checked(
+        root_path: PathBuf,
+        source_file_count: usize,
+        wrote_output: bool,
+        output_kind: CompileOutputKind,
+        executable_publication: Option<ExecutablePublicationReceipt>,
+        app_bundle_publication: Option<ExecutablePublicationReceipt>,
+        program_storage_entry: Option<super::ProgramStorageEntryPlanBinding>,
+        program_storage_entry_bridge: Option<super::ProgramStorageEntryNativeBridgePlan>,
+        build_evaluation_usage: Option<super::build_config::BuildEvaluationUsage>,
+    ) -> Result<Self, &'static str> {
+        let report = Self {
+            root_path,
+            source_file_count,
+            wrote_output,
+            output_kind,
+            executable_publication,
+            app_bundle_publication,
+            program_storage_entry,
+            program_storage_entry_bridge,
+            build_evaluation_usage,
+        };
+        if report.has_consistent_executable_publication_custody() {
+            Ok(report)
+        } else {
+            Err("compiler report retained inconsistent executable publication receipts")
+        }
+    }
+
     pub fn root_path(&self) -> &std::path::Path {
         &self.root_path
     }
@@ -297,6 +327,20 @@ mod tests {
                 None,
             )
             .has_consistent_executable_publication_custody()
+        );
+        assert!(
+            CompileReport::checked(
+                "Main/main.omg".into(),
+                1,
+                false,
+                CompileOutputKind::CheckOnly,
+                Some(flat.clone()),
+                None,
+                None,
+                None,
+                None,
+            )
+            .is_err()
         );
         assert!(
             !report(true, CompileOutputKind::NativeExecutable, None, None)
