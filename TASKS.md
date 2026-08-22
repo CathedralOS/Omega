@@ -4965,9 +4965,13 @@ Remaining N6/N8 work:
   identities, and maps only the matching format. The independent verifier
   reconstructs the shared projection-catalog row solely from Terminal
   operation and format fields, without source names, a name-table join,
-  runtime bits, or float evaluation. Binding an actual checked operator
-  invocation and landed source value, module/codec emission, and proposition
-  consumption remain open.
+  runtime bits, or float evaluation. Validation now captures each actual proof-
+  position exact `Float::meaning32`/`Float::meaning64` invocation, its selected
+  operator identity, actual operand coordinate, and landed `f32`/`f64` format.
+  Checked binding independently replays the exact path, signature, symbol,
+  argument identity, and format before transactionally publishing dense
+  source-handle-free projection rows; operand and cross-format substitution
+  reject. Module/codec emission and proposition consumption remain open.
 - Then migrate suffix law discovery to propositions plus explicit conformances,
   and expand the checked `Nat`/`Int`/`Rat`/Cauchy/approximation corpus. `Real`
   remains proof-only and core-level.
