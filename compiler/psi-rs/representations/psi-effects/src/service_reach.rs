@@ -19,6 +19,10 @@ pub struct MachineServiceReachInference {
     pub published: ServiceReachRowId,
     pub inferred_direct: ServiceReachRowId,
     pub inferred_transitive: ServiceReachRowId,
+    /// Reach not contributed solely by an installation-selected upper bound.
+    /// Final composition unions selected rows into this base; it never tries
+    /// to subtract upper bounds from the flattened conservative set.
+    pub concrete_effective: ServiceReachRowId,
     /// Exact installation-selected requirement rows reachable from this
     /// machine. Their upper bounds remain in the ordinary service rows for
     /// conservative preselection auditing; composition must later substitute
@@ -35,6 +39,8 @@ pub struct StateServiceReachInference {
     pub state: SymbolHandle,
     pub inferred_direct: ServiceReachRowId,
     pub inferred_transitive: ServiceReachRowId,
+    pub concrete_direct: ServiceReachRowId,
+    pub concrete_transitive: ServiceReachRowId,
     pub unresolved_installation_reaches: Vec<InstallationReachRequirement>,
     pub calls: HandleSpan<CallServiceReachInference>,
 }
@@ -47,6 +53,8 @@ pub struct CallServiceReachInference {
     pub target_machine: SymbolHandle,
     pub inferred_direct: ServiceReachRowId,
     pub inferred_transitive: ServiceReachRowId,
+    pub concrete_direct: ServiceReachRowId,
+    pub concrete_transitive: ServiceReachRowId,
     pub unresolved_installation_reaches: Vec<InstallationReachRequirement>,
 }
 
@@ -108,6 +116,8 @@ struct MachineReachWork {
     uses_published: bool,
     direct: Vec<ServiceReachId>,
     transitive: Vec<ServiceReachId>,
+    concrete_direct: Vec<ServiceReachId>,
+    concrete_transitive: Vec<ServiceReachId>,
     unresolved_installation_reaches: Vec<InstallationReachRequirement>,
     calls: Vec<(SymbolHandle, DirectServiceReach)>,
 }
@@ -115,6 +125,7 @@ struct MachineReachWork {
 #[derive(Debug, Clone, Default)]
 struct DirectServiceReach {
     services: Vec<ServiceReachId>,
+    concrete_services: Vec<ServiceReachId>,
     unresolved_installation_reaches: Vec<InstallationReachRequirement>,
 }
 
@@ -130,6 +141,7 @@ pub fn infer_service_reaches(
             .to_vec();
         let mut calls = Vec::new();
         let mut direct = Vec::new();
+        let mut concrete_direct = Vec::new();
         if let Some(summary) = operational
             .machines()
             .iter()
@@ -140,6 +152,7 @@ pub fn infer_service_reaches(
                     let call_reach =
                         direct_service_reach_for_call(program, call.target_state_symbol);
                     extend_service_set(&mut direct, &call_reach.services);
+                    extend_service_set(&mut concrete_direct, &call_reach.concrete_services);
                     calls.push((call.target_machine_symbol, call_reach));
                 }
             }
@@ -155,6 +168,8 @@ pub fn infer_service_reaches(
                     .is_empty(),
             direct: direct.clone(),
             transitive: direct,
+            concrete_direct: concrete_direct.clone(),
+            concrete_transitive: concrete_direct,
             unresolved_installation_reaches: calls
                 .iter()
                 .flat_map(|(_, reach)| reach.unresolved_installation_reaches.iter().copied())
@@ -175,17 +190,24 @@ pub fn infer_service_reaches(
             .map(|machine| {
                 (
                     machine.transitive.clone(),
+                    machine.concrete_transitive.clone(),
                     machine.unresolved_installation_reaches.clone(),
                 )
             })
             .collect::<Vec<_>>();
         for machine_index in 0..work.len() {
             let mut transitive = work[machine_index].direct.clone();
+            let mut concrete_transitive = work[machine_index].concrete_direct.clone();
             let mut unresolved = work[machine_index].unresolved_installation_reaches.clone();
             for (target, direct) in work[machine_index].calls.clone() {
                 extend_service_set(&mut transitive, &direct.services);
+                extend_service_set(&mut concrete_transitive, &direct.concrete_services);
                 if let Some(target) = work.iter().find(|machine| machine.symbol == target) {
                     extend_service_set(&mut transitive, effective_services(target));
+                    extend_service_set(
+                        &mut concrete_transitive,
+                        concrete_effective_services(target),
+                    );
                     extend_installation_reaches(
                         &mut unresolved,
                         &target.unresolved_installation_reaches,
@@ -193,11 +215,13 @@ pub fn infer_service_reaches(
                 }
             }
             work[machine_index].transitive = transitive;
+            work[machine_index].concrete_transitive = concrete_transitive;
             work[machine_index].unresolved_installation_reaches = unresolved;
         }
         if work.iter().zip(&previous).all(|(machine, previous)| {
             machine.transitive == previous.0
-                && machine.unresolved_installation_reaches == previous.1
+                && machine.concrete_transitive == previous.1
+                && machine.unresolved_installation_reaches == previous.2
         }) {
             break;
         }
@@ -222,17 +246,24 @@ pub fn infer_service_reaches(
                 let mut calls = HandleSpan::empty();
                 let mut state_direct = Vec::new();
                 let mut state_transitive = Vec::new();
+                let mut state_concrete_direct = Vec::new();
+                let mut state_concrete_transitive = Vec::new();
                 let mut state_unresolved = Vec::new();
                 for call_summary in operational.calls.span_or_empty(state_summary.calls) {
                     let call_direct =
                         direct_service_reach_for_call(program, call_summary.target_state_symbol);
                     let mut call_transitive = call_direct.services.clone();
+                    let mut call_concrete_transitive = call_direct.concrete_services.clone();
                     let mut call_unresolved = call_direct.unresolved_installation_reaches;
                     if let Some(target) = work
                         .iter()
                         .find(|summary| summary.symbol == call_summary.target_machine_symbol)
                     {
                         extend_service_set(&mut call_transitive, effective_services(target));
+                        extend_service_set(
+                            &mut call_concrete_transitive,
+                            concrete_effective_services(target),
+                        );
                         extend_installation_reaches(
                             &mut call_unresolved,
                             &target.unresolved_installation_reaches,
@@ -240,9 +271,13 @@ pub fn infer_service_reaches(
                     }
                     extend_service_set(&mut state_direct, &call_direct.services);
                     extend_service_set(&mut state_transitive, &call_transitive);
+                    extend_service_set(&mut state_concrete_direct, &call_direct.concrete_services);
+                    extend_service_set(&mut state_concrete_transitive, &call_concrete_transitive);
                     extend_installation_reaches(&mut state_unresolved, &call_unresolved);
                     let inferred_direct = plan.rows.intern(call_direct.services);
                     let inferred_transitive = plan.rows.intern(call_transitive);
+                    let concrete_direct = plan.rows.intern(call_direct.concrete_services);
+                    let concrete_transitive = plan.rows.intern(call_concrete_transitive);
                     plan.calls.append_to_span(
                         &mut calls,
                         CallServiceReachInference {
@@ -252,18 +287,24 @@ pub fn infer_service_reaches(
                             target_machine: call_summary.target_machine_symbol,
                             inferred_direct,
                             inferred_transitive,
+                            concrete_direct,
+                            concrete_transitive,
                             unresolved_installation_reaches: call_unresolved,
                         },
                     );
                 }
                 let inferred_direct = plan.rows.intern(state_direct);
                 let inferred_transitive = plan.rows.intern(state_transitive);
+                let concrete_direct = plan.rows.intern(state_concrete_direct);
+                let concrete_transitive = plan.rows.intern(state_concrete_transitive);
                 plan.states.append_to_span(
                     &mut states,
                     StateServiceReachInference {
                         state: state_summary.symbol,
                         inferred_direct,
                         inferred_transitive,
+                        concrete_direct,
+                        concrete_transitive,
                         unresolved_installation_reaches: state_unresolved,
                         calls,
                     },
@@ -275,6 +316,9 @@ pub fn infer_service_reaches(
         let inferred_direct = plan.rows.intern(machine_work.direct.clone());
         let inferred_transitive = plan.rows.intern(machine_work.transitive.clone());
         let effective = plan.rows.intern(effective_services(machine_work).to_vec());
+        let concrete_effective = plan
+            .rows
+            .intern(concrete_effective_services(machine_work).to_vec());
         plan.machines.append_to_span(
             &mut plan.root_machines,
             MachineServiceReachInference {
@@ -287,6 +331,7 @@ pub fn infer_service_reaches(
                 published,
                 inferred_direct,
                 inferred_transitive,
+                concrete_effective,
                 unresolved_installation_reaches: machine_work
                     .unresolved_installation_reaches
                     .clone(),
@@ -303,6 +348,14 @@ fn effective_services(machine: &MachineReachWork) -> &[ServiceReachId] {
         &machine.published
     } else {
         &machine.transitive
+    }
+}
+
+fn concrete_effective_services(machine: &MachineReachWork) -> &[ServiceReachId] {
+    if machine.uses_published {
+        &machine.published
+    } else {
+        &machine.concrete_transitive
     }
 }
 
@@ -328,6 +381,7 @@ fn direct_service_reach_for_call(program: &TypedTrees, target: SymbolHandle) -> 
                 .extend_closure(service, &mut reach.services);
             reach.services.sort_by_key(|service| service.0);
             reach.services.dedup();
+            reach.concrete_services = reach.services.clone();
         }
         return reach;
     }
@@ -339,8 +393,17 @@ fn direct_service_reach_for_call(program: &TypedTrees, target: SymbolHandle) -> 
                 .service_reach_rows
                 .services(signature.service_reach_row),
         );
+        if !signature.service_reach_is_installation_bound {
+            extend_service_set(
+                &mut reach.concrete_services,
+                program
+                    .service_reach_rows
+                    .services(signature.service_reach_row),
+            );
+        }
         record_installation_reach(signature, &mut reach);
         extend_invoked_binding_services(program, signature, &mut reach.services);
+        extend_invoked_binding_services(program, signature, &mut reach.concrete_services);
         return reach;
     }
 
@@ -355,6 +418,14 @@ fn direct_service_reach_for_call(program: &TypedTrees, target: SymbolHandle) -> 
                     .service_reach_rows
                     .services(signature.service_reach_row),
             );
+            if !signature.service_reach_is_installation_bound {
+                extend_service_set(
+                    &mut reach.concrete_services,
+                    program
+                        .service_reach_rows
+                        .services(signature.service_reach_row),
+                );
+            }
             if trait_definition.is_boundary
                 && let Some(service) = program
                     .service_reaches
@@ -363,11 +434,17 @@ fn direct_service_reach_for_call(program: &TypedTrees, target: SymbolHandle) -> 
                 program
                     .service_reaches
                     .extend_closure(service, &mut reach.services);
+                program
+                    .service_reaches
+                    .extend_closure(service, &mut reach.concrete_services);
                 reach.services.sort_by_key(|service| service.0);
                 reach.services.dedup();
+                reach.concrete_services.sort_by_key(|service| service.0);
+                reach.concrete_services.dedup();
             }
             record_installation_reach(signature, &mut reach);
             extend_invoked_binding_services(program, signature, &mut reach.services);
+            extend_invoked_binding_services(program, signature, &mut reach.concrete_services);
             return reach;
         }
     }

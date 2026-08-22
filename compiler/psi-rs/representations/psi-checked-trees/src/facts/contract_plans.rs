@@ -1057,6 +1057,10 @@ pub struct RealizedMachineContractEnvelope {
     pub machine: SymbolHandle,
     pub contract_fingerprint: u64,
     pub effective_service_reach: Vec<String>,
+    /// Concrete reach with installation-selected upper-bound contributions
+    /// removed. Root composition unions resolved rows into this provenance-
+    /// preserving base.
+    pub concrete_service_reach: Vec<String>,
     /// Installation-selected reach requirements still awaiting provider-row
     /// substitution. These are implementation evidence and therefore do not
     /// enter the machine's published contract fingerprint.
