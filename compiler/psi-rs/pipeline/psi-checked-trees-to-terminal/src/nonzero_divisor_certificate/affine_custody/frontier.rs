@@ -20,7 +20,7 @@ pub(super) fn definition_words(
     // again before it leaves affine custody.
     let mut words = Vec::new();
     let mut frontier = vec![layer::Entry::root(root)];
-    for _ in 0..MAX_DEFINITIONS {
+    for depth in 0..MAX_DEFINITIONS {
         frontier = layer::expand(
             context,
             semantic_axioms,
@@ -28,6 +28,7 @@ pub(super) fn definition_words(
             root,
             frontier,
             &mut words,
+            depth + 1 < MAX_DEFINITIONS,
         );
         if frontier.is_empty() {
             break;
