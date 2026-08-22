@@ -11,6 +11,7 @@ mod debug_map;
 mod proof_bundle;
 mod scalar_wire;
 mod structural_field_wire;
+mod structural_type_wire;
 mod trust_graph;
 mod wire;
 
@@ -58,12 +59,11 @@ use psi_terminal::{
     PropositionBinderKind, PropositionDeclaration, PropositionEvidence,
     ProviderCandidateConformance, ProviderParameterRefinement, ProviderSignatureParameter,
     ProviderUnitRefinement, ProviderUnitSignature, ServiceDeclaration, StructuralAffineDiscard,
-    StructuralArgument, StructuralCaseDeclaration, StructuralDomainDeclaration,
-    StructuralDomainRequirement, StructuralFieldType, StructuralMultiplicity,
-    StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
-    StructuralResultDeclaration, StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge,
-    TerminalAffineCleanupAction, TerminalMachine, TerminalMachineResult, TerminalModule,
-    Terminator, ValueDeclaration, VocabularyMarker,
+    StructuralArgument, StructuralDomainDeclaration, StructuralDomainRequirement,
+    StructuralFieldType, StructuralMultiplicity, StructuralParameterDeclaration,
+    StructuralPathSegment, StructuralPlaceDeclaration, StructuralResultDeclaration,
+    StructuralTypeShape, SuccessorEdge, TerminalAffineCleanupAction, TerminalMachine,
+    TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
 };
 use psi_terminal_verifier::{ModuleError, validate_module_representation};
 use scalar_wire::{
@@ -75,10 +75,10 @@ use std::collections::BTreeSet;
 use structural_field_wire::{
     decode_byte_sequence_field, decode_canonical_structural_field,
     decode_ieee_float_comparison_kind, decode_ieee_float_field, decode_ieee_float_format,
-    decode_structural_field, encode_byte_sequence_field, encode_canonical_structural_field,
+    encode_byte_sequence_field, encode_canonical_structural_field,
     encode_ieee_float_comparison_kind, encode_ieee_float_field, encode_ieee_float_format,
-    encode_structural_field,
 };
+use structural_type_wire::{decode_structural_type, encode_structural_type};
 use wire::{Reader, Writer};
 
 const MAGIC: &[u8; 8] = b"PSITERM\0";
@@ -1754,41 +1754,6 @@ fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError> {
         encode_machine(&mut writer, machine)?;
     }
     Ok(writer.finish())
-}
-
-fn encode_structural_type(
-    writer: &mut Writer,
-    declaration: &StructuralTypeDeclaration,
-) -> Result<(), CodecError> {
-    writer.id(declaration.id);
-    writer.string("structural type identity", &declaration.identity)?;
-    match &declaration.shape {
-        StructuralTypeShape::Record { fields } => {
-            writer.u8(1);
-            writer.len("structural fields", fields.len())?;
-            for field in fields {
-                encode_structural_field(writer, field)?;
-            }
-        }
-        StructuralTypeShape::FixedArray { element, length } => {
-            writer.u8(2);
-            writer.id(*element);
-            writer.u64(*length);
-        }
-        StructuralTypeShape::Sum { cases } => {
-            writer.u8(3);
-            writer.len("structural cases", cases.len())?;
-            for case in cases {
-                writer.id(case.id);
-                writer.string("structural case identity", &case.identity)?;
-                writer.len("structural case payload fields", case.fields.len())?;
-                for field in &case.fields {
-                    encode_structural_field(writer, field)?;
-                }
-            }
-        }
-    }
-    Ok(())
 }
 
 fn encode_boundary_machine(
@@ -3574,37 +3539,6 @@ fn decode_provider_candidate(
             required_domains,
             realized_service_ceiling: decode_ids(reader, "ServiceId")?,
         },
-    })
-}
-
-fn decode_structural_type(
-    reader: &mut Reader<'_>,
-) -> Result<StructuralTypeDeclaration, CodecError> {
-    let id = reader.id("StructuralTypeId")?;
-    let identity = reader.string("structural type identity")?;
-    let shape = match reader.u8()? {
-        1 => StructuralTypeShape::Record {
-            fields: decode_counted(reader, decode_structural_field)?,
-        },
-        2 => StructuralTypeShape::FixedArray {
-            element: reader.id("StructuralTypeId")?,
-            length: reader.u64()?,
-        },
-        3 => StructuralTypeShape::Sum {
-            cases: decode_counted(reader, |reader| {
-                Ok(StructuralCaseDeclaration {
-                    id: reader.id("StructuralCaseId")?,
-                    identity: reader.string("structural case identity")?,
-                    fields: decode_counted(reader, decode_structural_field)?,
-                })
-            })?,
-        },
-        tag => return Err(CodecError::InvalidTag("StructuralTypeShape", tag)),
-    };
-    Ok(StructuralTypeDeclaration {
-        id,
-        identity,
-        shape,
     })
 }
 
