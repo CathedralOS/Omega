@@ -293,6 +293,7 @@ fn validate_compiler_function_instruction_boundaries(
             &mut function_identities,
             &mut fingerprint,
         )?;
+        validate_compiler_function_object_binding(function_index, function, object)?;
         if function.byte_offset != expected_byte_offset {
             return Err(Diagnostic::error(format!(
                 "compiler function #{function_index} begins at byte {}, expected complete partition offset {expected_byte_offset}",
@@ -532,6 +533,29 @@ fn validate_compiler_function_instruction_boundaries(
         composed_footprint_fingerprint,
         validation_fingerprint: fingerprint,
     })
+}
+
+fn validate_compiler_function_object_binding(
+    function_index: usize,
+    function: &omega_machine_bytes::EncodedMachineFunction,
+    object: &omega_object_file::ObjectPlan,
+) -> Result<(), Diagnostic> {
+    let (_, symbol) = omega_object_file::object_function_symbol(object, function.identity)
+        .ok_or_else(|| {
+            Diagnostic::error(format!(
+                "compiler function #{function_index} does not own one exact object text symbol"
+            ))
+        })?;
+    if symbol.offset != function.byte_offset || symbol.size != function.byte_count {
+        return Err(Diagnostic::error(format!(
+            "compiler function #{function_index} object text interval {}..{} does not match encoded interval {}..{}",
+            symbol.offset,
+            symbol.offset.saturating_add(symbol.size),
+            function.byte_offset,
+            function.byte_offset.saturating_add(function.byte_count),
+        )));
+    }
+    Ok(())
 }
 
 fn retain_compiler_function_identity(

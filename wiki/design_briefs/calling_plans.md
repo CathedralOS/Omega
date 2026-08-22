@@ -622,7 +622,14 @@ The final compiler-function replay independently rejects invalid or duplicate
 function identities and folds each role, continuation handle/generation,
 segment, and callback placement into its validation fingerprint. Function-role
 substitution therefore changes final derivation evidence even when byte
-intervals and instruction rows are otherwise unchanged.
+intervals and instruction rows are otherwise unchanged. That replay also
+resolves every encoded identity through the object's exact-unique function
+binding and requires the bound text-symbol interval to equal the encoded byte
+interval. Missing, duplicate, redirected, non-function, non-text, and interval-
+drifted bindings therefore reject at the final image boundary for source,
+wrapper, and callback roles alike. Object-local symbol spelling is deliberately
+not compared to the encoded source display name; callback private-symbol
+recomputation remains the stronger callback-specific check described above.
 Emission also rejoins every validated
 placement row to exactly one thunk plan and rejects a missing, duplicate, or
 out-of-range placement index, selected-entry drift, and repeated private thunk
