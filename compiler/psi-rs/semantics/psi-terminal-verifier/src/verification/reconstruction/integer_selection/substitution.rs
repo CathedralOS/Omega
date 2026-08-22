@@ -3,7 +3,8 @@
 use psi_core::{Proposition, PropositionContext, ScalarTerm};
 
 use super::super::affine_selection;
-use super::order::{closed_transitive_integer_bound, retained_two_fact_transitive_integer_bound};
+
+mod relation;
 
 pub(super) fn retained(
     context: Option<&PropositionContext>,
@@ -32,18 +33,7 @@ pub(super) fn retained(
             } else {
                 return false;
             };
-            requirements
-                .iter()
-                .chain(semantic_axioms)
-                .any(|fact| fact == &relation || closed_transitive_integer_bound(&relation, fact))
-                || retained_two_fact_transitive_integer_bound(
-                    &relation,
-                    requirements,
-                    semantic_axioms,
-                )
-                || context.is_some_and(|context| {
-                    affine_selection::retained(context, &relation, requirements, semantic_axioms)
-                })
+            relation::retained(context, &relation, requirements, semantic_axioms)
         })
     }) {
         return true;
