@@ -11,6 +11,8 @@ use psi_proof_kernel::{
 
 use super::integer_evidence::closed_integer_less_or_equal;
 
+mod frontier;
+
 pub(super) fn retained_from_root(
     context: &PropositionContext,
     goal: &Proposition,
@@ -25,7 +27,7 @@ pub(super) fn retained_from_root(
         .into_iter()
         .filter(|target| matches!(target, ScalarTerm::Value { .. }))
         .any(|target| {
-            definition_words(context, semantic_axioms, root)
+            frontier::definition_words(context, semantic_axioms, root)
                 .into_iter()
                 .any(|definition_axioms| {
                     let witness = IntegerAffineWitness {
@@ -93,50 +95,4 @@ fn closed_bound_relaxes_to_goal(mapped: &Proposition, goal: &Proposition) -> boo
     };
     (goal_right == mapped_right && closed_integer_less_or_equal(goal_left, mapped_left))
         || (goal_left == mapped_left && closed_integer_less_or_equal(mapped_right, goal_right))
-}
-
-fn definition_words(
-    context: &PropositionContext,
-    semantic_axioms: &[Proposition],
-    root: &ScalarTerm,
-) -> Vec<Vec<usize>> {
-    const MAX_DEFINITIONS: usize = 4;
-
-    // This only prunes candidate words. Every retained prefix and final bound
-    // is independently replayed by the proof-kernel checkers above.
-    let mut words = Vec::new();
-    let mut frontier = vec![(Vec::new(), 0)];
-    for _ in 0..MAX_DEFINITIONS {
-        let mut next = Vec::new();
-        for (prefix, start) in frontier {
-            for index in start..semantic_axioms.len() {
-                let Proposition::Equal(left, right) = &semantic_axioms[index] else {
-                    continue;
-                };
-                let mut word = prefix.clone();
-                word.push(index);
-                let continues = [left, right]
-                    .into_iter()
-                    .filter(|target| matches!(target, ScalarTerm::Value { .. }))
-                    .any(|target| {
-                        check_integer_affine_witness(
-                            context,
-                            semantic_axioms,
-                            &IntegerAffineWitness {
-                                root: root.clone(),
-                                target: target.clone(),
-                                definition_axioms: word.clone(),
-                            },
-                        )
-                        .is_ok()
-                    });
-                if continues {
-                    words.push(word.clone());
-                    next.push((word, index + 1));
-                }
-            }
-        }
-        frontier = next;
-    }
-    words
 }
