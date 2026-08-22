@@ -586,6 +586,13 @@ Owners:
   a record. Missing retained rows, extra synthesized members, or case-bearing
   drift reject fail closed before field lookup; no new placement or access
   authority is established.
+  Plan-laid value layouts now retain the exact synthesized data symbol and
+  ordered runtime field-symbol inventory independently from their diagnostic
+  name. Interpreter record views, recast/relevance validation, boundary ABI
+  shaping, and native layout selection rejoin through that identity and replay
+  the field inventory before applying geometry. Presentation-name drift cannot
+  redirect a plan, while same-cardinality data-symbol substitution rejects fail
+  closed; no typed-content or placement authority is minted.
 - Keep alias-exclusion admission separate from access rights; `&mut` does not
   claim exclusivity against a device. Sealed primitive events now specialize
   linearly into Stable read/take/write/swap, External read/take/write, or one
@@ -3389,6 +3396,11 @@ Remaining:
   with one backend worker each. On the current 215-compile umbrella this
   reduced exact test time from 51.60s at outer eight to 46.15s at outer twelve;
   the explicit overrides remain available for host-specific profiling.
+  The native/interpreter differential scheduler likewise now defaults to
+  twelve independent outer compiles with one backend worker. On a warm,
+  representative 64-canary slice, four jobs repeated at 10.45--10.77s while
+  twelve completed in 5.62s with all 64 results identical; `DIFF_JOBS` remains
+  the host-specific override.
   Re-profiling the broad float Checked phase after bounded helper expansion put
   both representative fixtures near a 1.60s median. A sampled source-ordered
   operator-signature key catalog was rejected and fully removed: compare/cast
