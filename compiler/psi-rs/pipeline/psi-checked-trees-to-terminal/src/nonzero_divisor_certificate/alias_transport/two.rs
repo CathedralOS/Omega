@@ -1,10 +1,12 @@
 //! Exactly two value-alias substitutions for canonical order production.
 
 use psi_core::{Proposition, ScalarTerm};
-use psi_proof_kernel::{ProofNode, ProofRule};
+use psi_proof_kernel::ProofNode;
 
 use super::super::integer_evidence::cited_facts;
-use super::index::{distinct_same_carrier_values, indexed_bounds, substitute_bound_endpoint};
+use super::index::{distinct_same_carrier_values, indexed_bounds};
+
+mod completion;
 
 pub(super) fn prove(
     assumptions: &[Proposition],
@@ -41,22 +43,15 @@ pub(super) fn prove(
                     continue;
                 };
                 for &(relation_citation, relation, endpoint) in bounds {
-                    let middle_bound = ProofNode {
-                        conclusion: substitute_bound_endpoint(relation, middle_alias, endpoint),
-                        rule: ProofRule::IntegerLessOrEqualSubstitution {
-                            relation: Box::new(relation_citation.proof(relation)),
-                            equality: Box::new(inner_citation.proof(inner_equality)),
-                            endpoint,
-                        },
-                    };
-                    let root_bound = ProofNode {
-                        conclusion: substitute_bound_endpoint(relation, root, endpoint),
-                        rule: ProofRule::IntegerLessOrEqualSubstitution {
-                            relation: Box::new(middle_bound),
-                            equality: Box::new(outer_citation.proof(outer_equality)),
-                            endpoint,
-                        },
-                    };
+                    let root_bound = completion::prove(
+                        relation,
+                        root,
+                        middle_alias,
+                        endpoint,
+                        relation_citation.proof(relation),
+                        inner_citation.proof(inner_equality),
+                        outer_citation.proof(outer_equality),
+                    );
                     if let Some(proof) = complete(root, root_bound) {
                         return Some(proof);
                     }
