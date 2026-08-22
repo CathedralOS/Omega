@@ -3,7 +3,7 @@
 use psi_core::{Proposition, ScalarTerm};
 
 use super::super::super::super::integer_evidence::Citation;
-use super::super::super::{bounds, eligibility};
+use super::super::super::bounds;
 
 pub(super) fn find<'a, T>(
     assumptions: &'a [Proposition],
@@ -11,7 +11,7 @@ pub(super) fn find<'a, T>(
     mut join: impl FnMut(Citation, &'a Proposition, &'a ScalarTerm, &'a ScalarTerm) -> Option<T>,
 ) -> Option<T> {
     for (citation, fact, left, middle) in bounds::ordered(assumptions, semantic_axioms) {
-        if !eligibility::is_value(middle) {
+        if !bounds::is_value(middle) {
             continue;
         }
         if let Some(result) = join(citation, fact, left, middle) {
