@@ -1932,6 +1932,13 @@ same-carrier values. A missing, reused, redirected, crossed, cyclic, or mistyped
 equality rejects. The constructor has no recursive alias walk, and a third
 alias remains outside the producer.
 
+One literal-ending sibling may land the affine root through exactly one
+intermediate value alias and one exact same-carrier literal equality. It proves
+a closed reflexive integer order, substitutes the alias, substitutes the root,
+and only then applies `IntegerAffineBound`. Missing, redirected, reused, or
+mistyped equalities reject, and a second value alias is not followed. This is
+another fixed two-substitution path, not a recursive alias search.
+
 The common pure-cast spine now has the same kind of producer-visible custody.
 `IntegerCastChainWitness` binds one or more contiguous partial fixed-native
 `IntegerExactCast` definitions to exact root and target SSA values. The checker

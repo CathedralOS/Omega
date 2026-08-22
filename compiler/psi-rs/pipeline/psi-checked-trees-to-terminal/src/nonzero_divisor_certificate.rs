@@ -274,6 +274,87 @@ fn prove_landed_literal_affine_bound(
             }
         }
     }
+
+    for (outer_citation, outer_equality) in cited_facts(assumptions, semantic_axioms) {
+        let Proposition::Equal(outer_left, outer_right) = outer_equality else {
+            continue;
+        };
+        for (root, alias) in [(outer_left, outer_right), (outer_right, outer_left)] {
+            if root == alias
+                || !matches!(root, psi_core::ScalarTerm::Value { .. })
+                || !matches!(alias, psi_core::ScalarTerm::Value { .. })
+                || root.scalar_type() != alias.scalar_type()
+            {
+                continue;
+            }
+            for (inner_citation, inner_equality) in cited_facts(assumptions, semantic_axioms) {
+                if std::ptr::eq(outer_equality, inner_equality) {
+                    continue;
+                }
+                let Proposition::Equal(inner_left, inner_right) = inner_equality else {
+                    continue;
+                };
+                let literal = if inner_left == alias {
+                    inner_right
+                } else if inner_right == alias {
+                    inner_left
+                } else {
+                    continue;
+                };
+                let Some((integer_type, _)) = literal.integer_value() else {
+                    continue;
+                };
+                if root.scalar_type() != psi_core::ScalarType::Integer(integer_type) {
+                    continue;
+                }
+                let reflexive = Proposition::LessOrEqual(literal.clone(), literal.clone());
+                for (alias_bound, root_bound, endpoint) in [
+                    (
+                        Proposition::LessOrEqual(literal.clone(), alias.clone()),
+                        Proposition::LessOrEqual(literal.clone(), root.clone()),
+                        1,
+                    ),
+                    (
+                        Proposition::LessOrEqual(alias.clone(), literal.clone()),
+                        Proposition::LessOrEqual(root.clone(), literal.clone()),
+                        0,
+                    ),
+                ] {
+                    let alias_bound = ProofNode {
+                        conclusion: alias_bound,
+                        rule: ProofRule::IntegerLessOrEqualSubstitution {
+                            relation: Box::new(ProofNode {
+                                conclusion: reflexive.clone(),
+                                rule: ProofRule::Primitive(
+                                    PrimitiveJudgment::ClosedIntegerRelation,
+                                ),
+                            }),
+                            equality: Box::new(inner_citation.proof(inner_equality)),
+                            endpoint,
+                        },
+                    };
+                    let root_bound = ProofNode {
+                        conclusion: root_bound,
+                        rule: ProofRule::IntegerLessOrEqualSubstitution {
+                            relation: Box::new(alias_bound),
+                            equality: Box::new(outer_citation.proof(outer_equality)),
+                            endpoint,
+                        },
+                    };
+                    if let Some(proof) = prove_affine_bound_from_root(
+                        context,
+                        goal,
+                        assumptions,
+                        semantic_axioms,
+                        root,
+                        root_bound,
+                    ) {
+                        return Some(proof);
+                    }
+                }
+            }
+        }
+    }
     None
 }
 
@@ -2700,6 +2781,134 @@ mod tests {
             )
             .is_none(),
             "a redirected landed literal cannot provide affine root custody",
+        );
+    }
+
+    #[test]
+    fn exact_division_goal_lands_affine_root_literal_through_one_alias() {
+        let signed = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+        let context = PropositionContext::from_value_types((1..=5).map(|id| {
+            (
+                ValueId::new(id).expect("value id"),
+                ScalarType::Integer(signed),
+            )
+        }))
+        .expect("five i8 values");
+        let divisor = value(2, signed);
+        let goal = Proposition::Disjunction(vec![
+            Proposition::LessOrEqual(divisor.clone(), integer(signed, -2)),
+            Proposition::LessOrEqual(integer(signed, 1), divisor.clone()),
+            Proposition::Conjunction(vec![
+                Proposition::LessOrEqual(divisor, integer(signed, -1)),
+                Proposition::LessOrEqual(integer(signed, -127), value(1, signed)),
+            ]),
+        ]);
+        let root_alias = Proposition::Equal(value(3, signed), value(4, signed));
+        let landed_alias = Proposition::Equal(value(4, signed), integer(signed, 0));
+        let positive_definition = Proposition::Equal(
+            value(2, signed),
+            ScalarTerm::exact_integer_add(signed, value(3, signed), integer(signed, 1))
+                .expect("exact add"),
+        );
+        let proof = prove_canonical_integer_proposition(
+            &context,
+            &goal,
+            &[root_alias.clone(), landed_alias.clone()],
+            std::slice::from_ref(&positive_definition),
+        )
+        .expect("one alias transports exact literal custody to the affine root");
+        let ProofRule::DisjunctionIntroduction { disjunct, index } = proof.rule else {
+            panic!("alias-landed affine divisor selects one canonical arm")
+        };
+        assert_eq!(index, 1);
+        let ProofRule::IntegerAffineBound { root_bound, .. } = disjunct.rule else {
+            panic!("alias-landed divisor uses the affine-bound rule")
+        };
+        let ProofRule::IntegerLessOrEqualSubstitution {
+            relation,
+            equality,
+            endpoint,
+        } = root_bound.rule
+        else {
+            panic!("the root alias uses the outer endpoint substitution")
+        };
+        assert_eq!(endpoint, 1);
+        assert!(matches!(equality.rule, ProofRule::Assumption { index: 0 }));
+        let ProofRule::IntegerLessOrEqualSubstitution {
+            relation,
+            equality,
+            endpoint,
+        } = relation.rule
+        else {
+            panic!("the landed alias uses the inner endpoint substitution")
+        };
+        assert_eq!(endpoint, 1);
+        assert!(matches!(equality.rule, ProofRule::Assumption { index: 1 }));
+        assert!(matches!(
+            relation.rule,
+            ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation)
+        ));
+
+        let negative_definition = Proposition::Equal(
+            value(2, signed),
+            ScalarTerm::exact_integer_subtract(signed, value(3, signed), integer(signed, 2))
+                .expect("exact subtract"),
+        );
+        let negative = prove_canonical_integer_proposition(
+            &context,
+            &goal,
+            &[root_alias.clone(), landed_alias.clone()],
+            std::slice::from_ref(&negative_definition),
+        )
+        .expect("one alias transports an upper literal bound to the affine root");
+        let ProofRule::DisjunctionIntroduction { disjunct, index } = negative.rule else {
+            panic!("negative alias-landed divisor selects one canonical arm")
+        };
+        assert_eq!(index, 0);
+        let ProofRule::IntegerAffineBound { root_bound, .. } = disjunct.rule else {
+            panic!("negative alias-landed divisor uses the affine-bound rule")
+        };
+        assert!(matches!(
+            root_bound.rule,
+            ProofRule::IntegerLessOrEqualSubstitution { endpoint: 0, .. }
+        ));
+
+        assert!(
+            prove_canonical_integer_proposition(
+                &context,
+                &goal,
+                std::slice::from_ref(&landed_alias),
+                std::slice::from_ref(&positive_definition),
+            )
+            .is_none(),
+            "a landed alias without the root equality has no affine custody",
+        );
+        assert!(
+            prove_canonical_integer_proposition(
+                &context,
+                &goal,
+                &[
+                    root_alias.clone(),
+                    Proposition::Equal(value(5, signed), integer(signed, 0)),
+                ],
+                std::slice::from_ref(&positive_definition),
+            )
+            .is_none(),
+            "a redirected landing cannot establish the root alias",
+        );
+        assert!(
+            prove_canonical_integer_proposition(
+                &context,
+                &goal,
+                &[
+                    root_alias,
+                    Proposition::Equal(value(4, signed), value(5, signed)),
+                    Proposition::Equal(value(5, signed), integer(signed, 0)),
+                ],
+                &[positive_definition],
+            )
+            .is_none(),
+            "a second value alias is outside the fixed literal-landing family",
         );
     }
 

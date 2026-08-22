@@ -612,9 +612,8 @@ fn retained_landed_literal_affine_bound(
     requirements: &[Proposition],
     semantic_axioms: &[Proposition],
 ) -> bool {
-    requirements
-        .iter()
-        .chain(semantic_axioms)
+    let facts = || requirements.iter().chain(semantic_axioms);
+    if facts()
         .filter_map(|equality| match equality {
             Proposition::Equal(left, right) => Some((left, right)),
             _ => None,
@@ -643,6 +642,62 @@ fn retained_landed_literal_affine_bound(
                             root_bound,
                         )
                     })
+                })
+        })
+    {
+        return true;
+    }
+
+    facts()
+        .filter_map(|outer_equality| match outer_equality {
+            Proposition::Equal(left, right) => Some((outer_equality, left, right)),
+            _ => None,
+        })
+        .any(|(outer_equality, outer_left, outer_right)| {
+            [(outer_left, outer_right), (outer_right, outer_left)]
+                .into_iter()
+                .filter(|(root, alias)| {
+                    root != alias
+                        && matches!(root, ScalarTerm::Value { .. })
+                        && matches!(alias, ScalarTerm::Value { .. })
+                        && root.scalar_type() == alias.scalar_type()
+                })
+                .any(|(root, alias)| {
+                    facts()
+                        .filter(|inner_equality| !std::ptr::eq(outer_equality, *inner_equality))
+                        .filter_map(|inner_equality| match inner_equality {
+                            Proposition::Equal(left, right) => Some((left, right)),
+                            _ => None,
+                        })
+                        .any(|(inner_left, inner_right)| {
+                            let literal = if inner_left == alias {
+                                inner_right
+                            } else if inner_right == alias {
+                                inner_left
+                            } else {
+                                return false;
+                            };
+                            let Some((integer_type, _)) = literal.integer_value() else {
+                                return false;
+                            };
+                            if root.scalar_type() != psi_core::ScalarType::Integer(integer_type) {
+                                return false;
+                            }
+                            [
+                                Proposition::LessOrEqual(literal.clone(), root.clone()),
+                                Proposition::LessOrEqual(root.clone(), literal.clone()),
+                            ]
+                            .iter()
+                            .any(|root_bound| {
+                                retained_affine_bound_from_root(
+                                    context,
+                                    goal,
+                                    semantic_axioms,
+                                    root,
+                                    root_bound,
+                                )
+                            })
+                        })
                 })
         })
 }
@@ -2532,6 +2587,89 @@ mod tests {
                 value(4, signed),
                 ScalarTerm::integer(signed, IntegerValue::Signed(0)).expect("i8 zero"),
             )],
+        ));
+    }
+
+    #[test]
+    fn exact_division_selects_affine_root_literal_through_one_alias() {
+        let signed = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+        let context = PropositionContext::from_value_types((1..=5).map(|id| {
+            (
+                ValueId::new(id).expect("value id"),
+                ScalarType::Integer(signed),
+            )
+        }))
+        .expect("five i8 values");
+        let goal = CanonicalScalarGoal::ExactDivisionDefined {
+            integer_type: signed,
+            left: value(1, signed),
+            right: value(2, signed),
+        };
+        let root_alias = Proposition::Equal(value(3, signed), value(4, signed));
+        let landed_alias = Proposition::Equal(
+            value(4, signed),
+            ScalarTerm::integer(signed, IntegerValue::Signed(0)).expect("i8 zero"),
+        );
+        let positive_definition = Proposition::Equal(
+            value(2, signed),
+            ScalarTerm::exact_integer_add(
+                signed,
+                value(3, signed),
+                ScalarTerm::integer(signed, IntegerValue::Signed(1)).expect("i8 one"),
+            )
+            .expect("exact add"),
+        );
+        assert!(exact_division_has_prior_certificate(
+            &context,
+            &goal,
+            std::slice::from_ref(&positive_definition),
+            &[root_alias.clone(), landed_alias.clone()],
+        ));
+        let negative_definition = Proposition::Equal(
+            value(2, signed),
+            ScalarTerm::exact_integer_subtract(
+                signed,
+                value(3, signed),
+                ScalarTerm::integer(signed, IntegerValue::Signed(2)).expect("i8 two"),
+            )
+            .expect("exact subtract"),
+        );
+        assert!(exact_division_has_prior_certificate(
+            &context,
+            &goal,
+            std::slice::from_ref(&negative_definition),
+            &[root_alias.clone(), landed_alias.clone()],
+        ));
+        assert!(!exact_division_has_prior_certificate(
+            &context,
+            &goal,
+            std::slice::from_ref(&positive_definition),
+            std::slice::from_ref(&landed_alias),
+        ));
+        assert!(!exact_division_has_prior_certificate(
+            &context,
+            &goal,
+            std::slice::from_ref(&positive_definition),
+            &[
+                root_alias.clone(),
+                Proposition::Equal(
+                    value(5, signed),
+                    ScalarTerm::integer(signed, IntegerValue::Signed(0)).expect("i8 zero"),
+                ),
+            ],
+        ));
+        assert!(!exact_division_has_prior_certificate(
+            &context,
+            &goal,
+            &[positive_definition],
+            &[
+                root_alias,
+                Proposition::Equal(value(4, signed), value(5, signed)),
+                Proposition::Equal(
+                    value(5, signed),
+                    ScalarTerm::integer(signed, IntegerValue::Signed(0)).expect("i8 zero"),
+                ),
+            ],
         ));
     }
 
