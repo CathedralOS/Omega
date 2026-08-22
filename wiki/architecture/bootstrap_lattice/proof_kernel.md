@@ -558,6 +558,16 @@ contiguous cast-chain custody for exact divide/remainder goals but does not
 promote either whole row: affine/cast, shift/cast, joins, and correlated results
 remain trusted-reducer work, and `fully-derived false` is unchanged.
 
+The root-bound child may also come from exactly one retained same-carrier
+`root == literal` fact when that literal is the canonical bound endpoint. The
+producer builds the closed reflexive order, substitutes the root endpoint once,
+then applies `IntegerCastBound`; reconstruction independently selects the same
+exact equality. Direct bounds remain preferred. Missing, redirected, mistyped,
+or changed endpoint facts reject. Stronger-literal bridges, root aliases,
+affine/cast, shift/cast, joins, and correlated results remain outside this fixed
+sibling; neither complete exact row changes trust and `fully-derived false`
+remains.
+
 The shared exact-shift core has a matching non-serialized checked witness.
 `IntegerShiftChainWitness` selects a nonempty, strictly ordered sequence of
 canonical exact-left or exact-right shift equalities from one fixed-native SSA
@@ -591,8 +601,8 @@ forbidden-root, and conclusion identities but accepts no proof authority.
 
 A certificate conversion for the checked correlated result remains producer
 work: `IntegerAffineBound` covers one affine target bound, not the correlated
-two-branch lattice conclusion. Producer selection of composed root-bound proofs
-also remains before either exact divide/remainder row can leave
+two-branch lattice conclusion. Producer selection of richer composed root-bound
+proofs also remains before either exact divide/remainder row can leave
 `TrustedJudgment`. Proof-bundle v18 retains rule tag 13 for the complete
 contiguous cast word; terminal codec v18 and installation record v24 remain
 unchanged, and no trust status is promoted.

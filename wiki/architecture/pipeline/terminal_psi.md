@@ -1983,6 +1983,16 @@ cast-chain custody for exact divide/remainder goals but does not promote either
 whole row: affine/cast, shift/cast, joins, and correlated results remain
 trusted-reducer work, and `fully-derived false` is unchanged.
 
+The cast root-bound child may also be reconstructed from exactly one retained
+same-carrier `root == literal` fact when that literal is the canonical bound
+endpoint. Production builds the closed reflexive order, substitutes the root
+endpoint once, and then applies `IntegerCastBound`; verification independently
+selects the same exact equality. Direct bounds remain preferred. Missing,
+redirected, mistyped, or changed endpoint facts reject. Stronger-literal
+bridges, root aliases, affine/cast, shift/cast, joins, and correlated results
+remain outside this fixed sibling; neither complete exact row changes trust and
+`fully-derived false` remains.
+
 The common exact-shift spine now also has a producer-visible, non-serialized
 `IntegerShiftChainWitness`. It binds a nonempty ordered word of exact left and
 right shifts over one fixed-native SSA value carrier. Every step names its
