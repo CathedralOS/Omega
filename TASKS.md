@@ -7337,32 +7337,22 @@ boundary without its corresponding checked law.
 
 ### Boundary realization and nominal binding identity
 
-- Replace string-backed foreign binding identity with one namespace-owned
-  nominal `DllImportId` that inseparably owns its library and export identity,
-  plus nominal `CallingPlanId`, firmware/table, vtable, and mechanism-specific
-  values. Source cannot freely pair libraries and symbols. Raw object-format
-  library/symbol bytes may exist only in sealed
-  target/link metadata and must never serve as an Omega symbol, requirement key,
-  provider selection, or checked-artifact identity.
+- **NOMINAL-FOREIGN-BINDINGS — remove the remaining string-backed import
+  bootstrap.** The intrinsic lane is complete: `CompilerIntrinsic` is
+  payloadless and exact realization symbol/signature/target select the sealed
+  catalog entry. The import lane still carries raw library/symbol strings from
+  syntax through provider, calling-convention, trust/artifact, and backend
+  plans.
 
-  The primitive registry and string-backed intrinsic lane are complete:
-  boundary requirements are provider-agnostic, `CompilerIntrinsic` is
-  payloadless, selected provider rows retain the exact realization overload,
-  and semantic consumers use the structural binding table rather than reparsing
-  source or display text. The remaining bootstrap leak is the import lane:
-  source `DllImport`, `ExternalBindingIdentity::Import`, typed snapshots,
-  `ProviderBinding::Import`, executable-TCB/artifact rows, calling-convention
-  rows, and backend import plans still carry raw library/symbol `String` pairs.
-  First add the sealed target/link metadata table keyed by a namespace-owned
-  `DllImportId`; never synthesize that ID from raw strings or from the
-  realization machine that happens to cite it. Then introduce and retain the
-  nominal identities across source, checked provider,
-  Terminal/artifact, trust, and installation custody; resolve them to target-
-  owned linker bytes only in sealed object/image metadata. Exact nominal-to-raw
-  binding, target applicability, artifact identity, and admission must reject
-  missing, duplicate, redirected, or changed mappings. No authored intrinsic
-  string, display renderer, ambient library lookup, or name-only provider
-  selection may reappear.
+  This task is design-blocked on OWNER Q1's declaration and sealed-metadata
+  supply surface. Once settled, introduce that source identity first, then
+  replace every raw import pair with one exact `DllImportId` through checked
+  provider identity, Terminal/artifact identity, admission, and backend plans.
+  Resolve the ID to raw object-format bytes only in sealed target/link metadata.
+  Reject missing, duplicate, redirected, target-inapplicable, or changed
+  mappings. Apply the same nominal discipline to `CallingPlanId`, firmware/
+  table IDs, and other mechanism-specific operands; never derive an ID from
+  text, display output, ambient lookup, or the realization machine citing it.
 
 Acceptance: the same boundary requirement can select a checked test provider or
 a target intrinsic without editing its declaration; final artifacts contain no
@@ -7591,6 +7581,8 @@ specifications:
   checked arithmetic.
 - **IMPORTED-CRASH-CAPSULES:** realization/import/certificate identity in
   `wiki/language_guide/appendix_open_questions.md`.
+- **NOMINAL-FOREIGN-BINDINGS:** target-package nominal-ID declaration and
+  sealed metadata supply surface in `OWNER_QUESTIONS.md` Q1.
 
 ## Platform-gated verification
 
