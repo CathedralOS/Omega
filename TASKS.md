@@ -530,9 +530,13 @@ Owners:
   numbered-member presentation renames are nonsemantic; compact fingerprints
   remain report/cache identity and cannot hide geometry drift.
   The layout-plan foundation's 1,965-line unit corpus now lives in a private
-  test child rather than sharing its 2,801-line production coordinator; all 33
-  unit tests, the integration test, and the public layout-plan surface remain
-  unchanged.
+  test child rather than sharing its production coordinator. Source-owned fixed
+  materialization now delegates structured-field inventory and recursive
+  primitive/fixed-array/checked-record encoding to a focused 264-line private
+  owner. Byte order, carrier/range checks, erased fields, alignment/padding,
+  recursion rejection, error order, transactional mutation, and public APIs
+  remain unchanged. The 107-function production inventory and all 33 layout
+  tests remain intact, with the coordinator now 1,452 lines.
   Erased terms remain semantically mandatory but add no bytes, including nested
   records and fixed arrays whose entire runtime shape is erased. Scalar
   placement/access semantics remain fenced for aggregates. Continue beyond
