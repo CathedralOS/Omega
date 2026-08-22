@@ -1,9 +1,10 @@
 //! Fixed affine-witness candidate frontier for independent reconstruction.
 
 use psi_core::{Proposition, PropositionContext, ScalarTerm};
-use psi_proof_kernel::{IntegerAffineWitness, check_integer_affine_witness};
 
 use super::DefinitionIndex;
+
+mod prefix;
 
 pub(super) fn definition_words(
     context: &PropositionContext,
@@ -25,27 +26,15 @@ pub(super) fn definition_words(
                 .iter()
                 .skip_while(|&&index| index < start)
             {
-                let Proposition::Equal(left, right) = &semantic_axioms[index] else {
-                    unreachable!("definition index contains only equality rows")
-                };
                 let mut word = prefix.clone();
                 word.push(index);
-                let next_target = [left, right]
-                    .into_iter()
-                    .filter(|target| matches!(target, ScalarTerm::Value { .. }))
-                    .find(|target| {
-                        check_integer_affine_witness(
-                            context,
-                            semantic_axioms,
-                            &IntegerAffineWitness {
-                                root: root.clone(),
-                                target: (*target).clone(),
-                                definition_axioms: word.clone(),
-                            },
-                        )
-                        .is_ok()
-                    });
-                if let Some(next_target) = next_target {
+                if let Some(next_target) = prefix::checked_target(
+                    context,
+                    semantic_axioms,
+                    root,
+                    &word,
+                    &semantic_axioms[index],
+                ) {
                     words.push(word.clone());
                     next.push((word, index + 1, next_target.clone()));
                 }
