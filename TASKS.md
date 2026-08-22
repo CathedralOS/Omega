@@ -2418,6 +2418,13 @@ Remaining:
   retains its proposition-only short-circuit traversal. Equality/chain order,
   proof shape, alias completion, rejection, precedence, and the fixed one-
   alias/two-leg frontier remain unchanged.
+  Producer-side direct affine candidates and fixed-chain left legs now short-
+  circuit directly through their exact source-ordered bound streams. Direct
+  selection preserves bound-before-left/right endpoint order and selected
+  citation proof construction; chain selection preserves right-`Value` leg
+  order and its indexed join custody. Reconstruction retains its independent
+  proposition-only short-circuit traversals, with proof shapes, rejection,
+  precedence, and fixed frontiers unchanged.
   One-equality transitive affine completion now lives in independent side-local
   `affine_selection/transitive/alias/completion` modules. Each parent retains
   its own ledger-ordered equality discovery, distinct root/alias custody, and
@@ -4813,6 +4820,13 @@ Owners:
   status 70 and their detailed unresolved-call/exact-row diagnostics. Exact-
   owner ambiguity, the 795 rooted/3 legacy inventory, and receipt-drift fences
   remain green; the two-implementation runtime-dispatch pair remains separate.
+  The paired authored-root two-implementation dynamic-dispatch regressions—
+  Circle then Square and the swapped Square then Circle order—now launch
+  `OutputOnly` native execution solely through exact checked-report executable
+  receipts while preserving literal status 70 and the complementary 94/49
+  diagnostics that reject lexically fixed implementation selection. Exact-
+  owner ambiguity, the 795 rooted/3 legacy inventory, and receipt-drift fences
+  remain green.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
