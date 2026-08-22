@@ -1905,9 +1905,12 @@ fn std_option_runtime_match_exit_canary_runs() {
     let canary = pass_canary("collections/std_option_runtime_match_exit");
     let scratch = std::env::temp_dir().join(format!("omega-std-option-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("std Optional runtime match canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("std Optional runtime match canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("std option runtime match canary should run");
     assert_eq!(
@@ -2126,9 +2129,12 @@ fn runtime_fixed_array_field_value_exit_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("fixed-array field value canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("fixed-array field value canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("fixed-array field value canary should run");
 
@@ -2155,9 +2161,12 @@ fn fixed_array_element_guard_canary_runs() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("fixed-array element guard canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("fixed-array element guard canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("fixed-array element guard canary should run");
 
