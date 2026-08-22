@@ -421,9 +421,12 @@ fn sum_mixed_width_payload_layout_canary_runs() {
     let scratch =
         std::env::temp_dir().join(format!("omega-sum-mixed-width-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("sum mixed-width payload canary should compile");
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("sum mixed-width payload canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("sum mixed-width payload canary should run");
     assert_eq!(
