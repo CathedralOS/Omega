@@ -1,10 +1,9 @@
 //! Side-local retained-evidence selection for exact integer-cast bounds.
 
-use psi_core::{Proposition, PropositionContext, ScalarTerm};
-
-use super::cast_custody;
+use psi_core::{Proposition, PropositionContext};
 
 mod alias;
+mod direct;
 mod literal;
 
 pub(super) fn retained(
@@ -16,28 +15,7 @@ pub(super) fn retained(
     if !matches!(goal, Proposition::LessOrEqual(_, _)) {
         return false;
     }
-    if requirements
-        .iter()
-        .chain(semantic_axioms)
-        .filter_map(|root_bound| match root_bound {
-            Proposition::LessOrEqual(left, right) => Some((root_bound, left, right)),
-            _ => None,
-        })
-        .any(|(root_bound, root_left, root_right)| {
-            [root_left, root_right]
-                .into_iter()
-                .filter(|root| matches!(root, ScalarTerm::Value { .. }))
-                .any(|root| {
-                    cast_custody::retained_from_root(
-                        context,
-                        goal,
-                        semantic_axioms,
-                        root,
-                        root_bound,
-                    )
-                })
-        })
-    {
+    if direct::retained(context, goal, requirements, semantic_axioms) {
         return true;
     }
     if literal::retained(context, goal, requirements, semantic_axioms) {
