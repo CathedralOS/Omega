@@ -1013,18 +1013,25 @@ fn plain_data_value_shape(
     let planned_layout = typed
         .plan_laid_layouts
         .iter()
-        .find(|layout| layout.data_name == definition.name.as_str());
-    let runtime_field_count = typed
+        .find(|layout| layout.data_symbol == definition.symbol);
+    let runtime_field_symbols = typed
         .data_members(definition)
         .iter()
-        .filter(|member| matches!(member, psi_typed_trees::data::DataMember::Field(field) if !field.relevance.is_erased()))
-        .count();
+        .filter_map(|member| match member {
+            psi_typed_trees::data::DataMember::Field(field) if !field.relevance.is_erased() => {
+                Some(field.symbol)
+            }
+            psi_typed_trees::data::DataMember::Field(_)
+            | psi_typed_trees::data::DataMember::Variant(_) => None,
+        })
+        .collect::<Vec<_>>();
     if let Some(layout) = planned_layout
-        && layout.offsets.len() != runtime_field_count
+        && (layout.offsets.len() != runtime_field_symbols.len()
+            || layout.field_symbols != runtime_field_symbols)
     {
         return Err(format!(
             "plan-laid data `{name}` has {} members but its layout publishes {} offsets",
-            runtime_field_count,
+            runtime_field_symbols.len(),
             layout.offsets.len()
         ));
     }
@@ -2355,7 +2362,7 @@ mod tests {
             .typed
             .data_definitions()
             .iter()
-            .find(|definition| definition.name.as_str() == layout.data_name)
+            .find(|definition| definition.symbol == layout.data_symbol)
             .expect("stored-integer layout should name its synthesized data");
 
         let mut visiting = Vec::new();

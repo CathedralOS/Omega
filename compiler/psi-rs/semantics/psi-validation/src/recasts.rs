@@ -1161,6 +1161,7 @@ fn mutable_record_representation_inner(
 
     let mut fields = Vec::new();
     let mut field_types = Vec::new();
+    let mut field_symbols = Vec::new();
     for member in program.data_members(data) {
         let psi_typed_trees::data::DataMember::Field(field) = member else {
             visiting.remove(name);
@@ -1180,6 +1181,7 @@ fn mutable_record_representation_inner(
         };
         fields.push(representation);
         field_types.push(field.type_reference);
+        field_symbols.push(field.symbol);
     }
 
     let mut has_stored_integer_projection = fields
@@ -1188,9 +1190,10 @@ fn mutable_record_representation_inner(
     let (size, align, offsets) = if let Some(plan) = program
         .plan_laid_layouts
         .iter()
-        .find(|plan| plan.data_name == name)
+        .find(|plan| plan.data_symbol == data.symbol)
     {
-        if (!allow_stored_integer_projection && !plan.integer_fields.is_empty())
+        if plan.field_symbols != field_symbols
+            || (!allow_stored_integer_projection && !plan.integer_fields.is_empty())
             || plan.offsets.len() != fields.len()
         {
             visiting.remove(name);

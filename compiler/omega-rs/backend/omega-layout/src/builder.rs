@@ -372,11 +372,17 @@ impl<'program> LayoutBuilder<'program> {
             .program
             .plan_laid_layouts
             .iter()
-            .find(|plan| definition.name.as_str() == plan.data_name)
+            .find(|plan| definition.symbol == plan.data_symbol)
         {
-            if plan.offsets.len() != fields.len() {
+            if plan.offsets.len() != fields.len()
+                || plan
+                    .field_symbols
+                    .iter()
+                    .copied()
+                    .ne(fields.iter().map(|field| field.symbol))
+            {
                 return Err(Diagnostic::error(format!(
-                    "plan-laid data `{}` has {} fields but its plan places {}",
+                    "plan-laid data `{}` changed its exact field identity inventory ({} fields, {} planned offsets)",
                     definition.name,
                     fields.len(),
                     plan.offsets.len()

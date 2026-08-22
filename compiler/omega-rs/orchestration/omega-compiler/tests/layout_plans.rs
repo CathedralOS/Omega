@@ -172,12 +172,20 @@ fn plan_laid_value_types_are_placed_by_their_plan() {
         .nth(4)
         .expect("compiler crate should live under compiler/orchestration/omega-compiler")
         .join("canaries/pass/layouts/runtime_plan_laid_value_field_exit/main.omg");
-    let checked = compile_to_checked(&canary, None).expect("plan-laid canary should compile");
+    let mut checked = compile_to_checked(&canary, None).expect("plan-laid canary should compile");
 
     // The pipeline recorded the validated plan on the typed trees.
     assert_eq!(checked.typed.plan_laid_layouts.len(), 1);
     let recorded = &checked.typed.plan_laid_layouts[0];
     assert_eq!(recorded.data_name, "Spread16<Gdtish>");
+    let plan_laid_data_symbol = recorded.data_symbol;
+    let plan_laid_data = checked
+        .typed
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.symbol == plan_laid_data_symbol)
+        .expect("exact synthesized plan-laid data");
+    assert_eq!(plan_laid_data.name.as_str(), recorded.data_name);
     assert_eq!(recorded.offsets, vec![0, 16, 32, 48]);
     assert_eq!(recorded.size, 64);
     assert_eq!(recorded.align, 16);
@@ -204,6 +212,33 @@ fn plan_laid_value_types_are_placed_by_their_plan() {
         .map(|field| field.offset)
         .collect();
     assert_eq!(offsets, vec![0, 16, 32, 48]);
+
+    checked.typed.plan_laid_layouts[0].data_name = "diagnostic-only-layout-name".to_owned();
+    let layouts = build_layout_plan(&checked, target)
+        .expect("presentation-name drift must not redirect a plan-laid layout");
+    let data_layout = layouts
+        .data_layouts
+        .iter()
+        .map(|(_, layout)| layout)
+        .find(|layout| layout.symbol == plan_laid_data_symbol)
+        .expect("exact synthesized plan-laid record should remain selected by symbol");
+    assert_eq!(data_layout.layout.size, 64);
+
+    let main_symbol = checked
+        .typed
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name.as_str() == "Main")
+        .expect("fixture Main data")
+        .symbol;
+    checked.typed.plan_laid_layouts[0].data_symbol = main_symbol;
+    let diagnostic = build_layout_plan(&checked, target)
+        .expect_err("substituted plan-laid data identity must fail closed");
+    assert!(
+        diagnostic
+            .message
+            .contains("plan-laid data `Main` changed its exact field identity inventory")
+    );
 }
 
 #[test]

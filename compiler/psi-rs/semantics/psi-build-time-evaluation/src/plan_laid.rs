@@ -282,6 +282,29 @@ pub fn compute_plan_laid_layouts(
             ))]);
         };
 
+        let synthesized_data = typed
+            .data_definitions()
+            .iter()
+            .find(|data| data.name.as_str() == record.synthetic_name)
+            .ok_or_else(|| {
+                vec![Diagnostic::error(format!(
+                    "plan-laid value type `{}` lost its exact synthesized data identity",
+                    record.synthetic_name
+                ))]
+            })?;
+        let data_symbol = synthesized_data.symbol;
+        let field_symbols = typed
+            .data_members(synthesized_data)
+            .iter()
+            .filter_map(|member| match member {
+                psi_typed_trees::data::DataMember::Field(field) if !field.relevance.is_erased() => {
+                    Some(field.symbol)
+                }
+                psi_typed_trees::data::DataMember::Field(_)
+                | psi_typed_trees::data::DataMember::Variant(_) => None,
+            })
+            .collect::<Vec<_>>();
+
         let schema_fields = typed
             .data_definitions()
             .iter()
@@ -505,6 +528,8 @@ pub fn compute_plan_laid_layouts(
         })?;
         layouts.push(PlanLaidLayout {
             data_name: record.synthetic_name.clone(),
+            data_symbol,
+            field_symbols,
             offsets,
             bit_fields,
             integer_fields,

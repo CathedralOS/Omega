@@ -141,6 +141,7 @@ impl<'program> Evaluator<'program> {
             return Ok(None);
         };
         let mut field_specs: Vec<(String, TypeReferenceHandle, usize, usize)> = Vec::new();
+        let mut field_symbols = Vec::new();
         for member in self.program.data_members(data) {
             let psi_typed_trees::data::DataMember::Field(field) = member else {
                 visiting.remove(type_name);
@@ -160,15 +161,16 @@ impl<'program> Evaluator<'program> {
                 size,
                 align,
             ));
+            field_symbols.push(field.symbol);
         }
 
         let plan = self
             .program
             .plan_laid_layouts
             .iter()
-            .find(|plan| plan.data_name == type_name);
+            .find(|plan| plan.data_symbol == data.symbol);
         let offsets = if let Some(plan) = plan {
-            if plan.offsets.len() != field_specs.len() {
+            if plan.offsets.len() != field_specs.len() || plan.field_symbols != field_symbols {
                 visiting.remove(type_name);
                 return Ok(None);
             }
@@ -432,6 +434,7 @@ impl<'program> Evaluator<'program> {
         }
         let data = self.find_data_by_name(type_name)?;
         let mut field_layouts = Vec::new();
+        let mut field_symbols = Vec::new();
         for member in self.program.data_members(data) {
             let psi_typed_trees::data::DataMember::Field(field) = member else {
                 visiting.remove(type_name);
@@ -445,14 +448,16 @@ impl<'program> Evaluator<'program> {
                 return None;
             };
             field_layouts.push(layout);
+            field_symbols.push(field.symbol);
         }
         let result = if let Some(plan) = self
             .program
             .plan_laid_layouts
             .iter()
-            .find(|plan| plan.data_name == type_name)
+            .find(|plan| plan.data_symbol == data.symbol)
         {
-            (plan.offsets.len() == field_layouts.len()).then_some((plan.size, plan.align))
+            (plan.offsets.len() == field_layouts.len() && plan.field_symbols == field_symbols)
+                .then_some((plan.size, plan.align))
         } else {
             let mut offset = 0usize;
             let mut max_align = 1usize;
@@ -482,6 +487,7 @@ impl<'program> Evaluator<'program> {
         let data = self.find_data_by_name(type_name)?;
         let mut fields = Vec::new();
         let mut layouts = Vec::new();
+        let mut field_symbols = Vec::new();
         for member in self.program.data_members(data) {
             let psi_typed_trees::data::DataMember::Field(field) = member else {
                 return None;
@@ -492,14 +498,15 @@ impl<'program> Evaluator<'program> {
             let layout = self.record_view_type_layout(field.type_reference, &mut HashSet::new())?;
             fields.push((field.name.as_str().to_owned(), field.type_reference));
             layouts.push(layout);
+            field_symbols.push(field.symbol);
         }
         let (offsets, integer_fields, repeated_fields) = if let Some(plan) = self
             .program
             .plan_laid_layouts
             .iter()
-            .find(|plan| plan.data_name == type_name)
+            .find(|plan| plan.data_symbol == data.symbol)
         {
-            if plan.offsets.len() != fields.len() {
+            if plan.offsets.len() != fields.len() || plan.field_symbols != field_symbols {
                 return None;
             }
             (
