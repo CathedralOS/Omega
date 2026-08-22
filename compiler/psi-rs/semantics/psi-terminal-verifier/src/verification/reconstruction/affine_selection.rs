@@ -5,6 +5,7 @@ use psi_core::{Proposition, PropositionContext};
 use super::affine_custody::DefinitionIndex;
 
 mod alias;
+mod bounds;
 mod direct;
 mod eligibility;
 mod equalities;
