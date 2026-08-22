@@ -2135,6 +2135,108 @@ fn fixed_fuel_composition_is_transitive_canonical_and_fails_closed() {
 }
 
 #[test]
+fn fuel_suspension_free_requires_exact_opaque_provider_evidence() {
+    let root_identity = root_id(650, ProviderFuelSummaryId::from_normalized_identity);
+    let leaf_identity = root_id(651, ProviderFuelSummaryId::from_normalized_identity);
+    let root_provider = root_id(652, RootProviderId::from_normalized_identity);
+    let leaf_provider = root_id(653, RootProviderId::from_normalized_identity);
+    let root_work_receipt = root_id(
+        654,
+        ProviderFuelValidationReceiptId::from_normalized_identity,
+    );
+    let leaf_work_receipt = root_id(
+        655,
+        ProviderFuelValidationReceiptId::from_normalized_identity,
+    );
+    let root = FixedFuelProviderSummary::from_admitted_provider(
+        root_identity,
+        root_provider,
+        fuel_schedule(),
+        2,
+        BTreeSet::from([FixedFuelCall {
+            callee: leaf_identity,
+            maximum_invocations: 1,
+        }]),
+        root_work_receipt,
+    );
+    let leaf = FixedFuelProviderSummary::from_admitted_provider(
+        leaf_identity,
+        leaf_provider,
+        fuel_schedule(),
+        3,
+        BTreeSet::new(),
+        leaf_work_receipt,
+    );
+    let demand = compose_fixed_fuel(root_identity, [&root, &leaf]).expect("exact sponsor graph");
+    let root_suspension = AdmittedOpaqueFuelSuspensionFree::from_admitted_provider(
+        root_identity,
+        root_provider,
+        fuel_schedule(),
+        root_work_receipt,
+        root_id(
+            656,
+            FuelSuspensionValidationReceiptId::from_normalized_identity,
+        ),
+    );
+    let leaf_suspension = AdmittedOpaqueFuelSuspensionFree::from_admitted_provider(
+        leaf_identity,
+        leaf_provider,
+        fuel_schedule(),
+        leaf_work_receipt,
+        root_id(
+            657,
+            FuelSuspensionValidationReceiptId::from_normalized_identity,
+        ),
+    );
+
+    let forward = derive_fuel_suspension_free(&demand, [root_suspension, leaf_suspension])
+        .expect("complete suspension evidence");
+    let reverse = derive_fuel_suspension_free(&demand, [leaf_suspension, root_suspension])
+        .expect("evidence presentation order is irrelevant");
+    assert_eq!(forward, reverse);
+    assert_eq!(forward.root(), root_identity);
+    assert_eq!(forward.schedule(), fuel_schedule());
+    assert_eq!(forward.maximum_logical_work(), 5);
+    assert_eq!(forward.opaque_validation_receipts().count(), 2);
+
+    let error = derive_fuel_suspension_free(&demand, [root_suspension])
+        .expect_err("numeric work alone does not prove an opaque callee suspension-free");
+    assert!(error.0.contains("lacks admitted"));
+
+    let wrong_provider = AdmittedOpaqueFuelSuspensionFree::from_admitted_provider(
+        leaf_identity,
+        root_provider,
+        fuel_schedule(),
+        leaf_work_receipt,
+        leaf_suspension.validation_receipt(),
+    );
+    let error = derive_fuel_suspension_free(&demand, [root_suspension, wrong_provider])
+        .expect_err("suspension evidence cannot move between providers");
+    assert!(error.0.contains("exact provider work evidence"));
+
+    let error = derive_fuel_suspension_free(&demand, [root_suspension, root_suspension])
+        .expect_err("duplicate suspension evidence must reject");
+    assert!(error.0.contains("repeats summary"));
+
+    let unknown = AdmittedOpaqueFuelSuspensionFree::from_admitted_provider(
+        root_id(658, ProviderFuelSummaryId::from_normalized_identity),
+        root_id(659, RootProviderId::from_normalized_identity),
+        fuel_schedule(),
+        root_id(
+            660,
+            ProviderFuelValidationReceiptId::from_normalized_identity,
+        ),
+        root_id(
+            661,
+            FuelSuspensionValidationReceiptId::from_normalized_identity,
+        ),
+    );
+    let error = derive_fuel_suspension_free(&demand, [root_suspension, leaf_suspension, unknown])
+        .expect_err("unreachable suspension evidence must not be ignored");
+    assert!(error.0.contains("unreachable summary"));
+}
+
+#[test]
 fn fixed_fuel_composition_retains_exact_graph_beyond_compact_fingerprint() {
     let leaf_identity = root_id(71, ProviderFuelSummaryId::from_normalized_identity);
     let root_identity = root_id(70, ProviderFuelSummaryId::from_normalized_identity);

@@ -73,6 +73,10 @@ normalized_id!(
     "fixed-fuel provider validation receipt"
 );
 normalized_id!(FuelValidationReceiptId, "logical-fuel validation receipt");
+normalized_id!(
+    FuelSuspensionValidationReceiptId,
+    "fuel-suspension validation receipt"
+);
 normalized_id!(StateValidationReceiptId, "machine-state validation receipt");
 normalized_id!(InterruptInvocationId, "interrupt invocation");
 normalized_id!(InterruptEntryReceiptId, "interrupt entry receipt");
