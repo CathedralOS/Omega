@@ -212,6 +212,14 @@ fn prove_bounded_affine_bound(
                 semantic_axioms,
             )
         })
+        .or_else(|| {
+            prove_transitively_alias_substituted_affine_bound(
+                context,
+                goal,
+                assumptions,
+                semantic_axioms,
+            )
+        })
 }
 
 fn prove_landed_literal_affine_bound(
@@ -331,6 +339,99 @@ fn prove_alias_substituted_affine_bound(
                     root_bound,
                 ) {
                     return Some(proof);
+                }
+            }
+        }
+    }
+    None
+}
+
+/// Reconstruct one affine-root bound through exactly two ordered citations and
+/// one exact value equality. This deliberately calls the affine constructor
+/// directly: it does not recurse through the general integer-bound search, so
+/// neither equality chains nor longer order paths are admitted here.
+fn prove_transitively_alias_substituted_affine_bound(
+    context: &PropositionContext,
+    goal: &Proposition,
+    assumptions: &[Proposition],
+    semantic_axioms: &[Proposition],
+) -> Option<ProofNode> {
+    let mut bounds_by_left_endpoint = BTreeMap::<_, Vec<_>>::new();
+    for (citation, fact) in cited_facts(assumptions, semantic_axioms) {
+        let Proposition::LessOrEqual(left, _) = fact else {
+            continue;
+        };
+        if matches!(left, psi_core::ScalarTerm::Value { .. }) {
+            bounds_by_left_endpoint
+                .entry(left.clone())
+                .or_default()
+                .push((citation, fact));
+        }
+    }
+
+    for (equality_citation, equality) in cited_facts(assumptions, semantic_axioms) {
+        let Proposition::Equal(equality_left, equality_right) = equality else {
+            continue;
+        };
+        for (root, alias) in [
+            (equality_left, equality_right),
+            (equality_right, equality_left),
+        ] {
+            if root == alias
+                || !matches!(root, psi_core::ScalarTerm::Value { .. })
+                || !matches!(alias, psi_core::ScalarTerm::Value { .. })
+            {
+                continue;
+            }
+            for (left_citation, left_fact) in cited_facts(assumptions, semantic_axioms) {
+                let Proposition::LessOrEqual(left, middle) = left_fact else {
+                    continue;
+                };
+                if !matches!(middle, psi_core::ScalarTerm::Value { .. }) {
+                    continue;
+                }
+                let Some(right_facts) = bounds_by_left_endpoint.get(middle) else {
+                    continue;
+                };
+                for &(right_citation, right_fact) in right_facts {
+                    if std::ptr::eq(left_fact, right_fact) {
+                        continue;
+                    }
+                    let Proposition::LessOrEqual(_, right) = right_fact else {
+                        unreachable!("only integer bounds are indexed")
+                    };
+                    let (endpoint, conclusion) = if alias == left {
+                        (0, Proposition::LessOrEqual(root.clone(), right.clone()))
+                    } else if alias == right {
+                        (1, Proposition::LessOrEqual(left.clone(), root.clone()))
+                    } else {
+                        continue;
+                    };
+                    let transitive = ProofNode {
+                        conclusion: Proposition::LessOrEqual(left.clone(), right.clone()),
+                        rule: ProofRule::IntegerLessOrEqualTransitivity {
+                            left_less_or_equal_middle: Box::new(left_citation.proof(left_fact)),
+                            middle_less_or_equal_right: Box::new(right_citation.proof(right_fact)),
+                        },
+                    };
+                    let root_bound = ProofNode {
+                        conclusion,
+                        rule: ProofRule::IntegerLessOrEqualSubstitution {
+                            relation: Box::new(transitive),
+                            equality: Box::new(equality_citation.proof(equality)),
+                            endpoint,
+                        },
+                    };
+                    if let Some(proof) = prove_affine_bound_from_root(
+                        context,
+                        goal,
+                        assumptions,
+                        semantic_axioms,
+                        root,
+                        root_bound,
+                    ) {
+                        return Some(proof);
+                    }
                 }
             }
         }
@@ -2678,6 +2779,138 @@ mod tests {
             )
             .is_none(),
             "a redirected equality cannot transport the affine root bound",
+        );
+    }
+
+    #[test]
+    fn exact_division_goal_transports_transitive_bound_to_affine_root_alias() {
+        let signed = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+        let context = PropositionContext::from_value_types((1..=6).map(|id| {
+            (
+                ValueId::new(id).expect("value id"),
+                ScalarType::Integer(signed),
+            )
+        }))
+        .expect("six i8 values");
+        let divisor = value(2, signed);
+        let goal = Proposition::Disjunction(vec![
+            Proposition::LessOrEqual(divisor.clone(), integer(signed, -2)),
+            Proposition::LessOrEqual(integer(signed, 1), divisor.clone()),
+            Proposition::Conjunction(vec![
+                Proposition::LessOrEqual(divisor, integer(signed, -1)),
+                Proposition::LessOrEqual(integer(signed, -127), value(1, signed)),
+            ]),
+        ]);
+        let root_alias = Proposition::Equal(value(3, signed), value(4, signed));
+        let lower_to_middle = Proposition::LessOrEqual(integer(signed, 0), value(5, signed));
+        let middle_to_alias = Proposition::LessOrEqual(value(5, signed), value(4, signed));
+        let definition = Proposition::Equal(
+            value(2, signed),
+            ScalarTerm::exact_integer_add(signed, value(3, signed), integer(signed, 1))
+                .expect("exact add"),
+        );
+        let proof = prove_canonical_integer_proposition(
+            &context,
+            &goal,
+            &[
+                root_alias.clone(),
+                lower_to_middle.clone(),
+                middle_to_alias.clone(),
+            ],
+            std::slice::from_ref(&definition),
+        )
+        .expect("two citations transport a lower bound through one root alias");
+        let ProofRule::DisjunctionIntroduction { disjunct, index } = proof.rule else {
+            panic!("transitively aliased affine divisor selects one canonical arm")
+        };
+        assert_eq!(index, 1);
+        let ProofRule::IntegerAffineBound { root_bound, .. } = disjunct.rule else {
+            panic!("transitively aliased divisor uses the affine-bound rule")
+        };
+        let ProofRule::IntegerLessOrEqualSubstitution {
+            relation,
+            equality,
+            endpoint,
+        } = root_bound.rule
+        else {
+            panic!("the transitive alias root bound uses endpoint substitution")
+        };
+        assert_eq!(endpoint, 1);
+        assert!(matches!(equality.rule, ProofRule::Assumption { index: 0 }));
+        let ProofRule::IntegerLessOrEqualTransitivity {
+            left_less_or_equal_middle,
+            middle_less_or_equal_right,
+        } = relation.rule
+        else {
+            panic!("the substituted relation uses exactly two order citations")
+        };
+        assert!(matches!(
+            left_less_or_equal_middle.rule,
+            ProofRule::Assumption { index: 1 }
+        ));
+        assert!(matches!(
+            middle_less_or_equal_right.rule,
+            ProofRule::Assumption { index: 2 }
+        ));
+
+        let alias_to_middle = Proposition::LessOrEqual(value(4, signed), value(5, signed));
+        let middle_to_ceiling = Proposition::LessOrEqual(value(5, signed), integer(signed, -3));
+        let negative = prove_canonical_integer_proposition(
+            &context,
+            &goal,
+            &[root_alias.clone(), alias_to_middle, middle_to_ceiling],
+            std::slice::from_ref(&definition),
+        )
+        .expect("two citations transport an upper bound through one root alias");
+        let ProofRule::DisjunctionIntroduction { disjunct, index } = negative.rule else {
+            panic!("negative transitively aliased divisor selects one canonical arm")
+        };
+        assert_eq!(index, 0);
+        let ProofRule::IntegerAffineBound { root_bound, .. } = disjunct.rule else {
+            panic!("negative transitively aliased divisor uses the affine-bound rule")
+        };
+        assert!(matches!(
+            root_bound.rule,
+            ProofRule::IntegerLessOrEqualSubstitution { endpoint: 0, .. }
+        ));
+
+        assert!(
+            prove_canonical_integer_proposition(
+                &context,
+                &goal,
+                &[lower_to_middle.clone(), middle_to_alias.clone()],
+                std::slice::from_ref(&definition),
+            )
+            .is_none(),
+            "a transitive alias bound without its equality has no root custody",
+        );
+        assert!(
+            prove_canonical_integer_proposition(
+                &context,
+                &goal,
+                &[
+                    root_alias.clone(),
+                    lower_to_middle.clone(),
+                    Proposition::LessOrEqual(value(6, signed), value(4, signed)),
+                ],
+                std::slice::from_ref(&definition),
+            )
+            .is_none(),
+            "a disconnected middle cannot establish the alias bound",
+        );
+        assert!(
+            prove_canonical_integer_proposition(
+                &context,
+                &goal,
+                &[
+                    Proposition::Equal(value(3, signed), value(6, signed)),
+                    lower_to_middle,
+                    middle_to_alias,
+                ],
+                &[definition],
+            )
+            .is_none(),
+            "a redirected equality cannot transport the bound to the affine root",
         );
     }
 
