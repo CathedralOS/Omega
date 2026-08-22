@@ -89,6 +89,18 @@ diaf() {
     FAIL=$((FAIL+1)); echo "  FAIL $1 : native!=gamma"; fi
 }
 
+# diax DESC FILE EXPECT : compare the native and Gamma exit results for a real
+# sample whose observable result is its process status rather than stdout.
+diax() {
+  DELTA_ARCH=aarch64 ./target/debug/delta "samples/$2" "$T/p" >/dev/null 2>&1 || { FAIL=$((FAIL+1)); echo "  FAIL $1 : native compile"; return; }
+  chmod +x "$T/p"; set +e; "$T/p"; nat=$?; set -e
+  g=$(DELTA_EMIT=gamma ./target/debug/delta "samples/$2" 2>/dev/null)
+  if [ -z "$g" ]; then FAIL=$((FAIL+1)); echo "  FAIL $1 : gamma emitted nothing"; return; fi
+  set +e; printf '%s\n' "$g" | "$T/interp.exe" >/dev/null; gi=$?; set -e
+  if [ "$nat" = "$gi" ] && [ "$nat" = "$3" ]; then PASS=$((PASS+1)); else
+    FAIL=$((FAIL+1)); echo "  FAIL $1 : native=$nat gamma=$gi expect=$3"; fi
+}
+
 H='boundary trait Console { machine exit_process(return_code: i32); } data Main { console: Console; }'
 dia "const"        "$H machine Main::main(&mut self) { self.console.exit_process(42); }" 42
 dia "add"          "$H machine Main::main(&mut self) { let a: i32 = 2 + 3; self.console.exit_process(a); }" 5
@@ -127,6 +139,7 @@ dia "call in loop"   "$H machine inc(x: i32) -> i32 { return x + 1; } machine Ma
 A='boundary trait Console { machine exit_process(return_code: i32); } data Main { console: Console; buf: [i32; 8]; i: i32; s: i32; }'
 dia "array sum-of-sq" "$A machine Main::main(&mut self) { transition 0 { _ -> fl() } state fl() { transition self.i < 5 { true -> wr()  false -> rs() } } state wr() { self.buf[self.i] = self.i * self.i; self.i = self.i + 1; transition 0 { _ -> fl() } } state rs() { self.i = 0; transition 0 { _ -> sl() } } state sl() { transition self.i < 5 { true -> ad()  false -> dn() } } state ad() { self.s = self.s + self.buf[self.i]; self.i = self.i + 1; transition 0 { _ -> sl() } } state dn() { self.console.exit_process(self.s); } }" 30
 dia "array index pick" "$A machine Main::main(&mut self) { transition 0 { _ -> fl() } state fl() { transition self.i < 4 { true -> wr()  false -> dn() } } state wr() { self.buf[self.i] = self.i + 1; self.i = self.i + 1; transition 0 { _ -> fl() } } state dn() { self.console.exit_process(self.buf[0] * 10 + self.buf[3]); } }" 14
+diax "bootstrap fixed-backing storage" bootstrap-storage.alp 42
 # READ_BYTE — the input stream threaded as a list; read_byte() consumes the head (or -1 at EOF)
 R='boundary trait Console { machine exit_process(return_code: i32); machine read_byte() -> i32; } data Main { console: Console; c: i32; s: i32; }'
 diar "sum input bytes" "$R machine Main::main(&mut self) { transition 0 { _ -> rd() } state rd() { self.c = read_byte(); transition self.c < 0 { true -> dn()  false -> ac() } } state ac() { self.s = self.s + self.c; transition 0 { _ -> rd() } } state dn() { self.console.exit_process(self.s); } }" "10 20 12" 42

@@ -1,0 +1,149 @@
+// Bootstrap compiler storage canary.
+//
+// A fixed backing field is provisioned as zeroed storage by the executable
+// loader.  The allocator exposes integer offsets into that field, never host
+// pointers.  Allocation is deterministic and monotonic; failure leaves the
+// cursor unchanged; reset provides bulk reclamation.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    backing: [i32; 16];
+    cursor: i32;
+    alloc_base: i32;
+    alloc_ok: i32;
+    alloc_mark: i32;
+    reset_ok: i32;
+    pad: i32;
+}
+
+// Reserve COUNT cells with the returned base aligned to ALIGN cells.
+// Result is written to alloc_ok/alloc_base because effecting self methods are
+// already part of Delta's Rust-free Gamma meaning route.
+machine Main::reserve(&mut self, count: i32, align: i32) {
+    self.alloc_ok = 0;
+    transition count < 0 { true -> fail() false -> align_check() }
+
+    state align_check() {
+        transition align <= 0 { true -> fail() false -> compute_pad() }
+    }
+    state compute_pad() {
+        self.pad = (align - (self.cursor % align)) % align;
+        transition self.pad <= 16 - self.cursor { true -> count_check() false -> fail() }
+    }
+    state count_check() {
+        transition count <= 16 - (self.cursor + self.pad) { true -> commit() false -> fail() }
+    }
+    state commit() {
+        self.alloc_base = self.cursor + self.pad;
+        self.cursor = self.alloc_base + count;
+        self.alloc_ok = 1;
+    }
+    state fail() { }
+}
+
+machine Main::mark(&mut self) {
+    self.alloc_mark = self.cursor;
+}
+
+machine Main::reset(&mut self, mark: i32) {
+    self.reset_ok = 0;
+    transition mark < 0 { true -> fail() false -> upper_check() }
+
+    state upper_check() {
+        transition mark <= self.cursor { true -> commit() false -> fail() }
+    }
+    state commit() {
+        self.cursor = mark;
+        self.reset_ok = 1;
+    }
+    state fail() { }
+}
+
+machine Main::main(&mut self) {
+    // [0,3): unaligned allocation and durable indexed handles.
+    self.reserve(3, 1);
+    transition self.alloc_ok == 1 { true -> first_base() false -> bad1() }
+    state first_base() { transition self.alloc_base == 0 { true -> first_write() false -> bad2() } }
+    state first_write() {
+        self.backing[self.alloc_base] = 11;
+        self.backing[self.alloc_base + 2] = 13;
+        transition 0 { _ -> second() }
+    }
+
+    // Cursor 3 aligns to 4; [4,6) must not overlap the first allocation.
+    state second() {
+        self.reserve(2, 4);
+        transition self.alloc_ok == 1 { true -> second_base() false -> bad3() }
+    }
+    state second_base() { transition self.alloc_base == 4 { true -> second_write() false -> bad4() } }
+    state second_write() {
+        self.backing[self.alloc_base] = 21;
+        self.backing[self.alloc_base + 1] = 22;
+        transition 0 { _ -> zero_size() }
+    }
+
+    // A zero-sized reservation succeeds at the deterministic aligned cursor.
+    state zero_size() {
+        self.reserve(0, 8);
+        transition self.alloc_ok == 1 { true -> zero_base() false -> bad5() }
+    }
+    state zero_base() { transition self.alloc_base == 8 { true -> exhaustion() false -> bad6() } }
+
+    // Exhaustion is checked and preserves cursor/backing.
+    state exhaustion() {
+        self.reserve(9, 1);
+        transition self.alloc_ok == 0 { true -> exhaustion_cursor() false -> bad7() }
+    }
+    state exhaustion_cursor() { transition self.cursor == 8 { true -> save_mark() false -> bad8() } }
+
+    state save_mark() {
+        self.mark();
+        self.reserve(4, 4);
+        transition self.alloc_ok == 1 { true -> tail_base() false -> bad9() }
+    }
+    state tail_base() { transition self.alloc_base == 8 { true -> allocated_tail() false -> bad9() } }
+    state allocated_tail() {
+        self.backing[self.alloc_base] = 31;
+        self.reset(self.alloc_mark);
+        transition self.reset_ok == 1 { true -> reuse() false -> bad10() }
+    }
+
+    // Bulk reset makes the same handle available again.
+    state reuse() {
+        self.reserve(4, 4);
+        transition self.alloc_ok == 1 { true -> reuse_base() false -> bad11() }
+    }
+    state reuse_base() { transition self.alloc_base == 8 { true -> invalid_reset() false -> bad11() } }
+    state invalid_reset() {
+        self.reset(13);
+        transition self.reset_ok == 0 { true -> preserved() false -> bad12() }
+    }
+    state preserved() {
+        transition self.cursor == 12 { true -> cells() false -> bad13() }
+    }
+    state cells() {
+        transition self.backing[0] + self.backing[2] + self.backing[4] + self.backing[5] == 67 {
+            true -> good()
+            false -> bad14()
+        }
+    }
+
+    state good()  { self.console.exit_process(42); }
+    state bad1()  { self.console.exit_process(1); }
+    state bad2()  { self.console.exit_process(2); }
+    state bad3()  { self.console.exit_process(3); }
+    state bad4()  { self.console.exit_process(4); }
+    state bad5()  { self.console.exit_process(5); }
+    state bad6()  { self.console.exit_process(6); }
+    state bad7()  { self.console.exit_process(7); }
+    state bad8()  { self.console.exit_process(8); }
+    state bad9()  { self.console.exit_process(9); }
+    state bad10() { self.console.exit_process(10); }
+    state bad11() { self.console.exit_process(11); }
+    state bad12() { self.console.exit_process(12); }
+    state bad13() { self.console.exit_process(13); }
+    state bad14() { self.console.exit_process(14); }
+}
