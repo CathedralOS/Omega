@@ -555,10 +555,13 @@ fn runtime_wire_decode_rejects_wrong_era_exit_canary_runs() {
     let scratch = std::env::temp_dir().join(format!("omega-wire-wrong-era-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("wire wrong-era canary should compile");
 
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("wire wrong-era canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("wire wrong-era canary should run");
 
@@ -584,10 +587,13 @@ fn runtime_wire_encode_string_exit_canary_runs() {
     let scratch = std::env::temp_dir().join(format!("omega-wire-string-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("wire encode string canary should compile");
 
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("wire encode string canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("wire encode string canary should run");
 
@@ -615,10 +621,13 @@ fn runtime_wire_encode_byte_slice_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-wire-byte-slice-{}", std::process::id()));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("wire encode byte-slice canary should compile");
 
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("wire encode byte-slice canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("wire encode byte-slice canary should run");
 
@@ -688,10 +697,13 @@ fn runtime_wire_decode_byte_slice_exit_canary_runs() {
     ));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("wire decode byte-slice canary should compile");
 
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("wire decode byte-slice canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("wire decode byte-slice canary should run");
 
@@ -720,10 +732,13 @@ fn runtime_wire_decoded_byte_slice_index_exit_canary_runs() {
     ));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
         .expect("wire decoded byte-slice index canary should compile");
 
-    let output = Command::new(scratch.join(executable_name()))
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("wire decoded byte-slice index canary should retain its executable receipt");
+    let output = Command::new(executable)
         .output()
         .expect("wire decoded byte-slice index canary should run");
 
