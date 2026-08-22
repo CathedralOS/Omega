@@ -221,6 +221,7 @@ impl AccessPlan {
         let layout_fingerprint = normalized_layout_plan_fingerprint(layout);
         let mut canonical_fields = BTreeMap::new();
         let mut presentation_names = BTreeMap::new();
+        let mut presentation_identities = BTreeMap::new();
         for entry in &layout.entries {
             if entry.field.is_empty() {
                 return Err(AccessPlanDiagnostic(
@@ -237,6 +238,17 @@ impl AccessPlan {
                 return Err(AccessPlanDiagnostic(format!(
                     "layout field identity names both `{prior}` and `{}`",
                     entry.field
+                )));
+            }
+            if let Some(prior) =
+                presentation_identities.insert(entry.field.clone(), identity.clone())
+                && prior != identity
+            {
+                return Err(AccessPlanDiagnostic(format!(
+                    "layout field `{}` identifies both {} and {}",
+                    entry.field,
+                    canonical_field_identity_label(&prior),
+                    canonical_field_identity_label(&identity),
                 )));
             }
             canonical_fields.insert(identity, entry.field.clone());
@@ -461,6 +473,17 @@ impl ValidatedResourceProfile {
 enum CanonicalFieldIdentity {
     Numbered(u64),
     Positional(String),
+}
+
+fn canonical_field_identity_label(identity: &CanonicalFieldIdentity) -> String {
+    match identity {
+        CanonicalFieldIdentity::Numbered(identity) => {
+            format!("stable member identity #{identity}")
+        }
+        CanonicalFieldIdentity::Positional(field) => {
+            format!("positional field identity `{field}`")
+        }
+    }
 }
 
 /// Normalizer-owned identity of one validated access policy.
@@ -3991,6 +4014,38 @@ mod tests {
         )
         .expect("renamed numbered plan");
         assert_eq!(original.identity(), renamed.identity());
+    }
+
+    #[test]
+    fn inaccessible_plan_rejects_one_name_for_multiple_field_identities() {
+        let layout = LayoutPlanReport {
+            schema_identity: 0x45,
+            entries: vec![
+                LayoutFieldEntryReport {
+                    field: "word".into(),
+                    member_identity: Some(7),
+                    placement: LayoutPlacementReport::At { offset: 0 },
+                },
+                LayoutFieldEntryReport {
+                    field: "word".into(),
+                    member_identity: Some(8),
+                    placement: LayoutPlacementReport::At { offset: 4 },
+                },
+            ],
+            offsets: Some(vec![0, 4]),
+            size: Some(8),
+            align: 4,
+        };
+
+        let error = AccessPlan::inaccessible(&layout)
+            .expect_err("one presentation name cannot select two stable field identities");
+        assert!(
+            error.0.contains(
+                "layout field `word` identifies both stable member identity #7 and stable member identity #8"
+            ),
+            "{}",
+            error.0
+        );
     }
 
     #[test]
