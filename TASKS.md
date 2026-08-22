@@ -1904,7 +1904,16 @@ Remaining:
   transitive affine custody and its fixed one-equality substitution remain
   separate consumers with unchanged precedence, endpoint orientation, proof
   shapes, and rejection behavior. The catalog exposes exactly two legs—no
-  depth parameter, recursion, or generalized path search. One-equality
+  depth parameter, recursion, or generalized path search.
+  Ordered transitive affine
+  right-leg indexes now live in paired, side-local
+  `affine_selection/transitive/chains/right_index` modules. Producer and
+  reconstruction independently index exact `LessOrEqual` rows by Value left
+  endpoint in requirements-before-semantic-axioms order; only the producer
+  retains citation custody. Outer-chain traversal, Value-middle eligibility,
+  same-row rejection, proof shape, and the fixed two-citation frontier remain
+  unchanged.
+  One-equality
   transitive affine-root custody now lives in independent side-local
   `affine_selection/transitive/alias` modules. Production alone retains the
   equality citation and ordered two-leg citation identities, constructs one
