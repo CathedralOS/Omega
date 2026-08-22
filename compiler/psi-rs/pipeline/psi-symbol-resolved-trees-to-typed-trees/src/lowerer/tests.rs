@@ -894,6 +894,131 @@ fn sealed_quotient_namespace_cannot_be_shadowed() {
 }
 
 #[test]
+fn quotient_cannot_declare_structural_equatable_conformance() {
+    let source = r#"
+        data Carrier {}
+        proposition equivalent(left: Carrier, right: Carrier);
+        trait Equivalence<C, proposition Relation>
+        where proposition Relation(left: C, right: C);
+        {
+        }
+        CarrierEquivalence: satisfies Equivalence<Carrier, equivalent> {}
+        data ExactQ = Carrier % equivalent
+        where equivalent satisfies
+            Equivalence<Carrier, equivalent>
+            as CarrierEquivalence;
+        ExactQEquatable: ExactQ satisfies Equatable;
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let diagnostic = lower_symbol_resolved_trees(&resolved)
+        .expect_err("a quotient must not synthesize representative equality");
+
+    assert!(
+        diagnostic
+            .message
+            .contains("cannot synthesize equality for a quotient type"),
+        "unexpected diagnostic: {}",
+        diagnostic.message
+    );
+}
+
+#[test]
+fn quotient_field_cannot_enter_synthesized_container_equality() {
+    let source = r#"
+        data Carrier {}
+        proposition equivalent(left: Carrier, right: Carrier);
+        trait Equivalence<C, proposition Relation>
+        where proposition Relation(left: C, right: C);
+        {
+        }
+        CarrierEquivalence: satisfies Equivalence<Carrier, equivalent> {}
+        data ExactQ = Carrier % equivalent
+        where equivalent satisfies
+            Equivalence<Carrier, equivalent>
+            as CarrierEquivalence;
+
+        data Wrapper { value: ExactQ; }
+        WrapperEquatable: Wrapper satisfies Equatable;
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let diagnostic = lower_symbol_resolved_trees(&resolved)
+        .expect_err("container synthesis must not compare a quotient representative field");
+
+    assert!(
+        diagnostic
+            .message
+            .contains("field `value` of `Wrapper` has quotient type `ExactQ`"),
+        "unexpected diagnostic: {}",
+        diagnostic.message
+    );
+}
+
+#[test]
+fn runtime_quotient_equality_requires_a_named_lifted_operation() {
+    let source = r#"
+        data Carrier {}
+        proposition equivalent(left: Carrier, right: Carrier);
+        trait Equivalence<C, proposition Relation>
+        where proposition Relation(left: C, right: C);
+        {
+        }
+        CarrierEquivalence: satisfies Equivalence<Carrier, equivalent> {}
+        data ExactQ = Carrier % equivalent
+        where equivalent satisfies
+            Equivalence<Carrier, equivalent>
+            as CarrierEquivalence;
+
+        machine compare(left: ExactQ, right: ExactQ) -> bool {
+            left == right
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let diagnostic = lower_symbol_resolved_trees(&resolved)
+        .expect_err("runtime quotient equality must not observe representatives");
+
+    assert!(
+        diagnostic
+            .message
+            .contains("retained representatives are opaque"),
+        "unexpected diagnostic: {}",
+        diagnostic.message
+    );
+}
+
+#[test]
+fn proof_position_quotient_equality_remains_for_congruence() {
+    let source = r#"
+        data Carrier {}
+        proposition equivalent(left: Carrier, right: Carrier);
+        trait Equivalence<C, proposition Relation>
+        where proposition Relation(left: C, right: C);
+        {
+        }
+        CarrierEquivalence: satisfies Equivalence<Carrier, equivalent> {}
+        data ExactQ = Carrier % equivalent
+        where equivalent satisfies
+            Equivalence<Carrier, equivalent>
+            as CarrierEquivalence;
+
+        machine cite(left: ExactQ, right: ExactQ)
+        requires left == right
+        {
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    lower_symbol_resolved_trees(&resolved)
+        .expect("logical quotient equality must remain available to congruence validation");
+}
+
+#[test]
 fn proposition_application_rejects_in_runtime_value_position() {
     let source = r#"
         proposition related(left: i32, right: i32);
