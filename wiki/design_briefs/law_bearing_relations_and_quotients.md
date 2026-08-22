@@ -723,6 +723,13 @@ operation is emitted until compiler-derived relations, correspondence, and
 contracts are independently validated. The retired bare call pilot cannot
 recover authority through structural proof-machine discovery.
 
+Executable admission is currently blocked on the concrete `Respects` evidence
+carrier. The source/core vocabulary has no sealed declaration capable of the
+compiler-derived variadic positional telescope described above; authored empty
+lookalikes are not authority, and an arity-indexed public trait ladder is a
+rejected design. The checked/terminal evidence shape for that intrinsic
+interface must be settled before the retained request can cross the boundary.
+
 The representation-observer fence is explicit at resolved-to-typed lowering.
 A quotient cannot declare `Equatable`, participate as a field in synthesized
 container equality, use runtime `==`/`!=`, or appear as the target of proof-only
