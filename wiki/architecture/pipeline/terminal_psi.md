@@ -1990,8 +1990,13 @@ its source-ordered ledger word. They perform no recursive path or permutation
 search. Cast-chain custody now lives in dedicated, side-local `cast_custody`
 modules. Production and verification independently own unique-spine selection,
 exact witness/kernel replay, and final `IntegerCastBound` completion; the
-broader evidence selectors retain their existing order and proof shapes. This
-completes contiguous cast-chain custody for exact divide/remainder goals but
+broader evidence selectors retain their existing order and proof shapes. Cast
+evidence selection now lives in dedicated, side-local `cast_selection` modules.
+Production and verification independently preserve direct-bound,
+landed-literal, fixed one-alias, closed-strengthening, alias-landed-literal,
+then fixed two-alias precedence; source-carrier literal remapping remains with
+cast custody. No proof shape or search frontier changes. This completes
+contiguous cast-chain custody for exact divide/remainder goals but
 does not promote either
 whole row: affine/cast, shift/cast, joins, and correlated results remain
 trusted-reducer work, and `fully-derived false` is unchanged.

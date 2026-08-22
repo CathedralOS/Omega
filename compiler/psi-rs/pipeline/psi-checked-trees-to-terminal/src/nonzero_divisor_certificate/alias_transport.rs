@@ -8,7 +8,7 @@ use std::collections::BTreeMap;
 use psi_core::{Proposition, PropositionContext, ScalarTerm};
 use psi_proof_kernel::{ProofNode, ProofRule};
 
-use super::{cast_custody, cited_facts, closed_integer_relation, remap_integer_literal};
+use super::{cast_custody, cited_facts, closed_integer_relation};
 
 pub(super) fn prove_one(
     assumptions: &[Proposition],
@@ -188,7 +188,7 @@ fn prove_cast_from_stronger_bound(
     if !matches!(target, ScalarTerm::Value { .. }) {
         return None;
     }
-    let source_endpoint = remap_integer_literal(target_endpoint, root_type)?;
+    let source_endpoint = cast_custody::remap_integer_literal(target_endpoint, root_type)?;
     let closed_bridge = if endpoint == 1 {
         closed_integer_relation(Proposition::LessOrEqual(
             source_endpoint.clone(),
@@ -317,7 +317,8 @@ fn prove_cast_from_landed_literal(
         if !matches!(target, ScalarTerm::Value { .. }) {
             continue;
         }
-        let Some(source_endpoint) = remap_integer_literal(target_endpoint, root_type) else {
+        let Some(source_endpoint) = cast_custody::remap_integer_literal(target_endpoint, root_type)
+        else {
             continue;
         };
         let closed_relation = if endpoint == 1 {

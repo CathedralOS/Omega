@@ -8,7 +8,7 @@ use std::collections::BTreeMap;
 
 use psi_core::{Proposition, PropositionContext, ScalarTerm};
 
-use super::{cast_custody, closed_integer_less_or_equal, retained_remap_integer_literal};
+use super::{cast_custody, closed_integer_less_or_equal};
 
 pub(super) fn retained_one(
     requirements: &[Proposition],
@@ -158,7 +158,8 @@ fn retained_cast_from_stronger_bound(
     if !matches!(target, ScalarTerm::Value { .. }) {
         return false;
     }
-    let Some(source_endpoint) = retained_remap_integer_literal(target_endpoint, root_type) else {
+    let Some(source_endpoint) = cast_custody::remap_integer_literal(target_endpoint, root_type)
+    else {
         return false;
     };
     let closed = if endpoint == 1 {
@@ -241,7 +242,8 @@ fn retained_cast_from_landed_literal(
         .into_iter()
         .filter(|(target, _, _)| matches!(target, ScalarTerm::Value { .. }))
         .any(|(_, target_endpoint, endpoint)| {
-            let Some(source_endpoint) = retained_remap_integer_literal(target_endpoint, root_type)
+            let Some(source_endpoint) =
+                cast_custody::remap_integer_literal(target_endpoint, root_type)
             else {
                 return false;
             };
