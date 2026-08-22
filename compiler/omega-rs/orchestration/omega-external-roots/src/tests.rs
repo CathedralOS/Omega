@@ -478,6 +478,66 @@ fn opaque_epoch_realization_binds_exact_installed_entry_plan_and_body_evidence()
             .0
             .contains("widens the boundary plan's nesting ceiling")
     );
+
+    let error = bind_opaque_adapter_stack_realization(
+        &summary,
+        &boundary,
+        &code,
+        entry_id(0x819),
+        omega_calling_conventions::EntryStack::Interrupted,
+        realization(Preemption::NotApplicable),
+        root_id(0x81a, StackValidationReceiptId::from_normalized_identity),
+    )
+    .expect_err("opaque epoch evidence cannot name an absent installed entry");
+    assert!(error.0.contains("names no exact installed entry"));
+
+    let aarch64_boundary = evaluate_ordinary_boundary_entry_plan(
+        CallingPolicy::Aapcs64,
+        &CallSignature {
+            parameters: vec![ValueShape::integer(8, 8)],
+            result: None,
+        },
+    )
+    .expect("AArch64 boundary plan");
+    let error = bind_opaque_adapter_stack_realization(
+        &summary,
+        &aarch64_boundary,
+        &code,
+        entry,
+        omega_calling_conventions::EntryStack::Interrupted,
+        realization(Preemption::NotApplicable),
+        root_id(0x81b, StackValidationReceiptId::from_normalized_identity),
+    )
+    .expect_err("opaque epoch evidence cannot cross target architectures");
+    assert!(
+        error
+            .0
+            .contains("differs from the installed artifact architecture")
+    );
+
+    let wrong_body_domain = validate_entry_stack_realization(EntryStackRealization {
+        contexts: vec![ArrivalContextRealization {
+            context: ArrivalContextId::new(1).expect("arrival context"),
+            epochs: vec![EntryStackEpoch {
+                stage: EntryStackStage::Body,
+                active_domain: StackDomainRef::Dedicated { class: 1 },
+                occupancy_by_domain: Vec::new(),
+                nesting: Preemption::NotApplicable,
+            }],
+        }],
+    })
+    .expect("structurally valid wrong-domain realization");
+    let error = bind_opaque_adapter_stack_realization(
+        &summary,
+        &boundary,
+        &code,
+        entry,
+        omega_calling_conventions::EntryStack::Interrupted,
+        wrong_body_domain,
+        root_id(0x81c, StackValidationReceiptId::from_normalized_identity),
+    )
+    .expect_err("opaque epoch evidence cannot move the handler body to another stack");
+    assert!(error.0.contains("executes its body on a domain other than"));
 }
 
 #[test]

@@ -1025,11 +1025,17 @@ validate and fingerprint the finite context/epoch shape, resolve relative
 `Interrupted` per path, join body WCSU only at the body epoch, compose aligned
 concurrent demand, maximize sequential epochs and contexts, and close repeated
 nesting through the declared finite depth. The admitted installation path is
-still a scalar precursor: it has not yet bound those pure inputs to sealed
-target facts, emitted adapter bytes, or an opaque-provider receipt, proved the
-arrival-context set complete, or retained the exact realization through the
-root ledger. Its result therefore remains insufficient as a complete
-`StackPlan` until that evidence-bound path replaces the scalar local row.
+still a scalar precursor, but opaque adapters now have the first
+evidence-bound path: orchestration binds the validated realization and body
+demand to the exact installed entry, installed-code context, artifact,
+boundary-plan fingerprint, target architecture, resolved stack domain, public
+preemption ceiling, and provider receipt. Bound composition retains those exact
+inputs behind its compact fingerprint. Hardware arrival still needs derivation
+from sealed target facts, generated adapter epochs still need derivation from
+emitted bytes, and admitted context sets still need a completeness proof and
+ledger/report retention. Until those pieces land and the bound epoch path
+replaces the scalar local row, its result remains insufficient as a complete
+`StackPlan`.
 
 A sealed provider-execution binding joins the normalized selected provider
 plan, exact entry/boundary/reach, and all three resource realizations into
