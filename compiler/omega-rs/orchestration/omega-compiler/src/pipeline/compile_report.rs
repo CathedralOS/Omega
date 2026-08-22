@@ -690,6 +690,9 @@ mod tests {
             native.checked_native_executable_path(),
             Some(std::path::Path::new("build/main")),
         );
+        let mut changed_kind = native.clone();
+        changed_kind.output_kind = CompileOutputKind::ObjectContainer;
+        assert!(changed_kind.checked_native_executable_path().is_none());
         let check_only = report(false, CompileOutputKind::CheckOnly, None, None);
         assert!(check_only.has_consistent_executable_publication_custody());
         assert!(check_only.checked_native_executable_path().is_none());
