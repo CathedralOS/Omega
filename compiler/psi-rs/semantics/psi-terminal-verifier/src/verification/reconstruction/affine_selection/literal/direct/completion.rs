@@ -4,6 +4,8 @@ use psi_core::{Proposition, PropositionContext, ScalarTerm};
 
 use super::super::super::super::affine_custody::{self, DefinitionIndex};
 
+mod bound;
+
 pub(super) fn retained(
     context: &PropositionContext,
     goal: &Proposition,
@@ -12,12 +14,7 @@ pub(super) fn retained(
     root: &ScalarTerm,
     literal: &ScalarTerm,
 ) -> bool {
-    [
-        Proposition::LessOrEqual(literal.clone(), root.clone()),
-        Proposition::LessOrEqual(root.clone(), literal.clone()),
-    ]
-    .iter()
-    .any(|root_bound| {
+    bound::retained(root, literal).iter().any(|root_bound| {
         affine_custody::retained_from_root(
             context,
             goal,
