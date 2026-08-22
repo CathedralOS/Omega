@@ -4878,6 +4878,13 @@ Owners:
   and their exact wrap/clamp diagnostics. Exact-owner ambiguity, the 795
   rooted/3 legacy inventory, and receipt-drift fences remain green; trapping,
   float, and legacy-conversion owners remain separate.
+  Three authored-root integer guard-arithmetic regressions—divide/modulo guard
+  subjects, negative-i32 computed guard values, and mixed signed/unsigned
+  divide-modulo signedness—now launch `OutputOnly` native execution solely
+  through exact checked-report executable receipts while preserving literal
+  status 70 and the detailed 71–74 wrong-arm diagnostics. Exact-owner
+  ambiguity, the 795 rooted/3 legacy inventory, and receipt-drift fences remain
+  green; loop, float, trapping, and legacy owners remain separate.
   Final
   replay now also retains an exact
   selected-instruction-to-function-symbol owner map. Duplicate selected
