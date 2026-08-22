@@ -3,9 +3,8 @@
 use psi_core::{Proposition, PropositionContext};
 use psi_proof_kernel::{PrimitiveJudgment, ProofNode, ProofRule};
 
-use super::integer_evidence::cited_facts;
-
 mod bound;
+mod exact;
 mod logical;
 mod order;
 mod substitution;
@@ -16,10 +15,8 @@ pub(super) fn build(
     assumptions: &[Proposition],
     semantic_axioms: &[Proposition],
 ) -> Option<ProofNode> {
-    for (citation, fact) in cited_facts(assumptions, semantic_axioms) {
-        if fact == goal {
-            return Some(citation.proof(fact));
-        }
+    if let Some(proof) = exact::prove(goal, assumptions, semantic_axioms) {
+        return Some(proof);
     }
     match goal {
         Proposition::Truth => Some(ProofNode {

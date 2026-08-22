@@ -3,6 +3,7 @@
 use psi_core::{Proposition, PropositionContext};
 
 mod bound;
+mod exact;
 mod logical;
 mod order;
 mod substitution;
@@ -13,11 +14,7 @@ pub(super) fn retained(
     requirements: &[Proposition],
     semantic_axioms: &[Proposition],
 ) -> bool {
-    if requirements
-        .iter()
-        .chain(semantic_axioms)
-        .any(|fact| fact == goal)
-    {
+    if exact::retained(goal, requirements, semantic_axioms) {
         return true;
     }
     match goal {
