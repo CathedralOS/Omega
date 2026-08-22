@@ -1331,11 +1331,11 @@ impl PostHandoffWriterPlan {
     }
 
     /// Validates the concrete placement and every write, resolves every target,
-    /// then writes directly into the unpublished destination. Repeated
+    /// then commits one staged image into the unpublished destination. Repeated
     /// fragments of one target resolve once so a provider cannot observe
-    /// inconsistent address values within one materialization. Failure before
-    /// the write loop leaves bytes unchanged; a provider must keep the
-    /// destination unpublished on any later failure.
+    /// inconsistent address values within one materialization. Every rejection
+    /// leaves the destination bytes unchanged; successful application commits
+    /// the complete writer range once. Publication remains a later transition.
     pub fn execute(
         &self,
         destination: &mut [u8],
@@ -1374,16 +1374,32 @@ impl PostHandoffWriterPlan {
             values.push(value);
         }
 
-        for (step, value) in self.steps.iter().zip(values) {
-            apply_write(
-                &mut destination[..self.byte_len],
-                self.byte_order,
-                &step.write,
-                value,
-            )?;
-        }
-        Ok(())
+        apply_post_handoff_writes_atomically(
+            &mut destination[..self.byte_len],
+            self.byte_order,
+            &self.steps,
+            &values,
+        )
     }
+}
+
+fn apply_post_handoff_writes_atomically(
+    destination: &mut [u8],
+    byte_order: ByteOrder,
+    steps: &[PostHandoffWriterStep],
+    values: &[u64],
+) -> Result<(), MaterializationDiagnostic> {
+    if steps.len() != values.len() {
+        return Err(MaterializationDiagnostic(
+            "post-handoff writer application requires one resolved value per fragment".into(),
+        ));
+    }
+    let mut staged = destination.to_vec();
+    for (step, value) in steps.iter().zip(values) {
+        apply_write(&mut staged, byte_order, &step.write, *value)?;
+    }
+    destination.copy_from_slice(&staged);
+    Ok(())
 }
 
 fn validate_post_handoff_writer_nonempty(
@@ -4324,6 +4340,60 @@ mod tests {
             .expect_err("invalid later step must reject before direct writes begin");
         assert!(error.0.contains("outside"));
         assert_eq!(bytes, [0xa5; 16]);
+    }
+
+    #[test]
+    fn writer_application_stages_late_failure_and_retry_atomically() {
+        let first = PostHandoffWriterStep {
+            write: MaterializationWrite {
+                field: "first".into(),
+                target: entry(),
+                container_byte_offset: 0,
+                container_width_bits: 64,
+                destination_lsb: 0,
+                source_lsb: 0,
+                width: 64,
+                stored_integer_fit: None,
+            },
+            source: PostHandoffWriterSource::Resolve(entry()),
+        };
+        let outside = PostHandoffWriterStep {
+            write: MaterializationWrite {
+                field: "outside".into(),
+                container_byte_offset: 16,
+                ..first.write.clone()
+            },
+            source: first.source,
+        };
+        let values = [0x1122_3344_5566_7788, 0x99aa_bbcc_ddee_ff00];
+        let mut bytes = [0xa5_u8; 16];
+
+        let error = apply_post_handoff_writes_atomically(
+            &mut bytes,
+            ByteOrder::LittleEndian,
+            &[first.clone(), outside.clone()],
+            &values,
+        )
+        .expect_err("late application failure must reject the staged image");
+        assert!(error.0.contains("outside"));
+        assert_eq!(bytes, [0xa5; 16]);
+
+        let mut repaired = outside;
+        repaired.write.container_byte_offset = 8;
+        apply_post_handoff_writes_atomically(
+            &mut bytes,
+            ByteOrder::LittleEndian,
+            &[first, repaired],
+            &values,
+        )
+        .expect("repaired staged image commits once");
+        assert_eq!(
+            bytes,
+            [
+                0x88, 0x77, 0x66, 0x55, 0x44, 0x33, 0x22, 0x11, 0x00, 0xff, 0xee, 0xdd, 0xcc, 0xbb,
+                0xaa, 0x99,
+            ]
+        );
     }
 
     #[test]
