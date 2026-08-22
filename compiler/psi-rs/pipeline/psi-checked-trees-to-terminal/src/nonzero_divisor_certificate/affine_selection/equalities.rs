@@ -3,6 +3,7 @@
 use psi_core::{Proposition, ScalarTerm};
 
 use super::super::integer_evidence::{Citation, cited_facts};
+use super::eligibility;
 
 pub(super) fn ordered<'a>(
     assumptions: &'a [Proposition],
@@ -19,4 +20,12 @@ pub(super) fn ordered<'a>(
                 (citation, equality, right, left),
             ]
         })
+}
+
+pub(super) fn exact_value_bindings<'a>(
+    assumptions: &'a [Proposition],
+    semantic_axioms: &'a [Proposition],
+) -> impl Iterator<Item = (Citation, &'a Proposition, &'a ScalarTerm, &'a ScalarTerm)> + 'a {
+    ordered(assumptions, semantic_axioms)
+        .filter(|(_, _, root, literal)| eligibility::exact_value_binding(root, literal))
 }

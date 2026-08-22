@@ -32,12 +32,3 @@ pub(super) fn exact_value_binding(root: &ScalarTerm, literal: &ScalarTerm) -> bo
         && integer_literal_type(literal)
             .is_some_and(|integer_type| root.scalar_type() == ScalarType::Integer(integer_type))
 }
-
-pub(super) fn one_alias_join(
-    outer_equality: &Proposition,
-    root: &ScalarTerm,
-    inner_equality: &Proposition,
-    literal: &ScalarTerm,
-) -> bool {
-    distinct_facts(outer_equality, inner_equality) && exact_value_binding(root, literal)
-}
